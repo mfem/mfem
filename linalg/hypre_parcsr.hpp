@@ -45,7 +45,14 @@ void hypre_ParCSRMatrixEliminateAXB(hypre_ParCSRMatrix *A,
 void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
                                     HYPRE_Int num_rowscols_to_elim,
-                                    HYPRE_Int *rowscols_to_elim);
+                                    HYPRE_Int *rowscols_to_elim,
+                                    int ignore_rows = 0);
+
+/** Eliminate rows from a hypre ParCSRMatrix, setting all entries in the listed
+    rows of the matrix to zero. */
+void hypre_ParCSRMatrixEliminateRows(hypre_ParCSRMatrix *A,
+                                     HYPRE_Int num_rows_to_elim,
+                                     const HYPRE_Int *rows_to_elim);
 
 /** Split matrix 'A' into nr x nc blocks, return nr x nc pointers to
     new parallel matrices. The array 'blocks' needs to be preallocated to hold
@@ -115,8 +122,9 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B);
 
 /** Perform the operation A += beta*B, assuming that both matrices use the same
-    row and column partitions and the same col_map_offd arrays. We also assume
-    that the sparsity pattern of A contains that of B. */
+    row and column partitions and the same col_map_offd arrays, or B has an empty
+    off-diagonal block. We also assume that the sparsity pattern of A contains
+    that of B. */
 HYPRE_Int
 hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
                       HYPRE_Complex       beta,

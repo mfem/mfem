@@ -15,10 +15,16 @@
 namespace mfem
 {
 
+void ODESolver::Init(TimeDependentOperator &f)
+{
+   this->f = &f;
+   mem_type = GetMemoryType(f.GetMemoryClass());
+}
+
 void ForwardEulerSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   dxdt.SetSize(f->Width());
+   dxdt.SetSize(f->Width(), mem_type);
 }
 
 void ForwardEulerSolver::Step(Vector &x, double &t, double &dt)
@@ -34,8 +40,8 @@ void RK2Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    int n = f->Width();
-   dxdt.SetSize(n);
-   x1.SetSize(n);
+   dxdt.SetSize(n, mem_type);
+   x1.SetSize(n, mem_type);
 }
 
 void RK2Solver::Step(Vector &x, double &t, double &dt)
@@ -63,8 +69,8 @@ void RK3SSPSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    int n = f->Width();
-   y.SetSize(n);
-   k.SetSize(n);
+   y.SetSize(n, mem_type);
+   k.SetSize(n, mem_type);
 }
 
 void RK3SSPSolver::Step(Vector &x, double &t, double &dt)
@@ -95,9 +101,9 @@ void RK4Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    int n = f->Width();
-   y.SetSize(n);
-   k.SetSize(n);
-   z.SetSize(n);
+   y.SetSize(n, mem_type);
+   k.SetSize(n, mem_type);
+   z.SetSize(n, mem_type);
 }
 
 void RK4Solver::Step(Vector &x, double &t, double &dt)
@@ -143,10 +149,10 @@ void ExplicitRKSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    int n = f->Width();
-   y.SetSize(n);
+   y.SetSize(n, mem_type);
    for (int i = 0; i < s; i++)
    {
-      k[i].SetSize(n);
+      k[i].SetSize(n, mem_type);
    }
 }
 
@@ -338,10 +344,152 @@ const double RK8Solver::c[] =
 };
 
 
+AdamsBashforthSolver::AdamsBashforthSolver(int _s, const double *_a)
+{
+   s = 0;
+   smax = std::min(_s,5);
+   a = _a;
+   k = new Vector[5];
+
+   if (smax <= 2)
+   {
+      RKsolver = new RK2Solver();
+   }
+   else if (smax == 3)
+   {
+      RKsolver = new RK3SSPSolver();
+   }
+   else
+   {
+      RKsolver = new RK4Solver();
+   }
+}
+
+void AdamsBashforthSolver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   RKsolver->Init(_f);
+   idx.SetSize(smax);
+   for (int i = 0; i < smax; i++)
+   {
+      idx[i] = (smax-i)%smax;
+      k[i].SetSize(f->Width());
+   }
+   s = 0;
+}
+
+void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
+{
+   s++;
+   s = std::min(s, smax);
+   if (s == smax)
+   {
+      f->SetTime(t);
+      f->Mult(x, k[idx[0]]);
+      for (int i = 0; i < s; i++)
+      {
+         x.Add(a[i]*dt, k[idx[i]]);
+      }
+   }
+   else
+   {
+      f->Mult(x,k[idx[0]]);
+      RKsolver->Step(x,t,dt);
+   }
+   t += dt;
+
+   // Shift the index
+   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
+}
+
+const double AB1Solver::a[] =
+{1.0};
+const double AB2Solver::a[] =
+{1.5,-0.5};
+const double AB3Solver::a[] =
+{23.0/12.0,-4.0/3.0, 5.0/12.0};
+const double AB4Solver::a[] =
+{55.0/24.0,-59.0/24.0, 37.0/24.0,-9.0/24.0};
+const double AB5Solver::a[] =
+{1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
+
+AdamsMoultonSolver::AdamsMoultonSolver(int _s, const double *_a)
+{
+   s = 0;
+   smax = std::min(_s+1,5);
+   a = _a;
+   k = new Vector[5];
+
+   if (smax <= 3)
+   {
+      RKsolver = new SDIRK23Solver();
+   }
+   else
+   {
+      RKsolver = new SDIRK34Solver();
+   }
+}
+
+void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   RKsolver->Init(_f);
+   int n = f->Width();
+   idx.SetSize(smax);
+   for (int i = 0; i < smax; i++)
+   {
+      idx[i] = (smax-i)%smax;
+      k[i].SetSize(n);
+   }
+   s = 0;
+}
+
+void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
+{
+   if ((s == 0)&&(smax>1))
+   {
+      f->Mult(x,k[idx[1]]);
+   }
+   s++;
+   s = std::min(s, smax);
+
+   if (s >= smax-1)
+   {
+      f->SetTime(t);
+      for (int i = 1; i < smax; i++)
+      {
+         x.Add(a[i]*dt, k[idx[i]]);
+      }
+      f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
+      x.Add(a[0]*dt, k[idx[0]]);
+   }
+   else
+   {
+      RKsolver->Step(x,t,dt);
+      f->Mult(x,k[idx[0]]);
+   }
+   t += dt;
+
+   // Shift the index
+   for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
+}
+
+const double AM0Solver::a[] =
+{1.0};
+const double AM1Solver::a[] =
+{0.5, 0.5};
+const double AM2Solver::a[] =
+{5.0/12.0, 2.0/3.0, -1.0/12.0};
+const double AM3Solver::a[] =
+{3.0/8.0, 19.0/24.0,-5.0/24.0, 1.0/24.0};
+const double AM4Solver::a[] =
+{251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0};
+
+
 void BackwardEulerSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
+   k.SetSize(f->Width(), mem_type);
 }
 
 void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
@@ -356,7 +504,7 @@ void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
 void ImplicitMidpointSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
+   k.SetSize(f->Width(), mem_type);
 }
 
 void ImplicitMidpointSolver::Step(Vector &x, double &t, double &dt)
@@ -391,8 +539,8 @@ SDIRK23Solver::SDIRK23Solver(int gamma_opt)
 void SDIRK23Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
-   y.SetSize(f->Width());
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
 }
 
 void SDIRK23Solver::Step(Vector &x, double &t, double &dt)
@@ -418,9 +566,9 @@ void SDIRK23Solver::Step(Vector &x, double &t, double &dt)
 void SDIRK34Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
-   y.SetSize(f->Width());
-   z.SetSize(f->Width());
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
+   z.SetSize(f->Width(), mem_type);
 }
 
 void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
@@ -455,8 +603,8 @@ void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
 void SDIRK33Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
-   y.SetSize(f->Width());
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
 }
 
 void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
@@ -489,9 +637,9 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
 void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
-   y.SetSize(f->Width());
-   xdot.SetSize(f->Width());
+   k.SetSize(f->Width(), mem_type);
+   y.SetSize(f->Width(), mem_type);
+   xdot.SetSize(f->Width(), mem_type);
    xdot = 0.0;
    first = true;
 }
@@ -501,6 +649,7 @@ void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
    rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
    rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
 
+   // According to Jansen
    alpha_m = 0.5*(3.0 - rho_inf)/(1.0 + rho_inf);
    alpha_f = 1.0/(1.0 + rho_inf);
    gamma = 0.5 + alpha_m - alpha_f;
@@ -535,27 +684,26 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
 // This routine assumes xdot is initialized.
 void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
-   double dt_fac1 = alpha_f*(1.0 - gamma/alpha_m);
-   double dt_fac2 = alpha_f*gamma/alpha_m;
-   double dt_fac3 = 1.0/alpha_m;
-
-   // In the first pass xdot is not yet computed. If parameter choices requires
-   // xdot midpoint rule is used instead for the first step only.
-   if (first && (dt_fac1 != 0.0))
+   if (first)
    {
-      dt_fac1 = 0.0;
-      dt_fac2 = 0.5;
-      dt_fac3 = 2.0;
+      f->Mult(x,xdot);
       first = false;
    }
 
-   add(x, dt_fac1*dt, xdot, y);
-   f->SetTime(t + dt_fac2*dt);
-   f->ImplicitSolve(dt_fac2*dt, y, k);
+   // Set y = x + alpha_f*(1.0 - (gamma/alpha_m))*dt*xdot
+   add(x, alpha_f*(1.0 - (gamma/alpha_m))*dt, xdot, y);
 
-   add(y, dt_fac2*dt, k, x);
-   k.Add(-1.0, xdot);
-   xdot.Add(dt_fac3, k);
+   // Solve k = f(y + dt_eff*k)
+   double dt_eff = (gamma*alpha_f/alpha_m)*dt;
+   f->SetTime(t + alpha_f*dt);
+   f->ImplicitSolve(dt_eff, y, k);
+
+   // Update x and xdot
+   x.Add((1.0 - (gamma/alpha_m))*dt, xdot);
+   x.Add(       (gamma/alpha_m) *dt, k);
+
+   xdot *= (1.0-(1.0/alpha_m));
+   xdot.Add((1.0/alpha_m),k);
 
    t += dt;
 }

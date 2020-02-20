@@ -95,12 +95,19 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
-   double total_err = GetNorm(local_err, mesh);
+   const double total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
 
-   threshold = std::max(total_err * total_fraction *
-                        std::pow(num_elements, -1.0/total_norm_p),
-                        local_err_goal);
+   if (total_norm_p < infinity())
+   {
+      threshold = std::max(total_err * total_fraction *
+                           std::pow(num_elements, -1.0/total_norm_p),
+                           local_err_goal);
+   }
+   else
+   {
+      threshold = std::max(total_err * total_fraction, local_err_goal);
+   }
 
    for (int el = 0; el < NE; el++)
    {

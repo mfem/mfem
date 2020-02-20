@@ -46,7 +46,6 @@ double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    NonlinearForm::Mult(x, y); // x --(P)--> aux1 --(A_local)--> aux2
-   Y.SetData(aux2.GetData()); // aux2 contains A_local.P.x
 
    if (fnfi.Size())
    {
@@ -58,7 +57,8 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
       Array<int> vdofs1, vdofs2;
       Vector el_x, el_y;
 
-      X.SetData(aux1.GetData()); // aux1 contains P.x
+      aux1.HostReadWrite();
+      X.MakeRef(aux1, 0); // aux1 contains P.x
       X.ExchangeFaceNbrData();
       const int n_shared_faces = pmesh->GetNSharedFaces();
       for (int i = 0; i < n_shared_faces; i++)
@@ -78,13 +78,14 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
          for (int k = 0; k < fnfi.Size(); k++)
          {
             fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
-            Y.AddElementVector(vdofs1, el_y.GetData());
+            aux2.AddElementVector(vdofs1, el_y.GetData());
          }
       }
    }
 
-   P->MultTranspose(Y, y);
+   P->MultTranspose(aux2, y);
 
+   y.HostReadWrite();
    for (int i = 0; i < ess_tdof_list.Size(); i++)
    {
       y(ess_tdof_list[i]) = 0.0;

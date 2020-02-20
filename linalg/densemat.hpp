@@ -53,10 +53,11 @@ public:
    /// Creates rectangular matrix equal to the transpose of mat.
    DenseMatrix(const DenseMatrix &mat, char ch);
 
-   /** Construct a DenseMatrix using existing data array. The DenseMatrix does
-       not assume ownership of the data array, i.e. it will not delete the
-       array. */
-   DenseMatrix(double *d, int h, int w);
+   /// Construct a DenseMatrix using an existing data array.
+   /** The DenseMatrix does not assume ownership of the data array, i.e. it will
+       not delete the array. */
+   DenseMatrix(double *d, int h, int w)
+      : Matrix(h, w) { UseExternalData(d, h, w); }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
@@ -70,7 +71,7 @@ public:
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
-   { if (OwnsData()) { mfem::Delete(data); } UseExternalData(d, h, w); }
+   { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
@@ -78,7 +79,7 @@ public:
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { mfem::Delete(data); } ClearExternalData(); }
+   { if (OwnsData()) { delete [] data; } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -261,8 +262,12 @@ public:
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
+   void SetRow(int r, const double* row);
    void SetRow(int r, const Vector &row);
+
+   void SetCol(int c, const double* col);
    void SetCol(int c, const Vector &col);
+
 
    /// Set all entries of a row to the specified value.
    void SetRow(int row, double value);
@@ -325,7 +330,7 @@ public:
    /// Perform (ro+i,co+j)+=A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(DenseMatrix &A, int ro, int co);
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
-   void AddMatrix(double a, DenseMatrix &A, int ro, int co);
+   void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
    /// Add the matrix 'data' to the Vector 'v' at the given 'offset'
    void AddToVector(int offset, Vector &v) const;
@@ -369,11 +374,31 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
+/// @brief Solves the dense linear system, `A * X = B` for `X`
+///
+/// @param [in,out] A the square matrix for the linear system
+/// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
+/// @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
+///
+/// @return status set to true if successful, otherwise, false.
+///
+/// @note This routine may replace the contents of the input Matrix, A, with the
+///       corresponding LU factorization of the matrix. Matrices of size 1x1 and
+///       2x2 are handled explicitly.
+///
+/// @pre A.IsSquare() == true
+/// @pre X != nullptr
+bool LinearSolve(DenseMatrix& A, double* X, double TOL = 1.e-9);
+
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
 /// Matrix matrix multiplication.  A += B * C.
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
+
+/// Matrix matrix multiplication.  A += alpha * B * C.
+void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
+               DenseMatrix &a);
 
 /** Calculate the adjugate of a matrix (for NxN matrices, N=1,2,3) or the matrix
     adj(A^t.A).A^t for rectangular matrices (2x1, 3x1, or 3x2). This operation
@@ -469,10 +494,19 @@ public:
 
    LUFactors(double *data_, int *ipiv_) : data(data_), ipiv(ipiv_) { }
 
-   /** Factorize the current data of size (m x m) overwriting it with the LU
-       factors. The factorization is such that L.U = P.A, where A is the
-       original matrix and P is a permutation matrix represented by ipiv. */
-   void Factor(int m);
+   /**
+    * @brief Compute the LU factorization of the current matrix
+    *
+    * Factorize the current matrix of size (m x m) overwriting it with the
+    * LU factors. The factorization is such that L.U = P.A, where A is the
+    * original matrix and P is a permutation matrix represented by ipiv.
+    *
+    * @param [in] m size of the square matrix
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+    *
+    * @return status set to true if successful, otherwise, false.
+    */
+   bool Factor(int m, double TOL = 0.0);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
@@ -493,6 +527,10 @@ public:
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
    void Solve(int m, int n, double *X) const;
+
+   /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
+       for a matrix X of size (n x m). */
+   void RightSolve(int m, int n, double *X) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
    void GetInverseMatrix(int m, double *X) const;
@@ -656,39 +694,36 @@ class DenseTensor
 {
 private:
    DenseMatrix Mk;
-   double *tdata;
+   Memory<double> tdata;
    int nk;
-   bool own_data;
 
 public:
    DenseTensor()
    {
       nk = 0;
-      tdata = NULL;
-      own_data = true;
+      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
       : Mk(NULL, i, j)
    {
       nk = k;
-      tdata = mfem::New<double>(i*j*k);
-      own_data = true;
+      tdata.New(i*j*k);
    }
 
    /// Copy constructor: deep copy
-   DenseTensor(const DenseTensor& other)
-      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)
+   DenseTensor(const DenseTensor &other)
+      : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk)
    {
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
       {
-         tdata = mfem::New<double>(size);
-         mfem::Memcpy(tdata, other.tdata, sizeof(double) * size);
+         tdata.New(size, other.tdata.GetMemoryType());
+         tdata.CopyFrom(other.tdata, size);
       }
       else
       {
-         tdata = NULL;
+         tdata.Reset();
       }
    }
 
@@ -696,41 +731,65 @@ public:
    int SizeJ() const { return Mk.Width(); }
    int SizeK() const { return nk; }
 
+   int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
+
    void SetSize(int i, int j, int k)
    {
-      if (own_data) { mfem::Delete(tdata); }
+      const MemoryType mt = tdata.GetMemoryType();
+      tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      tdata = mfem::New<double>(i*j*k);
-      own_data = true;
+      tdata.New(i*j*k, mt);
    }
 
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
-      if (own_data) { mfem::Delete(tdata); }
+      tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      tdata = ext_data;
-      own_data = false;
+      tdata.Wrap(ext_data, i*j*k, false);
    }
 
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
 
-   DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
+   DenseMatrix &operator()(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      Mk.data = GetData(k);
+      return Mk;
+   }
    const DenseMatrix &operator()(int k) const
    { return const_cast<DenseTensor&>(*this)(k); }
 
    double &operator()(int i, int j, int k)
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
-   const double &operator()(int i, int j, int k) const
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
 
-   double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
+   const double &operator()(int i, int j, int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
+
+   double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
 
    double *Data() { return tdata; }
 
    const double *Data() const { return tdata; }
+
+   Memory<double> &GetMemory() { return tdata; }
+   const Memory<double> &GetMemory() const { return tdata; }
 
    /** Matrix-vector product from unassembled element matrices, assuming both
        'x' and 'y' use the same elem_dof table. */
@@ -741,10 +800,31 @@ public:
 
    long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
-   ~DenseTensor()
-   {
-      if (own_data) { mfem::Delete(tdata); }
-   }
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const double *HostRead() const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   double *HostWrite()
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   ~DenseTensor() { tdata.Delete(); }
 };
 
 

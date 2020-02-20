@@ -20,6 +20,10 @@
 #include "superlu_defs.h"
 #include "superlu_ddefs.h"
 
+#if XSDK_INDEX_SIZE == 64
+#error "SuperLUDist has been built with 64bit integers. This is not supported"
+#endif
+
 using namespace std;
 
 namespace mfem
@@ -130,6 +134,11 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    // hypre_CSRMatrix.
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
+#if MFEM_HYPRE_VERSION >= 21600
+   MFEM_VERIFY(csr_op->num_rows < INT_MAX,"SuperLU: number of local rows "
+               "is too large to store as an integer.");
+   hypre_CSRMatrixBigJtoJ(csr_op);
+#endif
 
    int m         = parcsr_op->global_num_rows;
    int n         = parcsr_op->global_num_cols;

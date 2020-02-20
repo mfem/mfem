@@ -100,6 +100,9 @@
 // Enable functionality based on the Gecko library
 // #define MFEM_USE_GECKO
 
+// Enable MFEM features based on the Ginkgo library
+// #define MFEM_USE_GINKGO
+
 // Enable secure socket streams based on the GNUTLS library
 // #define MFEM_USE_GNUTLS
 
@@ -121,9 +124,19 @@
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
 
-// Build the GPU/CUDA-enabled version of the MFEM library.
+// Enable MFEM functionality based on the HIOP library.
+// #define MFEM_USE_HIOP
+
+// Enable MFEM functionality based on the GSLIB library
+// #define MFEM_USE_GSLIB
+
+// Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 // #define MFEM_USE_CUDA
+
+// Build the AMD GPU/HIP-enabled version of the MFEM library.
+// Requires a HIP compiler (hipcc).
+// #define MFEM_USE_HIP
 
 // Enable functionality based on the RAJA library.
 // #define MFEM_USE_RAJA
@@ -131,8 +144,8 @@
 // Enable functionality based on the OCCA library.
 // #define MFEM_USE_OCCA
 
-// Enable MFEM's internal Memory Manager (needed e.g. for MFEM_USE_CUDA)
-// #define MFEM_USE_MM
+// Enable functionality based on the libCEED library.
+// #define MFEM_USE_CEED
 
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@

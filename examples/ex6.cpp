@@ -19,6 +19,8 @@
 //               ex6 -pa -d cuda
 //               ex6 -pa -d occa-cuda
 //               ex6 -pa -d raja-omp
+//               ex6 -pa -d ceed-cpu
+//               ex6 -pa -d ceed-cuda
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -49,7 +51,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool pa = false;
-   const char *device = "cpu";
+   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -59,7 +61,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device, "-d", "--device",
+   args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -72,14 +74,19 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    int sdim = mesh.SpaceDimension();
 
-   // 3. Since a NURBS mesh can currently only be refined uniformly, we need to
+   // 4. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
    //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
    if (mesh.NURBSext)
@@ -91,14 +98,10 @@ int main(int argc, char *argv[])
       mesh.SetCurvature(2);
    }
 
-   // 4. Define a finite element space on the mesh. The polynomial order is
+   // 5. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
-
-   // 5. Set device config parameters from the command line options.
-   Device::Configure(device);
-   Device::Print();
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Laplace problem -\Delta u = 1. We don't assemble the discrete
@@ -168,8 +171,7 @@ int main(int argc, char *argv[])
       x.ProjectBdrCoefficient(zero, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      // 15. Switch to the device and assemble the stiffness matrix.
-      Device::Enable();
+      // 15. Assemble the stiffness matrix.
       a.Assemble();
 
       // 16. Create the linear system: eliminate boundary conditions, constrain
@@ -204,7 +206,6 @@ int main(int argc, char *argv[])
       // 18. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      Device::Disable();
       a.RecoverFEMSolution(X, b, x);
 
       // 19. Send solution by socket to the GLVis server.

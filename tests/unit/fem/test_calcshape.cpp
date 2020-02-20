@@ -77,7 +77,6 @@ void GetRelatedIntegrationPoints(const IntegrationPoint& ip, int dim,
  */
 void TestCalcShape(FiniteElement* fe, int res)
 {
-   IntegrationPoint ip;
    int dim = fe->GetDim();
 
    Vector weights( fe->GetDof() );

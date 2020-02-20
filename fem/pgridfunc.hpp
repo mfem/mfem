@@ -112,6 +112,8 @@ public:
    /// Associate a new parallel space with the ParGridFunction.
    void SetSpace(ParFiniteElementSpace *f);
 
+   using GridFunction::MakeRef;
+
    /** @brief Make the ParGridFunction reference external data on a new
        FiniteElementSpace. */
    /** This method changes the FiniteElementSpace associated with the

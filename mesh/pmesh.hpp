@@ -142,6 +142,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
+
+   void RebalanceImpl(const Array<int> *partition);
+
    void DeleteFaceNbrData();
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
@@ -191,6 +194,8 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /// Ensure that bdr_attributes and attributes agree across processors
+   void DistributeAttributes(Array<int> &attr);
 
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -220,6 +225,8 @@ public:
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
+
+   virtual void SetAttributes();
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
@@ -288,8 +295,14 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
 
-   /// Load balance the mesh. NC meshes only.
+   /** Load balance the mesh by equipartitioning the global space-filling
+       sequence of elements. Works for nonconforming meshes only. */
    void Rebalance();
+
+   /** Load balance a nonconforming mesh using a user-defined partition.
+       Each local element 'i' is migrated to processor rank 'partition[i]',
+       for 0 <= i < GetNE(). */
+   void Rebalance(const Array<int> &partition);
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */

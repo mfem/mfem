@@ -50,7 +50,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.4.1)
+set(${PROJECT_NAME}_VERSION 4.0.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -164,6 +164,15 @@ if (MFEM_USE_METIS)
   find_package(METIS REQUIRED)
 endif()
 
+if (MFEM_USE_GINKGO)
+  find_package(Ginkgo REQUIRED)
+  if (Ginkgo_FOUND)
+    get_target_property(Ginkgo_INCLUDE_DIRS
+      Ginkgo::ginkgo INTERFACE_INCLUDE_DIRECTORIES)
+    set(Ginkgo_LIBRARIES Ginkgo::ginkgo)
+  endif()
+endif()
+
 # GZSTREAM -> zlib
 if (MFEM_USE_GZSTREAM)
   find_package(ZLIB REQUIRED)
@@ -248,13 +257,17 @@ if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
 endif()
 
+if (MFEM_USE_CEED)
+  find_package(libCEED REQUIRED)
+endif()
+
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint )
 endif()
 
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
-  find_package(Axom REQUIRED Sidre SLIC axom_utils)
+  find_package(Axom REQUIRED Axom)
 endif()
 
 # PUMI
@@ -273,6 +286,12 @@ if (MFEM_USE_PUMI)
   endif()
 endif()
 
+# HiOp optimizer
+if (MFEM_USE_HIOP)
+  find_package(HIOP REQUIRED)
+  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
+endif()
+
 # CUDA
 if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_STANDARD 11)
@@ -286,7 +305,6 @@ if (MFEM_USE_CUDA)
       set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
-   set(MFEM_USE_MM YES CACHE BOOL "Enable MFEM's memory manager" FORCE)
 endif()
 
 # OCCA
@@ -323,8 +341,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB OCCA RAJA)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS NETCDF MPFR
+    PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -396,11 +414,11 @@ endif()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
-# If building out-of-source, define MFEM_BUILD_DIR to point to the build
-# directory.
+# If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
+# inside the build directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   target_compile_definitions(mfem PRIVATE
-    "MFEM_BUILD_DIR=${PROJECT_BINARY_DIR}")
+    "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
@@ -416,7 +434,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
       "Writing substitute header --> \"${Header}\"")
     file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
 "// Auto-generated file.
-#define MFEM_BUILD_DIR ${PROJECT_BINARY_DIR}
+#define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
     # This version will be installed in the top include directory:
@@ -534,6 +552,13 @@ if (MFEM_USE_OCCA)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
     FILES_MATCHING PATTERN "*.okl")
+endif()
+
+# Install the libCEED files
+if (MFEM_USE_CEED)
+  install(DIRECTORY ${MFEM_SOURCE_DIRS}
+    DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
+    FILES_MATCHING PATTERN "fem/libceed/*.h")
 endif()
 
 # Install ${HEADERS}

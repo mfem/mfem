@@ -30,6 +30,7 @@ namespace mfem
 
 // Data type mesh
 
+class GeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
@@ -124,6 +125,8 @@ protected:
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
 
+      NCFaceInfo() = default;
+
       NCFaceInfo(bool slave, int master, const DenseMatrix* pm)
          : Slave(slave), MasterFace(master), PointMatrix(pm) {}
    };
@@ -142,6 +145,7 @@ protected:
    mutable Table *face_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
+   IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
 
@@ -180,6 +184,7 @@ public:
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
+   Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
 
    EntitySets *ent_sets;
 
@@ -234,7 +239,7 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &c);
+   void GetElementCenter(int i, Vector &center);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -286,14 +291,17 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
+   void UniformRefinement2D_base(bool update_nodes = true);
+
    /// Refine a mixed 2D mesh uniformly.
-   virtual void UniformRefinement2D();
+   virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
 
    /* If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
       represents a "face-to-quad-face" index map. When all faces are quads, the
       array @a f2qf is kept empty since it is not needed. */
    void UniformRefinement3D_base(Array<int> *f2qf = NULL,
-                                 DSTable *v_to_v_p = NULL);
+                                 DSTable *v_to_v_p = NULL,
+                                 bool update_nodes = true);
 
    /// Refine a mixed 3D mesh uniformly.
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
@@ -386,11 +394,6 @@ protected:
    {
       return FaceIsInterior(FaceNo) || (faces_info[FaceNo].Elem2Inf >= 0);
    }
-
-   // shift cyclically 3 integers left-to-right
-   inline static void ShiftL2R(int &, int &, int &);
-   // shift cyclically 3 integers so that the smallest is first
-   inline static void Rotate3(int &, int &, int &);
 
    void FreeElement(Element *E);
 
@@ -493,6 +496,7 @@ public:
    Element *NewElement(int geom);
 
    void AddVertex(const double *);
+   void AddSegment(const int *vi, int attr = 1);
    void AddTri(const int *vi, int attr = 1);
    void AddTriangle(const int *vi, int attr = 1);
    void AddQuad(const int *vi, int attr = 1);
@@ -540,7 +544,7 @@ public:
 
        After calling this method, setting the Mesh vertices or nodes, it may be
        appropriate to call the method Finalize(). */
-   void FinalizeTopology();
+   void FinalizeTopology(bool generate_bdr = true);
 
    /// Finalize the construction of a general Mesh.
    /** This method will:
@@ -558,7 +562,7 @@ public:
        Mesh vertices or nodes are set. */
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
-   void SetAttributes();
+   virtual void SetAttributes();
 
 #ifdef MFEM_USE_GECKO
    /** This is our integration with the Gecko library.  This will call the
@@ -571,14 +575,20 @@ public:
        @param[in] window Initial window size (default 2).
        @param[in] period Iterations between window increment (default 1).
        @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementReordering(Array<int> &ordering,
-                                  int iterations = 1, int window = 2,
-                                  int period = 1, int seed = 0);
+   void GetGeckoElementOrdering(Array<int> &ordering,
+                                int iterations = 1, int window = 2,
+                                int period = 1, int seed = 0);
 #endif
 
-   /** Rebuilds the mesh with a different order of elements.  The ordering
-       vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements. */
+   /** Return an ordering of the elements that approximately follows the Hilbert
+       curve. The method performs a spatial (Hilbert) sort on the centers of all
+       elements and returns the resulting sequence, which can then be passed to
+       ReorderElements. This is a cheap alternative to GetGeckoElementOrdering.*/
+   void GetHilbertElementOrdering(Array<int> &ordering);
+
+   /** Rebuilds the mesh with a different order of elements. For each element i,
+       the array ordering[i] contains its desired new index. Note that the method
+       reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -693,6 +703,16 @@ public:
 
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
+
+   /** @brief Return the mesh geometric factors corresponding to the given
+       integration rule. */
+   const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
+                                               const int flags);
+
+   /// Destroy all GeometricFactors stored by the Mesh.
+   /** This method can be used to force recomputation of the GeometricFactors,
+       for example, after the mesh nodes are modified externally. */
+   void DeleteGeometricFactors();
 
    /// Equals 1 + num_holes - num_loops
    inline int EulerNumber() const
@@ -1008,7 +1028,7 @@ public:
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the element
    // and along the edges and on the faces.
-   void GetNode(int i, double *coord);
+   void GetNode(int i, double *coord) const;
    void SetNode(int i, const double *coord);
 
    // Node operations for curved mesh.
@@ -1116,15 +1136,16 @@ public:
 
    ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
+   void KnotInsert(Array<Vector *> &kv);
    /* For each knot vector:
          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
    /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,
-       has an associated NCMesh object). Triangles meshes can be both conforming
+       has an associated NCMesh object). Simplex meshes can be both conforming
        (default) or non-conforming. */
-   void EnsureNCMesh(bool triangles_nonconforming = false);
+   void EnsureNCMesh(bool simplices_nonconforming = false);
 
    bool Conforming() const { return ncmesh == NULL; }
    bool Nonconforming() const { return ncmesh != NULL; }
@@ -1152,13 +1173,17 @@ public:
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
-
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
+   /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
+       subdivision number (useful for high order fields and curved meshes). */
+   void PrintVTU(std::ostream &out, int ref=1);
+   /** Print the mesh in VTU format with file name fname. */
+   void PrintVTU(std::string fname);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
@@ -1215,11 +1240,11 @@ public:
                                        const Array<int> &num_elems_by_geom,
                                        std::ostream &out);
 
-   /** @brief Compute and print mesh charateristics such as number of vertices,
+   /** @brief Compute and print mesh characteristics such as number of vertices,
        number of elements, number of boundary elements, minimal and maximal
        element sizes, minimal and maximal element aspect ratios, etc. */
    /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
-       ratios for all elements in the given Vecror%s. */
+       ratios for all elements in the given Vector%s. */
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = mfem::out);
 
@@ -1264,11 +1289,61 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+#ifdef MFEM_DEBUG
+   /// Output an NCMesh-compatible debug dump.
+   void DebugDump(std::ostream &out) const;
+#endif
 };
 
 /** Overload operator<< for std::ostream and Mesh; valid also for the derived
     class ParMesh */
 std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
+
+
+/** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
+    and determinants of the Jacobians. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetGeometricFactors(). */
+class GeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+   };
+
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
+       where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NE = number of elements in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NE) where
+       - NQ = number of quadrature points per element,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NE = number of elements in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NE) where
+       - NQ = number of quadrature points per element, and
+       - NE = number of elements in the mesh. */
+   Vector detJ;
+};
 
 
 /// Class used to extrude the nodes of a mesh
@@ -1307,33 +1382,11 @@ public:
 };
 
 
-// inline functions
-inline void Mesh::ShiftL2R(int &a, int &b, int &c)
+// shift cyclically 3 integers left-to-right
+inline void ShiftRight(int &a, int &b, int &c)
 {
    int t = a;
    a = c;  c = b;  b = t;
-}
-
-inline void Mesh::Rotate3(int &a, int &b, int &c)
-{
-   if (a < b)
-   {
-      if (a > c)
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
-   else
-   {
-      if (b < c)
-      {
-         ShiftL2R(c, b, a);
-      }
-      else
-      {
-         ShiftL2R(a, b, c);
-      }
-   }
 }
 
 }

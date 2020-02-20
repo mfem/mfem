@@ -1994,27 +1994,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          }
       }
 
-      // Generate faces and edges so that we can define quadratic
-      // FE space on the mesh
-
-      // Generate faces
-      if (Dim > 2)
-      {
-         GetElementToFaceTable();
-         GenerateFaces();
-      }
-      else
-      {
-         NumOfFaces = 0;
-      }
-
-      // Generate edges
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces(); // 'Faces' in 2D refers to the edges
-      }
+      FinalizeTopology();
 
       // Define quadratic FE space
       FiniteElementCollection *fec = new H1_FECollection(2,3);

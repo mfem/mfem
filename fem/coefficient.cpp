@@ -28,11 +28,6 @@ double PWConstCoefficient::Eval(ElementTransformation & T,
    return (constants(att-1));
 }
 
-DeviceFunctionCoefficientPtr FunctionCoefficient::GetDeviceFunction()
-{
-   return DeviceFunction;
-}
-
 double FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {
@@ -44,10 +39,6 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    if (Function)
    {
       return ((*Function)(transip));
-   }
-   else if (DeviceFunction)
-   {
-      return ((*DeviceFunction)(Vector3(x)));
    }
    else
    {
@@ -134,19 +125,27 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)
-   : VectorCoefficient(dim), Coeff(dim)
+   : VectorCoefficient(dim), Coeff(dim), ownCoeff(dim)
 {
    for (int i = 0; i < dim; i++)
    {
       Coeff[i] = NULL;
+      ownCoeff[i] = true;
    }
+}
+
+void VectorArrayCoefficient::Set(int i, Coefficient *c, bool own)
+{
+   if (ownCoeff[i]) { delete Coeff[i]; }
+   Coeff[i] = c;
+   ownCoeff[i] = own;
 }
 
 VectorArrayCoefficient::~VectorArrayCoefficient()
 {
    for (int i = 0; i < vdim; i++)
    {
-      delete Coeff[i];
+      if (ownCoeff[i]) { delete Coeff[i]; }
    }
 }
 
@@ -318,17 +317,26 @@ MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    : MatrixCoefficient (dim)
 {
    Coeff.SetSize(height*width);
+   ownCoeff.SetSize(height*width);
    for (int i = 0; i < (height*width); i++)
    {
       Coeff[i] = NULL;
+      ownCoeff[i] = true;
    }
+}
+
+void MatrixArrayCoefficient::Set(int i, int j, Coefficient * c, bool own)
+{
+   if (ownCoeff[i*width+j]) { delete Coeff[i*width+j]; }
+   Coeff[i*width+j] = c;
+   ownCoeff[i*width+j] = own;
 }
 
 MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 {
    for (int i=0; i < height*width; i++)
    {
-      delete Coeff[i];
+      if (ownCoeff[i]) { delete Coeff[i]; }
    }
 }
 

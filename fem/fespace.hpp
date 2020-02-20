@@ -59,9 +59,25 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
 }
 
 
+/// Constants describing the possible orderings of the DOFs in one element.
+enum class ElementDofOrdering
+{
+   /// Native ordering as defined by the FiniteElement.
+   /** This ordering can be used by tensor-product elements when the
+       interpolation from the DOFs to quadrature points does not use the
+       tensor-product structure. */
+   NATIVE,
+   /// Lexicographic ordering for tensor-product FiniteElements.
+   /** This ordering can be used only with tensor-product elements. */
+   LEXICOGRAPHIC
+};
+
+
 // Forward declarations
 class NURBSExtension;
 class BilinearFormIntegrator;
+class QuadratureSpace;
+class QuadratureInterpolator;
 
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
@@ -110,6 +126,11 @@ protected:
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
 
+   /// The element restriction operators, see GetElementRestriction().
+   mutable OperatorHandle L2E_nat, L2E_lex;
+
+   mutable Array<QuadratureInterpolator*> E2Q_array;
+
    long sequence; // should match Mesh::GetSequence
 
    void UpdateNURBS();
@@ -124,7 +145,11 @@ protected:
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
-   void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   void GetEntityDofs(int entity, int index, Array<int> &dofs,
+                      Geometry::Type master_geom = Geometry::INVALID) const;
+   // Get degenerate face DOFs: see explanation in method implementation.
+   void GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                              Geometry::Type master_geom) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
@@ -135,6 +160,7 @@ protected:
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
 
+   /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
    /// GridFunction interpolation operator applicable after mesh refinement.
@@ -257,13 +283,60 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingProlongation() const;
+
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestriction() const;
 
+   /// The returned Operator is owned by the FiniteElementSpace.
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
+
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
+
+   /// Return an Operator that converts L-vectors to E-vectors.
+   /** An L-vector is a vector of size GetVSize() which is the same size as a
+       GridFunction. An E-vector represents the element-wise discontinuous
+       version of the FE space.
+
+       The layout of the E-vector is: ND x VDIM x NE, where ND is the number of
+       degrees of freedom, VDIM is the vector dimension of the FE space, and NE
+       is the number of the mesh elements.
+
+       The parameter @a e_ordering describes how the local DOFs in each element
+       should be ordered, see ElementDofOrdering.
+
+       For discontinuous spaces, the element restriction corresponds to a
+       permutation of the degrees of freedom, implemented by the
+       L2ElementRestriction class.
+
+       The returned Operator is owned by the FiniteElementSpace. */
+   const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
+
+   /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
+       quadrature point values and/or derivatives (Q-vectors). */
+   /** An E-vector represents the element-wise discontinuous version of the FE
+       space and can be obtained, for example, from a GridFunction using the
+       Operator returned by GetElementRestriction().
+
+       All elements will use the same IntegrationRule, @a ir as the target
+       quadrature points. */
+   const QuadratureInterpolator *GetQuadratureInterpolator(
+      const IntegrationRule &ir) const;
+
+   /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
+       quadrature point values and/or derivatives (Q-vectors). */
+   /** An E-vector represents the element-wise discontinuous version of the FE
+       space and can be obtained, for example, from a GridFunction using the
+       Operator returned by GetElementRestriction().
+
+       The target quadrature points in the elements are described by the given
+       QuadratureSpace, @a qs. */
+   const QuadratureInterpolator *GetQuadratureInterpolator(
+      const QuadratureSpace &qs) const;
 
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
@@ -830,6 +903,139 @@ public:
    virtual const Operator &ForwardOperator();
 
    virtual const Operator &BackwardOperator();
+};
+
+
+/// Operator that converts FiniteElementSpace L-vectors to E-vectors.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetElementRestriction(). */
+class ElementRestriction : public Operator
+{
+protected:
+   const FiniteElementSpace &fes;
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndofs;
+   const int dof;
+   const int nedofs;
+   Array<int> offsets;
+   Array<int> indices;
+
+public:
+   ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
+    corresponding to grid functions in L2 finite element spaces differ from
+    E-vectors only in the ordering of the degrees of freedom. */
+class L2ElementRestriction : public Operator
+{
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndof;
+public:
+   L2ElementRestriction(const FiniteElementSpace&);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/** @brief A class that performs interpolation from an E-vector to quadrature
+    point values and/or derivatives (Q-vectors). */
+/** An E-vector represents the element-wise discontinuous version of the FE
+    space and can be obtained, for example, from a GridFunction using the
+    Operator returned by FiniteElementSpace::GetElementRestriction().
+
+    The target quadrature points in the elements can be described either by an
+    IntegrationRule (all mesh elements must be of the same type in this case) or
+    by a QuadratureSpace. */
+class QuadratureInterpolator
+{
+protected:
+   friend class FiniteElementSpace; // Needs access to qspace and IntRule
+
+   const FiniteElementSpace *fespace;  ///< Not owned
+   const QuadratureSpace *qspace;      ///< Not owned
+   const IntegrationRule *IntRule;     ///< Not owned
+
+   mutable bool use_tensor_products;
+
+   static const int MAX_NQ2D = 100;
+   static const int MAX_ND2D = 100;
+   static const int MAX_VDIM2D = 2;
+
+   static const int MAX_NQ3D = 1000;
+   static const int MAX_ND3D = 1000;
+   static const int MAX_VDIM3D = 3;
+
+public:
+   enum EvalFlags
+   {
+      VALUES       = 1 << 0,  ///< Evaluate the values at quadrature points
+      DERIVATIVES  = 1 << 1,  ///< Evaluate the derivatives at quadrature points
+      /** @brief Assuming the derivative at quadrature points form a matrix,
+          this flag can be used to compute and store their determinants. This
+          flag can only be used in Mult(). */
+      DETERMINANTS = 1 << 2
+   };
+
+   QuadratureInterpolator(const FiniteElementSpace &fes,
+                          const IntegrationRule &ir);
+
+   QuadratureInterpolator(const FiniteElementSpace &fes,
+                          const QuadratureSpace &qs);
+
+   /** @brief Disable the use of tensor product evaluations, for tensor-product
+       elements, e.g. quads and hexes. */
+   /** Currently, tensor product evaluations are not implemented and this method
+       has no effect. */
+   void DisableTensorProducts(bool disable = true) const
+   { use_tensor_products = !disable; }
+
+   /// Interpolate the E-vector @a e_vec to quadrature points.
+   /** The @a eval_flags are a bitwise mask of constants from the EvalFlags
+       enumeration. When the VALUES flag is set, the values at quadrature points
+       are computed and stored in the Vector @a q_val. Similarly, when the flag
+       DERIVATIVES is set, the derivatives are computed and stored in @a q_der.
+       When the DETERMINANTS flags is set, it is assumed that the derivatives
+       form a matrix at each quadrature point (i.e. the associated
+       FiniteElementSpace is a vector space) and their determinants are computed
+       and stored in @a q_det. */
+   void Mult(const Vector &e_vec, unsigned eval_flags,
+             Vector &q_val, Vector &q_der, Vector &q_det) const;
+
+   /// Perform the transpose operation of Mult(). (TODO)
+   void MultTranspose(unsigned eval_flags, const Vector &q_val,
+                      const Vector &q_der, Vector &e_vec) const;
+
+   // Compute kernels follow (cannot be private or protected with nvcc)
+
+   /// Template compute kernel for 2D.
+   template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
+   static void Eval2D(const int NE,
+                      const int vdim,
+                      const DofToQuad &maps,
+                      const Vector &e_vec,
+                      Vector &q_val,
+                      Vector &q_der,
+                      Vector &q_det,
+                      const int eval_flags);
+
+   /// Template compute kernel for 3D.
+   template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
+   static void Eval3D(const int NE,
+                      const int vdim,
+                      const DofToQuad &maps,
+                      const Vector &e_vec,
+                      Vector &q_val,
+                      Vector &q_der,
+                      Vector &q_det,
+                      const int eval_flags);
 };
 
 }

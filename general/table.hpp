@@ -27,6 +27,7 @@ namespace mfem
 struct Connection
 {
    int from, to;
+   Connection() = default;
    Connection(int from, int to) : from(from), to(to) {}
 
    bool operator== (const Connection &rhs) const
@@ -42,18 +43,17 @@ struct Connection
 class Table
 {
 protected:
-
    /// size is the number of TYPE I elements.
    int size;
 
    /** Arrays for the connectivity information in the CSR storage.
        I is of size "size+1", J is of size the number of connections
        between TYPE I to TYPE II elements (actually stored I[size]). */
-   int *I, *J;
+   Memory<int> I, J;
 
 public:
    /// Creates an empty table
-   Table() { size = -1; I = J = NULL; }
+   Table() { size = -1; I.Reset(); J.Reset(); }
 
    /// Copy constructor
    Table(const Table &);
@@ -65,8 +65,8 @@ public:
    explicit Table (int dim, int connections_per_row = 3);
 
    /** Create a table from a list of connections, see MakeFromList(). */
-   Table(int nrows, Array<Connection> &list) : size(-1), I(NULL), J(NULL)
-   { MakeFromList(nrows, list); }
+   Table(int nrows, Array<Connection> &list) : size(-1)
+   { I.Reset(); J.Reset(); MakeFromList(nrows, list); }
 
    /** Create a table with one entry per row with column indices given
        by 'partitioning'. */
@@ -115,9 +115,16 @@ public:
    const int *GetI() const { return I; }
    const int *GetJ() const { return J; }
 
+   Memory<int> &GetIMemory() { return I; }
+   Memory<int> &GetJMemory() { return J; }
+   const Memory<int> &GetIMemory() const { return I; }
+   const Memory<int> &GetJMemory() const { return J; }
+
    /// @brief Sort the column (TYPE II) indices in each row.
    void SortRows();
 
+   /// Replace the #I and #J arrays with the given @a newI and @a newJ arrays.
+   /** If @a newsize < 0, then the size of the Table is not modified. */
    void SetIJ(int *newI, int *newJ, int newsize = -1);
 
    /** Establish connection between element i and element j in the table.
@@ -144,7 +151,7 @@ public:
    int Width() const;
 
    /// Call this if data has been stolen.
-   void LoseData() { size = -1; I = J = NULL; }
+   void LoseData() { size = -1; I.Reset(); J.Reset(); }
 
    /// Prints the table to stream out.
    void Print(std::ostream & out = mfem::out, int width = 4) const;

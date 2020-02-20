@@ -48,6 +48,8 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
          ip.weight = ipx.weight * ipy.weight;
       }
    }
+
+   SetPointIndices();
 }
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
@@ -75,6 +77,29 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
             ip.weight = ipx.weight*ipy.weight*ipz.weight;
          }
       }
+   }
+
+   SetPointIndices();
+}
+
+const Array<double> &IntegrationRule::GetWeights() const
+{
+   if (weights.Size() != GetNPoints())
+   {
+      weights.SetSize(GetNPoints());
+      for (int i = 0; i < GetNPoints(); i++)
+      {
+         weights[i] = IntPoint(i).weight;
+      }
+   }
+   return weights;
+}
+
+void IntegrationRule::SetPointIndices()
+{
+   for (int i = 0; i < Size(); i++)
+   {
+      IntPoint(i).index = i;
    }
 }
 
