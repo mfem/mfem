@@ -32,6 +32,7 @@
 //               mesh-minimal-surface -d cuda
 
 #include "mfem.hpp"
+#include "../../../dbg.hpp"
 #include "general/forall.hpp"
 #include <fstream>
 #include <iostream>
@@ -129,6 +130,7 @@ public:
       // Adaptive mesh refinement
       //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
       //PrintCharacteristics();
+      dbg("\033[7m#Cells:%d",GetNE());
    }
 
    void BoundaryConditions()
@@ -679,14 +681,11 @@ std::complex<double> WeierstrassZeta(const cdouble z,
                       (EllipticTheta1Prime(3,0,q)/
                        EllipticTheta1Prime(1,0,q));
    const cdouble u = M_PI*z / (2.0*w1);
-   printf("\n\033[32m[WeierstrassZeta] n1:(%f,%f)\033[m", real(n1), imag(n1));
-   fflush(0);
    return z*n1/w1 + M_PI/(2.0*w1)*LogEllipticTheta1Prime(u,q);
 }
 
 
-static double R = 8.0;
-constexpr double SCALE = 0.998;
+constexpr double SCALE = 0.9;
 
 struct Costa: public Surface<Costa>
 {
@@ -701,7 +700,6 @@ struct Costa: public Surface<Costa>
       const double u = x[0] + delta;
       const double v = x[1] + delta;
       //printf("\n\033[35m(u:%f, v:%f, x[0]:%f)\033[m", u, v, x[0]); fflush(0);
-
 
       // Verif WeierstrassP
       //const double tau = 189.07272012923385229;
@@ -761,16 +759,11 @@ struct Costa: public Surface<Costa>
       MFEM_VERIFY(fabs(real(c0)-3.95050161784488013)<1e-12,"");
       MFEM_VERIFY(fabs(imag(c0))<1e-14,"");
 
-      printf("\n\033[33m[costa] (%f,%f)\033[m", u,v);
-      fflush(0);
-
       // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
       const cdouble w = u + I*v;
       // Weierstrass zeta function
       const cdouble wz_w = WeierstrassZeta(w);
       const cdouble wz_wi = WeierstrassZeta(w-1./2.) - WeierstrassZeta(w-I/2.);
-      printf("\n\033[33m[costa] (%f,%f)\033[m", real(wz_w), real(wz_wi));
-      fflush(0);
       p[0] = a * std::real(PI * (u + PI / (4.0*e1)) - wz_w +
                            PI / (2.0*e1) * (wz_wi));
 
@@ -782,35 +775,82 @@ struct Costa: public Surface<Costa>
       const double value = std::abs((we_w - e1) / (we_w + e1));
       p[2] = a * sqrt(PI/2.0) * log(value);
 
-      printf("\n\033[33m[costa] => [%f,%f,%f]\033[m", p[0], p[1], p[2]);
-      fflush(0);
-
       const bool nan = std::isnan(p[0])||std::isnan(p[1])||std::isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
-      const bool OUT = (fabs(p[0])>R)||(fabs(p[1])>R)||(fabs(p[2])>R);
-      int color = OUT ? 33 : 32;
+      /*
+            p[0] = u;
+            p[1] = v;
+            p[2] = 0.;
+            return;
+      */
+      /*
+            const double H = R;
+            if (u == 0.5 && v == delta)     { p[1] = -R; p[2] = -H; return; }
+            if (u == 0.5 && v == 1.0-delta) { p[1] = +R; p[2] = -H; return; }
+            if (v == 0.5 && u == delta)     { p[0] = -R; p[2] = +H; return; }
+            if (v == 0.5 && u == 1.0-delta) { p[0] = +R; p[2] = +H; return; }
 
-      const double H = R;
-      if (u == 0.5 && v == delta)     { p[1] = -R; p[2] = -H; return; }
-      if (u == 0.5 && v == 1.0-delta) { p[1] = +R; p[2] = -H; return; }
-      if (v == 0.5 && u == delta)     { p[0] = -R; p[2] = +H; return; }
-      if (v == 0.5 && u == 1.0-delta) { p[0] = +R; p[2] = +H; return; }
+            if (u == delta && v == delta)         { p[0] = -R; p[1] = -R; return; }
+            if (u == 1.0-delta && v == delta)     { p[0] = +R; p[1] = -R; return; }
+            if (u == delta && v == 1.0-delta)     { p[0] = -R; p[1] = +R; return; }
+            if (u == 1.0-delta && v == 1.0-delta) { p[0] = +R; p[1] = +R; return; }
 
-      if (u == delta && v == delta)         { p[0] = -R; p[1] = -R; return; }
-      if (u == 1.0-delta && v == delta)     { p[0] = +R; p[1] = -R; return; }
-      if (u == delta && v == 1.0-delta)     { p[0] = -R; p[1] = +R; return; }
-      if (u == 1.0-delta && v == 1.0-delta) { p[0] = +R; p[1] = +R; return; }
-
-      if (u == delta && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
-      if (v == delta && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
-      if (u == (1.0-delta) && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
-      if (v == (1.0-delta) && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
-
-      if (OUT)
+            if (u == delta && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
+            if (v == delta && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
+            if (u == (1.0-delta) && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
+            if (v == (1.0-delta) && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
+      */
+      /*
+            static double R = 1.0;
+            const bool OUT = (fabs(p[0])>R)||(fabs(p[1])>R)||(fabs(p[2])>R);
+            if (OUT)
+            {
+               const int color = OUT ? 33 : 32;
+               printf("\n\033[%dm(%f:%f,%f): (%f,%f,%f)\033[m",
+                      color, delta, u, v, p[0], p[1], p[2]); fflush(0);
+            }*/
+   }
+   void Postfix()
+   {
+      //MFEM_VERIFY(nx%2==0,"");
+      //MFEM_VERIFY(ny%2==0,"");
+      dbg("\033[37m#Cells:%d",GetNE());
+      dbg("\033[37m#Boundary Edges:%d",GetNBE());
+      for (int i = 0; i < GetNBE(); i++)
       {
-         printf("\n\033[%dm(%f:%f,%f): (%f,%f,%f)\033[m",
-                color, delta, u, v, p[0], p[1], p[2]); fflush(0);
+         //dbg("\033[37mBoundary Edge:%d",i);
+         Element *el = GetBdrElement(i);
+         const int fn = GetBdrElementEdgeIndex(i);
+         MFEM_VERIFY(!FaceIsTrueInterior(fn),"");
+
+         int *v = el->GetVertices();
+         dbg("%d <--> %d", v[0], v[1]);
+         const int ix = v[0] % (nx+1);
+         if (ix==1) { dbg("\033[32m%d",v[0]);}
+         if (ix==nx-1) { dbg("\033[33m%d, ix=%d, nx=%d",v[0],ix, nx);}
+
+         /*
+         Array<int> vertices;
+         GetFaceVertices(fn, vertices);
+         dbg("%d vertices, %d <--> %d",vertices.Size(), vertices[0], vertices[1]);
+         const GridFunction *nodes = GetNodes();
+         Vector nval;
+         double X[2][3];
+         for (int v = 0; v < 2; v++)
+         {
+            const int iv = vertices[v];
+            for (int d = 0; d < 3; d++)
+            {
+               nodes->GetNodalValues(nval, d+1);
+               X[v][d] = nval[iv];
+            }
+            dbg("(%f,%f,%f)", X[v][0], X[v][1], X[v][2]);
+         }
+         */
       }
+
+      //RemoveUnusedVertices();
+      //RemoveInternalBoundaries();
    }
 };
 
@@ -865,7 +905,19 @@ public:
       vdim(pfes->GetVDim()), order(order), pmesh(pmesh), pfes(pfes),
       a(pfes), bc(bc), x(pfes), x0(pfes), b(pfes), one(1.0),
       solver(static_cast<Type*>(this)), M(nullptr), lambda(l) { }
-   ~SurfaceSolver() { delete M; }
+   ~SurfaceSolver()
+   {
+      {
+         // glvis -m surface.mesh -g sol.gf"
+         ofstream mesh_ofs("surface.mesh");
+         mesh_ofs.precision(8);
+         pmesh->Print(mesh_ofs);
+         ofstream sol_ofs("sol.gf");
+         sol_ofs.precision(8);
+         x.Save(sol_ofs);
+      }
+      delete M;
+   }
    void Solve()
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
@@ -1044,7 +1096,7 @@ int main(int argc, char *argv[])
    bool rad = false;
    double lambda = 0.0;
    bool solve_by_components = false;
-   const char *keys = "gAmmaaa";
+   const char *keys = "gAmaaa"; // mm
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
 
