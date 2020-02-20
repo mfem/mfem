@@ -30,7 +30,9 @@ namespace mfem
 
 class BilinearForm;
 
-/// TODO: what should this do in parallel?
+/// TODO:
+/// - name instead of leading_spaces?
+/// - have the base IterativeSolver class own this
 class IterativeSolverMonitor
 {
 protected:
@@ -89,7 +91,7 @@ public:
    }
 };
 
-/// (FGMRES too) (check with ./ex14p -s 1)
+/// (check with ./ex14p -s 1)
 class GMRESLegacyMonitor : public IterativeSolverMonitor
 {
 private:
@@ -97,6 +99,27 @@ private:
 
 public:
    GMRESLegacyMonitor(int m_) : restart(m_) { }
+
+   void BeginInfo(int iteration, double res_norm);
+   void IterationInfo(int iteration, double res_norm);
+   void ConvergenceInfo(int iteration, double res_norm,
+                        double initial_norm);
+   void NoConvergenceInfo(int iteration, double res_norm,
+                          double initial_norm);
+   
+   void Alert(std::string& message)
+   {
+   }
+};
+
+/// FGMRES check with ./ex22p
+class FGMRESLegacyMonitor : public IterativeSolverMonitor
+{
+private:
+   int restart;
+
+public:
+   FGMRESLegacyMonitor(int m_) : restart(m_) { }
 
    void BeginInfo(int iteration, double res_norm);
    void IterationInfo(int iteration, double res_norm);
@@ -281,7 +304,6 @@ class GMRESSolver : public IterativeSolver
 {
 protected:
    int m; // see SetKDim()
-
    IterativeSolverMonitor * monitor;
 
 public:
@@ -295,6 +317,7 @@ public:
    ~GMRESSolver() { delete monitor; }
 
    /// Set the number of iteration to perform between restarts, default is 50.
+   /// @todo the delete/new is going to be a problem if you want to switch monitors
    void SetKDim(int dim)
    {
       m = dim;
@@ -310,15 +333,26 @@ class FGMRESSolver : public IterativeSolver
 {
 protected:
    int m;
+   IterativeSolverMonitor * monitor;
 
 public:
-   FGMRESSolver() { m = 50; }
+   FGMRESSolver() : monitor(new FGMRESLegacyMonitor(50)) { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   FGMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   FGMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm),
+                                  monitor(new FGMRESLegacyMonitor(50))
+   { m = 50; }
 #endif
+   ~FGMRESSolver() { delete monitor; }
 
-   void SetKDim(int dim) { m = dim; }
+   /// Set the number of iteration to perform between restarts, default is 50.
+   /// @todo the delete/new is going to be a problem if you want to switch monitors
+   void SetKDim(int dim)
+   {
+      m = dim;
+      delete monitor;
+      monitor = new GMRESLegacyMonitor(m);
+   }
 
    virtual void Mult(const Vector &b, Vector &x) const;
 };

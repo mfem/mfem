@@ -206,6 +206,44 @@ void GMRESLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
    }
 }
 
+void FGMRESLegacyMonitor::BeginInfo(int iteration, double res_norm)
+{
+   if (print_level == 1)
+   {
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
+                << "   Iteration : " << setw(3) << iteration
+                << "  || r || = " << res_norm << endl;
+   }
+}
+
+void FGMRESLegacyMonitor::IterationInfo(int iteration, double res_norm)
+{
+   if (print_level == 1)
+   {
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
+                << "   Iteration : " << setw(3) << iteration
+                << "  || r || = " << res_norm << endl;
+   }
+}
+
+void FGMRESLegacyMonitor::ConvergenceInfo(int iteration, double res_norm,
+                                         double initial_norm)
+{
+   if (print_level == 2)
+   {
+      mfem::out << "Number of FGMRES iterations: " << iteration << endl;
+   }
+}
+
+void FGMRESLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
+                                           double initial_norm)
+{
+   if (print_level >= 0)
+   {
+      mfem::out << "FGMRES: No convergence!" << endl;
+   }
+}
+
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
@@ -890,6 +928,7 @@ finish:
 
 void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 {
+   monitor->SetPrintLevel(print_level);
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(b.Size());
@@ -920,12 +959,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   if (print_level == 1)
-   {
-      mfem::out << "   Pass : " << setw(2) << 1
-                << "   Iteration : " << setw(3) << 0
-                << "  || r || = " << beta << endl;
-   }
+   monitor->BeginInfo(0, beta);
+   double initial_norm = beta;
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -981,12 +1016,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
-         if (print_level == 1)
-         {
-            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                      << "   Iteration : " << setw(3) << j
-                      << "  || r || = " << resid << endl;
-         }
+         monitor->IterationInfo(j, resid);
 
          if (resid <= final_norm)
          {
@@ -995,10 +1025,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             final_iter = j;
             converged = 1;
 
-            if (print_level == 2)
-            {
-               mfem::out << "Number of FGMRES iterations: " << final_iter << endl;
-            }
+            monitor->ConvergenceInfo(final_iter, final_norm, initial_norm);
 
             for (i= 0; i<=m; i++)
             {
@@ -1026,10 +1053,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          final_iter = j;
          converged = 1;
 
-         if (print_level == 2)
-         {
-            mfem::out << "Number of FGMRES iterations: " << final_iter << endl;
-         }
+         monitor->ConvergenceInfo(final_iter, final_norm, initial_norm);
 
          for (i= 0; i<=m; i++)
          {
@@ -1047,10 +1071,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    }
    converged = 0;
 
-   if (print_level >= 0)
-   {
-      mfem::out << "FGMRES: No convergence!" << endl;
-   }
+   monitor->NoConvergenceInfo(max_iter, beta, initial_norm);
 
    return;
 }
