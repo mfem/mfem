@@ -83,6 +83,7 @@ public:
       S(static_cast<T*>(this)),
       bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim)
    {
+      MFEM_VERIFY(order>0,"H1_FECollection requires order >= 1");
       EnsureNodes();
       S->Prefix();
       S->Create();
@@ -284,7 +285,6 @@ struct Hold: public Surface<Hold>
    void Prefix()
    {
       SetCurvature(order, false, 3, Ordering::byNODES);
-
       Array<int> v2v(GetNV());
       for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
       // identify vertices on vertical lines
@@ -639,7 +639,7 @@ cdouble WeierstrassP(const cdouble z,
    return P*P + e1;
 }
 
-cdouble EllipticTheta1Prime(int k, const cdouble u, const cdouble q)
+cdouble EllipticTheta1Prime(const int k, const cdouble u, const cdouble q)
 {
    cdouble J = 0.0;
    double delta = std::numeric_limits<double>::max();
@@ -662,7 +662,7 @@ cdouble LogEllipticTheta1Prime(const cdouble u, const cdouble q)
    for (int n=1; delta > EPS; n+=1)
    {
       cdouble q2n = pow(q, 2*n);
-      if (fabs(q2n) < EPS) { q2n = 0.0; }
+      if (abs(q2n) < EPS) { q2n = 0.0; }
       const cdouble j = q2n/(1.0-q2n)*sin(2.0*n*u);
       delta = abs(j);
       J += j;
@@ -684,9 +684,8 @@ std::complex<double> WeierstrassZeta(const cdouble z,
    return z*n1/w1 + M_PI/(2.0*w1)*LogEllipticTheta1Prime(u,q);
 }
 
-
+// https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
 constexpr double SCALE = 0.9;
-
 struct Costa: public Surface<Costa>
 {
    Costa(Array<int> &BC, int o, int x, int y, int r, int d):
@@ -694,88 +693,22 @@ struct Costa: public Surface<Costa>
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
-      const double a = 1./2.;
-      // With 0 < u,v < 1
-      const double delta = (1.0 - SCALE) / 2.0;
-      const double u = x[0] + delta;
-      const double v = x[1] + delta;
-      //printf("\n\033[35m(u:%f, v:%f, x[0]:%f)\033[m", u, v, x[0]); fflush(0);
-
-      // Verif WeierstrassP
-      //const double tau = 189.07272012923385229;
-      const double e1 = 6.8751858180203728274;
-
-      const cdouble J1 = EllipticTheta(1, 2, 1./3.);
-      MFEM_VERIFY(fabs(real(J1)-1.42787634002218231282260832360)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(J1))<1e-14,"");
-
-      const cdouble J2 = EllipticTheta(2, 2, 1./3.);
-      MFEM_VERIFY(fabs(real(J2)+0.472028135730701287011234650166)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(J2))<1e-14,"");
-
-      const cdouble J3 = EllipticTheta(3, 2, 1./3.);
-      MFEM_VERIFY(fabs(real(J3)-0.560730692615890071956949000212)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(J3))<1e-14,"");
-
-      const cdouble J4= EllipticTheta(4, 2, 1./3.);
-      MFEM_VERIFY(fabs(real(J4)-1.43208403154144924477915699774)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(J4))<1e-14,"");
-
-      const cdouble JI1= EllipticTheta(1, 1, I/2.);
-      MFEM_VERIFY(fabs(real(JI1)-1.3853047468431163153)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(JI1)-0.5738120141622458063)<1e-14,"");
-
-      const cdouble JI2= EllipticTheta(2, 1, I/2.);
-      MFEM_VERIFY(fabs(real(JI2)-1.21746176892453427018)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(JI2)-0.50428917635928120733)<1e-14,"");
-
-      const cdouble JI3= EllipticTheta(3, 1, I/2.);
-      MFEM_VERIFY(fabs(real(JI3)-0.91829010710795894861)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(JI3)+0.41239622137747434069)<1e-14,"");
-
-      const cdouble JI4= EllipticTheta(4, 1, I/3.);
-      MFEM_VERIFY(fabs(real(JI4)-0.98386064457660260134)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(JI4)-0.27733366095804937739)<1e-14,"");
-
-      const cdouble w1 = 0.5;
-      const cdouble w3 = 0.5*I;
-      const cdouble e0 = WeierstrassP(0.5, w1, w3);
-      MFEM_VERIFY(fabs(real(e0)-e1)<1e-14,"");
-      MFEM_VERIFY(fabs(imag(e0))<1e-14,"");
-      const cdouble e00 = WeierstrassP(0.25,w1,w3);
-      MFEM_VERIFY(fabs(real(e00)-16.5981668456999459)<1e-14,"");
-
-      // Verif WeierstrassZeta
-      MFEM_VERIFY(fabs(real(EllipticTheta1Prime(1,2,1./3.))+
-                       1.1275358978032848155)<1.e-14,"");
-      MFEM_VERIFY(fabs(real(EllipticTheta1Prime(1,2,I/3.))+
-                       0.126832435189053924650)<1.e-14,"");
-      MFEM_VERIFY(fabs(imag(EllipticTheta1Prime(1,2,I/3.))+
-                       0.052535714804112723136)<1.e-14,"");
-      const cdouble wz = WeierstrassZeta(0.25);
-      MFEM_VERIFY(fabs(real(wz)-3.95050161784488013)<1e-12,"");
-
-      const std::complex<double> c0 = WeierstrassZeta(0.25);
-      MFEM_VERIFY(fabs(real(c0)-3.95050161784488013)<1e-12,"");
-      MFEM_VERIFY(fabs(imag(c0))<1e-14,"");
-
-      // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
+      const double alpha = 1./2.;
+      const double delta = (1.-SCALE)/2.;
+      const  double u = x[0] + delta;
+      const  double v = x[1] + delta;
       const cdouble w = u + I*v;
-      // Weierstrass zeta function
-      const cdouble wz_w = WeierstrassZeta(w);
-      const cdouble wz_wi = WeierstrassZeta(w-1./2.) - WeierstrassZeta(w-I/2.);
-      p[0] = a * std::real(PI * (u + PI / (4.0*e1)) - wz_w +
-                           PI / (2.0*e1) * (wz_wi));
 
-      p[1] = a * std::real(PI * (v + PI / (4.0*e1)) - I*wz_w -
-                           PI*I/(2.0*e1) * (wz_wi));
-
-      // Weierstrass elliptic function
-      const std::complex<double> we_w = WeierstrassP(w);
-      const double value = std::abs((we_w - e1) / (we_w + e1));
-      p[2] = a * sqrt(PI/2.0) * log(value);
-
-      const bool nan = std::isnan(p[0])||std::isnan(p[1])||std::isnan(p[2]);
+      const cdouble w3 = I/2.;
+      const cdouble w1 = 1./2.;
+      const cdouble pw = WeierstrassP(w);
+      const cdouble e1 = WeierstrassP(0.5);
+      const cdouble zw = WeierstrassZeta(w);
+      const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
+      p[0] = alpha * real(PI*(u+PI/(4.*e1))-zw+PI/(2.*e1)*(dw));
+      p[1] = alpha * real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
+      p[2] = alpha * sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
+      const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
       /*
             p[0] = u;
@@ -812,8 +745,7 @@ struct Costa: public Surface<Costa>
    }
    void Postfix()
    {
-      //MFEM_VERIFY(nx%2==0,"");
-      //MFEM_VERIFY(ny%2==0,"");
+      SetCurvature(order, false, 3, Ordering::byNODES);
       dbg("\033[37m#Cells:%d",GetNE());
       dbg("\033[37m#Boundary Edges:%d",GetNBE());
       for (int i = 0; i < GetNBE(); i++)
