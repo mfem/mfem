@@ -3103,7 +3103,7 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
    ExtractSubVector(shr_ltdof.Size(), shr_ltdof, x, shr_buf);
    // If the above kernel is executed asynchronously, we should wait for it to
    // complete
-   if (mpi_gpu_aware) { Device::Synchronize(); }
+   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
 }
 
 static void SetSubVector(const int N,
@@ -3179,7 +3179,7 @@ void DeviceConformingProlongationOperator::ReduceBeginCopy(
    ExtractSubVector(ext_ldof.Size(), ext_ldof, x, ext_buf);
    // If the above kernel is executed asynchronously, we should wait for it to
    // complete
-   if (mpi_gpu_aware) { Device::Synchronize(); }
+   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
 }
 
 void DeviceConformingProlongationOperator::ReduceLocalCopy(
