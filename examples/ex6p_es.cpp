@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    else
    {
       fespace.GetEssentialTrueDofs((EntitySets::EntityType)bt, bs,
-				   ess_tdof_list);
+                                   ess_tdof_list);
    }
 
    // 7. As in Example 1p, we set up bilinear and linear forms corresponding to
@@ -230,18 +230,18 @@ int main(int argc, char *argv[])
       // Array<int> ess_tdof_list;
       if ( bt == EntitySets::INVALID )
       {
-      if (pmesh.bdr_attributes.Size())
-      {
-         Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-         ess_bdr = 1;
-         fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         if (pmesh.bdr_attributes.Size())
+         {
+            Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+            ess_bdr = 1;
+            fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         }
       }
-   }
-   else
-   {
-      fespace.GetEssentialTrueDofs((EntitySets::EntityType)bt, bs,
-				   ess_tdof_list);
-   }
+      else
+      {
+         fespace.GetEssentialTrueDofs((EntitySets::EntityType)bt, bs,
+                                      ess_tdof_list);
+      }
 
       HypreParMatrix A;
       Vector B, X;

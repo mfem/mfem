@@ -235,9 +235,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       meshgen = mesh.meshgen; // copy the global 'meshgen'
 
       ent_sets = pent_sets =
-	(mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
-					    partitioning,
-					    vert_global_local) : NULL;
+                    (mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
+                                                        partitioning,
+                                                        vert_global_local)
+                    : NULL;
    }
 
    if (mesh.NURBSext)

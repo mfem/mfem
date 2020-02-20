@@ -331,175 +331,175 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    MFEM_ASSERT(nghosts == NGhostFaces, "");
 
    {
-   /// Debugging output
-   std::ostringstream oss; oss << "elements_on_mesh_updated_"
-			       << MyRank << ".out";
-   std::ofstream ofs(oss.str().c_str());
-
-   for (int i=0; i<elements.Size(); i++)
-   {
-      ofs << i
-          << '\t' << elements[i].index
-          << '\t' << elements[i].rank
-          << '\t' << elements[i].attribute
-          << '\t' << elements[i].parent;
-      if ( elements[i].ref_type == 0 )
-      {
-         ofs << " nodes {";
-         for (int j=0; j<8; j++)
-         {
-            ofs << " " << elements[i].node[j];
-         }
-         ofs << "}";
-      }
-      else
-      {
-         ofs << " children {";
-         for (int j=0; j<8; j++)
-         {
-            ofs << " " << elements[i].child[j];
-         }
-         ofs << "}";
-      }
-      ofs << std::endl;
-   }
-
-   if (pncent_sets)
-   {
-      std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is non NULL" << std::endl;
-   }
-   else
-   {
-      std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is NULL" << std::endl;
-   }
-   if (ncent_sets)
-   {
-      std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is non NULL" << std::endl;
-   }
-   else
-   {
-      std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is NULL" << std::endl;
-   }
-   if (mesh->ent_sets)
-   {
-      std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is non NULL" << std::endl;
-   }
-   else
-   {
-      std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is NULL" << std::endl;
-   }
-   ParMesh * pmesh = dynamic_cast<ParMesh*>(mesh);
-   if (pmesh)
-   {
-      std::cout << "dynamic cast succeeded: mesh is a ParMesh" << std::endl;
-
-      if (pmesh->pent_sets != NULL)
-      {
-         std::cout << "ParNCMesh::OnMeshUpdated deleting ParEntitySets object in ParMesh"
-                   << std::endl;
-         delete pmesh->pent_sets;
-      }
-      else if (pmesh->ent_sets != NULL)
-      {
-         std::cout << "ParNCMesh::OnMeshUpdated deleting EntitySets object in ParMesh" <<
-                   std::endl;
-         delete pmesh->ent_sets;
-      }
-      std::cout << "ParNCMesh::OnMeshUpdated creating ParEntitySets object in ParMesh"
-                << std::endl;
-      pmesh->ent_sets = pmesh->pent_sets =
-                           (pncent_sets) ? new ParEntitySets(*pmesh, *this): NULL;
-      /*
-      if (pmesh->ent_sets)
-      {
-      std::cout << MyRank << ": ParNCMesh::OnMeshUpdated pmesh->ent_sets is non NULL" << std::endl;
-      pmesh->ent_sets->PrintSetInfo(std::cout);
-
-      std::ostringstream oss; oss << "ent_sets_" << MyRank << ".out";
+      /// Debugging output
+      std::ostringstream oss; oss << "elements_on_mesh_updated_"
+                                  << MyRank << ".out";
       std::ofstream ofs(oss.str().c_str());
-      pmesh->ent_sets->Print(ofs);
-      MPI_Barrier(MyComm);
 
-      std::cout << MyRank << ": testing " << NElements << std::endl;
-      //pmesh->ent_sets->Prune(NElements);
+      for (int i=0; i<elements.Size(); i++)
+      {
+         ofs << i
+             << '\t' << elements[i].index
+             << '\t' << elements[i].rank
+             << '\t' << elements[i].attribute
+             << '\t' << elements[i].parent;
+         if ( elements[i].ref_type == 0 )
+         {
+            ofs << " nodes {";
+            for (int j=0; j<8; j++)
+            {
+               ofs << " " << elements[i].node[j];
+            }
+            ofs << "}";
+         }
+         else
+         {
+            ofs << " children {";
+            for (int j=0; j<8; j++)
+            {
+               ofs << " " << elements[i].child[j];
+            }
+            ofs << "}";
+         }
+         ofs << std::endl;
+      }
+
+      if (pncent_sets)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is non NULL" << std::endl;
       }
       else
       {
-      std::cout << "ParNCMesh::OnMeshUpdated pmesh->ent_sets is NULL" << std::endl;
+         std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is NULL" << std::endl;
+      }
+      if (ncent_sets)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is non NULL" << std::endl;
+      }
+      else
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is NULL" << std::endl;
+      }
+      if (mesh->ent_sets)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is non NULL" << std::endl;
+      }
+      else
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is NULL" << std::endl;
+      }
+      ParMesh * pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         std::cout << "dynamic cast succeeded: mesh is a ParMesh" << std::endl;
+
+         if (pmesh->pent_sets != NULL)
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated deleting ParEntitySets object in ParMesh"
+                      << std::endl;
+            delete pmesh->pent_sets;
+         }
+         else if (pmesh->ent_sets != NULL)
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated deleting EntitySets object in ParMesh" <<
+                      std::endl;
+            delete pmesh->ent_sets;
+         }
+         std::cout << "ParNCMesh::OnMeshUpdated creating ParEntitySets object in ParMesh"
+                   << std::endl;
+         pmesh->ent_sets = pmesh->pent_sets =
+                              (pncent_sets) ? new ParEntitySets(*pmesh, *this): NULL;
+         /*
+         if (pmesh->ent_sets)
+         {
+         std::cout << MyRank << ": ParNCMesh::OnMeshUpdated pmesh->ent_sets is non NULL" << std::endl;
+         pmesh->ent_sets->PrintSetInfo(std::cout);
+
+         std::ostringstream oss; oss << "ent_sets_" << MyRank << ".out";
+         std::ofstream ofs(oss.str().c_str());
+         pmesh->ent_sets->Print(ofs);
+         MPI_Barrier(MyComm);
+
+         std::cout << MyRank << ": testing " << NElements << std::endl;
+         //pmesh->ent_sets->Prune(NElements);
+         }
+         else
+         {
+         std::cout << "ParNCMesh::OnMeshUpdated pmesh->ent_sets is NULL" << std::endl;
+         }
+         */
+         if (pmesh->pent_sets)
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is non NULL" <<
+                      std::endl;
+         }
+         else
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is NULL" << std::endl;
+         }
+      }
+      else
+      {
+         std::cout << "dynamic cast failed: mesh is not a ParMesh" << std::endl;
+      }
+      /*
+      if (pncent_sets)
+      {
+        if (!pmesh->pent_sets)
+        {
+          pmesh->pent_sets = new ParEntitySets(*pmesh, *this);
+        }
       }
       */
-      if (pmesh->pent_sets)
+      /*
+      // Prune the Entity Sets
+      if ( entity_sets )
       {
-         std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is non NULL" <<
-                   std::endl;
-      }
-      else
-      {
-         std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is NULL" << std::endl;
-      }
-   }
-   else
-   {
-      std::cout << "dynamic cast failed: mesh is not a ParMesh" << std::endl;
-   }
-   /*
-   if (pncent_sets)
-   {
-     if (!pmesh->pent_sets)
-     {
-       pmesh->pent_sets = new ParEntitySets(*pmesh, *this);
-     }
-   }
-   */
-   /*
-   // Prune the Entity Sets
-   if ( entity_sets )
-   {
-      EntitySets::EntityType t = EntitySets::INVALID;
-      unsigned int ns = -1;
+         EntitySets::EntityType t = EntitySets::INVALID;
+         unsigned int ns = -1;
 
-      std::cout << "Processing node sets" << std::endl;
+         std::cout << "Processing node sets" << std::endl;
 
-      t = EntitySets::VERTEX;
-      ns = entity_sets->GetNumSets(t);
-      for (unsigned int s=0; s<ns; s++)
-      {
-         unsigned int ni = entity_sets->GetNumEntities(t, s);
-    int e = 0;
-    for (unsigned int i=0; i<ni; i++)
-      {
-        if ( (*mesh->ent_sets)(t, s, i) < NVertices )
-          {
-       (*mesh->ent_sets)(t, s, e) = (*mesh->ent_sets)(t, s, i);
-       e++;
-          }
-      }
-    (*mesh->ent_sets)(t, s).resize(e);
-      }
-
-      t = EntitySets::EDGE;
-      ns = entity_sets->GetNumSets(t);
-      for (unsigned int s=0; s<ns; s++)
-      {
-         unsigned int ni = entity_sets->GetNumEntities(t, s);
-    BlockArray<int> ids;
-
-         for (unsigned int i=0; i<ni; i++)
+         t = EntitySets::VERTEX;
+         ns = entity_sets->GetNumSets(t);
+         for (unsigned int s=0; s<ns; s++)
          {
-      if ( (*mesh->ent_sets)(t, s, i) < NEdges )
-      {
-        ids.Append((*mesh->ent_sets)(t, s, i));
-      }
+            unsigned int ni = entity_sets->GetNumEntities(t, s);
+       int e = 0;
+       for (unsigned int i=0; i<ni; i++)
+         {
+           if ( (*mesh->ent_sets)(t, s, i) < NVertices )
+             {
+          (*mesh->ent_sets)(t, s, e) = (*mesh->ent_sets)(t, s, i);
+          e++;
+             }
          }
-    (*mesh->ent_sets)(t, s).resize(ids.Size());
-    for (int i=0; i<ids.Size(); i++)
-      {
-        (*mesh->ent_sets)(t, s, i) = ids[i];
+       (*mesh->ent_sets)(t, s).resize(e);
+         }
+
+         t = EntitySets::EDGE;
+         ns = entity_sets->GetNumSets(t);
+         for (unsigned int s=0; s<ns; s++)
+         {
+            unsigned int ni = entity_sets->GetNumEntities(t, s);
+       BlockArray<int> ids;
+
+            for (unsigned int i=0; i<ni; i++)
+            {
+         if ( (*mesh->ent_sets)(t, s, i) < NEdges )
+         {
+           ids.Append((*mesh->ent_sets)(t, s, i));
+         }
+            }
+       (*mesh->ent_sets)(t, s).resize(ids.Size());
+       for (int i=0; i<ids.Size(); i++)
+         {
+           (*mesh->ent_sets)(t, s, i) = ids[i];
+         }
+         }
       }
-      }
-   }
-   */
-   std::cout << MyRank << ": Leaving ParNCMesh::OnMeshUpdated" << std::endl;
+      */
+      std::cout << MyRank << ": Leaving ParNCMesh::OnMeshUpdated" << std::endl;
    }
 }
 
