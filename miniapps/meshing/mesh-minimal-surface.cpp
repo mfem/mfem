@@ -689,12 +689,15 @@ constexpr double SCALE = 0.9;
 struct Costa: public Surface<Costa>
 {
    Costa(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d, SCALE) { }
+      Surface(BC, o, x, y, r, d,
+              (getenv("SCALE")?atof(getenv("SCALE")):SCALE)) { }
+
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
-      const double alpha = 1./2.;
-      const double delta = (1.-SCALE)/2.;
+      const double scale = getenv("SCALE")?atof(getenv("SCALE")):SCALE;
+      const double alpha = 1./4.;
+      const double delta = (1.-scale)/2.;
       const  double u = x[0] + delta;
       const  double v = x[1] + delta;
       const cdouble w = u + I*v;
@@ -715,11 +718,11 @@ struct Costa: public Surface<Costa>
       {
          p[0] = u;
          p[1] = v;
-         p[2] = 0.;
+         p[2] = u+v;
          return;
       }
-
       /*
+            static double R = 4.0;
             const double H = R;
             if (u == 0.5 && v == delta)     { p[1] = -R; p[2] = -H; return; }
             if (u == 0.5 && v == 1.0-delta) { p[1] = +R; p[2] = -H; return; }
@@ -735,91 +738,85 @@ struct Costa: public Surface<Costa>
             if (v == delta && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
             if (u == (1.0-delta) && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
             if (v == (1.0-delta) && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
-      */
-      /*
-            static double R = 1.0;
+
             const bool OUT = (fabs(p[0])>R)||(fabs(p[1])>R)||(fabs(p[2])>R);
             if (OUT)
             {
                const int color = OUT ? 33 : 32;
                printf("\n\033[%dm(%f:%f,%f): (%f,%f,%f)\033[m",
                       color, delta, u, v, p[0], p[1], p[2]); fflush(0);
-            }*/
+            }
+      */
    }
 
    void Snap(Array<int> &v2v)
    {
-      const int NV = GetNV();
-      GridFunction &nodes = *GetNodes();
-      const int sdim = SpaceDimension();
-      MFEM_VERIFY(nodes.FESpace()->GetNDofs()==NV,"");
-      for (int i = 1; i < nx; i++)
+      //const int NV = GetNV();
+      //GridFunction &nodes = *GetNodes();
+      //const int sdim = SpaceDimension();
+      //MFEM_VERIFY(nodes.FESpace()->GetNDofs()==NV,"");
+      const bool X = true;
+      const bool Y = true;
+      if (X)
       {
-         const int v_old = i + (nx + 1) * ny;
-         const int v_new = i;
-         if (nx>>1==i) { continue; }
-
-         v2v[v_old] = v_new;
-         dbg("\033[32m%d => %d", v_old, v_new);
-
-         Vector node_old(sdim);
-         Vector node_new(sdim);
-         for (int d = 0; d < sdim; d++)
+         for (int i = 1; i < nx; i++)
          {
-            node_old(d) = nodes(nodes.FESpace()->DofToVDof(v_old, d));
-            node_new(d) = nodes(nodes.FESpace()->DofToVDof(v_new, d));
-         }
-         node_new = 100.0;
-         for (int d = 0; d < sdim; d++)
-         {
-            nodes(nodes.FESpace()->DofToVDof(v_new, d)) = node_new(d);
-         }
-         /*
-                  const double x_old = nodes[v_old];
-                  const double y_old = nodes[v_old+NV];
-                  const double z_old = nodes[v_old+2*NV];
-                  const double x_new = nodes[v_new];
-                  const double y_new = nodes[v_new+NV];
-                  const double z_new = nodes[v_new+2*NV];*/
-         //const double x_mid = (x_old + x_new)/2.;
-         //const double y_mid = (y_old + y_new)/2.;
-         //const double z_mid = (z_old + z_new)/2.;
+            const int v_old = i + (nx + 1) * ny;
+            const int v_new = i;
 
-         //dbg("old: (%f,%f,%f)", x_old, y_old, z_old);
-         //dbg("new: (%f,%f,%f)", x_new, y_new, z_new);
-         //dbg("mid: (%f,%f,%f)", x_mid, y_mid, z_mid);
-         //nodes[v_new] = 0.0;//x_mid;
-         //nodes[v_new+NV] = 0.0;//y_mid;
-         //nodes[v_new+2*NV] = 0.0;//z_mid;
+            const int m = nx - (i<<1);
+            if (abs(m)<=1) { dbg("\33[32mX skip"); continue; }
+
+            v2v[v_old] = v_new;
+            dbg("\033[32m%d => %d", v_old, v_new);
+
+            /*Vector node_old(sdim);
+            Vector node_new(sdim);
+            for (int d = 0; d < sdim; d++)
+            {
+               node_old(d) = nodes(nodes.FESpace()->DofToVDof(v_old, d));
+               node_new(d) = nodes(nodes.FESpace()->DofToVDof(v_new, d));
+               node_new(d) = (node_old(d) + node_new(d))/2.0;
+               nodes(nodes.FESpace()->DofToVDof(v_new, d)) = node_new(d);
+            }*/
+         }
       }
-      for (int j = 1; j < ny; j++)
-      {
-         const int v_old = nx + j * (ny + 1);
-         const int v_new =      j * (ny + 1);
-         if (ny>>1==j) { continue; }
 
-         v2v[v_old] = v_new;
-         dbg("\33[33m%d => %d", v_old, v_new);
-         /*
-                  const double x_old = nodes[v_old];
-                  const double y_old = nodes[v_old+NV];
-                  const double z_old = nodes[v_old+2*NV];
-                  const double x_new = nodes[v_new];
-                  const double y_new = nodes[v_new+NV];
-                  const double z_new = nodes[v_new+2*NV];
-                  nodes[v_new] = (x_old + x_new)/2.;
-                  nodes[v_new+NV] = (y_old + y_new)/2.;
-                  nodes[v_new+2*NV] = (z_old + z_new)/2.;*/
+      if (Y)
+      {
+         for (int j = 1; j < ny; j++)
+         {
+            const int v_old = nx + j * (nx + 1);
+            const int v_new =      j * (nx + 1);
+
+            const int m = ny - (j<<1);
+            if (abs(m)<=1) { dbg("\33[33mY skip"); continue; }
+
+            v2v[v_old] = v_new;
+            dbg("\33[33m%d => %d", v_old, v_new);
+
+            /*Vector node_old(sdim);
+            Vector node_new(sdim);
+            for (int d = 0; d < sdim; d++)
+            {
+               node_old(d) = nodes(nodes.FESpace()->DofToVDof(v_old, d));
+               node_new(d) = nodes(nodes.FESpace()->DofToVDof(v_new, d));
+               node_new(d) = (node_old(d) + node_new(d))/2.0;
+               nodes(nodes.FESpace()->DofToVDof(v_new, d)) = node_new(d);
+            }*/
+         }
       }
    }
 
    void Postfix()
    {
-      dbg("\033[37mPostfix");
-      Vector nval;
+      SetCurvature(order, false, 3, Ordering::byNODES);
+      dbg("\033[37m");
       Array<int> v2v(GetNV());
       for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+
       Snap(v2v);
+
       for (int i = 0; i < GetNE(); i++)
       {
          Element *el = GetElement(i);
@@ -834,11 +831,13 @@ struct Costa: public Surface<Costa>
          const int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
       }
+      RemoveUnusedVertices();
+      RemoveInternalBoundaries();
    }
-   void Refine()
+   /*void Refine()
    {
       dbg("\033[37mRefine");
-   }
+   }*/
 };
 
 // Visualize some solution on the given mesh
