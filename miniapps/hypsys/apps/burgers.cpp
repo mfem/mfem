@@ -36,10 +36,10 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
    }
 }
 
-void Burgers::EvaluateFlux(const Vector &u, DenseMatrix &f,
+void Burgers::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                            int e, int k, int i) const
 {
-   f = 0.5 * u(0) * u(0);
+   FluxEval = 0.5 * u(0) * u(0);
 }
 
 double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,

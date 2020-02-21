@@ -135,20 +135,20 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    }
 }
 
-void Advection::EvaluateFlux(const Vector &u, DenseMatrix &f,
+void Advection::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i) const
 {
    if (i == -1) // Element terms.
    {
       VelocityVector = VelElem(e).GetColumn(k);
       VelocityVector *= u(0);
-      f.SetRow(0, VelocityVector);
+      FluxEval.SetRow(0, VelocityVector);
    }
    else
    {
       VelocityVector = VelFace(e*nqf+k).GetColumn(i);
       VelocityVector *= u(0);
-      f.SetRow(0, VelocityVector);
+      FluxEval.SetRow(0, VelocityVector);
    }
 }
 

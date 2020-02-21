@@ -36,7 +36,7 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
    }
 }
 
-void TEMPLATE::EvaluateFlux(const Vector &u, DenseMatrix &f,
+void TEMPLATE::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                             int e, int k, int i) const
 {
    // TODO

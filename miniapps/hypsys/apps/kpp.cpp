@@ -35,11 +35,11 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
    }
 }
 
-void KPP::EvaluateFlux(const Vector &u, DenseMatrix &f,
-                            int e, int k, int i) const
+void KPP::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
+                       int e, int k, int i) const
 {
-   f(0, 0) = sin(u(0));
-   f(0, 1) = cos(u(0));
+   FluxEval(0,0) = sin(u(0));
+   FluxEval(0,1) = cos(u(0));
 }
 
 double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,

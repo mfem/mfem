@@ -69,7 +69,7 @@ public:
    void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
                       Vector &y, int e, int k, int i) const;
    virtual void EvolveStandard(const Vector &x, Vector &y) const;
-   virtual void EvolveMCL     (const Vector &x, Vector &y) const;
+   virtual void EvolveMCL(const Vector &x, Vector &y) const;
 
    virtual double ConvergenceCheck(double dt, double tol, const Vector &u) const;
 };
