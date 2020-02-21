@@ -141,7 +141,7 @@ sanitycheck_opt_par_mfem_gcc_6_1_0_quartz:
 # Baseline
 baselinecheck_mfem_gcc_6_1_0_quartz:
   extends: [.baselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  #needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
 
   #samplebaselinecheck_mfem_gcc_6_1_0_quartz:
   #  extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
