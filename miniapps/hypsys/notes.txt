@@ -1,0 +1,22 @@
+HypSyS NOTES
+
+TODO:
+-make sure the appropriate bdr conditions are used (Priority 1)
+   a) time-dependent vs time independent
+   b) type of projection used
+   c) For systems of equations use physical bdr conditions and Riemann solver - distinction between types of bdr conditions?
+-figure out a good way to avoid ifs/switches within the evolution - if possible let each scheme inherit from (p)fe_evol classes (Priority 2)
+-clean up hypsys.cpp and phypsys.cpp, try to move as much functionality into the apps-constructors as possible (Priority 3)
+-visualization of other unknowns / quotients of unknowns (Priority 4)
+-System of Euler equations (Priority 5)
+
+
+Current state:
+-Solves Advection, Burgers, KPP and Shallow Water.
+-DG0 supported, fully MPI parallelized.
+-Only inflow and periodic boundary conditions are supported.
+
+Next major tasks:
+-Low order IDP schemes
+   * Once different evolution schemes are considered, check combinations of schemes: e.g. DG0 only for standard evolution.
+-Limiting
