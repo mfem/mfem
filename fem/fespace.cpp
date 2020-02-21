@@ -92,19 +92,41 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    Constructor(mesh, NURBSext, fec, orig.vdim, orig.ordering);
 }
 
-int FiniteElementSpace::SetElementOrder(int i, int p)
+void FiniteElementSpace::SetElementOrder(int i, int p)
 {
+   MFEM_VERIFY(sequence != mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
+   MFEM_VERIFY(p >= 0 && p < std::numeric_limits<char>::max(), "order ouf of range");
+   MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
 
-   Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
-   return fec->FiniteElementForGeometry(GeomType)->GetOrder();
+   if (elem_order.Size())
+   {
+      if (elem_order[i] != p)
+      {
+         elem_order[i] = p;
+         dirty = true;
+      }
+   }
+   else
+   {
+      if (p != fec->DefaultOrder())
+      {
+         elem_order.SetSize(GetNE());
+         elem_order = fec->DefaultOrder();
+
+         elem_order[i] = p;
+         dirty = true;
+      }
+   }
 }
 
 int FiniteElementSpace::GetElementOrder(int i) const
 {
+   MFEM_VERIFY(sequence != mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
-   Geometry::Type GeomType = mesh->GetElementBaseGeometry(i);
-   return fec->FiniteElementForGeometry(GeomType)->GetOrder();
+   MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
+
+   return elem_order.Size() ? elem_order[i] : fec->DefaultOrder();
 }
 
 int FiniteElementSpace::GetFaceOrder(int i) const

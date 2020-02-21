@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FEColleDction(order = 1, dim);
+      fec = new H1_FECollection(order = 1, dim);
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
