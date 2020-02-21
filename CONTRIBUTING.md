@@ -17,6 +17,11 @@ improvements; simplifications; new mesh, discretization or solver
 capabilities; improved documentation; new examples and miniapps;
 HPC performance improvements; etc.
 
+If you plan on contributing to MFEM, consider looking into issues first. There,
+you can check if a thread already exists for your desired feature or the bug
+you ran into. You may want to start a new thread to get feedback from the team
+before engaging yourself in a PR.
+
 Use a pull request (PR) toward the `mfem:master` branch to propose your
 contribution. If you are planning significant code changes, or have any
 questions, you can also open an [issue](https://github.com/mfem/mfem/issues)
@@ -28,6 +33,7 @@ See the [Quick Summary](#quick-summary) section for the main highlights of our
 GitHub workflow. For more details, consult the following sections and refer
 back to them before issuing pull requests:
 
+- [Quick Summary](#quick-summary)
 - [Code Overview](#code-overview)
 - [GitHub Workflow](#github-workflow)
   - [MFEM Organization](#mfem-organization)
@@ -74,9 +80,11 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 
 ### Code Overview
 
-- The MFEM library uses object-orient design principles which reflect, in code,
-  the independent mathematical concepts of meshing, linear algebra and finite
-  element spaces and operators.
+#### Source code structure:
+
+  The MFEM library uses object-oriented design principles which reflect, in
+  code, the independent mathematical concepts of meshing, linear algebra and
+  finite element spaces and operators.
 
 - The MFEM source code has the following structure:
   ```
@@ -116,7 +124,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 
   ```
 
-- The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
+#### Main directories and classes
+  The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
   classes implementing the finite element, mesh and linear algebra concepts
   respectively.
 
@@ -140,7 +149,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + [`DenseMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1DenseMatrix.html) and [`SparseMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1SparseMatrix.html)
   + Sparse [smoothers](http://mfem.github.io/doxygen/html/sparsesmoothers_8hpp.html) and linear [solvers](http://mfem.github.io/doxygen/html/solvers_8hpp.html)
 
-- Parallel MPI objects in MFEM inherit their serial counterparts, so a parallel
+#### Parallel implementation
+  Parallel MPI objects in MFEM inherit their serial counterparts, so a parallel
   mesh for example is just a serial mesh on each task plus the information on
   shared geometric entities between different tasks. The parallel source files
   have a `p` prefix, e.g. `pmesh.cpp` vs. the serial `mesh.cpp`.
@@ -154,7 +164,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + [`HypreParMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
   + [`HypreSolver`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](http://mfem.github.io/doxygen/html/hypre_8hpp.html)
 
-- GPU and multi-core CPU support is based on device kernels supporting different
+#### Device specifics
+  GPU and multi-core CPU support is based on device kernels supporting different
   backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
   device/host memory manager.
 
@@ -164,6 +175,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + the [`MFEM_FORALL`](http://mfem.github.io/doxygen/html/forall_8hpp.html) macro
   + the [`cuda.hpp`](http://mfem.github.io/doxygen/html/cuda_8hpp.html) and [`occa.hpp`](http://mfem.github.io/doxygen/html/occa_8hpp.html) files
 
+#### Utilities, build and documentation
 - The `general/` directory contains C++ classes that serve as utilities for
   communication, error handling, arrays, (Boolean) tables, timing, etc.
 
@@ -171,25 +183,26 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   Makefile and the CMake build options.
 
 - The `doc/` directory contains configuration for the Doxygen code documentation
-  that can either be build locally, or browsed online at
+  that can either be built locally or browsed online at
   http://mfem.github.io/doxygen/html/index.html.
 
-- The `data/` directory contains a collection of small mesh files, that are used
-  in the simple example codes and more fully-featured mini applications in the
-  `examples/` and `miniapps/` directories.
+#### Examples and tests
+- `examples` and `miniapps` respectively gather simple and more fully-featured
+  demonstrations of the usage on MFEM. They both rely on `data/` for the
+  collection of meshes.
 
 - The `tests/` directory contains a unit test suite and will later contain more
   tests that run example codes.
 
-- See also the [code overview](http://mfem.org/code-overview/) section on the
-  MFEM website.
+See also the [code overview](http://mfem.org/code-overview/) section on the
+MFEM website.
 
 ## GitHub Workflow
 
-The GitHub organization, https://github.com/mfem, is the main developer hub for
-the MFEM project.
+The MFEM GitHub organization -- https://github.com/mfem -- is the main
+developer hub for the MFEM project.
 
-If you plan to make contributions or will like to stay up-to-date with changes
+If you plan to make contributions or would like to stay up-to-date with changes
 in the code, *we strongly encourage you to [join the MFEM organization](#mfem-organization)*.
 
 This will simplify the workflow (by providing you additional permissions), and
@@ -198,17 +211,17 @@ will allow us to reach you directly with project announcements.
 
 ### MFEM Organization
 
-- Before you can start, you need a GitHub account, here are a few suggestions:
+#### Getting started (GitHub)
+Before you can start, you need a GitHub account, here are a few suggestions:
   + Create the account at: github.com/join.
   + For easy identification, please add your name and maybe a picture of you at:
     https://github.com/settings/profile.
   + To receive notification, set a primary email at: https://github.com/settings/emails.
   + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys.
 
+#### Joining
 - [Contact us](#contact-information) for an invitation to join the MFEM GitHub
-  organization.
-
-- You should receive an invitation email, which you can directly accept.
+  organization. You will receive an invitation email, which you can directly accept.
   Alternatively, *after logging into GitHub*, you can accept the invitation at
   the top of https://github.com/mfem.
 
@@ -218,6 +231,7 @@ will allow us to reach you directly with project announcements.
 - Project discussions and announcements will be posted at
   https://github.com/orgs/mfem/teams/everyone.
 
+#### Structure
 - The MFEM source code is in the [mfem](https://github.com/mfem/mfem)
   repository.
 
@@ -279,12 +293,13 @@ will allow us to reach you directly with project announcements.
   - Lean code base is easier to understand by new collaborators.
   - New features should be added only if they are necessary or generally useful.
   - Introduction of language constructions not currently used in MFEM should be
-    justified and generally avoided (so we can build on cutting-edge systems).
+    justified and generally avoided (to maintain portability to various systems
+    and compilers).
   - We prefer basic C++ and the C++03 standard, to keep the code readable by
     a large audience and to make sure it compiles anywhere.
 
 - *Keep the code general and reasonably efficient*
-  - Main goal is fast prototyping for research.
+  - The main goal is fast prototyping for research.
   - When in doubt, generality wins over efficiency.
   - Respect the needs of different users (current and/or future).
 
