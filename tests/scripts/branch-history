@@ -13,7 +13,7 @@
 
 my $branch_max_commits = 100;
 my $commit_max_files_changed = 100;
-my $max_blob_kb = 200;
+my $max_blob_kb = 1;
 my $max_commit_kb = 400;
 my $max_branch_kb = 1000;
 
@@ -87,6 +87,27 @@ foreach my $sha (@commits) {
 if ($total_size > $max_branch_kb*1024) {
   printf STDERR "\033[31mLarge total branch size: %d KB.\033[0m\n", $total_size/1024;
   $status = 1;
+}
+
+if ($status) {
+  print <<EOF
+
+The failure of this script indicate that large files or a large number of files
+have been added or committed in the current branch history.
+
+This could be OK in certain cases, but it could also be a sign that large files
+have accidentally been committed.
+
+To address this error, examine the listed files and commits to make sure all
+large changes were intentional. If there is a wrong commit that has to be
+deleted, please either:
+
+1) Recreate the branch without that commit.
+2) Indicate that the branch should be squash-merged
+
+or contact a member of the MFEM team for help or if you have questions.
+
+EOF
 }
 
 exit $status;
