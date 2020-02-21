@@ -73,8 +73,8 @@ stages:
   - libs
   - build
   - test
-  - baseline_check
   - deallocate
+  - baseline_check
   - baseline_publish
 
 # The setup job in setup stage don’t rely on MFEM git repo. It prepares a
@@ -190,12 +190,7 @@ stages:
   cd tests
   mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
   # run
-  if [[ "${MPIEXEC}" == "srun" ]]
-  then
-    export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
-    export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${BASELINE_PAR}:1 --cpus-per-task=${BASELINE_PAR} --ntasks=1"
-  fi
-  ${EXEC_PREFIX} ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
   if [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
