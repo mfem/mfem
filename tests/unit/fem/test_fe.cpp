@@ -20,22 +20,29 @@ TEST_CASE("H1 Segment Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   int p = 1;
-
-   H1_SegmentElement fe(p);
-
-   SECTION("Attributes")
+   for (int p = 1; p<=2; p++)
    {
-      REQUIRE( fe.GetDim()            == 1                     );
-      REQUIRE( fe.GetGeomType()       == Geometry::SEGMENT     );
-      REQUIRE( fe.GetDof()            == p+1                   );
-      REQUIRE( fe.GetOrder()          == p                     );
-      REQUIRE( fe.Space()             == (int) FunctionSpace::Pk     );
-      REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
-      REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
-      REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
-      REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
-      REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
+      H1_SegmentElement fe(p);
+
+      if (p == 1)
+      {
+         SECTION("Attributes")
+         {
+            REQUIRE( fe.GetDim()            == 1                           );
+            REQUIRE( fe.GetGeomType()       == Geometry::SEGMENT           );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Pk     );
+            REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
+            REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
+            REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
+            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
+            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
+         }
+      }
+      SECTION("Sizes for p = " + std::to_string(p))
+      {
+         REQUIRE( fe.GetDof()   == p+1 );
+         REQUIRE( fe.GetOrder() == p   );
+      }
    }
 }
 
@@ -45,7 +52,7 @@ TEST_CASE("H1 Triangle Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 1; p<=3; p++)
    {
       H1_TriangleElement fe(p);
 
@@ -77,7 +84,7 @@ TEST_CASE("H1 Quadrilateral Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 1; p<=3; p++)
    {
       H1_QuadrilateralElement fe(p);
 
@@ -109,7 +116,7 @@ TEST_CASE("H1 Tetrahedron Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 1; p<=4; p++)
    {
       H1_TetrahedronElement fe(p);
 
@@ -141,7 +148,7 @@ TEST_CASE("H1 Hexahedron Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 1; p<=4; p++)
    {
       H1_HexahedronElement fe(p);
 
@@ -173,7 +180,7 @@ TEST_CASE("H1 Wedge Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 1; p<=4; p++)
    {
       H1_WedgeElement fe(p);
 
@@ -204,22 +211,29 @@ TEST_CASE("Nedelec Segment Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   int p = 1;
-
-   ND_SegmentElement fe(p);
-
-   SECTION("Attributes")
+   for (int p = 1; p<=2; p++)
    {
-      REQUIRE( fe.GetDim()            == 1                     );
-      REQUIRE( fe.GetGeomType()       == Geometry::SEGMENT     );
-      REQUIRE( fe.GetDof()            == p                     );
-      REQUIRE( fe.GetOrder()          == p-1                   );
-      REQUIRE( fe.Space()             == (int) FunctionSpace::Pk      );
-      REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR  );
-      REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_CURL  );
-      REQUIRE( fe.GetDerivType()      == (int) FiniteElement::NONE    );
-      REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::SCALAR  );
-      REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::INTEGRAL);
+      ND_SegmentElement fe(p);
+
+      if (p == 1)
+      {
+         SECTION("Attributes")
+         {
+            REQUIRE( fe.GetDim()            == 1                            );
+            REQUIRE( fe.GetGeomType()       == Geometry::SEGMENT            );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Pk      );
+            REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR  );
+            REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_CURL  );
+            REQUIRE( fe.GetDerivType()      == (int) FiniteElement::NONE    );
+            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::SCALAR  );
+            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::INTEGRAL);
+         }
+      }
+      SECTION("Sizes for p = " + std::to_string(p))
+      {
+         REQUIRE( fe.GetDof()   == p   );
+         REQUIRE( fe.GetOrder() == p-1 );
+      }
    }
 }
 
@@ -228,7 +242,7 @@ TEST_CASE("Nedelec Triangular Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 1; p<=3; p++)
    {
       ND_TriangleElement fe(p);
 
@@ -259,7 +273,7 @@ TEST_CASE("Nedelec Quadrilateral Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 1; p<=3; p++)
    {
       ND_QuadrilateralElement fe(p);
 
@@ -290,7 +304,7 @@ TEST_CASE("Nedelec Tetrahedron Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 1; p<=4; p++)
    {
       ND_TetrahedronElement fe(p);
 
@@ -321,7 +335,7 @@ TEST_CASE("Nedelec Hexahedron Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 1; p<=4; p++)
    {
       ND_HexahedronElement fe(p);
 
@@ -352,7 +366,7 @@ TEST_CASE("Raviart-Thomas Triangular Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 1; p<=3; p++)
    {
       RT_TriangleElement fe(p-1);
 
@@ -383,7 +397,7 @@ TEST_CASE("Raviart-Thomas Quadrilateral Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 1; p<=3; p++)
    {
       RT_QuadrilateralElement fe(p-1);
 
@@ -414,7 +428,7 @@ TEST_CASE("Raviart-Thomas Tetrahedron Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 1; p<=4; p++)
    {
       RT_TetrahedronElement fe(p-1);
 
@@ -445,7 +459,7 @@ TEST_CASE("Raviart-Thomas Hexahedron Finite Element",
           "[VectorFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 1; p<=4; p++)
    {
       RT_HexahedronElement fe(p-1);
 
@@ -477,22 +491,29 @@ TEST_CASE("L2 Segment Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   int p = 1;
-
-   L2_SegmentElement fe(p);
-
-   SECTION("Attributes")
+   for (int p = 0; p<=1; p++)
    {
-      REQUIRE( fe.GetDim()            == 1                     );
-      REQUIRE( fe.GetGeomType()       == Geometry::SEGMENT     );
-      REQUIRE( fe.GetDof()            == (p+1)                 );
-      REQUIRE( fe.GetOrder()          == p                     );
-      REQUIRE( fe.Space()             == (int) FunctionSpace::Pk     );
-      REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
-      REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
-      REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
-      REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
-      REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
+      L2_SegmentElement fe(p);
+
+      if (p == 0)
+      {
+         SECTION("Attributes")
+         {
+            REQUIRE( fe.GetDim()            == 1                           );
+            REQUIRE( fe.GetGeomType()       == Geometry::SEGMENT           );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Pk     );
+            REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
+            REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
+            REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
+            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
+            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
+         }
+      }
+      SECTION("Sizes for p = " + std::to_string(p))
+      {
+         REQUIRE( fe.GetDof()   == p+1 );
+         REQUIRE( fe.GetOrder() == p   );
+      }
    }
 }
 
@@ -502,7 +523,7 @@ TEST_CASE("L2 Triangle Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 0; p<=2; p++)
    {
       L2_TriangleElement fe(p);
 
@@ -534,7 +555,7 @@ TEST_CASE("L2 Quadrilateral Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=2; p++)
+   for (int p = 0; p<=2; p++)
    {
       L2_QuadrilateralElement fe(p);
 
@@ -566,7 +587,7 @@ TEST_CASE("L2 Tetrahedron Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 0; p<=3; p++)
    {
       L2_TetrahedronElement fe(p);
 
@@ -598,7 +619,7 @@ TEST_CASE("L2 Hexahedron Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 0; p<=3; p++)
    {
       L2_HexahedronElement fe(p);
 
@@ -630,7 +651,7 @@ TEST_CASE("L2 Wedge Finite Element",
           "[ScalarFiniteElement]"
           "[FiniteElement]")
 {
-   for (int p = 1; p<=3; p++)
+   for (int p = 0; p<=3; p++)
    {
       L2_WedgeElement fe(p);
 
