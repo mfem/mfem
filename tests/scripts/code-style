@@ -63,8 +63,10 @@ if [ -s "$0.err" ]; then
 
 To correct this error, run 'make style' and make sure that:
 
-1) The code is formatted with Artistic Style 2.05.1.
-2) There is no use of std::cout/cerr (use mfem::out/err instead).
+1) Make sure that you are using Artistic Style 2.05.1 ("astyle --version").
+2) There is no use of std::cout or std::cerr inside the library code (examples
+   and miniapps are OK). Use mfem::out and mfem::err instead.
+3) Run "make style" to apply astyle formatting and verify your code.
 
 Please contact a member of the MFEM team if you have questions.
 

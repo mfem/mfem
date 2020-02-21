@@ -211,8 +211,8 @@ done < <(git rev-list --reverse --no-merges ${commit_range})
 if [ -s "$0.err" ]; then
     cat >  $0.msg <<EOF
 
-The failure of this script indicate that large files have been added or committed
-in the current branch history.
+The failure of this script indicates that large files have been added or
+committed in the current branch history.
 
 This could be OK, in certain cases, but it could also be a sign that large files
 have accidentally been committed.
@@ -224,7 +224,7 @@ deleted, please either:
 1) Recreate the branch without that commit.
 2) Indicate that the branch should be squash-merged
 
-or contact a member of the MFEM team for help or if you have questions.
+or contact a member of the MFEM team for help if you have questions.
 
 EOF
 fi
