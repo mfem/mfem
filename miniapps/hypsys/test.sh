@@ -3,13 +3,13 @@ make clean && make -j;
 ## Advection
 
 # Solid Body Roatation
-./hypsys
-./phypsys
-mpirun -np 4 ./phypsys
+./hypsys -tf 0.1
+./phypsys -tf 0.1
+mpirun -np 4 ./phypsys -tf 0.1
 # Steady Circular Convection
-./hypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
-./phypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
-mpirun -np 4 ./phypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
+# ./hypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
+# ./phypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
+# mpirun -np 4 ./phypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
 
 ## Burgers
 ./hypsys -p 1 -o 0 -tf 0.5 -r 4 -m data/inline-4quad.mesh
@@ -17,9 +17,9 @@ mpirun -np 4 ./phypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -
 mpirun -np 4 ./phypsys -p 1 -o 0 -tf 0.5 -r 4 -m data/inline-4quad.mesh
 
 ## KPP
-./hypsys -m data/inline-4quad.mesh -r 6 -o 0 -p 2 -tf 0.25
-./phypsys -m data/inline-4quad.mesh -r 6 -o 0 -p 2 -tf 0.25
-mpirun -np 4 ./phypsys -m data/inline-4quad.mesh -r 6 -o 0 -p 2 -tf 0.25
+./hypsys -m data/inline-4quad.mesh -r 5 -o 0 -p 2 -tf 0.25 -dt 0.004
+./phypsys -m data/inline-4quad.mesh -r 5 -o 0 -p 2 -tf 0.25 -dt 0.004
+mpirun -np 4 ./phypsys -m data/inline-4quad.mesh -r 5 -o 0 -p 2 -tf 0.25 -dt 0.004
 
 ## Shallow-Water
 

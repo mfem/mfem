@@ -1,7 +1,7 @@
 #ifndef HYPSYS_TEMPLATE
 #define HYPSYS_TEMPLATE
 
-#include "hypsys.hpp"
+#include "hyperbolic_system.hpp"
 
 class TEMPLATE : public HyperbolicSystem
 {

@@ -1,7 +1,7 @@
 #ifndef HYPSYS_ADVECTION
 #define HYPSYS_ADVECTION
 
-#include "hypsys.hpp"
+#include "hyperbolic_system.hpp"
 
 class Advection : public HyperbolicSystem
 {

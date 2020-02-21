@@ -1,7 +1,7 @@
 #ifndef HYPSYS_BURGERS
 #define HYPSYS_BURGERS
 
-#include "hypsys.hpp"
+#include "hyperbolic_system.hpp"
 
 class Burgers : public HyperbolicSystem
 {

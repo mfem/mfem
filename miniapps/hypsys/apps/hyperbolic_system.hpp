@@ -1,5 +1,5 @@
-#ifndef HYPSYS_HYPSYS
-#define HYPSYS_HYPSYS
+#ifndef HYPSYS_HYPERBOLIC_SYSTEM
+#define HYPSYS_HYPERBOLIC_SYSTEM
 
 #include <fstream>
 #include <iostream>

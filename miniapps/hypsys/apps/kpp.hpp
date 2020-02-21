@@ -1,7 +1,7 @@
 #ifndef HYPSYS_KPP
 #define HYPSYS_KPP
 
-#include "hypsys.hpp"
+#include "hyperbolic_system.hpp"
 
 class KPP : public HyperbolicSystem
 {

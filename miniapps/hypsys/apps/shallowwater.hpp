@@ -1,7 +1,7 @@
 #ifndef HYPSYS_SHALLOWWATER
 #define HYPSYS_SHALLOWWATER
 
-#include "hypsys.hpp"
+#include "hyperbolic_system.hpp"
 
 class ShallowWater : public HyperbolicSystem
 {

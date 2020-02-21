@@ -1,16 +1,9 @@
 #ifndef HYPSYS_PFE_EVOL
 #define HYPSYS_PFE_EVOL
 
-#include <fstream>
-#include <iostream>
-#include "../../../mfem.hpp"
 #include "fe_evol.hpp"
-#include "massmat.hpp"
 #include "pdofs.hpp"
 #include "ptools.hpp"
-#include "../apps/advection.hpp"
-#include "../apps/burgers.hpp"
-#include "../apps/shallowwater.hpp"
 
 using namespace std;
 using namespace mfem;
