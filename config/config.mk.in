@@ -49,6 +49,7 @@ MFEM_USE_HIP           = @MFEM_USE_HIP@
 MFEM_USE_RAJA          = @MFEM_USE_RAJA@
 MFEM_USE_OCCA          = @MFEM_USE_OCCA@
 MFEM_USE_CEED          = @MFEM_USE_CEED@
+MFEM_USE_CALIPER       = @MFEM_USE_CALIPER@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@
