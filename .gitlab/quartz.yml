@@ -37,6 +37,7 @@ allocate_quartz:
       then
       salloc --nodes=1 --extra-node-info=2:18:1 --partition=pdebug --time=30 --no-shell --job-name=${MFEM_ALLOC_NAME}
       fi
+  timeout: 6h
 
 # Release
 deallocate_quartz:
