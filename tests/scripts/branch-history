@@ -13,7 +13,7 @@
 
 my $branch_max_commits = 100;
 my $commit_max_files_changed = 100;
-my $max_blob_kb = 1;
+my $max_blob_kb = 200;
 my $max_commit_kb = 400;
 my $max_branch_kb = 1000;
 
@@ -90,7 +90,8 @@ if ($total_size > $max_branch_kb*1024) {
 }
 
 if ($status) {
-  print <<EOF
+  open(my $f, '>', "$0.msg");
+  print $f <<EOF
 
 The failure of this script indicate that large files or a large number of files
 have been added or committed in the current branch history.
