@@ -139,14 +139,14 @@ sanitycheck_opt_par_mfem_gcc_6_1_0_quartz:
   needs: [build_mfem_opt_par_gcc_6_1_0_quartz, allocate_quartz]
 
 # Baseline
-baselinecheck_mfem_gcc_6_1_0_quartz:
-  extends: [.baselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-  #needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+baselinecheck_mfem_intel_quartz:
+  extends: [.baselinecheck_mfem, .on_quartz]
+  needs: [allocate_quartz]
 
   #samplebaselinecheck_mfem_gcc_6_1_0_quartz:
   #  extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-  #  needs: [build_hypre_gcc_6_1_0_quartz, build_parmetis_gcc_6_1_0_quartz, allocate_quartz]
+  #  needs: [allocate_quartz]
   #
   #baselinepublish_mfem_quartz:
   #  extends: [.rebaseline_mfem, .on_quartz]
-  #  needs: [baselinecheck_mfem_gcc_6_1_0_quartz]
+  #  needs: [baselinecheck_mfem_intel_quartz]
