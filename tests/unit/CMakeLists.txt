@@ -40,6 +40,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
   fem/test_quadraturefunc.cpp
+  fem/test_tet_reorder.cpp
   )
 
 # All unit tests are built into a single executable 'unit_tests'.
