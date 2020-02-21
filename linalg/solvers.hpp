@@ -33,6 +33,9 @@ class BilinearForm;
 /// TODO:
 /// - name instead of leading_spaces?
 /// - have the base IterativeSolver class own this
+/// - alerts etc?
+/// (BICGStab, MINRES, Newton remain)
+/// (also OptimizationSolver, but that seems different?)
 class IterativeSolverMonitor
 {
 protected:
@@ -41,6 +44,7 @@ protected:
    int leading_spaces;
 
 public:
+   int GetPrintLevel() const { return print_level; }
    void SetPrintLevel(int pl) { print_level = pl; }
 
    virtual ~IterativeSolverMonitor() { }
@@ -112,7 +116,7 @@ public:
    }
 };
 
-/// FGMRES check with ./ex22p
+/// FGMRES check with ./ex22p --no-visualization
 class FGMRESLegacyMonitor : public IterativeSolverMonitor
 {
 private:

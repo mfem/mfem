@@ -169,6 +169,10 @@ void GMRESLegacyMonitor::IterationInfo(int iteration, double res_norm)
       mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
                 << "   Iteration : " << setw(3) << iteration
                 << "  ||B r|| = " << res_norm << "\n";
+      if (iteration % restart == 0)
+      {
+         mfem::out << "Restarting..." << '\n';
+      }
    }
 }
 
@@ -223,6 +227,10 @@ void FGMRESLegacyMonitor::IterationInfo(int iteration, double res_norm)
       mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
                 << "   Iteration : " << setw(3) << iteration
                 << "  || r || = " << res_norm << endl;
+      if (iteration % restart == 0)
+      {
+         mfem::out << "Restarting..." << endl;
+      }
    }
 }
 
@@ -601,7 +609,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
-      if (Dot(d, d) > 0.0 && print_level >= 0)
+      if (Dot(d, d) > 0.0 && monitor->GetPrintLevel() >= 0)
       {
          mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                    << den << '\n';
@@ -664,7 +672,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
-         if (Dot(d, d) > 0.0 && print_level >= 0)
+         if (Dot(d, d) > 0.0 && monitor->GetPrintLevel() >= 0)
          {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
@@ -879,11 +887,6 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          monitor->IterationInfo(j, resid);
       }
 
-      if (print_level == 1 && j <= max_iter)
-      {
-         mfem::out << "Restarting..." << '\n';
-      }
-
       Update(x, i-1, H, s, v);
 
       oper->Mult(x, r);
@@ -1034,11 +1037,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
             }
             return;
          }
-      }
-
-      if (print_level == 1)
-      {
-         mfem::out << "Restarting..." << endl;
       }
 
       Update(x, i-1, H, s, z);
