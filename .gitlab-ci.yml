@@ -97,12 +97,16 @@ stages:
 .with_gcc_6_1_0:
   variables:
     TOOLCHAIN: gcc_6_1_0
+    CXX: g++
+    CC: gcc
   before_script:
     - module load gcc/6.1.0
 
 .with_gcc_4_9_3:
   variables:
     TOOLCHAIN: gcc_4_9_3
+    CXX: g++
+    CC: gcc
   before_script:
     - module load gcc/4.9.3
 
@@ -141,7 +145,7 @@ stages:
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
       export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
-    - ${EXEC_PREFIX} make -j ${MAKE_PAR} ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=cc CXX=c++
+    - ${EXEC_PREFIX} make -j ${MAKE_PAR} ${METIS} PREFIX=${BUILD_PATH}/ BUILD_DIR=${BUILD_PATH} LOG_DIR=${BUILD_PATH} CC=${CC} CXX=${CXX}
 
 # Building MFEM
 .build_mfem:
@@ -160,7 +164,7 @@ stages:
       export JOB_ID=$(squeue -h --name=${MFEM_ALLOC_NAME} --format=%A)
       export EXEC_PREFIX="srun --jobid=${JOB_ID} --extra-node-info=1:${MAKE_PAR}:1 --cpus-per-task=${MAKE_PAR} --ntasks=1"
       fi
-    - make config CXX=c++ MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP}
+    - make config CXX=${CXX} MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP}
     - ${EXEC_PREFIX} make -j ${MAKE_PAR} all
 
 # TODO: Could this phase use a parallel run?
