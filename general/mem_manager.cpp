@@ -320,7 +320,9 @@ inline void MmuDealloc(void *ptr, const size_t bytes)
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
    if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
-   mfem_error("mmu protection (NONE) error");
+   // Silently returning, should be only when !own and
+   // h_mt has been set with MemoryManager::host_mem_type
+   // mfem_error("mmu protection (NONE) error");
 }
 
 /// MMU un-protection, through ::mprotect with read/write accesses
@@ -328,7 +330,7 @@ inline void MmuAllow(const void *ptr, const size_t bytes)
 {
    const int RW = PROT_READ | PROT_WRITE;
    if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
-   mfem_error("mmu protection (R/W) error");
+   // mfem_error("mmu protection (R/W) error");
 }
 #else
 inline void MmuInit() { }
@@ -503,11 +505,35 @@ public:
    void Alloc(Memory &base) { base.d_ptr = d_allocator.allocate(base.bytes); }
    void Dealloc(Memory &base) { d_allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   {
+#ifdef MFEM_USE_CUDA
+      return CuMemcpyHtoD(dst, src, bytes);
+#endif
+#ifdef MFEM_USE_HIP
+      return HipMemcpyHtoD(dst, src, bytes);
+#endif
+      //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
+   }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   {
+#ifdef MFEM_USE_CUDA
+      return CuMemcpyDtoD(dst, src, bytes);
+#endif
+#ifdef MFEM_USE_HIP
+      return HipMemcpyDtoD(dst, src, bytes);
+#endif
+      //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
+   }
    void *DtoH(void *dst, const void *src, size_t bytes)
-   { rm.copy(dst, const_cast<void*>(src), bytes); return dst; }
+   {
+#ifdef MFEM_USE_CUDA
+      return CuMemcpyDtoH(dst, src, bytes);
+#endif
+#ifdef MFEM_USE_HIP
+      return HipMemcpyDtoH(dst, src, bytes);
+#endif
+      //rm.copy(dst, const_cast<void*>(src), bytes); return dst;
+   }
 };
 #else
 class UmpireDeviceMemorySpace : public NoDeviceMemorySpace { };
@@ -645,7 +671,6 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    MFEM_ASSERT(IsHostMemory(mt), "Internal error!");
    MFEM_ASSERT(!alias, "Cannot register an alias!");
    const bool is_host_mem = IsHostMemory(mt);
-   const bool mt_host = mt==MemoryType::HOST;
    const MemType dual_mt = GetDualMemoryType_(mt);
    const MemType h_mt = mt;
    const MemType d_mt = dual_mt;
@@ -658,26 +683,19 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    }
 
    flags |= Mem::REGISTERED | Mem::OWNS_INTERNAL;
+   void *h_ptr;
 
-   if (mt_host) // HOST
+   if (is_host_mem) // HOST TYPES + MANAGED
    {
-      mm.Insert(ptr, bytes, h_mt, d_mt);
-      flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
-              Mem::OWNS_DEVICE | Mem::VALID_HOST;
-      return ptr;
-   }
-
-   void *h_ptr = h_tmp;
-   if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
-
-   if (is_host_mem) // HOST_32, HOST_64, HOST_UMPIRE, HOST_DEBUG, MANAGED
-   {
+      h_ptr = ptr;
       mm.Insert(h_ptr, bytes, h_mt, d_mt);
       flags = (own ? flags | Mem::OWNS_HOST : flags & ~Mem::OWNS_HOST) |
               Mem::OWNS_DEVICE | Mem::VALID_HOST;
    }
-   else // DEVICE
+   else // DEVICE TYPES
    {
+      h_ptr = h_tmp;
+      if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
       mm.InsertDevice(ptr, h_ptr, bytes, h_mt, d_mt);
       flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
               Mem::OWNS_HOST | Mem::VALID_DEVICE;
