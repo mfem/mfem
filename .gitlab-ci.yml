@@ -153,6 +153,7 @@ stages:
     - cd ..
     - cp -r mfem ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
     - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - echo "${TOOLCHAIN} == $(which c++) ?"
     - |
       if [[ "${MPIEXEC}" == "srun" ]]
       then
