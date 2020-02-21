@@ -11,11 +11,11 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-my $branch_max_commits = 5;
-my $commit_max_files_changed = 5;
-my $max_blob_kb = 2;
-my $max_commit_kb = 3;
-my $max_branch_kb = 4;
+my $branch_max_commits = 100;
+my $commit_max_files_changed = 100;
+my $max_blob_kb = 200;
+my $max_commit_kb = 400;
+my $max_branch_kb = 1000;
 
 my $status = 0; # Return code
 
