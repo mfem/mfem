@@ -135,6 +135,7 @@ protected:
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
 
+   bool dirty; // space needs updating (rebuilding) if true, e.g., on order change
    long sequence; // should match Mesh::GetSequence
 
    void UpdateNURBS();
@@ -287,6 +288,11 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
+   /// Sets the polynomial order of the i'th finite element.
+   void SetElementOrder(int i, int p);
+   /// Returns the order of the i'th finite element
+   int GetElementOrder(int i) const;
+
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingProlongation() const;
 
@@ -344,11 +350,6 @@ public:
 
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
-
-   /// Sets the polynomial order of the i'th finite element.
-   void SetElementOrder(int i, int p);
-   /// Returns the order of the i'th finite element
-   int GetElementOrder(int i) const;
 
    /// Returns the order of the i'th finite element (deprecated).
    int GetOrder(int i) const { return GetElementOrder(i); }
