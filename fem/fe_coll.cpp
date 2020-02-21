@@ -1508,7 +1508,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
 
-   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
+   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 - 1;
 
    int pt_type = BasisType::GetQuadrature1D(btype);
    b_type = BasisType::Check(btype);
@@ -1659,7 +1659,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             // there are only 3 serendipity dofs.
             // In the tensor product case, the i and j index tensor directions,
             // and o index from 0 to (pm1)^2,
-            const int pm4 = pm3 -1;
 
             for (int j = 0; j < pm3; j++)   // pm3 instead of pm1, etc
             {
@@ -1724,61 +1723,61 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
          }
          // see Mesh::GetTetOrientation in mesh/mesh.cpp
-         for (int k = 0; k < pm2; k++)
+         for (int k = 0; k < pm3; k++)
          {
-            for (int j = 0; j + k < pm2; j++)
+            for (int j = 0; j + k < pm3; j++)
             {
-               for (int i = 0; i + j + k < pm2; i++)
+               for (int i = 0; i + j + k < pm3; i++)
                {
-                  int l = pm3 - k - j - i;
+                  int l = pm4 - k - j - i;
                   int o   = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
-                            + ((j + k) * (2 * p - 3 - j - k)) / 2 + i;
+                            + (j * (2 * p - 5 - j - 2 * k)) / 2 + i;
                   int o1  = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
-                            + ((k + j) * (2 * p - 3 - k - j)) / 2 + i;
+                            + (k * (2 * p - 5 - k - 2 * j)) / 2 + i;
                   int o2  = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
-                            + ((k + i) * (2 * p - 3 - k - i)) / 2 + j;
+                            + (k * (2 * p - 5 - k - 2 * i)) / 2 + j;
                   int o3  = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
-                            + ((i + k) * (2 * p - 3 - i - k)) / 2 + j;
+                            + (i * (2 * p - 5 - i - 2 * k)) / 2 + j;
                   int o4  = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
-                            + ((i + j) * (2 * p - 3 - i - j)) / 2 + k;
+                            + (i * (2 * p - 5 - i - 2 * j)) / 2 + k;
                   int o5  = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
-                            + ((j + i) * (2 * p - 3 - j - i)) / 2 + k;
+                            + (j * (2 * p - 5 - j - 2 * i)) / 2 + k;
                   int o6  = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
-                            + ((l + k) * (2 * p - 3 - l - k)) / 2 + j;
+                            + (l * (2 * p - 5 - l - 2 * k)) / 2 + j;
                   int o7  = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
-                            + ((k + l) * (2 * p - 3 - k - l)) / 2 + j;
+                            + (k * (2 * p - 5 - k - 2 * l)) / 2 + j;
                   int o8  = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
-                            + ((j + l) * (2 * p - 3 - j - l)) / 2 + k;
+                            + (j * (2 * p - 5 - j - 2 * l)) / 2 + k;
                   int o9  = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
-                            + ((l + j) * (2 * p - 3 - l - j)) / 2 + k;
+                            + (l * (2 * p - 5 - l - 2 * j)) / 2 + k;
                   int o10 = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
-                            + ((k + j) * (2 * p - 3 - k - j)) / 2 + l;
+                            + (k * (2 * p - 5 - k - 2 * j)) / 2 + l;
                   int o11 = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
-                            + ((j + k) * (2 * p - 3 - j - k)) / 2 + l;
+                            + (j * (2 * p - 5 - j - 2 * k)) / 2 + l;
                   int o12 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
-                            + ((l + i) * (2 * p - 3 - l - i)) / 2 + k;
+                            + (l * (2 * p - 5 - l - 2 * i)) / 2 + k;
                   int o13 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
-                            + ((i + l) * (2 * p - 3 - i - l)) / 2 + k;
+                            + (i * (2 * p - 5 - i - 2 * l)) / 2 + k;
                   int o14 = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
-                            + ((i + k) * (2 * p - 3 - i - k)) / 2 + l;
+                            + (i * (2 * p - 5 - i - 2 * k)) / 2 + l;
                   int o15 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
-                            + ((k + i) * (2 * p - 3 - k - i)) / 2 + l;
+                            + (k * (2 * p - 5 - k - 2 * i)) / 2 + l;
                   int o16 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
-                            + ((k + l) * (2 * p - 3 - k - l)) / 2 + i;
+                            + (k * (2 * p - 5 - k - 2 * l)) / 2 + i;
                   int o17 = TetDof - ((pm1 - k) * (pm2 - k) * (pm3 - k)) / 6
-                            + ((l + k) * (2 * p - 3 - l - k)) / 2 + i;
+                            + (l * (2 * p - 5 - l - 2 * k)) / 2 + i;
                   int o18 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
-                            + ((j + i) * (2 * p - 3 - j - i)) / 2 + l;
+                            + (j * (2 * p - 5 - j - 2 * i)) / 2 + l;
                   int o19 = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
-                            + ((i + j) * (2 * p - 3 - i - j)) / 2 + l;
+                            + (i * (2 * p - 5 - i - 2 * j)) / 2 + l;
                   int o20 = TetDof - ((pm1 - j) * (pm2 - j) * (pm3 - j)) / 6
-                            + ((l + j) * (2 * p - 3 - l - j)) / 2 + i;
+                            + (l * (2 * p - 5 - l - 2 * j)) / 2 + i;
                   int o21 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
-                            + ((j + l) * (2 * p - 3 - j - l)) / 2 + i;
+                            + (j * (2 * p - 5 - j - 2 * l)) / 2 + i;
                   int o22 = TetDof - ((pm1 - l) * (pm2 - l) * (pm3 - l)) / 6
-                            + ((i + l) * (2 * p - 3 - i - l)) / 2 + j;
+                            + (i * (2 * p - 5 - i - 2 * l)) / 2 + j;
                   int o23 = TetDof - ((pm1 - i) * (pm2 - i) * (pm3 - i)) / 6
-                            + ((l + i) * (2 * p - 3 - l - i)) / 2 + j;
+                            + (l * (2 * p - 5 - l - 2 * i)) / 2 + j;
                   TetDofOrd[ 0][o] = o;   // (0,1,2,3)
                   TetDofOrd[ 1][o] = o1;  // (0,1,3,2)
                   TetDofOrd[ 2][o] = o2;  // (0,2,3,1)
