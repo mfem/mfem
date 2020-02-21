@@ -147,7 +147,7 @@ public:
    void GenFESpace()
    {
       fec = new H1_FECollection(order, 2);
-      pmesh = new Mesh(*this);
+      pmesh = new Mesh(*this, true);
       pfes = new FiniteElementSpace(pmesh, fec, vdim);
    }
 
@@ -710,12 +710,15 @@ struct Costa: public Surface<Costa>
       p[2] = alpha * sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
       const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
-      /*
-            p[0] = u;
-            p[1] = v;
-            p[2] = 0.;
-            return;
-      */
+
+      if (getenv("XYZ"))
+      {
+         p[0] = u;
+         p[1] = v;
+         p[2] = 0.;
+         return;
+      }
+
       /*
             const double H = R;
             if (u == 0.5 && v == delta)     { p[1] = -R; p[2] = -H; return; }
@@ -743,46 +746,98 @@ struct Costa: public Surface<Costa>
                       color, delta, u, v, p[0], p[1], p[2]); fflush(0);
             }*/
    }
+
+   void Snap(Array<int> &v2v)
+   {
+      const int NV = GetNV();
+      GridFunction &nodes = *GetNodes();
+      const int sdim = SpaceDimension();
+      MFEM_VERIFY(nodes.FESpace()->GetNDofs()==NV,"");
+      for (int i = 1; i < nx; i++)
+      {
+         const int v_old = i + (nx + 1) * ny;
+         const int v_new = i;
+         if (nx>>1==i) { continue; }
+
+         v2v[v_old] = v_new;
+         dbg("\033[32m%d => %d", v_old, v_new);
+
+         Vector node_old(sdim);
+         Vector node_new(sdim);
+         for (int d = 0; d < sdim; d++)
+         {
+            node_old(d) = nodes(nodes.FESpace()->DofToVDof(v_old, d));
+            node_new(d) = nodes(nodes.FESpace()->DofToVDof(v_new, d));
+         }
+         node_new = 100.0;
+         for (int d = 0; d < sdim; d++)
+         {
+            nodes(nodes.FESpace()->DofToVDof(v_new, d)) = node_new(d);
+         }
+         /*
+                  const double x_old = nodes[v_old];
+                  const double y_old = nodes[v_old+NV];
+                  const double z_old = nodes[v_old+2*NV];
+                  const double x_new = nodes[v_new];
+                  const double y_new = nodes[v_new+NV];
+                  const double z_new = nodes[v_new+2*NV];*/
+         //const double x_mid = (x_old + x_new)/2.;
+         //const double y_mid = (y_old + y_new)/2.;
+         //const double z_mid = (z_old + z_new)/2.;
+
+         //dbg("old: (%f,%f,%f)", x_old, y_old, z_old);
+         //dbg("new: (%f,%f,%f)", x_new, y_new, z_new);
+         //dbg("mid: (%f,%f,%f)", x_mid, y_mid, z_mid);
+         //nodes[v_new] = 0.0;//x_mid;
+         //nodes[v_new+NV] = 0.0;//y_mid;
+         //nodes[v_new+2*NV] = 0.0;//z_mid;
+      }
+      for (int j = 1; j < ny; j++)
+      {
+         const int v_old = nx + j * (ny + 1);
+         const int v_new =      j * (ny + 1);
+         if (ny>>1==j) { continue; }
+
+         v2v[v_old] = v_new;
+         dbg("\33[33m%d => %d", v_old, v_new);
+         /*
+                  const double x_old = nodes[v_old];
+                  const double y_old = nodes[v_old+NV];
+                  const double z_old = nodes[v_old+2*NV];
+                  const double x_new = nodes[v_new];
+                  const double y_new = nodes[v_new+NV];
+                  const double z_new = nodes[v_new+2*NV];
+                  nodes[v_new] = (x_old + x_new)/2.;
+                  nodes[v_new+NV] = (y_old + y_new)/2.;
+                  nodes[v_new+2*NV] = (z_old + z_new)/2.;*/
+      }
+   }
+
    void Postfix()
    {
-      SetCurvature(order, false, 3, Ordering::byNODES);
-      dbg("\033[37m#Cells:%d",GetNE());
-      dbg("\033[37m#Boundary Edges:%d",GetNBE());
+      dbg("\033[37mPostfix");
+      Vector nval;
+      Array<int> v2v(GetNV());
+      for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+      Snap(v2v);
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Element *el = GetElement(i);
+         int *v = el->GetVertices();
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
+      }
       for (int i = 0; i < GetNBE(); i++)
       {
-         //dbg("\033[37mBoundary Edge:%d",i);
          Element *el = GetBdrElement(i);
-         const int fn = GetBdrElementEdgeIndex(i);
-         MFEM_VERIFY(!FaceIsTrueInterior(fn),"");
-
          int *v = el->GetVertices();
-         dbg("%d <--> %d", v[0], v[1]);
-         const int ix = v[0] % (nx+1);
-         if (ix==1) { dbg("\033[32m%d",v[0]);}
-         if (ix==nx-1) { dbg("\033[33m%d, ix=%d, nx=%d",v[0],ix, nx);}
-
-         /*
-         Array<int> vertices;
-         GetFaceVertices(fn, vertices);
-         dbg("%d vertices, %d <--> %d",vertices.Size(), vertices[0], vertices[1]);
-         const GridFunction *nodes = GetNodes();
-         Vector nval;
-         double X[2][3];
-         for (int v = 0; v < 2; v++)
-         {
-            const int iv = vertices[v];
-            for (int d = 0; d < 3; d++)
-            {
-               nodes->GetNodalValues(nval, d+1);
-               X[v][d] = nval[iv];
-            }
-            dbg("(%f,%f,%f)", X[v][0], X[v][1], X[v][2]);
-         }
-         */
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
       }
-
-      //RemoveUnusedVertices();
-      //RemoveInternalBoundaries();
+   }
+   void Refine()
+   {
+      dbg("\033[37mRefine");
    }
 };
 
