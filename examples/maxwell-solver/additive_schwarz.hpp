@@ -59,9 +59,10 @@ public:
    Array<SparseMatrix *> patch_mat;
    Array<KLUSolver * > patch_mat_inv;
    std::vector<Array<int>> ess_tdof_list;
+   std::vector<Array<int>> ess_int_tdofs;
 
    // constructor
-   PatchAssembly(BilinearForm * bf_, int part);
+   PatchAssembly(BilinearForm * bf_, Array<int> & ess_tdofs, int part);
    ~PatchAssembly();
 };
 
@@ -75,7 +76,7 @@ private:
    PatchAssembly * p;
    const Operator * A;
 public:
-   AddSchwarz(BilinearForm * bf_, int i = 0);
+   AddSchwarz(BilinearForm * bf_, Array<int> & ess_tdofs, int i = 0);
    void SetNumSmoothSteps(const int iter)
    {
       maxit = iter;

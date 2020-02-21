@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include "additive_schwarz.hpp"
+#include "schwarz.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -51,9 +52,10 @@ int main(int argc, char *argv[])
    // FiniteElementCollection *fec = new ND_FECollection(order, dim);
    FiniteElementSpace * fespace = new FiniteElementSpace(mesh, fec);
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr.SetSize(mesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -70,7 +72,7 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
-   x = 0.0;
+   x = 1.0;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -91,26 +93,36 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   AddSchwarz * prec = new AddSchwarz(a,0);
+   AddSchwarz * prec = new AddSchwarz(a,ess_tdof_list, 0);
    prec->SetOperator((SparseMatrix&)(*A));
    prec->SetNumSmoothSteps(1);
    prec->SetDumpingParam(0.5);
 
+   SchwarzSmoother * prec2 = new SchwarzSmoother(mesh,0,fespace,&(SparseMatrix&)(*A),ess_bdr);
+   prec2->SetNumSmoothSteps(1);
+   prec2->SetDumpingParam(0.5);
+
+
    int maxit = 2000;
    double rtol = 1e-8;
    double atol = 1e-8;
-   X = 0.0;
+   Vector X0(X);
    CGSolver pcg;
+   pcg.iterative_mode = false;
    pcg.SetPrintLevel(1);
    pcg.SetMaxIter(maxit);
    pcg.SetRelTol(rtol);
    pcg.SetAbsTol(atol);
    pcg.SetPreconditioner(*prec);
    pcg.SetOperator((SparseMatrix&)(*A));
-   pcg.Mult(B, X);
+   pcg.Mult(B, X0);
+
+   X0 = X;
+   pcg.SetPreconditioner(*prec2);
+   pcg.Mult(B, X0);
 
    // 12. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
+   a->RecoverFEMSolution(X0, *b, x);
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)

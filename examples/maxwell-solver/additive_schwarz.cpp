@@ -5,6 +5,9 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
 
+
+
+   // int nx = sqrt(mesh->GetNE());
    int nx = 2;
    int ny = 2;
    int nz = 1;
@@ -96,16 +99,19 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
 {
    if (part)
    {
+      cout << "Non Overlapping Cartesian Partition " << endl;
       CartesianMeshPartition partition(mesh);
       element_map = partition.element_map;
    }
    else
    {
+      cout << "Overlapping Vertex based partition " << endl;
       VertexMeshPartition partition(mesh);
       element_map = partition.element_map;
    }
 
    nrpatch = element_map.size();
+   cout << "nrpatch = " << nrpatch << endl;
    int dim = mesh->Dimension();
 
    patch_mesh.SetSize(nrpatch);
@@ -218,11 +224,28 @@ MeshPartition::~MeshPartition()
 }
 
 // constructor
-PatchAssembly::PatchAssembly(BilinearForm *bf_, int part) : bf(bf_)
+PatchAssembly::PatchAssembly(BilinearForm *bf_, Array<int> & ess_tdofs, int part) : bf(bf_)
 {
    fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
    const FiniteElementCollection *fec = fespace->FEColl();
+
+   // list of dofs to distiguish between interior/boundary and essential
+   Array<int> global_tdofs(fespace->GetTrueVSize());
+   Array<int> bdr_tdofs(fespace->GetTrueVSize());
+   global_tdofs = 0;
+   // Mark boundary dofs and ess_dofs
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, bdr_tdofs);
+   }
+
+   // mark boundary dofs
+   for (int i = 0; i<bdr_tdofs.Size(); i++) global_tdofs[bdr_tdofs[i]] = 1;
+   // overwrite flag for essential dofs
+   for (int i = 0; i<ess_tdofs.Size(); i++) global_tdofs[ess_tdofs[i]] = 0;
 
    MeshPartition * p = new MeshPartition(mesh, part);
    nrpatch = p->nrpatch;
@@ -231,6 +254,7 @@ PatchAssembly::PatchAssembly(BilinearForm *bf_, int part) : bf(bf_)
    patch_mat.SetSize(nrpatch);
    patch_mat_inv.SetSize(nrpatch);
    ess_tdof_list.resize(nrpatch);
+   ess_int_tdofs.resize(nrpatch);
    for (int ip=0; ip<nrpatch; ++ip)
    {
       // create finite element spaces for each patch
@@ -263,12 +287,23 @@ PatchAssembly::PatchAssembly(BilinearForm *bf_, int part) : bf(bf_)
          }
       }
       // Define the patch bilinear form and apply boundary conditions (only the LHS)
+      Array <int> ess_temp_list;
       if (p->patch_mesh[ip]->bdr_attributes.Size())
       {
          Array<int> ess_bdr(p->patch_mesh[ip]->bdr_attributes.Max());
          ess_bdr = 1;
-         patch_fespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list[ip]);
+         patch_fespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_temp_list);
       }
+
+      // Adjust the essential tdof list for each patch
+      for (int i=0; i<ess_temp_list.Size(); i++)
+      {
+         int ldof = ess_temp_list[i];
+         int tdof = patch_dof_map[ip][ldof];
+         // check the kind of this tdof
+         if (!global_tdofs[tdof]) ess_tdof_list[ip].Append(ldof);
+      }
+
       BilinearForm a(patch_fespaces[ip], bf);
       a.Assemble();
       OperatorPtr Alocal;
@@ -309,11 +344,11 @@ PatchAssembly::~PatchAssembly()
    patch_mat_inv.DeleteAll();
 }
 
-AddSchwarz::AddSchwarz(BilinearForm * bf_, int i)
+AddSchwarz::AddSchwarz(BilinearForm * bf_, Array<int> & global_ess_tdof_list, int i)
    : Solver(bf_->FESpace()->GetTrueVSize(), bf_->FESpace()->GetTrueVSize()),
      part(i)
 {
-   p = new PatchAssembly(bf_, part);
+   p = new PatchAssembly(bf_, global_ess_tdof_list,  part);
    nrpatch = p->nrpatch;
 }
 

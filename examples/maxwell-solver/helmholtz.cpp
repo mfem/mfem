@@ -12,7 +12,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "complex_additive_schwarzp.hpp"
+#include "complex_additive_schwarz.hpp"
+#include "schwarz.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -36,15 +37,6 @@ bool scatter = false;
 int main(int argc, char *argv[])
 {
 
-   // 1. Initialise MPI
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);                    // Initialise MPI
-   MPI_Comm_size(MPI_COMM_WORLD,
-                 &num_procs); //total number of processors available
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);      // Determine process identifier
-
-   //-----------------------------------------------------------------------------
-
    // 2. Parse command-line options.
    // geometry file
    const char *mesh_file = "../../data/one-hex.mesh";
@@ -57,8 +49,6 @@ int main(int argc, char *argv[])
    double k = 0.5;
    // number of mg levels
    int ref = 1;
-   // number of initial ref
-   int initref = 1;
    // dimension
    int nd = 2;
 
@@ -82,8 +72,6 @@ int main(int argc, char *argv[])
                   "length of the domainin in each direction.");
    args.AddOption(&ref, "-ref", "--ref",
                   "Number of Refinements.");
-   args.AddOption(&initref, "-initref", "--initref",
-                  "Number of initial refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&scatter, "-scat", "--scattering-prob", "-no-scat",
@@ -95,17 +83,10 @@ int main(int argc, char *argv[])
    // check if the inputs are correct
    if (!args.Good())
    {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
-      return 1;
+		args.PrintUsage(cout);
+		return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+	args.PrintOptions(cout);
    // Angular frequency
    omega = 2.0 * M_PI * k;
 
@@ -118,38 +99,27 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length,
-                      false);
+      mesh = new Mesh(1, 1, 1, Element::HEXAHEDRON, true, length, length, length,false);
    }
 
    // 3. Executing uniform h-refinement
-   for (int i = 0; i < initref; i++ )
+   for (int i = 0; i < ref; i++ )
    {
       mesh->UniformRefinement();
    }
    dim = mesh->Dimension();
 
-   // 5. Define a parallel mesh and delete the serial mesh.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-
-   // ----------------------------------------------------------------------------
-
-   for (int i = 0; i < ref; i++)
-   {
-      pmesh->UniformRefinement();
-   }
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
    // 6. Set up the linear form (Real and Imaginary part)
    FunctionCoefficient f_Re(f_exact_Re);
    FunctionCoefficient f_Im(f_exact_Im);
 
    // ParLinearForm *b_Re(new ParLinearForm);
-   ParComplexLinearForm b(fespace, ComplexOperator::HERMITIAN);
+   ComplexLinearForm b(fespace, ComplexOperator::HERMITIAN);
    b.AddDomainIntegrator(new DomainLFIntegrator(f_Re),
                          new DomainLFIntegrator(f_Im));
    b.real().Vector::operator=(0.0);
@@ -160,58 +130,71 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient sigma(-pow(omega, 2));
 
-   ParSesquilinearForm * a = new ParSesquilinearForm(fespace,
-                                                     ComplexOperator::HERMITIAN);
+   SesquilinearForm a(fespace,ComplexOperator::HERMITIAN);
    ConstantCoefficient impedance(omega);
 
 
-   Array<int> bdr_attr(pmesh->bdr_attributes.Max());
+   Array<int> bdr_attr(mesh->bdr_attributes.Max());
    bdr_attr = 1;
    RestrictedCoefficient imp_rest(impedance,bdr_attr);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one),NULL);
-   a->AddDomainIntegrator(new MassIntegrator(sigma),NULL);
-   a->AddBoundaryIntegrator(NULL,new BoundaryMassIntegrator(imp_rest));
-   a->Assemble();
-   a->Finalize();
+   a.AddDomainIntegrator(new DiffusionIntegrator(one),NULL);
+   a.AddDomainIntegrator(new MassIntegrator(sigma),NULL);
+   a.AddBoundaryIntegrator(NULL,new BoundaryMassIntegrator(imp_rest));
+   a.Assemble();
+   a.Finalize();
 
    Array<int> ess_tdof_list;
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // Solution grid function
-   ParComplexGridFunction p_gf(fespace);
-   ParComplexGridFunction p_gf_ex(fespace);
+   ComplexGridFunction p_gf(fespace);
 
    OperatorHandle Ah;
    Vector X, B;
 
-   a->FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
+   a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
 
-   ComplexHypreParMatrix * AZ = Ah.As<ComplexHypreParMatrix>();
-   HypreParMatrix * A = AZ->GetSystemMatrix();
+   ComplexSparseMatrix * AZ = Ah.As<ComplexSparseMatrix>();
+   SparseMatrix * A = AZ->GetSystemMatrix();
 
 
-   if (myid == 0)
-   {
       cout << "Size of fine grid system: "
-           << A->GetGlobalNumRows() << " x " << A->GetGlobalNumCols() << endl;
-   }
+           << A->Height() << " x " << A->Width() << endl;
 
-   SuperLURowLocMatrix * Arow = new SuperLURowLocMatrix(*A);
-   SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
-   superlu->SetPrintStatistics(false);
-   superlu->SetSymmetricPattern(true);
-   superlu->SetColumnPermutation(superlu::PARMETIS);
-   superlu->SetOperator(*Arow);
-   superlu->Mult(B,X);
-
-   a->RecoverFEMSolution(X,B,p_gf);
+   // KLUSolver klu(*A);
+   // klu.Mult(B,X);
 
 
+   ComplexAddSchwarz S(&a,ess_tdof_list, 0);
+	S.SetOperator(*A);
+   // S.SetNumSmoothSteps(7);
+   // S.SetDumpingParam(0.200);
 
-   ComplexParAddSchwarz * test = new ComplexParAddSchwarz(a);
-   delete test;
+	// BlkSchwarzSmoother * BlkS = new BlkSchwarzSmoother(mesh,0,fespace,A);
+
+
+	X = 0.0;
+	GMRESSolver gmres;
+	// gmres.SetPreconditioner(*BlkS);
+	gmres.SetOperator(*A);
+	gmres.SetRelTol(1e-6);
+	gmres.SetMaxIter(500);
+	gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
+
+
+	X = 0.0;
+	gmres.SetPreconditioner(S);
+	gmres.Mult(B, X);
+
+
+
+   a.RecoverFEMSolution(X,B,p_gf);
+
+
+
 
 
    if (visualization)
@@ -228,18 +211,15 @@ int main(int argc, char *argv[])
          keys = "keys mc\n";
       }
       socketstream sol_sock_re(vishost, visport);
-      sol_sock_re << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_re.precision(8);
-      sol_sock_re << "solution\n" << *pmesh << p_gf.real() <<
+      sol_sock_re << "solution\n" << *mesh << p_gf.real() <<
                   "window_title 'Numerical Pressure (real part)' "
                   << keys << flush;
    }
 
-   delete a;
    delete fespace;
    delete fec;
-   delete pmesh;
-   MPI_Finalize();
+	delete mesh;
    return 0;
 }
 
@@ -294,24 +274,3 @@ double f_exact_Im(const Vector &x)
 
 
 
-// int ndofs = nodes->FESpace()->GetNDofs();
-//    Vector xcoords(ndofs), ycoords(ndofs), zcoords(ndofs);
-
-//    for (int comp = 0; comp < nodes->FESpace()->GetVDim(); comp++)
-//    {
-//       for (int i = 0; i < ndofs; i++)
-//       {
-//          if (comp == 0)
-//          {
-//             xcoords(i) = *nodes[nodes->FESpace()->DofToVDof(i, comp)];
-//          }
-//          else if (comp == 1)
-//          {
-//             ycoords(i) = *nodes[nodes->FESpace()->DofToVDof(i, comp)];
-//          }
-//          else if (comp == 2)
-//          {
-//             zcoords(i) = *nodes[nodes->FESpace()->DofToVDof(i, comp)];
-//          }
-//       }
-//    }

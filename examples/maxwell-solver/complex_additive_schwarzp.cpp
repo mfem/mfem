@@ -68,11 +68,11 @@ ComplexParAddSchwarz::ComplexParAddSchwarz(ParSesquilinearForm * pbf_)
    : Solver(2*pbf_->ParFESpace()->GetTrueVSize(),
             2*pbf_->ParFESpace()->GetTrueVSize())
 {
-   cout << "Testing ComplexParAddSchwarz" << endl;
-   comm = pbf_->ParFESpace()->GetComm();
-   p = new ComplexParPatchAssembly(pbf_);
-   nrpatch = p->nrpatch;
-   R = new ComplexParPatchRestriction(p);
+   // cout << "Testing ComplexParAddSchwarz" << endl;
+   // comm = pbf_->ParFESpace()->GetComm();
+   // p = new ComplexParPatchAssembly(pbf_);
+   // nrpatch = p->nrpatch;
+   // R = new ComplexParPatchRestriction(p);
 }
 
 void ComplexParAddSchwarz::Mult(const Vector &r, Vector &z) const
@@ -80,8 +80,8 @@ void ComplexParAddSchwarz::Mult(const Vector &r, Vector &z) const
 
 ComplexParAddSchwarz::~ComplexParAddSchwarz()
 {
-   delete p;
-   delete R;
+   // delete p;
+   // delete R;
 }
 
 
