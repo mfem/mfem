@@ -23,6 +23,7 @@
 //               s=6: QPeach
 //               s=7: FPeach
 //               s=8: SlottedSphere
+//               s=9: Costa
 //
 // Compile with: make mesh-minimal-surface
 //
@@ -69,7 +70,7 @@ public:
       Mesh(file, true), S(static_cast<T*>(this)),
       bc(bc), order(order), nr(nr), vdim(vdim)
    {
-      //EnsureNodes();
+      EnsureNodes();
       S->Postfix();
       S->Refine();
       GenFESpace();
@@ -83,14 +84,18 @@ public:
       S(static_cast<T*>(this)),
       bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim)
    {
+      dbg("Generate Quad surface mesh");
       MFEM_VERIFY(order>0,"H1_FECollection requires order >= 1");
-      EnsureNodes();
+      dbg("GetNV():%d",GetNV());
+      dbg("GetNE():%d",GetNE());
+      dbg("GetNBE():%d",GetNBE());
+      S->EnsureNodes();
       S->Prefix();
       S->Create();
       S->Postfix();
       S->Refine();
-      RemoveUnusedVertices();
-      RemoveInternalBoundaries();
+      S->RemoveUnusedVertices();
+      S->RemoveInternalBoundaries();
       SetCurvature(order, false, 3, Ordering::byVDIM);
       GridFunction &nodes = *GetNodes();
       for (int i = 0; i < nodes.Size(); i++)
@@ -146,6 +151,7 @@ public:
 
    void GenFESpace()
    {
+      dbg("");
       fec = new H1_FECollection(order, 2);
       pmesh = new Mesh(*this, true);
       pfes = new FiniteElementSpace(pmesh, fec, vdim);
@@ -685,35 +691,61 @@ std::complex<double> WeierstrassZeta(const cdouble z,
 }
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
-constexpr double SCALE = 0.9;
 struct Costa: public Surface<Costa>
 {
    Costa(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d,
-              (getenv("SCALE")?atof(getenv("SCALE")):SCALE)) { }
+      Surface(BC, o, x, y, r, d) { }
+
+   void Create()
+   {
+      dbg("");
+      FinalizeQuadMesh(1, 1, true);
+      EnsureNodes();
+      FinalizeTopology();
+      dbg("GetNV():%d",GetNV());
+      dbg("GetNE():%d",GetNE());
+      dbg("GetNBE():%d",GetNBE());
+      SetCurvature(order, false, 3, Ordering::byVDIM);
+      for (int i = 0; i < GetNV(); i++)
+      {
+         const double x = GetNodes()->operator()(3*i+0);
+         const double y = GetNodes()->operator()(3*i+1);
+         const double z = GetNodes()->operator()(3*i+2);
+         dbg("%d:(%f, %f, %f)",i,x,y,z);
+      }
+      SetCurvature(order, false, 3, Ordering::byNODES);
+      Transform(this->Parametrization);
+   }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
-      const double scale = getenv("SCALE")?atof(getenv("SCALE")):SCALE;
-      const double alpha = 1./4.;
-      const double delta = (1.-scale)/2.;
-      const  double u = x[0] + delta;
-      const  double v = x[1] + delta;
-      const cdouble w = u + I*v;
+      p = x;
+      const double u = x[0];
+      const double v = x[1];
 
+      if (u == 0.0 || v == 0.0 || u == 1.0 || v == 1.0)
+      {
+         p[0] -= 0.5;
+         p[1] -= 0.5;
+         p *= 8.0;
+         return;
+      }
+
+      dbg("\033[32m(%f:%f,%f)", x[0], x[1], x[2]);
+      const cdouble w = u + I*v;
       const cdouble w3 = I/2.;
       const cdouble w1 = 1./2.;
+      const double alpha = 1./2.;
       const cdouble pw = WeierstrassP(w);
       const cdouble e1 = WeierstrassP(0.5);
       const cdouble zw = WeierstrassZeta(w);
       const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
-      p[0] = alpha * real(PI*(u+PI/(4.*e1))-zw+PI/(2.*e1)*(dw));
-      p[1] = alpha * real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
+      p[0] = 0.0 + alpha * real(PI*(u+PI/(4.*e1))-zw+PI/(2.*e1)*(dw));
+      p[1] = 0.0 + alpha * real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
       p[2] = alpha * sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
       const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
-
       if (getenv("XYZ"))
       {
          p[0] = u;
@@ -721,101 +753,42 @@ struct Costa: public Surface<Costa>
          p[2] = u+v;
          return;
       }
-      /*
-            static double R = 4.0;
-            const double H = R;
-            if (u == 0.5 && v == delta)     { p[1] = -R; p[2] = -H; return; }
-            if (u == 0.5 && v == 1.0-delta) { p[1] = +R; p[2] = -H; return; }
-            if (v == 0.5 && u == delta)     { p[0] = -R; p[2] = +H; return; }
-            if (v == 0.5 && u == 1.0-delta) { p[0] = +R; p[2] = +H; return; }
-
-            if (u == delta && v == delta)         { p[0] = -R; p[1] = -R; return; }
-            if (u == 1.0-delta && v == delta)     { p[0] = +R; p[1] = -R; return; }
-            if (u == delta && v == 1.0-delta)     { p[0] = -R; p[1] = +R; return; }
-            if (u == 1.0-delta && v == 1.0-delta) { p[0] = +R; p[1] = +R; return; }
-
-            if (u == delta && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
-            if (v == delta && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
-            if (u == (1.0-delta) && fabs(p[1]) > R) { p[1] *= R/fabs(p[1]); return; }
-            if (v == (1.0-delta) && fabs(p[0]) > R) { p[0] *= R/fabs(p[0]); return; }
-
-            const bool OUT = (fabs(p[0])>R)||(fabs(p[1])>R)||(fabs(p[2])>R);
-            if (OUT)
-            {
-               const int color = OUT ? 33 : 32;
-               printf("\n\033[%dm(%f:%f,%f): (%f,%f,%f)\033[m",
-                      color, delta, u, v, p[0], p[1], p[2]); fflush(0);
-            }
-      */
-   }
-
-   void Snap(Array<int> &v2v)
-   {
-      //const int NV = GetNV();
-      //GridFunction &nodes = *GetNodes();
-      //const int sdim = SpaceDimension();
-      //MFEM_VERIFY(nodes.FESpace()->GetNDofs()==NV,"");
-      const bool X = true;
-      const bool Y = true;
-      if (X)
-      {
-         for (int i = 1; i < nx; i++)
-         {
-            const int v_old = i + (nx + 1) * ny;
-            const int v_new = i;
-
-            const int m = nx - (i<<1);
-            if (abs(m)<=1) { dbg("\33[32mX skip"); continue; }
-
-            v2v[v_old] = v_new;
-            dbg("\033[32m%d => %d", v_old, v_new);
-
-            /*Vector node_old(sdim);
-            Vector node_new(sdim);
-            for (int d = 0; d < sdim; d++)
-            {
-               node_old(d) = nodes(nodes.FESpace()->DofToVDof(v_old, d));
-               node_new(d) = nodes(nodes.FESpace()->DofToVDof(v_new, d));
-               node_new(d) = (node_old(d) + node_new(d))/2.0;
-               nodes(nodes.FESpace()->DofToVDof(v_new, d)) = node_new(d);
-            }*/
-         }
-      }
-
-      if (Y)
-      {
-         for (int j = 1; j < ny; j++)
-         {
-            const int v_old = nx + j * (nx + 1);
-            const int v_new =      j * (nx + 1);
-
-            const int m = ny - (j<<1);
-            if (abs(m)<=1) { dbg("\33[33mY skip"); continue; }
-
-            v2v[v_old] = v_new;
-            dbg("\33[33m%d => %d", v_old, v_new);
-
-            /*Vector node_old(sdim);
-            Vector node_new(sdim);
-            for (int d = 0; d < sdim; d++)
-            {
-               node_old(d) = nodes(nodes.FESpace()->DofToVDof(v_old, d));
-               node_new(d) = nodes(nodes.FESpace()->DofToVDof(v_new, d));
-               node_new(d) = (node_old(d) + node_new(d))/2.0;
-               nodes(nodes.FESpace()->DofToVDof(v_new, d)) = node_new(d);
-            }*/
-         }
-      }
    }
 
    void Postfix()
    {
       SetCurvature(order, false, 3, Ordering::byNODES);
-      dbg("\033[37m");
+      const int sdim = SpaceDimension();
+      MFEM_VERIFY(sdim==3, "Wrong space dimension!");
+
       Array<int> v2v(GetNV());
       for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
 
-      Snap(v2v);
+      const bool X = false;
+      if (X) // horizontal border
+      {
+         for (int i = 1; i < nx; i++)
+         {
+            const int v_old = i + (nx + 1) * ny;
+            const int v_new = i;
+            //if (abs(nx - (i<<1))<=1) { dbg("\33[32mX skip"); continue; }
+            v2v[v_old] = v_new;
+            dbg("\033[32m%d => %d", v_old, v_new);
+         }
+      }
+
+      const bool Y = false;
+      if (Y) // vertical border
+      {
+         for (int j = 1; j < ny; j++)
+         {
+            const int v_old = nx + j * (nx + 1);
+            const int v_new =      j * (nx + 1);
+            if (abs(ny - (j<<1))<=1) { dbg("\33[33mY skip"); continue; }
+            v2v[v_old] = v_new;
+            dbg("\33[33m%d => %d", v_old, v_new);
+         }
+      }
 
       for (int i = 0; i < GetNE(); i++)
       {
@@ -831,13 +804,38 @@ struct Costa: public Surface<Costa>
          const int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
       }
+      dbg("Before RemoveUnusedVertices/RemoveInternalBoundaries:");
+      dbg("GetNV():%d",GetNV());
+      dbg("GetNE():%d",GetNE());
+      dbg("GetNBE():%d",GetNBE());
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
+      FinalizeQuadMesh(true,0,true);
+      dbg("After cleanup:");
+      dbg("   GetNV():%d",GetNV());
+      dbg("   GetNE():%d",GetNE());
+      dbg("   GetNBE():%d",GetNBE());
+
+
+      SetCurvature(order, false, 3, Ordering::byVDIM);
+      for (int i = 0; i < GetNV(); i++)
+      {
+         const double x = GetNodes()->operator()(3*i+0);
+         const double y = GetNodes()->operator()(3*i+1);
+         const double z = GetNodes()->operator()(3*i+2);
+         dbg("%d:(%f, %f, %f)",i,x,y,z);
+      }
+      SetCurvature(order, false, 3, Ordering::byNODES);
+
+      if (getenv("MSH"))
+      {
+         // glvis -m surface.mesh"
+         ofstream mesh_ofs("surface.mesh");
+         mesh_ofs.precision(8);
+         this->Print(mesh_ofs);
+         exit(0);
+      }
    }
-   /*void Refine()
-   {
-      dbg("\033[37mRefine");
-   }*/
 };
 
 // Visualize some solution on the given mesh
