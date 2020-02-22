@@ -80,8 +80,9 @@ public:
    }
 
    // Generate Quad surface mesh
-   Surface(Array<int> &b, int order, int nx, int ny, int nr, int vdim):
-      Mesh(nx, ny, Element::QUADRILATERAL, true, 1.0, 1.0, false),
+   Surface(Array<int> &b, int order,
+           int nx, int ny, int nr, int vdim, double scale =1.0):
+      Mesh(nx, ny, Element::QUADRILATERAL, true, scale, scale, false),
       S(static_cast<T*>(this)),
       bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim)
    {
@@ -701,139 +702,35 @@ std::complex<double> WeierstrassZeta(const cdouble z,
 }
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
-constexpr double SCALE = 8.0;
+constexpr double SCALE = 0.9;
 struct Costa: public Surface<Costa>
 {
    Costa(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) { }
-
-   void Prefix()
-   {
-
-      Array<int> v2v(GetNV());
-      for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
-
-      const bool X = false;
-      if (X) // horizontal border
-      {
-         for (int i = 1; i < nx; i++)
-         {
-            const int v_old = i + (nx + 1) * ny;
-            const int v_new = i;
-            if (abs(nx - (i<<1))<=1) { continue; }
-            v2v[v_old] = v_new;
-            dbg("\033[32m%d => %d", v_old, v_new);
-         }
-      }
-
-      const bool Y = false;
-      if (Y) // vertical border
-      {
-         for (int j = 1; j < ny; j++)
-         {
-            const int v_old = nx + j * (nx + 1);
-            const int v_new =      j * (nx + 1);
-            if (abs(ny - (j<<1))<=1) { continue; }
-            v2v[v_old] = v2v[v_new];
-            dbg("\33[33m%d => %d", v_old, v2v[v_old]);//v_new);
-         }
-      }
-
-      for (int i = 0; i < GetNE(); i++)
-      {
-         Element *el = GetElement(i);
-         int *v = el->GetVertices();
-         const int nv = el->GetNVertices();
-         for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
-      }
-      for (int i = 0; i < GetNBE(); i++)
-      {
-         Element *el = GetBdrElement(i);
-         int *v = el->GetVertices();
-         const int nv = el->GetNVertices();
-         for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
-      }
-
-      dbg("Before RemoveUnusedVertices/RemoveInternalBoundaries:");
-      dbg("GetNV():%d",GetNV());
-      dbg("GetNE():%d",GetNE());
-      dbg("GetNBE():%d",GetNBE());
-      RemoveUnusedVertices();
-      RemoveInternalBoundaries();
-      FinalizeQuadMesh(true,0,true);
-      SetCurvature(order, false, SDIM, Ordering::byNODES);
-      dbg("After cleanup:");
-      dbg("   GetNV():%d",GetNV());
-      dbg("\33[33mnodes size: %d", GetNodes()->Size());
-      dbg("   GetNE():%d",GetNE());
-      dbg("   GetNBE():%d",GetNBE());
-
-
-      dbg("\033[32;7mAfter Removes / FinalizeQuadMesh:");
-      SetCurvature(order, false, 3, Ordering::byVDIM);
-      for (int i = 0; i < GetNV(); i++)
-      {
-         const double x = GetNodes()->operator()(3*i+0);
-         const double y = GetNodes()->operator()(3*i+1);
-         const double z = GetNodes()->operator()(3*i+2);
-         dbg("%d:(%f, %f, %f)",i,x,y,z);
-      }
-      SetCurvature(order, false, 3, Ordering::byNODES);
-
-      if (getenv("MSH"))
-      {
-         // glvis -m surface.mesh"
-         ofstream mesh_ofs("surface.mesh");
-         mesh_ofs.precision(8);
-         this->Print(mesh_ofs);
-         exit(0);
-      }
-   }
-
-   void Create()
-   {
-      dbg("");
-      //FinalizeQuadMesh(1, 1, true);
-      //EnsureNodes();
-      FinalizeTopology();
-      dbg("GetNV():%d",GetNV());
-      dbg("GetNE():%d",GetNE());
-      dbg("GetNBE():%d",GetNBE());
-      dbg("\033[7mBefore Transform:");
-      SetCurvature(order, false, SDIM, Ordering::byVDIM);
-      for (int i = 0; i < GetNV(); i++)
-      {
-         const double x = GetNodes()->operator()(3*i+0);
-         const double y = GetNodes()->operator()(3*i+1);
-         const double z = GetNodes()->operator()(3*i+2);
-         dbg("%d:(%f, %f, %f)",i,x,y,z);
-      }
-      SetCurvature(order, false, SDIM, Ordering::byNODES);
-      Transform(this->Parametrization);
-   }
+      Surface(BC, o, x, y, r, d, SCALE) { }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
       p = x;
-      const double u = x[0];
-      const double v = x[1];
+      const double delta = (1. - SCALE) / 2.;
+      const double u = x[0] + delta;
+      const double v = x[1] + delta;
+      /*
+            if (u == 0.0 || u == 1.0)
+            {
+               p[0] -= 0.5;
+               p[1] -= 0.5;
+               p *= SCALE;
+               return;
+            }
 
-      if (u == 0.0 || u == 1.0)
-      {
-         p[0] -= 0.5;
-         p[1] -= 0.5;
-         p *= SCALE;
-         return;
-      }
-
-      if (v == 0.0 || v == 1.0)
-      {
-         p[0] -= 0.5;
-         p[1] -= 0.5;
-         p *= SCALE;
-         return;
-      }
+            if (v == 0.0 || v == 1.0)
+            {
+               p[0] -= 0.5;
+               p[1] -= 0.5;
+               p *= SCALE;
+               return;
+            }*/
 
       dbg("\033[32m(%f:%f,%f)", x[0], x[1], x[2]);
       const cdouble w = u + I*v;
@@ -850,50 +747,83 @@ struct Costa: public Surface<Costa>
       const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
    }
+   /*
+      void Postfix()
+      {
+         SetCurvature(order, false, SDIM, Ordering::byVDIM);
+         GridFunction &nodes = *GetNodes();
+         dbg("\033[7mAfter Transform:");
+         for (int i = 0; i < GetNV(); i++)
+         {
+            const double x = nodes(3*i+0);
+            const double y = nodes(3*i+1);
+            const double z = nodes(3*i+2);
+            dbg("%d:(%f, %f, %f)",i,x,y,z);
+         }
 
-   void Postfix()
-   {
-      SetCurvature(order, false, SDIM, Ordering::byVDIM);
-      GridFunction &nodes = *GetNodes();
-      dbg("\033[7mAfter Transform:");
-      for (int i = 0; i < GetNV(); i++)
-      {
-         const double x = nodes(3*i+0);
-         const double y = nodes(3*i+1);
-         const double z = nodes(3*i+2);
-         dbg("%d:(%f, %f, %f)",i,x,y,z);
-      }
+         // corner 0
+         int v_old = 0;
+         int v_new = nx + 2;
+         dbg("\033[32m%d %d", v_old, v_new);
+         nodes(3*v_old+0) = nodes(3*v_new+0);
+         nodes(3*v_old+1) = nodes(3*v_new+1);
+         nodes(3*v_old+2) = nodes(3*v_new+2);
 
-      for (int i = 1; i < nx; i++)
-      {
-         const int v_old = i + (nx + 1) * ny;
-         const int v_one = i + (nx + 1) * (ny - 1);
-         const int v_two = i + (nx + 1) * 1;
-         const int v_new = i;
-         dbg("\033[32m%d (%d-%d) %d", v_old, v_one, v_two, v_new);
-         const double x = (nodes(3*v_one+0) + nodes(3*v_two+0))/2.0;
-         const double y = (nodes(3*v_one+1) + nodes(3*v_two+1))/2.0;
-         const double h = (nodes(3*v_one+2) + nodes(3*v_two+2))/2.0;
-         nodes(3*v_old+0) = nodes(3*v_new+0) = x;
-         nodes(3*v_old+1) = nodes(3*v_new+1) = y;
-         nodes(3*v_old+2) = nodes(3*v_new+2) = h;
+         // corner 1
+         v_old = nx;
+         v_new = v_old + nx;
+         dbg("\033[32m%d %d", v_old, v_new);
+         nodes(3*v_old+0) = nodes(3*v_new+0);
+         nodes(3*v_old+1) = nodes(3*v_new+1);
+         nodes(3*v_old+2) = nodes(3*v_new+2);
+
+         // corner 2
+         v_old = (nx+1)*ny;
+         v_new = v_old - nx;
+         dbg("\033[32m%d %d", v_old, v_new);
+         nodes(3*v_old+0) = nodes(3*v_new+0);
+         nodes(3*v_old+1) = nodes(3*v_new+1);
+         nodes(3*v_old+2) = nodes(3*v_new+2);
+
+         // corner 3
+         v_old = (nx+1)*(ny+1)-1;
+         v_new = v_old - nx - 2;
+         dbg("\033[32m%d %d", v_old, v_new);
+         nodes(3*v_old+0) = nodes(3*v_new+0);
+         nodes(3*v_old+1) = nodes(3*v_new+1);
+         nodes(3*v_old+2) = nodes(3*v_new+2);
+
+         for (int i = 1; i < nx; i++)
+         {
+            const int v_old = i + (nx + 1) * ny;
+            const int v_one = i + (nx + 1) * (ny - 1);
+            const int v_two = i + (nx + 1) * 1;
+            const int v_new = i;
+            dbg("\033[32m%d (%d-%d) %d", v_old, v_one, v_two, v_new);
+            const double x = (nodes(3*v_one+0) + nodes(3*v_two+0))/2.0;
+            const double y = (nodes(3*v_one+1) + nodes(3*v_two+1))/2.0;
+            const double h = (nodes(3*v_one+2) + nodes(3*v_two+2))/2.0;
+            nodes(3*v_old+0) = nodes(3*v_new+0) = x;
+            nodes(3*v_old+1) = nodes(3*v_new+1) = y;
+            nodes(3*v_old+2) = nodes(3*v_new+2) = h;
+         }
+         for (int j = 1; j < ny; j++)
+         {
+            const int v_old = nx + j * (nx + 1);
+            const int v_one = v_old - 1;
+            const int v_new =      j * (nx + 1);
+            const int v_two = v_new + 1;
+            dbg("\033[33m%d (%d-%d) %d", v_old, v_one, v_two, v_new);
+            const double x = (nodes(3*v_one+0) + nodes(3*v_two+0))/2.0;
+            const double y = (nodes(3*v_one+1) + nodes(3*v_two+1))/2.0;
+            const double h = (nodes(3*v_one+2) + nodes(3*v_two+2))/2.0;
+            nodes(3*v_old+0) = nodes(3*v_new+0) = x;
+            nodes(3*v_old+1) = nodes(3*v_new+1) = y;
+            nodes(3*v_old+2) = nodes(3*v_new+2) = h;
+         }
+         SetCurvature(order, false, SDIM, Ordering::byNODES);
       }
-      for (int j = 1; j < ny; j++)
-      {
-         const int v_old = nx + j * (nx + 1);
-         const int v_one = v_old - 1;
-         const int v_new =      j * (nx + 1);
-         const int v_two = v_new + 1;
-         dbg("\033[33m%d (%d-%d) %d", v_old, v_one, v_two, v_new);
-         const double x = (nodes(3*v_one+0) + nodes(3*v_two+0))/2.0;
-         const double y = (nodes(3*v_one+1) + nodes(3*v_two+1))/2.0;
-         const double h = (nodes(3*v_one+2) + nodes(3*v_two+2))/2.0;
-         nodes(3*v_old+0) = nodes(3*v_new+0) = x;
-         nodes(3*v_old+1) = nodes(3*v_new+1) = y;
-         nodes(3*v_old+2) = nodes(3*v_new+2) = h;
-      }
-      SetCurvature(order, false, SDIM, Ordering::byNODES);
-   }
+      */
 };
 
 // Visualize some solution on the given mesh
