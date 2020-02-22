@@ -108,11 +108,12 @@ public:
    }
 
    // Generated Cube surface mesh
-   Surface(Array<int> &b, int order, int nr,
-           int NVert, int NElem, int NBdrElem, int vdim):
-      Mesh(DIM, NVert, NElem, NBdrElem, SDIM), S(static_cast<T*>(this)),
-      bc(b), order(order), nx(NVert), ny(NElem), nr(nr), vdim(vdim)
+   Surface(Array<int> &b, int order, int NV, int NE, int NBE,
+           int nr, int vdim):
+      Mesh(DIM, NV, NE, NBE, SDIM), S(static_cast<T*>(this)),
+      bc(b), order(order), nx(NV), ny(NE), nr(nr), vdim(vdim)
    {
+      dbg("Generated");
       //EnsureNodes();
       //S->Prefix();
       S->Create();
@@ -393,7 +394,7 @@ struct QuarterPeach: public Surface<QuarterPeach>
 struct FullPeach: public Surface<FullPeach>
 {
    FullPeach(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, r, 8, 6, 6, d) { }
+      Surface(BC, o, 8, 6, 6, r, d) { }
 
    void Create()
    {
@@ -462,7 +463,7 @@ struct FullPeach: public Surface<FullPeach>
 struct SlottedSphere: public Surface<SlottedSphere>
 {
    SlottedSphere(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, r, 64, 40, 0, d) { }
+      Surface(BC, o, 64, 40, 0, r, d) { }
    void Create()
    {
       constexpr double delta = 0.15;
@@ -707,7 +708,139 @@ constexpr double SCALE = 0.9;
 struct Costa: public Surface<Costa>
 {
    Costa(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d, SCALE) { }
+      Surface(BC, o, x, y, 0, r, d)  { }
+
+   void Create()
+   {
+
+      dbg("\033[32m[Costa] Create, nx:%d, ny:%d, nv:%d, ne:%d",
+          nx, ny, (nx+1) * (ny+1), nx*ny - 4);
+
+      const int NVert = (nx+1) * (ny+1);
+      const int NElem = nx * ny - 4; // Corners will be removed
+      const int NBdrElem = 0;
+      InitMesh(DIM, SDIM, NVert, NElem, NBdrElem);
+
+
+      int i, j, k;
+      double cx, cy;
+      int ind[4];
+
+      // Sets vertices and the corresponding coordinates
+      for (j = 0; j < ny+1; j++)
+      {
+         cy = ((double) j / ny) * SCALE;
+         for (i = 0; i < nx+1; i++)
+         {
+            cx = ((double) i / nx) * SCALE;
+            double coords[SDIM] = {cx, cy, 0.0};
+            AddVertex(coords);
+         }
+      }
+
+      // Sets elements and the corresponding indices of vertices
+      for (j = 0; j < ny; j++)
+      {
+         for (i = 0; i < nx; i++)
+         {
+            int i0 = ind[0] = i + j*(nx+1);
+            int i1 = ind[1] = i + 1 +j*(nx+1);
+            int i2 = ind[2] = i + 1 + (j+1)*(nx+1);
+            int i3 = ind[3] = i + (j+1)*(nx+1);
+            dbg("\033[32m[Costa] Quad [%d,%d,%d,%d]",i0,i1,i2,i3);
+            if (i0 == 0 ||
+                i1 == nx ||
+                i3 == ny*(nx+1) ||
+                i2 == (nx+1)*(ny+1)-1)
+            {
+               dbg("\033[32m[Costa] \033[31mskip");
+               continue;
+            }
+            AddQuad(ind);
+         }
+      }
+
+      RemoveUnusedVertices(); // four corners
+      // generate_edges, refine, fix_orientation
+      FinalizeQuadMesh(1, 0, true);
+      FinalizeTopology();
+      /*
+      // Sets boundary elements and the corresponding indices of vertices
+      dbg("\033[32m[Costa] X boundaries");
+      int m = (nx+1)*ny;
+      boundary[0] = new Segment(nx+1, nx+2, 1);
+      dbg("\033[32m[Costa] %d-%d",nx+1,nx+2);
+      boundary[nx+0] = new Segment(m-nx, m-nx-1, 3);
+      dbg("\033[32m[Costa] %d-%d",m-nx,m-nx-1);
+      for (i = 1; i < nx-1; i++)
+      {
+         boundary[i] = new Segment(i, i+1, 1);
+         boundary[nx+i] = new Segment(m+i+1, m+i, 3);
+      }
+      i = nx-1;
+      int i0 = i+nx+1;
+      int i1 = i0+1;
+      boundary[i] = new Segment(i0, i1, 1);
+      dbg("\033[32m[Costa] X1: %d-%d",i0,i1);
+      int i2 = m+i-nx;
+      int i3 = i2-1;
+      boundary[nx+i] = new Segment(i2, i3, 3);
+      dbg("\033[32m[Costa] X3: %d-%d",i2,i3);
+
+      dbg("\033[32m[Costa] Y boundaries");
+      m = nx+1;
+      j = 0;
+      int j0 = (j+1)*m;
+      int j1 = j*m;
+      boundary[2*nx+j] = new Segment(j0, j1, 4);
+      dbg("\033[32m[Costa] Y4: %d-%d",j0,j1);
+      int j2 = j*m+nx;
+      int j3 = (j+1)*m+nx;
+      boundary[2*nx+ny+j] = new Segment(j2, j3, 2);
+      dbg("\033[32m[Costa] Y2: %d-%d",j2,j3);
+      for (j = 1; j < ny-1; j++)
+      {
+         boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
+         boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
+      }
+      j = ny-1;
+      j0 = (j+1)*m +1;
+      j1 = j*m +1;
+      boundary[2*nx+j] = new Segment(j0, j1, 4);
+      dbg("\033[32m[Costa] Y4: %d-%d",j0,j1);
+      j2 = j*m+nx -1;
+      j3 = (j+1)*m+nx -1;
+      boundary[2*nx+ny+j] = new Segment(j2, j3, 2);
+      dbg("\033[32m[Costa] Y2: %d-%d",j2,j3);
+
+      dbg("\033[32m[Costa] RemoveUnusedVertices");
+      RemoveUnusedVertices();
+      dbg("\033[32m[Costa] RemoveInternalBoundaries");
+      RemoveInternalBoundaries();
+
+      dbg("\033[32m[Costa] FinalizeQuadMesh");
+      FinalizeQuadMesh(1, 1, true);
+
+      dbg("\033[32m[Costa] SetMeshGen");
+      SetMeshGen();
+      dbg("\033[32m[Costa] CheckElementOrientation");
+      CheckElementOrientation();
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      dbg("\033[32m[Costa] GenerateFaces");
+      GenerateFaces();
+      dbg("\033[32m[Costa] CheckBdrElementOrientation");
+      CheckBdrElementOrientation();
+      NumOfFaces = 0;
+      attributes.Append(1);
+      bdr_attributes.Append(1); bdr_attributes.Append(2);
+      bdr_attributes.Append(3); bdr_attributes.Append(4);
+      dbg("\033[32m[Costa] FinalizeQuadMesh");
+      FinalizeQuadMesh(1, 1, true);
+      */
+      dbg("done");
+      Transform(Parametrization);
+   }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -715,6 +848,7 @@ struct Costa: public Surface<Costa>
       const double delta = (1. - SCALE) / 2.;
       const double u = x[0] + delta;
       const double v = x[1] + delta;
+      //dbg("(%f,%f)",u,v);
       const cdouble w = u + I*v;
       const cdouble w3 = I/2.;
       const cdouble w1 = 1./2.;
@@ -732,7 +866,8 @@ struct Costa: public Surface<Costa>
 
    void Postfix()
    {
-      // Snap the nodes to the unit sphere
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
+      // Snap the nodes to the sphere of radius RAY
       const int sdim = SpaceDimension();
       GridFunction &nodes = *GetNodes();
       Vector node(sdim);
