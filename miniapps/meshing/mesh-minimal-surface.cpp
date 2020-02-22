@@ -647,7 +647,7 @@ cdouble WeierstrassP(const cdouble z,
 {
    const cdouble tau = w3/w1;
    const cdouble q = exp(I*M_PI*tau);
-   const cdouble e1 = M_PI*M_PI/(12.*w1*w1)*
+   const cdouble e1 = M_PI*M_PI/(12.0*w1*w1)*
                       (1.0*pow(EllipticTheta(2,0,q),4) +
                        2.0*pow(EllipticTheta(4,0,q),4));
    const cdouble u = M_PI*z / (2.0*w1);
@@ -684,13 +684,13 @@ cdouble LogEllipticTheta1Prime(const cdouble u, const cdouble q)
       delta = abs(j);
       J += j;
    }
-   return 1./tan(u) + 4.0*J;
+   return 1.0/tan(u) + 4.0*J;
 }
 
 // https://dlmf.nist.gov/23.6#E13
-std::complex<double> WeierstrassZeta(const cdouble z,
-                                     const cdouble w1 = 0.5,
-                                     const cdouble w3 = 0.5*I)
+cdouble WeierstrassZeta(const cdouble z,
+                        const cdouble w1 = 0.5,
+                        const cdouble w3 = 0.5*I)
 {
    const cdouble tau = w3/w1;
    const cdouble q = exp(I*M_PI*tau);
@@ -702,6 +702,7 @@ std::complex<double> WeierstrassZeta(const cdouble z,
 }
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
+constexpr double RAY = 4.0;
 constexpr double SCALE = 0.9;
 struct Costa: public Surface<Costa>
 {
@@ -711,28 +712,9 @@ struct Costa: public Surface<Costa>
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
-      p = x;
       const double delta = (1. - SCALE) / 2.;
       const double u = x[0] + delta;
       const double v = x[1] + delta;
-      /*
-            if (u == 0.0 || u == 1.0)
-            {
-               p[0] -= 0.5;
-               p[1] -= 0.5;
-               p *= SCALE;
-               return;
-            }
-
-            if (v == 0.0 || v == 1.0)
-            {
-               p[0] -= 0.5;
-               p[1] -= 0.5;
-               p *= SCALE;
-               return;
-            }*/
-
-      dbg("\033[32m(%f:%f,%f)", x[0], x[1], x[2]);
       const cdouble w = u + I*v;
       const cdouble w3 = I/2.;
       const cdouble w1 = 1./2.;
@@ -741,89 +723,29 @@ struct Costa: public Surface<Costa>
       const cdouble e1 = WeierstrassP(0.5);
       const cdouble zw = WeierstrassZeta(w);
       const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
-      p[0] = alpha * real(PI*(u+PI/(4.*e1))-zw+PI/(2.*e1)*(dw));
-      p[1] = alpha * real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
+      p[0] = alpha * real(M_PI*(u+M_PI/(4.*e1))-zw+M_PI/(2.*e1)*(dw));
+      p[1] = alpha * real(M_PI*(v+M_PI/(4.*e1))-I*zw-M_PI*I/(2.*e1)*(dw));
       p[2] = alpha * sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
       const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
    }
-   /*
-      void Postfix()
+
+   void Postfix()
+   {
+      // Snap the nodes to the unit sphere
+      const int sdim = SpaceDimension();
+      GridFunction &nodes = *GetNodes();
+      Vector node(sdim);
+      for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
       {
-         SetCurvature(order, false, SDIM, Ordering::byVDIM);
-         GridFunction &nodes = *GetNodes();
-         dbg("\033[7mAfter Transform:");
-         for (int i = 0; i < GetNV(); i++)
-         {
-            const double x = nodes(3*i+0);
-            const double y = nodes(3*i+1);
-            const double z = nodes(3*i+2);
-            dbg("%d:(%f, %f, %f)",i,x,y,z);
-         }
-
-         // corner 0
-         int v_old = 0;
-         int v_new = nx + 2;
-         dbg("\033[32m%d %d", v_old, v_new);
-         nodes(3*v_old+0) = nodes(3*v_new+0);
-         nodes(3*v_old+1) = nodes(3*v_new+1);
-         nodes(3*v_old+2) = nodes(3*v_new+2);
-
-         // corner 1
-         v_old = nx;
-         v_new = v_old + nx;
-         dbg("\033[32m%d %d", v_old, v_new);
-         nodes(3*v_old+0) = nodes(3*v_new+0);
-         nodes(3*v_old+1) = nodes(3*v_new+1);
-         nodes(3*v_old+2) = nodes(3*v_new+2);
-
-         // corner 2
-         v_old = (nx+1)*ny;
-         v_new = v_old - nx;
-         dbg("\033[32m%d %d", v_old, v_new);
-         nodes(3*v_old+0) = nodes(3*v_new+0);
-         nodes(3*v_old+1) = nodes(3*v_new+1);
-         nodes(3*v_old+2) = nodes(3*v_new+2);
-
-         // corner 3
-         v_old = (nx+1)*(ny+1)-1;
-         v_new = v_old - nx - 2;
-         dbg("\033[32m%d %d", v_old, v_new);
-         nodes(3*v_old+0) = nodes(3*v_new+0);
-         nodes(3*v_old+1) = nodes(3*v_new+1);
-         nodes(3*v_old+2) = nodes(3*v_new+2);
-
-         for (int i = 1; i < nx; i++)
-         {
-            const int v_old = i + (nx + 1) * ny;
-            const int v_one = i + (nx + 1) * (ny - 1);
-            const int v_two = i + (nx + 1) * 1;
-            const int v_new = i;
-            dbg("\033[32m%d (%d-%d) %d", v_old, v_one, v_two, v_new);
-            const double x = (nodes(3*v_one+0) + nodes(3*v_two+0))/2.0;
-            const double y = (nodes(3*v_one+1) + nodes(3*v_two+1))/2.0;
-            const double h = (nodes(3*v_one+2) + nodes(3*v_two+2))/2.0;
-            nodes(3*v_old+0) = nodes(3*v_new+0) = x;
-            nodes(3*v_old+1) = nodes(3*v_new+1) = y;
-            nodes(3*v_old+2) = nodes(3*v_new+2) = h;
-         }
-         for (int j = 1; j < ny; j++)
-         {
-            const int v_old = nx + j * (nx + 1);
-            const int v_one = v_old - 1;
-            const int v_new =      j * (nx + 1);
-            const int v_two = v_new + 1;
-            dbg("\033[33m%d (%d-%d) %d", v_old, v_one, v_two, v_new);
-            const double x = (nodes(3*v_one+0) + nodes(3*v_two+0))/2.0;
-            const double y = (nodes(3*v_one+1) + nodes(3*v_two+1))/2.0;
-            const double h = (nodes(3*v_one+2) + nodes(3*v_two+2))/2.0;
-            nodes(3*v_old+0) = nodes(3*v_new+0) = x;
-            nodes(3*v_old+1) = nodes(3*v_new+1) = y;
-            nodes(3*v_old+2) = nodes(3*v_new+2) = h;
-         }
-         SetCurvature(order, false, SDIM, Ordering::byNODES);
+         for (int d = 0; d < sdim; d++)
+         { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
+         const double norm = node.Norml2();
+         if (norm > RAY) { node *= RAY/norm; }
+         for (int d = 0; d < sdim; d++)
+         { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
-      */
+   }
 };
 
 // Visualize some solution on the given mesh
