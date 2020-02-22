@@ -705,94 +705,90 @@ constexpr double SCALE = 8.0;
 struct Costa: public Surface<Costa>
 {
    Costa(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, r,
-              (x+1)*(y+1) - 4, // NVert
-              x*y - 4, // NElem
-              0, // NBdrElem
-              d) { }
-   /*
-      void Prefix()
+      Surface(BC, o, x, y, r, d) { }
+
+   void Prefix()
+   {
+
+      Array<int> v2v(GetNV());
+      for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
+
+      const bool X = false;
+      if (X) // horizontal border
       {
-
-         Array<int> v2v(GetNV());
-         for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
-
-         const bool X = true;
-         if (X) // horizontal border
+         for (int i = 1; i < nx; i++)
          {
-            for (int i = 1; i < nx; i++)
-            {
-               const int v_old = i + (nx + 1) * ny;
-               const int v_new = i;
-               if (abs(nx - (i<<1))<=1) { continue; }
-               v2v[v_old] = v_new;
-               dbg("\033[32m%d => %d", v_old, v_new);
-            }
+            const int v_old = i + (nx + 1) * ny;
+            const int v_new = i;
+            if (abs(nx - (i<<1))<=1) { continue; }
+            v2v[v_old] = v_new;
+            dbg("\033[32m%d => %d", v_old, v_new);
          }
+      }
 
-         const bool Y = true;
-         if (Y) // vertical border
+      const bool Y = false;
+      if (Y) // vertical border
+      {
+         for (int j = 1; j < ny; j++)
          {
-            for (int j = 1; j < ny; j++)
-            {
-               const int v_old = nx + j * (nx + 1);
-               const int v_new =      j * (nx + 1);
-               if (abs(ny - (j<<1))<=1) { continue; }
-               v2v[v_old] = v2v[v_new];
-               dbg("\33[33m%d => %d", v_old, v2v[v_old]);//v_new);
-            }
+            const int v_old = nx + j * (nx + 1);
+            const int v_new =      j * (nx + 1);
+            if (abs(ny - (j<<1))<=1) { continue; }
+            v2v[v_old] = v2v[v_new];
+            dbg("\33[33m%d => %d", v_old, v2v[v_old]);//v_new);
          }
+      }
 
-         for (int i = 0; i < GetNE(); i++)
-         {
-            Element *el = GetElement(i);
-            int *v = el->GetVertices();
-            const int nv = el->GetNVertices();
-            for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
-         }
-         for (int i = 0; i < GetNBE(); i++)
-         {
-            Element *el = GetBdrElement(i);
-            int *v = el->GetVertices();
-            const int nv = el->GetNVertices();
-            for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
-         }
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Element *el = GetElement(i);
+         int *v = el->GetVertices();
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
+      }
+      for (int i = 0; i < GetNBE(); i++)
+      {
+         Element *el = GetBdrElement(i);
+         int *v = el->GetVertices();
+         const int nv = el->GetNVertices();
+         for (int j = 0; j < nv; j++) { v[j] = v2v[v[j]]; }
+      }
 
-         dbg("Before RemoveUnusedVertices/RemoveInternalBoundaries:");
-         dbg("GetNV():%d",GetNV());
-         dbg("GetNE():%d",GetNE());
-         dbg("GetNBE():%d",GetNBE());
-         RemoveUnusedVertices();
-         RemoveInternalBoundaries();
-         FinalizeQuadMesh(true,0,true);
-         SetCurvature(order, false, SDIM, Ordering::byNODES);
-         dbg("After cleanup:");
-         dbg("   GetNV():%d",GetNV());
-         dbg("\33[33mnodes size: %d", GetNodes()->Size());
-         dbg("   GetNE():%d",GetNE());
-         dbg("   GetNBE():%d",GetNBE());
+      dbg("Before RemoveUnusedVertices/RemoveInternalBoundaries:");
+      dbg("GetNV():%d",GetNV());
+      dbg("GetNE():%d",GetNE());
+      dbg("GetNBE():%d",GetNBE());
+      RemoveUnusedVertices();
+      RemoveInternalBoundaries();
+      FinalizeQuadMesh(true,0,true);
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
+      dbg("After cleanup:");
+      dbg("   GetNV():%d",GetNV());
+      dbg("\33[33mnodes size: %d", GetNodes()->Size());
+      dbg("   GetNE():%d",GetNE());
+      dbg("   GetNBE():%d",GetNBE());
 
 
-         dbg("\033[32;7mAfter Removes / FinalizeQuadMesh:");
-         SetCurvature(order, false, 3, Ordering::byVDIM);
-         for (int i = 0; i < GetNV(); i++)
-         {
-            const double x = GetNodes()->operator()(3*i+0);
-            const double y = GetNodes()->operator()(3*i+1);
-            const double z = GetNodes()->operator()(3*i+2);
-            dbg("%d:(%f, %f, %f)",i,x,y,z);
-         }
-         SetCurvature(order, false, 3, Ordering::byNODES);
+      dbg("\033[32;7mAfter Removes / FinalizeQuadMesh:");
+      SetCurvature(order, false, 3, Ordering::byVDIM);
+      for (int i = 0; i < GetNV(); i++)
+      {
+         const double x = GetNodes()->operator()(3*i+0);
+         const double y = GetNodes()->operator()(3*i+1);
+         const double z = GetNodes()->operator()(3*i+2);
+         dbg("%d:(%f, %f, %f)",i,x,y,z);
+      }
+      SetCurvature(order, false, 3, Ordering::byNODES);
 
-         if (getenv("MSH"))
-         {
-            // glvis -m surface.mesh"
-            ofstream mesh_ofs("surface.mesh");
-            mesh_ofs.precision(8);
-            this->Print(mesh_ofs);
-            exit(0);
-         }
-      }*/
+      if (getenv("MSH"))
+      {
+         // glvis -m surface.mesh"
+         ofstream mesh_ofs("surface.mesh");
+         mesh_ofs.precision(8);
+         this->Print(mesh_ofs);
+         exit(0);
+      }
+   }
 
    void Create()
    {
