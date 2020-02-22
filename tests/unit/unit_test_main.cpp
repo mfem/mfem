@@ -13,6 +13,8 @@
 #include "mfem.hpp"
 #include "catch.hpp"
 
+mfem::MPI_Session *GlobalMPISession;
+
 int main(int argc, char *argv[])
 {
    // There must be exactly one instance.
@@ -27,6 +29,8 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_MPI
    mfem::MPI_Session mpi;
+   GlobalMPISession = &mpi;
+
    // Force tests not tagged as [Parallel] to run only on MPI rank 0
    if (mpi.WorldRank() > 0)
    {
