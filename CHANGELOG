@@ -11,6 +11,8 @@
 Version 4.0.1 (development)
 ===========================
 
+Starting with this version, the MFEM open source license is changed to BSD-3.
+
 Improved GPU support
 --------------------
 - Added support for matrix-free diagonal smoothers on GPUs.

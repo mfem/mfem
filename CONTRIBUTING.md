@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-<a href="https://github.com/mfem/mfem/blob/master/COPYRIGHT"><img alt="License" src="https://img.shields.io/badge/License-LGPL--2.1-brightgreen.svg"></a>
+<a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-brightgreen.svg"></a>
 <a href="https://travis-ci.org/mfem/mfem"><img alt="Build Status" src="https://travis-ci.org/mfem/mfem.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="http://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
@@ -16,6 +16,9 @@ The MFEM team welcomes contributions at all levels: bugfixes; code
 improvements; simplifications; new mesh, discretization or solver
 capabilities; improved documentation; new examples and miniapps;
 HPC performance improvements; ...
+
+MFEM is distributed under the terms of the BSD-3 license. All new contributions
+must be made under this license.
 
 Use a pull request (PR) toward the `mfem:master` branch to propose your
 contribution. If you are planning significant code changes, or have any
@@ -337,7 +340,7 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Is this a new feature users need to be aware of? New or updated example or miniapp?
     - [ ] Does it make sense to create a new section in the `CHANGELOG` to group with other related features?
 - [ ] Update `INSTALL`:
-    - [ ] Had a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
+    - [ ] Had a new optional library been added? (*Make sure the external library is not licensed under GPL!*)
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
 - [ ] Update `.gitignore`:
