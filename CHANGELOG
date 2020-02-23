@@ -37,6 +37,9 @@ libCEED support
   ceed-cuda), using some of the best performing CPU and GPU backends from
   libCEED, see the sample runs in examples 1 and 6.
 
+- NOTE: The current default libCEED GPU backend (ceed-cuda) uses atomics and
+  therefore is non-deterministic!
+
 Meshing improvements
 --------------------
 - Added support for non-conforming AMR on prisms and tetrahedra, including
