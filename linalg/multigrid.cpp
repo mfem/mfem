@@ -24,7 +24,7 @@ MultigridOperator::MultigridOperator(Operator* opr, Solver* coarseSolver,
 
 MultigridOperator::~MultigridOperator()
 {
-   for (int i = operators.Size() - 1; i >= 0; --i)
+   for (int i = 0; i < operators.Size(); ++i)
    {
       if (ownedOperators[i])
       {
@@ -36,7 +36,7 @@ MultigridOperator::~MultigridOperator()
       }
    }
 
-   for (int i = prolongations.Size() - 1; i >= 0; --i)
+   for (int i = 0; i < prolongations.Size(); ++i)
    {
       if (ownedProlongations[i])
       {
