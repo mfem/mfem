@@ -1,24 +1,24 @@
 //                    MFEM Example 11 - Parallel NURBS Version
 //
-// Compile with: make ex11p
+// Compile with: make nurbs_ex11p
 //
-// Sample runs:  mpirun -np 4 ex11p -m ../../data/square-disc.mesh
-//               mpirun -np 4 ex11p -m ../../data/star.mesh
-//               mpirun -np 4 ex11p -m ../../data/escher.mesh
-//               mpirun -np 4 ex11p -m ../../data/fichera.mesh
-//               mpirun -np 4 ex11p -m ../../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex11p -m ../../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex11p -m ../../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex11p -m ../../data/disc-nurbs.mesh -o -1 -n 20
-//               mpirun -np 4 ex11p -m ../../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex11p -m ../../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex11p -m ../../data/star-surf.mesh
-//               mpirun -np 4 ex11p -m ../../data/square-disc-surf.mesh
-//               mpirun -np 4 ex11p -m ../../data/inline-segment.mesh
-//               mpirun -np 4 ex11p -m ../../data/amr-quad.mesh
-//               mpirun -np 4 ex11p -m ../../data/amr-hex.mesh
-//               mpirun -np 4 ex11p -m ../../data/mobius-strip.mesh -n 8
-//               mpirun -np 4 ex11p -m ../../data/klein-bottle.mesh -n 10
+// Sample runs:  mpirun -np 4 nurbs_ex11p -m ../../data/square-disc.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/star.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/escher.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/fichera.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/square-disc-p2.vtk -o 2
+//               mpirun -np 4 nurbs_ex11p -m ../../data/square-disc-p3.mesh -o 3
+//               mpirun -np 4 nurbs_ex11p -m ../../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex11p -m ../../data/disc-nurbs.mesh -o -1 -n 20
+//               mpirun -np 4 nurbs_ex11p -m ../../data/pipe-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex11p -m ../../data/ball-nurbs.mesh -o 2
+//               mpirun -np 4 nurbs_ex11p -m ../../data/star-surf.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/square-disc-surf.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/inline-segment.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/amr-quad.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/amr-hex.mesh
+//               mpirun -np 4 nurbs_ex11p -m ../../data/mobius-strip.mesh -n 8
+//               mpirun -np 4 nurbs_ex11p -m ../../data/klein-bottle.mesh -n 10
 //
 // Description:  This example code demonstrates the use of MFEM to solve the
 //               eigenvalue problem -Delta u = lambda u with homogeneous
