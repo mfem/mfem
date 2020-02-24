@@ -86,6 +86,8 @@ Discretization improvements
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
+- Added second order derivatives of NURBS shape functions.
+
 - Added initial support for NonlinearForms to support the partial assembly mode.
 
 - Added a nonlinear vector valued convection integrator (Q u \cdot grad u, v)
