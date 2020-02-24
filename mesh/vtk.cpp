@@ -451,26 +451,16 @@ void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
    }
 }
 
-enum class Endianness
-{
-   LITTLE,
-   BIG
-};
-
-Endianness DetermineEndianness()
+bool IsBigEndian()
 {
    int16_t x16 = 1;
    int8_t *x8 = reinterpret_cast<int8_t *>(&x16);
-
-   // Assume big endian and little endian are the only options
-   if ((int)*x8) { return Endianness::LITTLE; }
-   else { return Endianness::BIG; }
+   return !*x8;
 }
 
 const char *VTKByteOrder()
 {
-   Endianness e = DetermineEndianness();
-   if (e == Endianness::BIG)
+   if (IsBigEndian())
    {
       return "BigEndian";
    }
