@@ -1541,7 +1541,7 @@ private:
 
           d n_n / dt = Div(D_n Grad(n_n)) + S_n
 
-       Where the diffusion constant D_n is a function of n_e and T_e
+       Where the diffusion coefficient D_n is a function of n_e and T_e
        (the electron density and temperature respectively) and the
        source term S_n is a function of n_e, T_e, and n_n.  Note that n_e is
        not a state variable but is related to n_i by the simple relation
@@ -1569,7 +1569,8 @@ private:
        diffusion operator with coefficient (dt D_n).
 
        The off-diagonal blocks will consist of a mass integrator with
-       coefficient (-dt d S_n / d n_i) or (-dt d S_n / d T_e).
+       coefficient (-dt d S_n / d n_i) or (-dt d S_n / d
+       T_e). Currently, (-dt d S_n / d T_e) is not implemented.
     */
    class NeutralDensityOp : public NLOperator
    {
@@ -1647,6 +1648,46 @@ private:
       // Operator *GetGradientBlock(int i);
    };
 
+   /** The IonDensityOp is an mfem::Operator designed to worth with a
+       NewtonSolver as one row in a block system of non-linear
+       transport equations.  Specifically, this operator models the
+       mass conservation equation for a single ion species.
+
+       d n_i / dt = Div(D_i Grad n_i)) - Div(v_i n_i b_hat) + S_i
+
+       Where the diffusion coefficient D_i is a function of the
+       magnetic field direction, v_i is the velocity of the ions
+       parallel to B, and the source term S_i is a function of the
+       electron and neutral densities as well as the electron
+       temperature.
+
+       To advance this equation in time we need to find k_ni = d n_i / dt
+       which satisfies:
+          k_ni - Div(D_i Grad(n_i + dt k_ni)) + Div(v_i (n_i + dt k_ni) b_hat)
+               - S_i(n_e + z_i dt k_ni, T_e, n_n) = 0
+       Where n_n and T_e are also evaluated at the next time step.  This is
+       done with a Newton solver which needs the Jacobian of this block of
+       equations.
+
+       The diagonal block is given by:
+          1 - dt Div(D_i Grad) + dt Div(v_i b_hat) - dt d S_i / d n_i
+
+       The other non-trivial blocks are:
+          - dt d S_i / d n_n
+	  + dt Div(n_i b_hat)
+          - dt d S_i / d T_e
+
+       The blocks of the Jacobian will be assembled finite element
+       matrices.  For the diagonal block we need a mass integrator
+       with coefficient (1 - dt d S_i / d n_i), a set of integrators
+       to model the DG diffusion operator with coefficient (dt D_i),
+       and a weak divergence integrator with coefficient (dt v_i).
+
+       The off-diagonal blocks will consist of a mass integrator with
+       coefficient (-dt d S_i / d n_n) or (-dt d S_i / d T_e).
+       Currently, (dt Div(n_i b_hat)) and (-dt d S_i / d T_e) are not
+       implemented.
+    */
    class IonDensityOp : public NLOperator
    {
    private:
