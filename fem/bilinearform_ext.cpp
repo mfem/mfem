@@ -169,7 +169,7 @@ void PABilinearFormExtension::Update()
    if (bound_face_restrict_lex && bFISz>0)
    {
       bound_face_restrict_lex = trialFes->GetFaceRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
+                                   ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
       if (bound_face_restrict_lex)
       {
          faceBoundX.SetSize(bound_face_restrict_lex->Height());
