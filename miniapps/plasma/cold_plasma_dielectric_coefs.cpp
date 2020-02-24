@@ -526,6 +526,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
    switch (type_)
    {
       case CONSTANT:
+         cout << "returning const  " << p_[0] << endl;
          return p_[0];
          break;
       case GRADIENT:
@@ -554,6 +555,19 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          {
             return p_[1];
          }
+      }
+      break;
+      case ELLIPTIC_COS:
+      {
+         double pmin = p_[0];
+         double pmax = p_[1];
+         double a = p_[2];
+         double b = p_[3];
+         Vector x0(&p_[4], 3);
+
+         x_ -= x0;
+         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+         return pmin + (pmax - pmin) * (0.5 + 0.5 * cos(M_PI * sqrt(r)));
       }
       break;
       default:

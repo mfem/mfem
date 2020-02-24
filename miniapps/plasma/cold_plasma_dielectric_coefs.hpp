@@ -180,17 +180,24 @@ private:
       The location of a point where tanh equals zero (3 parameters)
       The unit vector in the direction of the steepest gradient away from
       the location described by the previous parameter (3 parameters)
+
+   ELLIPTIC_COS: 7 parameters
+      The value of the parameter when cos equals minus one
+      The value of the parameter when cos equals one
+      The radius of the ellipse in the x direction
+      The radius of the ellipse in the y direction
+      The center of the ellipse
 */
 class PlasmaProfile : public Coefficient
 {
 public:
-   enum Type {CONSTANT, GRADIENT, TANH};
+   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS};
 
 private:
    Type type_;
    Vector p_;
 
-   const int np_[3] = {1, 7, 9};
+   const int np_[4] = {1, 7, 9, 7};
 
    mutable Vector x_;
 

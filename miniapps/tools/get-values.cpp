@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MPI
        && mpi.Root()
 #endif
-       )
+      )
    {
       ofs.open(out_file_c_str);
       if (!ofs)

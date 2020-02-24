@@ -375,7 +375,7 @@ private:
 
    Array<ComplexVectorCoefficientByAttr> * nbcs_; // Surface current BCs
    Array<ComplexVectorCoefficientByAttr> * nkbcs_; // Neumann BCs (-i*omega*K)
-  
+
    VisItDataCollection * visit_dc_;
 
    std::map<std::string,socketstream*> socks_;
