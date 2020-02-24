@@ -158,6 +158,8 @@ miniapps/meshing/shaper
 miniapps/meshing/extruder
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
+miniapps/meshing/mesh-minimal-surface
+miniapps/meshing/pmesh-minimal-surface
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh

@@ -33,7 +33,7 @@
 //               mesh-minimal-surface -d cuda
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
+#include "../../general/forall.hpp"
 #include <fstream>
 #include <iostream>
 
