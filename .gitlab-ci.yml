@@ -249,14 +249,27 @@ stages:
 # the pipeline was triggered with REBASELINE="YES"
 .rebaseline_mfem:
   stage: baseline_publish
+  variables:
+    PATCH_FILE: ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.patch
+    FULL_FILE: ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.out
   rules:
     - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
       when: manual
   script:
-    - echo "cd ${BUILD_ROOT}/tests"
-    - echo "cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.txt ./baseline-${SYS_TYPE}.saved"
-    - echo "git add baseline-${SYS_TYPE}.saved"
-    - echo "git commit -m Rebaselined in Gitlab pipeline #${CI_PIPELINE_ID}"
+    - cd ${BUILD_ROOT}/tests
+    - |
+      if [[ -f "${PATCH_FILE}" ]]
+      then
+          patch "./baseline-${SYS_TYPE}.saved" < "${PATCH_FILE}"
+      elif [[ -f "${FULL_FILE}" ]]
+      then
+          cp "${FULL_FILE}" "./baseline-${SYS_TYPE}.saved"
+      else
+          echo "File missing: needs ${PATCH_FILE} or ${FULL_FILE}"
+          exit 1
+      fi
+    - git add baseline-${SYS_TYPE}.saved
+    - git commit -m "Rebaselined in Gitlab pipeline ${CI_PIPELINE_ID}"
     - echo "git push origin master"
 
 # The list on jobs is defined in machine-specific files.
