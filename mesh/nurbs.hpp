@@ -61,8 +61,11 @@ public:
 
    int findKnotSpan(double u) const;
 
-   void CalcShape (Vector &shape, int i, double xi) const;
-   void CalcDShape(Vector &grad,  int i, double xi) const;
+   void CalcShape  (Vector &shape, int i, double xi) const;
+   void CalcDShape (Vector &grad,  int i, double xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
+   void CalcD2Shape(Vector &grad2, int i, double xi) const
+   { CalcDnShape(grad2, 2, i, xi); }
 
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
@@ -73,6 +76,8 @@ public:
    void Flip();
 
    void Print(std::ostream &out) const;
+
+   void PrintFunctions(std::ostream &out, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -329,6 +334,7 @@ public:
    // Print functions
    void Print(std::ostream &out) const;
    void PrintCharacteristics(std::ostream &out) const;
+   void PrintFunctions(const char *filename, int samples=11) const;
 
    // Meta data functions
    int Dimension() const { return patchTopo->Dimension(); }

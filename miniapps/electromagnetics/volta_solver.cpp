@@ -89,10 +89,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    ess_bdr_ = 0;   // Deselect all outer surfaces
    for (int i=0; i<dbcs_->Size(); i++)
    {
-      if ((*dbcs_)[i] <= ess_bdr_.Size())
-      {
-         ess_bdr_[(*dbcs_)[i]-1] = 1;
-      }
+      ess_bdr_[(*dbcs_)[i]-1] = 1;
    }
 
    // Setup various coefficients
