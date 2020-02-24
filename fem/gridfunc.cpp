@@ -475,6 +475,101 @@ const
    GetValues(i, ir, vals, vdim);
 }
 
+void GridFunction::GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                                 int vdim)
+const
+{
+   Array<int> dofs;
+   int n = ir.GetNPoints();
+   laps.SetSize(n);
+   fes->GetElementDofs(i, dofs);
+   fes->DofsToVDofs(vdim-1, dofs);
+   const FiniteElement *FElem = fes->GetFE(i);
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+               "invalid FE map type");
+
+   int dof = FElem->GetDof();
+   Vector DofLap(dof), loc_data(dof);
+   GetSubVector(dofs, loc_data);
+   for (int k = 0; k < n; k++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(k);
+      ET->SetIntPoint(&ip);
+      FElem->CalcPhysLaplacian(*ET, DofLap);
+      laps(k) = DofLap * loc_data;
+   }
+}
+
+void GridFunction::GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                                 DenseMatrix &tr, int vdim)
+const
+{
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   ET->Transform(ir, tr);
+
+   GetLaplacians(i, ir, laps, vdim);
+}
+
+
+void GridFunction::GetHessians(int i, const IntegrationRule &ir,
+                               DenseMatrix &hess,
+                               int vdim)
+const
+{
+
+   Array<int> dofs;
+   int n = ir.GetNPoints();
+   fes->GetElementDofs(i, dofs);
+   fes->DofsToVDofs(vdim-1, dofs);
+   const FiniteElement *FElem = fes->GetFE(i);
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   int dim = FElem->GetDim();
+   int size = (dim*(dim+1))/2;
+
+   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+               "invalid FE map type");
+
+   int dof = FElem->GetDof();
+   DenseMatrix DofHes(dof, size);
+   hess.SetSize(n, size);
+
+   Vector loc_data(dof);
+   GetSubVector(dofs, loc_data);
+
+   hess = 0.0;
+   for (int k = 0; k < n; k++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(k);
+      ET->SetIntPoint(&ip);
+      FElem->CalcPhysHessian(*ET, DofHes);
+
+      for (int i = 0; i < size; i++)
+      {
+         for (int d = 0; d < dof; d++)
+         {
+            hess(k,i) += DofHes(d,i) * loc_data[d];
+         }
+      }
+   }
+}
+
+void GridFunction::GetHessians(int i, const IntegrationRule &ir,
+                               DenseMatrix &hess,
+                               DenseMatrix &tr, int vdim)
+const
+{
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   ET->Transform(ir, tr);
+
+   GetHessians(i, ir, hess, vdim);
+}
+
+
 int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
                                 Vector &vals, DenseMatrix &tr,
                                 int vdim) const
