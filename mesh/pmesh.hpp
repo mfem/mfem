@@ -193,6 +193,8 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /// Ensure that bdr_attributes and attributes agree across processors
+   void DistributeAttributes(Array<int> &attr);
 
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -222,6 +224,8 @@ public:
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
+
+   virtual void SetAttributes();
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }

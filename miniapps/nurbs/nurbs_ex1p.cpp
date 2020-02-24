@@ -1,25 +1,31 @@
 //                     MFEM Example 1 - Parallel NURBS Version
 //
-// Compile with: make ex1p
+// Compile with: make nurbs_ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../../data/square-disc.mesh
-//               mpirun -np 4 ex1p -m ../../data/star.mesh
-//               mpirun -np 4 ex1p -m ../../data/escher.mesh
-//               mpirun -np 4 ex1p -m ../../data/fichera.mesh
-//               mpirun -np 4 ex1p -m ../../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex1p -m ../../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../../data/star-surf.mesh
-//               mpirun -np 4 ex1p -m ../../data/square-disc-surf.mesh
-//               mpirun -np 4 ex1p -m ../../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh
-//               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh
-//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
-//
+// Sample runs:  mpirun -np 4 nurbs_ex1p -m ../../data/square-disc.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/star.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/escher.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/fichera.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-p2.vtk -o 2
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-p3.mesh -o 3
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/ball-nurbs.mesh -o 2
+//               mpirun -np 4 nurbs_ex1p -m ../../data/star-surf.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-surf.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/inline-segment.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/amr-quad.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/amr-hex.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/mobius-strip.mesh
+//               mpirun -np 4 nurbs_ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/disc-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs.mesh -o -1
+//               mpirun -np 4 nurbs_ex1p -m square-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m cube-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -41,6 +47,91 @@
 
 using namespace std;
 using namespace mfem;
+/** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
+    can be a scalar coefficient. */
+class Diffusion2Integrator: public BilinearFormIntegrator
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   Vector shape,laplace;
+#endif
+   Coefficient *Q;
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   Diffusion2Integrator() { Q = NULL; }
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   Diffusion2Integrator (Coefficient &q) : Q(&q) { }
+
+   /** Given a particular Finite Element
+       computes the element stiffness matrix elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      double w;
+
+#ifdef MFEM_THREAD_SAFE
+      Vector shape[nd];
+      Vector laplace(nd);
+#else
+      shape.SetSize(nd);
+      laplace.SetSize(nd);
+#endif
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order;
+         if (el.Space() == FunctionSpace::Pk)
+         {
+            order = 2*el.GetOrder() - 2;
+         }
+         else
+         {
+            order = 2*el.GetOrder() + dim - 1;
+         }
+
+         if (el.Space() == FunctionSpace::rQk)
+         {
+            ir = &RefinedIntRules.Get(el.GetGeomType(),order);
+         }
+         else
+         {
+            ir = &IntRules.Get(el.GetGeomType(),order);
+         }
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint(&ip);
+         w = -ip.weight * Trans.Weight();
+
+         el.CalcShape(ip, shape);
+         el.CalcPhysLaplacian(Trans, laplace);
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         for (int j = 0; j < nd; j++)
+         {
+            for (int i = 0; i < nd; i++)
+            {
+               elmat(i, j) += w*shape(i)*laplace(j);
+            }
+         }
+      }
+   }
+
+};
 
 int main(int argc, char *argv[])
 {
@@ -56,6 +147,7 @@ int main(int argc, char *argv[])
    order[0] = 1;
    bool static_cond = false;
    bool visualization = 1;
+   bool ibp = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -63,6 +155,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
+                  "--no-ibp",
+                  "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -107,6 +202,7 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   if (!pmesh->NURBSext)
    {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
@@ -165,6 +261,29 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
+   if (!ibp)
+   {
+      if (!pmesh->NURBSext)
+      {
+         cout << "No integration by parts requires a NURBS mesh."<< endl;
+         return 2;
+      }
+      if (pmesh->NURBSext->GetNP()>1)
+      {
+         cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
+              endl;
+         cout << "A C_1 discretisation is required."<< endl;
+         cout << "Currently only C_0 multipatch coupling implemented."<< endl;
+         return 3;
+      }
+      if (order[0]<2)
+      {
+         cout << "No integration by parts requires at least quadratic NURBS."<< endl;
+         cout << "A C_1 discretisation is required."<< endl;
+         return 4;
+      }
+   }
+
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
@@ -195,7 +314,14 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (ibp)
+   {
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+   else
+   {
+      a->AddDomainIntegrator(new Diffusion2Integrator(one));
+   }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
