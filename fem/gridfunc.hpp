@@ -56,7 +56,7 @@ protected:
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Array<int>& counts,
-                        int wcoef,
+                        bool wcoef,
                         int subdomain);
 
    /** Project a discontinuous vector coefficient in a continuous space and
@@ -151,6 +151,18 @@ public:
 
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
+
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      int vdim = 1) const;
+
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      DenseMatrix &tr, int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    DenseMatrix &tr, int vdim = 1) const;
 
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
@@ -414,7 +426,7 @@ public:
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
-                            int wcoef = 1, int subdomain = -1);
+                            bool wcoef = true, int subdomain = -1);
 
    /// Redefine '=' for GridFunction = constant.
    GridFunction &operator=(double value);
@@ -642,7 +654,8 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Vector &error_estimates,
                         Array<int> *aniso_flags = NULL,
-                        int with_subdomains = 1);
+                        int with_subdomains = 1,
+                        bool with_coeff = false);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

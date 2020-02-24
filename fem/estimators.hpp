@@ -84,6 +84,7 @@ protected:
 
    FiniteElementSpace *flux_space; /**< @brief Ownership based on own_flux_fes.
       Its Update() method is called automatically by this class when needed. */
+   bool with_coeff;
    bool own_flux_fes; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
@@ -104,7 +105,7 @@ public:
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The ZienkiewiczZhuEstimator assumes ownership of this
                        FiniteElementSpace and will call its Update() method when
-                       needed. */
+                       needed.*/
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace *flux_fes)
       : current_sequence(-1),
@@ -114,6 +115,7 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(flux_fes),
+        with_coeff(false),
         own_flux_fes(true)
    { }
 
@@ -133,8 +135,13 @@ public:
         integ(&integ),
         solution(&sol),
         flux_space(&flux_fes),
+        with_coeff(false),
         own_flux_fes(false)
    { }
+
+   /** @brief Consider the coefficient in BilinearFormIntegrator to calculate the
+       fluxes for the error estimator.*/
+   void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
 
    /** @brief Enable/disable anisotropic estimates. To enable this option, the
        BilinearFormIntegrator must support the 'd_energy' parameter in its
