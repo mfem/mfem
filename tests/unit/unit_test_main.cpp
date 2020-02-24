@@ -1,4 +1,4 @@
-// Copyright (c) 2019, Lawrence Livermore National Security, LLC. Produced at
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
 // reserved. See file COPYRIGHT for details.
 //
@@ -13,13 +13,42 @@
 #include "mfem.hpp"
 #include "catch.hpp"
 
-int main(int argc, char *argv[])
-{
 #ifdef MFEM_USE_MPI
-   mfem::MPI_Session mpi;
+mfem::MPI_Session *GlobalMPISession;
 #endif
 
-   // There must be exactly one instance
-   int result = Catch::Session().run(argc, argv);
+int main(int argc, char *argv[])
+{
+   // There must be exactly one instance.
+   Catch::Session session;
+
+   // Apply provided command line arguments.
+   int r = session.applyCommandLine(argc, argv);
+   if (r != 0)
+   {
+      return r;
+   }
+
+#ifdef MFEM_USE_MPI
+   mfem::MPI_Session mpi;
+   GlobalMPISession = &mpi;
+
+   // Force tests not tagged as [Parallel] to run only on MPI rank 0
+   if (mpi.WorldRank() > 0)
+   {
+      auto cfg = session.configData();
+      cfg.testsOrTags.push_back("[Parallel]");
+      session.useConfigData(cfg);
+   }
+   if (mpi.WorldSize() > 1 && mpi.Root())
+   {
+      mfem::out
+            << "WARNING: Only running the [Parallel] label on MPI ranks > 1."
+            << std::endl;
+   }
+#endif
+
+   int result = session.run();
+
    return result;
 }

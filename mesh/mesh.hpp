@@ -496,6 +496,7 @@ public:
    Element *NewElement(int geom);
 
    void AddVertex(const double *);
+   void AddSegment(const int *vi, int attr = 1);
    void AddTri(const int *vi, int attr = 1);
    void AddTriangle(const int *vi, int attr = 1);
    void AddQuad(const int *vi, int attr = 1);
@@ -561,7 +562,7 @@ public:
        Mesh vertices or nodes are set. */
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
-   void SetAttributes();
+   virtual void SetAttributes();
 
 #ifdef MFEM_USE_GECKO
    /** This is our integration with the Gecko library.  This will call the
