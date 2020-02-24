@@ -190,7 +190,7 @@ stages:
   cd tests
   mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
   # run
-  ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
+  salloc --nodes=1 -p pdebug ../runtest ../../mfem "${BASELINE_TEST} ${ADDITIONAL_DIR}"
   # post
   mkdir ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}
   if [[ ! -f ${_base_patch} && ! -f ${_base_out} ]]
@@ -210,7 +210,7 @@ stages:
     cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}.txt
   elif [[ -f ${_base_out} ]]
   then
-    cp ${_base_patch} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_patch}.txt
+    cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}.txt
   fi
   cat ${_base_diff}
   cp ${_full_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_full_out}.txt
