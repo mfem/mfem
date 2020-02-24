@@ -3671,7 +3671,7 @@ static void sedov_tests(MPI_Session &mpi)
 
 #ifndef MFEM_SEDOV_TESTS
 
-TEST_CASE("Sedov", "[Sedov]")
+TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
 #ifdef MFEM_USE_MPI
    MPI_Session &mpi = *GlobalMPISession;
@@ -3683,7 +3683,7 @@ TEST_CASE("Sedov", "[Sedov]")
 
 #else
 
-TEST_CASE("Sedov", "[Sedov]")
+TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
 #ifdef MFEM_USE_MPI
    MPI_Session &mpi = *GlobalMPISession;
