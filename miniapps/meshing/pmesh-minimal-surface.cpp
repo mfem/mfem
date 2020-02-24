@@ -9,18 +9,28 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//              --------------------------------
+//               --------------------------------
 //              Parallel Minimal Surface Miniapp
-//              --------------------------------
+//               --------------------------------
 //
-// Description:  See mesh-minimal-surface.cpp description.
+// Description:  This example code
+//               s=0: Catenoid
+//               s=1: Helicoid
+//               s=2: Enneper
+//               s=3: Scherk
+//               s=4: Hold
+//               s=5: QPeach
+//               s=6: FPeach
+//               s=7: SlottedSphere
+//               s=8: Costa
+//               s=9: Shell
 //
 // Compile with: make pmesh-minimal-surface
 //
-// Sample runs:  mesh-minimal-surface -vis
+// Sample runs:  pmesh-minimal-surface -vis
 //
 // Device sample runs:
-//               mesh-minimal-surface -d cuda
+//               pmesh-minimal-surface -d cuda
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -31,9 +41,11 @@ using namespace std;
 using namespace mfem;
 
 // Constant variables
-const double PI = M_PI;
-const double NRM = 1.e-4;
-const double EPS = 1.e-24;
+constexpr int DIM = 2;
+constexpr int SDIM = 3;
+constexpr double PI = M_PI;
+constexpr double NRM = 1.e-4;
+constexpr double EPS = 1.e-24;
 
 // Static variables for GLVis.
 static int NRanks, MyRank;
@@ -59,7 +71,6 @@ public:
       Mesh(file, true), S(static_cast<T*>(this)),
       bc(bc), order(order), nr(nr), vdim(vdim)
    {
-      //EnsureNodes();
       S->Postfix();
       S->Refine();
       GenFESpace();
@@ -72,46 +83,39 @@ public:
       S(static_cast<T*>(this)),
       bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim)
    {
-      //EnsureNodes();
       S->Prefix();
       S->Create();
       S->Postfix();
       S->Refine();
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
-      SetCurvature(order, false, 3, Ordering::byVDIM);
+      SetCurvature(order, false, SDIM, Ordering::byVDIM);
       GridFunction &nodes = *GetNodes();
       for (int i = 0; i < nodes.Size(); i++)
       { if (std::abs(nodes(i)) < EPS) { nodes(i) = 0.0; } }
-      SetCurvature(order, false, 3, Ordering::byNODES);
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
       GenFESpace();
       S->BoundaryConditions();
    }
 
    // Generated Cube surface mesh
-   Surface(Array<int> &b, int order, int nr,
-           int NVert, int NElem, int NBdrElem, int vdim):
-      Mesh(2, NVert, NElem, NBdrElem, 3), S(static_cast<T*>(this)),
-      bc(b), order(order), nx(NVert), ny(NElem), nr(nr), vdim(vdim)
+   Surface(Array<int> &b, int order, int NV, int NE, int NBE,
+           int nr, int vdim):
+      Mesh(DIM, NV, NE, NBE, SDIM), S(static_cast<T*>(this)),
+      bc(b), order(order), nx(NV), ny(NE), nr(nr), vdim(vdim)
    {
-      //EnsureNodes();
-      //S->Prefix();
       S->Create();
-      //S->Postfix();
-      //S->Refine();
-      //RemoveUnusedVertices();
-      //RemoveInternalBoundaries();
       GenFESpace();
       S->BoundaryConditions();
    }
 
    ~Surface() { delete fec; delete pmesh; delete pfes; }
 
-   void Prefix() { SetCurvature(order, false, 3, Ordering::byNODES); }
+   void Prefix() { SetCurvature(order, false, SDIM, Ordering::byNODES); }
 
    void Create() { Transform(T::Parametrization); }
 
-   void Postfix() { SetCurvature(order, false, 3, Ordering::byNODES); }
+   void Postfix() { SetCurvature(order, false, SDIM, Ordering::byNODES); }
 
    void Refine()
    {
@@ -133,7 +137,7 @@ public:
 
    void GenFESpace()
    {
-      fec = new H1_FECollection(order, 2);
+      fec = new H1_FECollection(order, DIM);
       pmesh = new ParMesh(MPI_COMM_WORLD, *this);
       pfes = new ParFiniteElementSpace(pmesh, fec, vdim);
    }
@@ -154,21 +158,11 @@ struct MeshFromFile: public Surface<MeshFromFile>
 struct Catenoid: public Surface<Catenoid>
 {
    Catenoid(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) {}
-   static void Parametrization(const Vector &x, Vector &p)
-   {
-      p.SetSize(3);
-      // u in [0,2π] and v in [-2π/3,2π/3]
-      const double u = 2.0*PI*x[0];
-      const double v = 2.0*PI*(2.0*x[1]-1.0)/3.0;
-      p[0] = 3.2*cos(u); // cos(u)*cosh(v);
-      p[1] = 3.2*sin(u); // sin(u)*cosh(v);
-      p[2] = v;
-   }
-   // Prefix of the Catenoid surface
+      Surface(BC, o, x, y, r, d) { }
+
    void Prefix()
    {
-      SetCurvature(order, false, 3, Ordering::byNODES);
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
       Array<int> v2v(GetNV());
       for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
       // identify vertices on vertical lines
@@ -199,16 +193,28 @@ struct Catenoid: public Surface<Catenoid>
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
    }
+
+   static void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(SDIM);
+      // u in [0,2π] and v in [-2π/3,2π/3]
+      const double u = 2.0*PI*x[0];
+      const double v = 2.0*PI*(2.0*x[1]-1.0)/3.0;
+      p[0] = 3.2*cos(u); // cos(u)*cosh(v);
+      p[1] = 3.2*sin(u); // sin(u)*cosh(v);
+      p[2] = v;
+   }
 };
 
 // #1: Helicoid surface
 struct Helicoid: public Surface<Helicoid>
 {
    Helicoid(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) {}
+      Surface(BC, o, x, y, r, d) { }
+
    static void Parametrization(const Vector &x, Vector &p)
    {
-      p.SetSize(3);
+      p.SetSize(SDIM);
       const double a = 1.0;
       // u in [0,2π] and v in [-2π/3,2π/3]
       const double u = 2.0*PI*x[0];
@@ -223,10 +229,11 @@ struct Helicoid: public Surface<Helicoid>
 struct Enneper: public Surface<Enneper>
 {
    Enneper(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) {}
+      Surface(BC, o, x, y, r, d) { }
+
    static void Parametrization(const Vector &x, Vector &p)
    {
-      p.SetSize(3);
+      p.SetSize(SDIM);
       // (u,v) in [-2, +2]
       const double u = 2.0*(2.0*x[0]-1.0);
       const double v = 2.0*(2.0*x[1]-1.0);
@@ -240,10 +247,11 @@ struct Enneper: public Surface<Enneper>
 struct Scherk: public Surface<Scherk>
 {
    Scherk(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) {}
+      Surface(BC, o, x, y, r, d) { }
+
    static void Parametrization(const Vector &x, Vector &p)
    {
-      p.SetSize(3);
+      p.SetSize(SDIM);
       const double alpha = 0.49;
       // (u,v) in [-απ, +απ]
       const double u = alpha*PI*(2.0*x[0]-1.0);
@@ -258,21 +266,11 @@ struct Scherk: public Surface<Scherk>
 struct Hold: public Surface<Hold>
 {
    Hold(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) {}
-   static void Parametrization(const Vector &x, Vector &p)
-   {
-      p.SetSize(3);
-      // u in [0,2π] and v in [0,1]
-      const double u = 2.0*PI*x[0];
-      const double v = x[1];
-      p[0] = cos(u)*(1.0 + 0.3*sin(3.*u + PI*v));
-      p[1] = sin(u)*(1.0 + 0.3*sin(3.*u + PI*v));
-      p[2] = v;
-   }
+      Surface(BC, o, x, y, r, d) { }
+
    void Prefix()
    {
-      SetCurvature(order, false, 3, Ordering::byNODES);
-
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
       Array<int> v2v(GetNV());
       for (int i = 0; i < v2v.Size(); i++) { v2v[i] = i; }
       // identify vertices on vertical lines
@@ -303,13 +301,27 @@ struct Hold: public Surface<Hold>
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
    }
+
+   static void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(SDIM);
+      // u in [0,2π] and v in [0,1]
+      const double u = 2.0*PI*x[0];
+      const double v = x[1];
+      p[0] = cos(u)*(1.0 + 0.3*sin(3.*u + PI*v));
+      p[1] = sin(u)*(1.0 + 0.3*sin(3.*u + PI*v));
+      p[2] = v;
+   }
 };
 
 // #5: 1/4th Peach street model
 struct QuarterPeach: public Surface<QuarterPeach>
 {
    QuarterPeach(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) {}
+      Surface(BC, o, x, y, r, d) { }
+
+   void Prefix() { SetCurvature(1, false, SDIM, Ordering::byNODES); }
+
    static void Parametrization(const Vector &X, Vector &p)
    {
       p = X;
@@ -328,7 +340,7 @@ struct QuarterPeach: public Surface<QuarterPeach>
       p[1] = gamma * sin(t);
       p[2] = 1.0 - gamma;
    }
-   void Prefix() { SetCurvature(1, false, 3, Ordering::byNODES); }
+
    void Postfix()
    {
       for (int i = 0; i < GetNBE(); i++)
@@ -340,12 +352,12 @@ struct QuarterPeach: public Surface<QuarterPeach>
          GetFaceVertices(fn, vertices);
          const GridFunction *nodes = GetNodes();
          Vector nval;
-         double R[2], X[2][3];
+         double R[2], X[2][SDIM];
          for (int v = 0; v < 2; v++)
          {
             R[v] = 0.0;
             const int iv = vertices[v];
-            for (int d = 0; d < 3; d++)
+            for (int d = 0; d < SDIM; d++)
             {
                nodes->GetNodalValues(nval, d+1);
                const double x = X[v][d] = nval[iv];
@@ -364,10 +376,11 @@ struct QuarterPeach: public Surface<QuarterPeach>
 struct FullPeach: public Surface<FullPeach>
 {
    FullPeach(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, r, 8, 6, 6, d) { }
+      Surface(BC, o, 8, 6, 6, r, d) { }
+
    void Create()
    {
-      const double quad_v[8][3] =
+      const double quad_v[8][SDIM] =
       {
          {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
          {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
@@ -381,13 +394,11 @@ struct FullPeach: public Surface<FullPeach>
       for (int j = 0; j < nx; j++) { AddVertex(quad_v[j]); }
       for (int j = 0; j < ny; j++) { AddQuad(quad_e[j], j+1); }
       for (int j = 0; j < ny; j++) { AddBdrQuad(quad_e[j], j+1); }
-      //RemoveUnusedVertices();
       FinalizeQuadMesh(1, 1, true);
       EnsureNodes();
-      //FinalizeTopology();
       UniformRefinement();
       for (int l = 0; l < nr; l++) { UniformRefinement(); }
-      SetCurvature(order, false, 3, Ordering::byNODES);
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
       // Snap the nodes to the unit sphere
       const int sdim = SpaceDimension();
       GridFunction &nodes = *GetNodes();
@@ -435,7 +446,7 @@ struct FullPeach: public Surface<FullPeach>
 struct SlottedSphere: public Surface<SlottedSphere>
 {
    SlottedSphere(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, r, 64, 40, 0, d) { }
+      Surface(BC, o, 64, 40, 0, r, d) { }
    void Create()
    {
       constexpr double delta = 0.15;
@@ -532,17 +543,16 @@ struct SlottedSphere: public Surface<SlottedSphere>
       EnsureNodes();
       FinalizeTopology();
       for (int l = 0; l < nr; l++) { UniformRefinement(); }
-      SetCurvature(order, false, 3, Ordering::byNODES);
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
       // Snap the nodes to the unit sphere
-      const int sdim = SpaceDimension();
       GridFunction &nodes = *GetNodes();
-      Vector node(sdim);
+      Vector node(SDIM);
       for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
       {
-         for (int d = 0; d < sdim; d++)
+         for (int d = 0; d < SDIM; d++)
          { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
          node /= node.Norml2();
-         for (int d = 0; d < sdim; d++)
+         for (int d = 0; d < SDIM; d++)
          { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
       }
    }
@@ -565,6 +575,201 @@ struct Shell: public Surface<Shell>
    }
 };
 
+// #9: Costa minimal surface
+#include <complex>
+using cdouble = std::complex<double>;
+#define I cdouble(0.0, 1.0)
+
+// https://dlmf.nist.gov/20.2
+cdouble EllipticTheta(const int a, const cdouble u, const cdouble q)
+{
+   cdouble J = 0.0;
+   double delta = std::numeric_limits<double>::max();
+   switch (a)
+   {
+      case 1:
+         for (int n=0; delta > EPS; n+=1)
+         {
+            const cdouble j = pow(-1,n)*pow(q,n*(n+1.0))*sin((2.0*n+1.0)*u);
+            delta = abs(j);
+            J += j;
+         }
+         return 2.0*pow(q,0.25)*J;
+
+      case 2:
+         for (int n=0; delta > EPS; n+=1)
+         {
+            const cdouble j = pow(q,n*(n+1))*cos((2.0*n+1.0)*u);
+            delta = abs(j);
+            J += j;
+         }
+         return 2.0*pow(q,0.25)*J;
+      case 3:
+         for (int n=1; delta > EPS; n+=1)
+         {
+            const cdouble j = pow(q,n*n)*cos(2.0*n*u);
+            delta = abs(j);
+            J += j;
+         }
+         return 1.0 + 2.0*J;
+      case 4:
+         for (int n=1; delta > EPS; n+=1)
+         {
+            const cdouble j =pow(-1,n)*pow(q,n*n)*cos(2.0*n*u);
+            delta = abs(j);
+            J += j;
+         }
+         return 1.0 + 2.0*J;
+   }
+   return J;
+}
+
+// https://dlmf.nist.gov/23.6#E5
+cdouble WeierstrassP(const cdouble z,
+                     const cdouble w1 = 0.5,
+                     const cdouble w3 = 0.5*I)
+{
+   const cdouble tau = w3/w1;
+   const cdouble q = exp(I*M_PI*tau);
+   const cdouble e1 = M_PI*M_PI/(12.0*w1*w1)*
+                      (1.0*pow(EllipticTheta(2,0,q),4) +
+                       2.0*pow(EllipticTheta(4,0,q),4));
+   const cdouble u = M_PI*z / (2.0*w1);
+   const cdouble P = M_PI * EllipticTheta(3,0,q)*EllipticTheta(4,0,q) *
+                     EllipticTheta(2,u,q)/(2.0*w1*EllipticTheta(1,u,q));
+   return P*P + e1;
+}
+
+cdouble EllipticTheta1Prime(const int k, const cdouble u, const cdouble q)
+{
+   cdouble J = 0.0;
+   double delta = std::numeric_limits<double>::max();
+   for (int n=0; delta > EPS; n+=1)
+   {
+      const double alpha = 2.0*n+1.0;
+      const cdouble Dcosine = pow(alpha,k)*sin(k*M_PI/2.0 + alpha*u);
+      const cdouble j = pow(-1,n)*pow(q,n*(n+1.0))*Dcosine;
+      delta = abs(j);
+      J += j;
+   }
+   return 2.0*pow(q,0.25)*J;
+}
+
+// Logarithmic Derivative of Theta Function 1
+cdouble LogEllipticTheta1Prime(const cdouble u, const cdouble q)
+{
+   cdouble J = 0.0;
+   double delta = std::numeric_limits<double>::max();
+   for (int n=1; delta > EPS; n+=1)
+   {
+      cdouble q2n = pow(q, 2*n);
+      if (abs(q2n) < EPS) { q2n = 0.0; }
+      const cdouble j = q2n/(1.0-q2n)*sin(2.0*n*u);
+      delta = abs(j);
+      J += j;
+   }
+   return 1.0/tan(u) + 4.0*J;
+}
+
+// https://dlmf.nist.gov/23.6#E13
+cdouble WeierstrassZeta(const cdouble z,
+                        const cdouble w1 = 0.5,
+                        const cdouble w3 = 0.5*I)
+{
+   const cdouble tau = w3/w1;
+   const cdouble q = exp(I*M_PI*tau);
+   const cdouble n1 = -M_PI*M_PI/(12.0*w1) *
+                      (EllipticTheta1Prime(3,0,q)/
+                       EllipticTheta1Prime(1,0,q));
+   const cdouble u = M_PI*z / (2.0*w1);
+   return z*n1/w1 + M_PI/(2.0*w1)*LogEllipticTheta1Prime(u,q);
+}
+
+// https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
+static double ALPHA = 1.0;
+struct Costa: public Surface<Costa>
+{
+   Costa(Array<int> &BC, int o, int x, int y, int r, int d):
+      Surface(BC, o, x, y, 0, r, d)  { }
+
+   void Create()
+   {
+      MFEM_VERIFY(nx==ny,"");
+      ALPHA = 1.0 / (double)nx;
+      const int nxhalf = (nx%2)==0 ? 4 : 2;
+      const int nyhalf = (ny%2)==0 ? 4 : 2;
+      MFEM_VERIFY(nxhalf == 4,"");
+      MFEM_VERIFY(nyhalf == 4,"");
+      const int nxh = nxhalf + nyhalf;
+      const int NVert = (nx+1) * (ny+1);
+      const int NElem = nx * ny - 4 - nxh; // Corners and Cross will be removed
+      const int NBdrElem = 0;
+      InitMesh(DIM, SDIM, NVert, NElem, NBdrElem);
+      // Sets vertices and the corresponding coordinates
+      for (int j = 0; j <= ny; j++)
+      {
+         const double cy = ((double) j / ny) ;
+         for (int i = 0; i <= nx; i++)
+         {
+            const double cx = ((double) i / nx);
+            const double coords[SDIM] = {cx, cy, 0.0};
+            AddVertex(coords);
+         }
+      }
+      // Sets elements and the corresponding indices of vertices
+      int m = (nx+1)*ny;
+      for (int j = 0; j < ny; j++)
+      {
+         for (int i = 0; i < nx; i++)
+         {
+            const int i0 = i + j*(nx+1);
+            const int i1 = i + 1 + j*(nx+1);
+            const int i2 = i + 1 + (j+1)*(nx+1);
+            const int i3 = i + (j+1)*(nx+1);
+            if (
+               i0<<1 == nx || i1<<1 == nx // bottom
+               || (i2-m)<<1 == nx || (i3-m)<<1 == nx // top
+               || (i0<<1) == m || (i3<<1) == m // left
+               || ((i0-nx+1)<<1) == m || ((i3-nx+1)<<1) == m // right
+            ) { continue; }
+            if (i0 == 0 || i1 == nx ||
+                i3 == ny*(nx+1) || i2 == (nx+1)*(ny+1)-1)
+            { continue; }
+            const int ind[4] = {i0, i1, i2, i3};
+            AddQuad(ind);
+         }
+      }
+      RemoveUnusedVertices();
+      // generate_edges, refinement, fix_orientation
+      FinalizeQuadMesh(true, 1, true);
+      FinalizeTopology();
+      for (int l = 0; l < nr; l++) { UniformRefinement(); }
+      SetCurvature(order, false, SDIM, Ordering::byNODES);
+      Transform(Parametrization);
+   }
+
+   static void Parametrization(const Vector &x, Vector &p)
+   {
+      p.SetSize(3);
+      const bool half = x[1] > 0.5;
+      double u = x[0];
+      double v = x[1];
+      if (half) { v = 1.0 - x[1]; }
+      const cdouble w = u + I*v;
+      const cdouble w3 = I/2.;
+      const cdouble w1 = 1./2.;
+      const cdouble pw = WeierstrassP(w);
+      const cdouble e1 = WeierstrassP(0.5);
+      const cdouble zw = WeierstrassZeta(w);
+      const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
+      p[0] = ALPHA * real(M_PI*(u+M_PI/(4.*e1))- zw +M_PI/(2.*e1)*(dw));
+      p[1] = ALPHA * real(M_PI*(v+M_PI/(4.*e1))-I*zw-M_PI*I/(2.*e1)*(dw));
+      p[2] = ALPHA * sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
+      if (half) { p[1] *= -1.0; }
+      const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
+      MFEM_VERIFY(!nan, "nan");
+   }
+};
 
 // Visualize some solution on the given mesh
 static void Visualize(ParMesh *pm, const int w, const int h,
@@ -617,21 +822,22 @@ public:
       vdim(pfes->GetVDim()), order(order), pmesh(pmesh), pfes(pfes),
       a(pfes), bc(bc), x(pfes), x0(pfes), b(pfes), one(1.0),
       solver(static_cast<Type*>(this)), M(nullptr), lambda(l) { }
+
    ~SurfaceSolver() { delete M; }
+
    void Solve()
    {
       if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
       for (int i=0; i<nmax; ++i)
       {
          if (MyRank == 0)
-         {
-            mfem::out << "Linearized iteration " << i << ": ";
-         }
+         { mfem::out << "Linearized iteration " << i << ": "; }
          Update();
          a.Assemble();
          if (solver->Loop()) { break; }
       }
    }
+
    bool Converged(const double rnorm)
    {
       if (rnorm < NRM)
@@ -641,6 +847,7 @@ public:
       }
       return false;
    }
+
    bool ParAXeqB(bool by_component)
    {
       b = 0.0;
@@ -657,11 +864,9 @@ public:
       a.RecoverFEMSolution(X, b, x);
       GridFunction *nodes = by_component ? &x0 : pfes->GetMesh()->GetNodes();
       double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
-#ifdef MFEM_USE_MPI
       double glob_norm;
       MPI_Allreduce(&rnorm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
       rnorm = glob_norm;
-#endif
       if (MyRank == 0) { mfem::out << "rnorm = " << rnorm << endl; }
       if (by_component)
       {
@@ -695,6 +900,7 @@ public:
       }
       return Converged(rnorm);
    }
+
    void Update()
    {
       if (vis) { Visualize(pmesh, pause); }
@@ -728,6 +934,7 @@ public:
                ParMesh *xmesh, ParFiniteElementSpace *xfes, Array<int> &BC):
       SurfaceSolver(PA, glvis, n, wait, o, l, rad, xmesh, xfes, BC)
    { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
+
    bool Loop()
    {
       bool cvg[3] {false};
@@ -751,6 +958,7 @@ public:
             ParMesh *xmsh, ParFiniteElementSpace *xfes, Array<int> &BC):
       SurfaceSolver(PA, glvis, n, wait, o, l, rad, xmsh, xfes, BC)
    { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
+
    bool Loop()
    {
       x = *pfes->GetMesh()->GetNodes();
@@ -773,10 +981,11 @@ Mesh *NewMeshFromSurface(const int surface, Array<int> &bc,
       case 5: return new QuarterPeach(bc, o, x, y, r, d);
       case 6: return new FullPeach(bc, o, r, d);
       case 7: return new SlottedSphere(bc, o, r, d);
-      case 8: return new Shell(bc, o, x, y, r, d);
+      case 8: return new Costa(bc, o, x, y, r, d);
+      case 9: return new Shell(bc, o, x, y, r, d);
       default: ;
    }
-   mfem_error("Unknown surface (0 <= surface <= 8)!");
+   mfem_error("Unknown surface (0 <= surface <= 9)!");
    return nullptr;
 }
 
