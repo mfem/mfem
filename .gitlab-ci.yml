@@ -213,7 +213,7 @@ stages:
     cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}.txt
   fi
   cat ${_base_diff}
-  cp ${_full_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_full_out}.txt
+  cp ${_base_out} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_out}.txt
   cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.txt
   if [[ ! -s ${_base_diff} ]]; then true; else false; fi
 
