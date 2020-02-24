@@ -37,6 +37,8 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
 void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
                                uint32_t nbytes, int compression_level);
 
+const char *VTKByteOrder();
+
 } // namespace mfem
 
 #endif

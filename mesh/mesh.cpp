@@ -8567,7 +8567,7 @@ void Mesh::PrintVTU(std::string fname,
    {
       out << " compressor=\"vtkZLibDataCompressor\"";
    }
-   out << " byte_order=\"LittleEndian\">\n";
+   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
    out << "<UnstructuredGrid>\n";
    PrintVTU(out, ref, format, high_order_output, compression_level);
    out << "</Piece>\n"; // need to close the piece open in the PrintVTU method

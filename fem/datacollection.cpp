@@ -825,7 +825,7 @@ void ParaViewDataCollection::Save()
       // initialize the file
       pvd_stream << "<?xml version=\"1.0\"?>\n";
       pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
-      pvd_stream << " byte_order=\"LittleEndian\">\n";
+      pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
       pvd_stream << "<Collection>" << std::endl;
    }
 
@@ -848,7 +848,7 @@ void ParaViewDataCollection::Save()
 
       out << "<?xml version=\"1.0\"?>\n";
       out << "<VTKFile type=\"PUnstructuredGrid\"";
-      out << " version =\"0.1\" byte_order=\"LittleEndian\">\n";
+      out << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
       out << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
       out << "<PPoints>\n";
@@ -916,7 +916,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
    {
       out << " compressor=\"vtkZLibDataCompressor\"";
    }
-   out << " version=\"0.1\" byte_order=\"LittleEndian\">\n";
+   out << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
    out << "<UnstructuredGrid>\n";
    mesh->PrintVTU(out,ref,pv_data_format,high_order_output,compression);
 
