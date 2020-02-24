@@ -152,6 +152,18 @@ public:
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
 
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      int vdim = 1) const;
+
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      DenseMatrix &tr, int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    DenseMatrix &tr, int vdim = 1) const;
+
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
