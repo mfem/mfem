@@ -152,19 +152,29 @@ void PABilinearFormExtension::Update()
       localX.SetSize(elem_restrict_lex->Height());
       localY.SetSize(elem_restrict_lex->Height());
    }
-   int_face_restrict_lex = trialFes->GetFaceRestriction(
-                              ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
-   if (int_face_restrict_lex)
+
+   const int iFISz = a->GetFBFI()->Size();
+   if (int_face_restrict_lex && iFISz>0)
    {
-      faceIntX.SetSize(int_face_restrict_lex->Height());
-      faceIntY.SetSize(int_face_restrict_lex->Height());
+      int_face_restrict_lex = trialFes->GetFaceRestriction(
+                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
+      if (int_face_restrict_lex)
+      {
+         faceIntX.SetSize(int_face_restrict_lex->Height());
+         faceIntY.SetSize(int_face_restrict_lex->Height());
+      }
    }
-   bound_face_restrict_lex = trialFes->GetFaceRestriction(
-                                ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
-   if (bound_face_restrict_lex)
+
+   const int bFISz = a->GetBFBFI()->Size();
+   if (bound_face_restrict_lex && bFISz>0)
    {
-      faceBoundX.SetSize(bound_face_restrict_lex->Height());
-      faceBoundY.SetSize(bound_face_restrict_lex->Height());
+      bound_face_restrict_lex = trialFes->GetFaceRestriction(
+                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
+      if (bound_face_restrict_lex)
+      {
+         faceBoundX.SetSize(bound_face_restrict_lex->Height());
+         faceBoundY.SetSize(bound_face_restrict_lex->Height());
+      }
    }
 }
 
