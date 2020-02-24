@@ -368,23 +368,27 @@ int main(int argc, char *argv[])
    args.AddOption((int*)&dpt, "-dp", "--density-profile",
                   "Density Profile Type (for ions): \n"
                   "0 - Constant, 1 - Constant Gradient, "
-                  "2 - Hyprebolic Tangent.");
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
    args.AddOption(&dpp, "-dpp", "--density-profile-params",
                   "Density Profile Parameters:\n"
                   "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
-                  "location of 0 point, unit vector along gradient.");
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
-                  "2 - Hyperbolic Tangent.");
+                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
    args.AddOption(&tpp, "-tpp", "--temperature-profile-params",
                   "Temperature Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
-                  "location of 0 point, unit vector along gradient.");
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -495,6 +499,10 @@ int main(int argc, char *argv[])
                numbers[0] = dpp[1];
                numbers[1] = dpp[1];
                break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp[1];
+               numbers[1] = dpp[1];
+               break;
             default:
                numbers[0] = 1.0e19;
                numbers[1] = 1.0e19;
@@ -542,6 +550,10 @@ int main(int argc, char *argv[])
                temps[1] = tpp[0];
                break;
             case PlasmaProfile::TANH:
+               temps[0] = tpp[1];
+               temps[1] = tpp[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
                temps[0] = tpp[1];
                temps[1] = tpp[1];
                break;
