@@ -32,6 +32,11 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
+//   Adapted analytic Hessian:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Adapted discrete size:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade limited shape:
@@ -48,222 +53,175 @@
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
+//   2D non-conforming shape and equal size:
+//     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 #include "mfem.hpp"
-#include <fstream>
 #include <iostream>
+#include <fstream>
 
 using namespace mfem;
 using namespace std;
 
 double weight_fun(const Vector &x);
 
-// Metric values are visualized by creating an L2 finite element functions and
-// computing the metric values at the nodes.
-void vis_metric(int order, TMOP_QualityMetric &qm, const TargetConstructor &tc,
-                ParMesh &pmesh, char *title, int position)
+double ind_values(const Vector &x)
 {
-   L2_FECollection fec(order, pmesh.Dimension(), BasisType::GaussLobatto);
-   ParFiniteElementSpace fes(&pmesh, &fec, 1);
-   ParGridFunction metric(&fes);
-   InterpolateTMOP_QualityMetric(qm, tc, pmesh, metric);
-   socketstream sock;
-   if (pmesh.GetMyRank() == 0)
+   const int opt = 6;
+   const double small = 0.001, big = 0.01;
+
+   // Sine wave.
+   if (opt==1)
    {
-      sock.open("localhost", 19916);
-      sock << "solution\n";
+      const double X = x(0), Y = x(1);
+      const double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+                         std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+
+      return ind * small + (1.0 - ind) * big;
    }
-   pmesh.PrintAsOne(sock);
-   metric.SaveAsOne(sock);
-   if (pmesh.GetMyRank() == 0)
+
+   if (opt==2)
    {
-      sock << "window_title '"<< title << "'\n"
-           << "window_geometry "
-           << position << " " << 0 << " " << 600 << " " << 600 << "\n"
-           << "keys jRmclA" << endl;
+      // Circle in the middle.
+      double val = 0.;
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+      val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
+      if (val > 1.) {val = 1;}
+
+      return val * small + (1.0 - val) * big;
    }
+
+   if (opt == 3)
+   {
+      // cross
+      const double X = x(0), Y = x(1);
+      const double r1 = 0.45, r2 = 0.55;
+      const double sf = 40.0;
+
+      double val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
+                           std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
+      if (val > 1.) { val = 1.0; }
+
+      return val * small + (1.0 - val) * big;
+   }
+
+   if (opt==4)
+   {
+      // Multiple circles
+      double r1,r2,val,rval;
+      double sf = 10;
+      val = 0.;
+      // circle 1
+      r1= 0.25; r2 = 0.25; rval = 0.1;
+      double xc = x(0) - r1, yc = x(1) - r2;
+      double r = sqrt(xc*xc+yc*yc);
+      val =  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
+                                                               (r-rval)));// std::exp(val1);
+      // circle 2
+      r1= 0.75; r2 = 0.75;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val +=  (0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
+                                                                 (r-rval))));// std::exp(val1);
+      // circle 3
+      r1= 0.75; r2 = 0.25;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
+                                                                (r-rval)));// std::exp(val1);
+      // circle 4
+      r1= 0.25; r2 = 0.75;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));
+      if (val > 1.0) {val = 1.;}
+      if (val < 0.0) {val = 0.;}
+
+      return val * small + (1.0 - val) * big;
+   }
+
+   if (opt==5)
+   {
+      // cross
+      double val = 0.;
+      double X = x(0)-0.5, Y = x(1)-0.5;
+      double rval = std::sqrt(X*X + Y*Y);
+      double thval = 60.*M_PI/180.;
+      double Xmod,Ymod;
+      Xmod = X*std::cos(thval) + Y*std::sin(thval);
+      Ymod= -X*std::sin(thval) + Y*std::cos(thval);
+      X = Xmod+0.5; Y = Ymod+0.5;
+      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
+              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
+      if (rval > 0.4) {val = 0.;}
+      if (val > 1.0) {val = 1.;}
+      if (val < 0.0) {val = 0.;}
+
+      return val * small + (1.0 - val) * big;
+   }
+
+   if (opt==6)
+   {
+      double val = 0.;
+      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+      if (val > 1.) {val = 1;}
+      if (val < 0.) {val = 0;}
+
+      return val * small + (1.0 - val) * big;
+   }
+
+   return 0.0;
 }
 
-class RelaxedNewtonSolver : public NewtonSolver
+class HessianCoefficient : public MatrixCoefficient
 {
 private:
-   // Quadrature points that are checked for negative Jacobians etc.
-   const IntegrationRule &ir;
-   ParFiniteElementSpace *pfes;
-   mutable ParGridFunction x_gf;
+   int type;
 
 public:
-   RelaxedNewtonSolver(const IntegrationRule &irule, ParFiniteElementSpace *pf)
-      : NewtonSolver(pf->GetComm()), ir(irule), pfes(pf) { }
+   HessianCoefficient(int dim, int type_)
+      : MatrixCoefficient(dim), type(type_) { }
 
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+
+      if (type == 0)
+      {
+         K(0, 0) = 1.0 + 3.0 * std::sin(M_PI*pos(0));
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+      }
+      else
+      {
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         const double eps = 0.5;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+
+         K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+      }
+   }
 };
-
-double RelaxedNewtonSolver::ComputeScalingFactor(const Vector &x,
-                                                 const Vector &b) const
-{
-   const ParNonlinearForm *nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-   MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
-   const bool have_b = (b.Size() == Height());
-
-   const int NE = pfes->GetParMesh()->GetNE(), dim = pfes->GetFE(0)->GetDim(),
-             dof = pfes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
-   Array<int> xdofs(dof * dim);
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
-
-   Vector x_out(x.Size());
-   bool x_out_ok = false;
-   const double energy_in = nlf->GetEnergy(x);
-   double scale = 1.0, energy_out;
-   double norm0 = Norm(r);
-   x_gf.MakeTRef(pfes, x_out, 0);
-
-   // Decreases the scaling of the update until the new mesh is valid.
-   for (int i = 0; i < 12; i++)
-   {
-      add(x, -scale, c, x_out);
-      x_gf.SetFromTrueVector();
-
-      energy_out = nlf->GetParGridFunctionEnergy(x_gf);
-      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
-      {
-         if (print_level >= 0)
-         { cout << "Scale = " << scale << " Increasing energy." << endl; }
-         scale *= 0.5; continue;
-      }
-
-      int jac_ok = 1;
-      for (int i = 0; i < NE; i++)
-      {
-         pfes->GetElementVDofs(i, xdofs);
-         x_gf.GetSubVector(xdofs, posV);
-         for (int j = 0; j < nsp; j++)
-         {
-            pfes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
-            MultAtB(pos, dshape, Jpr);
-            if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
-         }
-      }
-   break2:
-      int jac_ok_all;
-      MPI_Allreduce(&jac_ok, &jac_ok_all, 1, MPI_INT, MPI_LAND,
-                    pfes->GetComm());
-
-      if (jac_ok_all == 0)
-      {
-         if (print_level >= 0)
-         { cout << "Scale = " << scale << " Neg det(J) found." << endl; }
-         scale *= 0.5; continue;
-      }
-
-      oper->Mult(x_out, r);
-      if (have_b) { r -= b; }
-      double norm = Norm(r);
-
-      if (norm > 1.2*norm0)
-      {
-         if (print_level >= 0)
-         { cout << "Scale = " << scale << " Norm increased." << endl; }
-         scale *= 0.5; continue;
-      }
-      else { x_out_ok = true; break; }
-   }
-
-   if (print_level >= 0)
-   {
-      cout << "Energy decrease: "
-           << (energy_in - energy_out) / energy_in * 100.0
-           << "% with " << scale << " scaling." << endl;
-   }
-
-   if (x_out_ok == false) { scale = 0.0; }
-
-   return scale;
-}
-
-// Allows negative Jacobians. Used in untangling metrics.
-class DescentNewtonSolver : public NewtonSolver
-{
-private:
-   // Quadrature points that are checked for negative Jacobians etc.
-   const IntegrationRule &ir;
-   ParFiniteElementSpace *pfes;
-   mutable ParGridFunction x_gf;
-
-public:
-   DescentNewtonSolver(const IntegrationRule &irule, ParFiniteElementSpace *pf)
-      : NewtonSolver(pf->GetComm()), ir(irule), pfes(pf) { }
-
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
-};
-
-double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
-                                                 const Vector &b) const
-{
-   const ParNonlinearForm *nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-   MFEM_VERIFY(nlf != NULL, "invalid Operator subclass");
-
-   const int NE = pfes->GetParMesh()->GetNE(), dim = pfes->GetFE(0)->GetDim(),
-             dof = pfes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
-   Array<int> xdofs(dof * dim);
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
-
-   x_gf.MakeTRef(pfes, x.GetData());
-   x_gf.SetFromTrueVector();
-
-   double min_detJ = infinity();
-   for (int i = 0; i < NE; i++)
-   {
-      pfes->GetElementVDofs(i, xdofs);
-      x_gf.GetSubVector(xdofs, posV);
-      for (int j = 0; j < nsp; j++)
-      {
-         pfes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
-         min_detJ = min(min_detJ, Jpr.Det());
-      }
-   }
-   double min_detJ_all;
-   MPI_Allreduce(&min_detJ, &min_detJ_all, 1, MPI_DOUBLE, MPI_MIN,
-                 pfes->GetComm());
-   if (print_level >= 0)
-   { cout << "Minimum det(J) = " << min_detJ_all << endl; }
-
-   Vector x_out(x.Size());
-   bool x_out_ok = false;
-   const double energy_in = nlf->GetParGridFunctionEnergy(x_gf);
-   double scale = 1.0, energy_out;
-
-   for (int i = 0; i < 7; i++)
-   {
-      add(x, -scale, c, x_out);
-
-      energy_out = nlf->GetEnergy(x_out);
-      if (energy_out > energy_in || std::isnan(energy_out) != 0)
-      {
-         scale *= 0.5;
-      }
-      else { x_out_ok = true; break; }
-   }
-
-   if (print_level >= 0)
-   {
-      cout << "Energy decrease: "
-           << (energy_in - energy_out) / energy_in * 100.0
-           << "% with " << scale << " scaling." << endl;
-   }
-
-   if (x_out_ok == false) { return 0.0; }
-
-   return scale;
-}
 
 // Additional IntegrationRules that can be used with the --quad-type option.
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
-
 
 int main (int argc, char *argv[])
 {
@@ -331,7 +289,9 @@ int main (int argc, char *argv[])
                   "Target (ideal element) type:\n\t"
                   "1: Ideal shape, unit size\n\t"
                   "2: Ideal shape, equal size\n\t"
-                  "3: Ideal shape, initial size");
+                  "3: Ideal shape, initial size\n\t"
+                  "4: Given full analytic Jacobian (in physical space)\n\t"
+                  "5: Ideal shape, given size (in physical space)");
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
@@ -381,6 +341,7 @@ int main (int argc, char *argv[])
       cout << endl;
    }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
@@ -510,20 +471,47 @@ int main (int argc, char *argv[])
          return 3;
    }
    TargetConstructor::TargetType target_t;
+   TargetConstructor *target_c = NULL;
+   HessianCoefficient *adapt_coeff = NULL;
+   H1_FECollection ind_fec(3, dim);
+   ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
+   ParGridFunction size;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      case 4:
+      {
+         target_t = TargetConstructor::GIVEN_FULL;
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
+         adapt_coeff = new HessianCoefficient(dim, 1);
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tc;
+         break;
+      }
+      case 5:
+      {
+         target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         size.SetSpace(&ind_fes);
+         FunctionCoefficient ind_coeff(ind_values);
+         size.ProjectCoefficient(ind_coeff);
+         tc->SetParDiscreteTargetSpec(size);
+         target_c = tc;
+         break;
+      }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
    }
-   TargetConstructor *target_c;
-   target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+
+   if (target_c == NULL)
+   {
+      target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ;
-   he_nlf_integ = new TMOP_Integrator(metric, target_c);
+   TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -597,7 +585,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Initial metric values";
-      vis_metric(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
    // 17. Fix all boundary nodes, or fix only a given component depending on the
@@ -705,9 +693,14 @@ int main (int argc, char *argv[])
    if (tauval > 0.0)
    {
       tauval = 0.0;
-      newton = new RelaxedNewtonSolver(*ir, pfespace);
+      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
+      if (target_id == 5)
+      {
+         tns->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
+      }
+      newton = tns;
       if (myid == 0)
-      { cout << "RelaxedNewtonSolver is used (as all det(J) > 0)." << endl; }
+      { cout << "TMOPNewtonSolver is used (as all det(J) > 0)." << endl; }
    }
    else
    {
@@ -715,15 +708,15 @@ int main (int argc, char *argv[])
            (dim == 3 && metric_id != 352) )
       {
          if (myid == 0)
-         { cout << "The mesh is inverted. Use an untangling metric." << endl; }
+         { cout << "The mesh is inverted. Use an untangling metric.\n"; }
          return 3;
       }
       double h0min = h0.Min(), h0min_all;
       MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
-      newton = new DescentNewtonSolver(*ir, pfespace);
+      newton = new TMOPDescentNewtonSolver(pfespace->GetComm(), *ir);
       if (myid == 0)
-      { cout << "DescentNewtonSolver is used (as some det(J) < 0)." << endl; }
+      { cout << "TMOPDescentNewtonSolver is used (as some det(J) < 0).\n"; }
    }
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
@@ -775,7 +768,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Final metric values";
-      vis_metric(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
 
    // 23. Visualize the mesh displacement.
@@ -805,6 +798,7 @@ int main (int argc, char *argv[])
    delete metric2;
    delete coeff1;
    delete target_c;
+   delete adapt_coeff;
    delete metric;
    delete pfespace;
    delete fec;

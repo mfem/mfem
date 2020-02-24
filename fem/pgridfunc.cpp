@@ -225,11 +225,13 @@ void ParGridFunction::ExchangeFaceNbrData()
    MPI_Request *recv_requests = requests + num_face_nbrs;
    MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
 
+   const double *h_data = this->HostRead();
    for (int i = 0; i < send_data.Size(); i++)
    {
-      send_data[i] = data[send_ldof[i]];
+      send_data[i] = h_data[send_ldof[i]];
    }
 
+   double *h_face_nbr_data = face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
@@ -239,7 +241,7 @@ void ParGridFunction::ExchangeFaceNbrData()
                 send_offset[fn+1] - send_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&face_nbr_data(recv_offset[fn]),
+      MPI_Irecv(&h_face_nbr_data[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
@@ -402,33 +404,27 @@ void ParGridFunction::ProjectBdrCoefficient(
 {
    Array<int> values_counter;
    AccumulateAndCountBdrValues(coeff, vcoeff, attr, values_counter);
-   if (pfes->Conforming())
+
+   Vector values(Size());
+   for (int i = 0; i < values.Size(); i++)
    {
-      Vector values(Size());
-      for (int i = 0; i < values.Size(); i++)
+      values(i) = values_counter[i] ? (*this)(i) : 0.0;
+   }
+
+   // Count the values globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   // Accumulate the values globally.
+   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   // Only the values in the master are guaranteed to be correct!
+   for (int i = 0; i < values.Size(); i++)
+   {
+      if (values_counter[i])
       {
-         values(i) = values_counter[i] ? (*this)(i) : 0.0;
-      }
-      // Count the values globally.
-      GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
-      // Accumulate the values globally.
-      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
-      // Only the values in the master are guaranteed to be correct!
-      for (int i = 0; i < values.Size(); i++)
-      {
-         if (values_counter[i])
-         {
-            (*this)(i) = values(i)/values_counter[i];
-         }
+         (*this)(i) = values(i)/values_counter[i];
       }
    }
-   else
-   {
-      // TODO: is this the same as the conforming case (after the merge of
-      //       cut-mesh-groups-dev)?
-      ComputeMeans(ARITHMETIC, values_counter);
-   }
+
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    pfes->GetEssentialVDofs(attr, ess_vdofs_marker);
@@ -466,33 +462,27 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
-   if (pfes->Conforming())
+
+   Vector values(Size());
+   for (int i = 0; i < values.Size(); i++)
    {
-      Vector values(Size());
-      for (int i = 0; i < values.Size(); i++)
+      values(i) = values_counter[i] ? (*this)(i) : 0.0;
+   }
+
+   // Count the values globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   // Accumulate the values globally.
+   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   // Only the values in the master are guaranteed to be correct!
+   for (int i = 0; i < values.Size(); i++)
+   {
+      if (values_counter[i])
       {
-         values(i) = values_counter[i] ? (*this)(i) : 0.0;
-      }
-      // Count the values globally.
-      GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
-      // Accumulate the values globally.
-      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
-      // Only the values in the master are guaranteed to be correct!
-      for (int i = 0; i < values.Size(); i++)
-      {
-         if (values_counter[i])
-         {
-            (*this)(i) = values(i)/values_counter[i];
-         }
+         (*this)(i) = values(i)/values_counter[i];
       }
    }
-   else
-   {
-      // TODO: is this the same as the conforming case (after the merge of
-      //       cut-mesh-groups-dev)?
-      ComputeMeans(ARITHMETIC, values_counter);
-   }
+
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);

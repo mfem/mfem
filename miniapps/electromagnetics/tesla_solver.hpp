@@ -23,12 +23,12 @@
 namespace mfem
 {
 
-using miniapps::H1_ParFESpace;
-using miniapps::ND_ParFESpace;
-using miniapps::RT_ParFESpace;
-using miniapps::ParDiscreteGradOperator;
-using miniapps::ParDiscreteCurlOperator;
-using miniapps::DivergenceFreeNDProjector;
+using common::H1_ParFESpace;
+using common::ND_ParFESpace;
+using common::RT_ParFESpace;
+using common::ParDiscreteGradOperator;
+using common::ParDiscreteCurlOperator;
+using common::DivergenceFreeProjector;
 
 namespace electromagnetics
 {
@@ -99,8 +99,8 @@ private:
    ParGridFunction * bd_; // Dual of B (HCurl)
    ParGridFunction * jd_; // Dual of J, the rhs vector (HCurl)
 
-   DivergenceFreeNDProjector * DivFreeProj_;
-   SurfaceCurrent            * SurfCur_;
+   DivergenceFreeProjector * DivFreeProj_;
+   SurfaceCurrent          * SurfCur_;
 
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
    VectorCoefficient * aBCCoef_;   // Vector Potential BC Function

@@ -31,6 +31,8 @@
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
+//               ex1 -pa -d ceed-cpu
+//               ex1 -pa -d ceed-cuda
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -194,9 +196,10 @@ int main(int argc, char *argv[])
       umf_solver.Mult(B, X);
 #endif
    }
-   else // No preconditioning for now in partial assembly mode.
+   else // Jacobi preconditioning in partial assembly mode
    {
-      CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      OperatorJacobiSmoother M(*a, ess_tdof_list);
+      PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
    }
 
    // 12. Recover the solution as a finite element grid function.

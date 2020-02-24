@@ -92,6 +92,9 @@
 // Enable functionality based on the Gecko library
 #cmakedefine MFEM_USE_GECKO
 
+// Enable functionality based on the Ginkgo library
+#cmakedefine MFEM_USE_GINKGO
+
 // Enable MFEM functionality based on the GnuTLS library
 #cmakedefine MFEM_USE_GNUTLS
 
@@ -110,6 +113,9 @@
 // Enable MFEM functionality based on the PUMI library
 #cmakedefine MFEM_USE_PUMI
 
+// Enable MFEM functionality based on the HiOp library
+#cmakedefine MFEM_USE_HIOP
+
 // Build the GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 #cmakedefine MFEM_USE_CUDA
@@ -119,6 +125,9 @@
 
 // Enable MFEM functionality based on the OCCA library
 #cmakedefine MFEM_USE_OCCA
+
+// Enable MFEM functionality based on the libCEED library
+#cmakedefine MFEM_USE_CEED
 
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.

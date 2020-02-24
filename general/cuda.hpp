@@ -26,10 +26,10 @@
 #ifdef MFEM_USE_CUDA
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
-// Define a CUDA error check macro, MFEM_CUDA_CHECK(x), where x returns/is of
+// Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
-#define MFEM_CUDA_CHECK(x) \
+#define MFEM_GPU_CHECK(x) \
    do \
    { \
       cudaError_t err = (x); \
@@ -39,9 +39,11 @@
       } \
    } \
    while (0)
+#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #else
 #define MFEM_DEVICE
 #define MFEM_HOST_DEVICE
+#define MFEM_DEVICE_SYNC
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros
@@ -59,12 +61,11 @@
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
-
 namespace mfem
 {
 
 #ifdef MFEM_USE_CUDA
-// Function used by the macro MFEM_CUDA_CHECK.
+// Function used by the macro MFEM_GPU_CHECK.
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
 #endif
@@ -92,6 +93,9 @@ void* CuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
 void* CuMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+
+/// Get the number of CUDA devices
+int CuGetDeviceCount();
 
 } // namespace mfem
 

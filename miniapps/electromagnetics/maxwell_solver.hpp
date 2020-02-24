@@ -26,9 +26,9 @@ using namespace mfem;
 namespace mfem
 {
 
-using miniapps::ND_ParFESpace;
-using miniapps::RT_ParFESpace;
-using miniapps::ParDiscreteCurlOperator;
+using common::ND_ParFESpace;
+using common::RT_ParFESpace;
+using common::ParDiscreteCurlOperator;
 
 namespace electromagnetics
 {

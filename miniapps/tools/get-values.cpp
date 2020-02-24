@@ -24,7 +24,7 @@
 //
 // Parallel sample runs:
 //   > mpirun -np 4 get-values -r ../electromagnetics/Volta-AMR-Parallel
-//           -p "0 0 0 0.1 0.1 0.1" -fn ALL
+//           -c 1 -p "0 0 0 0.1 0.1 0.1" -fn ALL
 //
 // Point locations can be specified on the command line using -p or within a
 // data file whose name can be given with option -pf.  The data file format is:

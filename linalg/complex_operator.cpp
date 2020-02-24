@@ -13,22 +13,43 @@
 #include <set>
 #include <map>
 
+// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
+// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
+// Note: the same macros are defined in hypre.cpp and hypre_parser.cpp.
+#if MFEM_HYPRE_VERSION < 21400
+
+#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
+#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
+
+#else // MFEM_HYPRE_VERSION >= 21400
+
+// See the notes about hypre 2.14.0 in hypre.cpp
+#define mfem_hypre_TAlloc(type, size) \
+   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_CTAlloc(type, size) \
+   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
+
+#endif // #if MFEM_HYPRE_VERSION < 21400
+
 namespace mfem
 {
 
 ComplexOperator::ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
                                  bool ownReal, bool ownImag,
                                  Convention convention)
-   : Operator(2*Op_Real->Height(), 2*Op_Real->Width())
+   : Operator(2*((Op_Real)?Op_Real->Height():Op_Imag->Height()),
+              2*((Op_Real)?Op_Real->Width():Op_Imag->Width()))
    , Op_Real_(Op_Real)
    , Op_Imag_(Op_Imag)
    , ownReal_(ownReal)
    , ownImag_(ownImag)
    , convention_(convention)
-   , x_r_(NULL, Op_Real->Width())
-   , x_i_(NULL, Op_Real->Width())
-   , y_r_(NULL, Op_Real->Height())
-   , y_i_(NULL, Op_Real->Height())
+   , x_r_(NULL, width / 2)
+   , x_i_(NULL, width / 2)
+   , y_r_(NULL, height / 2)
+   , y_i_(NULL, height / 2)
    , u_(NULL)
    , v_(NULL)
 {}
@@ -69,10 +90,10 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    x_r_.SetData(x_data);
-   x_i_.SetData(&x_data[Op_Real_->Width()]);
+   x_i_.SetData(&x_data[width / 2]);
 
    y_r_.SetData(&y[0]);
-   y_i_.SetData(&y[Op_Real_->Height()]);
+   y_i_.SetData(&y[height / 2]);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
 }
@@ -109,10 +130,10 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    y_r_.SetData(x_data);
-   y_i_.SetData(&x_data[Op_Real_->Height()]);
+   y_i_.SetData(&x_data[height / 2]);
 
    x_r_.SetData(&y[0]);
-   x_i_.SetData(&y[Op_Real_->Width()]);
+   x_i_.SetData(&y[width / 2]);
 
    this->MultTranspose(y_r_, y_i_, x_r_, x_i_);
 }
@@ -359,7 +380,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
    int num_cols_offd = (int)cset.size();
 
-   // Exatract pointers to the various CSR arrays of the diagonal blocks
+   // Extract pointers to the various CSR arrays of the diagonal blocks
    const int * diag_r_I = (A_r) ? diag_r.GetI() : NULL;
    const int * diag_i_I = (A_i) ? diag_i.GetI() : NULL;
 
@@ -373,7 +394,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
    int diag_nnz = 2 * (diag_r_nnz + diag_i_nnz);
 
-   // Exatract pointers to the various CSR arrays of the off-diagonal blocks
+   // Extract pointers to the various CSR arrays of the off-diagonal blocks
    const int * offd_r_I = (A_r) ? offd_r.GetI() : NULL;
    const int * offd_i_I = (A_i) ? offd_i.GetI() : NULL;
 
@@ -522,7 +543,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            offd_I, offd_J, offd_D,
                                            2 * num_cols_offd, cmap);
 
-   // Give the new matrix ownership of its interanl arrays
+   // Give the new matrix ownership of its internal arrays
    A->SetOwnerFlags(-1,-1,-1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
@@ -604,7 +625,6 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    delete [] req;
    delete [] stat;
 }
-
 
 #endif // MFEM_USE_MPI
 

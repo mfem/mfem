@@ -27,6 +27,7 @@ MFEM makefile targets:
    make debug
    make pdebug
    make cuda
+   make hip
    make pcuda
    make cudebug
    make pcudebug
@@ -67,6 +68,14 @@ make cudebug
    A shortcut to configure and build the serial GPU/CUDA debug version of the library.
 make pcudebug
    A shortcut to configure and build the parallel GPU/CUDA debug version of the library.
+make hip
+   A shortcut to configure and build the serial GPU/HIP optimized version of the library.
+make phip
+   A shortcut to configure and build the parallel GPU/HIP optimized version of the library.
+make hipdebug
+   A shortcut to configure and build the serial GPU/HIP debug version of the library.
+make phipdebug
+   A shortcut to configure and build the parallel GPU/HIP debug version of the library.
 make test
    Verify the build by checking the results from running all examples, miniapps,
    and tests.
@@ -104,12 +113,11 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = sundials petsc pumi
+EXAMPLE_SUBDIRS = sundials petsc pumi hiop ginkgo
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools \
-	nurbs plasma
+MINIAPP_SUBDIRS = common electromagnetics meshing performance plasma tools toys nurbs gslib
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
@@ -129,7 +137,7 @@ BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
    BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
-   BUILD_DIR_DEF = -DMFEM_BUILD_DIR="$(BUILD_REAL_DIR)"
+   CONFIG_FILE_DEF = -DMFEM_CONFIG_FILE='"$(BUILD_REAL_DIR)/config/_config.hpp"'
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
 else
@@ -160,7 +168,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda pcuda cudebug pcudebug hpc style
+ cuda hip pcuda cudebug pcudebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -205,18 +213,36 @@ else
    INCFLAGS += $(HYPRE_OPT)
    ALL_LIBS += $(HYPRE_LIB)
 endif
+ALL_LIBS += $(GSLIB_FPT_LIB)
 
-# CUDA configuration
-ifneq ($(MFEM_USE_CUDA),YES)
+# Default configuration
+ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
    MFEM_CXX ?= $(CXX_OR_MPICXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
-else
+endif
+
+ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
    CXXFLAGS += $(CUDA_FLAGS) -ccbin $(CXX_OR_MPICXX)
    XCOMPILER = $(CUDA_XCOMPILER)
    XLINKER   = $(CUDA_XLINKER)
    # CUDA_OPT and CUDA_LIB are added below
+   # Compatibility test against MFEM_USE_HIP
+   ifeq ($(MFEM_USE_HIP),YES)
+      $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
+   endif
+endif
+
+# HIP configuration
+ifeq ($(MFEM_USE_HIP),YES)
+   MFEM_CXX ?= $(HIP_CXX)
+   ALL_LIBS += $(HIP_FLAGS)
+   # HIP_OPT and HIP_LIB are added below
+   # Compatibility test against MFEM_USE_CUDA
+   ifeq ($(MFEM_USE_CUDA),YES)
+      $(error Incompatible config: MFEM_USE_HIP can not be combined with MFEM_USE_CUDA)
+   endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -233,7 +259,8 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI OCCA RAJA
+ SUITESPARSE STRUMPACK GECKO GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
+ OCCA CEED RAJA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -249,7 +276,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -291,10 +318,11 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
  MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
  MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
- MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO\
- MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF\
- MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI\
- MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO\
+ MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
+ MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
+ MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -315,11 +343,11 @@ MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
-MFEM_INC_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
-MFEM_LIB_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
+MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
+MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
-MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
+MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
 MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
 MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
@@ -347,7 +375,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
    ifeq ($(MFEM_USE_OCCA),YES)
-      ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX))
+      ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
       endif
    endif
@@ -361,14 +389,14 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg mesh fem
+DIRS = general linalg mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
-	debug pdebug cuda pcuda cudebug pcudebug hpc style check test unittest \
+	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
 	deprecation-warnings
 
 .SUFFIXES:
@@ -383,7 +411,7 @@ lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
- $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
+ $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
@@ -420,11 +448,12 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
-serial debug cuda cudebug:      M_MPI=NO
-parallel pdebug pcuda pcudebug: M_MPI=YES
-serial parallel cuda pcuda:     M_DBG=NO
-debug pdebug cudebug pcudebug:  M_DBG=YES
-cuda pcuda cudebug pcudebug:    M_CUDA=YES
+serial debug cuda hip cudebug hipdebug:           M_MPI=NO
+parallel pdebug pcuda pcudebug phip phipdebug:    M_MPI=YES
+serial parallel cuda pcuda hip phip:              M_DBG=NO
+debug pdebug cudebug pcudebug hipdebug phipdebug: M_DBG=YES
+cuda pcuda cudebug pcudebug:                      M_CUDA=YES
+hip phip hipdebug phipdebug:                      M_HIP=YES
 
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
@@ -434,6 +463,11 @@ serial parallel debug pdebug:
 cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+hip phip hipdebug phipdebug:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	MFEM_USE_HIP=$(M_HIP) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 # Build with MPI and all Device backends enabled (requires OCCA and RAJA)
@@ -455,14 +489,14 @@ check: lib
 	@$(MAKE) -C $(BLD)examples \
 	$(if $(findstring YES,$(MFEM_USE_MPI)),ex1p-test-par,ex1-test-seq)
 
-test:
+test test-noclean:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples, miniapps, and tests..."
 	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(ALL_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(ALL_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
-	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
+	   if ! $(MAKE) -j1 -C $(BLD)$${dir} $@; then \
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
@@ -483,7 +517,9 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
+	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -518,6 +554,9 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.okl $(PREFIX_INC)/mfem/$$dir; \
 	done
+# install libCEED q-function headers
+	mkdir -p $(PREFIX_INC)/mfem/fem/libceed
+	$(INSTALL) -m 640 $(SRC)fem/libceed/*.h $(PREFIX_INC)/mfem/fem/libceed
 # install config.mk in $(PREFIX_SHARE)
 	mkdir -p $(PREFIX_SHARE)
 	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
@@ -537,7 +576,7 @@ ifeq (,$(and $(findstring B,$(MAKEFLAGS)),$(wildcard $(CONFIG_MK))))
 	$(error )
 endif
 
-config: $(if $(BUILD_DIR_DEF),build-config,local-config)
+config: $(if $(CONFIG_FILE_DEF),build-config,local-config)
 
 .PHONY: local-config
 local-config:
@@ -556,7 +595,7 @@ build-config:
 	cd "$(BUILD_DIR)" && ln -sf "$(MFEM_REAL_DIR)/data" .
 	for hdr in mfem.hpp mfem-performance.hpp; do \
 	   printf "// Auto-generated file.\n%s\n%s\n" \
-	   "#define MFEM_BUILD_DIR $(BUILD_REAL_DIR)" \
+	   "#define MFEM_CONFIG_FILE \"$(BUILD_REAL_DIR)/config/_config.hpp\"" \
 	   "#include \"$(MFEM_REAL_DIR)/$${hdr}\"" > $(BLD)$${hdr}; done
 	@printf "\nBuild destination: $(BUILD_DIR) [$(BUILD_REAL_DIR)]\n\n"
 
@@ -586,6 +625,7 @@ status info:
 	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GECKO         = $(MFEM_USE_GECKO))
+	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
@@ -593,9 +633,13 @@ status info:
 	$(info MFEM_USE_SIDRE         = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT       = $(MFEM_USE_CONDUIT))
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
+	$(info MFEM_USE_HIOP          = $(MFEM_USE_HIOP))
+	$(info MFEM_USE_GSLIB         = $(MFEM_USE_GSLIB))
 	$(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
+	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
@@ -621,7 +665,7 @@ status info:
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
-FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
+FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

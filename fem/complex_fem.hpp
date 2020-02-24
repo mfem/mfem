@@ -26,19 +26,18 @@
 namespace mfem
 {
 
-/// Class for complex-valued grid function - Vector with associated FE space.
+/// Class for complex-valued grid function - real + imaginary part Vector with
+/// associated FE space.
 class ComplexGridFunction : public Vector
 {
 private:
-
-   GridFunction * gfr_;
-   GridFunction * gfi_;
+   GridFunction * gfr;
+   GridFunction * gfi;
 
 protected:
-   void Destroy() { delete gfr_; delete gfi_; }
+   void Destroy() { delete gfr; delete gfi; }
 
 public:
-
    /* @brief Construct a ComplexGridFunction associated with the
       FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
@@ -47,7 +46,7 @@ public:
 
    /// Assign constant values to the ComplexGridFunction data.
    ComplexGridFunction &operator=(const std::complex<double> & value)
-   { *gfr_ = value.real(); *gfi_ = value.imag(); return *this; }
+   { *gfr = value.real(); *gfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
                                    Coefficient &imag_coeff);
@@ -64,37 +63,47 @@ public:
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
 
-   FiniteElementSpace *FESpace() { return gfr_->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return gfr_->FESpace(); }
+   FiniteElementSpace *FESpace() { return gfr->FESpace(); }
+   const FiniteElementSpace *FESpace() const { return gfr->FESpace(); }
 
-   GridFunction & real() { return *gfr_; }
-   GridFunction & imag() { return *gfi_; }
-   const GridFunction & real() const { return *gfr_; }
-   const GridFunction & imag() const { return *gfi_; }
+   GridFunction & real() { return *gfr; }
+   GridFunction & imag() { return *gfi; }
+   const GridFunction & real() const { return *gfr; }
+   const GridFunction & imag() const { return *gfi; }
 
-   /// Destroys grid function.
+   /// Destroys the grid function.
    virtual ~ComplexGridFunction() { Destroy(); }
 
 };
 
+/** Class for a complex-valued linear form
+
+    The @a convention argument in the class's constructor is documented in the
+    mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the ComplexLinearForm either the real or
+    imaginary integrator can be NULL. This indicates that the corresponding
+    portion of the complex-valued field is equal to zero.
+ */
 class ComplexLinearForm : public Vector
 {
 private:
-   ComplexOperator::Convention conv_;
+   ComplexOperator::Convention conv;
 
 protected:
-   LinearForm * lfr_;
-   LinearForm * lfi_;
-
-   // HYPRE_Int * tdof_offsets_;
+   LinearForm * lfr;
+   LinearForm * lfi;
 
 public:
-
    ComplexLinearForm(FiniteElementSpace *fes,
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
    virtual ~ComplexLinearForm();
+
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention &
+                      convention) { conv = convention; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
@@ -104,17 +113,38 @@ public:
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag);
 
-   /// Adds new Boundary Integrator.
+   /** @brief Add new Boundary Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
 
-   FiniteElementSpace *FESpace() const { return lfr_->FESpace(); }
+   /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag);
 
-   LinearForm & real() { return *lfr_; }
-   LinearForm & imag() { return *lfi_; }
-   const LinearForm & real() const { return *lfr_; }
-   const LinearForm & imag() const { return *lfi_; }
+   /** @brief Add new Boundary Face Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag,
+                             Array<int> &bdr_attr_marker);
+
+   FiniteElementSpace *FESpace() const { return lfr->FESpace(); }
+
+   LinearForm & real() { return *lfr; }
+   LinearForm & imag() { return *lfi; }
+   const LinearForm & real() const { return *lfr; }
+   const LinearForm & imag() const { return *lfi; }
 
    void Update();
    void Update(FiniteElementSpace *f);
@@ -123,32 +153,44 @@ public:
    void Assemble();
 
    std::complex<double> operator()(const ComplexGridFunction &gf) const;
-
 };
 
-// Class for sesquilinear form
+/** Class for sesquilinear form
+
+    A sesquilinear form is a generalization of a bilinear form to complex-valued
+    fields. Sesquilinear forms are linear in the second argument but the first
+    argument involves a complex conjugate in the sense that:
+
+                a(alpha u, beta v) = conj(alpha) beta a(u, v)
+
+    The @a convention argument in the class's constructor is documented in the
+    mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the SesquilinearForm either the real or
+    imaginary integrator can be NULL. This indicates that the corresponding
+    portion of the complex-valued material coefficient is equal to zero.
+*/
 class SesquilinearForm
 {
 private:
-   ComplexOperator::Convention conv_;
+   ComplexOperator::Convention conv;
 
-   //protected:
-   BilinearForm *blfr_;
-   BilinearForm *blfi_;
+   BilinearForm *blfr;
+   BilinearForm *blfi;
 
 public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
 
-   ComplexOperator::Convention GetConvention() const { return conv_; }
+   ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
-                      convention) { conv_  = convention; }
+                      convention) { conv = convention; }
 
-   BilinearForm & real() { return *blfr_; }
-   BilinearForm & imag() { return *blfi_; }
-   const BilinearForm & real() const { return *blfr_; }
-   const BilinearForm & imag() const { return *blfi_; }
+   BilinearForm & real() { return *blfr; }
+   BilinearForm & imag() { return *blfi; }
+   const BilinearForm & real() const { return *blfr; }
+   const BilinearForm & imag() const { return *blfi; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
@@ -163,6 +205,25 @@ public:
                               BilinearFormIntegrator *bfi_imag,
                               Array<int> &bdr_marker);
 
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                  BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                             BilinearFormIntegrator *bfi_imag);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The array @a bdr_marker is stored internally as a pointer to the given
+       Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                             BilinearFormIntegrator *bfi_imag,
+                             Array<int> &bdr_marker);
+
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
@@ -171,10 +232,10 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   ComplexSparseMatrix *AssembleCompSpMat();
+   ComplexSparseMatrix *AssembleComplexSparseMatrix();
 
    /// Return the parallel FE space associated with the ParBilinearForm.
-   FiniteElementSpace *FESpace() const { return blfr_->FESpace(); }
+   FiniteElementSpace *FESpace() const { return blfr->FESpace(); }
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
@@ -192,16 +253,17 @@ public:
 
 #ifdef MFEM_USE_MPI
 
-/// Class for complex-valued grid function - Vector with associated FE space.
+/// Class for parallel complex-valued grid function - real + imaginary part
+/// Vector with associated parallel FE space.
 class ParComplexGridFunction : public Vector
 {
 private:
 
-   ParGridFunction * pgfr_;
-   ParGridFunction * pgfi_;
+   ParGridFunction * pgfr;
+   ParGridFunction * pgfi;
 
 protected:
-   void Destroy() { delete pgfr_; delete pgfi_; }
+   void Destroy() { delete pgfr; delete pgfi; }
 
 public:
 
@@ -213,7 +275,7 @@ public:
 
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<double> & value)
-   { *pgfr_ = value.real(); *pgfi_ = value.imag(); return *this; }
+   { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
                                    Coefficient &imag_coeff);
@@ -236,22 +298,22 @@ public:
    /// Returns the vector restricted to the true dofs.
    void ParallelProject(Vector &tv) const;
 
-   FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
+   FiniteElementSpace *FESpace() { return pgfr->FESpace(); }
+   const FiniteElementSpace *FESpace() const { return pgfr->FESpace(); }
 
-   ParFiniteElementSpace *ParFESpace() { return pgfr_->ParFESpace(); }
-   const ParFiniteElementSpace *ParFESpace() const { return pgfr_->ParFESpace(); }
+   ParFiniteElementSpace *ParFESpace() { return pgfr->ParFESpace(); }
+   const ParFiniteElementSpace *ParFESpace() const { return pgfr->ParFESpace(); }
 
-   ParGridFunction & real() { return *pgfr_; }
-   ParGridFunction & imag() { return *pgfi_; }
-   const ParGridFunction & real() const { return *pgfr_; }
-   const ParGridFunction & imag() const { return *pgfi_; }
+   ParGridFunction & real() { return *pgfr; }
+   ParGridFunction & imag() { return *pgfi; }
+   const ParGridFunction & real() const { return *pgfr; }
+   const ParGridFunction & imag() const { return *pgfi; }
 
    virtual double ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL) const
    {
-      double err_r = pgfr_->ComputeL2Error(exsolr, irs);
-      double err_i = pgfi_->ComputeL2Error(exsoli, irs);
+      double err_r = pgfr->ComputeL2Error(exsolr, irs);
+      double err_i = pgfi->ComputeL2Error(exsoli, irs);
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
@@ -260,8 +322,8 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
    {
-      double err_r = pgfr_->ComputeL2Error(exsolr, irs, elems);
-      double err_i = pgfi_->ComputeL2Error(exsoli, irs, elems);
+      double err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+      double err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
@@ -271,16 +333,25 @@ public:
 
 };
 
+/** Class for a complex-valued, parallel linear form
+
+    The @a convention argument in the class's constructor is documented in the
+    mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the ParComplexLinearForm either the real or
+    imaginary integrator can be NULL.  This indicates that the corresponding
+    portion of the complex-valued field is equal to zero.
+ */
 class ParComplexLinearForm : public Vector
 {
 private:
-   ComplexOperator::Convention conv_;
+   ComplexOperator::Convention conv;
 
 protected:
-   ParLinearForm * plfr_;
-   ParLinearForm * plfi_;
+   ParLinearForm * plfr;
+   ParLinearForm * plfi;
 
-   HYPRE_Int * tdof_offsets_;
+   HYPRE_Int * tdof_offsets;
 
 public:
 
@@ -290,6 +361,10 @@ public:
 
    virtual ~ParComplexLinearForm();
 
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention &
+                      convention) { conv = convention; }
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
@@ -298,17 +373,38 @@ public:
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag);
 
-   /// Adds new Boundary Integrator.
+   /** @brief Add new Boundary Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
 
-   ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
+   /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag);
 
-   ParLinearForm & real() { return *plfr_; }
-   ParLinearForm & imag() { return *plfi_; }
-   const ParLinearForm & real() const { return *plfr_; }
-   const ParLinearForm & imag() const { return *plfi_; }
+   /** @brief Add new Boundary Face Integrator, restricted to the given boundary
+       attributes.
+
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+
+       The array @a bdr_attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
+   void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
+                             LinearFormIntegrator *lfi_imag,
+                             Array<int> &bdr_attr_marker);
+
+   ParFiniteElementSpace *ParFESpace() const { return plfr->ParFESpace(); }
+
+   ParLinearForm & real() { return *plfr; }
+   ParLinearForm & imag() { return *plfi; }
+   const ParLinearForm & real() const { return *plfr; }
+   const ParLinearForm & imag() const { return *plfi; }
 
    void Update(ParFiniteElementSpace *pf = NULL);
 
@@ -325,29 +421,42 @@ public:
 
 };
 
-// Class for parallel sesquilinear form
+/** Class for a parallel sesquilinear form
+
+    A sesquilinear form is a generalization of a bilinear form to complex-valued
+    fields. Sesquilinear forms are linear in the second argument but but the
+    first argument involves a complex conjugate in the sense that:
+
+                a(alpha u, beta v) = conj(alpha) beta a(u, v)
+
+    The @a convention argument in the class's constructor is documented in the
+    mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the ParSesquilinearForm either the real or
+    imaginary integrator can be NULL. This indicates that the corresponding
+    portion of the complex-valued material coefficient is equal to zero.
+*/
 class ParSesquilinearForm
 {
 private:
-   ComplexOperator::Convention conv_;
+   ComplexOperator::Convention conv;
 
-   //protected:
-   ParBilinearForm *pblfr_;
-   ParBilinearForm *pblfi_;
+   ParBilinearForm *pblfr;
+   ParBilinearForm *pblfi;
 
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
                        ComplexOperator::Convention
                        convention = ComplexOperator::HERMITIAN);
 
-   ComplexOperator::Convention GetConvention() const { return conv_; }
+   ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
-                      convention) { conv_  = convention; }
+                      convention) { conv = convention; }
 
-   ParBilinearForm & real() { return *pblfr_; }
-   ParBilinearForm & imag() { return *pblfi_; }
-   const ParBilinearForm & real() const { return *pblfr_; }
-   const ParBilinearForm & imag() const { return *pblfi_; }
+   ParBilinearForm & real() { return *pblfr; }
+   ParBilinearForm & imag() { return *pblfi; }
+   const ParBilinearForm & real() const { return *pblfr; }
+   const ParBilinearForm & imag() const { return *pblfi; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
@@ -357,10 +466,35 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag);
 
-   /// Adds new Boundary Integrator, restricted to specific boundary attributes.
+   /** @brief Adds new boundary Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The array @a bdr_marker is stored internally as a pointer to the given
+       Array<int> object. */
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
                               BilinearFormIntegrator *bfi_imag,
                               Array<int> &bdr_marker);
+
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                                  BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                             BilinearFormIntegrator *bfi_imag);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The array @a bdr_marker is stored internally as a pointer to the given
+       Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
+                             BilinearFormIntegrator *bfi_imag,
+                             Array<int> &bdr_marker);
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
@@ -373,7 +507,7 @@ public:
    ComplexHypreParMatrix *ParallelAssemble();
 
    /// Return the parallel FE space associated with the ParBilinearForm.
-   ParFiniteElementSpace *ParFESpace() const { return pblfr_->ParFESpace(); }
+   ParFiniteElementSpace *ParFESpace() const { return pblfr->ParFESpace(); }
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,

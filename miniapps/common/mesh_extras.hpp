@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 class ElementMeshStream : public std::stringstream
@@ -39,7 +39,7 @@ Mesh *
 MakePeriodicMesh(Mesh * mesh, const Array<int> & v2v,
                  int logging = 0);
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
 

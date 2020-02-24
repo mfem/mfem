@@ -12,7 +12,6 @@
 #ifndef MFEM_TMOP_HPP
 #define MFEM_TMOP_HPP
 
-#include "../config/config.hpp"
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
 
@@ -514,6 +513,51 @@ public:
    virtual ~TMOP_QuadraticLimiter() { }
 };
 
+class FiniteElementCollection;
+class FiniteElementSpace;
+class ParFiniteElementSpace;
+
+class AdaptivityEvaluator
+{
+protected:
+   // Owned.
+   Mesh *mesh;
+   FiniteElementSpace *fes;
+
+#ifdef MFEM_USE_MPI
+   // Owned.
+   ParMesh *pmesh;
+   ParFiniteElementSpace *pfes;
+#endif
+
+public:
+   AdaptivityEvaluator() : mesh(NULL), fes(NULL)
+   {
+#ifdef MFEM_USE_MPI
+      pmesh = NULL;
+      pfes = NULL;
+#endif
+   }
+   virtual ~AdaptivityEvaluator();
+
+   /** Specifies the Mesh and FiniteElementCollection of the solution that will
+       be evaluated. The given mesh will be copied into the internal object. */
+   void SetSerialMetaInfo(const Mesh &m,
+                          const FiniteElementCollection &fec, int num_comp);
+
+#ifdef MFEM_USE_MPI
+   /// Parallel version of SetSerialMetaInfo.
+   void SetParMetaInfo(const ParMesh &m,
+                       const FiniteElementCollection &fec, int num_comp);
+#endif
+
+   // TODO use GridFunctions to make clear it's on the ldofs?
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field) = 0;
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field) = 0;
+};
 
 /** @brief Base class representing target-matrix construction algorithms for
     mesh optimization via the target-matrix optimization paradigm (TMOP). */
@@ -538,9 +582,11 @@ public:
       IDEAL_SHAPE_GIVEN_SIZE, /**<
          Ideal shape, given size/volume; the given nodes define the target
          volume at all quadrature points. */
-      GIVEN_SHAPE_AND_SIZE /**<
+      GIVEN_SHAPE_AND_SIZE, /**<
          Given shape, given size/volume; the given nodes define the exact target
          Jacobian matrix at all quadrature points. */
+      GIVEN_FULL /**<
+         Full target tensor is specified at every quadrature point. */
    };
 
 protected:
@@ -589,13 +635,88 @@ public:
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
-       transformation Jacobians for each quadrature point in the element. */
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun. */
    virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
                                       const IntegrationRule &ir,
+                                      const Vector &elfun,
+                                      DenseTensor &Jtr) const;
+};
+
+class AnalyticAdaptTC : public TargetConstructor
+{
+protected:
+   // Analytic target specification.
+   Coefficient *scalar_tspec;
+   VectorCoefficient *vector_tspec;
+   MatrixCoefficient *matrix_tspec;
+
+public:
+   AnalyticAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype),
+        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL) { }
+
+   virtual void SetAnalyticTargetSpec(Coefficient *sspec,
+                                      VectorCoefficient *vspec,
+                                      MatrixCoefficient *mspec);
+
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun. */
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                      const IntegrationRule &ir,
+                                      const Vector &elfun,
                                       DenseTensor &Jtr) const;
 };
 
 class ParGridFunction;
+
+class DiscreteAdaptTC : public TargetConstructor
+{
+protected:
+   // Discrete target specification.
+   // Data is owned, updated by UpdateTargetSpecification.
+   Vector target_spec;
+   // Note: do not use the Nodes of this space as they may not be on the
+   // positions corresponding to the values of tspec.
+   const FiniteElementSpace *tspec_fes;
+
+   // Evaluation of the discrete target specification on different meshes.
+   // Owned.
+   AdaptivityEvaluator *adapt_eval;
+
+public:
+   DiscreteAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype),
+        target_spec(), tspec_fes(NULL), adapt_eval(NULL) { }
+
+   virtual ~DiscreteAdaptTC() { delete adapt_eval; }
+
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec);
+#ifdef MFEM_USE_MPI
+   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec);
+#endif
+
+   /** Used to update the target specification after the mesh has changed. The
+       new mesh positions are given by new_x. */
+   void UpdateTargetSpecification(const Vector &new_x);
+
+   void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
+   {
+      if (adapt_eval) { delete adapt_eval; }
+      adapt_eval = ae;
+   }
+
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun.
+       Note that this function assumes that UpdateTargetSpecification() has
+       been called with the position vector corresponding to @a elfun. */
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                      const IntegrationRule &ir,
+                                      const Vector &elfun,
+                                      DenseTensor &Jtr) const;
+};
 
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.

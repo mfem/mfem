@@ -64,6 +64,11 @@ if (MFEM_USE_MPI)
   endif()
 endif()
 
+if (MFEM_USE_GINKGO)
+  list(APPEND SRCS ginkgo.cpp)
+  list(APPEND HDRS ginkgo.hpp)
+endif()
+
 if (MFEM_USE_SUNDIALS)
   list(APPEND SRCS sundials.cpp)
   list(APPEND HDRS sundials.hpp)
@@ -79,6 +84,11 @@ endif()
 if (MFEM_USE_STRUMPACK)
   list(APPEND SRCS strumpack.cpp)
   list(APPEND HDRS strumpack.hpp)
+endif()
+
+if (MFEM_USE_HIOP)
+  list(APPEND SRCS hiop.cpp)
+  list(APPEND HDRS hiop.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

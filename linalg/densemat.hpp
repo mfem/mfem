@@ -262,8 +262,12 @@ public:
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
+   void SetRow(int r, const double* row);
    void SetRow(int r, const Vector &row);
+
+   void SetCol(int c, const double* col);
    void SetCol(int c, const Vector &col);
+
 
    /// Set all entries of a row to the specified value.
    void SetRow(int row, double value);
@@ -370,11 +374,31 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C);
 
+/// @brief Solves the dense linear system, `A * X = B` for `X`
+///
+/// @param [in,out] A the square matrix for the linear system
+/// @param [in,out] X the rhs vector, B, on input, the solution, X, on output.
+/// @param [in] TOL optional fuzzy comparison tolerance. Defaults to 1e-9.
+///
+/// @return status set to true if successful, otherwise, false.
+///
+/// @note This routine may replace the contents of the input Matrix, A, with the
+///       corresponding LU factorization of the matrix. Matrices of size 1x1 and
+///       2x2 are handled explicitly.
+///
+/// @pre A.IsSquare() == true
+/// @pre X != nullptr
+bool LinearSolve(DenseMatrix& A, double* X, double TOL = 1.e-9);
+
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
 /// Matrix matrix multiplication.  A += B * C.
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
+
+/// Matrix matrix multiplication.  A += alpha * B * C.
+void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
+               DenseMatrix &a);
 
 /** Calculate the adjugate of a matrix (for NxN matrices, N=1,2,3) or the matrix
     adj(A^t.A).A^t for rectangular matrices (2x1, 3x1, or 3x2). This operation
@@ -470,10 +494,19 @@ public:
 
    LUFactors(double *data_, int *ipiv_) : data(data_), ipiv(ipiv_) { }
 
-   /** Factorize the current data of size (m x m) overwriting it with the LU
-       factors. The factorization is such that L.U = P.A, where A is the
-       original matrix and P is a permutation matrix represented by ipiv. */
-   void Factor(int m);
+   /**
+    * @brief Compute the LU factorization of the current matrix
+    *
+    * Factorize the current matrix of size (m x m) overwriting it with the
+    * LU factors. The factorization is such that L.U = P.A, where A is the
+    * original matrix and P is a permutation matrix represented by ipiv.
+    *
+    * @param [in] m size of the square matrix
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+    *
+    * @return status set to true if successful, otherwise, false.
+    */
+   bool Factor(int m, double TOL = 0.0);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
@@ -494,6 +527,10 @@ public:
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
    void Solve(int m, int n, double *X) const;
+
+   /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
+       for a matrix X of size (n x m). */
+   void RightSolve(int m, int n, double *X) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
    void GetInverseMatrix(int m, double *X) const;
@@ -719,16 +756,36 @@ public:
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
 
-   DenseMatrix &operator()(int k) { Mk.data = GetData(k); return Mk; }
+   DenseMatrix &operator()(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      Mk.data = GetData(k);
+      return Mk;
+   }
    const DenseMatrix &operator()(int k) const
    { return const_cast<DenseTensor&>(*this)(k); }
 
    double &operator()(int i, int j, int k)
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
-   const double &operator()(int i, int j, int k) const
-   { return tdata[i+SizeI()*(j+SizeJ()*k)]; }
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
 
-   double *GetData(int k) { return tdata+k*Mk.Height()*Mk.Width(); }
+   const double &operator()(int i, int j, int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
+
+   double *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata+k*Mk.Height()*Mk.Width();
+   }
 
    double *Data() { return tdata; }
 
@@ -745,6 +802,30 @@ public:
    { UseExternalData(NULL, 0, 0, 0); }
 
    long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
+
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const double *HostRead() const
+   { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   double *HostWrite()
+   { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
 
    ~DenseTensor() { tdata.Delete(); }
 };

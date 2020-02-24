@@ -12,12 +12,15 @@
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
-set(MINIAPP_COMMON_HEADERS)
+set(MINIAPPS_COMMON_SOURCES "")
+set(MINIAPPS_COMMON_HEADERS "")
 add_subdirectory(common)
 add_subdirectory(electromagnetics)
 add_subdirectory(thermal)
 add_subdirectory(meshing)
 add_subdirectory(performance)
-add_subdirectory(tools)
-add_subdirectory(nurbs)
 add_subdirectory(plasma)
+add_subdirectory(tools)
+add_subdirectory(toys)
+add_subdirectory(nurbs)
+add_subdirectory(gslib)

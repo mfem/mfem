@@ -54,8 +54,11 @@ protected:
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
 
+   /// Creates an empty array
+   inline Array() : size(0) { data.Reset(); }
+
    /// Creates array of asize elements
-   explicit inline Array(int asize = 0)
+   explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
 
    /** Creates array using an existing c-array of asize elements;
@@ -251,9 +254,15 @@ public:
    template <typename U>
    inline void CopyTo(U *dest) { std::copy(begin(), end(), dest); }
 
+   template <typename U>
+   inline void CopyFrom(const U *src)
+   { std::memcpy(begin(), src, MemoryUsage()); }
+
    // STL-like begin/end
    inline T* begin() { return data; }
    inline T* end() { return data + size; }
+   inline const T* begin() const { return data; }
+   inline const T* end() const { return data + size; }
 
    long MemoryUsage() const { return Capacity() * sizeof(T); }
 
@@ -424,7 +433,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
-   ~BlockArray();
+   ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
    int Append();
@@ -453,6 +462,9 @@ public:
 
    /// Return the current capacity of the BlockArray.
    int Capacity() const { return blocks.Size()*(mask+1); }
+
+   /// Destroy all items, set size to zero.
+   void DeleteAll() { Destroy(); blocks.DeleteAll(); size = 0; }
 
    void Swap(BlockArray<T> &other);
 
@@ -558,6 +570,8 @@ protected:
       MFEM_ASSERT(index >= 0 && index < size,
                   "Out of bounds access: " << index << ", size = " << size);
    }
+
+   void Destroy();
 };
 
 
@@ -989,7 +1003,7 @@ long BlockArray<T>::MemoryUsage() const
 }
 
 template<typename T>
-BlockArray<T>::~BlockArray()
+void BlockArray<T>::Destroy()
 {
    int bsize = size & mask;
    for (int i = blocks.Size(); i != 0; )

@@ -18,7 +18,7 @@ using namespace std;
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 ElementMeshStream::ElementMeshStream(Element::Type e)
@@ -124,8 +124,11 @@ MergeMeshNodes(Mesh * mesh, int logging)
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   double tol = 1.0e-8;
-   // double dia = -1.0;
+   double h_min, h_max, k_min, k_max;
+   mesh->GetCharacteristics(h_min, h_max, k_min, k_max);
+
+   // Set tolerance for merging vertices
+   double tol = 1.0e-8 * h_min;
 
    if ( logging > 0 )
       cout << "Euler Number of Initial Mesh:  "
@@ -487,6 +490,6 @@ MakePeriodicMesh(Mesh * mesh, const Array<int> & v2v,
    return per_mesh;
 }
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem

@@ -38,19 +38,24 @@ typedef double* QLocal3D_t @dim(Q1D, Q1D, Q1D, NE);
 typedef double* Jacobian2D_t @dim(Q2D, 2, 2, NE);
 typedef double* Jacobian3D_t @dim(Q3D, 3, 3, NE);
 
+typedef double* Coeff2D_t @dim(Q2D, NE);
+typedef double* Coeff3D_t @dim(Q3D, NE);
+
 typedef double* SymmOperator2D_t @dim(Q2D, 3, NE);
 typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 
 @kernel void DiffusionSetup2D(const int NE,
                               @restrict const double *W,
                               @restrict const Jacobian2D_t J,
-                              const double COEFF,
-                              @restrict SymmOperator2D_t op) {
+                              @restrict const Coeff2D_t C,
+                              @restrict SymmOperator2D_t op,
+                              const bool const_c) {
   for (int e = 0; e < NE; ++e; @outer) {
     for (int q = 0; q < Q2D; ++q; @inner) {
       const double J11 = J(q, 0, 0, e), J12 = J(q, 1, 0, e);
       const double J21 = J(q, 0, 1, e), J22 = J(q, 1, 1, e);
-      const double c_detJ = W[q] * COEFF / ((J11 * J22) - (J21 * J12));
+      const double coeff = const_c ? C(0,0) : C(q,e);
+      const double c_detJ = W[q] * coeff / ((J11 * J22) - (J21 * J12));
       op(q, 0, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
       op(q, 1, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
       op(q, 2, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)
@@ -61,8 +66,9 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
 @kernel void DiffusionSetup3D(const int NE,
                               @restrict const double *W,
                               @restrict const Jacobian3D_t J,
-                              const double COEFF,
-                              @restrict SymmOperator3D_t op) {
+                              @restrict const Coeff3D_t C,
+                              @restrict SymmOperator3D_t op,
+                              const bool const_c) {
   for (int e = 0; e < NE; ++e; @outer) {
     for (int q = 0; q < Q3D; ++q; @inner) {
       const double J11 = J(q, 0, 0, e), J12 = J(q, 1, 0, e), J13 = J(q, 2, 0, e);
@@ -72,7 +78,8 @@ typedef double* SymmOperator3D_t @dim(Q3D, 6, NE);
       const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
                            (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
 
-      const double c_detJ = W[q] * COEFF / detJ;
+      const double coeff = const_c ? C(0,0) : C(q,e);
+      const double c_detJ = W[q] * coeff / detJ;
 
       // adj(J)
       const double A11 = (J22 * J33) - (J23 * J32);

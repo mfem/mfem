@@ -50,8 +50,7 @@ public:
        to be of size at least `pf->GetVSize()`. Similar to the LinearForm and
        Vector constructors for externally allocated array, the pointer @a data
        can be NULL. The data array can be replaced later using the method
-       SetData().
-    */
+       SetData(). */
    ParLinearForm(ParFiniteElementSpace *pf, double *data) :
       LinearForm(pf, data), pfes(pf) { }
 
