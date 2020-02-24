@@ -20,9 +20,8 @@
 #include "mfem.hpp"
 #include "general/forall.hpp"
 
-extern mfem::MPI_Session *GlobalMPISession;
-
 #ifdef MFEM_USE_MPI
+extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
@@ -3674,7 +3673,11 @@ static void sedov_tests(MPI_Session &mpi)
 
 TEST_CASE("Sedov", "[Sedov]")
 {
+#ifdef MFEM_USE_MPI
    MPI_Session &mpi = *GlobalMPISession;
+#else
+   MPI_Session mpi;
+#endif
    sedov_tests(mpi);
 }
 
@@ -3682,7 +3685,11 @@ TEST_CASE("Sedov", "[Sedov]")
 
 TEST_CASE("Sedov", "[Sedov]")
 {
+#ifdef MFEM_USE_MPI
    MPI_Session &mpi = *GlobalMPISession;
+#else
+   MPI_Session mpi;
+#endif
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    if (mpi.Root()) {device.Print();}
