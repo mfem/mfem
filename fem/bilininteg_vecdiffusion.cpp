@@ -500,4 +500,205 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
                           pa_data, x, y);
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAVectorDiffusionDiagonal2D(const int NE,
+                                        const Array<double> &b,
+                                        const Array<double> &g,
+                                        const Vector &d,
+                                        Vector &y,
+                                        const int d1d = 0,
+                                        const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   // note the different shape for D, this is a (symmetric) matrix so we only
+   // store necessary entries
+   auto D = Reshape(d.Read(), Q1D*Q1D, 3, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, 2, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      // gradphi \cdot Q \gradphi has four terms
+      double QD0[MQ1][MD1];
+      double QD1[MQ1][MD1];
+      double QD2[MQ1][MD1];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            QD0[qx][dy] = 0.0;
+            QD1[qx][dy] = 0.0;
+            QD2[qx][dy] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const int q = qx + qy * Q1D;
+               const double D0 = D(q,0,e);
+               const double D1 = D(q,1,e);
+               const double D2 = D(q,2,e);
+               QD0[qx][dy] += B(qy, dy) * B(qy, dy) * D0;
+               QD1[qx][dy] += B(qy, dy) * G(qy, dy) * D1;
+               QD2[qx][dy] += G(qy, dy) * G(qy, dy) * D2;
+            }
+         }
+      }
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            double temp = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               temp += G(qx, dx) * G(qx, dx) * QD0[qx][dy];
+               temp += G(qx, dx) * B(qx, dx) * QD1[qx][dy];
+               temp += B(qx, dx) * G(qx, dx) * QD1[qx][dy];
+               temp += B(qx, dx) * B(qx, dx) * QD2[qx][dy];
+            }
+            Y(dx,dy,0,e) += temp;
+            Y(dx,dy,1,e) += temp;
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+static void PAVectorDiffusionDiagonal3D(const int NE,
+                                        const Array<double> &b,
+                                        const Array<double> &g,
+                                        const Vector &d,
+                                        Vector &y,
+                                        const int d1d = 0,
+                                        const int q1d = 0)
+{
+   constexpr int DIM = 3;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= MD1, "");
+   MFEM_VERIFY(Q1D <= MQ1, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, 6, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, 3, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      double QQD[MQ1][MQ1][MD1];
+      double QDD[MQ1][MD1][MD1];
+      for (int i = 0; i < DIM; ++i)
+      {
+         for (int j = 0; j < DIM; ++j)
+         {
+            // first tensor contraction, along z direction
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int dz = 0; dz < D1D; ++dz)
+                  {
+                     QQD[qx][qy][dz] = 0.0;
+                     for (int qz = 0; qz < Q1D; ++qz)
+                     {
+                        const int q = qx + (qy + qz * Q1D) * Q1D;
+                        const int k = j >= i ?
+                        3 - (3-i)*(2-i)/2 + j:
+                        3 - (3-j)*(2-j)/2 + i;
+                        const double O = Q(q,k,e);
+                        const double Bz = B(qz,dz);
+                        const double Gz = G(qz,dz);
+                        const double L = i==2 ? Gz : Bz;
+                        const double R = j==2 ? Gz : Bz;
+                        QQD[qx][qy][dz] += L * O * R;
+                     }
+                  }
+               }
+            }
+            // second tensor contraction, along y direction
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     QDD[qx][dy][dz] = 0.0;
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        const double By = B(qy,dy);
+                        const double Gy = G(qy,dy);
+                        const double L = i==1 ? Gy : By;
+                        const double R = j==1 ? Gy : By;
+                        QDD[qx][dy][dz] += L * QQD[qx][qy][dz] * R;
+                     }
+                  }
+               }
+            }
+            // third tensor contraction, along x direction
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     double temp = 0.0;
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        const double Bx = B(qx,dx);
+                        const double Gx = G(qx,dx);
+                        const double L = i==0 ? Gx : Bx;
+                        const double R = j==0 ? Gx : Bx;
+                        temp += L * QDD[qx][dy][dz] * R;
+                     }
+                     Y(dx, dy, dz, 0, e) += temp;
+                     Y(dx, dy, dz, 1, e) += temp;
+                     Y(dx, dy, dz, 2, e) += temp;
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
+static void PAVectorDiffusionAssembleDiagonal(const int dim,
+                                              const int D1D,
+                                              const int Q1D,
+                                              const int NE,
+                                              const Array<double> &B,
+                                              const Array<double> &G,
+                                              const Vector &op,
+                                              Vector &y)
+{
+   if (dim == 2)
+   {
+      return PAVectorDiffusionDiagonal2D(NE, B, G, op, y, D1D, Q1D);
+   }
+   else if (dim == 3)
+   {
+      return PAVectorDiffusionDiagonal3D(NE, B, G, op, y, D1D, Q1D);
+   }
+   MFEM_ABORT("Dimension not implemented.");
+}
+
+void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   PAVectorDiffusionAssembleDiagonal(dim,
+                                     dofs1D,
+                                     quad1D,
+                                     ne,
+                                     maps->B,
+                                     maps->G,
+                                     pa_data,
+                                     diag);
+}
+
 } // namespace mfem
