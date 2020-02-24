@@ -661,7 +661,7 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
 
 void ParGridFunction::ComputeFlux(
    BilinearFormIntegrator &blfi,
-   GridFunction &flux, int wcoef, int subdomain)
+   GridFunction &flux, bool wcoef, int subdomain)
 {
    ParFiniteElementSpace *ffes =
       dynamic_cast<ParFiniteElementSpace*>(flux.FESpace());
