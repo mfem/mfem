@@ -1560,7 +1560,7 @@ static void PADiffusionApply(const int dim,
          case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,D,X,Y);
-      default:   return PADiffusionApply3D(NE,aB,aG,aBt,aGt,vD,vX,vY,D1D,Q1D);
+         default:   return PADiffusionApply3D(NE,aB,aG,aBt,aGt,vD,vX,vY,D1D,Q1D);
       }
    }
 #else // MFEM_USE_JIT
