@@ -1775,29 +1775,29 @@ private:
        momentum conservation equation for a single ion species.
 
        m_i v_i d n_i / dt + m_i n_i d v_i / dt
-          = Div(eta Grad v_i) - Div(m_i n_i v_i v_i) - b.Grad(p_i + p_e)
+          = Div(Eta Grad v_i) - Div(m_i n_i v_i v_i) - b.Grad(p_i + p_e)
 
-       Where the diffusion coefficient eta is a function of the
+       Where the diffusion coefficient Eta is a function of the
        magnetic field, ion density, and ion temperature.
 
        To advance this equation in time we need to find k_vi = d v_i / dt
        which satisfies:
-          m_i n_i k_vi - Div(eta Grad(v_i + dt k_vi))
+          m_i n_i k_vi - Div(Eta Grad(v_i + dt k_vi))
              + Div(m_i n_i v_i (v_i + dt k_vi)) + b.Grad(p_i + p_e) = 0
        Where n_i, p_i, and p_e are also evaluated at the next time
        step.  This is done with a Newton solver which needs the
        Jacobian of this block of equations.
 
        The diagonal block is given by:
-          m_i n_i - dt Div(eta Grad) + dt Div(m_i n_i v_i)
+          m_i n_i - dt Div(Eta Grad) + dt Div(m_i n_i v_i)
        MLS: Why is the advection term not doubled?
 
        The other non-trivial blocks are:
-          m_i v_i - dt Div(d eta / d n_i Grad(v_i)) + dt Div(m_i v_i v_i)
-          - dt Div(d eta / d T_i Grad(v_i)) + dt b.Grad(d p_i / d T_i)
+          m_i v_i - dt Div(d Eta / d n_i Grad(v_i)) + dt Div(m_i v_i v_i)
+          - dt Div(d Eta / d T_i Grad(v_i)) + dt b.Grad(d p_i / d T_i)
           + dt b.Grad(d p_e / d T_e)
 
-       Currently, the static pressure terms and the derivatives of eta
+       Currently, the static pressure terms and the derivatives of Eta
        do not contribute to the Jacobian.
     */
    class IonMomentumOp : public NLOperator
@@ -1882,6 +1882,37 @@ private:
       virtual void PrepareDataFields();
    };
 
+   /** The IonStaticPressureOp is an mfem::Operator designed to work
+       with a NewtonSolver as one row in a block system of non-linear
+       transport equations.  Specifically, this operator models the
+       static pressure equation (related to conservation of energy)
+       for a single ion species.
+
+       1.5 T_i d n_i / dt + 1.5 n_i d T_i / dt
+          = Div(Chi_i Grad(T_i))
+
+       Where the diffusion coefficient Chi_i is a function of the
+       magnetic field direction, ion density and temperature.
+
+       MLS: Clearly this equation is incomplete.  We stopped at this
+       point to focus on implementing a non-linear Robin boundary
+       condition.
+
+       To advance this equation in time we need to find
+       k_Ti = d T_i / dt which satisfies:
+          (3/2)(T_i d n_i / dt + n_i k_Ti) - Div(Chi_i Grad T_i) = 0
+       Where n_i is also evaluated at the next time step.  This is
+       done with a Newton solver which needs the Jacobian of this
+       block of equations.
+
+       The diagonal block is given by:
+          1.5 n_i - dt Div(Chi_i Grad)
+
+       The other non-trivial blocks are:
+          1.5 T_i - dt Div(d Chi_i / d n_i Grad(T_i))
+
+       MLS: Many more terms will arise once the full equation is implemented.
+   */
    class IonStaticPressureOp : public NLOperator
    {
    private:
@@ -1947,6 +1978,37 @@ private:
       virtual void PrepareDataFields();
    };
 
+   /** The ElectronStaticPressureOp is an mfem::Operator designed to
+       work with a NewtonSolver as one row in a block system of
+       non-linear transport equations.  Specifically, this operator
+       models the static pressure equation (related to conservation of
+       energy) for the flow of electrons.
+
+       1.5 T_e d n_e / dt + 1.5 n_e d T_e / dt
+          = Div(Chi_e Grad(T_e))
+
+       Where the diffusion coefficient Chi_e is a function of the
+       magnetic field direction, electron density and temperature.
+
+       MLS: Clearly this equation is incomplete.  We stopped at this
+       point to focus on implementing a non-linear Robin boundary
+       condition.
+
+       To advance this equation in time we need to find
+       k_Te = d T_e / dt which satisfies:
+          (3/2)(T_e d n_e / dt + n_e k_Te) - Div(Chi_e Grad T_e) = 0
+       Where n_e is also evaluated at the next time step.  This is
+       done with a Newton solver which needs the Jacobian of this
+       block of equations.
+
+       The diagonal block is given by:
+          1.5 n_e - dt Div(Chi_e Grad)
+
+       The other non-trivial blocks are:
+          1.5 T_e - dt Div(d Chi_e / d n_e Grad(T_e))
+
+       MLS: Many more terms will arise once the full equation is implemented.
+   */
    class ElectronStaticPressureOp : public NLOperator
    {
    private:
