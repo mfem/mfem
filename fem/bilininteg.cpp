@@ -92,6 +92,7 @@ void BilinearFormIntegrator::AssembleElementVector(
               "   is not implemented for this class.");
 }
 
+
 void TransposeIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
@@ -2229,6 +2230,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
       AddMultABt(dshape, Jinv, mat_out);
    }
 }
+
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)

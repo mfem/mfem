@@ -2341,12 +2341,9 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
-
    using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
-
 };
 
 /** Integrator for the linear elasticity form:
