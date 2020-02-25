@@ -51,7 +51,7 @@ TEST_CASE("Second order ODE methods",
       virtual ~ODE2() {};
    };
 
-   /** Class for checking order of convergence of first order ODE.
+   /** Class for checking order of convergence of second order ODE.
     */
    class CheckODE2
    {
