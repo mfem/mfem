@@ -32,6 +32,7 @@ set(UNIT_TESTS_SRCS
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
+  fem/test_assemblediagonalpa.cpp
   fem/test_calcshape.cpp
   fem/test_datacollection.cpp
   fem/test_fe.cpp
@@ -40,6 +41,7 @@ set(UNIT_TESTS_SRCS
   fem/test_inversetransform.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
   fem/test_quadraturefunc.cpp
