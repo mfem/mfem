@@ -422,7 +422,7 @@ int main(int argc, char *argv[])
       }
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
-                                1.0:-1.0);
+                                -1.0:1.0);
 
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);
