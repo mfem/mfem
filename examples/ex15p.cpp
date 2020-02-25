@@ -17,7 +17,7 @@
 //               mpirun -np 4 ex15p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex15p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex15p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex15p -m ../data/escher.mesh -r 2 -tf 0.3
+//               mpirun -np 4 ex15p -m ../data/escher.mesh -rs 2 -tf 0.3
 //
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.
 //               The mesh is adapted to a time-dependent solution by refinement
@@ -83,7 +83,8 @@ int main(int argc, char *argv[])
    double t_final = 1.0;
    double max_elem_error = 1.0e-4;
    double hysteresis = 0.25; // derefinement safety coefficient
-   int ref_levels = 0;
+   int ser_ref_levels = 0;
+   int par_ref_levels = 0;
    int nc_limit = 3;         // maximum level of hanging nodes
    bool visualization = true;
    bool visit = false;
@@ -101,8 +102,10 @@ int main(int argc, char *argv[])
                   "Maximum element error");
    args.AddOption(&hysteresis, "-y", "--hysteresis",
                   "Derefinement safety coefficient.");
-   args.AddOption(&ref_levels, "-r", "--ref-levels",
+   args.AddOption(&ser_ref_levels, "-rs", "--ref-levels",
                   "Number of initial uniform refinement levels.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&nc_limit, "-l", "--nc-limit",
                   "Maximum level of hanging nodes.");
    args.AddOption(&t_final, "-tf", "--t-final",
@@ -140,21 +143,23 @@ int main(int argc, char *argv[])
    if (mesh->NURBSext)
    {
       mesh->UniformRefinement();
-      if (ref_levels > 0) { ref_levels--; }
+      if (ser_ref_levels > 0) { ser_ref_levels--; }
       mesh->SetCurvature(2);
    }
    mesh->EnsureNCMesh(true);
-   for (int l = 0; l < ref_levels; l++)
+   for (int l = 0; l < ser_ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
    // Make sure tet-only meshes are marked for local refinement.
    mesh->Finalize(true);
 
-   // 5. Define a parallel mesh by partitioning the serial mesh.  Once the
+   // 5. Define a parallel mesh by partitioning the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
 
    MFEM_VERIFY(pmesh.bdr_attributes.Size() > 0,
                "Boundary attributes required in the mesh.");
