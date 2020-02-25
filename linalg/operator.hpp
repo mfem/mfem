@@ -466,6 +466,7 @@ public:
    /** @brief Perform the action of the operator: @a y = k = f(@a x,@ dxdt, t),
        where k solves the algebraic equation
        F(@a x,@ dxdt, k, t) = G(@a x,@ dxdt, t) and t is the current time. */
+   using TimeDependentOperator::Mult;
    virtual void Mult(const Vector &x, const Vector &dxdt, Vector &y) const;
 
    /** @brief Solve the equation:
@@ -485,6 +486,7 @@ public:
        integration methods.
 
        If not re-implemented, this method simply generates an error. */
+   using TimeDependentOperator::ImplicitSolve;
    virtual void ImplicitSolve(const double dt0, const double dt1,
                               const Vector &x, const Vector &dxdt, Vector &k);
 
