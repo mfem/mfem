@@ -368,7 +368,6 @@ int main(int argc, char *argv[])
    double t = 0.0;
 
    bool last_step = false;
-   int tl;
    for (int ti = 1; !last_step; ti++)
    {
 
@@ -392,7 +391,6 @@ int main(int argc, char *argv[])
 
          if (visit)
          {
-            tl = ti;
             visit_dc.SetCycle(ti);
             visit_dc.SetTime(t);
             visit_dc.Save();
