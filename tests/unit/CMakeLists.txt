@@ -20,11 +20,14 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   unit_test_main.cpp
   general/text-test.cpp
-  linalg/test_blockMatrix.cpp
+  linalg/test_BlockMatrix.cpp
   linalg/test_complex_operator.cpp
-  linalg/test_densematrix.cpp
+  linalg/test_DenseMatrix.cpp
   linalg/test_ilu.cpp
   linalg/test_ode.cpp
+  linalg/test_operator.cpp
+  linalg/test_RectangularMatrix.cpp
+  linalg/test_SquareMatrix.cpp
   mesh/test_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
