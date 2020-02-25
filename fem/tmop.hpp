@@ -898,25 +898,25 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
 
    void AssembleElementVectorExact(const FiniteElement &el,
-                                           ElementTransformation &T,
-                                           const Vector &elfun, Vector &elvect);
+                                   ElementTransformation &T,
+                                   const Vector &elfun, Vector &elvect);
 
    void AssembleElementGradExact(const FiniteElement &el,
-                                         ElementTransformation &T,
-                                         const Vector &elfun, DenseMatrix &elmat);
+                                 ElementTransformation &T,
+                                 const Vector &elfun, DenseMatrix &elmat);
 
    void AssembleElementVectorFD(const FiniteElement &el,
-                                        ElementTransformation &T,
-                                        const Vector &elfun, Vector &elvect);
+                                ElementTransformation &T,
+                                const Vector &elfun, Vector &elvect);
 
    void AssembleElementGradFD(const FiniteElement &el,
-                                      ElementTransformation &T,
-                                      const Vector &elfun, DenseMatrix &elmat);
+                              ElementTransformation &T,
+                              const Vector &elfun, DenseMatrix &elmat);
 
    double GetFDDerivative(const FiniteElement &el,
-                                  ElementTransformation &T,
-                                  Vector &elfun,
-                                  const int nodenum,const int idir);
+                          ElementTransformation &T,
+                          Vector &elfun,
+                          const int nodenum,const int idir);
 
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
 
@@ -925,10 +925,10 @@ public:
    void SetFDh(const Vector &x, const FiniteElementSpace &fes);
 
    void SetupElementVectorTSpec(const Vector &x,
-                                        const FiniteElementSpace &fes);
+                                const FiniteElementSpace &fes);
 
    void SetupElementGradTSpec(const Vector &x,
-                                      const FiniteElementSpace &fes);
+                              const FiniteElementSpace &fes);
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
 
