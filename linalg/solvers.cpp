@@ -1345,6 +1345,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
+   ProcessNewState(x);
+
    if (!iterative_mode)
    {
       x = 0.0;

@@ -897,38 +897,40 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   virtual void AssembleElementVectorExact(const FiniteElement &el,
+   void AssembleElementVectorExact(const FiniteElement &el,
                                            ElementTransformation &T,
                                            const Vector &elfun, Vector &elvect);
 
-   virtual void AssembleElementGradExact(const FiniteElement &el,
+   void AssembleElementGradExact(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &elfun, DenseMatrix &elmat);
 
-   virtual void AssembleElementVectorFD(const FiniteElement &el,
+   void AssembleElementVectorFD(const FiniteElement &el,
                                         ElementTransformation &T,
                                         const Vector &elfun, Vector &elvect);
 
-   virtual void AssembleElementGradFD(const FiniteElement &el,
+   void AssembleElementGradFD(const FiniteElement &el,
                                       ElementTransformation &T,
                                       const Vector &elfun, DenseMatrix &elmat);
 
-   virtual double GetFDDerivative(const FiniteElement &el,
+   double GetFDDerivative(const FiniteElement &el,
                                   ElementTransformation &T,
                                   Vector &elfun,
                                   const int nodenum,const int idir);
 
    void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
 
-   virtual void SetFDPar(int fdflag_, int sz);
+   void SetFDPar(int fdflag_, int sz);
 
-   virtual void SetFDh(const Vector &x, const FiniteElementSpace &fes);
+   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
 
-   virtual void SetupElementVectorTSpec(const Vector &x,
+   void SetupElementVectorTSpec(const Vector &x,
                                         const FiniteElementSpace &fes);
 
-   virtual void SetupElementGradTSpec(const Vector &x,
+   void SetupElementGradTSpec(const Vector &x,
                                       const FiniteElementSpace &fes);
+
+   DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */

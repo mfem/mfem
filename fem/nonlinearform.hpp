@@ -87,6 +87,7 @@ public:
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
+   const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)

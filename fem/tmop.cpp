@@ -1261,13 +1261,13 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &elfun, Vector &elvect)
 {
-   if (fdflag==1)
+   if (fdflag==0)
    {
-      (this)->AssembleElementVectorFD(el,T,elfun,elvect);
+      (this)->AssembleElementVectorExact(el,T,elfun,elvect);
    }
    else
    {
-      (this)->AssembleElementVectorExact(el,T,elfun,elvect);
+      (this)->AssembleElementVectorFD(el,T,elfun,elvect);
    }
 }
 
@@ -1276,13 +1276,13 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           const Vector &elfun,
                                           DenseMatrix &elmat)
 {
-   if (fdflag==1)
+   if (fdflag==0)
    {
-      (this)->AssembleElementGradFD(el,T,elfun,elmat);
+      (this)->AssembleElementGradExact(el,T,elfun,elmat);
    }
    else
    {
-      (this)->AssembleElementGradExact(el,T,elfun,elmat);
+      (this)->AssembleElementGradFD(el,T,elfun,elmat);
    }
 }
 
@@ -1501,45 +1501,47 @@ void TMOP_Integrator::SetFDPar(int fdflag_, int sz)
 
 void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
 {
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
+   if (fdflag!=0)
    {
-      ir = &(IntRules.Get(fes.GetFE(0)->GetGeomType(),
-                          2*fes.GetFE(0)->GetOrder() + 3)); // <---
-   }
-   const int NE = fes.GetMesh()->GetNE(), dim = fes.GetFE(0)->GetDim(),
-             dof = fes.GetFE(0)->GetDof(), nsp = ir->GetNPoints();
-
-   Array<int> xdofs(dof * dim);
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
-   Vector x_loc(fes.GetVSize());
-
-
-   double detv = 0.,detv_min = std::numeric_limits<float>::max();
-
-   for (int i = 0; i < NE; i++)
-   {
-      fes.GetElementVDofs(i, xdofs);
-      x.GetSubVector(xdofs, posV);
-      for (int j = 0; j < nsp; j++)
+      const IntegrationRule *ir = IntRule;
+      if (!ir)
       {
-         fes.GetFE(i)->CalcDShape(ir->IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
-         detv = Jpr.Det();
-         detv_min = std::min(detv,detv_min);
+         ir = &(IntRules.Get(fes.GetFE(0)->GetGeomType(),
+                             2*fes.GetFE(0)->GetOrder() + 3)); // <---
       }
+      const int NE = fes.GetMesh()->GetNE(), dim = fes.GetFE(0)->GetDim(),
+                dof = fes.GetFE(0)->GetDof(), nsp = ir->GetNPoints();
+
+      Array<int> xdofs(dof * dim);
+      DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+      Vector x_loc(fes.GetVSize());
+
+      double detv = 0.,detv_min = std::numeric_limits<float>::max();
+
+      for (int i = 0; i < NE; i++)
+      {
+         fes.GetElementVDofs(i, xdofs);
+         x.GetSubVector(xdofs, posV);
+         for (int j = 0; j < nsp; j++)
+         {
+            fes.GetFE(i)->CalcDShape(ir->IntPoint(j), dshape);
+            MultAtB(pos, dshape, Jpr);
+            detv = Jpr.Det();
+            detv_min = std::min(detv,detv_min);
+         }
+      }
+      fdeps = pow(10,-2.)*detv_min;
    }
-   fdeps = pow(10,-2.)*detv_min;
 }
 
 void TMOP_Integrator::SetupElementVectorTSpec(const Vector &x,
                                               const FiniteElementSpace &fes)
 {
-   (this)->SetFDh(x,fes);
-
-   if (discr_tc)
+   if (fdflag!=0)
    {
+      (this)->SetFDh(x,fes);
+
       const int dim = fes.GetFE(0)->GetDim();
       const int cnt = x.Size()/dim;
 
@@ -1566,13 +1568,13 @@ void TMOP_Integrator::SetupElementVectorTSpec(const Vector &x,
             xtemp(j*cnt+i) -= fdeps;
          } //loop-i
       } // loop-j
-   } // if (discr_tc)
+   }
 }
 
 void TMOP_Integrator::SetupElementGradTSpec(const Vector &x,
                                             const FiniteElementSpace &fes)
 {
-   if (discr_tc)
+   if (fdflag!=0)
    {
       const int dim = fes.GetFE(0)->GetDim();
       const int cnt = x.Size()/dim;
@@ -1633,7 +1635,7 @@ void TMOP_Integrator::SetupElementGradTSpec(const Vector &x,
             idx += 1;
          }
       }
-   } // if (discr_tc)
+   }
 }
 
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,

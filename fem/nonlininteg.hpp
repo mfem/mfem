@@ -69,14 +69,6 @@ public:
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 
-
-   /// Interpolate Discrete Targets for Analytic adaptivity
-   virtual void SetupElementVectorTSpec(const Vector &x,
-                                        const FiniteElementSpace &fes) {};
-
-   virtual void SetupElementGradTSpec(const Vector &x,
-                                      const FiniteElementSpace &fes) {};
-
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA(). */
@@ -87,6 +79,7 @@ public:
        Used with BilinearFormIntegrators that have different spaces. */
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
+
 
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
@@ -134,12 +127,6 @@ public:
                                  FaceElementTransformations &Tr,
                                  const Array<const Vector *> &elfun,
                                  const Array2D<DenseMatrix *> &elmats);
-
-   virtual void SetupElementVectorTSpec(const Vector &x,
-                                        const FiniteElementSpace &fes) {};
-
-   virtual void SetupElementGradTSpec(const Vector &x,
-                                      const FiniteElementSpace &fes) {};
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };
