@@ -44,8 +44,8 @@ class InterpolatorFP : public AdaptivityEvaluator
 private:
    Vector nodes0;
    Vector field0;
-   FindPointsGSLIB *finder;
    bool parallel;  //for GSLIB
+   FindPointsGSLIB *finder;
 public:
 #ifdef MFEM_USE_MPI
    InterpolatorFP(bool flag) : AdaptivityEvaluator(),
@@ -116,8 +116,6 @@ private:
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
 
-   Array<DiscreteAdaptTC*> discrtc;
-
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
@@ -129,9 +127,6 @@ public:
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
-
-   void AddDiscreteAdaptTC(DiscreteAdaptTC *adat)
-   { discrtc.Append(adat);}
 };
 
 /// Allows negative Jacobians. Used for untangling.
@@ -143,18 +138,13 @@ private:
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
 
-   mutable DiscreteAdaptTC *discr_tc;
-   mutable DiscreteAdaptTC *discr_tcc;
-
 public:
 #ifdef MFEM_USE_MPI
    TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL),
-        discr_tcc(NULL) { }
+      : NewtonSolver(comm), parallel(true), ir(irule) { }
 #endif
    TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL),
-        discr_tcc(NULL) { }
+      : NewtonSolver(), parallel(false), ir(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 

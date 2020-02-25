@@ -756,10 +756,6 @@ int main (int argc, char *argv[])
    {
       tauval = 0.0;
       TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir);
-      if (target_id == 5)
-      {
-         tns->AddDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
-      }
       newton = tns;
       cout << "TMOPNewtonSolver is used (as all det(J) > 0).\n";
    }
