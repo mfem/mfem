@@ -23,6 +23,8 @@
 #define MFEM_HIP_BLOCKS 256
 
 #ifdef MFEM_USE_HIP
+#define MFEM_DEVICE __device__
+#define MFEM_HOST_DEVICE __host__ __device__
 // Define a HIP error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'hipError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
