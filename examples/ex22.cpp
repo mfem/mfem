@@ -364,20 +364,27 @@ int main(int argc, char *argv[])
       Operator * pc_r = NULL;
       Operator * pc_i = NULL;
 
+      double s;
       switch (prob)
       {
-         case 0: // fallthrough to case 2
-         case 2:
+         case 0:
             pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+            s = 1.0;
             break;
          case 1:
             pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
+            s = -1.0;
             break;
+         case 2:
+            pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+            s = -1.0;
+            break;
+
          default: break; // This should be unreachable
       }
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
-                                1.0:-1.0);
+                                s:-s);
 
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);
