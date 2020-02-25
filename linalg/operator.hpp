@@ -463,11 +463,15 @@ public:
                                     Type type_ = EXPLICIT)
       : TimeDependentOperator(h, w, t_,type_) { }
 
+   using TimeDependentOperator::Mult;
+
    /** @brief Perform the action of the operator: @a y = k = f(@a x,@ dxdt, t),
        where k solves the algebraic equation
        F(@a x,@ dxdt, k, t) = G(@a x,@ dxdt, t) and t is the current time. */
    using TimeDependentOperator::Mult;
    virtual void Mult(const Vector &x, const Vector &dxdt, Vector &y) const;
+
+   using TimeDependentOperator::ImplicitSolve;
 
    /** @brief Solve the equation:
        @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
