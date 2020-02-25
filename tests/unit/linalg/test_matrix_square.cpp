@@ -130,7 +130,7 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
             pa.FormLinearSystem(ess_tdof_list, x0, b, A_pa, X[0], B[0]);
             Solver *M_pa = new OperatorJacobiSmoother(pa, ess_tdof_list);
             CGSolver cg_pa(MPI_COMM_WORLD);
-            cg_pa.SetRelTol(EPS*EPS);
+            cg_pa.SetRelTol(EPS);
             cg_pa.SetMaxIter(1000);
             cg_pa.SetPrintLevel(0);
             cg_pa.SetPreconditioner(*M_pa);
@@ -147,7 +147,7 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
             fa.FormLinearSystem(ess_tdof_list, x1, b, A_fa, X[1], B[1]);
             HypreBoomerAMG *M_fa = new HypreBoomerAMG();
             CGSolver cg_fa(MPI_COMM_WORLD);
-            cg_fa.SetRelTol(EPS*EPS);
+            cg_fa.SetRelTol(EPS);
             cg_fa.SetMaxIter(1000);
             cg_fa.SetPrintLevel(0);
             M_fa->SetPrintLevel(0);
