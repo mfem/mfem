@@ -1674,7 +1674,7 @@ private:
 
        The other non-trivial blocks are:
           - dt d S_i / d n_n
-	  + dt Div(n_i b_hat)
+     + dt Div(n_i b_hat)
           - dt d S_i / d T_e
 
        The blocks of the Jacobian will be assembled finite element

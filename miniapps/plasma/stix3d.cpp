@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
    Vector charges;
    Vector masses;
    Vector temps;
-   
+
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
    Vector dpp;
@@ -659,7 +659,7 @@ int main(int argc, char *argv[])
       density_gf.ProjectCoefficient(rhoCoef);
    }
    */
-   
+
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muInvCoef(1.0 / mu0_);
 
@@ -704,8 +704,8 @@ int main(int argc, char *argv[])
    */
    if (visualization)
    {
-     // ParComplexGridFunction EField(&HCurlFESpace);
-     // EField.ProjectCoefficient(EReCoef, EImCoef);
+      // ParComplexGridFunction EField(&HCurlFESpace);
+      // EField.ProjectCoefficient(EReCoef, EImCoef);
 
       char vishost[] = "localhost";
       int  visport   = 19916;
