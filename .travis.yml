@@ -3,7 +3,6 @@ language: cpp
 sudo: false
 
 stages:
-  - cmake
   - checks
   - tests
   - optional
@@ -167,6 +166,33 @@ jobs:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
 
+    - os: linux
+      compiler: gcc
+      name: "Linux: Parallel (cmake)"
+      addons:
+        apt:
+          packages:
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - mkdir ${TRAVIS_BUILD_DIR}/build
+        - cd ${TRAVIS_BUILD_DIR}/build
+        - ls ${TRAVIS_BUILD_DIR}/../metis-4.0
+        - cmake .. -DMFEM_USE_MPI=ON -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre -DMETIS_INCLUDE_DIRS=${TRAVIS_BUILD_DIR}/../metis-4.0/Lib -DMETIS_LIBRARIES=${TRAVIS_BUILD_DIR}/../metis-4.0/libmetis.a
+        - make -j3 mfem examples unit_tests
+        - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
+        - ./unit_tests
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+
     # ========================
     #      Mac OS X tests
     # ========================
@@ -229,33 +255,6 @@ jobs:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
-      before_cache:
-        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-
-    - stage: cmake
-      os: linux
-      name: "Linux: Parallel (cmake)"
-      addons:
-        apt:
-          packages:
-            - mpich
-            - libmpich-dev
-      env: MPI=YES
-      script:
-        - cd ${TRAVIS_BUILD_DIR}
-        - mkdir ${TRAVIS_BUILD_DIR}/build
-        - cd ${TRAVIS_BUILD_DIR}/build
-        - ls ${TRAVIS_BUILD_DIR}/../metis-4.0
-        - cmake .. -DMFEM_USE_MPI=ON -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre -DMETIS_INCLUDE_DIRS=${TRAVIS_BUILD_DIR}/../metis-4.0/Lib -DMETIS_LIBRARIES=${TRAVIS_BUILD_DIR}/../metis-4.0/libmetis.a
-        - make -j3 mfem examples unit_tests
-        - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
-        - ./unit_tests
-      cache:
-        directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
-          - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
