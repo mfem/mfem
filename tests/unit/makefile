@@ -69,7 +69,7 @@ $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 comma=,
 define sedov_tests
 sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_TESTS -DMFEM_SEDOV_DEVICE='"$(3)"'
-sedov_tests_$(1): $$(SRC)unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) \
+sedov_tests_$(1): unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
 	$$(CCC) $$(SRC)unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) $$(INCLUDES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
