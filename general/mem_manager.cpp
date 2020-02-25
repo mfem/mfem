@@ -1387,8 +1387,25 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 const char *MemoryTypeName[MemoryTypeSize] =
 {
-   "host-std", "host-32", "host-64", "host-debug", "host-umpire", "managed",
-   "device", "device-debug", "device-umpire"
+   "host-std", "host-32", "host-64", "host-debug", "host-umpire",
+#if defined(MFEM_USE_CUDA)
+   "cuda-uvm",
+   "cuda",
+#elif defined(MFEM_USE_HIP)
+   "hip-uvm",
+   "hip",
+#else
+   "managed",
+   "device",
+#endif
+   "device-debug",
+#if defined(MFEM_USE_CUDA)
+   "cuda-umpire"
+#elif defined(MFEM_USE_HIP)
+   "hip-umpire"
+#else
+   "device-umpire"
+#endif
 };
 
 } // namespace mfem
