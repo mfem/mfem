@@ -1674,7 +1674,7 @@ private:
 
        The other non-trivial blocks are:
           - dt d S_i / d n_n
-     + dt Div(n_i b_hat)
+          + dt Div(n_i b_hat)
           - dt d S_i / d T_e
 
        The blocks of the Jacobian will be assembled finite element
@@ -1769,6 +1769,37 @@ private:
       virtual void PrepareDataFields();
    };
 
+   /** The IonMomentumOp is an mfem::Operator designed to work with a
+       NewtonSolver as one row in a block system of non-linear
+       transport equations.  Specifically, this operator models the
+       momentum conservation equation for a single ion species.
+
+       m_i v_i d n_i / dt + m_i n_i d v_i / dt
+          = Div(eta Grad v_i) - Div(m_i n_i v_i v_i) - b.Grad(p_i + p_e)
+
+       Where the diffusion coefficient eta is a function of the
+       magnetic field, ion density, and ion temperature.
+
+       To advance this equation in time we need to find k_vi = d v_i / dt
+       which satisfies:
+          m_i n_i k_vi - Div(eta Grad(v_i + dt k_vi))
+             + Div(m_i n_i v_i (v_i + dt k_vi)) + b.Grad(p_i + p_e) = 0
+       Where n_i, p_i, and p_e are also evaluated at the next time
+       step.  This is done with a Newton solver which needs the
+       Jacobian of this block of equations.
+
+       The diagonal block is given by:
+          m_i n_i - dt Div(eta Grad) + dt Div(m_i n_i v_i)
+       MLS: Why is the advection term not doubled?
+
+       The other non-trivial blocks are:
+          m_i v_i - dt Div(d eta / d n_i Grad(v_i)) + dt Div(m_i v_i v_i)
+          - dt Div(d eta / d T_i Grad(v_i)) + dt b.Grad(d p_i / d T_i)
+          + dt b.Grad(d p_e / d T_e)
+
+       Currently, the static pressure terms and the derivatives of eta
+       do not contribute to the Jacobian.
+    */
    class IonMomentumOp : public NLOperator
    {
    private:
