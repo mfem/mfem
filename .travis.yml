@@ -180,7 +180,7 @@ jobs:
         - ls ${TRAVIS_BUILD_DIR}/../metis-4.0
         - cmake .. -DMFEM_USE_MPI=ON -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre -DMETIS_INCLUDE_DIRS=${TRAVIS_BUILD_DIR}/../metis-4.0/Lib -DMETIS_LIBRARIES=${TRAVIS_BUILD_DIR}/../metis-4.0/libmetis.a
         - make -j3 mfem examples unit_tests
-        - cd tests/unit
+        - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
         - ./unit_tests
       cache:
         directories:
