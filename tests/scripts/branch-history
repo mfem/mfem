@@ -39,7 +39,7 @@ sub print_sha {
 # Loop over each commit in this branch, and check for large diffs
 my $total_size = 0;
 foreach my $sha (@commits) {
-  my @blobs = `git diff-tree -r -M -C --no-commit-id $sha`;
+  my @blobs = `git diff-tree -r --no-commit-id $sha`;
   my $nfiles_changed = scalar @blobs;
   if ($nfiles_changed > $commit_max_files_changed) {
     printf STDERR
