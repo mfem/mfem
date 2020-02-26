@@ -195,6 +195,9 @@ protected:
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction X, Y;
 
+   /// Matrix and eliminated matrix
+   OperatorHandle p_mat, p_mat_e;
+
 private:
    /// Copy construction is not supported; body is undefined.
    ParMixedBilinearForm(const ParMixedBilinearForm &);
@@ -209,7 +212,8 @@ public:
        constructed object. */
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes)
-      : MixedBilinearForm(trial_fes, test_fes)
+      : MixedBilinearForm(trial_fes, test_fes),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -227,7 +231,8 @@ public:
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes,
                         ParMixedBilinearForm * mbf)
-      : MixedBilinearForm(trial_fes, test_fes, mbf)
+      : MixedBilinearForm(trial_fes, test_fes, mbf),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -240,6 +245,25 @@ public:
        @a A = P_test^t A_local P_trial, in the format (type id) specified by
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
+
+       This returns the same operator as FormRectangularLinearSystem(), but does
+       without the transformations of the right-hand side. */
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
+
+   /** @brief Form the parallel linear system A X = B, corresponding to this mixed
+       bilinear form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list, Vector &x,
+                                            Vector &b, OperatorHandle &A, Vector &X,
+                                            Vector &B);
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
