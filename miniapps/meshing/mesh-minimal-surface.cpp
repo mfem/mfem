@@ -694,15 +694,13 @@ struct Costa: public Surface<Costa>
 
    void Create()
    {
-      MFEM_VERIFY(nx==ny,"");
       ALPHA = 1.0 / (double)nx;
-      const int nxhalf = (nx%2)==0 ? 4 : 2;
-      const int nyhalf = (ny%2)==0 ? 4 : 2;
-      MFEM_VERIFY(nxhalf == 4,"");
-      MFEM_VERIFY(nyhalf == 4,"");
-      const int nxh = nxhalf + nyhalf;
+      MFEM_VERIFY(nx>2 && ny>2, "");
+      const int nXhalf = (nx%2)==0 ? 4 : 2;
+      const int nYhalf = (ny%2)==0 ? 4 : 2;
+      const int nxh = nXhalf + nYhalf;
       const int NVert = (nx+1) * (ny+1);
-      const int NElem = nx * ny - 4 - nxh; // Corners and Cross will be removed
+      const int NElem = nx*ny - 4 - nxh;
       const int NBdrElem = 0;
       InitMesh(DIM, SDIM, NVert, NElem, NBdrElem);
       // Sets vertices and the corresponding coordinates
@@ -717,24 +715,20 @@ struct Costa: public Surface<Costa>
          }
       }
       // Sets elements and the corresponding indices of vertices
-      int m = (nx+1)*ny;
       for (int j = 0; j < ny; j++)
       {
          for (int i = 0; i < nx; i++)
          {
-            const int i0 = i + j*(nx+1);
-            const int i1 = i + 1 + j*(nx+1);
-            const int i2 = i + 1 + (j+1)*(nx+1);
-            const int i3 = i + (j+1)*(nx+1);
-            if (
-               i0<<1 == nx || i1<<1 == nx // bottom
-               || (i2-m)<<1 == nx || (i3-m)<<1 == nx // top
-               || (i0<<1) == m || (i3<<1) == m // left
-               || ((i0-nx+1)<<1) == m || ((i3-nx+1)<<1) == m // right
-            ) { continue; }
-            if (i0 == 0 || i1 == nx ||
-                i3 == ny*(nx+1) || i2 == (nx+1)*(ny+1)-1)
-            { continue; }
+            if (i == 0 && j == 0) { continue; }
+            if (i+1 == nx && j == 0) { continue; }
+            if (i == 0 && j+1 == ny) { continue; }
+            if (i+1 == nx && j+1 == ny) { continue; }
+            if ((j == 0 || j+1 == ny) && (abs(nx-(i<<1)-1)<=1)) { continue; }
+            if ((i == 0 || i+1 == nx) && (abs(ny-(j<<1)-1)<=1)) { continue; }
+            const int i0 = i   +     j*(nx+1);
+            const int i1 = i+1 +     j*(nx+1);
+            const int i2 = i+1 + (j+1)*(nx+1);
+            const int i3 = i   + (j+1)*(nx+1);
             const int ind[4] = {i0, i1, i2, i3};
             AddQuad(ind);
          }
@@ -751,10 +745,12 @@ struct Costa: public Surface<Costa>
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
-      const bool half = x[1] > 0.5;
+      const bool y_top = x[1] > 0.5;
+      const bool x_top = x[0] > 0.5;
       double u = x[0];
       double v = x[1];
-      if (half) { v = 1.0 - x[1]; }
+      if (y_top) { v = 1.0 - x[1]; }
+      if (x_top) { u = 1.0 - x[0]; }
       const cdouble w = u + I*v;
       const cdouble w3 = I/2.;
       const cdouble w1 = 1./2.;
@@ -762,10 +758,12 @@ struct Costa: public Surface<Costa>
       const cdouble e1 = WeierstrassP(0.5);
       const cdouble zw = WeierstrassZeta(w);
       const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
-      p[0] = ALPHA * real(M_PI*(u+M_PI/(4.*e1))- zw +M_PI/(2.*e1)*(dw));
-      p[1] = ALPHA * real(M_PI*(v+M_PI/(4.*e1))-I*zw-M_PI*I/(2.*e1)*(dw));
-      p[2] = ALPHA * sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
-      if (half) { p[1] *= -1.0; }
+      p[0] = real(PI*(u+PI/(4.*e1))- zw +PI/(2.*e1)*(dw));
+      p[1] = real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
+      p[2] = sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
+      p *= ALPHA;
+      if (y_top) { p[1] *= -1.0; }
+      if (x_top) { p[0] *= -1.0; }
       const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
    }
@@ -811,7 +809,7 @@ protected:
    Type *solver;
    Solver *M;
    const int print_iter = -1, max_num_iter = 2000;
-   const double lambda = 0.0, RTOLERANCE = EPS*EPS, ATOLERANCE = 0.0;
+   const double lambda = 0.0, RTOLERANCE = EPS, ATOLERANCE = EPS*EPS;
 public:
    SurfaceSolver(const bool pa, const bool vis,
                  const int n, const bool pause,
@@ -855,8 +853,8 @@ public:
       CGSolver cg;
       cg.SetPrintLevel(print_iter);
       cg.SetMaxIter(max_num_iter);
-      cg.SetRelTol(sqrt(RTOLERANCE));
-      cg.SetAbsTol(sqrt(ATOLERANCE));
+      cg.SetRelTol(RTOLERANCE);
+      cg.SetAbsTol(ATOLERANCE);
       if (!pa) { M = new GSSmoother((SparseMatrix&)(*A)); }
       if (M) { cg.SetPreconditioner(*M); }
       cg.SetOperator(*A);
