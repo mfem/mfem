@@ -1609,18 +1609,11 @@ int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
 {
-   hypre_ParCSRMatrix *C_hypre =
-      internal::hypre_ParCSRMatrixAdd(const_cast<HypreParMatrix &>(A),
-                                      const_cast<HypreParMatrix &>(B));
-   MFEM_VERIFY(C_hypre, "error in hypre_ParCSRMatrixAdd");
+   hypre_ParCSRMatrix *C;
+   hypre_ParcsrAdd(alpha, A, beta, B, &C);
+   hypre_MatvecCommPkgCreate(C);
 
-   hypre_MatvecCommPkgCreate(C_hypre);
-   HypreParMatrix *C = new HypreParMatrix(C_hypre);
-   *C = 0.0;
-   C->Add(alpha, A);
-   C->Add(beta, B);
-
-   return C;
+   return new HypreParMatrix(C);
 }
 
 HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
@@ -1629,7 +1622,8 @@ HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
    hypre_ParCSRMatrix *C_hypre;
 
    hypre_ParcsrAdd(alpha, A, beta, B, &C_hypre);
-
+   
+   hypre_MatvecCommPkgCreate(C);
    HypreParMatrix *C = new HypreParMatrix(C_hypre);
 
    return C;
@@ -1654,7 +1648,8 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
 
 HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
 {
-   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
+   hypre_ParCSRMatrix *C;
+   hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
 
    hypre_MatvecCommPkgCreate(C);
 
