@@ -516,7 +516,7 @@ HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
                                   double beta,  const HypreParMatrix &B);
 
 /// Returns the matrix A * B
-HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B, bool own_matrix=false);
 /// Returns the matrix A + B
 /** It is assumed that both matrices use the same row and column partitions and
     the same col_map_offd arrays. */
