@@ -861,6 +861,8 @@ public:
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
       GridFunction *nodes = by_component ? &x0 : pfes->GetMesh()->GetNodes();
+      x.HostRead();
+      nodes->HostRead();
       double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
       mfem::out << "rnorm = " << rnorm << endl;
       if (by_component)
