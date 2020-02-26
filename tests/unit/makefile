@@ -55,13 +55,13 @@ all: $(UNIT_TESTS)
 .PHONY: all clean
 
 unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+	$(CCC) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
 $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(abspath $(<)) $(INCLUDES) $(MFEM_FLAGS) -o $(@)
+	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # Template rule for devices
 # 1: postfix of 'unit_tests_', 2: prefix of '_OBJECT_FILES',
@@ -71,11 +71,11 @@ define sedov_tests
 sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_TESTS -DMFEM_SEDOV_DEVICE='"$(3)"'
 sedov_tests_$(1): unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(SRC)unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) $$(INCLUDES) \
+	$$(CCC) $$(<) $$(SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
 $$(SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) -c $$(abspath $$(<)) $$(INCLUDES) $$(MFEM_FLAGS) \
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
 	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
 
