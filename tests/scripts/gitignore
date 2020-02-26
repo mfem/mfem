@@ -63,7 +63,7 @@ To correct this error, make sure that the .gitignore file is properly updated.
 
 Generally, this file should contain exactly the files that can be generated from
 the repository (via building + running) that we *do not* want in the repository.
-(This was such files cannot be accidentally committed.)
+(This way such files cannot be accidentally committed.)
 
 In particular, make sure that:
 
