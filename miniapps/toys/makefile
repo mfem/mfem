@@ -64,6 +64,15 @@ snake rubik: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
+# Rules to link the *.pgm file(s) - needed for running the tests/sample runs
+# when building out-of-source:
+ifneq ($(SRC),)
+IMAGE_FILES = $(notdir $(wildcard $(SRC)*.pgm))
+$(IMAGE_FILES): %: $(SRC)%
+	ln -sf $(<) .
+mondrian: | $(IMAGE_FILES)
+endif
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
