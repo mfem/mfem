@@ -413,6 +413,26 @@ const DenseMatrix &IsoparametricTransformation::EvalJacobian()
    return dFdx;
 }
 
+const DenseMatrix &IsoparametricTransformation::EvalHessian()
+{
+   MFEM_ASSERT(space_dim == PointMat.Height(),
+               "the IsoparametricTransformation has not been finalized;"
+               " call FinilizeTransformation() after setup");
+   MFEM_ASSERT((EvalState & HESSIAN_MASK) == 0, "");
+
+   int Dim = FElem->GetDim();
+   d2shape.SetSize(FElem->GetDof(), (Dim*(Dim+1))/2);
+   d2Fdx2.SetSize(PointMat.Height(), d2shape.Width());
+   if (d2shape.Width() > 0)
+   {
+      FElem->CalcHessian(*IntPoint, d2shape);
+      Mult(PointMat, d2shape, d2Fdx2);
+   }
+   EvalState |= HESSIAN_MASK;
+
+   return d2Fdx2;
+}
+
 int IsoparametricTransformation::OrderJ()
 {
    switch (FElem->Space())
