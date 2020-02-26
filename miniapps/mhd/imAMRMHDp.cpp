@@ -328,12 +328,12 @@ int main(int argc, char *argv[])
    int sdim = pmesh->SpaceDimension();
    BilinearFormIntegrator *integ = new DiffusionIntegrator;
    ParFiniteElementSpace flux_fespace1(pmesh, &fe_coll, sdim), flux_fespace2(pmesh, &fe_coll, sdim);
-   BlockZZEstimator estimatorTmp(*integ, psiTmp, *integ, jTmp, flux_fespace1, flux_fespace2);
+   BlockZZEstimator estimatorTmp(*integ, psiTmp, *integ, phiTmp, flux_fespace1, flux_fespace2);
 
    ThresholdRefiner refinerTmp(estimatorTmp);
    refinerTmp.SetTotalErrorGoal(1e-7);    // total error goal (stop criterion)
    refinerTmp.SetLocalErrorGoal(1e-7);    // local error goal (stop criterion)
-   refinerTmp.SetMaxElements(50000);
+   refinerTmp.SetMaxElements(500000);
    refinerTmp.SetMaximumRefinementLevel(ser_ref_levels+par_ref_levels+1);
    refinerTmp.SetNCLimit(nc_limit);
 
@@ -473,7 +473,8 @@ int main(int argc, char *argv[])
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), *jptr;
+   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), 
+                       jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
    if (icase==1)
        jptr=&jInit1;
    else if (icase==2)
@@ -487,13 +488,13 @@ int main(int argc, char *argv[])
    j.SetTrueVector();
 
    //-----------------------------------AMR for the real computation---------------------------------
-   BlockZZEstimator estimator(*integ, psi, *integ, phi, flux_fespace1, flux_fespace2);
-   //estimator.SetErrorRatio(1.0); //we define total_err = err_1 + ratio*err_2
+   BlockZZEstimator estimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+   estimator.SetErrorRatio(.1); //we define total_err = err_1 + ratio*err_2
 
    ThresholdRefiner refiner(estimator);
-   refiner.SetTotalErrorFraction(0.3);   // here 0.0 means we use local threshold; default is 0.5
+   refiner.SetTotalErrorFraction(0.5);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(ltol_amr);  // total error goal (stop criterion)
-   refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
+   refiner.SetLocalErrorGoal(0.0);  // local error goal (stop criterion)
    refiner.SetMaxElements(5000000);
    refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
