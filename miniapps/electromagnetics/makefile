@@ -90,6 +90,10 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 volta-test-par: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')
+volta-1-test-par: volta
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
+	-maxit 2 -m ../../data/square-disc.mesh \
+	-dbcs '1 2 3 4 5 6 7 8' -dbcv '0 0 0 0 1 1 1 1')
 tesla-test-par: tesla
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1')

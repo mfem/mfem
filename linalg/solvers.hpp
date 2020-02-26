@@ -13,7 +13,7 @@
 #define MFEM_SOLVERS
 
 #include "../config/config.hpp"
-#include "operator.hpp"
+#include "densemat.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -542,7 +542,7 @@ public:
 
 private:
    /// Set up the block CSR structure corresponding to a sparse matrix @a A
-   void CreateBlockPattern(const SparseMatrix &A);
+   void CreateBlockPattern(const class SparseMatrix &A);
 
    /// Perform the block ILU factorization
    void Factorize();

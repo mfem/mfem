@@ -118,6 +118,115 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
    return mesh;
 }
 
+// Given a 3D mesh, produce a 2D mesh consisting of its boundary elements.
+Mesh *skin_mesh(Mesh *mesh)
+{
+   // Determine mapping from vertex to boundary vertex
+   Array<int> v2v(mesh->GetNV());
+   v2v = -1;
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v2v[v[j]] = 0;
+      }
+   }
+   int nbvt = 0;
+   for (int i = 0; i < v2v.Size(); i++)
+   {
+      if (v2v[i] == 0)
+      {
+         v2v[i] = nbvt++;
+      }
+   }
+
+   // Create a new mesh for the boundary
+   Mesh * bmesh = new Mesh(mesh->Dimension() - 1, nbvt, mesh->GetNBE(),
+                           0, mesh->SpaceDimension());
+
+   // Copy vertices to the boundary mesh
+   nbvt = 0;
+   for (int i = 0; i < v2v.Size(); i++)
+   {
+      if (v2v[i] >= 0)
+      {
+         double *c = mesh->GetVertex(i);
+         bmesh->AddVertex(c);
+         nbvt++;
+      }
+   }
+
+   // Copy elements to the boundary mesh
+   int bv[4];
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+
+      for (int j = 0; j < nv; j++)
+      {
+         bv[j] = v2v[v[j]];
+      }
+
+      switch (el->GetGeometryType())
+      {
+         case Geometry::SEGMENT:
+            bmesh->AddSegment(bv, el->GetAttribute());
+            break;
+         case Geometry::TRIANGLE:
+            bmesh->AddTriangle(bv, el->GetAttribute());
+            break;
+         case Geometry::SQUARE:
+            bmesh->AddQuad(bv, el->GetAttribute());
+            break;
+         default:
+            break; /// This should not happen
+      }
+
+   }
+   bmesh->FinalizeTopology();
+
+   // Copy GridFunction describing nodes if present
+   if (mesh->GetNodes())
+   {
+      FiniteElementSpace *fes = mesh->GetNodes()->FESpace();
+      const FiniteElementCollection *fec = fes->FEColl();
+      if (dynamic_cast<const H1_FECollection*>(fec))
+      {
+         FiniteElementCollection *fec_copy =
+            FiniteElementCollection::New(fec->Name());
+         FiniteElementSpace *fes_copy =
+            new FiniteElementSpace(*fes, bmesh, fec_copy);
+         GridFunction *bdr_nodes = new GridFunction(fes_copy);
+         bdr_nodes->MakeOwner(fec_copy);
+
+         bmesh->NewNodes(*bdr_nodes, true);
+
+         Array<int> vdofs;
+         Array<int> bvdofs;
+         Vector v;
+         for (int i=0; i<mesh->GetNBE(); i++)
+         {
+            fes->GetBdrElementVDofs(i, vdofs);
+            mesh->GetNodes()->GetSubVector(vdofs, v);
+
+            fes_copy->GetElementVDofs(i, bvdofs);
+            bdr_nodes->SetSubVector(bvdofs, v);
+         }
+      }
+      else
+      {
+         cout << "\nDiscontinuous nodes not yet supported" << endl;
+      }
+   }
+
+   return bmesh;
+}
+
 int main (int argc, char *argv[])
 {
    int np = 0;
@@ -150,6 +259,7 @@ int main (int argc, char *argv[])
    args.PrintOptions(cout);
 
    Mesh *mesh;
+   Mesh *bdr_mesh = NULL;
    if (np <= 0)
    {
       mesh = new Mesh(mesh_file, 1, refine);
@@ -165,6 +275,7 @@ int main (int argc, char *argv[])
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
+   FiniteElementCollection *bdr_attr_fec = NULL;
    FiniteElementCollection *attr_fec;
    if (dim == 2)
    {
@@ -172,6 +283,7 @@ int main (int argc, char *argv[])
    }
    else
    {
+      bdr_attr_fec = new Const2DFECollection;
       attr_fec = new Const3DFECollection;
    }
 
@@ -528,9 +640,12 @@ int main (int argc, char *argv[])
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
+         Array<int> bdr_part;
          Array<int> part(mesh->GetNE());
+         FiniteElementSpace *bdr_attr_fespace = NULL;
          FiniteElementSpace *attr_fespace =
             new FiniteElementSpace(mesh, attr_fec);
+         GridFunction bdr_attr;
          GridFunction attr(attr_fespace);
 
          if (mk == 'm')
@@ -541,7 +656,28 @@ int main (int argc, char *argv[])
             }
          }
 
-         if (mk == 'b' || mk == 'v')
+         if (mk == 'b')
+         {
+            if (dim == 3)
+            {
+               delete bdr_mesh;
+               bdr_mesh = skin_mesh(mesh);
+               bdr_attr_fespace =
+                  new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
+               bdr_part.SetSize(bdr_mesh->GetNE());
+               bdr_attr.SetSpace(bdr_attr_fespace);
+               for (int i = 0; i < bdr_mesh->GetNE(); i++)
+               {
+                  bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+               }
+            }
+            else
+            {
+               attr = 1.0;
+            }
+         }
+
+         if (mk == 'v')
          {
             attr = 1.0;
          }
@@ -760,9 +896,17 @@ int main (int argc, char *argv[])
             else
             {
                sol_sock << "fem3d_gf_data_keys\n";
-               if (mk == 'b' || mk == 'v' || mk == 'h' || mk == 'k')
+               if (mk == 'v' || mk == 'h' || mk == 'k')
                {
                   mesh->Print(sol_sock);
+               }
+               else if (mk == 'b')
+               {
+                  bdr_mesh->Print(sol_sock);
+                  bdr_attr.Save(sol_sock);
+                  sol_sock << "mcaaA";
+                  // Switch to a discrete color scale
+                  sol_sock << "pppppp" << "pppppp" << "pppppp";
                }
                else
                {
@@ -780,15 +924,18 @@ int main (int argc, char *argv[])
                      mesh->PrintWithPartitioning(part, sol_sock);
                   }
                }
-               attr.Save(sol_sock);
-               sol_sock << "maaA";
-               if (mk == 'v')
+               if (mk != 'b')
                {
-                  sol_sock << "aa";
-               }
-               else
-               {
-                  sol_sock << "\n";
+                  attr.Save(sol_sock);
+                  sol_sock << "maaA";
+                  if (mk == 'v')
+                  {
+                     sol_sock << "aa";
+                  }
+                  else
+                  {
+                     sol_sock << "\n";
+                  }
                }
             }
             sol_sock << flush;
@@ -799,6 +946,7 @@ int main (int argc, char *argv[])
                  << vishost << ':' << visport << endl;
          }
          delete attr_fespace;
+         delete bdr_attr_fespace;
       }
 
       if (mk == 'S')
@@ -832,7 +980,9 @@ int main (int argc, char *argv[])
 
    }
 
+   delete bdr_attr_fec;
    delete attr_fec;
+   delete bdr_mesh;
    delete mesh;
    return 0;
 }
