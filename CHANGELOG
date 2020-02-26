@@ -86,6 +86,8 @@ Discretization improvements
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
+- Added second order derivatives of NURBS shape functions.
+
 - Added initial support for NonlinearForms to support the partial assembly mode.
 
 - Added a nonlinear vector valued convection integrator (Q u \cdot grad u, v)
@@ -119,6 +121,10 @@ Linear and nonlinear solvers
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
 
+- Added a LinearSolve(A,X) convenience method to solve dense linear systems. In
+  the trivial cases, i.e., square matrices of size 1 or 2, the system is solved
+  directly, otherwise, LU factorization is employed.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added two new miniapps: Find Points (serial + parallel) and Field Diff in
@@ -137,6 +143,9 @@ New and updated examples and miniapps
   demonstrate the new r-adaptivity capabilities of TMOP.
 
 - New options to reorder and partition the mesh in the mesh-explorer miniapp.
+
+- The mesh-explorer miniapp now supports visualization of boundary attributes of
+  3D meshes (key 'b').
 
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
