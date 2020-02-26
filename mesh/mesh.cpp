@@ -7420,6 +7420,10 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    mfem::Swap(geom_factors, other.geom_factors);
 
+#ifdef MFEM_USE_MEMALLOC
+   TetMemory.Swap(other.TetMemory);
+#endif
+
    if (non_geometry)
    {
       mfem::Swap(NURBSext, other.NURBSext);
