@@ -5,9 +5,11 @@
 
 using namespace std;
 using namespace mfem;
-int isupg=2;    //1: test supg with v term only
-                //2: test hyperdiffusion along B only
-                //3: test a general hyperdiffusion
+int isupg=2;    //this is for explicit solver only
+                //1: test supg with v term only (it assumes viscosity==resistivity now)
+                //2: test hyperdiffusion along B only 
+                //3: test a general hyperdiffusion 
+bool ifd=true;  //add field-line diffusion for psi in implicit solvers
 int iSc=0;      //the parameter to control precondtioner
 bool lumpedMass = false;
 
@@ -1152,7 +1154,7 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
     Mlp->Assemble();
     Mlp->FormSystemMatrix(ess_tdof_list, Mmatlp);
 
-    if (isupg==2)
+    if (ifd)
     {
        MinvKB = new HypreParMatrix(KBMat_);
        HypreParVector *MmatlpD = new HypreParVector(Mmatlp.GetComm(), Mmatlp.GetGlobalNumRows(),
@@ -1238,7 +1240,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
        HypreParMatrix *NbtDinv=NULL, *S=NULL;
        HypreParMatrix *tmp=Mdtpr;  //if use lumped matrix, it needs to be scaled by dt
 
-       if (iSc==0 && isupg==0)
+       if (iSc==0 && (!ifd) )
        {
            //VERSION0: same as Luis's preconditioner
            AReFull->GetDiag(*ARed);
@@ -1270,7 +1272,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
            S = ParMult(NbtDinv, NbFull);
            ScFull = ParAdd(ASltmp, S);
        }
-       else if (iSc==0 && isupg==2)
+       else if (iSc==0 && ifd)
        {
            //VERSION3: Luis's preconditioner + hyperdiffusion
            AReFull->GetDiag(*ARed);
@@ -1510,7 +1512,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
        y2 += *E0Vec;
 
    //compute resiual from y3 to stabilize B.grad Psi
-   if(isupg==2)
+   if(ifd)
    {
      //first compute an auxilary variable of z3=-∆w (z3=M^-1 KB * w)
      KBMat.Mult(wNew, z2);
