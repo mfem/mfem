@@ -34,6 +34,7 @@
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
 #include "gslib.hpp"
+#include "adnonlininteg.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

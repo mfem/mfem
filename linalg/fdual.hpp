@@ -14,12 +14,14 @@
 #define FDUAL_H
 
 #include <cmath>
+#include <type_traits>
+
 namespace mfem
 {
 
 namespace ad
 {
-// Forward AD - simple class
+// Forward AD - simple class for automatic differentiation
 template<typename tbase>
 class FDual
 {
@@ -29,28 +31,51 @@ private:
 
 public:
 
-   FDual():pr(tbase()),du(tbase())
+   FDual():pr(0),du(0)
+   {
+       
+   }
+
+   
+   template <class fltyp, class = typename 
+   std::enable_if<std::is_arithmetic<fltyp>::value>::type>
+   FDual(fltyp& f):pr(f),du(0) 
+   {
+
+   }
+    
+   template <class fltyp, class = typename 
+   std::enable_if<std::is_arithmetic<fltyp>::value>::type>
+   FDual(const fltyp& f):pr(f),du(0) 
+   {
+
+   }
+   
+   FDual(tbase& pr_,tbase& du_):pr(pr_),du(du_)
    {
 
    }
 
-   FDual(tbase pr_):pr(pr_),du(tbase(0))
+   FDual(const tbase& pr_,const tbase& du_):pr(pr_),du(du_)
    {
-
+       
    }
-
-   FDual(tbase pr_,tbase du_):pr(pr_),du(du_)
+   
+   FDual(FDual<tbase>& nm):pr(nm.pr),du(nm.du)
    {
-
+       
    }
-
-   template<typename tbase1>
-   FDual(FDual<tbase1>& f)
+   
+   FDual(const FDual<tbase>& nm):pr(nm.pr),du(nm.du)
    {
-      pr=f.real();
-      du=f.dual();
+       
    }
-
+   
+   tbase prim() const
+   {
+       return pr;
+   }
+   
    tbase real() const
    {
       return pr;
@@ -61,6 +86,27 @@ public:
       return du;
    }
 
+   void set(const tbase& pr_,const tbase& du_)
+   {
+       pr=pr_;
+       du=du_;
+   }
+   
+   void prim(const tbase& pr_)
+   {
+       pr=pr_;
+   }
+
+   void real(const tbase& pr_)
+   {
+       pr=pr_;
+   }
+   
+   void dual(const tbase& du_)
+   {
+       du=du_;
+   }
+   
    FDual<tbase> & operator=(tbase sc_)
    {
       pr=sc_;
@@ -95,32 +141,30 @@ public:
       return *this;
    }
 
-   template<typename tbase1>
-   FDual<tbase>& operator=(const FDual<tbase1> & f)
+
+   FDual<tbase>& operator=(const FDual<tbase> & f)
    {
       pr = f.real();
       du = f.dual();
       return *this;
    }
 
-   template<typename tbase1>
-   FDual<tbase>& operator+=(const FDual<tbase1>& f)
+   FDual<tbase>& operator+=(const FDual<tbase>& f)
    {
       pr += f.real();
       du += f.dual();
       return *this;
    }
 
-   template<typename tbase1>
-   FDual<tbase>& operator-=(const FDual<tbase1>& f)
+   
+   FDual<tbase>& operator-=(const FDual<tbase>& f)
    {
       pr -= f.real();
       du -= f.dual();
       return *this;
    }
 
-   template<typename tbase1>
-   FDual<tbase>& operator*=(const FDual<tbase1>& f)
+   FDual<tbase>& operator*=(const FDual<tbase>& f)
    {
       du = du * f.real();
       du = du+ pr * f.dual();
@@ -128,8 +172,7 @@ public:
       return *this;
    }
 
-   template<typename tbase1>
-   FDual<tbase>& operator/=(const FDual<tbase1>& f_)
+   FDual<tbase>& operator/=(const FDual<tbase>& f_)
    {
       pr = pr / f_.real();
       du = du - pr * f_.dual();
@@ -138,11 +181,12 @@ public:
    }
 };
 
+
 // non-member functions
 // boolean operations
-template <typename tbase1, typename tbase2>
+template <typename tbase>
 inline
-bool operator==(const FDual<tbase1>& a1, const FDual<tbase2>& a2)
+bool operator==(const FDual<tbase>& a1, const FDual<tbase>& a2)
 {
    return a1.real() == a2.real();
 }
@@ -162,9 +206,9 @@ bool operator==(const FDual<tbase>& a, tbase b)
 }
 
 
-template <typename tbase1, typename tbase2>
+template <typename tbase>
 inline
-bool operator<(const FDual<tbase1>& f1, const FDual<tbase2>& f2)
+bool operator<(const FDual<tbase>& f1, const FDual<tbase>& f2)
 {
    return f1.real() < f2.real();
 }
@@ -183,9 +227,9 @@ bool operator<(tbase a, const FDual<tbase>& f)
    return a < f.real();
 }
 
-template <typename tbase1, typename tbase2>
+template <typename tbase>
 inline
-bool operator>(const FDual<tbase1>& f1, const FDual<tbase2>& f2)
+bool operator>(const FDual<tbase>& f1, const FDual<tbase>& f2)
 {
    return f1.real() > f2.real();
 }
@@ -211,53 +255,56 @@ FDual<tbase> operator-(const FDual<tbase>& f)
    return FDual<tbase>(-f.real(), -f.dual());
 }
 
-template <typename tbase>
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> operator-(const FDual<tbase>& f, tbase a)
+FDual<tbase> operator-(const FDual<tbase>& f, tbase1 a)
 {
    return FDual<tbase>(f.real() - a, f.dual());
 }
 
-template <typename tbase>
+
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> operator+(const FDual<tbase>& f, tbase a)
+FDual<tbase> operator+(const FDual<tbase>& f, tbase1 a)
 {
    return FDual<tbase>(f.real() + a, f.dual());
 }
 
-template <typename tbase>
+
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> operator*(const FDual<tbase>& f, tbase a)
+FDual<tbase> operator*(const FDual<tbase>& f, tbase1 a)
 {
    return FDual<tbase>(f.real() * a, f.dual() * a);
 }
 
-template <typename tbase>
+
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> operator/(const FDual<tbase>& f, tbase a)
+FDual<tbase> operator/(const FDual<tbase>& f, tbase1 a)
 {
    return FDual<tbase>(f.real() / a, f.dual() / a);
 }
 
-template <typename tbase>
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> operator+(tbase a, const FDual<tbase>& f)
+FDual<tbase> operator+(tbase1 a, const FDual<tbase>& f)
 {
    return FDual<tbase>(a + f.real(), f.dual());
 }
 
-template <typename tbase>
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> operator-(tbase a, const FDual<tbase>& f)
+FDual<tbase> operator-(tbase1 a, const FDual<tbase>& f)
 {
    return FDual<tbase>(a - f.real(), -f.dual());
 }
 
-template <typename tbase>
+template <typename tbase, typename tbase1>
 inline
-FDual<tbase> operator*(tbase a, const FDual<tbase>& f)
+FDual<tbase> operator*(tbase1 a, const FDual<tbase>& f)
 {
-   return f * a;
+   return FDual<tbase>(f.real() * a, f.dual() *a);
 }
 
 template <typename tbase>
@@ -266,6 +313,14 @@ FDual<tbase> operator/(tbase a, const FDual<tbase>& f)
 {
    a = a / f.real();
    return FDual<tbase>(a, -a * f.dual() / f.real());
+}
+
+template <typename tbase>
+inline
+FDual<tbase> operator/(double a, const FDual<tbase>& f)
+{
+   tbase a1 = a / f.real();
+   return FDual<tbase>(a1, -a1 * f.dual() / f.real());
 }
 
 template <typename tbase>
@@ -312,7 +367,7 @@ inline
 FDual<double> acos(const FDual<double>& f)
 {
    return FDual<double>(std::acos(f.real()),
-                        -f.dual() / sqrt(double(1) - f.real() * f.real()));
+                        -f.dual() / std::sqrt(double(1) - f.real() * f.real()));
 }
 
 template <typename tbase>
@@ -328,7 +383,7 @@ inline
 FDual<double> asin(const FDual<double>& f)
 {
    return FDual<double>(std::asin(f.real()),
-                        f.dual() / sqrt(double(1) - f.real() * f.real()));
+                        f.dual() / std::sqrt(double(1) - f.real() * f.real()));
 }
 
 template <typename tbase>
