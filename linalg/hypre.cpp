@@ -1623,7 +1623,6 @@ HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
 
    hypre_ParcsrAdd(alpha, A, beta, B, &C_hypre);
    
-   hypre_MatvecCommPkgCreate(C);
    HypreParMatrix *C = new HypreParMatrix(C_hypre);
 
    return C;
