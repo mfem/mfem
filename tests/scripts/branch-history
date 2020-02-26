@@ -19,11 +19,8 @@ my $max_branch_kb = 1000;
 
 my $status = 0; # Return code
 
-my $current_branch = `git symbolic-ref --short HEAD`;
-my $commit_range = "master..$current_branch";
-
 # Get SHA hash of all commits in this branch
-my @commits = split /\n/, `git log --pretty=format:%H $commit_range`;
+my @commits = split /\n/, `git log --pretty=format:%H master..HEAD`;
 
 # Check if total number of commits in this branch exceeds the maximum allowable
 my $ncommits = scalar @commits;
