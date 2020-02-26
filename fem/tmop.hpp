@@ -746,11 +746,6 @@ public:
                                         int nodenum, int idir,
                                         Vector &IntData);
 
-   void UpdateTargetSpecificationAtNode(const FiniteElement &el,
-                                        ElementTransformation &T,
-                                        int nodenum, int idir, int iterm,
-                                        Vector &IntData);
-
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
    void BackupTargetSpecification();

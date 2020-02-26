@@ -1021,20 +1021,6 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
    tspec(dofs[nodenum]) = IntData(dofs[nodenum]+idir*cnt);
 }
 
-void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
-                                                      ElementTransformation &T,
-                                                      int nodenum, int idir,
-                                                      int iterm,
-                                                      Vector &IntData)
-{
-   MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
-
-   Array<int> dofs;
-   tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   int cnt = tspec.Size();
-   tspec(dofs[nodenum]) = IntData(dofs[nodenum] + iterm*cnt);
-}
-
 void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
                                                        int nodenum)
 {
@@ -1752,7 +1738,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                      {
                         int idx = discr_tc->TSpecMixIdx(k1,k2);
                         discr_tc->UpdateTargetSpecificationAtNode(
-                           el,T,i,k1,idx,discr_tc->tspec_pertmix);
+                           el,T,i,idx,discr_tc->tspec_pertmix);
                      }
                      else   //j==i && k1==k2
                      {
