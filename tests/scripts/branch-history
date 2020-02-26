@@ -36,6 +36,18 @@ sub print_sha {
   printf STDERR "\033[34m    ^---> SHA: %s\033[0m\n", $_[0];
 }
 
+sub formatSize {
+  my $size = shift;
+  my $exp = 0;
+  my $units = [qw(B KB MB GB TB PB)];
+  for (@$units) {
+    last if $size < 1024;
+    $size /= 1024;
+    $exp++;
+  }
+  return sprintf("%.2f %s", $size, $units->[$exp]);
+}
+
 # Loop over each commit in this branch, and check for large diffs
 my $total_size = 0;
 foreach my $sha (@commits) {
@@ -68,21 +80,21 @@ foreach my $sha (@commits) {
     else { die "Unknown git status letter." }
     if ($blob_size > $max_blob_kb*1024) {
       $status = 1;
-      printf STDERR "\033[31mLarge change of size %d KB in file %s.\033[0m\n", ($blob_size/1024), $fname;
+      printf STDERR "\033[31mLarge change of size %s in file %s.\033[0m\n", formatSize($blob_size), $fname;
       print_sha($sha);
     }
     $commit_size += $blob_size;
   }
   if ($commit_size > $max_commit_kb*1024) {
     $status = 1;
-    printf STDERR "\033[31mLarge commit of size %d KB.\033[0m\n", $commit_size/1024;
+    printf STDERR "\033[31mLarge commit of size %s.\033[0m\n", formatSize($commit_size);
     print_sha($sha);
   }
   $total_size += $commit_size;
 }
 
 if ($total_size > $max_branch_kb*1024) {
-  printf STDERR "\033[31mLarge total branch size: %d KB.\033[0m\n", $total_size/1024;
+  printf STDERR "\033[31mLarge total branch size: %s.\033[0m\n", formatSize($total_size);
   $status = 1;
 }
 
