@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
 
    // Read boundary
    string bdr_tags;
-   named_ifgzstream input_bdr(boundary_file);
+   named_ifzstream input_bdr(boundary_file);
    input_bdr >> ws;
    getline(input_bdr, bdr_tags);
    filter_dos(bdr_tags);

@@ -11,7 +11,7 @@
 
 #include "vtk.hpp"
 #include "../general/binaryio.hpp"
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
 #include <zlib.h>
 #endif
 
@@ -427,7 +427,7 @@ void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
    }
    else
    {
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
       MFEM_ASSERT(compression_level >= -1 && compression_level <= 9,
                   "Compression level must be between -1 and 9 (inclusive).");
       uLongf buf_sz = compressBound(nbytes);
@@ -445,7 +445,7 @@ void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
       // Write the compressed data
       bin_io::WriteBase64(out, buf.data(), buf_sz);
 #else
-      MFEM_ABORT("MFEM must be compiled with gzstream support to output "
+      MFEM_ABORT("MFEM must be compiled with ZLib support to output "
                  "compressed binary data.")
 #endif
    }

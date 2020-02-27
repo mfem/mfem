@@ -166,7 +166,7 @@ void DataCollection::SetCompression(bool comp)
 {
    compression = comp;
 #ifndef MFEM_USE_ZLIB
-   MFEM_VERIFY(!compression, "GZStream not enabled in MFEM build.");
+   MFEM_VERIFY(!compression, "ZLib not enabled in MFEM build.");
 #endif
 }
 
@@ -732,7 +732,7 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
      pv_data_format(VTKFormat::BINARY),
      high_order_output(false)
 {
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
    compression = -1; // default zlib compression level, equivalent to 6
 #else
    compression = 0;
