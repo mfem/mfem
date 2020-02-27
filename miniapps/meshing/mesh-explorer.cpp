@@ -82,7 +82,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
    {
       ostringstream fname;
       fname << mesh_prefix << '.' << setfill('0') << setw(6) << p;
-      ifgzstream meshin(fname.str().c_str());
+      ifzstream meshin(fname.str().c_str());
       if (!meshin)
       {
          cerr << "Can not open mesh file: " << fname.str().c_str()
@@ -336,7 +336,7 @@ int main (int argc, char *argv[])
            "S) Save in MFEM format\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
            "q) Quit\n"
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
            "Z) Save in MFEM format with compression\n"
 #endif
            "--> " << flush;
@@ -967,11 +967,11 @@ int main (int argc, char *argv[])
          cout << "New VTK mesh file: " << mesh_file << endl;
       }
 
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
       if (mk == 'Z')
       {
          const char mesh_file[] = "mesh-explorer.mesh.gz";
-         ofgzstream omesh(mesh_file, "zwb9");
+         ofzstream omesh(mesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;

@@ -173,8 +173,8 @@ if (MFEM_USE_GINKGO)
   endif()
 endif()
 
-# GZSTREAM -> zlib
-if (MFEM_USE_GZSTREAM)
+# zlib
+if (MFEM_USE_ZLIB)
   find_package(ZLIB REQUIRED)
 endif()
 

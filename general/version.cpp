@@ -82,8 +82,8 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_EXCEPTIONS
       "MFEM_USE_EXCEPTIONS\n"
 #endif
-#ifdef MFEM_USE_GZSTREAM
-      "MFEM_USE_GZSTREAM\n"
+#ifdef MFEM_USE_ZLIB
+      "MFEM_USE_ZLIB\n"
 #endif
 #ifdef MFEM_USE_LIBUNWIND
       "MFEM_USE_LIBUNWIND\n"

@@ -165,8 +165,8 @@ void DataCollection::SetFormat(int fmt)
 void DataCollection::SetCompression(bool comp)
 {
    compression = comp;
-#ifndef MFEM_USE_GZSTREAM
-   MFEM_ASSERT(!compression, "GZStream not enabled in MFEM build.");
+#ifndef MFEM_USE_ZLIB
+   MFEM_VERIFY(!compression, "GZStream not enabled in MFEM build.");
 #endif
 }
 
@@ -228,8 +228,7 @@ void DataCollection::SaveMesh()
    }
 
    std::string mesh_name = GetMeshFileName();
-   const char *mode = (compression) ? "zwb6" : "w";
-   ofgzstream mesh_file(mesh_name.c_str(), mode);
+   mfem::ofzstream mesh_file(mesh_name, compression);
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
@@ -277,8 +276,7 @@ const
 
 void DataCollection::SaveOneField(const FieldMapIterator &it)
 {
-   const char *mode = (compression) ? "zwb6" : "w";
-   ofgzstream field_file(GetFieldFileName(it->first).c_str(), mode);
+   mfem::ofzstream field_file(GetFieldFileName(it->first), compression);
 
    field_file.precision(precision);
    (it->second)->Save(field_file);
@@ -291,8 +289,8 @@ void DataCollection::SaveOneField(const FieldMapIterator &it)
 
 void DataCollection::SaveOneQField(const QFieldMapIterator &it)
 {
-   const char *mode = (compression) ? "zwb6" : "w";
-   ofgzstream q_field_file(GetFieldFileName(it->first).c_str(), mode);
+   mfem::ofzstream q_field_file(GetFieldFileName(it->first), compression);
+
    q_field_file.precision(precision);
    (it->second)->Save(q_field_file);
    if (!q_field_file)
@@ -548,7 +546,7 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 void VisItDataCollection::LoadMesh()
 {
    std::string mesh_fname = GetMeshFileName();
-   named_ifgzstream file(mesh_fname.c_str());
+   named_ifzstream file(mesh_fname);
    // TODO: in parallel, check for errors on all processors
    if (!file)
    {
@@ -589,7 +587,7 @@ void VisItDataCollection::LoadFields()
         it != field_info_map.end(); ++it)
    {
       std::string fname = path_left + it->first + path_right;
-      ifgzstream file(fname.c_str());
+      mfem::ifzstream file(fname);
       // TODO: in parallel, check for errors on all processors
       if (!file)
       {

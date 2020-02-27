@@ -49,8 +49,8 @@
 // Throw an exception on errors.
 // #define MFEM_USE_EXCEPTIONS
 
-// Enable gzstream in MFEM.
-// #define MFEM_USE_GZSTREAM
+// Enable zlib in MFEM.
+// #define MFEM_USE_ZLIB
 
 // Enable backtraces for mfem_error through libunwind.
 // #define MFEM_USE_LIBUNWIND

@@ -49,8 +49,8 @@
 // Throw an exception on errors.
 #cmakedefine MFEM_USE_EXCEPTIONS
 
-// Enable gzstream in MFEM.
-#cmakedefine MFEM_USE_GZSTREAM
+// Enable zlib in MFEM.
+#cmakedefine MFEM_USE_ZLIB
 
 // Enable backtraces for mfem_error through libunwind.
 #cmakedefine MFEM_USE_LIBUNWIND
