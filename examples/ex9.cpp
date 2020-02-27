@@ -125,8 +125,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b,
-                const FiniteElementSpace &fes, bool pa);
+   FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -362,7 +361,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b, fes, pa);
+   FE_Evolution adv(m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -420,10 +419,10 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b,
-                           const FiniteElementSpace &fes, bool pa)
+FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
+   bool pa = M.GetAssemblyLevel() == AssemblyLevel::PARTIAL;
    Array<int> ess_tdof_list;
    if (pa)
    {
@@ -434,7 +433,7 @@ FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b,
    else
    {
       M_prec = new DSmoother(M.SpMat());
-      dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), fes);
+      dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
       M_solver.SetOperator(M.SpMat());
    }
    M_solver.SetPreconditioner(*M_prec);
