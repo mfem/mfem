@@ -134,33 +134,10 @@ void PABilinearFormExtension::Update()
 {
    FiniteElementSpace *fes = a->FESpace();
    height = width = fes->GetVSize();
-   trialFes = fes;
-   testFes = fes;
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
-   if (elem_restrict_lex)
-   {
-      localX.SetSize(elem_restrict_lex->Height());
-      localY.SetSize(elem_restrict_lex->Height());
-   }
 
-   const int iFISz = a->GetFBFI()->Size();
-   if (int_face_restrict_lex && iFISz>0)
-   {
-      int_face_restrict_lex = trialFes->GetFaceRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
-      faceIntX.SetSize(int_face_restrict_lex->Height());
-      faceIntY.SetSize(int_face_restrict_lex->Height());
-   }
-
-   const int bFISz = a->GetBFBFI()->Size();
-   if (bound_face_restrict_lex && bFISz>0)
-   {
-      bound_face_restrict_lex = trialFes->GetFaceRestriction(
-                                   ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
-      faceBdrX.SetSize(bound_face_restrict_lex->Height());
-      faceBdrY.SetSize(bound_face_restrict_lex->Height());
-   }
+   elem_restrict_lex = nullptr;
+   int_face_restrict_lex = nullptr;
+   bound_face_restrict_lex = nullptr;
 }
 
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
