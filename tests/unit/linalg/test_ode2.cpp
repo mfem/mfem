@@ -51,8 +51,7 @@ TEST_CASE("Second order ODE methods",
       virtual ~ODE2() {};
    };
 
-   /** Class for checking order of convergence of second order ODE.
-    */
+   // Class for checking order of convergence of second order ODE.
    class CheckODE2
    {
    protected:
@@ -167,7 +166,7 @@ TEST_CASE("Second order ODE methods",
       REQUIRE(check.order(new FoxGoodwinSolver) + tol > 4.0 );
    }
 
-   //Generalized-alpha based solvers
+   // Generalized-alpha based solvers
    SECTION("GeneralizedAlpha(0.0)")
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.0)" << std::endl;
