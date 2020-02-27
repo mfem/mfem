@@ -221,5 +221,10 @@ miniapps/gslib/pfindpts
 tests/unit/output_meshes
 tests/unit/unit_tests
 
+# Test script output
+tests/scripts/*.err
+tests/scripts/*.out
+tests/scripts/*.msg
+
 # VPATH builds
 build-*/*
