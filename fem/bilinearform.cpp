@@ -1641,9 +1641,10 @@ void MixedBilinearForm::FormRectangularLinearSystem(const Array<int>
       return;
    }
 
+   const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetOutputProlongation();
    const Operator *Ri = this->GetRestriction();
-   InitTVectors(Po, Ri, x, b, X, B);
+   InitTVectors(Po, Ri, Pi, x, b, X, B);
 
    if (!mat_e)
    {
