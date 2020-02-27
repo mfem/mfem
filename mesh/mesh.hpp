@@ -18,6 +18,7 @@
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
+#include "vtk.hpp"
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
@@ -41,13 +42,13 @@ class ParMesh;
 class ParNCMesh;
 #endif
 
-
 class Mesh
 {
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
 #endif
+   friend class NCMesh;
    friend class NURBSExtension;
 
 protected:
@@ -1172,9 +1173,16 @@ public:
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes). */
-   void PrintVTU(std::ostream &out, int ref=1);
+   void PrintVTU(std::ostream &out,
+                 int ref=1,
+                 VTKFormat format=VTKFormat::ASCII,
+                 bool high_order_output=false,
+                 int compression_level=0);
    /** Print the mesh in VTU format with file name fname. */
-   void PrintVTU(std::string fname);
+   void PrintVTU(std::string fname,
+                 VTKFormat format=VTKFormat::ASCII,
+                 bool high_order_output=false,
+                 int compression_level=0);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 

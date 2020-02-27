@@ -57,5 +57,21 @@ make style
 (grep cout */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
 (grep cerr */*pp | grep -v 'examples/' | grep -v 'general/globals' | grep -v 'cerrno') 1>&2
 
+# Tell users what to do if the script fails
+if [ -s "$0.err" ]; then
+    cat >  $0.msg <<EOF
+
+To correct this error, run 'make style' and make sure that:
+
+1) You are using Artistic Style 2.05.1 ("astyle --version").
+2) There is no use of std::cout or std::cerr inside the library code (examples
+   and miniapps are OK). Use mfem::out and mfem::err instead.
+3) Run "make style" to apply astyle formatting and verify your code.
+
+Please contact a member of the MFEM team if you have questions.
+
+EOF
+fi
+
 # Return to the original directory
 cd $cur_dir

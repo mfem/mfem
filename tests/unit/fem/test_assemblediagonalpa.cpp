@@ -114,4 +114,87 @@ TEST_CASE("diffusiondiag")
    }
 }
 
+template <typename INTEGRATOR>
+double test_vdiagpa(int dim, int order)
+{
+   Mesh *mesh = nullptr;
+   if (dim == 2)
+   {
+      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+   }
+   else if (dim == 3)
+   {
+      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+   }
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(mesh, &fec, dim);
+
+   BilinearForm form(&fes);
+   form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   form.AddDomainIntegrator(new INTEGRATOR);
+   form.Assemble();
+
+   Vector diag(fes.GetVSize());
+   form.AssembleDiagonal(diag);
+
+   BilinearForm form_full(&fes);
+   form_full.AddDomainIntegrator(new INTEGRATOR);
+   form_full.Assemble();
+   form_full.Finalize();
+
+   Vector diag_full(fes.GetVSize());
+   form_full.SpMat().GetDiag(diag_full);
+
+   diag_full -= diag;
+
+   delete mesh;
+
+   return diag_full.Norml2();
+}
+
+TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly], [AssembleDiagonal]")
+{
+   SECTION("2D")
+   {
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
+                                                 2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
+                                                 3) == Approx(0.0));
+   }
+
+   SECTION("3D")
+   {
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
+                                                 2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
+                                                 3) == Approx(0.0));
+   }
+}
+
+TEST_CASE("Vector Diffusion Diagonal PA",
+          "[PartialAssembly], [AssembleDiagonal]")
+{
+   SECTION("2D")
+   {
+      REQUIRE(
+         test_vdiagpa<VectorDiffusionIntegrator>(2,
+                                                 2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(2,
+                                                      3) == Approx(0.0));
+   }
+
+   SECTION("3D")
+   {
+      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
+                                                      2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
+                                                      3) == Approx(0.0));
+   }
+}
+
 } // namespace assemblediagonalpa

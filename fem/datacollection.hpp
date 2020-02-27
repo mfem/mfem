@@ -206,7 +206,7 @@ protected:
 
    /// Output mesh format: see the #Format enumeration
    int format;
-   bool compression;
+   int compression;
 
    /// Should the collection delete its mesh and fields
    bool own_data;
@@ -349,7 +349,7 @@ public:
    virtual void SetFormat(int fmt);
 
    /// Set the flag for use of gz compressed files
-   void SetCompression(bool comp);
+   virtual void SetCompression(bool comp);
 
    /// Set the path where the DataCollection will be saved.
    void SetPrefixPath(const std::string &prefix);
@@ -473,18 +473,17 @@ public:
 class ParaViewDataCollection : public DataCollection
 {
 private:
-#ifdef MFEM_USE_MPI
-   MPI_Comm lcomm;
-#endif
-   int myrank;
-   int nprocs;
    int levels_of_detail;
    std::fstream pvd_stream;
+   VTKFormat pv_data_format;
+   bool high_order_output;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
    void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
+   const char *GetDataFormatString() const;
+   const char *GetDataTypeString() const;
 
    std::string  GenerateCollectionPath();
    std::string  GenerateVTUFileName();
@@ -497,26 +496,10 @@ protected:
 public:
    /// Constructor. The collection name is used when saving the data.
    /** If @a mesh_ is NULL, then the mesh can be set later by calling SetMesh().
-       The constructor works only in serial. */
-   ParaViewDataCollection(const std::string& collection_name,
-                          mfem::Mesh *mesh_ = NULL);
-
-#ifdef MFEM_USE_MPI
-   /// Construct a parallel ParaViewDataCollection.
-   /** Before saving the data collection, some parameters in the collection can
+       Before saving the data collection, some parameters in the collection can
        be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
    ParaViewDataCollection(const std::string& collection_name,
-                          mfem::ParMesh *mesh_ = NULL);
-#endif
-
-   virtual ~ParaViewDataCollection() override;
-
-   virtual void SetMesh(mfem::Mesh * new_mesh) override;
-
-#ifdef MFEM_USE_MPI
-   /// Set/change the mesh associated with the collection.
-   virtual void SetMesh(MPI_Comm comm, mfem::Mesh *new_mesh) override;
-#endif
+                          mfem::Mesh *mesh_ = NULL);
 
    /// Add a grid function to the collection
    virtual void RegisterField(const std::string& field_name,
@@ -530,15 +513,33 @@ public:
    /// cycle value
    virtual void Save() override;
 
+   /// Set the data format for the ParaView output files. Possible options are
+   /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
+   /// The ASCII and BINARY options output double precision data, whereas the
+   /// BINARY32 option outputs single precision data.
+   void SetDataFormat(VTKFormat fmt);
+
+   /// Set the zlib compression level. 0 indicates no compression, -1 indicates
+   /// the default compression level. Otherwise, specify a number between 1 and
+   /// 9, 1 being the fastest, and 9 being the best compression. Compression
+   /// only takes effect if the output format is BINARY or BINARY32. MFEM must
+   /// be compiled with MFEM_USE_GZSTREAM = YES.
+   void SetCompressionLevel(int compression_level_);
+
+   /// Enable or disable zlib compression. If the input is true, use the default
+   /// zlib compression level (unless the compression level has previously been
+   /// set by calling SetCompressionLevel).
+   void SetCompression(bool compression_) override;
+
+   /// Returns true if the output format is BINARY or BINARY32, false if ASCII.
+   bool IsBinaryFormat() const;
+
+   /// Sets whether or not to output the data as high-order elements (false
+   /// by default). Reading high-order data requires ParaView 5.5 or later.
+   void SetHighOrderOutput(bool high_order_output_);
+
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;
-
-   static int create_directory(const std::string &dir_name);
-
-#ifdef MFEM_USE_MPI
-   static int create_directory(const std::string &dir_name, int myid,
-                               MPI_Comm mycom);
-#endif
 };
 
 }
