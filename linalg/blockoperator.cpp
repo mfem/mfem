@@ -459,13 +459,10 @@ void BlockLDUPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
    SetBlock(iblock, iblock, op);
 }
 
-void BlockLDUPreconditioner::SetOffdiagonalBlock(int iRow, int iCol,
-                                                 Operator *opt)
+void BlockLDUPreconditioner::SetBlock(int iRow, int iCol, Operator *opt)
 {
    MFEM_VERIFY(iRow >=0 && iRow <= 1, "Only valid for 2x2 block matrices");
    MFEM_VERIFY(iCol >=0 && iCol <= 1, "Only valid for 2x2 block matrices");
-   MFEM_VERIFY(iCol != iRow, "Use SetDiagonalBlock() to set diagonal block
-               preconditioners");
    MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == opt->NumRows() &&
                offsets[iCol+1] - offsets[iCol] == opt->NumCols(),
                "incompatible Operator dimensions");
