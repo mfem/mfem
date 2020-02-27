@@ -13,6 +13,8 @@
 //               ex24 -m ../data/fichera-q3.mesh
 //               ex24 -m ../data/square-disc-nurbs.mesh
 //               ex24 -m ../data/beam-hex-nurbs.mesh
+//               ex24 -m ../data/amr-quad.mesh -o 2
+//               ex24 -m ../data/amr-hex.mesh
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces. Using two different approaches, we project a gradient
@@ -105,6 +107,8 @@ int main(int argc, char *argv[])
    FunctionCoefficient p_coef(p_exact);
    GridFunction p(H1fespace);
    p.ProjectCoefficient(p_coef);
+   p.SetTrueVector();
+   p.SetFromTrueVector();
 
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
 
@@ -135,56 +139,46 @@ int main(int argc, char *argv[])
    a_NDH1->Assemble();
    if (!pa) { a_NDH1->Finalize(); }
 
-   Vector B(fespace->GetTrueVSize());
-   Vector X(fespace->GetTrueVSize());
-
    if (pa)
    {
       a_NDH1->Mult(p, x);
-      x.GetTrueDofs(B);
    }
    else
    {
       SparseMatrix& NDH1 = a_NDH1->SpMat();
-      Vector P(H1fespace->GetTrueVSize());
-      p.GetTrueDofs(P);
-
-      NDH1.Mult(P,B);
+      NDH1.Mult(p, x);
    }
 
-   // 8. Define and apply a PCG solver for AX=B with Jacobi
+   // 8. Define and apply a PCG solver for Ax = b with Jacobi
    //    preconditioner.
 
-   if (pa)
    {
-      Array<int> ess_tdof_list; // empty
-      OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
-
-      CGSolver cg;
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(1000);
-      cg.SetPrintLevel(1);
-      cg.SetOperator(*a);
-      cg.SetPreconditioner(Jacobi);
-
       GridFunction rhs(fespace);
       rhs = x;
       x = 0.0;
-      cg.Mult(rhs, x);
-   }
-   else
-   {
-      SparseMatrix& Amat = a->SpMat();
-      DSmoother Jacobi(Amat);
+
       CGSolver cg;
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
-      cg.SetOperator(Amat);
-      cg.SetPreconditioner(Jacobi);
-      cg.Mult(B, X);
+      if (pa)
+      {
+         Array<int> ess_tdof_list; // empty
+         OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
 
-      x.SetFromTrueDofs(X);
+         cg.SetOperator(*a);
+         cg.SetPreconditioner(Jacobi);
+         cg.Mult(rhs, x);
+      }
+      else
+      {
+         SparseMatrix& Amat = a->SpMat();
+         DSmoother Jacobi(Amat);
+
+         cg.SetOperator(Amat);
+         cg.SetPreconditioner(Jacobi);
+         cg.Mult(rhs, x);
+      }
    }
 
    // 9. Compute the same solution by applying GradientInterpolator in H(curl).
@@ -200,6 +194,8 @@ int main(int argc, char *argv[])
 
    GridFunction exact_gradp(fespace);
    exact_gradp.ProjectCoefficient(gradp_coef);
+   exact_gradp.SetTrueVector();
+   exact_gradp.SetFromTrueVector();
 
    // 11. Compute and print the L^2 norm of the error.
    {

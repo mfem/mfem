@@ -137,6 +137,8 @@ int main(int argc, char *argv[])
    FunctionCoefficient p_coef(p_exact);
    ParGridFunction p(H1fespace);
    p.ProjectCoefficient(p_coef);
+   p.SetTrueVector();
+   p.SetFromTrueVector();
 
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
 
@@ -240,6 +242,8 @@ int main(int argc, char *argv[])
 
    ParGridFunction exact_gradp(fespace);
    exact_gradp.ProjectCoefficient(gradp_coef);
+   exact_gradp.SetTrueVector();
+   exact_gradp.SetFromTrueVector();
 
    // 13. Compute and print the L^2 norm of the error.
    {
