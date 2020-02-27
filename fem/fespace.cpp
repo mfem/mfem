@@ -973,38 +973,6 @@ const FaceQuadratureInterpolator
    }
 }
 
-const FaceQuadratureInterpolator
-*FiniteElementSpace::GetFaceQuadratureInterpolator(
-   const QuadratureSpace &qs, FaceType type) const
-{
-   if (type==FaceType::Interior)
-   {
-      for (int i = 0; i < E2IFQ_array.Size(); i++)
-      {
-         const FaceQuadratureInterpolator *qi = E2IFQ_array[i];
-         if (qi->qspace == &qs) { return qi; }
-      }
-
-      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs,
-                                                                      type);
-      E2IFQ_array.Append(qi);
-      return qi;
-   }
-   else //Boundary
-   {
-      for (int i = 0; i < E2BFQ_array.Size(); i++)
-      {
-         const FaceQuadratureInterpolator *qi = E2BFQ_array[i];
-         if (qi->qspace == &qs) { return qi; }
-      }
-
-      FaceQuadratureInterpolator *qi = new FaceQuadratureInterpolator(*this, qs,
-                                                                      type);
-      E2BFQ_array.Append(qi);
-      return qi;
-   }
-}
-
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
    const DenseTensor localP[]) const
