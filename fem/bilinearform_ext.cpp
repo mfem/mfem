@@ -53,12 +53,9 @@ void PABilinearFormExtension::SetupRestrictionOperators()
    {
       elem_restrict_lex = trialFes->GetElementRestriction(
                              ElementDofOrdering::LEXICOGRAPHIC);
-      if (elem_restrict_lex)
-      {
-         localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-         localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-         localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
-      }
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 
    // Construct face restriction operators only if the bilinear form has
@@ -67,24 +64,18 @@ void PABilinearFormExtension::SetupRestrictionOperators()
    {
       int_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
-      if (int_face_restrict_lex)
-      {
-         faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-         faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-         faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
-      }
+      faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
    }
 
    if (bound_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
    {
       bound_face_restrict_lex = trialFes->GetFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
-      if (bound_face_restrict_lex)
-      {
-         faceBdrX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-         faceBdrY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-         faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
-      }
+      faceBdrX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceBdrY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
    }
 }
 
@@ -158,11 +149,8 @@ void PABilinearFormExtension::Update()
    {
       int_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
-      if (int_face_restrict_lex)
-      {
-         faceIntX.SetSize(int_face_restrict_lex->Height());
-         faceIntY.SetSize(int_face_restrict_lex->Height());
-      }
+      faceIntX.SetSize(int_face_restrict_lex->Height());
+      faceIntY.SetSize(int_face_restrict_lex->Height());
    }
 
    const int bFISz = a->GetBFBFI()->Size();
@@ -170,11 +158,8 @@ void PABilinearFormExtension::Update()
    {
       bound_face_restrict_lex = trialFes->GetFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
-      if (bound_face_restrict_lex)
-      {
-         faceBdrX.SetSize(bound_face_restrict_lex->Height());
-         faceBdrY.SetSize(bound_face_restrict_lex->Height());
-      }
+      faceBdrX.SetSize(bound_face_restrict_lex->Height());
+      faceBdrY.SetSize(bound_face_restrict_lex->Height());
    }
 }
 
