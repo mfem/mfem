@@ -436,12 +436,13 @@ BlockUpperTriangularPreconditioner::~BlockUpperTriangularPreconditioner()
 }
 
 BlockLDUPreconditioner::BlockLDUPreconditioner(
-   const Array<int> & offsets_, intint _schur_index)
+   const Array<int> & offsets_, int schur_index_)
    : Solver(offsets_.Last()),
      owns_blocks(0),
      nBlocks(offsets_.Size() - 1),
      offsets(0),
-     op(nBlocks, nBlocks)
+     op(nBlocks, nBlocks),
+     schur_index(schur_index_)
 {
    op = static_cast<Operator *>(NULL);
    offsets.MakeRef(offsets_);
