@@ -325,22 +325,10 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   m->Assemble();
    int skip_zeros = 0;
+   m->Assemble();
    k->Assemble(skip_zeros);
    b->Assemble();
-   Operator *M;
-   Operator *K;
-   if (!pa)
-   {
-      M = m->ParallelAssemble();
-      K = k->ParallelAssemble();
-   }
-   else
-   {
-      M = m;
-      K = k;
-   }
    m->Finalize();
    k->Finalize(skip_zeros);
 
@@ -502,11 +490,6 @@ int main(int argc, char *argv[])
    delete b;
    delete k;
    delete m;
-   if (!pa)
-   {
-      delete K;
-      delete M;
-   }
    delete fes;
    delete pmesh;
    delete ode_solver;
@@ -523,11 +506,11 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b)
    : TimeDependentOperator(_M.Height()),
      M(_M.GetAssemblyLevel()==AssemblyLevel::FULL?
-     static_cast<Operator&>(*_M.ParallelAssemble())
-     :static_cast<Operator&>(_M)),
+     static_cast<Operator&>(*_M.ParallelAssemble()):
+     static_cast<Operator&>(_M)),
      K(_K.GetAssemblyLevel()==AssemblyLevel::FULL?
-     static_cast<Operator&>(*_K.ParallelAssemble())
-     :static_cast<Operator&>(_K)),
+     static_cast<Operator&>(*_K.ParallelAssemble()):
+     static_cast<Operator&>(_K)),
      b(_b),
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
