@@ -580,7 +580,7 @@ int main (int argc, char *argv[])
          FunctionCoefficient ind_coeff(ind_values);
          size.ProjectCoefficient(ind_coeff);
 #ifdef MFEM_USE_GSLIB
-         tc->SetAdaptivityEvaluator(new InterpolatorFP(true));
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
          if (fdscheme==0) {tc->SetAdaptivityEvaluator(new AdvectorCG);}
 #endif
