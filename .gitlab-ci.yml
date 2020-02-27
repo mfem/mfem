@@ -270,14 +270,15 @@ stages:
     - export FULL_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.out
     - cd ${BUILD_ROOT}/tests
     - |
-      if [[ -f "${PATCH_FILE}" ]]
+      if [[ -f "${PATCH_FILE}.txt" ]]
       then
+          mv ${PATCH_FILE}.txt ${PATCH_FILE}
           patch "./baseline-${SYS_TYPE}.saved" < "${PATCH_FILE}"
-      elif [[ -f "${FULL_FILE}" ]]
+      elif [[ -f "${FULL_FILE}.txt" ]]
       then
-          cp "${FULL_FILE}" "./baseline-${SYS_TYPE}.saved"
+          cp "${FULL_FILE}.txt" "./baseline-${SYS_TYPE}.saved"
       else
-          echo "File missing: needs ${PATCH_FILE} or ${FULL_FILE}"
+          echo "File missing: expected ${PATCH_FILE}.txt or ${FULL_FILE}.txt"
           exit 1
       fi
     - git add baseline-${SYS_TYPE}.saved
