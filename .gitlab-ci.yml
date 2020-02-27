@@ -268,9 +268,14 @@ stages:
   script:
     - export PATCH_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.patch
     - export FULL_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.out
+    - export DIFF_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.diff
     - cd ${BUILD_ROOT}/tests
     - |
-      if [[ -f "${PATCH_FILE}.txt" ]]
+      if [[ ! -f "${DIFF_FILE}.txt" ]]
+      then
+          echo "Nothing to be done: no relevant change in baseline"
+          exit 0
+      elif [[ -f "${PATCH_FILE}.txt" ]]
       then
           mv ${PATCH_FILE}.txt ${PATCH_FILE}
           patch "./baseline-${SYS_TYPE}.saved" < "${PATCH_FILE}"
