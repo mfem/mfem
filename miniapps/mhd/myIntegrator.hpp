@@ -248,7 +248,8 @@ void StabConvectionIntegrator::AssembleElementMatrix(const FiniteElement &el,
             tauMax = max(tauMax, tau);
         }
     }
-    //cout <<"tauMax ="<<tauMax<<" length="<<eleLength<<" ";
+    //if (!FieldDiff)
+    //    cout <<"tauMax="<<tauMax<<" length="<<eleLength<<" ";
 
     for (int i = 0; i < ir.GetNPoints(); i++)
     {
@@ -485,6 +486,7 @@ void StabDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
             tauMax = max(tauMax, tau);
         }
     }
+    //cout <<"tauMax="<<tauMax<<" length="<<eleLength<<" "<<"dt="<<dt<<" U="<<Unorm<<" ";
   
     for (int i = 0; i < ir.GetNPoints(); i++)
     {

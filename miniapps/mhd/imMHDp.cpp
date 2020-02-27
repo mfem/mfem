@@ -400,7 +400,7 @@ int main(int argc, char *argv[])
    //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
-   bool useStab = false; //use a stabilized formulation
+   bool useStab = true; //use a stabilized formulation
    if(!useStab) isupg=0;
    for (int ti = 1; !last_step; ti++)
    {
