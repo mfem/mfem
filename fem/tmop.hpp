@@ -147,6 +147,36 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
+/// Shape+Size+Orientation metric, 2D.
+class TMOP_Metric_SSA2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Shape+Size metric, 2D.
+class TMOP_Metric_SS2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
 /// Shape, ideal barrier metric, 2D
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
@@ -676,7 +706,8 @@ class DiscreteAdaptTC : public TargetConstructor
 protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
-   Vector target_spec;
+   Vector tspec;         //eta(x)
+
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
@@ -686,20 +717,40 @@ protected:
    AdaptivityEvaluator *adapt_eval;
 
 public:
+   Vector tspec_sav;
+   Vector tspec_perth;       //eta(x+h)
+   Vector tspec_pert2h;      //eta(x+2*h)
+   Vector tspec_pertmix;     //eta(x+h,y+h)
+   Array2D<int> TSpecMixIdx; //Index for mix derivative terms
+
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
-        target_spec(), tspec_fes(NULL), adapt_eval(NULL) { }
+        tspec(), tspec_fes(NULL), adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC() { delete adapt_eval; }
 
-   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec);
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
-   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec);
+   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec_);
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. */
    void UpdateTargetSpecification(const Vector &new_x);
+
+   void UpdateTargetSpecification(Vector &new_x,
+                                  Vector &IntData);
+
+   void UpdateTargetSpecificationAtNode(const FiniteElement &el,
+                                        ElementTransformation &T,
+                                        int nodenum, int idir,
+                                        Vector &IntData);
+
+   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
+
+   void BackupTargetSpecification();
+
+   void RestoreTargetSpecification();
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -748,6 +799,16 @@ protected:
    // Normalization factor for the limiting term.
    double lim_normal;
 
+   mutable DiscreteAdaptTC *discr_tc;
+
+   // Parameters for Gradient & Hessian calculation
+   int    fdflag;
+   double fdeps;
+   double elemenergy;
+
+   Array <Vector *> ElemDer;        //f'(x)
+   Array <Vector *> ElemPertEnergy; //f(x+h)
+
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
    //   Jpt: the target->physical transformation Jacobian, Jpt = Jpr Jrt.
@@ -770,10 +831,20 @@ public:
       : metric(m), targetC(tc),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
-        lim_dist(NULL), lim_func(NULL), lim_normal(1.0)
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), discr_tc(NULL),
+        fdflag(0), fdeps(0.0)
    { }
 
-   ~TMOP_Integrator() { delete lim_func; }
+   ~TMOP_Integrator()
+   {
+
+      delete lim_func;
+      for (int i=0; i<ElemDer.Size(); i++)
+      {
+         delete ElemDer[i];
+         delete ElemPertEnergy[i];
+      }
+   }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -820,6 +891,41 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   void AssembleElementVectorExact(const FiniteElement &el,
+                                   ElementTransformation &T,
+                                   const Vector &elfun, Vector &elvect);
+
+   void AssembleElementGradExact(const FiniteElement &el,
+                                 ElementTransformation &T,
+                                 const Vector &elfun, DenseMatrix &elmat);
+
+   void AssembleElementVectorFD(const FiniteElement &el,
+                                ElementTransformation &T,
+                                const Vector &elfun, Vector &elvect);
+
+   void AssembleElementGradFD(const FiniteElement &el,
+                              ElementTransformation &T,
+                              const Vector &elfun, DenseMatrix &elmat);
+
+   double GetFDDerivative(const FiniteElement &el,
+                          ElementTransformation &T,
+                          Vector &elfun,
+                          const int nodenum,const int idir);
+
+   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
+
+   void SetFDPar(int fdflag_, int sz);
+
+   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
+
+   void SetupElementVectorTSpec(const Vector &x,
+                                const FiniteElementSpace &fes);
+
+   void SetupElementGradTSpec(const Vector &x,
+                              const FiniteElementSpace &fes);
+
+   DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
