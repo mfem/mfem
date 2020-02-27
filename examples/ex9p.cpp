@@ -334,9 +334,6 @@ int main(int argc, char *argv[])
    Operator *K;
    if (!pa)
    {
-      m->Finalize();
-      k->Finalize(skip_zeros);
-
       M = m->ParallelAssemble();
       K = k->ParallelAssemble();
    }
@@ -345,6 +342,9 @@ int main(int argc, char *argv[])
       M = m;
       K = k;
    }
+   m->Finalize();
+   k->Finalize(skip_zeros);
+
 
    HypreParVector *B = b->ParallelAssemble();
 
