@@ -48,6 +48,7 @@ class Mesh
    friend class ParMesh;
    friend class ParNCMesh;
 #endif
+   friend class NCMesh;
    friend class NURBSExtension;
 
 protected:
