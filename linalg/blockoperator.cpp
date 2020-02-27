@@ -386,7 +386,7 @@ void BlockUpperTriangularPreconditioner::MultTranspose (const Vector & x,
 }
 
 // Action of the transpose operator
-void BlockUpperTriangularPreconditioner::Transpose (const Vector & x,
+void BlockUpperTriangularPreconditioner::Mult(const Vector & x,
                                                         Vector & y) const
 {
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
@@ -435,5 +435,4 @@ BlockUpperTriangularPreconditioner::~BlockUpperTriangularPreconditioner()
    }
 }
 
-
-
+}
