@@ -240,7 +240,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
 void GridFunction::SumFluxAndCount(BilinearFormIntegrator &blfi,
                                    GridFunction &flux,
                                    Array<int>& count,
-                                   int wcoef,
+                                   bool wcoef,
                                    int subdomain)
 {
    GridFunction &u = *this;
@@ -285,7 +285,7 @@ void GridFunction::SumFluxAndCount(BilinearFormIntegrator &blfi,
 }
 
 void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
-                               GridFunction &flux, int wcoef,
+                               GridFunction &flux, bool wcoef,
                                int subdomain)
 {
    Array<int> count(flux.Size());
@@ -2995,9 +2995,9 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux, Vector &error_estimates,
                         Array<int>* aniso_flags,
-                        int with_subdomains)
+                        int with_subdomains,
+                        bool with_coeff)
 {
-   const int with_coeff = 0;
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
    ElementTransformation *Transf;

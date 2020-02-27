@@ -55,5 +55,28 @@ EOF
 (git status -s | grep -v .gitignore) 1>&2
 mv -f .gitignore-bak .gitignore
 
+# Tell users what to do if the script fails
+if [ -s "$0.err" ]; then
+    cat >  $0.msg <<EOF
+
+To correct this error, make sure that the .gitignore file is properly updated.
+
+Generally, this file should contain exactly the files that can be generated from
+the repository (via building + running) that we *do not* want in the repository.
+(This way such files cannot be accidentally committed.)
+
+In particular, make sure that:
+
+1) All new executables and outputs from example/miniapp runs (e.g. mesh or
+   solution files), are listed in .gitignore.
+2) The patterns listed in .gitignore are the same as the ones that are deleted
+   by 'make distclean'.
+3) Nothing else is excluded from .gitignore.
+
+Please contact a member of the MFEM team if you have questions.
+
+EOF
+fi
+
 # Return to the original directory
 cd $cur_dir

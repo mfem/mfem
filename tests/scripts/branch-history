@@ -64,11 +64,11 @@ EOF
 esac
 
 # Maximum number of acceptable commits in the branch
-branch_max_commits=100
+branch_max_commits=200
 # Maximum number of acceptable files changed in any commit in the branch
-commit_max_files_changed=100
+commit_max_files_changed=50
 # Maximum number of acceptable lines changed in any commit in the branch
-commit_max_lines_changed=3000
+commit_max_lines_changed=2000
 # Maximum acceptable size (in K) of any file changed in any commit in the branch
 file_max_size=200
 # Maximum number of acceptable lines added to any file changed in any commit in the branch
@@ -206,6 +206,28 @@ do
         fi
     done < <(git show --pretty="" --numstat --no-renames ${rev})
 done < <(git rev-list --reverse --no-merges ${commit_range})
+
+# Tell users what to do if the script fails
+if [ -s "$0.err" ]; then
+    cat >  $0.msg <<EOF
+
+The failure of this script indicates that large files have been added or
+committed in the current branch history.
+
+This could be OK, in certain cases, but it could also be a sign that large files
+have accidentally been committed.
+
+To address this error, examine the listed files and commits to make sure all
+large changes were intentional. If there is a wrong commit that has to be
+deleted, please either:
+
+1) Recreate the branch without that commit.
+2) Indicate that the branch should be squash-merged
+
+or contact a member of the MFEM team for help if you have questions.
+
+EOF
+fi
 
 # Return to the original branch and directory
 if [ "${checkout_commits}" = true ]

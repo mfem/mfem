@@ -2030,29 +2030,27 @@ const double* NCMesh::CalcVertexPos(int node) const
    return tv.pos;
 }
 
-void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
-                               Array<mfem::Element*> &melements,
-                               Array<mfem::Element*> &mboundary) const
+void NCMesh::GetMeshComponents(Mesh &mesh) const
 {
-   mvertices.SetSize(vertex_nodeId.Size());
+   mesh.vertices.SetSize(vertex_nodeId.Size());
    if (top_vertex_pos.Size())
    {
       // calculate vertex positions from stored top-level vertex coordinates
       tmp_vertex = new TmpVertex[nodes.NumIds()];
-      for (int i = 0; i < mvertices.Size(); i++)
+      for (int i = 0; i < mesh.vertices.Size(); i++)
       {
-         mvertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
+         mesh.vertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
       }
       delete [] tmp_vertex;
    }
-   // NOTE: if the mesh is curved (top_vertex_pos is empty), mvertices are left
-   // uninitialized here; they will be initialized later by the Mesh from Nodes
-   // - here we just make sure mvertices has the correct size.
+   // NOTE: if the mesh is curved (top_vertex_pos is empty), mesh.vertices are
+   // left uninitialized here; they will be initialized later by the Mesh from
+   // Nodes -- here we just make sure mesh.vertices has the correct size.
 
-   melements.SetSize(leaf_elements.Size() - GetNumGhostElements());
-   melements.SetSize(0);
+   mesh.elements.SetSize(leaf_elements.Size() - GetNumGhostElements());
+   mesh.elements.SetSize(0);
 
-   mboundary.SetSize(0);
+   mesh.boundary.SetSize(0);
 
    // create an mfem::Element for each leaf Element
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -2063,8 +2061,8 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
       const int* node = nc_elem.node;
       GeomInfo& gi = GI[(int) nc_elem.geom];
 
-      mfem::Element* elem = NewMeshElement(nc_elem.geom);
-      melements.Append(elem);
+      mfem::Element* elem = mesh.NewElement(nc_elem.geom);
+      mesh.elements.Append(elem);
 
       elem->SetAttribute(nc_elem.attribute);
       for (int j = 0; j < gi.nv; j++)
@@ -2084,35 +2082,35 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
             if ((nc_elem.geom == Geometry::CUBE) ||
                 (nc_elem.geom == Geometry::PRISM && nfv == 4))
             {
-               Quadrilateral* quad = new Quadrilateral;
+               auto* quad = (Quadrilateral*) mesh.NewElement(Geometry::SQUARE);
                quad->SetAttribute(face->attribute);
                for (int j = 0; j < 4; j++)
                {
                   quad->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
                }
-               mboundary.Append(quad);
+               mesh.boundary.Append(quad);
             }
             else if (nc_elem.geom == Geometry::PRISM ||
                      nc_elem.geom == Geometry::TETRAHEDRON)
             {
                MFEM_ASSERT(nfv == 3, "");
-               Triangle* tri = new Triangle;
+               auto* tri = (Triangle*) mesh.NewElement(Geometry::TRIANGLE);
                tri->SetAttribute(face->attribute);
                for (int j = 0; j < 3; j++)
                {
                   tri->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
                }
-               mboundary.Append(tri);
+               mesh.boundary.Append(tri);
             }
             else
             {
-               Segment* segment = new Segment;
+               auto* segment = (Segment*) mesh.NewElement(Geometry::SEGMENT);
                segment->SetAttribute(face->attribute);
                for (int j = 0; j < 2; j++)
                {
                   segment->GetVertices()[j] = nodes[node[fv[2*j]]].vert_index;
                }
-               mboundary.Append(segment);
+               mesh.boundary.Append(segment);
             }
          }
       }

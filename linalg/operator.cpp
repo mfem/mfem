@@ -21,6 +21,7 @@ namespace mfem
 {
 
 void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
+                            const Operator *Pi,
                             Vector &x, Vector &b,
                             Vector &X, Vector &B) const
 {
@@ -35,7 +36,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
       // B points to same data as b
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
    }
-   if (!IsIdentityProlongation(Ri))
+   if (!IsIdentityProlongation(Pi))
    {
       // Variational restriction with Ri
       X.SetSize(Ri->Height(), x);
@@ -55,7 +56,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-   InitTVectors(P, R, x, b, X, B);
+   InitTVectors(P, R, P, x, b, X, B);
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
@@ -70,9 +71,10 @@ void Operator::FormRectangularLinearSystem(
    const Array<int> &test_tdof_list, Vector &x, Vector &b,
    Operator* &Aout, Vector &X, Vector &B)
 {
+   const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetOutputProlongation();
    const Operator *Ri = this->GetRestriction();
-   InitTVectors(Po, Ri, x, b, X, B);
+   InitTVectors(Po, Ri, Pi, x, b, X, B);
 
    RectangularConstrainedOperator *constrainedA;
    FormRectangularConstrainedSystemOperator(trial_tdof_list, test_tdof_list,
