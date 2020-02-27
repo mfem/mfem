@@ -470,6 +470,8 @@ public:
    void InvScaleRows(const Vector & s);
    /// Scale all entries by s: A_scaled = s*A.
    void operator*=(double s);
+   /// Take sum of absolute value of each row
+   void AbsRowSums(Vector &diag);
 
    /// Remove values smaller in absolute value than some threshold
    void Threshold(double threshold = 0.0);

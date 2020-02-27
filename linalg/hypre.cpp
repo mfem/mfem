@@ -1264,6 +1264,36 @@ void HypreParMatrix::ScaleRows(const Vector &diag)
    }
 }
 
+void HypreParMatrix::AbsRowSums(Vector &diag)
+{
+   if (hypre_CSRMatrixNumRows(A->diag) != hypre_CSRMatrixNumRows(A->offd))
+   {
+      mfem_error("Row does not match");
+   }
+
+   int size = Height();
+   diag.SetSize(height);
+   double     *Adiag_data   = hypre_CSRMatrixData(A->diag);
+   HYPRE_Int  *Adiag_i      = hypre_CSRMatrixI(A->diag);
+
+   double     *Aoffd_data   = hypre_CSRMatrixData(A->offd);
+   HYPRE_Int  *Aoffd_i      = hypre_CSRMatrixI(A->offd);
+   double val;
+   HYPRE_Int jj;
+   for (int i(0); i < size; ++i)
+   {
+      diag[i] = 0.0;
+      for (jj = Adiag_i[i]; jj < Adiag_i[i+1]; ++jj)
+      {
+         diag[i] += std::abs(Adiag_data[jj]);
+      }
+      for (jj = Aoffd_i[i]; jj < Aoffd_i[i+1]; ++jj)
+      {
+         diag[i] += std::abs(Aoffd_data[jj]);
+      }
+   }
+}
+
 void HypreParMatrix::InvScaleRows(const Vector &diag)
 {
    if (hypre_CSRMatrixNumRows(A->diag) != hypre_CSRMatrixNumRows(A->offd))
