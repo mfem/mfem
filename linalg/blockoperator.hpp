@@ -397,7 +397,7 @@ public:
     * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
     * @param op          The Operator to be inserted.
     */
-   void SetOffdiagonalBlock(int iRow, int iCol, Operator *op);
+   void SetBlock(int iRow, int iCol, Operator *op);
    //! This method is present since required by the abstract base class Solver
    virtual void SetOperator(const Operator &op) { }
 
