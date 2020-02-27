@@ -6,8 +6,9 @@
 //               ex23 -m ../data/inline-tri.mesh
 //               ex23 -m ../data/disc-nurbs.mesh -r 3 -o 2 -tf 2
 //
-// Description:  This example solves the wave equation
-//               problem of the form d^2u/dt^2 = c^2 \Delta u.
+// Description:  This example solves the wave equation problem of the form:
+//
+//                               d^2u/dt^2 = c^2 \Delta u.
 //
 //               The example demonstrates the use of 2nd order time integration.
 
