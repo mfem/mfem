@@ -153,6 +153,9 @@ public:
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
+   /// Get the assembly level
+   AssemblyLevel GetAssemblyLevel() {return assembly;}
+
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
        called before assembly. If the number of unknowns after static
@@ -781,7 +784,7 @@ public:
 
    virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
 
-   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
+   /** @brief Return in @a A that is column-constrained.
 
       This returns the same operator as FormRectangularLinearSystem(), but does
       without the transformations of the right-hand side. */

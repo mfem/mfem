@@ -147,7 +147,7 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef = 1) { }
+                                   Vector &flux, bool with_coef = true) { }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
@@ -1820,7 +1820,7 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef = 1);
+                                   Vector &flux, bool with_coef = true);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -1940,12 +1940,29 @@ private:
    Vector shape, vec2, BdFidxT;
 #endif
 
+   // PA extension
+   Vector pa_data;
+   Vector coeff;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
       : Q(&q) { alpha = a; }
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
@@ -2021,6 +2038,7 @@ public:
                                        DenseMatrix &elmat);
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleDiagonalPA(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
@@ -2167,7 +2185,7 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef);
+                                   Vector &flux, bool with_coef);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2206,7 +2224,10 @@ public:
                                    const Vector &elfun);
 };
 
-/// Integrator for (Q u, v) for VectorFiniteElements
+/** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar,
+    vector (diagonal matrix), or matrix), trial function u is in H(Curl) or
+    H(Div), and test function v is in H(Curl), H(Div), or v=(v1,...,vn), where
+    vi are in H1. */
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
@@ -2217,6 +2238,7 @@ private:
    Vector shape;
    Vector D;
    DenseMatrix K;
+   DenseMatrix partelmat;
    DenseMatrix test_vshape;
    DenseMatrix trial_vshape;
 #endif
@@ -2359,6 +2381,7 @@ public:
                                       const Vector &elfun, Vector &elvect);
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssembleDiagonalPA(Vector &diag);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
@@ -2404,7 +2427,7 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, int with_coef = 1);
+                                   Vector &flux, bool with_coef = true);
 
    /** Compute the element energy (integral of the strain energy density)
        corresponding to the stress represented by @a flux which is a vector of
