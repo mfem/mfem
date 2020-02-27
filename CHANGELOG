@@ -118,6 +118,8 @@ Linear and nonlinear solvers
 
 - Added Adams-Bashforth and Adams-Moulton time integrators.
 
+- Added several time integrators for 2nd order ODEs
+
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
 
@@ -447,6 +449,9 @@ New and updated examples and miniapps
 - Added a new serial and parallel example (ex19) that solves the quasi-static
   incompressible hyperelastic equations. The example demonstrates the use of
   block nonlinear forms as well as custom block preconditioners.
+
+- Added a new serial example (ex23) to demonstrate the use of second order
+  time integration to solve the wave equation.
 
 - Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
   electromagnetics phenomena as a coupled first order system of equations.
