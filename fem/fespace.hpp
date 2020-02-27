@@ -147,19 +147,7 @@ protected:
                 + 8 * (int)std::get<3>(k);
       }
    };
-   struct key_equal
-   {
-      bool operator()(const key_face& v0, const key_face& v1) const
-      {
-         return (
-                   std::get<0>(v0) == std::get<0>(v1) &&
-                   std::get<1>(v0) == std::get<1>(v1) &&
-                   std::get<2>(v0) == std::get<2>(v1) &&
-                   std::get<3>(v0) == std::get<3>(v1)
-                );
-      }
-   };
-   using map_L2F = std::unordered_map<const key_face,Operator*,key_hash,key_equal>;
+   using map_L2F = std::unordered_map<const key_face,Operator*,key_hash>;
    mutable map_L2F L2F;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
