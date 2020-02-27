@@ -15,14 +15,14 @@
 The MFEM team welcomes contributions at all levels: bugfixes; code
 improvements; simplifications; new mesh, discretization or solver
 capabilities; improved documentation; new examples and miniapps;
-HPC performance improvements; ...
+HPC performance improvements; etc.
 
 Use a pull request (PR) toward the `mfem:master` branch to propose your
 contribution. If you are planning significant code changes, or have any
 questions, you can also open an [issue](https://github.com/mfem/mfem/issues)
-before issuing a PR.  We also welcome your [simulation
-images](http://mfem.org/gallery/), which you can submit via a pull request in
-[mfem/web](https://github.com/mfem/web).
+before issuing a PR. In addition to technical contributions, we also interested
+in your results and [simulation images](http://mfem.org/gallery/), which you
+can share via a pull request in [mfem/web](https://github.com/mfem/web).
 
 See the [Quick Summary](#quick-summary) section for the main highlights of our
 GitHub workflow. For more details, consult the following sections and refer
@@ -59,6 +59,12 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   with regards to documentation and code styling.
 - Pull requests  should be issued toward `mfem:master`. Make sure
   to check the items off the [Pull Request Checklist](#pull-request-checklist).
+- When your contribution is fully working and ready to be reviewed, add
+  the `ready-for-review` label.
+- PRs are treated similarly to journal submission with an "editor" assigning two
+  reviewers to evaluate the changes.
+- The reviewers have 3 weeks to evaluate the PR and work with the author to
+  implement improvements and fix issues.
 - After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
 - After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
 - We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
@@ -89,6 +95,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   │   ├── pumi
   │   └── sundials
   ├── fem
+  │   └── libceed
   ├── general
   ├── linalg
   ├── mesh
@@ -99,8 +106,10 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   │   ├── meshing
   │   ├── nurbs
   │   ├── performance
-  │   └── tools
+  │   ├── tools
+  │   └── toys
   └── tests
+      ├── scripts
       ├── unit
       │   ├── ...
       └── ...
@@ -191,7 +200,8 @@ will allow us to reach you directly with project announcements.
 
 - Before you can start, you need a GitHub account, here are a few suggestions:
   + Create the account at: github.com/join.
-  + For easy identification, please add your name and maybe a picture of you at: https://github.com/settings/profile.
+  + For easy identification, please add your name and maybe a picture of you at:
+    https://github.com/settings/profile.
   + To receive notification, set a primary email at: https://github.com/settings/emails.
   + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys.
 
@@ -224,9 +234,9 @@ will allow us to reach you directly with project announcements.
 ### New Feature Development
 
 - A new feature should be important enough that at least one person, the
-  proposer, is willing to work on it and be its champion.
+  author, is willing to work on it and be its champion.
 
-- The proposer creates a branch for the new feature (with suffix `-dev`), off
+- The author creates a branch for the new feature (with suffix `-dev`), off
   the `master` branch, or another existing feature branch, for example:
 
   ```
@@ -317,15 +327,38 @@ will allow us to reach you directly with project announcements.
 
      `[DISCUSS] Hybridized DG [hdg-dev]`
 
+- If the PR is still a work in progress, add the `WIP` label to it and
+  optionally the `[WIP]` prefix in the title.
+
 - Add a description, appropriate labels and assign yourself to the PR. The MFEM
   team will add reviewers as appropriate.
 
 - List outstanding TODO items in the description, see PR #222 for an example.
 
-- Track the Travis CI and Appveyor [continuous integration](#automated-testing)
-  builds at the end of the PR. These should run clean, so address any errors as
-  soon as possible.
+- When your contribution is fully working and ready to be reviewed, add
+  the `ready-for-review` label.
 
+- PRs are treated similarly to journal submission with an "editor" assigning
+  two reviewers to evaluate the changes. The reviewers have 3 weeks to evaluate
+  the PR and work with the author to implement improvements and fix issues.
+
+- After approval, the PR is [tested](#masternext-workflow) for a week with
+  other approved PRs in the `mfem:next` branch.
+
+- Consider manually running the tests in `tests/scripts` before merging in
+  `mfem:next`, see the [README](tests/scripts/README) file in that directory
+  for more details.
+
+- Track the Travis CI and Appveyor [continuous integration](#automated-testing)
+  builds at the end of the PR. These should generally run clean, so address any
+  errors as soon as possible. Please ask if you are unsure how to do that.
+
+- Note that some tests, such as the `branch-history` check in Travis are
+  safeguards that are allowed to fail in certain cases.
+
+- Other tests, such as the `code-style`, `documentation` and `gitignore`
+  checks in Travis enforce MFEM-specific rules which are explained in the
+  error messages and the `tests/scripts`.
 
 ### Pull Request Checklist
 
@@ -382,14 +415,10 @@ Before a PR can be merged, it should satisfy the following:
    - [ ] List major new classes in `doc/CodeDocumentation.dox` *(rare)*.
 - [ ] Update this checklist, if the new pull request affects it.
 - [ ] Run the unit tests and make sure they all pass `make unittest`.
-- [ ] (LLNL only) Clone the `tests` repository and run the following tests, see `mfem/tests/README.md`:
-   - [ ] `compilers`
-   - [ ] `memcheck`
-   - [ ] `documentation`
+- [ ] Run the tests in `tests/scripts`.
 - [ ] (LLNL only) After merging:
    - [ ] Regenerate `README.html` files from companion documentation pull requests.
    - [ ] Update the `baseline` and `compiler` tests, add new tests if necessary.
-   - [ ] Consider updating the script `mfem/tests/sample-runs` (`sample-runs-serial` and `sample-runs-parallel`).
 
 ### Master/Next Workflow
 
@@ -467,9 +496,9 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 - [ ] Create the release tarball and push to `mfem/releases`.
 - [ ] Recreate the `next` branch as described in previous section.
 - [ ] Update and push documentation  to `mfem/doxygen`.
-- [ ] Update URL shorlinks:
+- [ ] Update URL shortlinks:
     - [ ] Create a shortlink at [https://goo.gl/](https://goo.gl/) for the release tarball, e.g. http://mfem.github.io/releases/mfem-3.1.tgz.
-    - [ ] (LLNL only) Add and commit the new shorlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
+    - [ ] (LLNL only) Add and commit the new shortlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
     - [ ] Add the new shortlinks to the MFEM packages in `spack`, `homebrew/science`, `VisIt`, etc.
 - [ ] Update website in `mfem/web` repo:
     - Update version and shortlinks in `src/index.md` and `src/download.md`.
@@ -477,6 +506,8 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 
 
 ## LLNL Workflow
+
+### Mirroring on BitBucket
 
 - The GitHub `master` and `next` branches are mirrored to the LLNL institutional
   Bitbucket repository as `gh-master` and `gh-next`.
@@ -521,11 +552,11 @@ CMake is used to generate the MSVC Project files and drive the build.  A release
 and debug build is performed with a simple run of `ex1` to verify the executable.
 
 ### Tests at LLNL
-At LLNL, we mirror the `master` and `next` branches internally (to `gh-master`
+
+- We mirror the `master` and `next` branches internally (to `gh-master`
 and `gh-next`) and run longer nightly tests via cron. On the weekends, a more
 extensive test is run which extracts and executes all the different sample runs
 from each example.
-
 
 ## Contact Information
 
