@@ -184,8 +184,11 @@ Miscellaneous
   complete rework of the interface and requires changes at the application
   level. Example usage of the new interface can be found in examples/sundials.
 
-- Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
-  and the new ParaViewDataCollection class.
+- Added support for output in the ParaView XML format. Both low-order and
+  high-order Lagrange elements are supported. Output can be in ASCII or binary
+  format. Binary output can be compressed if MFEM is compiled with gzstream
+  enabled (MFEM_USE_GZSTREAM). See Examples 5/5p, 9/9p and the new
+  ParaViewDataCollection class.
 
 - Collected object files from the miniapps/common directory into a new library,
   libmfem-common for the convenience of application developers. The new library

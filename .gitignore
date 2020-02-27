@@ -54,7 +54,7 @@ examples/displaced.mesh
 examples/mesh.*
 examples/ex5.mesh
 examples/Example5*
-examples/PVExample*
+examples/ParaView
 examples/Example9*
 examples/Example15*
 examples/Example16*
