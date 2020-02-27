@@ -435,4 +435,94 @@ BlockUpperTriangularPreconditioner::~BlockUpperTriangularPreconditioner()
    }
 }
 
+BlockLDUPreconditioner::BlockLDUPreconditioner(
+   const Array<int> & offsets_, intint _schur_index)
+   : Solver(offsets_.Last()),
+     owns_blocks(0),
+     nBlocks(offsets_.Size() - 1),
+     offsets(0),
+     op(nBlocks, nBlocks)
+{
+   op = static_cast<Operator *>(NULL);
+   offsets.MakeRef(offsets_);
+}
+
+void BlockLDUPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
+{
+   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
+               offsets[iblock+1] - offsets[iblock] == op->Width(),
+               "incompatible Operator dimensions");
+   MFEM_VERIFY(iblock >=0 && iblock <= 1,
+               "Only valid for 2x2 block matrices");
+
+   SetBlock(iblock, iblock, op);
+}
+
+void BlockLDUPreconditioner::SetOffdiagonalBlock(int iRow, int iCol,
+                                                 Operator *opt)
+{
+   MFEM_VERIFY(iRow >=0 && iRow <= 1, "Only valid for 2x2 block matrices");
+   MFEM_VERIFY(iCol >=0 && iCol <= 1, "Only valid for 2x2 block matrices");
+   MFEM_VERIFY(iCol != iRow, "Use SetDiagonalBlock() to set diagonal block
+               preconditioners");
+   MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == opt->NumRows() &&
+               offsets[iCol+1] - offsets[iCol] == opt->NumCols(),
+               "incompatible Operator dimensions");
+
+   op(iRow, iCol) = opt;
+}
+
+// Action of the transpose operator
+void BlockLDUPreconditioner::Mult(const Vector & x, Vector & y) const
+{
+   MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
+
+   yblock.Update(y.GetData(),offsets);
+   xblock.Update(x.GetData(),offsets);
+
+   // Schur-complement in the (1,1) block (i.e., (0,0) block w/ zero indexing)
+   if (schur_index == 0) {
+      // TODO
+
+
+
+   }
+   // Schur-complement in the (2,2) block (i.e., (1,1) block w/ zero indexing)
+   // A^{-1} = [I, -A11^{-1}A12; 0, I] * [I, 0; 0, S22^{-2}] * 
+   //          [I, 0; -A21, I] * [A11^{-1}, 0; 0, I]
+   else {
+      y = 0.0;
+      op(0,0) -> Mult(xblock.GetBlock(0), yblock.GetBlock(0));
+      
+      tmp.SetSize(offsets[2] - offsets[1]);
+      op(1,0) -> Mult(yblock.GetBlock(0), tmp);
+      tmp *= -1;
+      tmp += xblock.GetBlock(1);
+
+      op(1,1) -> Mult(tmp, yblock.GetBlock(1));
+      
+      tmp.SetSize(offsets[1] - offsets[0]);
+      tmp2.SetSize(offsets[1] - offsets[0]);
+      op(0,1) -> Mult(yblock.GetBlock(1), tmp);
+      op(0,0) -> Mult(tmp, tmp2);
+      yblock.GetBlock(0) -= tmp2;
+
+   }
+}
+
+BlockLDUPreconditioner::~BlockLDUPreconditioner()
+{
+   if (owns_blocks)
+   {
+      for (int iRow=0; iRow < nBlocks; ++iRow)
+      {
+         for (int jCol=0; jCol < nBlocks; ++jCol)
+         {
+            delete op(jCol,iRow);
+         }
+      }
+   }
+}
+
 }
