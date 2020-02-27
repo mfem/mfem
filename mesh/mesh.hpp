@@ -22,7 +22,7 @@
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
-#include "../general/gzstream.hpp"
+#include "../general/zstr.hpp"
 #include <iostream>
 
 namespace mfem
@@ -1368,18 +1368,6 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy,
 
 /// Extrude a 2D mesh
 Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz);
-
-
-/// Input file stream that remembers the input file name (useful for example
-/// when reading NetCDF meshes) and supports optional gzstream decompression.
-class named_ifgzstream : public mfem::ifgzstream
-{
-public:
-   const char *filename;
-   named_ifgzstream(const char *mesh_name) :
-      mfem::ifgzstream(mesh_name), filename(mesh_name) {}
-};
-
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)

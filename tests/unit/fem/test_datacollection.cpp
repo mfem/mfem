@@ -103,7 +103,7 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(rmdir("base_00005") == 0);
       }
 
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
       SECTION("Compressed MFEM format")
       {
          //Collect the mesh and grid functions into a DataCollection and test that they got in there

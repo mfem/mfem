@@ -16,7 +16,6 @@ list(APPEND SRCS
   device.cpp
   error.cpp
   globals.cpp
-  gzstream.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp
@@ -37,7 +36,8 @@ list(APPEND HDRS
   device.hpp
   error.hpp
   globals.hpp
-  gzstream.hpp
+  zstr_strict_fstream.hpp
+  zstr.hpp
   hash.hpp
   isockstream.hpp
   mem_alloc.hpp
