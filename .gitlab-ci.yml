@@ -249,13 +249,12 @@ stages:
 # the pipeline was triggered with REBASELINE="YES"
 .rebaseline_mfem:
   stage: baseline_publish
-  variables:
-    PATCH_FILE: ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.patch
-    FULL_FILE: ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.out
   rules:
     - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
       when: manual
   script:
+    - export PATCH_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.patch
+    - export FULL_FILE=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}.out
     - cd ${BUILD_ROOT}/tests
     - |
       if [[ -f "${PATCH_FILE}" ]]
