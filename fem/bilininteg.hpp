@@ -1871,6 +1871,8 @@ public:
    void SetupPA(const FiniteElementSpace &fes, const bool force = false);
 };
 
+class ElementMatrix;
+
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {
@@ -1878,10 +1880,11 @@ protected:
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
 #endif
-   Coefficient *Q;
+Coefficient *Q;
    // PA extension
    const FiniteElementSpace *fespace;
    Vector pa_data;
+   Vector ea_data;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
@@ -1933,6 +1936,8 @@ public:
    using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   ElementMatrix AssembleEA(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
