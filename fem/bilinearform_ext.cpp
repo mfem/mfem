@@ -42,8 +42,9 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
      trialFes(a->FESpace()),
      testFes(a->FESpace())
 {
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
+   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
+                                 ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   elem_restrict_lex = trialFes->GetElementRestriction(ordering);
    if (elem_restrict_lex)
    {
       localX.SetSize(elem_restrict_lex->Height(), Device::GetDeviceMemoryType());
@@ -93,8 +94,9 @@ void PABilinearFormExtension::Update()
    height = width = fes->GetVSize();
    trialFes = fes;
    testFes = fes;
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
+   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
+                                 ElementDofOrdering::LEXICOGRAPHIC : ElementDofOrdering::NATIVE;
+   elem_restrict_lex = trialFes->GetElementRestriction(ordering);
    if (elem_restrict_lex)
    {
       localX.SetSize(elem_restrict_lex->Height());

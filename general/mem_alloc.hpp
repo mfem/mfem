@@ -13,7 +13,7 @@
 #define MFEM_MEM_ALLOC
 
 #include "../config/config.hpp"
-#include <cstddef>
+#include "array.hpp" // mfem::Swap
 
 namespace mfem
 {
@@ -38,6 +38,7 @@ public:
    void Push (Elem E);
    Elem Pop();
    void Clear();
+   void Swap(Stack<Elem, Num> &other);
    size_t MemoryUsage() const;
    ~Stack() { Clear(); }
 };
@@ -98,6 +99,15 @@ void Stack <Elem, Num>::Clear()
 }
 
 template <class Elem, int Num>
+void Stack<Elem, Num>::Swap(Stack<Elem, Num> &other)
+{
+   mfem::Swap(TopPart, other.TopPart);
+   mfem::Swap(TopFreePart, other.TopFreePart);
+   mfem::Swap(UsedInTop, other.UsedInTop);
+   mfem::Swap(SSize, other.SSize);
+}
+
+template <class Elem, int Num>
 size_t Stack <Elem, Num>::MemoryUsage() const
 {
    size_t used_mem = 0;
@@ -138,6 +148,7 @@ public:
    Elem *Alloc();
    void Free (Elem *);
    void Clear();
+   void Swap(MemAlloc<Elem, Num> &other);
    size_t MemoryUsage() const;
    ~MemAlloc() { Clear(); }
 };
@@ -178,6 +189,14 @@ void MemAlloc <Elem, Num>::Clear()
    }
    AllocatedInLast = Num;
    UsedMem.Clear();
+}
+
+template <class Elem, int Num>
+void MemAlloc<Elem, Num>::Swap(MemAlloc<Elem, Num> &other)
+{
+   mfem::Swap(Last, other.Last);
+   mfem::Swap(AllocatedInLast, other.AllocatedInLast);
+   UsedMem.Swap(other.UsedMem);
 }
 
 template <class Elem, int Num>
