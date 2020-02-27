@@ -11,13 +11,59 @@
 
 #include "forall.hpp"
 #include "mem_manager.hpp"
+#include "../../dbg.hpp"
+
+
+#include <unistd.h>
+#include <signal.h>
+#include <sys/mman.h>
+
+#define STD_0x10
+// https://thinkingeek.com/2017/11/19/simple-memory-pool/
+#include "minipool.hpp"
+template <const int SZ>
+struct MMap
+{
+   uintptr_t *ptr;
+   size_t bytes;
+
+   MMap(size_t bytes) : bytes(bytes)
+   {
+      MFEM_VERIFY(bytes == SZ, "");
+#ifdef STD_0x10
+      ptr = (uintptr_t*) std::malloc(bytes + sizeof(void*));
+#else
+      const size_t length = bytes == 0 ? 8 : bytes;
+      const int prot = PROT_READ | PROT_WRITE;
+      const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
+      ptr = (uintptr_t*) ::mmap(NULL, length + sizeof(void*), prot, flags, -1, 0);
+      if (ptr == MAP_FAILED) { throw ::std::bad_alloc(); }
+#endif
+      *ptr = reinterpret_cast<uintptr_t>(this);
+      ptr++;
+   }
+
+   ~MMap()
+   {
+      --ptr;
+#ifdef STD_0x10
+      std::free(ptr);
+#else
+      const size_t length = bytes == 0 ? 8 : bytes;
+      if (::munmap(ptr, length) == -1) { printf("Dealloc error!"); fflush(0); }
+#endif
+   };
+};
+minipool<MMap<0x8> > mp_0x8(256);
+minipool<MMap<0x10> > mp_0x10(256);
+
 
 #include <list>
 #include <cstring> // std::memcpy, std::memcmp
 #include <unordered_map>
 #include <algorithm> // std::max
 
-// Uncomment to try _WIN32 platform
+// Uncomment both next lines to try _WIN32 platform
 //#define _WIN32
 //#define _aligned_malloc(s,a) malloc(s)
 
@@ -134,8 +180,10 @@ struct Memory
    void *d_ptr;
    const size_t bytes;
    const MemoryType h_mt, d_mt;
+   mutable bool h_rw, d_rw;
    Memory(void *p, size_t b, MemoryType h, MemoryType d):
-      h_ptr(p), d_ptr(nullptr), bytes(b), h_mt(h), d_mt(d) { }
+      h_ptr(p), d_ptr(nullptr), bytes(b), h_mt(h), d_mt(d),
+      h_rw(true), d_rw(true) { }
 };
 
 /// Alias class that holds the base memory region and the offset
@@ -171,8 +219,8 @@ public:
    virtual ~HostMemorySpace() { }
    virtual void Alloc(void **ptr, size_t bytes) { *ptr = std::malloc(bytes); }
    virtual void Dealloc(void *ptr) { std::free(ptr); }
-   virtual void Protect(const void*, size_t) { }
-   virtual void Unprotect(const void*, size_t) { }
+   virtual void Protect(const Memory&, size_t) { }
+   virtual void Unprotect(const Memory&, size_t) { }
    virtual void AliasProtect(const void*, size_t) { }
    virtual void AliasUnprotect(const void*, size_t) { }
 };
@@ -303,8 +351,21 @@ static void MmuInit()
 inline void MmuAlloc(void **ptr, const size_t bytes)
 {
    const size_t length = bytes == 0 ? 8 : bytes;
+   // //////////////////////////////////////////// //
+   if (length == 0x8)
+   {
+      *ptr = mp_0x8.alloc(length)->ptr;
+      return;
+   }
+   if (length == 0x10)
+   {
+      *ptr = mp_0x10.alloc(length)->ptr;
+      return;
+   }
+   // //////////////////////////////////////////// //
    const int prot = PROT_READ | PROT_WRITE;
    const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
+   dbg("\033[31m[mmap] 0x%x", bytes);
    *ptr = ::mmap(NULL, length, prot, flags, -1, 0);
    if (*ptr == MAP_FAILED) { throw ::std::bad_alloc(); }
 }
@@ -313,12 +374,32 @@ inline void MmuAlloc(void **ptr, const size_t bytes)
 inline void MmuDealloc(void *ptr, const size_t bytes)
 {
    const size_t length = bytes == 0 ? 8 : bytes;
+   if (length == 0x8)
+   {
+      const uintptr_t *p = reinterpret_cast<uintptr_t*>(ptr);
+      mp_0x8.free(reinterpret_cast<MMap<0x8>*>(*(p-1)));
+      return;
+   }
+   if (length == 0x10)
+   {
+      const uintptr_t *p = reinterpret_cast<uintptr_t*>(ptr);
+      mp_0x10.free(reinterpret_cast<MMap<0x10>*>(*(p-1)));
+      return;
+   }
+   dbg("\033[31m[munmap]");
+   static int loop = 0;
+   dbg("%d", loop++);
    if (::munmap(ptr, length) == -1) { mfem_error("Dealloc error!"); }
 }
 
 /// MMU protection, through ::mprotect with no read/write accesses
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
+#ifdef STD_0x10
+   if (bytes == 0x8) { return; }
+   if (bytes == 0x10) { return; }
+#endif
+   dbg("");
    if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
    mfem_error("MMU protection (NONE) error");
 }
@@ -326,14 +407,28 @@ inline void MmuProtect(const void *ptr, const size_t bytes)
 /// MMU un-protection, through ::mprotect with read/write accesses
 inline void MmuAllow(const void *ptr, const size_t bytes)
 {
+#ifdef STD_0x10
+   if (bytes == 0x8) { return; }
+   if (bytes == 0x10) { return; }
+#endif
+   dbg("");
    const int RW = PROT_READ | PROT_WRITE;
    if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
    mfem_error("MMU protection (R/W) error");
 }
 #else
 inline void MmuInit() { }
-inline void MmuAlloc(void **ptr, const size_t bytes) { *ptr = std::malloc(bytes); }
-inline void MmuDealloc(void *ptr, const size_t) { std::free(ptr); }
+//inline void MmuAlloc(void **ptr, const size_t bytes) { *ptr = std::malloc(bytes); }
+//inline void MmuDealloc(void *ptr, const size_t) { std::free(ptr); }
+inline void MmuAlloc(void **ptr, const size_t bytes)
+{
+   *ptr = mp.alloc(bytes)->ptr;
+}
+inline void MmuDealloc(void *ptr, const size_t)
+{
+   const uintptr_t *p = reinterpret_cast<uintptr_t*>(ptr);
+   mp.free(reinterpret_cast<MMap*>(*(p-1)));
+}
 inline void MmuProtect(const void*, const size_t) { }
 inline void MmuAllow(const void*, const size_t) { }
 inline const void *MmuAddrR(const void *a) { return a; }
@@ -349,8 +444,19 @@ public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
    void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
    void Dealloc(void *ptr) { MmuDealloc(ptr, maps->memories.at(ptr).bytes); }
-   void Protect(const void *ptr, size_t bytes) { MmuProtect(ptr, bytes); }
-   void Unprotect(const void *ptr, size_t bytes) { MmuAllow(ptr, bytes); }
+   void Protect(const Memory& mem, size_t bytes)
+   {
+      dbg("bytes:%x, mem.bytes:%x", bytes, mem.bytes);
+      //if (bytes != mem.bytes) { MmuProtect(mem.h_ptr, bytes); return; }
+      if (mem.h_rw) { MmuProtect(mem.h_ptr, bytes); }
+      mem.h_rw = false;
+   }
+   void Unprotect(const Memory &mem, size_t bytes)
+   {
+      //if (bytes != mem.bytes) { MmuAllow(mem.h_ptr, bytes); return; }
+      if (!mem.h_rw) { MmuAllow(mem.h_ptr, bytes); }
+      mem.h_rw = true;
+   }
    /// Aliases need to be restricted during protection
    void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
@@ -439,8 +545,16 @@ public:
    MmuDeviceMemorySpace(): DeviceMemorySpace() { }
    void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
    void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
-   void Protect(const Memory &m) { MmuProtect(m.d_ptr, m.bytes); }
-   void Unprotect(const Memory &m) { MmuAllow(m.d_ptr, m.bytes); }
+   void Protect(const Memory &m)
+   {
+      if (m.d_rw) { MmuProtect(m.d_ptr, m.bytes); }
+      m.d_rw = false;
+   }
+   void Unprotect(const Memory &mem)
+   {
+      if (!mem.d_rw) { MmuAllow(mem.d_ptr, mem.bytes); }
+      mem.d_rw = true;
+   }
    /// Aliases need to be restricted during protection
    void AliasProtect(const void *ptr, size_t bytes)
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
@@ -966,11 +1080,13 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
       {
          if (dst_h_ptr != src_d_ptr && bytes != 0)
          {
+            MFEM_ASSERT(IsKnown_(dst_h_ptr),"");
+            MFEM_ASSERT(IsKnown_(src_d_ptr),"");
             internal::Memory &dst_h_base = maps->memories.at(dst_h_ptr);
             internal::Memory &src_d_base = maps->memories.at(src_d_ptr);
             MemoryType dst_h_mt = dst_h_base.h_mt;
             MemoryType src_d_mt = src_d_base.d_mt;
-            ctrl->Host(dst_h_mt)->Unprotect(dst_h_ptr, bytes);
+            ctrl->Host(dst_h_mt)->Unprotect(dst_h_base, bytes);
             ctrl->Device(src_d_mt)->DtoH(dst_h_ptr, src_d_ptr, bytes);
          }
       }
@@ -1006,6 +1122,8 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
    }
 }
 
+// registered host pointer src_h_ptr => !registered host pointer dst_h_ptr
+//                         src_h_ptr => dst_h_ptr
 void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
                                 size_t bytes, unsigned src_flags)
 {
@@ -1023,15 +1141,16 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
    else
    {
       MFEM_ASSERT(IsKnown_(src_h_ptr), "internal error");
-      const void *src_d_ptr = (src_flags & Mem::ALIAS) ?
-                              mm.GetAliasDevicePtr(src_h_ptr, bytes, false) :
-                              mm.GetDevicePtr(src_h_ptr, bytes, false);
-      const internal::Memory &base = maps->memories.at(dest_h_ptr);
+      MFEM_ASSERT(!(src_flags & Mem::ALIAS), "internal error");
+      const void *src_d_ptr = mm.GetDevicePtr(src_h_ptr, bytes, false);
+      const internal::Memory &base = maps->memories.at(src_h_ptr);
       const MemoryType d_mt = base.d_mt;
       ctrl->Device(d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
    }
 }
 
+// !registered host pointer src_h_ptr => registered host pointer dst_h_ptr
+//                  on host src_h_ptr => dst_h_ptr
 void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                                   size_t bytes, unsigned &dest_flags)
 {
@@ -1048,9 +1167,9 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
    }
    else
    {
-      void *dest_d_ptr = (dest_flags & Mem::ALIAS) ?
-                         mm.GetAliasDevicePtr(dest_h_ptr, bytes, false) :
-                         mm.GetDevicePtr(dest_h_ptr, bytes, false);
+      MFEM_ASSERT(IsKnown_(dest_h_ptr), "internal error");
+      MFEM_ASSERT(!(dest_flags & Mem::ALIAS), "internal error");
+      void *dest_d_ptr = mm.GetDevicePtr(dest_h_ptr, bytes, false);
       const internal::Memory &base = maps->memories.at(dest_h_ptr);
       const MemoryType d_mt = base.d_mt;
       ctrl->Device(d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
@@ -1175,9 +1294,10 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    if (copy_data)
    {
       MFEM_ASSERT(bytes <= mem.bytes, "invalid copy size");
+      ctrl->Host(h_mt)->Unprotect(mem, bytes);
       ctrl->Device(d_mt)->HtoD(mem.d_ptr, h_ptr, bytes);
    }
-   ctrl->Host(h_mt)->Protect(h_ptr, bytes);
+   ctrl->Host(h_mt)->Protect(mem, bytes);
    return mem.d_ptr;
 }
 
@@ -1218,8 +1338,7 @@ void *MemoryManager::GetHostPtr(const void *ptr, size_t bytes, bool copy)
    const MemoryType &h_mt = mem.h_mt;
    const MemoryType &d_mt = mem.d_mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
-   ctrl->Host(h_mt)->Unprotect(mem.h_ptr, bytes);
-   // Aliases might have done some protections
+   ctrl->Host(h_mt)->Unprotect(mem, bytes);
    if (mem.d_ptr) { ctrl->Device(d_mt)->Unprotect(mem); }
    if (copy && mem.d_ptr) { ctrl->Device(d_mt)->DtoH(mem.h_ptr, mem.d_ptr, bytes); }
    if (mem.d_ptr) { ctrl->Device(d_mt)->Protect(mem); }
