@@ -16,6 +16,12 @@
 //               mpirun -np 4 ex24p -m ../data/amr-quad.mesh -o 2
 //               mpirun -np 4 ex24p -m ../data/amr-hex.mesh
 //
+// Device sample runs:
+//               mpirun -np 4 ex24p -m ../data/star.mesh -pa -d cuda
+//               mpirun -np 4 ex24p -m ../data/star.mesh -pa -d raja-cuda
+//               mpirun -np 4 ex24p -m ../data/star.mesh -pa -d raja-omp
+//               mpirun -np 4 ex24p -m ../data/beam-hex.mesh -pa -d cuda
+//
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces. Using two different approaches, we project a gradient
 //               of a function in H^1 to H(curl). Other spaces and example
@@ -49,6 +55,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   const char *device_config = "cpu";
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -60,6 +67,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -79,14 +88,19 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
+   // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
@@ -98,7 +112,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
    //    meshes need to be reoriented before we can define high-order Nedelec
@@ -114,7 +128,7 @@ int main(int argc, char *argv[])
    }
    pmesh->ReorientTetMesh();
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    FiniteElementCollection *H1fec = new H1_FECollection(order, dim);
@@ -128,7 +142,7 @@ int main(int argc, char *argv[])
       cout << "Number of H1 finite element unknowns: " << H1size << endl;
    }
 
-   // 7. Define the solution vector x as a parallel finite element grid function
+   // 8. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
    //    solution. Note that only values from the boundary edges will be used
    //    when eliminating the non-homogeneous boundary condition to modify the
@@ -142,7 +156,7 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
 
-   // 8. Set up the parallel bilinear forms.
+   // 9. Set up the parallel bilinear forms.
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *sigma = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
@@ -157,10 +171,10 @@ int main(int argc, char *argv[])
 
    a_NDH1->AddDomainIntegrator(new MixedVectorGradientIntegrator(*muinv));
 
-   // 9. Assemble the parallel bilinear form and the corresponding linear
-   //    system, applying any necessary transformations such as: parallel
-   //    assembly, eliminating boundary conditions, applying conforming
-   //    constraints for non-conforming AMR, static condensation, etc.
+   // 10. Assemble the parallel bilinear form and the corresponding linear
+   //     system, applying any necessary transformations such as: parallel
+   //     assembly, eliminating boundary conditions, applying conforming
+   //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
 
    a->Assemble();
@@ -191,7 +205,7 @@ int main(int argc, char *argv[])
       delete NDH1;
    }
 
-   // 10. Define and apply a parallel PCG solver for AX=B with Jacobi
+   // 11. Define and apply a parallel PCG solver for AX=B with Jacobi
    //     preconditioner.
 
    if (pa)
@@ -229,7 +243,7 @@ int main(int argc, char *argv[])
 
    x.SetFromTrueDofs(X);
 
-   // 11. Compute the same solution by applying GradientInterpolator in H(curl).
+   // 12. Compute the same solution by applying GradientInterpolator in H(curl).
 
    ParDiscreteLinearOperator grad(H1fespace, fespace);
    grad.AddDomainInterpolator(new GradientInterpolator());
@@ -238,14 +252,14 @@ int main(int argc, char *argv[])
    ParGridFunction gradp(fespace);
    grad.Mult(p, gradp);
 
-   // 12. Compute the projection of the exact grad p.
+   // 13. Compute the projection of the exact grad p.
 
    ParGridFunction exact_gradp(fespace);
    exact_gradp.ProjectCoefficient(gradp_coef);
    exact_gradp.SetTrueVector();
    exact_gradp.SetFromTrueVector();
 
-   // 13. Compute and print the L^2 norm of the error.
+   // 14. Compute and print the L^2 norm of the error.
    {
       double errSol = x.ComputeL2Error(gradp_coef);
       double errInterp = gradp.ComputeL2Error(gradp_coef);
@@ -262,7 +276,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 14. Save the refined mesh and the solution in parallel. This output can
+   // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -278,7 +292,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 15. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -289,7 +303,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 17. Free the used memory.
    delete a;
    delete a_NDH1;
    delete sigma;
