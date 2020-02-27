@@ -490,16 +490,17 @@ void BlockLDUPreconditioner::Mult(const Vector & x, Vector & y) const
    
    tmp.SetSize(offsets[2] - offsets[1]);
    op(1,0) -> Mult(yblock.GetBlock(0), tmp);
-   // tmp *= -1;
+   tmp *= -1;
    tmp += xblock.GetBlock(1);
 
    op(1,1) -> Mult(tmp, yblock.GetBlock(1));
-   
-   tmp.SetSize(offsets[1] - offsets[0]);
+
+   // BUG IN THIS SECTION
+   tmp3.SetSize(offsets[1] - offsets[0]);
    tmp2.SetSize(offsets[1] - offsets[0]);
-   op(0,1) -> Mult(yblock.GetBlock(1), tmp);
-   op(0,0) -> Mult(tmp, tmp2);
-   yblock.GetBlock(0) -= tmp2;
+   op(0,1) -> Mult(yblock.GetBlock(1), tmp3);
+   op(0,0) -> Mult(tmp3, tmp2);
+   // yblock.GetBlock(0) -= tmp2;
 }
 
 BlockLDUPreconditioner::~BlockLDUPreconditioner()

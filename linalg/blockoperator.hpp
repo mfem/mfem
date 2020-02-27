@@ -439,6 +439,7 @@ private:
    mutable BlockVector yblock;
    mutable Vector tmp;
    mutable Vector tmp2;
+   mutable Vector tmp3;
 };
 
 }
