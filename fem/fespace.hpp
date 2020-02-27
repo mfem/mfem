@@ -384,9 +384,6 @@ public:
    const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
       const IntegrationRule &ir, FaceType type) const;
 
-   const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
-      const QuadratureSpace &qs, FaceType type) const;
-
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
 
