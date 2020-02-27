@@ -626,7 +626,7 @@ void DiffusionIntegrator::AssembleElementVector(
 
 void DiffusionIntegrator::ComputeElementFlux
 ( const FiniteElement &el, ElementTransformation &Trans,
-  Vector &u, const FiniteElement &fluxelem, Vector &flux, int with_coef )
+  Vector &u, const FiniteElement &fluxelem, Vector &flux, bool with_coef )
 {
    int i, j, nd, dim, spaceDim, fnd;
 
@@ -900,6 +900,16 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    }
 }
 
+
+const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
+                                                     &trial_fe,
+                                                     const FiniteElement &test_fe,
+                                                     ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
+
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
 
 void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
@@ -1529,7 +1539,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
 void CurlCurlIntegrator
 ::ComputeElementFlux(const FiniteElement &el, ElementTransformation &Trans,
                      Vector &u, const FiniteElement &fluxelem, Vector &flux,
-                     int with_coef)
+                     bool with_coef)
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix projcurl;
@@ -1831,81 +1841,26 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   if ( test_fe.GetRangeType() == FiniteElement::SCALAR && VQ )
+   if (test_fe.GetRangeType() == FiniteElement::SCALAR
+       && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
       int dim  = test_fe.GetDim();
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
-
-      if (MQ)
-         mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for tensor materials");
+      double Kv;
 
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, dim);
       Vector shape(test_dof);
-      Vector D(dim);
+      Vector D(VQ ? VQ->GetVDim() : 0);
+      DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
       trial_vshape.SetSize(trial_dof, dim);
       shape.SetSize(test_dof);
-      D.SetSize(dim);
-#endif
-
-      elmat.SetSize (test_dof, trial_dof);
-
-      const IntegrationRule *ir = IntRule;
-      if (ir == NULL)
-      {
-         int order = (Trans.OrderW() + test_fe.GetOrder() + trial_fe.GetOrder());
-         ir = &IntRules.Get(test_fe.GetGeomType(), order);
-      }
-
-      elmat = 0.0;
-      for (int i = 0; i < ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-
-         Trans.SetIntPoint (&ip);
-
-         trial_fe.CalcVShape(Trans, trial_vshape);
-         test_fe.CalcShape(ip, shape);
-
-         w = ip.weight * Trans.Weight();
-         VQ->Eval(D, Trans, ip);
-         D *= w;
-
-         for (int d = 0; d < dim; d++)
-         {
-            for (int j = 0; j < test_dof; j++)
-            {
-               for (int k = 0; k < trial_dof; k++)
-               {
-                  elmat(j, k) += D[d] * shape(j) * trial_vshape(k, d);
-               }
-            }
-         }
-      }
-   }
-   else if ( test_fe.GetRangeType() == FiniteElement::SCALAR )
-   {
-      // assume test_fe is scalar FE and trial_fe is vector FE
-      int dim  = test_fe.GetDim();
-      int trial_dof = trial_fe.GetDof();
-      int test_dof = test_fe.GetDof();
-      double w;
-
-      if (VQ || MQ)
-         mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for vector/tensor permeability");
-
-#ifdef MFEM_THREAD_SAFE
-      DenseMatrix trial_vshape(trial_dof, dim);
-      Vector shape(test_dof);
-#else
-      trial_vshape.SetSize(trial_dof, dim);
-      shape.SetSize(test_dof);
+      D.SetSize(VQ ? VQ->GetVDim() : 0);
+      K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
 
       elmat.SetSize (dim*test_dof, trial_dof);
@@ -1928,24 +1883,64 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          test_fe.CalcShape(ip, shape);
 
          w = ip.weight * Trans.Weight();
-         if (Q)
+         if (VQ)
          {
-            w *= Q -> Eval (Trans, ip);
-         }
-
-         for (int d = 0; d < dim; d++)
-         {
-            for (int j = 0; j < test_dof; j++)
+            VQ->Eval(D, Trans, ip);
+            D *= w;
+            for (int d = 0; d < dim; d++)
             {
-               for (int k = 0; k < trial_dof; k++)
+               for (int j = 0; j < test_dof; j++)
                {
-                  elmat(d * test_dof + j, k) += w * shape(j) * trial_vshape(k, d);
+                  for (int k = 0; k < trial_dof; k++)
+                  {
+                     elmat(d * test_dof + j, k) +=
+                        shape(j) * D(d) * trial_vshape(k, d);
+                  }
+               }
+            }
+         }
+         else if (MQ)
+         {
+            MQ->Eval(K, Trans, ip);
+            K *= w;
+            for (int d = 0; d < dim; d++)
+            {
+               for (int j = 0; j < test_dof; j++)
+               {
+                  for (int k = 0; k < trial_dof; k++)
+                  {
+                     Kv = 0.0;
+                     for (int vd = 0; vd < dim; vd++)
+                     {
+                        Kv += K(d, vd) * trial_vshape(k, vd);
+                     }
+                     elmat(d * test_dof + j, k) += shape(j) * Kv;
+                  }
+               }
+            }
+         }
+         else
+         {
+            if (Q)
+            {
+               w *= Q->Eval(Trans, ip);
+            }
+            for (int d = 0; d < dim; d++)
+            {
+               for (int j = 0; j < test_dof; j++)
+               {
+                  for (int k = 0; k < trial_dof; k++)
+                  {
+                     elmat(d * test_dof + j, k) +=
+                        w * shape(j) * trial_vshape(k, d);
+                  }
                }
             }
          }
       }
    }
-   else
+   else if (test_fe.GetRangeType() == FiniteElement::VECTOR
+            && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume both test_fe and trial_fe are vector FE
       int dim  = test_fe.GetDim();
@@ -1953,17 +1948,18 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       int test_dof = test_fe.GetDof();
       double w;
 
-      if (VQ || MQ)
-         mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for vector/tensor permeability");
-
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, dim);
       DenseMatrix test_vshape(test_dof,dim);
+      Vector D(VQ ? VQ->GetVDim() : 0);
+      DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
       trial_vshape.SetSize(trial_dof, dim);
       test_vshape.SetSize(test_dof,dim);
+      D.SetSize(VQ ? VQ->GetVDim() : 0);
+      K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
+      DenseMatrix tmp(trial_vshape.Height(), K.Width());
 
       elmat.SetSize (test_dof, trial_dof);
 
@@ -1985,22 +1981,33 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          test_fe.CalcVShape(Trans, test_vshape);
 
          w = ip.weight * Trans.Weight();
-         if (Q)
+         if (MQ)
          {
-            w *= Q -> Eval (Trans, ip);
+            MQ->Eval(K, Trans, ip);
+            K *= w;
+            Mult(test_vshape,K,tmp);
+            AddMultABt(tmp,trial_vshape,elmat);
          }
-
-         for (int d = 0; d < dim; d++)
+         else if (VQ)
          {
-            for (int j = 0; j < test_dof; j++)
+            VQ->Eval(D, Trans, ip);
+            D *= w;
+            AddMultADBt(test_vshape,D,trial_vshape,elmat);
+         }
+         else
+         {
+            if (Q)
             {
-               for (int k = 0; k < trial_dof; k++)
-               {
-                  elmat(j, k) += w * test_vshape(j, d) * trial_vshape(k, d);
-               }
+               w *= Q -> Eval (Trans, ip);
             }
+            AddMult_a_ABt(w,test_vshape,trial_vshape,elmat);
          }
       }
+   }
+   else
+   {
+      mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
+                 "   is not implemented for given trial and test bases.");
    }
 }
 
@@ -2310,7 +2317,7 @@ void ElasticityIntegrator::AssembleElementMatrix(
 void ElasticityIntegrator::ComputeElementFlux(
    const mfem::FiniteElement &el, ElementTransformation &Trans,
    Vector &u, const mfem::FiniteElement &fluxelem, Vector &flux,
-   int with_coef)
+   bool with_coef)
 {
    const int dof = el.GetDof();
    const int dim = el.GetDim();

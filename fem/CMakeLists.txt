@@ -17,6 +17,9 @@ set(SRCS
   bilininteg_divergence.cpp
   bilininteg_gradient.cpp
   bilininteg_mass.cpp
+  bilininteg_divergence.cpp
+  bilininteg_gradient.cpp
+  bilininteg_convection.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
   bilininteg_hcurl.cpp
