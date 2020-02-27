@@ -478,11 +478,25 @@ void BlockLDUPreconditioner::Mult(const Vector & x, Vector & y) const
 
    yblock.Update(y.GetData(),offsets);
    xblock.Update(x.GetData(),offsets);
+   y = 0.0;
 
    // Schur-complement in the (1,1) block (i.e., (0,0) block w/ zero indexing)
    if (schur_index == 0) {
-      // TODO
+      // TODO : this is currently 22 schur complement
+      op(0,0) -> Mult(xblock.GetBlock(0), yblock.GetBlock(0));
+      
+      tmp.SetSize(offsets[2] - offsets[1]);
+      op(1,0) -> Mult(yblock.GetBlock(0), tmp);
+      tmp *= -1;
+      tmp += xblock.GetBlock(1);
 
+      op(1,1) -> Mult(tmp, yblock.GetBlock(1));
+      
+      tmp.SetSize(offsets[1] - offsets[0]);
+      tmp2.SetSize(offsets[1] - offsets[0]);
+      op(0,1) -> Mult(yblock.GetBlock(1), tmp);
+      op(0,0) -> Mult(tmp, tmp2);
+      yblock.GetBlock(0) -= tmp2;
 
 
    }
@@ -490,7 +504,6 @@ void BlockLDUPreconditioner::Mult(const Vector & x, Vector & y) const
    // A^{-1} = [I, -A11^{-1}A12; 0, I] * [I, 0; 0, S22^{-2}] * 
    //          [I, 0; -A21, I] * [A11^{-1}, 0; 0, I]
    else {
-      y = 0.0;
       op(0,0) -> Mult(xblock.GetBlock(0), yblock.GetBlock(0));
       
       tmp.SetSize(offsets[2] - offsets[1]);
