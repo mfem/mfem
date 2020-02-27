@@ -81,9 +81,9 @@ void PABilinearFormExtension::SetupRestrictionOperators()
                                    ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
       if (bound_face_restrict_lex)
       {
-         faceBoundX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-         faceBoundY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-         faceBoundY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
+         faceBdrX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+         faceBdrY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+         faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
       }
    }
 }
@@ -172,8 +172,8 @@ void PABilinearFormExtension::Update()
                                    ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
       if (bound_face_restrict_lex)
       {
-         faceBoundX.SetSize(bound_face_restrict_lex->Height());
-         faceBoundY.SetSize(bound_face_restrict_lex->Height());
+         faceBdrX.SetSize(bound_face_restrict_lex->Height());
+         faceBdrY.SetSize(bound_face_restrict_lex->Height());
       }
    }
 }
@@ -242,15 +242,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = boundFaceIntegrators.Size();
    if (bound_face_restrict_lex && bFISz>0)
    {
-      bound_face_restrict_lex->Mult(x, faceBoundX);
-      if (faceBoundX.Size()>0)
+      bound_face_restrict_lex->Mult(x, faceBdrX);
+      if (faceBdrX.Size()>0)
       {
-         faceBoundY = 0.0;
+         faceBdrY = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            boundFaceIntegrators[i]->AddMultPA(faceBoundX, faceBoundY);
+            boundFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
          }
-         bound_face_restrict_lex->MultTranspose(faceBoundY, y);
+         bound_face_restrict_lex->MultTranspose(faceBdrY, y);
       }
    }
 }
@@ -299,15 +299,15 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = boundFaceIntegrators.Size();
    if (bound_face_restrict_lex && bFISz>0)
    {
-      bound_face_restrict_lex->Mult(x, faceBoundX);
-      if (faceBoundX.Size()>0)
+      bound_face_restrict_lex->Mult(x, faceBdrX);
+      if (faceBdrX.Size()>0)
       {
-         faceBoundY = 0.0;
+         faceBdrY = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            boundFaceIntegrators[i]->AddMultTransposePA(faceBoundX, faceBoundY);
+            boundFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
          }
-         bound_face_restrict_lex->MultTranspose(faceBoundY, y);
+         bound_face_restrict_lex->MultTranspose(faceBdrY, y);
       }
    }
 }

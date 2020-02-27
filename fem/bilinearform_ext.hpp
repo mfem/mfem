@@ -103,7 +103,7 @@ protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;
-   mutable Vector faceBoundX, faceBoundY;
+   mutable Vector faceBdrX, faceBdrY;
    const Operator *elem_restrict_lex; // Not owned
    const Operator *int_face_restrict_lex; // Not owned
    const Operator *bound_face_restrict_lex; // Not owned
