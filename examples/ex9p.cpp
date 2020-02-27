@@ -136,8 +136,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b,
-                const ParFiniteElementSpace &fes, bool pa);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -437,7 +436,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B, *fes, pa);
+   FE_Evolution adv(*m, *k, *B);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -520,14 +519,20 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(Operator &_M, Operator &_K,
-                           const Vector &_b, const ParFiniteElementSpace &fes,
-                           bool pa)
+FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
+                           const Vector &_b)
    : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(fes.GetComm()),
+     M(_M.GetAssemblyLevel()==AssemblyLevel::FULL?
+     static_cast<Operator&>(*_M.ParallelAssemble())
+     :static_cast<Operator&>(_M)),
+     K(_K.GetAssemblyLevel()==AssemblyLevel::FULL?
+     static_cast<Operator&>(*_K.ParallelAssemble())
+     :static_cast<Operator&>(_K)),
+     b(_b),
+     M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
-
+   bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
    M_solver.SetOperator(M);
 
    Array<int> ess_tdof_list;
@@ -544,7 +549,7 @@ FE_Evolution::FE_Evolution(Operator &_M, Operator &_K,
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, fes);
+      dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace());
    }
 
    M_solver.SetPreconditioner(*M_prec);
