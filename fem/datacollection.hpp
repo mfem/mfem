@@ -523,7 +523,7 @@ public:
    /// the default compression level. Otherwise, specify a number between 1 and
    /// 9, 1 being the fastest, and 9 being the best compression. Compression
    /// only takes effect if the output format is BINARY or BINARY32. MFEM must
-   /// be compiled with MFEM_USE_GZSTREAM = YES.
+   /// be compiled with MFEM_USE_ZLIB = YES.
    void SetCompressionLevel(int compression_level_);
 
    /// Enable or disable zlib compression. If the input is true, use the default
