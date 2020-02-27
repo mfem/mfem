@@ -86,6 +86,8 @@ Discretization improvements
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
+- Added second order derivatives of NURBS shape functions.
+
 - Added initial support for NonlinearForms to support the partial assembly mode.
 
 - Added a nonlinear vector valued convection integrator (Q u \cdot grad u, v)
@@ -121,6 +123,10 @@ Linear and nonlinear solvers
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
 
+- Added a LinearSolve(A,X) convenience method to solve dense linear systems. In
+  the trivial cases, i.e., square matrices of size 1 or 2, the system is solved
+  directly, otherwise, LU factorization is employed.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added two new miniapps: Find Points (serial + parallel) and Field Diff in
@@ -140,6 +146,9 @@ New and updated examples and miniapps
 
 - New options to reorder and partition the mesh in the mesh-explorer miniapp.
 
+- The mesh-explorer miniapp now supports visualization of boundary attributes of
+  3D meshes (key 'b').
+
 - The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
   optimization for an AMR mesh.
 
@@ -148,6 +157,11 @@ New and updated examples and miniapps
 
 - Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
   constrained optimization interface and the use of the SLBQP and HiOp solvers.
+
+- Added a collection of 7 playful miniapps in miniapps/toys that illustrate the
+  meshing and visualization features of the library in more relaxed settings.
+  The toys include simulations of cellular automata, Rubik's cube, Mandelbrot
+  set, a tool to convert any image to mfem mesh, and more.
 
 - Example 9 and 9p now support implicit time integration, using the new block
   ILU(0) solvers as preconditioners for the linear system.
@@ -172,8 +186,11 @@ Miscellaneous
   complete rework of the interface and requires changes at the application
   level. Example usage of the new interface can be found in examples/sundials.
 
-- Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
-  and the new ParaViewDataCollection class.
+- Added support for output in the ParaView XML format. Both low-order and
+  high-order Lagrange elements are supported. Output can be in ASCII or binary
+  format. Binary output can be compressed if MFEM is compiled with gzstream
+  enabled (MFEM_USE_GZSTREAM). See Examples 5/5p, 9/9p and the new
+  ParaViewDataCollection class.
 
 - Collected object files from the miniapps/common directory into a new library,
   libmfem-common for the convenience of application developers. The new library
