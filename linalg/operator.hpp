@@ -42,7 +42,7 @@ protected:
 
 public:
    /// Initializes memory for true vectors of linear system
-   void InitTVectors(const Operator *Po, const Operator *Ri,
+   void InitTVectors(const Operator *Po, const Operator *Ri, const Operator *Pi,
                      Vector &x, Vector &b,
                      Vector &X, Vector &B) const;
 
