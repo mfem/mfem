@@ -415,7 +415,8 @@ public:
    virtual void Mult (const Vector & x, Vector & y) const;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   virtual void MultTranspose (const Vector & x, Vector & y) const
+   { MFEM_WARNING("MultTransport not implemented for LDU.\n;"); }
 
    ~BlockLDUPreconditioner();
 
