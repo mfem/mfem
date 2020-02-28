@@ -918,6 +918,11 @@ public:
    virtual const Operator &BackwardOperator();
 };
 
+inline bool UsesTensorBasis(const FiniteElementSpace& fes)
+{
+   return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+}
+
 }
 
 #endif

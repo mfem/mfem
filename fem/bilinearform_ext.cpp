@@ -42,19 +42,23 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
      trialFes(a->FESpace()),
      testFes(a->FESpace())
 {
-   elem_restrict_lex = NULL;
+   elem_restrict = NULL;
    int_face_restrict_lex = NULL;
    bdr_face_restrict_lex = NULL;
 }
 
 void PABilinearFormExtension::SetupRestrictionOperators()
 {
-   if (elem_restrict_lex == NULL)
+   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
+                                 ElementDofOrdering::LEXICOGRAPHIC:
+                                 ElementDofOrdering::NATIVE;
+   elem_restrict = trialFes->GetElementRestriction(ordering);
+   if (elem_restrict)
    {
-      elem_restrict_lex = trialFes->GetElementRestriction(
+      elem_restrict = trialFes->GetElementRestriction(
                              ElementDofOrdering::LEXICOGRAPHIC);
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localX.SetSize(elem_restrict->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict->Height(), Device::GetMemoryType());
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 
@@ -110,14 +114,14 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+   if (elem_restrict)
    {
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AssembleDiagonalPA(localY);
       }
-      elem_restrict_lex->MultTranspose(localY, y);
+      elem_restrict->MultTranspose(localY, y);
    }
    else
    {
@@ -137,7 +141,7 @@ void PABilinearFormExtension::Update()
    trialFes = fes;
    testFes = fes;
 
-   elem_restrict_lex = nullptr;
+   elem_restrict = nullptr;
    int_face_restrict_lex = nullptr;
    bdr_face_restrict_lex = nullptr;
 }
@@ -166,7 +170,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   if (DeviceCanUseCeed() || !elem_restrict_lex)
+   if (DeviceCanUseCeed() || !elem_restrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
@@ -177,13 +181,13 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      elem_restrict_lex->Mult(x, localX);
+      elem_restrict->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(localX, localY);
       }
-      elem_restrict_lex->MultTranspose(localY, y);
+      elem_restrict->MultTranspose(localY, y);
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
@@ -223,15 +227,15 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
-   if (elem_restrict_lex)
+   if (elem_restrict)
    {
-      elem_restrict_lex->Mult(x, localX);
+      elem_restrict->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultTransposePA(localX, localY);
       }
-      elem_restrict_lex->MultTranspose(localY, y);
+      elem_restrict->MultTranspose(localY, y);
    }
    else
    {

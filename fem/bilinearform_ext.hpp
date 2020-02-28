@@ -104,7 +104,7 @@ protected:
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
-   const Operator *elem_restrict_lex; // Not owned
+   const Operator *elem_restrict; // Not owned
    const Operator *int_face_restrict_lex; // Not owned
    const Operator *bdr_face_restrict_lex; // Not owned
 
