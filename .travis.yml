@@ -129,8 +129,8 @@ jobs:
            NPROCS=2
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -159,8 +159,8 @@ jobs:
            NPROCS=2
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -204,8 +204,8 @@ jobs:
            TMPDIR=/tmp
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -224,8 +224,8 @@ jobs:
            TMPDIR=/tmp
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -300,7 +300,7 @@ install:
            make -j3;
            cd ../..;
         else
-            echo "Reusing cached hypre-2.10.0b/";
+            echo "Reusing cached hypre-2.18.2/";
         fi;
         ln -s hypre-2.18.2 hypre;
      else
