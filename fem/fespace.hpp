@@ -335,10 +335,9 @@ public:
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
 
    /// Return an Operator that converts L-vectors to E-vectors on each face.
-   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
-                                              FaceType,
-                                              L2FaceValues mul = L2FaceValues::DoubleValued
-                                             ) const;
+   virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
        quadrature point values and/or derivatives (Q-vectors). */

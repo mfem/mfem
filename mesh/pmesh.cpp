@@ -2513,7 +2513,7 @@ void ParMesh::ReorientTetMesh()
       return;
    }
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -2899,7 +2899,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                     " (NumOfBdrElements != boundary.Size())");
       }
 
-      DeleteLazyTables();
+      ResetLazyData();
 
       const int old_nv = NumOfVertices;
       NumOfVertices = vertices.Size();
@@ -3142,7 +3142,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       NumOfBdrElements = boundary.Size();
 
-      DeleteLazyTables();
+      ResetLazyData();
 
       // 5a. Update the groups after refinement.
       RefineGroups(v_to_v, middle);

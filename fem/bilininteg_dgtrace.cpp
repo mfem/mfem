@@ -95,7 +95,8 @@ static void PADGTraceSetup3D(const int Q1D,
             const double v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
             const double v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
             const double v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
-            const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 + n(q1,q2,2,f) * v2;
+            const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 +
+            /* */              n(q1,q2,2,f) * v2;
             const double abs = dot > 0.0 ? dot : -dot;
             const double w = W[q1+q2*Q1D]*r*d(q1,q2,f);
             qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
@@ -137,18 +138,20 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    if (nf==0) { return; }
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetTraceElement(0,
-                                                  fes.GetMesh()->GetFaceBaseGeometry(0));
-   FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(
-                                      0);
+   const FiniteElement &el =
+      *fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
+   FaceElementTransformations &T =
+      *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
                                IntRule:
                                &GetRule(el.GetGeomType(), el.GetOrder(), T);
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
-   geom = mesh->GetFaceGeometricFactors(*ir,
-                                        FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS, type);
+   geom = mesh->GetFaceGeometricFactors(
+             *ir,
+             FaceGeometricFactors::DETERMINANTS |
+             FaceGeometricFactors::NORMALS, type);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
@@ -429,8 +432,8 @@ void PADGTraceApply3D(const int NF,
          {
             for (int c = 0; c < VDIM; c++)
             {
-               DBBu[q1][q2][c] = op(q1,q2,0,0,f)*BBu0[q1][q2][c] + op(q1,q2,1,0,
-                                                                      f)*BBu1[q1][q2][c];
+               DBBu[q1][q2][c] = op(q1,q2,0,0,f)*BBu0[q1][q2][c] +
+                                 op(q1,q2,1,0,f)*BBu1[q1][q2][c];
             }
          }
       }
@@ -565,8 +568,8 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f+tidz)*BBu0[tidz][q1][q2] + op(q1,q2,1,0,
-                                                                              f+tidz)*BBu1[tidz][q1][q2];
+            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f+tidz)*BBu0[tidz][q1][q2] +
+                                 op(q1,q2,1,0,f+tidz)*BBu1[tidz][q1][q2];
          }
       }
       MFEM_SYNC_THREAD;
