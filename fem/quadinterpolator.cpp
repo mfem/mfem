@@ -379,29 +379,7 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
    : type(type_), nf(fes.GetNFbyType(type))
 {
    fespace = &fes;
-   qspace = NULL;
    IntRule = &ir;
-   use_tensor_products = true; // not implemented yet (not used)
-
-   if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
-   const ScalarFiniteElement *sfe = dynamic_cast<const ScalarFiniteElement*>(fe);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(sfe != NULL, "Only scalar finite elements are supported");
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in FaceQuadratureInterpolator.");
-}
-
-FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
-                                                       &fes,
-                                                       const QuadratureSpace &qs, FaceType type_)
-   : type(type_), nf(fes.GetNFbyType(type))
-{
-   fespace = &fes;
-   qspace = &qs;
-   IntRule = NULL;
    use_tensor_products = true; // not implemented yet (not used)
 
    if (fespace->GetNE() == 0) { return; }
@@ -686,10 +664,9 @@ void FaceQuadratureInterpolator::Mult(
    if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe = fespace->GetTraceElement(0,
-                                                      fespace->GetMesh()->GetFaceBaseGeometry(0));
-   const IntegrationRule *ir =
-      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const FiniteElement *fe =
+      fespace->GetTraceElement(0, fespace->GetMesh()->GetFaceBaseGeometry(0));
+   const IntegrationRule *ir = IntRule;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
