@@ -41,7 +41,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
 
    const int qdatasize = 1;
    CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, nelem*nqpts, qdatasize,
-                                 CEED_STRIDES_BACKEND, &ceedData.mesh_restr_i);
+                                 CEED_STRIDES_BACKEND, &ceedData.restr_i);
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
    CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
