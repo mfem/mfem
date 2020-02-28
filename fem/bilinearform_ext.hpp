@@ -106,7 +106,7 @@ protected:
    mutable Vector faceBdrX, faceBdrY;
    const Operator *elem_restrict_lex; // Not owned
    const Operator *int_face_restrict_lex; // Not owned
-   const Operator *bound_face_restrict_lex; // Not owned
+   const Operator *bdr_face_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
