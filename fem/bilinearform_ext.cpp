@@ -134,6 +134,8 @@ void PABilinearFormExtension::Update()
 {
    FiniteElementSpace *fes = a->FESpace();
    height = width = fes->GetVSize();
+   trialFes = fes;
+   testFes = fes;
 
    elem_restrict_lex = nullptr;
    int_face_restrict_lex = nullptr;
