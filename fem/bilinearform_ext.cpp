@@ -55,8 +55,6 @@ void PABilinearFormExtension::SetupRestrictionOperators()
    elem_restrict = trialFes->GetElementRestriction(ordering);
    if (elem_restrict)
    {
-      elem_restrict = trialFes->GetElementRestriction(
-                             ElementDofOrdering::LEXICOGRAPHIC);
       localX.SetSize(elem_restrict->Height(), Device::GetMemoryType());
       localY.SetSize(elem_restrict->Height(), Device::GetMemoryType());
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
@@ -76,7 +74,7 @@ void PABilinearFormExtension::SetupRestrictionOperators()
    if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
    {
       bdr_face_restrict_lex = trialFes->GetFaceRestriction(
-                                   ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
+                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
       faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
