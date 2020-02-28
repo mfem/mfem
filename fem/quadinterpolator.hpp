@@ -114,7 +114,7 @@ public:
     quadrature point values and/or derivatives (Q-vectors) on the faces. */
 /** A face E-vector represents the face-wise discontinuous version of the trace
     FE space and can be obtained, for example, from a GridFunction using the
-    Operator returned by FiniteElementSpace::GetElementRestriction().
+    Operator returned by FiniteElementSpace::GetFaceRestriction().
 
     The target quadrature points in the faces can be described either by an
     IntegrationRule (all mesh elements must be of the same type in this case) */
