@@ -1718,8 +1718,7 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    FiniteElementCollection* nfec;
    if (discont)
    {
-      const int type = 1; // Gauss-Lobatto points
-      nfec = new L2_FECollection(order, Dim, type);
+      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto);
    }
    else
    {
