@@ -110,15 +110,14 @@ public:
                       const int eval_flags);
 };
 
-/** @brief A class that performs interpolation from an E-vector to quadrature
-    point values and/or derivatives (Q-vectors) on the faces. */
-/** An E-vector represents the element-wise discontinuous version of the FE
-    space and can be obtained, for example, from a GridFunction using the
+/** @brief A class that performs interpolation from a face E-vector to
+    quadrature point values and/or derivatives (Q-vectors) on the faces. */
+/** A face E-vector represents the face-wise discontinuous version of the trace
+    FE space and can be obtained, for example, from a GridFunction using the
     Operator returned by FiniteElementSpace::GetElementRestriction().
 
-    The target quadrature points in the elements can be described either by an
-    IntegrationRule (all mesh elements must be of the same type in this case) or
-    by a QuadratureSpace. */
+    The target quadrature points in the faces can be described either by an
+    IntegrationRule (all mesh elements must be of the same type in this case) */
 class FaceQuadratureInterpolator
 {
 private:
