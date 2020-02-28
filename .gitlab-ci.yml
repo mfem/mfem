@@ -47,10 +47,10 @@
 # Directory used to place artifacts.
 
 variables:
-  BUILD_ROOT: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
-  BUILD_PATH: ${CI_BUILDS_DIR}/mfem_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
+  BUILD_ROOT: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  BUILD_PATH: ${CI_BUILDS_DIR}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}/${PLAT}/${TOOLCHAIN}
   REBASELINE: "NO"
-  MFEM_ALLOC_NAME: mfem_ci_${CI_PIPELINE_ID}
+  MFEM_ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
   ARTIFACTS_DIR: artifacts
@@ -154,9 +154,8 @@ stages:
   stage: build
   script:
     - mkdir -p ${BUILD_PATH}
-    - cd ..
-    - cp -r mfem ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
-    - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - cp -r ${CI_PROJECT_DIR} ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
     - *if_srun_alloc_for_make
     - make config CXX=${CXX} MPICXX=mpicxx MFEM_USE_MPI=${MFEM_USE_MPI} MFEM_DEBUG=${MFEM_DEBUG} MFEM_MPIEXEC="${EXEC_PREFIX}" MFEM_MPIEXEC_NP=${MPIEXEC_NP}
     - ${EXEC_PREFIX} make -j ${MAKE_PAR} all
@@ -167,7 +166,7 @@ stages:
   variables:
     GIT_STRATEGY: none
   script:
-    - cd ${BUILD_PATH}/mfem_${MFEM_USE_MPI}_${MFEM_DEBUG}
+    - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_${MFEM_USE_MPI}_${MFEM_DEBUG}
     - make test
 
 # Shared script for baseline and sample-run-baseline, the value of BASELINE_TEST
