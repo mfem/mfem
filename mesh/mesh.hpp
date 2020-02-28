@@ -1369,10 +1369,10 @@ public:
    Vector detJ;
 };
 
-/** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
-    and determinants of the Jacobians. */
+/** @brief Structure for storing face geometric factors: coordinates, Jacobians,
+    determinants of the Jacobians, and normal vectors. */
 /** Typically objects of this type are constructed and owned by objects of class
-    Mesh. See Mesh::GetGeometricFactors(). */
+    Mesh. See Mesh::GetFaceGeometricFactors(). */
 class FaceGeometricFactors
 {
 public:
@@ -1393,7 +1393,7 @@ public:
                         FaceType type);
 
    /// Mapped (physical) coordinates of all quadrature points.
-   /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)
        where
        - NQ = number of quadrature points per face,
        - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
@@ -1402,7 +1402,7 @@ public:
 
    /// Jacobians of the element transformations at all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
-       NE) where
+       NF) where
        - NQ = number of quadrature points per face,
        - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
        - DIM = dimension of the mesh = mesh.Dimension(), and
@@ -1410,15 +1410,15 @@ public:
    Vector J;
 
    /// Determinants of the Jacobians at all quadrature points.
-   /** This array uses a column-major layout with dimensions (NQ x NE) where
+   /** This array uses a column-major layout with dimensions (NQ x NF) where
        - NQ = number of quadrature points per face, and
        - NF = number of faces in the mesh. */
    Vector detJ;
 
    /// Normals at all quadrature points.
-   /** This array uses a column-major layout with dimensions (NQ x DIM x NE) where
-       - NQ = number of quadrature points per face, and
-       - DIM = Dimension of the mesh space
+   /** This array uses a column-major layout with dimensions (NQ x DIM x NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
        - NF = number of faces in the mesh. */
    Vector normal;
 };
