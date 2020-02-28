@@ -19,11 +19,13 @@ namespace mfem
 {
 
 class FiniteElementSpace;
-class ParFiniteElementSpace;
 enum class ElementDofOrdering;
+#ifdef MFEM_USE_MPI
+class ParFiniteElementSpace;
+#endif
 
-/** An enum type to specify if only e1 value is requested (Single) or both
-    e1 and e2 (Double). */
+/** An enum type to specify if only e1 value is requested (SingleValued) or both
+    e1 and e2 (DoubleValued). */
 enum class L2FaceValues : bool {SingleValued, DoubleValued};
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
@@ -117,6 +119,8 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
+#ifdef MFEM_USE_MPI
+
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
@@ -143,6 +147,8 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };
+
+#endif // MFEM_USE_MPI
 
 // Convert from Native ordering to lexicographic ordering
 int ToLexOrdering(const int dim, const int face_id, const int size1d,
