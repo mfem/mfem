@@ -128,7 +128,6 @@ protected:
    friend class FiniteElementSpace; // Needs access to qspace and IntRule
 
    const FiniteElementSpace *fespace;  ///< Not owned
-   const QuadratureSpace *qspace;      ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
 
    mutable bool use_tensor_products;
@@ -159,9 +158,6 @@ public:
 
    FaceQuadratureInterpolator(const FiniteElementSpace &fes,
                               const IntegrationRule &ir, FaceType type);
-
-   FaceQuadratureInterpolator(const FiniteElementSpace &fes,
-                              const QuadratureSpace &qs, FaceType type);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
