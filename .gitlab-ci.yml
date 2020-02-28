@@ -286,8 +286,8 @@ stages:
           exit 1
       fi
     - git add baseline-${SYS_TYPE}.saved
-    - git commit -m "Rebaselined in Gitlab pipeline ${CI_PIPELINE_ID}"
-    - echo "git push origin master"
+    - git commit -m "${SYS_TYPE} rebaselined in Gitlab pipeline ${CI_PIPELINE_ID}"
+    - git push origin master
 
 # The list on jobs is defined in machine-specific files.
 include:
