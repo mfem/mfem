@@ -108,11 +108,6 @@ protected:
 
    int nvdofs, nedofs, nfdofs, nbdofs;
    int *fdofs, *bdofs;
-   /** These variables store the number of Interior and Boundary faces.
-     * fes->GetMesh()->GetNBE() doesn't return the expected value in 3D
-     * because periodic meshes in 3D have some faces marked as boundary
-     * for vizualization purpose in GLvis. */
-   mutable int nbInteriorFaces, nbBoundaryFaces;
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
@@ -429,7 +424,8 @@ public:
        Similarly, if type==Interior, the "fake" boundary faces associated to
        visualization are counted as interior faces.
    */
-   int GetNFbyType(FaceType type) const;
+   inline int GetNFbyType(FaceType type) const
+   { return mesh->GetNFbyType(type); }
 
    /// Returns the type of element i.
    inline int GetElementType(int i) const

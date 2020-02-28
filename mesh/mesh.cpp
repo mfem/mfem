@@ -999,6 +999,8 @@ void Mesh::Init()
    NumOfVertices = -1;
    NumOfElements = NumOfBdrElements = 0;
    NumOfEdges = NumOfFaces = 0;
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
    meshgen = mesh_geoms = 0;
    sequence = 0;
    Nodes = NULL;
@@ -3940,6 +3942,29 @@ int Mesh::GetNumFaces() const
       case 3: return GetNFaces();
    }
    return 0;
+}
+
+static int CountFacesByType(const FiniteElementSpace &fes, const FaceType type)
+{
+   int e1, e2;
+   int inf1, inf2;
+   int nf = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
+   }
+   return nf;
+}
+
+int Mesh::GetNFbyType(FaceType type) const
+{
+   const bool isInt = type==FaceType::Interior;
+   int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
+   if (nf<0) { nf = CountFacesByType(*this->GetNodalFESpace(), type); }
+   return nf;
 }
 
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
