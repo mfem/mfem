@@ -210,6 +210,7 @@ TEST_CASE("2D Face Permutation", "[Face Permutation]")
       for (int fp1=0; fp1<4; ++fp1)
       {
          Mesh *mesh = mesh_2d_orientation(fp1, fp2);
+         mesh->EnsureNodes();
          TestFaceRestriction(*mesh, order);
          delete mesh;
       }
@@ -224,6 +225,7 @@ TEST_CASE("3D Face Permutation", "[Face Permutation]")
       for (int fp1=0; fp1<24; ++fp1)
       {
          Mesh *mesh = mesh_3d_orientation(fp1, fp2);
+         mesh->EnsureNodes();
          TestFaceRestriction(*mesh, order);
          delete mesh;
       }

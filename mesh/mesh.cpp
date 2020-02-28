@@ -1148,6 +1148,9 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
 
    NumOfBdrElements = 0;
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
+
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
 }
 
 void Mesh::AddVertex(const double *x)
@@ -2855,6 +2858,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    NumOfBdrElements = mesh.NumOfBdrElements;
    NumOfEdges = mesh.NumOfEdges;
    NumOfFaces = mesh.NumOfFaces;
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
 
    meshgen = mesh.meshgen;
    mesh_geoms = mesh.mesh_geoms;
@@ -3053,6 +3058,8 @@ Mesh::Mesh(double *_vertices, int num_vertices,
       boundary[i]->SetAttribute(boundary_attributes[i]);
    }
    NumOfBdrElements = num_boundary_elements;
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
 
    FinalizeTopology();
 }
