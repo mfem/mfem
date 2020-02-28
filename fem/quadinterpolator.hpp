@@ -123,6 +123,7 @@ class FaceQuadratureInterpolator
 private:
    FaceType type;
    int nf;
+   Array<bool> signs;
 protected:
    friend class FiniteElementSpace; // Needs access to qspace and IntRule
 
@@ -175,7 +176,6 @@ public:
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det. */
    void Mult(const Vector &e_vec, unsigned eval_flags,
-             const Array<bool> &signs,//const Array<double> &W,
              Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
