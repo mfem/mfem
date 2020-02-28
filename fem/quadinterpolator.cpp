@@ -843,11 +843,4 @@ void FaceQuadratureInterpolator::Mult(
    }
 }
 
-void FaceQuadratureInterpolator::MultTranspose(
-   unsigned eval_flags, const Array<double> &W, const Vector &q_val,
-   const Vector &q_der, Vector &e_vec) const
-{
-   MFEM_ABORT("this method is not implemented yet");
-}
-
 } // namespace mfem
