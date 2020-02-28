@@ -449,11 +449,6 @@ int main(int argc, char *argv[])
       fgmres.SetPrintLevel(1);
       fgmres.Mult(B, U);
    }
-
-
-
-
-
    // 13. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(U, b, u);
