@@ -19,6 +19,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
   unit_test_main.cpp
+  general/test_zlib.cpp
   general/text-test.cpp
   linalg/test_complex_operator.cpp
   linalg/test_ilu.cpp

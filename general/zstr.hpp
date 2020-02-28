@@ -490,13 +490,36 @@ class ofgzstream
 {
 public:
    explicit ofgzstream(const std::string &filename,
-                      bool compression = false)
+                       bool compression = false)
       : zstr::detail::strict_fstream_holder<strict_fstream::ofstream>(filename,
                                                                       std::ios_base::binary),
         std::ostream(nullptr)
    {
 #ifdef MFEM_USE_ZLIB
       if (compression)
+      {
+         strbuf = new zstr::ostreambuf(_fs.rdbuf());
+         rdbuf(strbuf);
+      }
+      else
+#endif
+      {
+         rdbuf(_fs.rdbuf());
+      }
+      exceptions(std::ios_base::badbit);
+   }
+
+   explicit ofgzstream(const std::string &filename,
+                       char const *open_mode_chars)
+      : zstr::detail::strict_fstream_holder<strict_fstream::ofstream>(filename,
+                                                                      std::ios_base::binary),
+        std::ostream(nullptr)
+   {
+#ifdef MFEM_USE_ZLIB
+      // If open_mode_chars contains any combination of open mode chars containing the 'z' char,
+      // compression is enabled. This preserves the behavior of the old interface but neglects
+      // choice of the compression level.
+      if (std::string(open_mode_chars).find('z') != std::string::npos)
       {
          strbuf = new zstr::ostreambuf(_fs.rdbuf());
          rdbuf(strbuf);
