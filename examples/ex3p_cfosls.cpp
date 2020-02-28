@@ -17,8 +17,9 @@ void E_exact(const Vector & x, Vector & E);
 void H_exact(const Vector & x, Vector & H);
 void f_exact_H(const Vector & x, Vector & f_H);
 void get_maxwell_solution(const Vector & x, double E[], double curlE[], double curl2E[]);
-void epsilon_func(const Vector &x, DenseMatrix &M);
-void epsilon2_func(const Vector &x, DenseMatrix &M);
+void epsilon_func(const Vector &x, Vector &M);
+void epsilon2_func(const Vector &x, Vector &M);
+void epsilon_func_mat(const Vector &x, DenseMatrix &M);
 
 int dim;
 double omega;
@@ -39,14 +40,14 @@ public:
     int dim = pmesh->Dimension();
     int sdim = pmesh->SpaceDimension();
     
-    MatrixFunctionCoefficient epsilon(dim, epsilon_func);
-    TransposeMatrixCoefficient epsilonT(epsilon);  // transpose of epsilon
-    MatrixFunctionCoefficient epsilon2(dim,epsilon2_func);
+    VectorFunctionCoefficient epsilon(dim, epsilon_func);
+    VectorFunctionCoefficient epsilonT(epsilon);  // transpose of epsilon
+    VectorFunctionCoefficient epsilon2(dim,epsilon2_func);
     ConstantCoefficient pos(omega);
     ConstantCoefficient sigma(omega*omega);
-    ScalarMatrixProductCoefficient coeff(pos,epsilon);
-    ScalarMatrixProductCoefficient coeffT(pos,epsilonT);
-    ScalarMatrixProductCoefficient coeff2(sigma,epsilon2);
+    ScalarVectorProductCoefficient coeff(pos,epsilon);
+    ScalarVectorProductCoefficient coeffT(pos,epsilonT);
+    ScalarVectorProductCoefficient coeff2(sigma,epsilon2);
 
     bM = new ParBilinearForm(fespace);
     bM->AddDomainIntegrator(new VectorFEMassIntegrator());
@@ -325,11 +326,12 @@ public:
     ScalarVectorProductCoefficient spf_H(pos,f_H);
     ScalarVectorProductCoefficient mf_H(negOne,f_H);
 
-    MatrixFunctionCoefficient epsilon(3, epsilon_func);
-    TransposeMatrixCoefficient epsilonT(epsilon);  // transpose of epsilon
+    VectorFunctionCoefficient epsilon(3, epsilon_func);
+    VectorFunctionCoefficient epsilonT(3, epsilon_func);  // transpose of epsilon
+    MatrixFunctionCoefficient epsilonTmat(3, epsilon_func_mat);  // transpose of epsilon
 
-    MatVecCoefficient epsT_spf_H(epsilonT, spf_H);
-    MatVecCoefficient epsT_sf_H(epsilonT, sf_H);
+    MatVecCoefficient epsT_spf_H(epsilonTmat, spf_H);
+    MatVecCoefficient epsT_sf_H(epsilonTmat, sf_H);
 
     ParLinearForm *b_E = new ParLinearForm;
     b_E->Update(fespace, rhs.GetBlock(0), 0);
@@ -744,7 +746,29 @@ void get_maxwell_solution(const Vector &X, double E[], double curlE[], double cu
     }
 }
 
-void epsilon_func(const Vector &x, DenseMatrix &M)
+void epsilon_func(const Vector &x, Vector &M)
+{
+  M.SetSize(3);
+
+  M = 1.0;
+  if (sol == 4)
+    {
+      M[2] = 4.0*x(0)-1.0;
+    }
+}
+
+void epsilon2_func(const Vector &x, Vector &M)
+{
+  M.SetSize(3);
+
+  M = 1.0;
+  if (sol == 4)
+    {
+      M[2] = (4.0*x(0)-1.0) * (4.0*x(0)-1.0);
+    }
+}
+
+void epsilon_func_mat(const Vector &x, DenseMatrix &M)
 {
   M.SetSize(3);
 
@@ -758,22 +782,5 @@ void epsilon_func(const Vector &x, DenseMatrix &M)
   else
     {
       M(2,2) = 4.0*x(0)-1.0;
-    }
-}
-
-void epsilon2_func(const Vector &x, DenseMatrix &M)
-{
-  M.SetSize(3);
-
-  M = 0.0;
-  M(0,0) = 1.0;
-  M(1,1) = 1.0;
-  if (sol != 4)
-    {
-      M(2,2) = 1.0;
-    }
-  else
-    {
-      M(2,2) = (4.0*x(0)-1.0) * (4.0*x(0)-1.0);
     }
 }

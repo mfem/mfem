@@ -2,6 +2,7 @@
 #define DDOPER_HPP
 
 #include "mfem.hpp"
+#include "multigriddd.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -9,7 +10,7 @@ using namespace std;
 #define AIRY_TEST
 
 #define ZERO_RHO_BC
-#define ZERO_IFND_BC
+#define ZERO_IFND_BC  // TODO: fix this so that only the exterior boundary gets essential BC, or maybe even remove it.
 
 //#define ELIMINATE_REDUNDANT_VARS
 //#define EQUATE_REDUNDANT_VARS
@@ -59,6 +60,15 @@ using namespace std;
 //#define USE_2DINTERFACE
 
 //#define TEST_SD_CMG
+
+//#define SDFOSLS
+
+//#define IMPEDANCE_OTHER_SIGN
+
+//#define IMPEDANCE_POSITIVE
+
+#define FOSLS_DIRECT_SOLVER
+
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -127,6 +137,7 @@ void SetInterfaceToSurfaceDOFMap(ParFiniteElementSpace *ifespace, ParFiniteEleme
 void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteElementSpace *fespaceDomain, const Vector & ssd, Vector & s);
 void SetSubdomainDofsFromDomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteElementSpace *fespaceDomain, const Vector & s, Vector & ssd);
 
+// TODO: can EmptyOperator be replaced by IdentityOperator(0)?
 class EmptyOperator : public Operator
 {
 public:
@@ -504,6 +515,8 @@ public:
   {
     if (height == 0)
       return;
+
+    MFEM_VERIFY(x.Size() == height && y.Size() == height, "");
     
     y = x;
 
@@ -582,6 +595,8 @@ private:
 
 #define DDMCOMPLEX
 
+class FOSLSSolver;
+  
 class DDMInterfaceOperator : public Operator
 {
 public:
@@ -1227,8 +1242,8 @@ private:
   BlockOperator **AsdPARe, **AsdPAIm;
   ParBilinearForm **bfpa_sdND;
   OperatorPtr *oppa_sdND, *oppa_ifNDmass, *oppa_ifNDcurlcurl, *oppa_ifH1mass;
-  std::vector<Array<int> > sd_ess_tdof_list;
 #endif
+  std::vector<Array<int> > sd_ess_tdof_list;
   BilinearForm **bf_ifNDmass, **bf_ifNDcurlcurl, **bf_ifH1mass;
   MixedBilinearForm **bf_ifNDH1grad;
   std::vector<Array<int> > if_ND_ess_tdof_list, if_H1_ess_tdof_list;
@@ -1265,6 +1280,21 @@ private:
   Operator **invAsd;
   Solver **precAsd;
 
+#ifdef SDFOSLS
+  std::vector<FOSLSSolver*> cfosls;
+  BlockOperator **injSD2;
+  BlockOperator **injComplexSD2;
+  std::vector<Array<int> > rowTrueOffsetsSD2, colTrueOffsetsSD2;
+  std::vector<Array<int> > rowTrueOffsetsComplexSD2, colTrueOffsetsComplexSD2;
+  std::vector<std::vector<Array<int> > > rowTrueOffsetsIFL2, colTrueOffsetsIFL2;
+  BilinearForm **bf_ifNDtang;
+  SparseMatrix **ifNDtangSp;
+  std::vector<std::vector<int> > outwardFromSD;
+  Array<int> block_trueOffsets_FOSLS;
+  Array<int> block_trueOffsets_FOSLS2;
+  std::vector<Array<int> > rowTrueOffsetsComplexIF_FOSLS, colTrueOffsetsComplexIF_FOSLS;
+#endif
+
   // TODO: it may be possible to eliminate ifND_FS. It is assembled as a convenience, to avoid summing entries input to ASPsd.
   
   Vector **ySD;
@@ -1289,6 +1319,7 @@ private:
   BlockOperator *globalInterfaceOpRe, *globalInterfaceOpIm;
   std::vector<Array<int> > block_ComplexOffsetsSD;
   Array<int> block_trueOffsets2;  // Offsets used in globalOp
+  Array<int> block_trueOffsets22;  // Offsets used in globalSubdomainOp
   BlockOperator **injComplexSD;
 #endif
 
@@ -1551,6 +1582,11 @@ private:
   // Create operator C_{sd0,sd1} in the block space corresponding to [u_m^s, f_i, \rho_i]. Note that the u_m^I blocks are omitted (just zeros).
   Operator* CreateCij(const int localInterfaceIndex, const int orientation);
 
+#ifdef SDFOSLS
+  // Create operator C_{sd0,sd1} in the block space corresponding to [E_m^s, H_m^s, f_i, \rho_i] x [E_m^s, f_i, \rho_i].
+  Operator* CreateCij_FOSLS(const int localInterfaceIndex, const int orientation);
+#endif
+  
   // Create operator C_{sd0,sd1} R_{sd1}^T. The operator returned here is of size n_{sd0} by n_{sd1}, where n_{sd} is the sum of
   // tdofsBdry[sd].size() and ifespace[interfaceIndex]->GetTrueVSize() and iH1fespace[interfaceIndex]->GetTrueVSize() for all interfaces of subdomain sd.
   Operator* CreateInterfaceOperator(const int sd0, const int sd1, const int localInterfaceIndex, const int interfaceIndex, const int orientation);
@@ -1671,4 +1707,520 @@ private:
   DDMInterfaceOperator *ddi;
 };
 
+void Airy_epsilon(const Vector &x, Vector &e);
+void Airy_epsilon2(const Vector &x, Vector &e);
+
+class FOSLSSolver : public Solver
+{
+public:
+  FOSLSSolver(MPI_Comm comm, ParFiniteElementSpace *fespace_, Array<int>& ess_tdof_list_E,
+	      ParGridFunction& Eexact, std::vector<HypreParMatrix*> const& P, const double omega_)
+    : Solver(4 * fespace_->GetTrueVSize()), M_inv(comm), fespace(fespace_),
+      n(fespace_->GetTrueVSize()), nfull(fespace_->GetVSize()), LSpcg(comm),
+      omega(omega_)
+  {
+    z.SetSize(n);
+    Minv_x.SetSize(n);
+    rhs_E.SetSize(n);
+    
+    ParMesh *pmesh = fespace->GetParMesh();
+    int dim = pmesh->Dimension();
+    int sdim = pmesh->SpaceDimension();
+
+    ConstantCoefficient pos(omega);
+    ConstantCoefficient sigma(omega*omega);
+
+#ifdef AIRY_TEST
+    VectorFunctionCoefficient epsilon(dim, Airy_epsilon);
+    VectorFunctionCoefficient epsilonT(dim, Airy_epsilon);  // transpose of epsilon
+    VectorFunctionCoefficient epsilon2(dim, Airy_epsilon2);
+    ScalarVectorProductCoefficient coeff(pos,epsilon);
+    ScalarVectorProductCoefficient coeffT(pos,epsilonT);
+    ScalarVectorProductCoefficient coeff2(sigma,epsilon2);
+#else
+    // TODO
+#endif
+
+    // Boundary attribute 1 means face is interior to the domain; 2 means face is on the exterior boundary.
+    
+    MFEM_VERIFY(pmesh->bdr_attributes.Max() == 1 || pmesh->bdr_attributes.Max() == 2, "");
+    Array<int> bdr_marker(pmesh->bdr_attributes.Max());
+    bdr_marker[0] = 1;  // add boundary integrators only in the interior of the domain
+    if (pmesh->bdr_attributes.Max() == 2)
+      bdr_marker[1] = 0;
+    
+    bM = new ParBilinearForm(fespace);
+    bM->AddDomainIntegrator(new VectorFEMassIntegrator());
+    bM->Assemble();
+    bM->Finalize();
+
+    bM_eps = new ParBilinearForm(fespace);
+    bM_eps->AddDomainIntegrator(new VectorFEMassIntegrator(epsilonT));
+    bM_eps->Assemble();
+    bM_eps->Finalize();
+
+    bM_curl = new ParMixedBilinearForm(fespace,fespace);
+    bM_curl->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator()); 
+    bM_curl->Assemble();
+    bM_curl->Finalize();
+    
+    Array<int> ess_tdof_list_empty;  // empty
+    // TODO: define BC on exterior boundary
+    
+    bM->FormSystemMatrix(ess_tdof_list_empty, M);
+    bM_curl->FormColSystemMatrix(ess_tdof_list_empty, M_curl);
+
+    bM->FormSystemMatrix(ess_tdof_list_E, M_Ebc);
+    bM_eps->FormSystemMatrix(ess_tdof_list_E, M_eps_Ebc);
+
+    M_inv.SetAbsTol(1.0e-12);
+    M_inv.SetRelTol(1.0e-12);
+    M_inv.SetMaxIter(100);
+    M_inv.SetOperator(M_Ebc);
+    M_inv.SetPrintLevel(0);
+
+    block_trueOffsets.SetSize(5);
+    
+    block_trueOffsets[0] = 0;
+    block_trueOffsets[1] = n;
+    block_trueOffsets[2] = n;
+    block_trueOffsets[3] = n;
+    block_trueOffsets[4] = n;
+    block_trueOffsets.PartialSum();
+
+    trueRhs = new BlockVector(block_trueOffsets);
+    trueSol = new BlockVector(block_trueOffsets);
+
+    //    _           _    _  _       _  _
+    //   |             |  |    |     |    |
+    //   |  A00   A01  |  | E  |     |F_E |
+    //   |             |  |    |  =  |    |
+    //   |  A10   A11  |  | H  |     |F_G |
+    //   |_           _|  |_  _|     |_  _|
+    //
+    // A00 = (curl E, curl F) + \omega^2 (E,F)
+    // A01 = - \omega *( (curl E, F) + (E,curl F)
+    // A10 = - \omega *( (curl H, G) + (H,curl G)
+    // A11 = (curl H, curl G) + \omega^2 (H,G)
+
+    ParBilinearForm *a_EE = new ParBilinearForm(fespace);
+    a_EE->AddDomainIntegrator(new CurlCurlIntegrator());
+    a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
+    a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+    a_EE->Assemble();
+    a_EE->Finalize();
+    //HypreParMatrix *A_EE = new HypreParMatrix;
+    //a_EE->FormSystemMatrix(ess_tdof_list_E, *A_EE);
+    HypreParMatrix *A_EE = NULL;
+    {
+      ParLinearForm b_E(fespace);
+#ifndef AIRY_TEST
+      MFEM_VERIFY(false, "TODO: add linear form integrator to RHS");
+#endif
+      b_E.Assemble();
+      OperatorPtr Aptr;
+      Vector X;
+      a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, Aptr, X, rhs_E);
+      A_EE = Aptr.As<HypreParMatrix>();
+    }
+    
+#ifdef IMPEDANCE_POSITIVE
+    ConstantCoefficient negOne(-1.0);
+    ParBilinearForm *a_EEm = new ParBilinearForm(fespace);
+    a_EEm->AddDomainIntegrator(new CurlCurlIntegrator());
+    a_EEm->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
+    a_EEm->AddBoundaryIntegrator(new VectorFEMassIntegrator(negOne));
+    a_EEm->Assemble();
+    a_EEm->Finalize();
+    HypreParMatrix *A_EEm = new HypreParMatrix;
+    a_EEm->FormSystemMatrix(ess_tdof_list, *A_EEm);
+
+    ParBilinearForm *a_HHm = new ParBilinearForm(fespace);
+    a_HHm->AddDomainIntegrator(new CurlCurlIntegrator());
+    a_HHm->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+    a_HHm->AddBoundaryIntegrator(new VectorFEMassIntegrator(negOne));
+    a_HHm->Assemble();
+    a_HHm->Finalize();
+    HypreParMatrix *A_HHm = new HypreParMatrix;
+    a_HHm->FormSystemMatrix(ess_tdof_list, *A_HHm);
+#endif
+    
+    ParBilinearForm *a_HH = new ParBilinearForm(fespace);
+    a_HH->AddDomainIntegrator(new CurlCurlIntegrator());
+    a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+    a_HH->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+    a_HH->Assemble();
+    a_HH->Finalize();
+    HypreParMatrix *A_HH = new HypreParMatrix;
+    a_HH->FormSystemMatrix(ess_tdof_list_empty, *A_HH);
+
+    ParBilinearForm *a_tang = new ParBilinearForm(fespace);
+    //ParMixedBilinearForm *a_tang = new ParMixedBilinearForm(fespace, fespace);
+    //bdr_marker[1] = 1;  // TODO: remove
+    a_tang->AddBoundaryIntegrator(new VectorFEBoundaryTangentIntegrator(1.0), bdr_marker);
+    a_tang->Assemble();
+    a_tang->Finalize();
+
+    OperatorHandle A_tang_ptr;
+    a_tang->FormSystemMatrix(ess_tdof_list_empty, A_tang_ptr);
+    HypreParMatrix *A_tang = A_tang_ptr.As<HypreParMatrix>();
+
+    HypreParMatrix *A_tang_Ecol = A_tang->EliminateCols(ess_tdof_list_E);
+
+    HypreParMatrix *A_tang_Erow = A_tang_Ecol->Transpose();  // other rotation
+    
+    // (k curl u, eps v) + (k u, curl v)
+    ParMixedBilinearForm *a_mix1 = new ParMixedBilinearForm(fespace,fespace);
+    a_mix1->AddDomainIntegrator(new MixedVectorCurlIntegrator(coeffT));
+    a_mix1->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(pos));
+    a_mix1->Assemble();
+    a_mix1->Finalize();
+    HypreParMatrix *A_mix1 = new HypreParMatrix;
+    a_mix1->FormColSystemMatrix(ess_tdof_list_empty, *A_mix1);
+    
+    // (k curl u, v) + (k eps u, curl v)
+    ParMixedBilinearForm *a_mix2 = new ParMixedBilinearForm(fespace,fespace);
+    a_mix2->AddDomainIntegrator(new MixedVectorCurlIntegrator(pos));
+    a_mix2->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(coeff));
+    a_mix2->Assemble();
+    a_mix2->Finalize();
+    HypreParMatrix *A_mix2 = new HypreParMatrix;
+    a_mix2->FormColSystemMatrix(ess_tdof_list_E, *A_mix2);
+
+    HypreParMatrix *A_mix1_E = A_mix2->Transpose();
+
+    { // TODO: remove
+      int nprocs, rank;
+      MPI_Comm_rank(comm, &rank);
+      MPI_Comm_size(comm, &nprocs);
+
+      if (rank == 0)
+	{
+	  std::string filenameE = "essE0.txt";
+	  std::ofstream sfile(filenameE, std::ofstream::out);
+	  ess_tdof_list_E.Print(sfile);
+	  
+	  std::string filename = "AEH0.txt";
+	  A_mix1_E->Print(filename.c_str());  // TODO: remove
+
+	  std::string filename2 = "AHE0.txt";
+	  A_mix2->Print(filename2.c_str());  // TODO: remove
+	}
+    }
+    
+    BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
+    const int numBlocks = 4;
+
+#ifdef IMPEDANCE_OTHER_SIGN
+    LS_Maxwellop->SetBlock(0, 0, A_EE);
+    LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
+    LS_Maxwellop->SetBlock(3, 0, A_tang);
+    LS_Maxwellop->SetBlock(0, 1, A_mix1, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(1, 1, A_HH);
+#ifdef IMPEDANCE_POSITIVE
+    LS_Maxwellop->SetBlock(2, 1, A_tang, -1.0);  // other rotation
+#else
+    LS_Maxwellop->SetBlock(2, 1, A_tang);  // other rotation
+#endif    
+    LS_Maxwellop->SetBlock(1, 2, A_tang, -1.0);
+#ifdef IMPEDANCE_POSITIVE
+    LS_Maxwellop->SetBlock(2, 2, A_EEm);
+#else
+    LS_Maxwellop->SetBlock(2, 2, A_EE);
+#endif
+    LS_Maxwellop->SetBlock(3, 2, A_mix2, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(0, 3, A_tang, -1.0);  // other rotation
+    LS_Maxwellop->SetBlock(2, 3, A_mix1, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(3, 3, A_HH);
+#else  // not IMPEDANCE_OTHER_SIGN, i.e. original version
+#ifdef IMPEDANCE_POSITIVE
+    LS_Maxwellop->SetBlock(0, 0, A_EE);
+    LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
+    LS_Maxwellop->SetBlock(3, 0, A_tang);
+    LS_Maxwellop->SetBlock(0, 1, A_mix1, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(1, 1, A_HHm);
+    LS_Maxwellop->SetBlock(2, 1, A_tang);  // other rotation
+    LS_Maxwellop->SetBlock(1, 2, A_tang, -1.0);
+    LS_Maxwellop->SetBlock(2, 2, A_EEm);
+    LS_Maxwellop->SetBlock(3, 2, A_mix2, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(0, 3, A_tang);  // other rotation
+    LS_Maxwellop->SetBlock(2, 3, A_mix1, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(3, 3, A_HHm);
+#else  // original version
+    LS_Maxwellop->SetBlock(0, 0, A_EE);
+    LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
+    LS_Maxwellop->SetBlock(3, 0, A_tang_Ecol, -omega);
+    LS_Maxwellop->SetBlock(0, 1, A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(1, 1, A_HH);
+    LS_Maxwellop->SetBlock(2, 1, A_tang_Erow, omega);  // other rotation
+    LS_Maxwellop->SetBlock(1, 2, A_tang_Ecol, omega);
+    LS_Maxwellop->SetBlock(2, 2, A_EE);
+    LS_Maxwellop->SetBlock(3, 2, A_mix2, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(0, 3, A_tang_Erow, -omega);  // other rotation
+    LS_Maxwellop->SetBlock(2, 3, A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(3, 3, A_HH);
+#endif
+#endif
+   
+    // Set up the preconditioner  
+    Array2D<HypreParMatrix*> blockA(numBlocks, numBlocks);
+    Array2D<double> blockAcoef(numBlocks, numBlocks);
+
+    for (int i=0; i<numBlocks; ++i)
+      {
+	for (int j=0; j<numBlocks; ++j)
+	  {
+	    if (LS_Maxwellop->IsZeroBlock(i,j) == 0)
+	      {
+		blockA(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+		blockAcoef(i,j) = LS_Maxwellop->GetBlockCoef(i,j);
+	      }
+	    else
+	      {
+		blockA(i,j) = NULL;
+		blockAcoef(i,j) = 1.0;
+	      }
+	  }
+      }
+
+    LSpcg.SetAbsTol(1.0e-12);
+    LSpcg.SetRelTol(1.0e-8);
+    LSpcg.SetMaxIter(2000);
+    LSpcg.SetOperator(*LS_Maxwellop);
+    LSpcg.SetPrintLevel(1);
+    
+    blockgmg::BlockMGSolver * precMG = NULL;
+
+#ifdef FOSLS_DIRECT_SOLVER
+    std::vector<std::vector<int> > blockProcOffsets(numBlocks);
+    std::vector<std::vector<int> > all_block_num_loc_rows(numBlocks);
+    Array2D<SparseMatrix*> Asp;
+    Asp.SetSize(numBlocks,numBlocks);
+
+    {
+      int nprocs, rank;
+      MPI_Comm_rank(comm, &rank);
+      MPI_Comm_size(comm, &nprocs);
+
+      std::vector<int> allnumrows(nprocs);
+      const int blockNumRows = n;
+      MPI_Allgather(&blockNumRows, 1, MPI_INT, allnumrows.data(), 1, MPI_INT, comm);
+
+      for (int b=0; b<numBlocks; ++b)
+	{
+	  blockProcOffsets[b].resize(nprocs);
+	  all_block_num_loc_rows[b].resize(nprocs);
+
+	  for (int j=0; j<numBlocks; ++j)
+	    Asp(b,j) = NULL;
+	}
+     
+      blockProcOffsets[0][0] = 0;
+      for (int i=0; i<nprocs-1; ++i)
+	blockProcOffsets[0][i+1] = blockProcOffsets[0][i] + allnumrows[i];
+
+      for (int i=0; i<nprocs; ++i)
+	{
+	  for (int b=0; b<numBlocks; ++b)
+	    all_block_num_loc_rows[b][i] = allnumrows[i];
+	  
+	  for (int b=1; b<numBlocks; ++b)
+	    blockProcOffsets[b][i] = blockProcOffsets[0][i];
+	}
+    }
+   
+    LSH = blockgmg::CreateHypreParMatrixFromBlocks2(comm, block_trueOffsets, blockA, Asp,
+					 blockAcoef, blockProcOffsets, all_block_num_loc_rows);
+
+    invLSH = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*LSH), comm);
+#else
+    precMG = new blockgmg::BlockMGSolver(LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
+    LSpcg.SetPreconditioner(*precMG);
+#endif
+  }
+  
+  void SetOperator(const Operator &op) { }
+
+  void Mult(const Vector &x, Vector &y) const
+  {
+    MFEM_VERIFY(x.Size() == 4*n, "");
+
+#ifdef FOSLS_DIRECT_SOLVER
+    invLSH->Mult(x, y);
+#else
+    LSpcg.Mult(x, y);
+#endif
+  }
+  
+  void MultSolver(const Vector &x, Vector &y) const
+  {
+    // Solve (curl E, curl v) - k^2 (eps E, v) + ik <pi(u), pi(v)> = (x, v), with no BC,
+    // where x is complex, using FOSLS. This is the Galerkin discretization of
+    // curl curl u - k^2 eps u = x, with ik n x u x n - n x curl u = 0 on the boundary.
+
+    MFEM_VERIFY(x.Size() == 2*n, "");
+
+    (*trueRhs) = 0.0;
+    
+    for (int i=0; i<n; ++i)
+      z[i] = x[i];  // Set z = x_Re
+    
+    M_inv.Mult(z, Minv_x);
+    M_eps_Ebc.Mult(Minv_x, z);
+
+    trueRhs->GetBlock(0) -= z;
+
+    M_curl.Mult(Minv_x, z);
+    z *= 1.0 / omega;  // TODO: essential DOF's?
+    
+    trueRhs->GetBlock(1) = z;
+
+    for (int i=0; i<n; ++i)
+      z[i] = x[n + i];  // Set z = x_Im
+    
+    M_inv.Mult(z, Minv_x);
+    M_eps_Ebc.Mult(Minv_x, z);
+
+    trueRhs->GetBlock(2) -= z;
+
+    M_curl.Mult(Minv_x, z);
+    z *= 1.0 / omega;  // TODO: essential DOF's?
+
+    trueRhs->GetBlock(3) += z;
+    
+#ifdef FOSLS_DIRECT_SOLVER
+    invLSH->Mult(*trueRhs, *trueSol);
+#else
+    LSpcg.Mult(*trueRhs, *trueSol);
+#endif
+    
+    for (int i=0; i<n; ++i)
+      y[i] = trueSol->GetBlock(0)[i];  // Set y_Re = E_Re
+
+    for (int i=0; i<n; ++i)
+      y[n + i] = trueSol->GetBlock(2)[i];  // Set y_Im = E_Im
+  }
+
+  // TODO: just have one version of this 
+  STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
+  {
+    //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
+    STRUMPACKSolver * strumpack = new STRUMPACKSolver(0, NULL, comm);
+    strumpack->SetPrintFactorStatistics(true);
+    strumpack->SetPrintSolveStatistics(false);
+    strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+    strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+    strumpack->SetOperator(*Arow);
+    strumpack->SetFromCommandLine();
+    return strumpack;
+  }
+
+  Vector rhs_E;  // real part
+  
+private:
+
+  BlockVector *trueRhs, *trueSol;
+
+  Array<int> block_trueOffsets;
+
+  ParBilinearForm *bM, *bM_eps;
+  ParMixedBilinearForm *bM_curl;
+  
+  HypreParMatrix M, M_curl;
+  HypreParMatrix M_Ebc, M_eps_Ebc;
+
+  CGSolver M_inv;
+
+  const int n;
+  const int nfull;  // TODO: not used?
+  
+  mutable Vector z, Minv_x;
+  
+  CGSolver LSpcg;
+  
+  STRUMPACKSolver *invLSH;
+  HypreParMatrix *LSH;
+
+  ParFiniteElementSpace *fespace;
+
+  const double omega;
+};
+
+
+class LowerBlockTriangularSubdomainSolver : public Operator
+{
+public:
+  LowerBlockTriangularSubdomainSolver(HypreParMatrix *fullMat_, FOSLSSolver *sdInv_, STRUMPACKSolver *auxInv_)
+    : fullMat(fullMat_), sdInv(sdInv_), auxInv(auxInv_)
+  {
+    nSD = sdInv->Height() / 2;  // Discarding the H result
+    nSDhalf = nSD / 2;   // Size of Er or Ei
+    nAux = auxInv->Height();  // complex size
+    nAuxHalf = nAux / 2;
+    
+    height = nSD + nAux;
+    width = height + nSD;
+
+    MFEM_VERIFY(height == fullMat->Height(), "");
+    
+    tmp.SetSize(height);
+    
+    xSD.SetSize(2*nSD);
+    ySD.SetSize(2*nSD);
+
+    xAux.SetSize(nAux);
+    yAux.SetSize(nAux);
+  }
+
+  virtual void Mult(const Vector & x, Vector & y) const
+  {
+    MFEM_VERIFY(x.Size() == width && y.Size() == height, "");
+    MFEM_VERIFY(2 * (nSDhalf + nAuxHalf) == height, "");
+    
+    const int widthHalf = width / 2;
+    
+    for (int i=0; i<nSD; ++i)
+      {
+	xSD[i] = x[i];  // E and H real parts
+	xSD[nSD + i] = x[widthHalf + i];  // E and H imaginary parts
+      }
+
+    sdInv->Mult(xSD, ySD);  // Solve (0,0) block
+
+    y = 0.0;
+    for (int i=0; i<nSDhalf; ++i)
+      {
+	y[i] = ySD[i];  // Er
+	y[nSDhalf + nAuxHalf + i] = ySD[nSD + i];  // Ei
+      }
+    
+    tmp = 0.0;
+    fullMat->Mult(y, tmp);  // Multiply solution for (0) block to get action of (1,0) block.
+
+    for (int i=0; i<nAuxHalf; ++i)
+      {
+	xAux[i] = x[nSD + i] - tmp[nSDhalf + i];  // real part
+	xAux[nAuxHalf + i] = x[widthHalf + nSD + i] - tmp[nSD + nAuxHalf + i];  // imaginary part
+      }
+    
+    auxInv->Mult(xAux, yAux);
+
+    for (int i=0; i<nAuxHalf; ++i)
+      {
+	y[nSDhalf + i] = yAux[i];
+	y[nSD + nAuxHalf + i] = yAux[nAuxHalf + i];
+      }
+  }
+  
+private:
+  STRUMPACKSolver *auxInv;
+  FOSLSSolver *sdInv;
+  int nSD, nSDhalf, nAux, nAuxHalf;
+
+  HypreParMatrix *fullMat;
+  
+  mutable Vector xSD, ySD, tmp, xAux, yAux;
+};
+
+  
 #endif  // DDOPER_HPP
