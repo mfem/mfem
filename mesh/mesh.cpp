@@ -1094,12 +1094,14 @@ void Mesh::Destroy()
    bdr_attributes.DeleteAll();
 }
 
-void Mesh::DeleteLazyTables()
+void Mesh::ResetLazyData()
 {
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    DeleteGeometricFactors();
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
 }
 
 void Mesh::SetAttributes()
@@ -1148,9 +1150,6 @@ void Mesh::InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem)
 
    NumOfBdrElements = 0;
    boundary.SetSize(NBdrElem);  // just allocate space for Element *
-
-   nbInteriorFaces = -1;
-   nbBoundaryFaces = -1;
 }
 
 void Mesh::AddVertex(const double *x)
@@ -2858,8 +2857,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    NumOfBdrElements = mesh.NumOfBdrElements;
    NumOfEdges = mesh.NumOfEdges;
    NumOfFaces = mesh.NumOfFaces;
-   nbInteriorFaces = -1;
-   nbBoundaryFaces = -1;
+   nbInteriorFaces = mesh.nbInteriorFaces;
+   nbBoundaryFaces = mesh.nbBoundaryFaces;
 
    meshgen = mesh.meshgen;
    mesh_geoms = mesh.mesh_geoms;
@@ -3058,8 +3057,6 @@ Mesh::Mesh(double *_vertices, int num_vertices,
       boundary[i]->SetAttribute(boundary_attributes[i]);
    }
    NumOfBdrElements = num_boundary_elements;
-   nbInteriorFaces = -1;
-   nbBoundaryFaces = -1;
 
    FinalizeTopology();
 }
@@ -3726,6 +3723,8 @@ void Mesh::DegreeElevate(int rel_degree, int degree)
 
 void Mesh::UpdateNURBS()
 {
+   ResetLazyData();
+
    NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
@@ -5255,7 +5254,7 @@ void Mesh::ReorientTetMesh()
       return;
    }
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -6281,7 +6280,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::UniformRefinement2D_base(bool update_nodes)
 {
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (el_to_edge == NULL)
    {
@@ -6441,7 +6440,7 @@ static inline double sqr(const double &x)
 void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                                     bool update_nodes)
 {
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (el_to_edge == NULL)
    {
@@ -7035,7 +7034,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    int i, j, ind, nedges;
    Array<int> v;
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (ncmesh)
    {
@@ -7278,7 +7277,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    MFEM_VERIFY(!NURBSext, "Nonconforming refinement of NURBS meshes is "
                "not supported. Project the NURBS to Nodes first.");
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (!ncmesh)
    {
@@ -7348,7 +7347,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    const Table &dt = ncmesh->GetDerefinementTable();
 
@@ -7434,6 +7433,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    SetMeshGen(); // set the mesh type: 'meshgen', ...
 
    NumOfEdges = NumOfFaces = 0;
+   nbInteriorFaces = nbBoundaryFaces = -1;
 
    if (Dim > 1)
    {

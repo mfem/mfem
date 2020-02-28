@@ -209,7 +209,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
-   void DeleteLazyTables();
+   void ResetLazyData();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -727,7 +727,8 @@ public:
    /** @brief Return the mesh geometric factors for the faces corresponding
         to the given integration rule. */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
-                                                       const int flags, FaceType type);
+                                                       const int flags,
+                                                       FaceType type);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
