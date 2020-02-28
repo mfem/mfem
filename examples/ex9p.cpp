@@ -509,11 +509,11 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b)
    : TimeDependentOperator(_M.Height()),
      M(_M.GetAssemblyLevel()==AssemblyLevel::FULL?
-     static_cast<Operator&>(*_M.ParallelAssemble()):
-     static_cast<Operator&>(_M)),
+        static_cast<Operator&>(*_M.ParallelAssemble()):
+        static_cast<Operator&>(_M)),
      K(_K.GetAssemblyLevel()==AssemblyLevel::FULL?
-     static_cast<Operator&>(*_K.ParallelAssemble()):
-     static_cast<Operator&>(_K)),
+        static_cast<Operator&>(*_K.ParallelAssemble()):
+        static_cast<Operator&>(_K)),
      b(_b),
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
