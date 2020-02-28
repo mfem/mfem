@@ -141,7 +141,9 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                                                   fes.GetMesh()->GetFaceBaseGeometry(0));
    FaceElementTransformations &T = *fes.GetMesh()->GetFaceElementTransformations(
                                       0);
-   const IntegrationRule *ir = &GetRule(el.GetGeomType(), el.GetOrder(), T);
+   const IntegrationRule *ir = IntRule?
+                               IntRule:
+                               &GetRule(el.GetGeomType(), el.GetOrder(), T);
    const int symmDims = 4;
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
