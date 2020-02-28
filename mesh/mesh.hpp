@@ -60,6 +60,11 @@ protected:
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
+   /** These variables store the number of Interior and Boundary faces.
+     * fes->GetMesh()->GetNBE() doesn't return the expected value in 3D
+     * because periodic meshes in 3D have some faces marked as boundary
+     * for vizualization purpose in GLvis. */
+   mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
    int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
@@ -697,6 +702,15 @@ public:
 
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
+
+   /// Returns the number of faces according to the requested type.
+   /** If type==Boundary returns only the "true" number of boundary faces
+       contrary to GetNBE() that returns "fake" boundary faces associated to
+       visualization for GLvis.
+       Similarly, if type==Interior, the "fake" boundary faces associated to
+       visualization are counted as interior faces.
+   */
+   int GetNFbyType(FaceType type) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
