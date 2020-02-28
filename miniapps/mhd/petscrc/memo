@@ -33,15 +33,80 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+
+
+2/27
+Testing supg without fd-fem how will it do on stretched grid??
+
+Let's focus on this run:
+../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf 5 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6
+
+fd vs supg vs none
+
+Isn't it strange if I have stretched grid to compute eleLength?? Maybe that is the reason? But it is only off by a factor of 2 (it explains why if I stretched aggressively, things are not working).
+
+At t=4; use supg (only on omega) and fd on (psi) gives a good solution
+
+Without fd, the solutions with supg become very bad (omega). The original bad results are probably due to under resolved.
+
+Adding both supg and fd on psi seems not a good idea? Why? Did I have a bug somewhere in computing y2?
+
+2/26
+OMG, I truned off the stabilization term when testing stretched grid!!
+
+So the stretched grid works well for 1e-4 without stabilization term (in other words we could capture it through amr)!
+the preconditioner with the stabilization term does not like the stretched grid!! Maybe adjust the fd term in jfnk?
+
+res=1e-4 preconditioner does not like stretched grid; 
+res=1e-6 it is better
+
+uniform r5o3 stuck at t=5.6 (add more supg!)
+
+xperiodic-stretched.mesh r5o3
+
+
+2/21
+two possibilities where the preconditioner fails:
+Sc  (too oscillatory for omega, or underresolved? see case3StretchedR5o3res1e-5/log_study)
+ARe (also too oscillatory omega or maybe underresolved??) see case3StretchedR5o5res1e-6 (no plot) or case3R1StretchedR5o3res1e-5 (no plot yet)
+
+case3StretchedR5o3res1e-5
+vs
+case3R1StretchedR5o3res1e-5
+
+Good results (1e-4):
+case3stretchedR5o4
+
+1e-6
+xperiodic-newR1-stretched.mesh -rs 5 -rp 0 -o 3 with dt=0.1:
+time=1924.11
+
+what to do?
+1. do more refinement study
+2. do more tests with larger nu
+
 2/20
 mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -no-vis -vs 1 -tf 4.9 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 > log3.out
 
 1e-6
-r5o4 stuck at t=5.0
+r5o4 stuck at t=5.0 (probably under-resolved)
 r5o5 ??
 
+1e-6 (more stretched)
+R1r5o3 failed to converged!!
+
+newR1r5o3 also fails to converge
+
+1e-5
+
+what about resistive=1e-5 and viscosity=1e-4
+
+1e-6
+r6o4 runs fine to t=2
+
+
 some ideas to try:
-do more stretching
+do more stretching (this appears to be a bad idea R1-stretched is bad idea, maybe made the stretching more smooth??)
 try add the B diffusion on omega
 
 
@@ -80,7 +145,7 @@ mpirun -n 48 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i
 this looks good at t=2
 case3StretchedR5o4res1e-5
 
-issue at t=5.4!!
+issue at t=5.4!! (this is underresolved)
 case3StretchedR5o3res1e-5
 
 ok:
