@@ -1466,7 +1466,14 @@ void FiniteElementSpace::Construct()
 
    if (mesh->Dimension() > 1)
    {
-      nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
+      if (IsVariableOrder())
+      {
+         nedofs = AssignEdgeDofs();
+      }
+      else
+      {
+         nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
+      }
    }
 
    if (mesh->GetNFaces() > 0)
@@ -1508,6 +1515,50 @@ void FiniteElementSpace::Construct()
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
+}
+
+int FiniteElementSpace::AssignEdgeDofs()
+{
+   MFEM_ASSERT(mesh->Dimension() > 1, "");
+   MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
+
+   Array<Connection> edge_orders;
+   edge_orders.Reserve(12 * mesh->GetNE());
+
+   Array<int> E, Eo;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      mesh->GetElementEdges(i, E, Eo);
+      for (int j = 0; j < E.Size(); j++)
+      {
+         edge_orders.Append(Connection(E[j], elem_order[i]));
+      }
+   }
+
+   edge_orders.Sort();
+   edge_orders.Unique();
+
+   // For each edge we now have a list of polynomial orders in which it
+   // needs to be represented. We assign the DOF numbers and fill the table
+   // edge_dof, where each row contains the indices of the beginnings of
+   // the DOF ranges for the different polynomial orders.
+
+   int nedofs = 0;
+   for (int i = 0; i < edge_orders.Size(); i++)
+   {
+      int p = edge_orders[i].to;
+      int dofs = fec->GetNumDof(Geometry::SEGMENT, p);
+
+      edge_orders[i].to = nedofs;
+      nedofs += dofs;
+   }
+
+   // append a dummy edge as terminator
+   edge_orders.Append(Connection(mesh->GetNEdges(), nedofs));
+
+   edge_dof.MakeFromList(mesh->GetNEdges()+1, edge_orders);
+
+   return nedofs;
 }
 
 void FiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const

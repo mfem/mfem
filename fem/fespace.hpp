@@ -101,15 +101,31 @@ protected:
        - Ordering::byVDIM  - first vector dimension, then nodes */
    Ordering::Type ordering;
 
+   /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
+   int ndofs;
+
    /** Polynomial order for each element. If empty, all elements are assumed
        to be of the default order (fec->DefaultOrder()). */
    Array<char> elem_order;
 
-   /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
-   int ndofs;
+#if 0
+   /** Polynomial order for each edge, calculated as the minimum order of
+       elements sharing the edge. If empty, edges are all of the same order. */
+   Array<char> edge_order;
+#endif
 
    int nvdofs, nedofs, nfdofs, nbdofs;
    int *fdofs, *bdofs;
+
+#if 0
+   /** If not empty, these contain the index of the first DOF of an edge,
+       face, or element interior. For spaces of uniform polynomial order and
+       uniform element type, the arrays are empty. */
+   Array<int> face_dofs, internal_dofs;
+#endif
+
+   /// In a variable order space, holds a set of DOFs for each edge.
+   Table edge_dof;
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
@@ -136,7 +152,7 @@ protected:
    mutable Array<QuadratureInterpolator*> E2Q_array;
 
    bool dirty; // space needs updating (rebuilding) if true, e.g., on order change
-   long sequence; // should match Mesh::GetSequence
+   long sequence; // to detect changes in the mesh: should match Mesh::GetSequence
 
    void UpdateNURBS();
 
@@ -144,6 +160,9 @@ protected:
    void Destroy();
 
    void BuildElementToDofTable() const;
+
+   /// Build the table edge_dof in variable order space, return total edge DOFs.
+   int AssignEdgeDofs();
 
    /// Helper to remove encoded sign from a DOF
    static inline int DecodeDof(int dof, double& sign)
@@ -292,6 +311,9 @@ public:
    void SetElementOrder(int i, int p);
    /// Returns the order of the i'th finite element
    int GetElementOrder(int i) const;
+
+   /// Returns true if the space contains elements of different polynomial orders.
+   bool IsVariableOrder() const { return elem_order.Size(); }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingProlongation() const;
