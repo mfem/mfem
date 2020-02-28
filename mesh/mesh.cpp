@@ -7350,7 +7350,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
-   ncmesh.GetMeshComponents(vertices, elements, boundary);
+   ncmesh.GetMeshComponents(*this);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
@@ -7420,6 +7420,10 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(bdr_attributes, other.bdr_attributes);
 
    mfem::Swap(geom_factors, other.geom_factors);
+
+#ifdef MFEM_USE_MEMALLOC
+   TetMemory.Swap(other.TetMemory);
+#endif
 
    if (non_geometry)
    {
@@ -8554,17 +8558,24 @@ void Mesh::PrintVTK(std::ostream &out)
    out.flush();
 }
 
-void Mesh::PrintVTU(std::string fname)
+void Mesh::PrintVTU(std::string fname,
+                    VTKFormat format,
+                    bool high_order_output,
+                    int compression_level)
 {
+   int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
    fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);
-   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"
-       << std::endl;
-   out << "<UnstructuredGrid>" << std::endl;
-   PrintVTU(out,1);
-   out << "</Piece>" <<
-       std::endl; // needed to close the piece open in the PrintVTU method
-   out << "</UnstructuredGrid>" << std::endl;
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   if (compression_level != 0)
+   {
+      out << " compressor=\"vtkZLibDataCompressor\"";
+   }
+   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   out << "<UnstructuredGrid>\n";
+   PrintVTU(out, ref, format, high_order_output, compression_level);
+   out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>\n";
    out << "</VTKFile>" << std::endl;
 
    out.close();
@@ -8572,9 +8583,9 @@ void Mesh::PrintVTU(std::string fname)
 
 template <typename T>
 void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
-                        const char *suffix, VTUFormat format)
+                        const char *suffix, VTKFormat format)
 {
-   if (format == VTUFormat::ASCII) { out << val << suffix; }
+   if (format == VTKFormat::ASCII) { out << val << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 
@@ -8582,167 +8593,57 @@ void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
 template <>
 void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
                                  const uint8_t &val, const char *suffix,
-                                 VTUFormat format)
+                                 VTKFormat format)
 {
-   if (format == VTUFormat::ASCII) { out << static_cast<int>(val) << suffix; }
+   if (format == VTKFormat::ASCII) { out << static_cast<int>(val) << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 
 template <>
 void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
                                 const double &val, const char *suffix,
-                                VTUFormat format)
+                                VTKFormat format)
 {
-   if (format == VTUFormat::BINARY32) { bin_io::AppendBytes<float>(buf, val); }
-   else if (format == VTUFormat::BINARY) { bin_io::AppendBytes(buf, val); }
-   else { out << static_cast<int>(val) << suffix; }
+   if (format == VTKFormat::BINARY32)
+   {
+      bin_io::AppendBytes<float>(buf, float(val));
+   }
+   else if (format == VTKFormat::BINARY)
+   {
+      bin_io::AppendBytes(buf, val);
+   }
+   else
+   {
+      out << val << suffix;
+   }
 }
 
 template <>
 void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
                                const float &val, const char *suffix,
-                               VTUFormat format)
+                               VTKFormat format)
 {
-   if (format == VTUFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
-   else if (format == VTUFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
-   else { out << static_cast<int>(val) << suffix; }
+   if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
+   else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
+   else { out << val << suffix; }
 }
 
-void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf)
+void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+                                 int compression_level)
 {
-   // First write size of buffer (as uint32_t), encoded with base 64
-   uint32_t sz = buf.size();
-   bin_io::WriteBase64(out, &sz, sizeof(sz));
-   // Then write all the bytes in the buffer, encoded with base 64
-   bin_io::WriteBase64(out, buf.data(), buf.size());
+   WriteVTKEncodedCompressed(out, buf.data(), buf.size(), compression_level);
    out << '\n';
    buf.clear();
 }
 
-int ConvertToVTKOrdering(int idx_in, int ref, Geometry::Type geom)
-{
-   int n = ref + 1;
-   switch (geom)
-   {
-      case Geometry::POINT:
-         return idx_in;
-      case Geometry::SEGMENT:
-         if (idx_in == 0 || idx_in == ref)
-         {
-            return idx_in ? 1 : 0;
-         }
-         return idx_in + 1;
-      case Geometry::SQUARE:
-      {
-         // Cf: https://git.io/JvZLT
-         int i = idx_in % n;
-         int j = idx_in / n;
-         // Do we lie on any of the edges
-         bool ibdr = (i == 0 || i == ref);
-         bool jbdr = (j == 0 || j == ref);
-         if (ibdr && jbdr) // Vertex DOF
-         {
-            return (i ? (j ? 2 : 1) : (j ? 3 : 0));
-         }
-         int offset = 4;
-         if (jbdr) // Edge DOF on j==0 or j==ref
-         {
-            return (i - 1) + (j ? ref - 1 + ref - 1 : 0) + offset;
-         }
-         else if (ibdr) // Edge DOF on i==0 or i==ref
-         {
-            return (j - 1) + (i ? ref - 1 : 2 * (ref - 1) + ref - 1) + offset;
-         }
-         else // Interior DOF
-         {
-            offset += 2 * (ref - 1 + ref - 1);
-            return offset + (i - 1) + (ref - 1) * ((j - 1));
-         }
-      }
-      case Geometry::CUBE:
-      {
-         // Cf: https://git.io/JvZLe
-         int i = idx_in % n;
-         int j = (idx_in / n) % n;
-         int k = idx_in / (n*n);
-         bool ibdr = (i == 0 || i == ref);
-         bool jbdr = (j == 0 || j == ref);
-         bool kbdr = (k == 0 || k == ref);
-         // How many boundaries do we lie on at once?
-         int nbdr = (ibdr ? 1 : 0) + (jbdr ? 1 : 0) + (kbdr ? 1 : 0);
-         if (nbdr == 3) // Vertex DOF
-         {
-            // ijk is a corner node. Return the proper index (in [0,7])
-            return (i ? (j ? 2 : 1) : (j ? 3 : 0)) + (k ? 4 : 0);
-         }
-
-         int offset = 8;
-         if (nbdr == 2) // Edge DOF
-         {
-            if (!ibdr)
-            {
-               // On i axis
-               return (i - 1) +
-                      (j ? ref - 1 + ref - 1 : 0) +
-                      (k ? 2*(ref - 1 + ref - 1) : 0) +
-                      offset;
-            }
-            if (!jbdr)
-            {
-               // On j axis
-               return (j - 1) +
-                      (i ? ref - 1 : 2*(ref - 1) + ref - 1) +
-                      (k ? 2*(ref - 1 + ref - 1) : 0) +
-                      offset;
-            }
-            // !kbdr, On k axis
-            offset += 4*(ref - 1) + 4*(ref - 1);
-            return (k - 1) + (ref - 1)*(i ? (j ? 3 : 1) : (j ? 2 : 0))
-                   + offset;
-         }
-
-         offset += 4*(ref - 1 + ref - 1 + ref - 1);
-         if (nbdr == 1) // Face DOF
-         {
-            if (ibdr) // On i-normal face
-            {
-               return (j - 1) + ((ref - 1)*(k - 1))
-                      + (i ? (ref - 1)*(ref - 1) : 0) + offset;
-            }
-            offset += 2*(ref - 1)*(ref - 1);
-            if (jbdr) // On j-normal face
-            {
-               return (i - 1)
-                      + ((ref - 1)*(k - 1))
-                      + (j ? (ref - 1)*(ref - 1) : 0) + offset;
-            }
-            offset += 2*(ref - 1)*(ref - 1);
-            // kbdr, On k-normal face
-            return (i - 1) + ((ref - 1)*(j - 1))
-                   + (k ? (ref - 1)*(ref - 1) : 0) + offset;
-         }
-
-         // nbdr == 0: Interior DOF
-         offset += 2*((ref - 1)*(ref - 1) +
-                      (ref - 1)*(ref - 1) +
-                      (ref - 1)*(ref - 1));
-         return offset + (i - 1) + (ref - 1)*((j - 1) + (ref - 1)*(k - 1));
-      }
-      default:
-         MFEM_ABORT("High-order VTK triangles, tetrahedra and prisms are not "
-                    "currently supported");
-         return -1;
-   }
-}
-
-void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
-                    bool high_order_output)
+void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
+                    bool high_order_output, int compression_level)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
 
-   const char *fmt_str = (format == VTUFormat::ASCII) ? "ascii" : "binary";
-   const char *type_str = (format != VTUFormat::BINARY32) ? "Float64" : "Float32";
+   const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+   const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
    // count the points, cells, size
@@ -8790,10 +8691,13 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
          {
             WriteBinaryOrASCII(out, buf, 0.0, "", format);
          }
-         if (format == VTUFormat::ASCII) { out << '\n'; }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
    out << "</DataArray>" << std::endl;
    out << "</Points>" << std::endl;
 
@@ -8810,19 +8714,13 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
       for (int iel = 0; iel < GetNE(); iel++)
       {
          Geometry::Type geom = GetElementBaseGeometry(iel);
-         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-         int nnodes = RefG->RefPts.GetNPoints();
-         local_connectivity.SetSize(nnodes);
+         CreateVTKElementConnectivity(local_connectivity, geom, ref);
+         int nnodes = local_connectivity.Size();
          for (int i=0; i<nnodes; ++i)
          {
-            int idx = ConvertToVTKOrdering(i, ref, geom);
-            local_connectivity[idx] = np + i;
+            WriteBinaryOrASCII(out, buf, np+local_connectivity[i], " ", format);
          }
-         for (int i=0; i<nnodes; ++i)
-         {
-            WriteBinaryOrASCII(out, buf, local_connectivity[i], " ", format);
-         }
-         if (format == VTUFormat::ASCII) { out << '\n'; }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
          np += nnodes;
          offset.push_back(np);
       }
@@ -8846,12 +8744,15 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
             {
                WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
             }
-            if (format == VTUFormat::ASCII) { out << '\n'; }
+            if (format == VTKFormat::ASCII) { out << '\n'; }
          }
          np += RefG->RefPts.GetNPoints();
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
    out << "</DataArray>" << std::endl;
 
    out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
@@ -8861,7 +8762,10 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    {
       WriteBinaryOrASCII(out, buf, offset[ii], "\n", format);
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
    out << "</DataArray>" << std::endl;
    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
        << fmt_str << "\">" << std::endl;
@@ -8869,9 +8773,6 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-      Array<int> &RG = RefG->RefGeoms;
       uint8_t vtk_cell_type = 5;
 
       // VTK element types defined at: https://git.io/JvZLm
@@ -8909,13 +8810,19 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
       }
       else
       {
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         Array<int> &RG = RefG->RefGeoms;
          for (int j = 0; j < RG.Size(); j += nv)
          {
             WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
          }
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
    out << "</DataArray>" << std::endl;
    out << "</Cells>" << std::endl;
 
@@ -8924,9 +8831,6 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
        << fmt_str << "\">" << std::endl;
    for (int i = 0; i < GetNE(); i++)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       int attr = GetAttribute(i);
       if (high_order_output)
       {
@@ -8934,13 +8838,19 @@ void Mesh::PrintVTU(std::ostream &out, int ref, VTUFormat format,
       }
       else
       {
+         Geometry::Type geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
          {
             WriteBinaryOrASCII(out, buf, attr, "\n", format);
          }
       }
    }
-   if (format != VTUFormat::ASCII) { WriteBase64WithSizeAndClear(out, buf); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
    out << "</DataArray>" << std::endl;
    out << "</CellData>" << std::endl;
 }

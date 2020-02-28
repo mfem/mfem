@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "binaryio.hpp"
+#include "error.hpp"
 
 namespace mfem
 {

@@ -366,9 +366,12 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("PVExample9P", pmesh);
+      pd = new ParaViewDataCollection("Example9P", pmesh);
+      pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", u);
-      pd->SetLevelsOfDetail(2);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
       pd->SetTime(0.0);
       pd->Save();
