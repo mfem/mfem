@@ -167,7 +167,7 @@ public:
    { use_tensor_products = !disable; }
 
    /// Interpolate the E-vector @a e_vec to quadrature points.
-   /** The @a eval_flags are a bitwise mask of constants from the EvalFlags
+   /** The @a eval_flags are a bitwise mask of constants from the FaceEvalFlags
        enumeration. When the VALUES flag is set, the values at quadrature points
        are computed and stored in the Vector @a q_val. Similarly, when the flag
        DERIVATIVES is set, the derivatives are computed and stored in @a q_der.
