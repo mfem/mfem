@@ -323,7 +323,8 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in H1FaceRestriction.");
+               "Only Gauss-Lobatto and Bernstein basis are supported in "
+               "H1FaceRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto.
@@ -373,12 +374,16 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
          // Assumes Gauss-Lobato basis
          if (dof_reorder)
          {
-            if (orientation!=0) { mfem_error("FaceRestriction used on degenerated mesh."); }
+            if (orientation != 0)
+            {
+               mfem_error("FaceRestriction used on degenerated mesh.");
+            }
             GetFaceDofs(dim, face_id, dof1d, faceMap);//Only for hex
          }
          else
          {
-            mfem_error("FaceRestriction not yet implemented for this type of element.");
+            mfem_error("FaceRestriction not yet implemented for this type of "
+                       "element.");
             //TODO Something with GetFaceDofs?
          }
          for (int d = 0; d < dof; ++d)
@@ -609,9 +614,9 @@ static int PermuteFace3D(const int face_id1, const int face_id2,
 }
 
 /// Permute dofs or quads on a face for e2 to match with the ordering of e1
-int PermuteFaceL2(const int dim, const int face_id1,
-                  const int face_id2, const int orientation,
-                  const int size1d, const int index)
+static int PermuteFaceL2(const int dim, const int face_id1,
+                         const int face_id2, const int orientation,
+                         const int size1d, const int index)
 {
    switch (dim)
    {
@@ -636,8 +641,9 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf > 0 ? fes.GetTraceElement(0,
-                                      fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof() : 0),
+     dof(nf > 0 ?
+         fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+         : 0),
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
@@ -651,20 +657,24 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in L2FaceRestriction.");
+               "Only Gauss-Lobatto and Bernstein basis are supported in "
+               "L2FaceRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    if (nf==0) { return; }
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if (!dof_reorder) { mfem_error("Non-Tensor L2FaceRestriction not yet implemented."); }
+   if (!dof_reorder)
+   {
+      mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
+   }
    if (dof_reorder && nf > 0)
    {
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         const FiniteElement *fe = fes.GetTraceElement(f,
-                                                       fes.GetMesh()->GetFaceBaseGeometry(f));
+         const FiniteElement *fe =
+            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
@@ -698,10 +708,12 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       }
       else
       {
-         mfem_error("FaceRestriction not yet implemented for this type of element.");
+         mfem_error("FaceRestriction not yet implemented for this type of "
+                    "element.");
          //TODO Something with GetFaceDofs?
       }
-      if ((type==FaceType::Interior && e2>=0) || (type==FaceType::Boundary && e2<0) )
+      if ((type==FaceType::Interior && e2>=0) ||
+          (type==FaceType::Boundary && e2<0))
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -717,7 +729,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             {
                if (type==FaceType::Interior && e2>=0) //interior face
                {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
                   const int face_dof = faceMap2[pd];
                   const int did = face_dof;
                   const int gid = elementMap[e2*elem_dofs + did];
@@ -766,7 +779,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             {
                if (type==FaceType::Interior && e2>=0) //interior face
                {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
                   const int did = faceMap2[pd];
                   const int gid = elementMap[e2*elem_dofs + did];
                   ++offsets[gid + 1];
@@ -809,7 +823,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             {
                if (type==FaceType::Interior && e2>=0) //interior face
                {
-                  const int pd = PermuteFaceL2(dim, face_id1, face_id2, orientation, dof1d, d);
+                  const int pd = PermuteFaceL2(dim, face_id1, face_id2,
+                                               orientation, dof1d, d);
                   const int did = faceMap2[pd];
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;
@@ -919,8 +934,9 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
-     dof(nf>0 ? fes.GetTraceElement(0,
-                                    fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof():0),
+     dof(nf>0 ?
+         fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+         : 0),
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
@@ -935,20 +951,24 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in ParL2FaceRestriction.");
+               "Only Gauss-Lobatto and Bernstein basis are supported in "
+               "ParL2FaceRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto.
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if (!dof_reorder) { mfem_error("Non-Tensor L2FaceRestriction not yet implemented."); }
+   if (!dof_reorder)
+   {
+      mfem_error("Non-Tensor L2FaceRestriction not yet implemented.");
+   }
    if (dof_reorder && nf > 0)
    {
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         const FiniteElement *fe = fes.GetTraceElement(f,
-                                                       fes.GetMesh()->GetFaceBaseGeometry(f));
+         const FiniteElement *fe =
+            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
@@ -982,11 +1002,12 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       }
       else
       {
-         mfem_error("FaceRestriction not yet implemented for this type of element.");
+         mfem_error("FaceRestriction not yet implemented for this type of "
+                    "element.");
          //TODO Something with GetFaceDofs?
       }
-      if (type==FaceType::Interior && (e2>=0 || (e2<0 &&
-                                                 inf2>=0) )) //Interior/shared face
+      if (type==FaceType::Interior &&
+          (e2>=0 || (e2<0 && inf2>=0) )) //Interior/shared face
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -1152,8 +1173,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    ParGridFunction x_gf;
-   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes), const_cast<Vector&>(x),
-                0);
+   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes),
+                const_cast<Vector&>(x), 0);
    x_gf.ExchangeFaceNbrData();
 
    // Assumes all elements have the same number of dofs
@@ -1167,7 +1188,8 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(), t?vd:ndofs, t?ndofs:vd);
+      auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
+                                t?vd:ndofs, t?ndofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       MFEM_FORALL(i, nfdofs,
       {
@@ -1187,7 +1209,8 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
             }
             else if (idx2>=threshold) //shared boundary
             {
-               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold), t?(idx2-threshold):c);
+               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold),
+                                                 t?(idx2-threshold):c);
             }
             else //true boundary
             {
@@ -1246,7 +1269,7 @@ void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    });
 }
 
-#endif
+#endif // MFEM_USE_MPI
 
 int ToLexOrdering(const int dim, const int face_id, const int size1d,
                   const int index)

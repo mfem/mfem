@@ -341,7 +341,8 @@ void PAMixedBilinearFormExtension::Update()
    if (elem_restrict_trial)
    {
       localTrial.UseDevice(true);
-      localTrial.SetSize(elem_restrict_trial->Height(), Device::GetMemoryType());
+      localTrial.SetSize(elem_restrict_trial->Height(),
+                         Device::GetMemoryType());
 
    }
    if (elem_restrict_test)
@@ -357,7 +358,8 @@ void PAMixedBilinearFormExtension::FormRectangularSystemOperator(
    OperatorHandle &A)
 {
    Operator * oper;
-   Operator::FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, oper);
+   Operator::FormRectangularSystemOperator(trial_tdof_list, test_tdof_list,
+                                           oper);
    A.Reset(oper); // A will own oper
 }
 
@@ -374,14 +376,14 @@ void PAMixedBilinearFormExtension::FormRectangularLinearSystem(
    A.Reset(oper); // A will own oper
 }
 
-void PAMixedBilinearFormExtension::SetupMultInputs(const Operator
-                                                   *elem_restrict_x,
-                                                   const Vector &x,
-                                                   Vector &localX,
-                                                   const Operator *elem_restrict_y,
-                                                   Vector &y,
-                                                   Vector &localY,
-                                                   const double c) const
+void PAMixedBilinearFormExtension::SetupMultInputs(
+   const Operator *elem_restrict_x,
+   const Vector &x,
+   Vector &localX,
+   const Operator *elem_restrict_y,
+   Vector &y,
+   Vector &localY,
+   const double c) const
 {
    // * G operation: localX = c*local(x)
    if (elem_restrict_x)
