@@ -175,11 +175,6 @@ public:
    void Mult(const Vector &e_vec, unsigned eval_flags,
              Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const;
 
-   /// Perform the transpose operation of Mult(). (TODO)
-   void MultTranspose(unsigned eval_flags, const Array<double> &W,
-                      const Vector &q_val,
-                      const Vector &q_der, Vector &e_vec) const;
-
    // Compute kernels follow (cannot be private or protected with nvcc)
 
    /// Template compute kernel for 2D.
