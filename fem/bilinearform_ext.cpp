@@ -44,7 +44,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
 {
    elem_restrict_lex = NULL;
    int_face_restrict_lex = NULL;
-   bound_face_restrict_lex = NULL;
+   bdr_face_restrict_lex = NULL;
 }
 
 void PABilinearFormExtension::SetupRestrictionOperators()
@@ -69,12 +69,12 @@ void PABilinearFormExtension::SetupRestrictionOperators()
       faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
    }
 
-   if (bound_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
+   if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
    {
-      bound_face_restrict_lex = trialFes->GetFaceRestriction(
+      bdr_face_restrict_lex = trialFes->GetFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
-      faceBdrX.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBdrY.SetSize(bound_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
+      faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
    }
 }
@@ -97,11 +97,11 @@ void PABilinearFormExtension::Assemble()
       intFaceIntegrators[i]->AssemblePAInteriorFaces(*a->FESpace());
    }
 
-   Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
-   const int boundFaceIntegratorCount = boundFaceIntegrators.Size();
+   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
+   const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
    for (int i = 0; i < boundFaceIntegratorCount; ++i)
    {
-      boundFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
+      bdrFaceIntegrators[i]->AssemblePABoundaryFaces(*a->FESpace());
    }
 }
 
@@ -139,7 +139,7 @@ void PABilinearFormExtension::Update()
 
    elem_restrict_lex = nullptr;
    int_face_restrict_lex = nullptr;
-   bound_face_restrict_lex = nullptr;
+   bdr_face_restrict_lex = nullptr;
 }
 
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -202,19 +202,19 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       }
    }
 
-   Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = boundFaceIntegrators.Size();
-   if (bound_face_restrict_lex && bFISz>0)
+   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
+   const int bFISz = bdrFaceIntegrators.Size();
+   if (bdr_face_restrict_lex && bFISz>0)
    {
-      bound_face_restrict_lex->Mult(x, faceBdrX);
+      bdr_face_restrict_lex->Mult(x, faceBdrX);
       if (faceBdrX.Size()>0)
       {
          faceBdrY = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            boundFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
+            bdrFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
          }
-         bound_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
       }
    }
 }
@@ -259,19 +259,19 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       }
    }
 
-   Array<BilinearFormIntegrator*> &boundFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = boundFaceIntegrators.Size();
-   if (bound_face_restrict_lex && bFISz>0)
+   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
+   const int bFISz = bdrFaceIntegrators.Size();
+   if (bdr_face_restrict_lex && bFISz>0)
    {
-      bound_face_restrict_lex->Mult(x, faceBdrX);
+      bdr_face_restrict_lex->Mult(x, faceBdrX);
       if (faceBdrX.Size()>0)
       {
          faceBdrY = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            boundFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
+            bdrFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
          }
-         bound_face_restrict_lex->MultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
       }
    }
 }
