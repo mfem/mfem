@@ -2489,6 +2489,7 @@ public:
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);
 
+private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
