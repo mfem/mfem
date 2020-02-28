@@ -68,7 +68,7 @@ public:
 
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetElementRestriction(). */
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
 class H1FaceRestriction : public Operator
 {
 protected:
@@ -119,7 +119,7 @@ public:
 
 /// Operator that extracts Face degrees of freedom.
 /** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetElementRestriction(). */
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
 class ParL2FaceRestriction : public Operator
 {
 protected:
