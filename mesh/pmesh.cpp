@@ -1292,6 +1292,66 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
    FinalizeParTopo();
 }
 
+void ParMesh::DistributeAttributes(Array<int> &attr)
+{
+   // Determine the largest attribute number across all processors
+   int max_attr = attr.Max();
+   int glb_max_attr = -1;
+   MPI_Allreduce(&max_attr, &glb_max_attr, 1, MPI_INT, MPI_MAX, MyComm);
+
+   // Create marker arrays to indicate which attributes are present
+   // assuming attribute numbers are in the range [1,glb_max_attr].
+   bool * attr_marker = new bool[glb_max_attr];
+   bool * glb_attr_marker = new bool[glb_max_attr];
+   for (int i=0; i<glb_max_attr; i++)
+   {
+      attr_marker[i] = false;
+   }
+   for (int i=0; i<attr.Size(); i++)
+   {
+      attr_marker[attr[i] - 1] = true;
+   }
+   MPI_Allreduce(attr_marker, glb_attr_marker, glb_max_attr,
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+   delete [] attr_marker;
+
+   // Translate from the marker array to a unique, sorted list of attributes
+   Array<int> glb_attr;
+   glb_attr.SetSize(glb_max_attr);
+   glb_attr = glb_max_attr;
+   int o = 0;
+   for (int i=0; i<glb_max_attr; i++)
+   {
+      if (glb_attr_marker[i])
+      {
+         glb_attr[o++] = i + 1;
+      }
+   }
+   delete [] glb_attr_marker;
+
+   glb_attr.Sort();
+   glb_attr.Unique();
+   glb_attr.Copy(attr);
+}
+
+void ParMesh::SetAttributes()
+{
+   // Determine the attributes occurring in local interior and boundary elements
+   Mesh::SetAttributes();
+
+   DistributeAttributes(bdr_attributes);
+   if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+   {
+      MFEM_WARNING("Non-positive boundary element attributes found!");
+   }
+
+   DistributeAttributes(attributes);
+   if (attributes.Size() > 0 && attributes[0] <= 0)
+   {
+      MFEM_WARNING("Non-positive element attributes found!");
+   }
+}
+
 void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
 {
    int sedge = group_sedge.GetRow(group-1)[i];

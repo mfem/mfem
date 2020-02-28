@@ -422,10 +422,29 @@ public:
 
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 
-   /** each row of h contains the upper triangular part of the hessian
-       of one shape function; the order in 2D is {u_xx, u_xy, u_yy} */
+   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
+       part of the Hessian of one shape function.
+       The order in 2D is {u_xx, u_xy, u_yy}.
+       The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &h) const;
+                             DenseMatrix &Hessian) const;
+
+   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#Dof, #Dim*(#Dim+1)/2) of @a Hessian must be set in advance. */
+   virtual void CalcPhysHessian(ElementTransformation &Trans,
+                                DenseMatrix& Hessian) const;
+
+   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#Dof) of @a Laplacian must be set in advance. */
+   virtual void CalcPhysLaplacian(ElementTransformation &Trans,
+                                  Vector& Laplacian) const;
+
+   virtual void CalcPhysLinLaplacian(ElementTransformation &Trans,
+                                     Vector& Laplacian) const;
 
    /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given
@@ -2905,57 +2924,70 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 class NURBS2DFiniteElement : public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y;
+   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
+   mutable DenseMatrix du;
 
 public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1)
+        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
+        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(Dof,2)
    { Orders[0] = Orders[1] = p; }
 
    NURBS2DFiniteElement(int px, int py)
       : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
                            std::max(px, py), FunctionSpace::Qk),
         u(Dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
-        dshape_y(py + 1)
+        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(Dof,2)
    { Orders[0] = px; Orders[1] = py; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 class NURBS3DFiniteElement : public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
+   mutable Vector u, shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector d2shape_x, d2shape_y, d2shape_z;
+   mutable DenseMatrix du;
 
 public:
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
         u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
-        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1)
+        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
+        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(Dof,3)
    { Orders[0] = Orders[1] = Orders[2] = p; }
 
    NURBS3DFiniteElement(int px, int py, int pz)
       : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                            std::max(std::max(px,py),pz), FunctionSpace::Qk),
         u(Dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
-        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1)
+        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
+        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(Dof,3)
    { Orders[0] = px; Orders[1] = py; Orders[2] = pz; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 } // namespace mfem

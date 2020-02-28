@@ -13,6 +13,7 @@
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
 
+#include <fstream>
 #include <algorithm>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
@@ -128,6 +129,33 @@ void KnotVector::Print(std::ostream &out) const
    knot.Print(out, knot.Size());
 }
 
+
+void KnotVector::PrintFunctions(std::ostream &out, int samples) const
+{
+   Vector shape(Order+1);
+
+   double x, dx = 1.0/double (samples - 1);
+
+   for (int i = 0; i <GetNE() ; i++)
+   {
+      for (int j = 0; j <samples; j++)
+      {
+         x =j*dx;
+         out<< x + i;
+
+         CalcShape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+
+         CalcDShape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+
+         CalcD2Shape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+         out<<endl;
+      }
+   }
+}
+
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 {
@@ -211,6 +239,109 @@ void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
    }
 }
 
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
+{
+   int    p = Order, rk, pk, j1, j2,r,j,k;
+   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
+   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   double temp, saved, d;
+   double a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
+          right[MaxOrder+1];
+
+#ifdef MFEM_DEBUG
+   if (p > MaxOrder)
+   {
+      mfem_error("KnotVector::CalcDnShape : Order > MaxOrder!");
+   }
+#endif
+
+   ndu[0][0] = 1.0;
+   for (j = 1; j <= p; j++)
+   {
+      left[j] = u - knot(ip-j+1);
+      right[j] = knot(ip+j)- u;
+
+      saved = 0.0;
+      for (r = 0; r < j; r++)
+      {
+         ndu[j][r] = right[r+1] + left[j-r];
+         temp = ndu[r][j-1]/ndu[j][r];
+         ndu[r][j] = saved + right[r+1]*temp;
+         saved = left[j-r]*temp;
+      }
+      ndu[j][j] = saved;
+   }
+
+   for (r = 0; r <= p; r++)
+   {
+      int s1 = 0;
+      int s2 = 1;
+      a[0][0] = 1.0;
+      for (k = 1; k <= n; k++)
+      {
+         d = 0.0;
+         rk = r-k;
+         pk = p-k;
+         if (r >= k)
+         {
+            a[s2][0] = a[s1][0]/ndu[pk+1][rk];
+            d = a[s2][0]*ndu[rk][pk];
+         }
+
+         if (rk >= -1)
+         {
+            j1 = 1;
+         }
+         else
+         {
+            j1 = -rk;
+         }
+
+         if (r-1<= pk)
+         {
+            j2 = k-1;
+         }
+         else
+         {
+            j2 = p-r;
+         }
+
+         for (j = j1; j <= j2; j++)
+         {
+            a[s2][j] = (a[s1][j] - a[s1][j-1])/ndu[pk+1][rk+j];
+            d += a[s2][j]*ndu[rk+j][pk];
+         }
+
+         if (r <= pk)
+         {
+            a[s2][k] = - a[s1][k-1]/ndu[pk+1][r];
+            d += a[s2][j]*ndu[rk+j][pk];
+         }
+         gradn[r] = d;
+         j = s1;
+         s1 = s2;
+         s2 = j;
+      }
+   }
+
+   if (i >= 0)
+   {
+      u = (knot(ip+1) - knot(ip));
+   }
+   else
+   {
+      u = (knot(ip) - knot(ip+1));
+   }
+
+   temp = p*u;
+   for (k = 1; k <= n-1; k++) { temp *= (p-k)*u; }
+
+   for (j = 0; j <= p; j++) { gradn[j] *= temp; }
+
+}
+
+
 int KnotVector::findKnotSpan(double u) const
 {
    int low, mid, high;
@@ -272,7 +403,6 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
       }
    }
 }
-
 
 void NURBSPatch::init(int dim_)
 {
@@ -1633,6 +1763,19 @@ void NURBSExtension::PrintCharacteristics(std::ostream &out) const
    out << endl;
 }
 
+void NURBSExtension::PrintFunctions(const char *basename, int samples) const
+{
+   std::ofstream out;
+   for (int i = 0; i < NumOfKnotVectors; i++)
+   {
+      std::ostringstream filename;
+      filename << basename<<"_"<<i<<".dat";
+      out.open(filename.str().c_str());
+      knotVectors[i]->PrintFunctions(out,samples);
+      out.close();
+   }
+}
+
 void NURBSExtension::InitDofMap()
 {
    master.SetSize(0);
@@ -1672,6 +1815,8 @@ void NURBSExtension::ConnectBoundaries()
    }
 
    // Finalize
+   if (el_dof) { delete el_dof; }
+   if (bel_dof) { delete bel_dof; }
    GenerateElementDofTable();
    GenerateBdrElementDofTable();
 }
