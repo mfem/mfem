@@ -1844,12 +1844,11 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
        && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
-      int dim = test_fe.GetDim();
       int spaceDim = Trans.GetSpaceDim();
+      int vdim = MQ ? MQ->GetHeight() : spaceDim;
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
-      double Kv;
 
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, spaceDim);
@@ -1863,7 +1862,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
 
-      elmat.SetSize (dim*test_dof, trial_dof);
+      elmat.SetSize(vdim*test_dof, trial_dof);
 
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
@@ -1887,7 +1886,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          {
             VQ->Eval(D, Trans, ip);
             D *= w;
-            for (int d = 0; d < dim; d++)
+            for (int d = 0; d < vdim; d++)
             {
                for (int j = 0; j < test_dof; j++)
                {
@@ -1903,14 +1902,14 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          {
             MQ->Eval(K, Trans, ip);
             K *= w;
-            for (int d = 0; d < dim; d++)
+            for (int d = 0; d < vdim; d++)
             {
                for (int j = 0; j < test_dof; j++)
                {
                   for (int k = 0; k < trial_dof; k++)
                   {
-                     Kv = 0.0;
-                     for (int vd = 0; vd < dim; vd++)
+                     double Kv = 0.0;
+                     for (int vd = 0; vd < spaceDim; vd++)
                      {
                         Kv += K(d, vd) * trial_vshape(k, vd);
                      }
@@ -1925,7 +1924,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
             {
                w *= Q->Eval(Trans, ip);
             }
-            for (int d = 0; d < dim; d++)
+            for (int d = 0; d < vdim; d++)
             {
                for (int j = 0; j < test_dof; j++)
                {
