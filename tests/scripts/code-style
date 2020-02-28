@@ -52,14 +52,6 @@ make distclean
 make style
 (git diff) 1>&2
 
-# Verify that std::cout and std::cerr are not used in the library (use mfem::out
-# and mfem::err instead)
-dirs="general linalg mesh fem"
-files=$(find $dirs -name "*.[ch]pp")
-exclude=(-e '^general/error\.cpp' -e '^general/globals\.[ch]pp')
-(grep cout $files | grep -v "${exclude[@]}") 1>&2
-(grep cerr $files | grep -v "${exclude[@]}" -e 'cerrno') 1>&2
-
 # Tell users what to do if the script fails
 if [ -s "$0.err" ]; then
     cat >  $0.msg <<EOF
