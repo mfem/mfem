@@ -373,16 +373,61 @@ void QuadratureInterpolator::MultTranspose(
    MFEM_ABORT("this method is not implemented yet");
 }
 
+/// Returns the sign to apply to the normals on each face to point from e1 to e2.
+static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
+                     Array<bool> &signs)
+{
+   const int dim = fes.GetMesh()->SpaceDimension();
+   int e1, e2;
+   int inf1, inf2;
+   int face_id;
+   int f_ind = 0;
+   for (int f = 0; f < fes.GetNF(); ++f)
+   {
+      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      face_id = inf1 / 64;
+      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+           (type==FaceType::Boundary && e2<0 && inf2<0) )
+      {
+         if (dim==2)
+         {
+            if (face_id==2 || face_id==3)
+            {
+               signs[f_ind] = true;
+            }
+            else
+            {
+               signs[f_ind] = false;
+            }
+         }
+         else if (dim==3)
+         {
+            if (face_id==0 || face_id==3 || face_id==4)
+            {
+               signs[f_ind] = true;
+            }
+            else
+            {
+               signs[f_ind] = false;
+            }
+         }
+         f_ind++;
+      }
+   }
+}
+
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
                                                        &fes,
                                                        const IntegrationRule &ir, FaceType type_)
-   : type(type_), nf(fes.GetNFbyType(type))
+   : type(type_), nf(fes.GetNFbyType(type)), signs(nf)
 {
    fespace = &fes;
    IntRule = &ir;
    use_tensor_products = true; // not implemented yet (not used)
 
    if (fespace->GetNE() == 0) { return; }
+   GetSigns(*fespace, type, signs);
    const FiniteElement *fe = fespace->GetFE(0);
    const ScalarFiniteElement *sfe = dynamic_cast<const ScalarFiniteElement*>(fe);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
@@ -658,7 +703,6 @@ void FaceQuadratureInterpolator::Eval3D(
 
 void FaceQuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags,
-   const Array<bool> &signs,
    Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
 {
    if (nf == 0) { return; }

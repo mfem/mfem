@@ -10289,50 +10289,6 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
 }
 
-/// Returns the sign to apply to the normals on each face to point from e1 to e2.
-static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
-                     Array<bool> &signs)
-{
-   const int dim = fes.GetMesh()->SpaceDimension();
-   int e1, e2;
-   int inf1, inf2;
-   int face_id;
-   int f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      face_id = inf1 / 64;
-      if ( (type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-           (type==FaceType::Boundary && e2<0 && inf2<0) )
-      {
-         if (dim==2)
-         {
-            if (face_id==2 || face_id==3)
-            {
-               signs[f_ind] = true;
-            }
-            else
-            {
-               signs[f_ind] = false;
-            }
-         }
-         else if (dim==3)
-         {
-            if (face_id==0 || face_id==3 || face_id==4)
-            {
-               signs[f_ind] = true;
-            }
-            else
-            {
-               signs[f_ind] = false;
-            }
-         }
-         f_ind++;
-      }
-   }
-}
-
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                            const IntegrationRule &ir,
                                            int flags, FaceType type)
@@ -10348,15 +10304,12 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const int NF   = fespace->GetNFbyType(type);
    const int NQ   = ir.GetNPoints();
 
-
    const Operator *face_restr = fespace->GetFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC,
                                    type,
                                    L2FaceValues::SingleValued );
    Vector Fnodes(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
-   Array<bool> signs(NF);
-   GetSigns(*fespace, type, signs);
 
    unsigned eval_flags = 0;
    if (flags & FaceGeometricFactors::COORDINATES)
@@ -10382,7 +10335,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
 
    const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
                                              ir, type);
-   qi->Mult(Fnodes, eval_flags, signs, X, J, detJ, normal);
+   qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
