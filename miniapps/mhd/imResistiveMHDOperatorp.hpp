@@ -7,8 +7,7 @@ using namespace std;
 using namespace mfem;
 
 //------------this is for explicit solver only------------
-int isupg=2;    
-                //1: test supg with v term only (it assumes viscosity==resistivity now)
+int isupg=2;    //1: test supg with v term only (it assumes viscosity==resistivity now)
                 //2: test hyperdiffusion along B only 
                 //3: test a general hyperdiffusion 
                 
@@ -1252,7 +1251,7 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
        if (iSc==0 && (!usefd) )
        {
-           if (myid==0) 
+           if (myid==0 && false) 
               cout <<"======WARNING: use preconditioner without stabilization terms======"<<endl;
 
            //VERSION0: same as Luis's preconditioner
@@ -1554,7 +1553,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNb->TrueAddMult(J, y2, -1.);
    }
 
-   if(usesupg)
+   if(usesupg && false)
    {
      //---add supg to y3---
      delete StabMass;
@@ -1600,6 +1599,37 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabE0->Assemble(); 
      StabE0->ParallelAssemble(z);
      y2+=z;
+   }
+   else if(usesupg && true)
+   {
+     //XXX for testing supg only
+     //---add supg to y3---
+     delete StabMass;
+     StabMass = new ParBilinearForm(&fespace);
+     StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
+     StabMass->Assemble(); 
+     StabMass->TrueAddMult(z2, y3);
+
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+     StabNv->Assemble(); 
+     StabNv->TrueAddMult(wNew, y3);
+
+     delete StabNb;
+     StabNb = new ParBilinearForm(&fespace);
+     StabNb->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, Bfield, velocity));
+     StabNb->Assemble(); 
+     StabNb->TrueAddMult(J, y3, -1.);
+   }
+   else if(usesupg && true)
+   {
+     //XXX for testing supg only
+     delete StabNv;
+     StabNv = new ParBilinearForm(&fespace);
+     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+     StabNv->Assemble(); 
+     StabNv->TrueAddMult(wNew, y3);
    }
 
    y2.SetSubVector(ess_tdof_list, 0.0);

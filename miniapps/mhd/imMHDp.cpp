@@ -84,6 +84,12 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
+                  "--no-implicit-supg",
+                  "Use supg in the implicit solvers.");
+   args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
+                  "--no-fd",
+                  "Use fd-fem in the implicit solvers.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
