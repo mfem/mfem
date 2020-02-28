@@ -1319,6 +1319,9 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
    Array<int> vdofs;
    Vector vals;
    *this = 0.0;
+
+   HostReadWrite();
+
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -1357,6 +1360,9 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
    Array<int> vdofs;
    Vector vals;
    *this = 0.0;
+
+   HostReadWrite();
+
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -1413,6 +1419,9 @@ void GridFunction::AccumulateAndCountBdrValues(
    values_counter = 0;
 
    vdim = fes->GetVDim();
+
+   HostReadWrite();
+
    for (i = 0; i < fes->GetNBE(); i++)
    {
       if (attr[fes->GetBdrAttribute(i) - 1] == 0) { continue; }
@@ -1548,6 +1557,8 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
 
    values_counter.SetSize(Size());
    values_counter = 0;
+
+   HostReadWrite();
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {
