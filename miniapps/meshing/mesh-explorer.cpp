@@ -82,7 +82,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
    {
       ostringstream fname;
       fname << mesh_prefix << '.' << setfill('0') << setw(6) << p;
-      ifzstream meshin(fname.str().c_str());
+      ifgzstream meshin(fname.str().c_str());
       if (!meshin)
       {
          cerr << "Can not open mesh file: " << fname.str().c_str()
@@ -971,7 +971,7 @@ int main (int argc, char *argv[])
       if (mk == 'Z')
       {
          const char mesh_file[] = "mesh-explorer.mesh.gz";
-         ofzstream omesh(mesh_file, "zwb9");
+         ofgzstream omesh(mesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;

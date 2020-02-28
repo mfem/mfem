@@ -484,12 +484,12 @@ public:
 namespace mfem
 {
 
-class ofzstream
+class ofgzstream
    : private zstr::detail::strict_fstream_holder<strict_fstream::ofstream>,
      public std::ostream
 {
 public:
-   explicit ofzstream(const std::string &filename,
+   explicit ofgzstream(const std::string &filename,
                       bool compression = false)
       : zstr::detail::strict_fstream_holder<strict_fstream::ofstream>(filename,
                                                                       std::ios_base::binary),
@@ -509,7 +509,7 @@ public:
       exceptions(std::ios_base::badbit);
    }
 
-   virtual ~ofzstream()
+   virtual ~ofgzstream()
    {
       delete strbuf;
    }
@@ -517,12 +517,12 @@ public:
    std::streambuf *strbuf = nullptr;
 };
 
-class ifzstream
+class ifgzstream
    : private zstr::detail::strict_fstream_holder<strict_fstream::ifstream>,
      public std::istream
 {
 public:
-   explicit ifzstream(const std::string &filename)
+   explicit ifgzstream(const std::string &filename)
       : zstr::detail::strict_fstream_holder<strict_fstream::ifstream>(filename,
                                                                       std::ios_base::in),
         std::istream(nullptr)
@@ -536,7 +536,7 @@ public:
       exceptions(std::ios_base::badbit);
    }
 
-   virtual ~ifzstream()
+   virtual ~ifgzstream()
    {
       delete strbuf;
    }
@@ -546,10 +546,10 @@ public:
 
 /// Input file stream that remembers the input file name (useful for example
 /// when reading NetCDF meshes) and supports optional zlib decompression.
-class named_ifzstream : public ifzstream
+class named_ifgzstream : public ifgzstream
 {
 public:
-   named_ifzstream(const std::string &mesh_name) : ifzstream(mesh_name),
+   named_ifgzstream(const std::string &mesh_name) : ifgzstream(mesh_name),
       filename(mesh_name) {}
 
    const std::string filename;
