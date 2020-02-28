@@ -669,6 +669,9 @@ FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
 
+COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
 "Please open an issue at github.com/mfem/mfem/issues if you depend on it."
@@ -688,6 +691,8 @@ mfem-check-command = \
     printf $$red"[FAILED] "; printf $(3); printf $$end"\n";\
   fi
 
+# Verify C++ code styling in MFEM and that std::cout and std::cerr are not used
+# in the library (use mfem::out and mfem::err instead)
 style:
 	@echo "Applying C++ code style..."
 	$(call mfem-check-command,\
@@ -696,11 +701,11 @@ style:
             "Make sure the code is formatted with Artistic Style 2.05.1")
 	@echo "Checking for use of std::cout..."
 	$(call mfem-check-command,\
-           grep cout */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno,\
+           grep cout $(COUT_CERR_FILES) | grep -v $(COUT_CERR_EXCLUDE:%=-e %),\
            "No use of std::cout found", "Use mfem::out instead of std::cout")
 	@echo "Checking for use of std::cerr..."
 	$(call mfem-check-command,\
-           grep cerr */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno,\
+           grep cerr $(COUT_CERR_FILES) | grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
            "No use of std::cerr found", "Use mfem::err instead of std::cerr")
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
