@@ -44,7 +44,11 @@ class InterpolatorFP : public AdaptivityEvaluator
 private:
    Vector nodes0;
    Vector field0;
+   GridFunction field0_gf;
    FindPointsGSLIB *finder;
+   Array<uint> el_id_out, code_out, task_id_out;
+   Vector pos_r_out, dist_p_out;
+   int dim;
 public:
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);

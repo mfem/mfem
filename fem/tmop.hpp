@@ -733,7 +733,6 @@ public:
    Vector tspec_perth;       //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
    Vector tspec_pertmix;     //eta(x+h,y+h)
-   Array2D<int> TSpecMixIdx; //Index for mix derivative terms
 
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
@@ -773,14 +772,17 @@ public:
                                         int nodenum, int idir,
                                         Vector &IntData);
 
-   void RestoreTargetSpecificationAtNode(const FiniteElement &el,
-                                         ElementTransformation &T, int nodenum);
+   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
    void BackupTargetSpecification();
 
    void RestoreTargetSpecification();
 
-   int GetNComponents() {return ncomp;}
+   void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
+                                const double fdeps);
+
+   void SetupElementGradTSpec(const Vector &x,const FiniteElementSpace &fes,
+                              const double fdeps);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -854,6 +856,31 @@ protected:
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      double &metric_energy, double &lim_energy);
 
+
+   void AssembleElementVectorExact(const FiniteElement &el,
+                                   ElementTransformation &T,
+                                   const Vector &elfun, Vector &elvect);
+
+   void AssembleElementGradExact(const FiniteElement &el,
+                                 ElementTransformation &T,
+                                 const Vector &elfun, DenseMatrix &elmat);
+
+   void AssembleElementVectorFD(const FiniteElement &el,
+                                ElementTransformation &T,
+                                const Vector &elfun, Vector &elvect);
+
+   void AssembleElementGradFD(const FiniteElement &el,
+                              ElementTransformation &T,
+                              const Vector &elfun, DenseMatrix &elmat);
+
+
+   double GetFDDerivative(const FiniteElement &el,
+                          ElementTransformation &T,
+                          Vector &elfun,
+                          const int nodenum,const int idir);
+
+   double ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
+
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
@@ -861,13 +888,13 @@ public:
       : metric(m), targetC(tc),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
-        lim_dist(NULL), lim_func(NULL), lim_normal(1.0), discr_tc(NULL),
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
+        discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(0), fdeps(0.0)
    { }
 
    ~TMOP_Integrator()
    {
-
       delete lim_func;
       for (int i=0; i<ElemDer.Size(); i++)
       {
@@ -922,38 +949,13 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   void AssembleElementVectorExact(const FiniteElement &el,
-                                   ElementTransformation &T,
-                                   const Vector &elfun, Vector &elvect);
-
-   void AssembleElementGradExact(const FiniteElement &el,
-                                 ElementTransformation &T,
-                                 const Vector &elfun, DenseMatrix &elmat);
-
-   void AssembleElementVectorFD(const FiniteElement &el,
-                                ElementTransformation &T,
-                                const Vector &elfun, Vector &elvect);
-
-   void AssembleElementGradFD(const FiniteElement &el,
-                              ElementTransformation &T,
-                              const Vector &elfun, DenseMatrix &elmat);
-
-   double GetFDDerivative(const FiniteElement &el,
-                          ElementTransformation &T,
-                          Vector &elfun,
-                          const int nodenum,const int idir);
-
-   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) {discr_tc = tc;}
-
    void SetFDPar(int fdflag_, int sz);
+   int GetFDFlag() {return fdflag;}
 
-   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
-
-   void SetupElementVectorTSpec(const Vector &x,
-                                const FiniteElementSpace &fes);
-
-   void SetupElementGradTSpec(const Vector &x,
-                              const FiniteElementSpace &fes);
+   double SetFDh(const Vector &x, const FiniteElementSpace &fes);
+#ifdef MFEM_USE_MPI
+   double SetFDh(const Vector &x, const FiniteElementSpace &fes, MPI_Comm &comm);
+#endif
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
 
