@@ -44,16 +44,8 @@ class InterpolatorFP : public AdaptivityEvaluator
 private:
    Vector nodes0;
    Vector field0;
-   bool parallel;  //for GSLIB
    FindPointsGSLIB *finder;
 public:
-#ifdef MFEM_USE_MPI
-   InterpolatorFP(bool flag) : AdaptivityEvaluator(),
-      nodes0(), field0(), parallel(flag), finder(NULL) { }
-#endif
-   InterpolatorFP() : AdaptivityEvaluator(),
-      nodes0(), field0(), parallel(false), finder(NULL) { }
-
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
 

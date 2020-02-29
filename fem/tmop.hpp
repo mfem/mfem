@@ -706,15 +706,27 @@ class DiscreteAdaptTC : public TargetConstructor
 protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
+   int   ncomp;
+   int   sizeidx,  skewidx,  aspectratioidx,  orientationidx;
    Vector tspec;         //eta(x)
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *ptspec_fes;
+#endif
    const FiniteElementSpace *tspec_fes;
+   const FiniteElementSpace *tspec_fesv;
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
    AdaptivityEvaluator *adapt_eval;
+
+   void SetSerialDiscreteTargetBase(GridFunction &tspec_);
+#ifdef MFEM_USE_MPI
+   void SetParDiscreteTargetBase(ParGridFunction &tspec_);
+#endif
+
 
 public:
    Vector tspec_sav;
@@ -725,13 +737,28 @@ public:
 
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
+        ncomp(0),
+        sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_fes(NULL), adapt_eval(NULL) { }
 
-   virtual ~DiscreteAdaptTC() { delete adapt_eval; }
+   virtual ~DiscreteAdaptTC() { delete adapt_eval;      delete tspec_fesv; }
 
    virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
    virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec_);
+#endif
+
+   virtual void SetSerialDiscreteTargetSize(GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetSkew(GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetAspectRatio(GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetOrientation(GridFunction &tspec_);
+   virtual void FinalizeSerialDiscreteTargetSpec();
+#ifdef MFEM_USE_MPI
+   virtual void SetParDiscreteTargetSize(ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetSkew(ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetAspectRatio(ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetOrientation(ParGridFunction &tspec_);
+   virtual void FinalizeParDiscreteTargetSpec();
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
@@ -746,11 +773,14 @@ public:
                                         int nodenum, int idir,
                                         Vector &IntData);
 
-   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
+   void RestoreTargetSpecificationAtNode(const FiniteElement &el,
+                                         ElementTransformation &T, int nodenum);
 
    void BackupTargetSpecification();
 
    void RestoreTargetSpecification();
+
+   int GetNComponents() {return ncomp;}
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
