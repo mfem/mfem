@@ -22,18 +22,19 @@ namespace mfem
 
 using namespace std;
 
-int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType) const
+int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType, int p) const
 {
    switch (GeomType)
    {
-      case Geometry::TETRAHEDRON: return DofForGeometry (Geometry::TRIANGLE);
-      case Geometry::CUBE:        return DofForGeometry (Geometry::SQUARE);
+      case Geometry::TETRAHEDRON:
+         return GetNumDof(Geometry::TRIANGLE, p);
+      case Geometry::CUBE:
+         return GetNumDof(Geometry::SQUARE, p);
       case Geometry::PRISM:
-         return max(DofForGeometry (Geometry::TRIANGLE),
-                    DofForGeometry (Geometry::SQUARE));
+         return std::max(GetNumDof(Geometry::TRIANGLE, p),
+                         GetNumDof(Geometry::SQUARE, p));
       default:
-         mfem_error ("FiniteElementCollection::HasFaceDofs:"
-                     " unknown geometry type.");
+         MFEM_ABORT("unknown geometry type");
    }
    return 0;
 }
@@ -1746,8 +1747,8 @@ int H1_FECollection::GetNumDof(Geometry::Type geom, int p) const
    return H1_dof[geom][p];
 }
 
-const int* H1_FECollection::GetDofOrder(Geometry::Type geom, int p,
-                                        int orientation) const
+const int* H1_FECollection::GetDofOrdering(Geometry::Type geom, int p,
+                                           int orientation) const
 {
    if (!HaveOrder(p)) { InitOrder(p); }
 
