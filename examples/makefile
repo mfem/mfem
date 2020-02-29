@@ -134,3 +134,4 @@ clean-exec:
 	@rm -f ex20.dat ex20p_?????.dat gnuplot_ex20.inp gnuplot_ex20p.inp
 	@rm -f ex21*.mesh ex21*.sol ex21p_*.*
 	@rm -f ex23.mesh ex23-*.gf
+	@rm -f ex24.mesh ex24-*.gf ex24p-*.*
