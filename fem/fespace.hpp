@@ -164,7 +164,14 @@ protected:
    /// Build the table edge_dof in variable order space, return total edge DOFs.
    int AssignEdgeDofs();
 
-   /// Helper to remove encoded sign from a DOF
+   /// In var. order space, return edge DOFs associated with order p.
+   int FindEdgeDof(int edge, int pdof) const;
+
+   /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
+   static inline int EncodeDof(int entity_base, int idx)
+   { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
+
+   /// Helper to remove encoded sign from a DOF.
    static inline int DecodeDof(int dof, double& sign)
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
@@ -312,7 +319,7 @@ public:
    /// Returns the order of the i'th finite element
    int GetElementOrder(int i) const;
 
-   /// Returns true if the space contains elements of different polynomial orders.
+   /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.

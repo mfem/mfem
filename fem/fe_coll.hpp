@@ -51,8 +51,8 @@ public:
 
    /** @brief Returns an array, say p, that maps a local permuted index i to
        a local base index: base_i = p[i]. */
-   virtual const int * GetDofOrder(Geometry::Type geom, int p,
-                                   int orientation) const = 0;
+   virtual const int * GetDofOrdering(Geometry::Type geom, int p,
+                                      int orientation) const = 0;
 
    // legacy >>>
    const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType) const
@@ -62,14 +62,14 @@ public:
    { return GetNumDof(GeomType, default_p); }
 
    const int *DofOrderForOrientation(Geometry::Type GeomType, int Or) const
-   { return GetDofOrder(GeomType, default_p, Or); }
+   { return GetDofOrdering(GeomType, default_p, Or); }
    // <<< legacy
 
    virtual const char * Name() const { return "Undefined"; }
 
    int DefaultOrder() const { return default_p; }
 
-   int HasFaceDofs(Geometry::Type GeomType) const;
+   int HasFaceDofs(Geometry::Type GeomType, int p) const;
 
    virtual const FiniteElement *GetTraceFE(Geometry::Type geom, int p) const
    {
@@ -113,18 +113,10 @@ public:
    explicit H1_FECollection(const int default_p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto);
 
-/*   virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type GeomType) const
-   { return H1_Elements[GeomType]; }
-   virtual int DofForGeometry(Geometry::Type GeomType) const
-   { return H1_dof[GeomType]; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const;*/
-
    virtual const FiniteElement* GetFE(Geometry::Type geom, int p) const;
    virtual int GetNumDof(Geometry::Type geom, int p) const;
-   virtual const int* GetDofOrder(Geometry::Type geom, int p,
-                                  int orientation) const;
+   virtual const int* GetDofOrdering(Geometry::Type geom, int p,
+                                     int orientation) const;
 
    virtual const char* Name() const { return h1_name; }
    //FiniteElementCollection* GetTraceCollection() const;

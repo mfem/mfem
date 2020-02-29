@@ -755,20 +755,30 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceBaseGeometry(int i) const
+   Geometry::Type GetFaceGeometry(int i) const
    {
       return faces[i]->GetGeometryType();
    }
 
-   Geometry::Type GetElementBaseGeometry(int i) const
+   Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
 
-   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   Geometry::Type GetBdrElementGeometry(int i) const
    {
       return boundary[i]->GetGeometryType();
    }
+
+   // deprecated: "base geometry" no longer means anything
+   Geometry::Type GetFaceBaseGeometry(int i) const
+   { return GetFaceGeometry(i); }
+
+   Geometry::Type GetElementBaseGeometry(int i) const
+   { return GetElementGeometry(i); }
+
+   Geometry::Type GetBdrElementBaseGeometry(int i) const
+   { return GetBdrElementGeometry(i); }
 
    /** @brief Return true iff the given @a geom is encountered in the mesh.
        Geometries of dimensions lower than Dimension() are counted as well. */
