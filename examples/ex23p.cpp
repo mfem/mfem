@@ -5,7 +5,7 @@
 // Sample runs:  mpirun -np 4 ex23p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0
 //               mpirun -np 4 ex23p -o 3 -f 1.0 -rs 1 -rp 1 -prob 1
 //               mpirun -np 4 ex23p -o 2 -f 3.0 -rs 3 -rp 1 -prob 2
-//               mpirun -np 4 ex23p -o 2 -f 1.0 -rs 2 -rp 1 -prob 3
+//               mpirun -np 4 ex23p -o 2 -f 1.0 -rs 1 -rp 1 -prob 3
 //               mpirun -np 4 ex23p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh
 //               mpirun -np 4 ex23p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh
 //               mpirun -np 4 ex23p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh
@@ -26,6 +26,7 @@
 
 #ifdef _WIN32
 #define jn(n, x) _jn(n, x)
+#define yn(n, x) _yn(n, x)
 #endif
 
 using namespace std;
@@ -71,7 +72,7 @@ public:
    void SetAttributes(ParMesh *pmesh);
 
    // PML complex stretching function
-   void StretchFunction(const Vector &x, std::vector<std::complex<double>> &dxs);
+   void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
 };
 
 class PmlMatrixCoefficient : public MatrixCoefficient
@@ -96,7 +97,7 @@ public:
    }
 };
 
-void maxwell_solution(const Vector &x, std::vector<std::complex<double>> &Eval);
+void maxwell_solution(const Vector &x, vector<complex<double>> &Eval);
 
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
@@ -126,9 +127,9 @@ bool exact_known = false;
 enum prob_type
 {
    beam,     // PML on one end of the domain
-   scatter,  // Scattering in a square or a cube
-   lshape,   // Scattering in 1/4 of a square
-   fichera,   // Scattering in 1/8 of a cube
+   scatter,  // Scattering from a square or a cube
+   lshape,   // Scattering from 1/4 of a square
+   fichera,   // Scattering from 1/8 of a cube
    load_src // point source with PML all around
 };
 prob_type prob;
@@ -224,30 +225,30 @@ int main(int argc, char *argv[])
    omega = 2.0 * M_PI * freq;
 
    // 4. Setup the Cartesian PML region.
-   Array2D<double> lngth(dim, 2);  lngth = 0.0;
+   Array2D<double> length(dim, 2);  length = 0.0;
 
    switch (prob)
    {
       case scatter:
-         lngth = 1.0;
+         length = 1.0;
          break;
       case lshape:
-         lngth(0, 1) = 0.5;
-         lngth(1, 1) = 0.5;
+         length(0, 1) = 0.5;
+         length(1, 1) = 0.5;
          break;
       case fichera:
-         lngth(0, 1) = 0.5;
-         lngth(1, 1) = 0.5;
-         lngth(2, 1) = 0.5;
+         length(0, 1) = 0.5;
+         length(1, 1) = 0.5;
+         length(2, 1) = 0.5;
          break;
       case beam:
-         lngth(0, 1) = 2.0;
+         length(0, 1) = 2.0;
          break;
       default:
-         lngth = 0.25;
+         length = 0.25;
          break;
    }
-   CartesianPML * pml = new CartesianPML(mesh,lngth);
+   CartesianPML * pml = new CartesianPML(mesh,length);
    comp_domain_bdr = pml->GetCompDomainBdr();
    domain_bdr = pml->GetDomainBdr();
 
@@ -639,7 +640,7 @@ void source(const Vector &x, Vector &f)
    f[0] = coeff * exp(alpha);
 }
 
-void maxwell_solution(const Vector &x, std::vector<std::complex<double>> &E)
+void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 {
    // Initialize
    for (int i = 0; i < dim; ++i)
@@ -647,7 +648,7 @@ void maxwell_solution(const Vector &x, std::vector<std::complex<double>> &E)
       E[i] = 0.0;
    }
 
-   std::complex<double> zi = std::complex<double>(0., 1.);
+   complex<double> zi = complex<double>(0., 1.);
    double k = omega * sqrt(epsilon * mu);
    switch (prob)
    {
@@ -678,9 +679,9 @@ void maxwell_solution(const Vector &x, std::vector<std::complex<double>> &E)
             double r_xy = -(r_x / r) * r_y;
             double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
-            std::complex<double> val = 0.25 * zi * Ho;
-            std::complex<double> val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-            std::complex<double> val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+            complex<double> val = 0.25 * zi * Ho;
+            complex<double> val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+            complex<double> val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
             E[0] = zi / k * (k * k * val + val_xx);
             E[1] = zi / k * val_xy;
          }
@@ -737,7 +738,7 @@ void maxwell_solution(const Vector &x, std::vector<std::complex<double>> &E)
 
 void E_exact_Re(const Vector &x, Vector &E)
 {
-   std::vector<std::complex<double>> Eval(E.Size());
+   vector<complex<double>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -747,7 +748,7 @@ void E_exact_Re(const Vector &x, Vector &E)
 
 void E_exact_Im(const Vector &x, Vector &E)
 {
-   std::vector<std::complex<double>> Eval(E.Size());
+   vector<complex<double>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -772,7 +773,7 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      std::vector<std::complex<double>> Eval(E.Size());
+      vector<complex<double>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -799,7 +800,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      std::vector<std::complex<double>> Eval(E.Size());
+      vector<complex<double>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -810,7 +811,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
 
 void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml ,  DenseMatrix &M)
 {
-   std::vector<std::complex<double>> dxs(dim);
+   vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
@@ -828,7 +829,7 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml ,  DenseMatrix &M)
 
 void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
 {
-   std::vector<std::complex<double>> dxs(dim);
+   vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
    pml->StretchFunction(x, dxs);
 
@@ -846,7 +847,7 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
 
 void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
 {
-   std::vector<std::complex<double>> dxs(dim);
+   vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
    pml->StretchFunction(x, dxs);
 
@@ -865,7 +866,7 @@ void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
 
 void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml , DenseMatrix &M)
 {
-   std::vector<std::complex<double>> dxs(dim);
+   vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
@@ -891,7 +892,7 @@ void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml , DenseMatrix &M)
 
 void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
-   std::vector<std::complex<double>> dxs(dim);
+   vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
    pml->StretchFunction(x, dxs);
 
@@ -916,7 +917,7 @@ void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 
 void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
-   std::vector<std::complex<double>> dxs(dim);
+   vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
    pml->StretchFunction(x, dxs);
 
@@ -1021,9 +1022,9 @@ void CartesianPML::SetAttributes(ParMesh *pmesh)
 }
 
 void CartesianPML::StretchFunction(const Vector &x,
-                                   std::vector<std::complex<double>> &dxs)
+                                   vector<complex<double>> &dxs)
 {
-   std::complex<double> zi = std::complex<double>(0., 1.);
+   complex<double> zi = complex<double>(0., 1.);
 
    double n = 2.0;
    double c = 5.0;
