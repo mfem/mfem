@@ -37,13 +37,13 @@ private:
    void AddElementToMesh(Mesh * mesh,mfem::Element::Type elem_type,int * ind);
    void GetNumVertices(int type, mfem::Element::Type & elem_type, int & nrvert);
    void PrintElementMap();
-   void SaveMeshPartition();
 public:
    int nrpatch;
    std::vector<Array<int>> element_map;
    Array<Mesh *> patch_mesh;
    // constructor
    MeshPartition(Mesh * mesh_, int part);
+   void SaveMeshPartition();
    ~MeshPartition();
 };
 

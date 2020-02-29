@@ -4,34 +4,33 @@
 CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
-
-
-
    // int nx = sqrt(mesh->GetNE());
-   int nx = 2;
-   int ny = 2;
+   int nx = 4;
+   int ny = 4;
    int nz = 1;
    int nxyz[3] = {nx,ny,nz};
    nrpatch = nx*ny*nz;
-   double pmin[3] = { infinity(), infinity(), infinity() };
-   double pmax[3] = { -infinity(), -infinity(), -infinity() };
+   // double pmin[3] = { infinity(), infinity(), infinity() };
+   // double pmax[3] = { -infinity(), -infinity(), -infinity() };
 
-   // find a bounding box using the vertices
-   for (int vi = 0; vi < mesh->GetNV(); vi++)
-   {
-      const double *p = mesh->GetVertex(vi);
-      for (int i = 0; i < dim; i++)
-      {
-         if (p[i] < pmin[i])
-         {
-            pmin[i] = p[i];
-         }
-         if (p[i] > pmax[i])
-         {
-            pmax[i] = p[i];
-         }
-      }
-   }
+   // // find a bounding box using the vertices
+   // for (int vi = 0; vi < mesh->GetNV(); vi++)
+   // {
+   //    const double *p = mesh->GetVertex(vi);
+   //    for (int i = 0; i < dim; i++)
+   //    {
+   //       if (p[i] < pmin[i])
+   //       {
+   //          pmin[i] = p[i];
+   //       }
+   //       if (p[i] > pmax[i])
+   //       {
+   //          pmax[i] = p[i];
+   //       }
+   //    }
+   // }
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
 
    int nrelem = mesh->GetNE();
    int partitioning[nrelem];
@@ -67,9 +66,6 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
       element_map[ip].Append(iel);
    }
 }
-
-
-
 
 // constructor
 VertexMeshPartition::VertexMeshPartition(Mesh *mesh_) : mesh(mesh_)
@@ -206,6 +202,7 @@ void MeshPartition::SaveMeshPartition()
 {
    for (int ip = 0; ip<nrpatch; ++ip)
    {
+      cout << "saving mesh no " << ip << endl;
       ostringstream mesh_name;
       mesh_name << "output/mesh." << setfill('0') << setw(6) << ip;
       ofstream mesh_ofs(mesh_name.str().c_str());
@@ -248,6 +245,7 @@ PatchAssembly::PatchAssembly(BilinearForm *bf_, Array<int> & ess_tdofs, int part
    for (int i = 0; i<ess_tdofs.Size(); i++) global_tdofs[ess_tdofs[i]] = 0;
 
    MeshPartition * p = new MeshPartition(mesh, part);
+   p->SaveMeshPartition();
    nrpatch = p->nrpatch;
    patch_fespaces.SetSize(nrpatch);
    patch_dof_map.resize(nrpatch);

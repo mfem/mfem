@@ -95,6 +95,7 @@ int main(int argc, char *argv[])
 
    if (nd == 2)
    {
+      // mesh = new Mesh(mesh_file,1,1);
       mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, length, length, false);
    }
    else
@@ -163,35 +164,86 @@ int main(int argc, char *argv[])
       cout << "Size of fine grid system: "
            << A->Height() << " x " << A->Width() << endl;
 
-   // KLUSolver klu(*A);
-   // klu.Mult(B,X);
 
 
-   ComplexAddSchwarz S(&a,ess_tdof_list, 0);
+
+   ComplexAddSchwarz S(&a,ess_tdof_list, 1);
 	S.SetOperator(*A);
+   S.SetSmoothType(1);
+   S.SetLoadVector(B);
    // S.SetNumSmoothSteps(7);
-   // S.SetDumpingParam(0.200);
+   S.SetDumpingParam(1.0);
 
 	// BlkSchwarzSmoother * BlkS = new BlkSchwarzSmoother(mesh,0,fespace,A);
 
+   X = 0.0;
+   Vector z(X.Size()); z = 0.0;
+   Vector r(B);
+   // r = B;
+   Vector ztemp(r.Size());
 
-	X = 0.0;
-	GMRESSolver gmres;
-	// gmres.SetPreconditioner(*BlkS);
-	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-6);
-	gmres.SetMaxIter(500);
-	gmres.SetPrintLevel(1);
+   int n= 10;
+
+   Vector Ax(X.Size());
+   for (int i = 0; i<n; i++)
+   {
+      A->Mult(X,Ax); Ax *=-1.0;
+      r = b; r+=Ax;
+      // A->AddMult(X,r,-1.0); //r = r-Ax
+      cout << "residual norm =" << r.Norml2() << endl;
+      // S.Mult(r,z); 
+      S.Mult(r,z); 
+      cout << "correction norm =" << z.Norml2() << endl;
+
+      X += z;
+
+      cout << "solution norm =" << X.Norml2() << endl;
+
+      p_gf = 0.0;
+      a.RecoverFEMSolution(X,B,p_gf);
+
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "solution\n" << *mesh << p_gf.real() <<
+                     "window_title 'Numerical Pressure (real part)' "
+                     << keys << flush;
+      cout << "Iteration " << i << endl;
+      cin.get();
+   }
+
+
+
+	// X = 0.0;
+	// GMRESSolver gmres;
+	// // gmres.SetPreconditioner(*BlkS);
+	// gmres.SetOperator(*A);
+	// gmres.SetRelTol(1e-4);
+	// gmres.SetMaxIter(500);
+	// gmres.SetPrintLevel(1);
+	// // gmres.Mult(B, X);
+
+
+	// X = 0.0;
+	// gmres.SetPreconditioner(S);
 	// gmres.Mult(B, X);
 
-
-	X = 0.0;
-	gmres.SetPreconditioner(S);
-	gmres.Mult(B, X);
-
+   KLUSolver klu(*A);
+   klu.Mult(B,X);
 
 
    a.RecoverFEMSolution(X,B,p_gf);
+
 
 
 
@@ -231,6 +283,8 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
+   x0 = 0.1;
+   x1 = 0.1;
    double alpha,beta;
    double n = 5.0 * omega/M_PI;
    double coeff = pow(n,2)/M_PI;
@@ -238,6 +292,34 @@ double f_exact_Re(const Vector &x)
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
+
+   x0 = 0.9;
+   x1 = 0.9;
+   n = 5.0 * omega/M_PI;
+   coeff = pow(n,2)/M_PI;
+   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   if (dim == 3) { beta += pow(x2-x(2),2); }
+   alpha = -pow(n,2) * beta;
+   f_re += coeff*exp(alpha);
+   
+   // x0 = 0.9;
+   // x1 = 0.1;
+   // n = 5.0 * omega/M_PI;
+   // coeff = pow(n,2)/M_PI;
+   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   // if (dim == 3) { beta += pow(x2-x(2),2); }
+   // alpha = -pow(n,2) * beta;
+   // f_re += coeff*exp(alpha);
+
+   // x0 = 0.1;
+   // x1 = 0.9;
+   // n = 5.0 * omega/M_PI;
+   // coeff = pow(n,2)/M_PI;
+   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   // if (dim == 3) { beta += pow(x2-x(2),2); }
+   // alpha = -pow(n,2) * beta;
+   // f_re += coeff*exp(alpha);
+
    return f_re;
 }
 double f_exact_Im(const Vector &x)

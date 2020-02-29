@@ -30,13 +30,21 @@ class ComplexAddSchwarz : public Solver//
 private:
    int nrpatch;
    int maxit = 1;
+   SesquilinearForm *bf=nullptr;
    int part;
+   int type = 0;
    double theta = 0.5;
    ComplexPatchAssembly * p;
    const Operator * A;
+   Vector B;
+   void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
+
+   
 public:
    ComplexAddSchwarz(SesquilinearForm * bf_, Array<int> & ess_tdofs, int i = 0);
    void SetNumSmoothSteps(const int iter) { maxit = iter;}
+   void SetLoadVector(Vector load) { B = load;}
+   void SetSmoothType(int itype) { type = itype;}
    void SetDumpingParam(const double dump_param) {theta = dump_param;}
    virtual void SetOperator(const Operator &op) {A = &op;}
    virtual void Mult(const Vector &r, Vector &z) const;

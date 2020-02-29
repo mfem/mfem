@@ -25,6 +25,7 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
 
 
    MeshPartition * p = new MeshPartition(mesh, part);
+   // p->SaveMeshPartition();
    nrpatch = p->nrpatch;
    patch_fespaces.SetSize(nrpatch);
    patch_dof_map.resize(nrpatch);
@@ -132,7 +133,7 @@ ComplexPatchAssembly::~ComplexPatchAssembly()
 
 
 ComplexAddSchwarz::ComplexAddSchwarz(SesquilinearForm * bf_, Array<int> & ess_tdofs, int i)
-   : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()),
+   : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), bf(bf_),
      part(i)
 {
    p = new ComplexPatchAssembly(bf_, ess_tdofs, part);
@@ -146,9 +147,16 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
    Vector znew(z);
    Vector raux(znew.Size());
    Vector res_local, sol_local;
+   Array<int> visit(znew.Size());
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+
+   // socketstream sol_sock(vishost, visport);
+   // sol_sock.precision(8);
    for (int iter = 0; iter < maxit; iter++)
    {
       znew = 0.0;
+      visit = 0;
       for (int ip = 0; ip < nrpatch; ip++)
       {
          Array<int> * dof_map = &p->patch_dof_map[ip];
@@ -172,11 +180,37 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
          { 
             sol_local.SetSubVector(ess_bdr_indices,0.0); 
          }
+         if (type == 1) znew = 0.0;
          znew.AddElementVector(*dof_map,sol_local);
+         // zero out the contributions to the dofs which are already updated
+         for (int i = 0; i<ndofs; i++)
+         {
+
+            int j = (*dof_map)[i];
+            if (visit[j])
+            {
+               znew(j) = 0.0;
+            }
+            else
+            {
+               visit[j] = 1;
+            }
+         }
+         if (type == 1)
+         {
+            z.Add(theta, znew);
+            A->Mult(znew, raux);
+            rnew -= raux;
+         }
+         // cout << "Patch no " << ip << endl; 
+         // PlotSolution(z, sol_sock, ip); cin.get();
       }
-      // Relaxation parameter
-      znew *= theta;
-      z += znew;
+      if (type == 0)
+      {
+         z.Add(theta, znew);
+         A->Mult(znew, raux);
+         rnew -= raux;
+      }
       // Update residual
       if (iter + 1 < maxit)
       {
@@ -184,6 +218,19 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
          rnew -= raux;
       }
    }
+}
+
+
+void ComplexAddSchwarz::PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const
+{
+   FiniteElementSpace * fespace = bf->FESpace();
+   Mesh * mesh = fespace->GetMesh();
+   ComplexGridFunction gf(fespace);
+   bf->RecoverFEMSolution(sol,B,gf);
+   
+   string keys;
+   if (ip == 0) keys = "keys mrRljc\n";
+   sol_sock << "solution\n" << *mesh << gf.real() << keys << flush;
 }
 
 ComplexAddSchwarz::~ComplexAddSchwarz(){ delete p;}
