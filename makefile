@@ -664,7 +664,9 @@ status info:
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
-ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
+ASTYLE_BIN = astyle
+ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
+ASTYLE_VER = "Artistic Style Version 2.05.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
@@ -676,37 +678,48 @@ DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
 "Please open an issue at github.com/mfem/mfem/issues if you depend on it."
 deprecation-warnings:
-	@if [ -t 1 ]; then red="\033[0;31m"; yellow="\033[0;33m"; end="\033[0m"; fi;\
+	@if [ -t 1 ]; then\
+	   red="\033[0;31m"; yellow="\033[0;33m"; end="\033[0m";\
+	 fi;\
 	if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then\
 	  printf $$red"[MFEM_USE_LEGACY_OPENMP]"$$end": "$$yellow"%s"$$end"\n"\
 	  $(DEPRECATION_WARNING);\
 	fi
 
-# $(call mfem-check, command-to-execute, success_msg, failed_msg)
-mfem-check-command = \
-  @if [ -t 1 ]; then red="\033[0;31m"; green="\033[0;32m"; end="\033[0m"; fi;\
+# $(call mfem_check_command, command-to-execute, success_msg, failed_msg)
+mfem_check_command = \
+  if [ -t 1 ]; then red="\033[0;31m"; green="\033[0;32m"; end="\033[0m"; fi;\
   if ! $(1); then\
-    printf $$green"[OK] "; printf $(2); printf $$end"\n";\
+    printf $$green"%s"$$end"\n" "[  OK  ] "$(strip $(2));\
   else\
-    printf $$red"[FAILED] "; printf $(3); printf $$end"\n";\
+    printf $$red"%s"$$end"\n"   "[FAILED] "$(strip $(3)); err_code=1;\
   fi
 
 # Verify C++ code styling in MFEM and that std::cout and std::cerr are not used
 # in the library (use mfem::out and mfem::err instead)
 style:
 	@echo "Applying C++ code style..."
-	$(call mfem-check-command,\
-            $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
-            "No source files were changed",\
-            "Make sure the code is formatted with Artistic Style 2.05.1")
-	@echo "Checking for use of std::cout..."
-	$(call mfem-check-command,\
-           grep cout $(COUT_CERR_FILES) | grep -v $(COUT_CERR_EXCLUDE:%=-e %),\
-           "No use of std::cout found", "Use mfem::out instead of std::cout")
-	@echo "Checking for use of std::cerr..."
-	$(call mfem-check-command,\
-           grep cerr $(COUT_CERR_FILES) | grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
-           "No use of std::cerr found", "Use mfem::err instead of std::cerr")
+	@astyle_version="$$($(ASTYLE_BIN) --version)";\
+	 if [ "$$astyle_version" != $(ASTYLE_VER) ]; then\
+	    printf "%s\n" "Invalid astyle version: '$$astyle_version'"\
+	           "Please use: '"$(ASTYLE_VER)"'";\
+	    exit 1;\
+	 fi
+	@err_code=0;\
+	$(call mfem_check_command,\
+	    $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
+	    "No source files were changed",\
+	    "Please make sure the changes are committed");\
+	echo "Checking for use of std::cout...";\
+	$(call mfem_check_command,\
+	   grep cout $(COUT_CERR_FILES) | grep -v $(COUT_CERR_EXCLUDE:%=-e %),\
+	   "No use of std::cout found", "Use mfem::out instead of std::cout");\
+	echo "Checking for use of std::cerr...";\
+	$(call mfem_check_command,\
+	   grep cerr $(COUT_CERR_FILES) |\
+	      grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
+	   "No use of std::cerr found", "Use mfem::err instead of std::cerr");\
+	exit $$err_code
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:

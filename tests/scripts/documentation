@@ -49,9 +49,13 @@ make status
 # Test the build of the Doxygen documentation
 cd doc; make clean; make
 
+# Return to the original directory
+cd $cur_dir
+
 # Tell users what to do if the script fails
-if [ -s "$0.err" ]; then
-    cat >  $0.msg <<EOF
+test_name="$(basename "$0")"
+if [ -s "$test_name.err" ]; then
+    cat >  $test_name.msg <<EOF
 
 To correct this error, make sure that the Doxygen comments in the code use
 correct syntax.
@@ -64,6 +68,3 @@ Please contact a member of the MFEM team if you have questions.
 
 EOF
 fi
-
-# Return to the original directory
-cd $cur_dir

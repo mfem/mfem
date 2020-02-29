@@ -55,9 +55,13 @@ EOF
 (git status -s | grep -v .gitignore) 1>&2
 mv -f .gitignore-bak .gitignore
 
+# Return to the original directory
+cd $cur_dir
+
 # Tell users what to do if the script fails
-if [ -s "$0.err" ]; then
-    cat >  $0.msg <<EOF
+test_name="$(basename "$0")"
+if [ -s "$test_name.err" ]; then
+    cat >  $test_name.msg <<EOF
 
 To correct this error, make sure that the .gitignore file is properly updated.
 
@@ -77,6 +81,3 @@ Please contact a member of the MFEM team if you have questions.
 
 EOF
 fi
-
-# Return to the original directory
-cd $cur_dir
