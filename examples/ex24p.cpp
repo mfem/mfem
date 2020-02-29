@@ -541,8 +541,8 @@ int main(int argc, char *argv[])
    {
       ostringstream mesh_name, sol_r_name, sol_i_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_r_name << "sol_r." << setfill('0') << setw(6) << myid;
-      sol_i_name << "sol_i." << setfill('0') << setw(6) << myid;
+      sol_r_name << "ex24p-sol_r." << setfill('0') << setw(6) << myid;
+      sol_i_name << "ex24p-sol_i." << setfill('0') << setw(6) << myid;
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);

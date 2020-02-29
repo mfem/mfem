@@ -500,12 +500,12 @@ int main(int argc, char *argv[])
    // 16. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m mesh -g sol".
    {
-      ofstream mesh_ofs("refined.mesh");
+      ofstream mesh_ofs("ex24.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
 
-      ofstream sol_r_ofs("sol_r.gf");
-      ofstream sol_i_ofs("sol_i.gf");
+      ofstream sol_r_ofs("ex24-sol_r.gf");
+      ofstream sol_i_ofs("ex24-sol_i.gf");
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
       x.real().Save(sol_r_ofs);
