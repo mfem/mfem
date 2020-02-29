@@ -2799,7 +2799,8 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int gid = elementMap[dof*e + d];
+         const int sgid = elementMap[dof*e + d];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          ++offsets[gid + 1];
       }
    }
@@ -2813,10 +2814,14 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
    {
       for (int d = 0; d < dof; ++d)
       {
-         const int did = (!dof_reorder)?d:dof_map[d];
-         const int gid = elementMap[dof*e + did];
+         const int sdid = dof_reorder ? dof_map[d] : 0;  // signed
+         const int did = (!dof_reorder)?d:(sdid >= 0 ? sdid : -1 - sdid);
+         const int sgid = elementMap[dof*e + did];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          const int lid = dof*e + d;
-         indices[offsets[gid]++] = lid;
+
+         indices[offsets[gid]++] = ((sgid >= 0 && sdid >= 0) ||
+                                    (sgid < 0 && sdid < 0)) ? lid : -1 - lid;
       }
    }
    // We shifted the offsets vector by 1 by using it as a counter.
@@ -2838,6 +2843,7 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
+
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -2847,8 +2853,9 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
          const double dofValue = d_x(t?c:i,t?i:c);
          for (int j = offset; j < nextOffset; ++j)
          {
-            const int idx_j = d_indices[j];
-            d_y(idx_j % nd, c, idx_j / nd) = dofValue;
+            const bool positive = (d_indices[j] >= 0);  // otherwise, sign must be flipped
+            const int idx_j = positive ? d_indices[j] : -1 - d_indices[j];
+            d_y(idx_j % nd, c, idx_j / nd) = positive ? dofValue : -dofValue;
          }
       }
    });
@@ -2873,14 +2880,41 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
          double dofValue = 0;
          for (int j = offset; j < nextOffset; ++j)
          {
-            const int idx_j = d_indices[j];
-            dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
+            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+            dofValue += (d_indices[j] >= 0) ? d_x(idx_j % nd, c,
+            idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
          }
          d_y(t?c:i,t?i:c) = dofValue;
       }
    });
 }
 
+void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+            dofValue += d_x(idx_j % nd, c, idx_j / nd);
+         }
+         d_y(t?c:i,t?i:c) = dofValue;
+      }
+   });
+}
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir)
