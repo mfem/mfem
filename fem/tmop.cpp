@@ -1611,17 +1611,16 @@ double TMOP_Integrator::ComputeMinJac(const Vector &x,
 double TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
 {
    fdeps = pow(10,-2.)*ComputeMinJac(x,fes);
+   return fdeps;
 }
 
 #ifdef MFEM_USE_MPI
 double TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes,
-                               MPI_Comm &comm)
+                               const MPI_Comm &comm)
 {
    double min_jac = ComputeMinJac(x,fes);
    double min_jac_all;
-#ifdef MFEM_USE_MPI
    MPI_Allreduce(&min_jac, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, comm);
-#endif
    fdeps = pow(10,-2.)*min_jac_all;
    return fdeps;
 }

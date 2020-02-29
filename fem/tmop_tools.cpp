@@ -421,7 +421,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          int fdflag = ncnlfi->GetFDFlag();
          if (fdflag==1)
          {
-            const double fdeps = ncnlfi->SetFDh(x_loc,*fesc);
+            double fdeps = ncnlfi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
             DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
             if (discrtc)
             {
@@ -589,7 +589,7 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
          int fdflag = ncnlfi->GetFDFlag();
          if (fdflag==1)
          {
-            const double fdeps = ncnlfi->SetFDh(x_loc,*fesc);
+            double fdeps = ncnlfi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
             DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
             if (discrtc)
             {
