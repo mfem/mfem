@@ -1726,7 +1726,6 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    }
    ParFiniteElementSpace* nfes = new ParFiniteElementSpace(this, nfec, space_dim,
                                                            ordering);
-   SetNodalFESpace(nfes);
    auto pnodes = new ParGridFunction(nfes);
    GetNodes(*pnodes);
    NewNodes(*pnodes, true);
