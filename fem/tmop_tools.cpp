@@ -234,56 +234,53 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
 
+   FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI
    if (pmesh) {finder = new FindPointsGSLIB(pfes->GetComm());}
    else       {finder = new FindPointsGSLIB();}
+   if (pfes)  {f = pfes;}
 #else
    finder = new FindPointsGSLIB();
 #endif
    finder->Setup(*m, rel_bbox_el, newton_tol, npts_at_once);
+
+   field0_gf.SetSpace(f);
+   for (int i = 0; i < field0.Size(); i++)
+   {
+      field0_gf(i) = field0(i);
+   }
+
+   dim = f->GetFE(0)->GetDim();
+   const int pts_cnt = init_nodes.Size() / dim;
+   el_id_out.SetSize(pts_cnt);
+   code_out.SetSize(pts_cnt);
+   task_id_out.SetSize(pts_cnt);
+   pos_r_out.SetSize(pts_cnt*dim);
+   dist_p_out.SetSize(pts_cnt);
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field)
 {
 
-   FiniteElementSpace *f = fes;
-#ifdef MFEM_USE_MPI
-   if (pfes)  { f = pfes; }
-#endif
-
-   const int dim = f->GetFE(0)->GetDim();
+   const int pts_cnt = new_nodes.Size() / dim;
    Vector positionsToFind = new_nodes;
-   const int pts_cnt = positionsToFind.Size() / dim;
-
 
    // Interpolate FE function values on the found points.
-   Array<uint> el_id_out(pts_cnt), code_out(pts_cnt), task_id_out(pts_cnt);
-   Vector pos_r_out(pts_cnt*dim), dist_p_out(pts_cnt);
+   if (el_id_out.Size()!=pts_cnt)
+   {
+      el_id_out.SetSize(pts_cnt);
+      code_out.SetSize(pts_cnt);
+      task_id_out.SetSize(pts_cnt);
+      pos_r_out.SetSize(pts_cnt*dim);
+      dist_p_out(pts_cnt);
+   }
 
    finder->FindPoints(positionsToFind, code_out, task_id_out,
                       el_id_out, pos_r_out, dist_p_out);
 
-   GridFunction field0_gf(f);
-   for (int i = 0; i < field0.Size(); i++)
-   {
-      field0_gf(i) = field0(i);
-   }
-
    finder->Interpolate(code_out, task_id_out, el_id_out,
                        pos_r_out, field0_gf, new_field);
-   int face_pts = 0, not_found = 0, found = 0;
-
-   for (int i = 0; i < pts_cnt; i++)
-   {
-      if (code_out[i] < 2)
-      {
-         found++;
-
-         if (code_out[i] == 1) { face_pts++; }
-      }
-      else { not_found++;}
-   }
 }
 
 #endif
@@ -413,7 +410,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       const ParNonlinearForm *nlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
       const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
-      const TMOP_Integrator *nlfi = dynamic_cast<const TMOP_Integrator *>(nlf);
       Vector x_loc(nlf->ParFESpace()->GetVSize());
       nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
       const FiniteElementSpace *fesc = nlf->FESpace();
@@ -422,17 +418,18 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          const TMOP_Integrator *nlfi =
             dynamic_cast<const TMOP_Integrator *>(integrators[i]);
          TMOP_Integrator *ncnlfi = const_cast<TMOP_Integrator *>(nlfi);
-         DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
-         if (discrtc)
+         int fdflag = ncnlfi->GetFDFlag();
+         if (fdflag==1)
          {
-            discrtc->UpdateTargetSpecification(x_loc);
-            discrtc->BackupTargetSpecification();
-            ncnlfi->SetupElementVectorTSpec(x_loc,*fesc);
-            ncnlfi->SetupElementGradTSpec(x_loc,*fesc);
-         }
-         else
-         {
-            ncnlfi->SetFDh(x_loc,*fesc);
+            const double fdeps = ncnlfi->SetFDh(x_loc,*fesc);
+            DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
+            if (discrtc)
+            {
+               discrtc->UpdateTargetSpecification(x_loc);
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
 #endif
@@ -459,17 +456,18 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          const TMOP_Integrator *nlfi =
             dynamic_cast<const TMOP_Integrator *>(integrators[i]);
          TMOP_Integrator *ncnlfi = const_cast<TMOP_Integrator *>(nlfi);
-         DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
-         if (discrtc)
+         int fdflag = ncnlfi->GetFDFlag();
+         if (fdflag==1)
          {
-            discrtc->UpdateTargetSpecification(x);
-            discrtc->BackupTargetSpecification();
-            ncnlfi->SetupElementVectorTSpec(x_loc,*fesc);
-            ncnlfi->SetupElementGradTSpec(x_loc,*fesc);
-         }
-         else
-         {
-            ncnlfi->SetFDh(x_loc,*fesc);
+            const double fdeps = ncnlfi->SetFDh(x_loc,*fesc);
+            DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
+            if (discrtc)
+            {
+               discrtc->UpdateTargetSpecification(x);
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
    }
@@ -580,7 +578,6 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       const ParNonlinearForm *nlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
       const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
-      const TMOP_Integrator *nlfi = dynamic_cast<const TMOP_Integrator *>(nlf);
       Vector x_loc(nlf->ParFESpace()->GetVSize());
       nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
       const FiniteElementSpace *fesc = nlf->FESpace();
@@ -589,17 +586,18 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
          const TMOP_Integrator *nlfi =
             dynamic_cast<const TMOP_Integrator *>(integrators[i]);
          TMOP_Integrator *ncnlfi = const_cast<TMOP_Integrator *>(nlfi);
-         DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
-         if (discrtc)
+         int fdflag = ncnlfi->GetFDFlag();
+         if (fdflag==1)
          {
-            discrtc->UpdateTargetSpecification(x_loc);
-            discrtc->BackupTargetSpecification();
-            ncnlfi->SetupElementVectorTSpec(x_loc,*fesc);
-            ncnlfi->SetupElementGradTSpec(x_loc,*fesc);
-         }
-         else
-         {
-            ncnlfi->SetFDh(x_loc,*fesc);
+            const double fdeps = ncnlfi->SetFDh(x_loc,*fesc);
+            DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
+            if (discrtc)
+            {
+               discrtc->UpdateTargetSpecification(x_loc);
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
 #endif
@@ -610,22 +608,34 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
          dynamic_cast<const NonlinearForm *>(oper);
       const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
       const FiniteElementSpace *fesc = nlf->FESpace();
+      const Operator *P = nlf->GetProlongation();
+      Vector x_loc;
+      if (P)
+      {
+         x_loc.SetSize(P->Height());
+         P->Mult(x,x_loc);
+      }
+      else
+      {
+         x_loc = x;
+      }
       for (int i=0; i<integrators.Size(); i++)
       {
          const TMOP_Integrator *nlfi =
             dynamic_cast<const TMOP_Integrator *>(integrators[i]);
          TMOP_Integrator *ncnlfi = const_cast<TMOP_Integrator *>(nlfi);
-         DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
-         if (discrtc)
+         int fdflag = ncnlfi->GetFDFlag();
+         if (fdflag==1)
          {
-            discrtc->UpdateTargetSpecification(x);
-            discrtc->BackupTargetSpecification();
-            ncnlfi->SetupElementVectorTSpec(x,*fesc);
-            ncnlfi->SetupElementGradTSpec(x,*fesc);
-         }
-         else
-         {
-            ncnlfi->SetFDh(x,*fesc);
+            const double fdeps = ncnlfi->SetFDh(x_loc,*fesc);
+            DiscreteAdaptTC *discrtc = ncnlfi->GetDiscreteAdaptTC();
+            if (discrtc)
+            {
+               discrtc->UpdateTargetSpecification(x);
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
    }
