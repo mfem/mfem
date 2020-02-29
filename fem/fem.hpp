@@ -34,6 +34,8 @@
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
 #include "gslib.hpp"
+#include "restriction.hpp"
+#include "quadinterpolator.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

@@ -15,7 +15,6 @@
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
-#include "quadinterpolator.hpp"
 
 #include <cmath>
 #include <cstdarg>
