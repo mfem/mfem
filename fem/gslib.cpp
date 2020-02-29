@@ -158,27 +158,43 @@ void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
                                   Vector &ref_pos, const GridFunction &field_in,
                                   Vector &field_out)
 {
-   Vector node_vals;
-   GetNodeValues(field_in, node_vals);
 
-   const int points_cnt = ref_pos.Size() / dim;
-   if (dim==2)
+   H1_FECollection ind_fec(mesh->GetNodalFESpace()->GetFE(0)->GetOrder(), dim);
+   FiniteElementSpace ind_fes(mesh, &ind_fec);
+   GridFunction field_in_scalar;
+   field_in_scalar.SetSpace(&ind_fes);
+   Vector node_vals;
+
+   int ncomp = field_in.FESpace()->GetVDim();
+   for (int i=0;i<ncomp;i++)
    {
-      findpts_eval_2(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata2D);
-   }
-   else
-   {
-      findpts_eval_3(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata3D);
+       int dataptr = i*field_in_scalar.Size();
+       for (int j=0;j<field_in_scalar.Size();j++)
+       {
+           field_in_scalar(j) = field_in(j+dataptr);
+       }
+       GetNodeValues(field_in_scalar, node_vals);
+
+       const int points_cnt = ref_pos.Size() / dim;
+
+       if (dim==2)
+       {
+          findpts_eval_2(field_out.GetData()+dataptr, sizeof(double),
+                         codes.GetData(), sizeof(unsigned int),
+                         proc_ids.GetData(), sizeof(unsigned int),
+                         elem_ids.GetData(), sizeof(unsigned int),
+                         ref_pos.GetData(), sizeof(double) * dim,
+                         points_cnt, node_vals.GetData(), fdata2D);
+       }
+       else
+       {
+          findpts_eval_3(field_out.GetData()+dataptr, sizeof(double),
+                         codes.GetData(), sizeof(unsigned int),
+                         proc_ids.GetData(), sizeof(unsigned int),
+                         elem_ids.GetData(), sizeof(unsigned int),
+                         ref_pos.GetData(), sizeof(double) * dim,
+                         points_cnt, node_vals.GetData(), fdata3D);
+       }
    }
 }
 

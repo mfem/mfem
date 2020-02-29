@@ -222,7 +222,6 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 void InterpolatorFP::SetInitialField(const Vector &init_nodes,
                                      const Vector &init_field)
 {
-   const bool serial = !parallel;
    nodes0 = init_nodes;
    field0 = init_field;
    Mesh *m = mesh;
@@ -236,7 +235,7 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    const int npts_at_once   = 256;
 
 #ifdef MFEM_USE_MPI
-   if (!serial) {finder = new FindPointsGSLIB(pfes->GetComm());}
+   if (pmesh) {finder = new FindPointsGSLIB(pfes->GetComm());}
    else         {finder = new FindPointsGSLIB();}
 #else
    finder = new FindPointsGSLIB();
@@ -273,18 +272,6 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
 
    finder->Interpolate(code_out, task_id_out, el_id_out,
                        pos_r_out, field0_gf, new_field);
-   int face_pts = 0, not_found = 0, found = 0;
-
-   for (int i = 0; i < pts_cnt; i++)
-   {
-      if (code_out[i] < 2)
-      {
-         found++;
-
-         if (code_out[i] == 1) { face_pts++; }
-      }
-      else { not_found++;}
-   }
 }
 
 #endif

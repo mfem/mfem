@@ -975,6 +975,79 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
    tspec_sav.SetSize(tspec.Size());
    BackupTargetSpecification();
 }
+
+void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec()
+{
+   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
+
+   MFEM_VERIFY(ncomp>0," Must set atleast 1 discrete target spec");
+
+   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
+                              *ptspec_fes->FEColl(),
+                               ncomp);
+   adapt_eval->SetInitialField
+   (*tspec_fes->GetMesh()->GetNodes(), tspec);
+
+   tspec_sav.SetSize(tspec.Size());
+   BackupTargetSpecification();
+
+   tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
+                                       tspec_fes->FEColl(),
+                                       ncomp);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetBase(ParGridFunction &tspec_)
+{
+   if (ncomp==0)
+   {
+       tspec_fes   = tspec_.FESpace();
+       ptspec_fes  = tspec_.ParFESpace();
+   }
+   MFEM_VERIFY(tspec_.FESpace()->GetVDim()==1,"Only GridFunctions defined "
+                                              "on Scalar FESpace are accepted");
+   ncomp += 1;
+   int sz = tspec_.Size();
+   Vector tspec_temp;
+   tspec_temp.SetSize(tspec.Size());
+   for (int i=0;i<tspec.Size();i++)
+   {
+       tspec_temp(i) = tspec(i);
+   }
+   tspec.SetSize(ncomp*sz);
+   for (int i=0;i<tspec_temp.Size();i++)
+   {
+       tspec(i) = tspec_temp(i);
+   }
+   for (int i=0;i<sz;i++)
+   {
+       tspec(i+(ncomp-1)*sz) = tspec_(i);
+   }
+}
+
+
+void DiscreteAdaptTC::SetParDiscreteTargetSize(ParGridFunction &tspec_)
+{
+   sizeidx = ncomp;
+   SetParDiscreteTargetBase(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetSkew(ParGridFunction &tspec_)
+{
+   skewidx = ncomp;
+   SetParDiscreteTargetBase(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(ParGridFunction &tspec_)
+{
+   aspectratioidx = ncomp;
+   SetParDiscreteTargetBase(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetOrientation(ParGridFunction &tspec_)
+{
+   orientationidx = ncomp;
+   SetParDiscreteTargetBase(tspec_);
+}
 #endif
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
@@ -993,6 +1066,78 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
 
    tspec_sav.SetSize(tspec.Size());
    BackupTargetSpecification();
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
+{
+   if (ncomp==0)
+   {
+       tspec_fes   = tspec_.FESpace();
+   }
+   MFEM_VERIFY(tspec_.FESpace()->GetVDim()==1,"Only GridFunctions defined "
+                                              "on Scalar FESpace are accepted");
+   ncomp += 1;
+   int sz = tspec_.Size();
+   Vector tspec_temp;
+   tspec_temp.SetSize(tspec.Size());
+   for (int i=0;i<tspec.Size();i++)
+   {
+       tspec_temp(i) = tspec(i);
+   }
+   tspec.SetSize(ncomp*sz);
+   for (int i=0;i<tspec_temp.Size();i++)
+   {
+       tspec(i) = tspec_temp(i);
+   }
+   for (int i=0;i<sz;i++)
+   {
+       tspec(i+(ncomp-1)*sz) = tspec_(i);
+   }
+}
+
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetSize(GridFunction &tspec_)
+{
+   sizeidx = ncomp;
+   SetSerialDiscreteTargetBase(tspec_);
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(GridFunction &tspec_)
+{
+   skewidx = ncomp;
+   SetSerialDiscreteTargetBase(tspec_);
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(GridFunction &tspec_)
+{
+   aspectratioidx = ncomp;
+   SetSerialDiscreteTargetBase(tspec_);
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(GridFunction &tspec_)
+{
+   orientationidx = ncomp;
+   SetSerialDiscreteTargetBase(tspec_);
+}
+
+void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
+{
+   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
+
+   MFEM_VERIFY(ncomp>0," Must set atleast 1 discrete target spec");
+
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
+                                 *tspec_fes->FEColl(),
+                                 ncomp);
+   adapt_eval->SetInitialField
+   (*tspec_fes->GetMesh()->GetNodes(), tspec);
+
+   tspec_sav.SetSize(tspec.Size());
+   BackupTargetSpecification();
+
+   tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
+                                       tspec_fes->FEColl(),
+                                       ncomp);
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
@@ -1017,18 +1162,27 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   int cnt = tspec.Size();
-   tspec(dofs[nodenum]) = IntData(dofs[nodenum]+idir*cnt);
+   int cnt = tspec.Size()/ncomp;
+   int dimmax = IntData.Size()/tspec.Size();
+//   std::cout << tspec.Size() << " " << IntData.Size() << " k10check\n";
+   for (int i=0;i<ncomp;i++) {
+       tspec(dofs[nodenum]+i*cnt) = IntData(dofs[nodenum]+idir*cnt+i*cnt*dimmax);
+   }
+
 }
 
-void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
+void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(const FiniteElement &el,
+                                                       ElementTransformation &T,
                                                        int nodenum)
 {
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   tspec(dofs[nodenum]) = tspec_sav(dofs[nodenum]);
+   int cnt = tspec.Size()/ncomp;
+   for (int i=0;i<ncomp;i++) {
+       tspec(dofs[nodenum]+i*cnt) = tspec_sav(dofs[nodenum]+i*cnt);
+   }
 }
 
 void DiscreteAdaptTC::BackupTargetSpecification()
@@ -1053,32 +1207,68 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    switch (target_type)
    {
       case IDEAL_SHAPE_GIVEN_SIZE:
+      case GIVEN_SHAPE_AND_SIZE:
       {
          const DenseMatrix &Wideal =
             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
          const int dim = Wideal.Height(),
-                   ntspec_dofs = tspec_fes->GetFE(0)->GetDof();
+                   ntspec_dofs = ncomp*tspec_fes->GetFE(0)->GetDof();
 
-         Vector shape(ntspec_dofs), tspec_vals(ntspec_dofs);
+         Vector shape(ntspec_dofs/ncomp), tspec_vals(ntspec_dofs);
          Array<int> dofs;
-         tspec_fes->GetElementDofs(e_id, dofs);
+         tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
-
-         const double min_size = tspec_vals.Min();
-         MFEM_ASSERT(min_size > 0.0,
-                     "Non-positive size propagated in the target definition.");
 
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-            const double size = std::max(shape * tspec_vals, min_size);
-            Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
+            Jtr(i) = Wideal; //Initialize to identity
          }
+
+         int ndofs = ntspec_dofs/ncomp;
+         Vector par_vals;
+
+         if (sizeidx>-1) //Set size spec
+         {
+             par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs,ndofs);
+             const double min_size = par_vals.Min();
+             MFEM_VERIFY(min_size > 0.0,
+                         "Non-positive size propagated in the target definition.");
+
+             for (int i = 0; i < ir.GetNPoints(); i++)
+             {
+                const IntegrationPoint &ip = ir.IntPoint(i);
+                tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                const double size = std::max(shape * par_vals, min_size);
+                Jtr(i).Set(std::pow(size, 1.0/dim), Jtr(i));
+             }
+         }
+         if (target_type==IDEAL_SHAPE_GIVEN_SIZE) {break;}
+
+         if (aspectratioidx>-1) //Set aspect ratio spec
+         {
+             par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                       aspectratioidx*ndofs,ndofs);
+             const double min_size = par_vals.Min();
+             MFEM_VERIFY(dim==2," Aspect ratio adaptivity only available in 2D");
+
+             for (int i = 0; i < ir.GetNPoints(); i++)
+             {
+                const IntegrationPoint &ip = ir.IntPoint(i);
+                tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+                const double aspectratio = std::max(shape * par_vals, min_size);
+                Jtr(i)(0,0) *= 1./pow(aspectratio,0.5);
+                Jtr(i)(1,1) *= pow(aspectratio,0.5);
+             }
+         }
+
+         //MFEM_VERIFY(skewidx==-1,"Skew-based target construction not yet supported");
+         //MFEM_VERIFY(orientationidx==-1,"Skew-based target construction not yet supported");
          break;
       }
       default:
-         MFEM_ABORT("Incompatible target type for analytic adaptation!");
+         MFEM_ABORT("Incompatible target type for discrete adaptation!");
    }
 }
 
@@ -1524,103 +1714,112 @@ void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
 void TMOP_Integrator::SetupElementVectorTSpec(const Vector &x,
                                               const FiniteElementSpace &fes)
 {
-   if (fdflag!=0)
-   {
-      (this)->SetFDh(x,fes);
+  if (fdflag==0) {return;}
+  (this)->SetFDh(x,fes);
 
-      const int dim = fes.GetFE(0)->GetDim();
-      const int cnt = x.Size()/dim;
+  const int dim = fes.GetFE(0)->GetDim(),
+            cnt = x.Size()/dim,
+            ncomp = discr_tc->GetNComponents();
 
-      if (discr_tc->tspec_perth.Size() != x.Size())
-      {
-         discr_tc->tspec_perth.SetSize(x.Size());
-      }
+  if (discr_tc->tspec_perth.Size() != x.Size())
+  {
+     discr_tc->tspec_perth.SetSize(cnt*dim*ncomp);
+  }
 
-      Vector TSpecTemp;
-      TSpecTemp.SetSize(x.Size()/dim);
-      Vector xtemp = x;
-      for (int j=0; j<dim; j++)
-      {
-         for (int i=0; i<cnt; i++)
+  Vector TSpecTemp;
+  TSpecTemp.SetSize(ncomp*cnt);
+  Vector xtemp = x;
+  for (int j=0; j<dim; j++)
+  {
+     for (int i=0; i<cnt; i++)
+     {
+        xtemp(j*cnt+i) += fdeps;
+     } //loop-i
+
+     discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
+
+
+     for (int i=0; i<cnt; i++)
+     {
+         for (int k=0; k<ncomp; k++)
          {
-            xtemp(j*cnt+i) += fdeps;
-         } //loop-i
-
-         discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
-
-         for (int i=0; i<cnt; i++)
-         {
-            discr_tc->tspec_perth(j*cnt+i) = TSpecTemp(i);
-            xtemp(j*cnt+i) -= fdeps;
-         } //loop-i
-      } // loop-j
-   }
+             discr_tc->tspec_perth(k*cnt*dim+j*cnt+i) = TSpecTemp(i+k*cnt);
+         } //loop-k
+         xtemp(j*cnt+i) -= fdeps;
+     } //loop-i
+  } // loop-j
 }
 
 void TMOP_Integrator::SetupElementGradTSpec(const Vector &x,
                                             const FiniteElementSpace &fes)
 {
-   if (fdflag!=0)
+   if (fdflag==0) {return;}
+   const int dim = fes.GetFE(0)->GetDim(),
+             cnt = x.Size()/dim,
+             ncomp = discr_tc->GetNComponents();
+
+   if (discr_tc->tspec_pert2h.Size() != x.Size())
    {
-      const int dim = fes.GetFE(0)->GetDim();
-      const int cnt = x.Size()/dim;
+      discr_tc->tspec_pert2h.SetSize(cnt*dim*ncomp);
+      discr_tc->tspec_pertmix.SetSize(cnt*(1+2*(dim-2))*ncomp);
+   }
+   int totidx = 1+2*(dim-2);
 
-      if (discr_tc->tspec_pert2h.Size() != x.Size())
-      {
-         discr_tc->tspec_pert2h.SetSize(x.Size());
-         discr_tc->tspec_pertmix.SetSize(cnt*(1+2*(dim-2)));
-      }
+   Vector TSpecTemp;
+   TSpecTemp.SetSize(cnt*ncomp);
+   Vector xtemp = x;
 
-      Vector TSpecTemp;
-      TSpecTemp.SetSize(cnt);
-      Vector xtemp = x;
+   if (discr_tc->TSpecMixIdx.NumRows()==0)
+   {
+      discr_tc->TSpecMixIdx.SetSize(dim,dim);
+   }
 
-      if (discr_tc->TSpecMixIdx.NumRows()==0)
-      {
-         discr_tc->TSpecMixIdx.SetSize(dim,dim);
-      }
+   // T(x+2h)
+   for (int j=0; j<dim; j++)
+   {
+     for (int i=0; i<cnt; i++)
+     {
+        xtemp(j*cnt+i) += 2*fdeps;
+     } //loop-i
 
-      // T(x+2h)
-      for (int j=0; j<dim; j++)
-      {
-         for (int i=0; i<cnt; i++)
+     discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
+
+     for (int i=0; i<cnt; i++)
+     {
+         for (int k=0; k<ncomp; k++)
          {
-            xtemp(j*cnt+i) += 2*fdeps;
-         } //loop-i
+             discr_tc->tspec_pert2h(k*cnt*dim+j*cnt+i) = TSpecTemp(k*cnt+i);
+         } //loop-k
+         xtemp(j*cnt+i) -= 2*fdeps;
+     } //loop-i
+   }
 
-         discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
+   // T(x+h,y+h)
+   int idx = 0;
+   for (int k1=0; k1<dim; k1++)
+   {
+     for (int k2=0; k1!=k2 && k2<dim; k2++)
+     {
+        for (int i=0; i<cnt; i++)
+        {
+           xtemp(k1*cnt+i) += fdeps;
+           xtemp(k2*cnt+i) += fdeps;
+        }
+        discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
 
-         for (int i=0; i<cnt; i++)
-         {
-            discr_tc->tspec_pert2h(j*cnt+i) = TSpecTemp(i);
-            xtemp(j*cnt+i) -= 2*fdeps;
-         } //loop-i
-      } // loop-j
-
-      // T(x+h,y+h)
-      int idx = 0;
-      for (int k1=0; k1<dim; k1++)
-      {
-         for (int k2=0; k1!=k2 && k2<dim; k2++)
-         {
-            for (int i=0; i<cnt; i++)
+        for (int i=0; i<cnt; i++)
+        {
+            for (int k=0; k<ncomp; k++)
             {
-               xtemp(k1*cnt+i) += fdeps;
-               xtemp(k2*cnt+i) += fdeps;
-            }
-            discr_tc->UpdateTargetSpecification(xtemp,TSpecTemp);
-
-            for (int i=0; i<cnt; i++)
-            {
-               discr_tc->tspec_pertmix(idx*cnt+i) = TSpecTemp(i);
-               xtemp(k1*cnt+i) -= fdeps;
-               xtemp(k2*cnt+i) -= fdeps;
-            }
-            discr_tc->TSpecMixIdx(k1,k2) = idx;
-            discr_tc->TSpecMixIdx(k2,k1) = idx;
-            idx += 1;
-         }
-      }
+                discr_tc->tspec_pertmix(k*cnt*totidx+idx*cnt+i) = TSpecTemp(k*cnt+i);
+            } //loop-k
+            xtemp(k1*cnt+i) -= fdeps;
+            xtemp(k2*cnt+i) -= fdeps;
+        } //loop-i
+        discr_tc->TSpecMixIdx(k1,k2) = idx;
+        discr_tc->TSpecMixIdx(k2,k1) = idx;
+        idx += 1;
+     }
    }
 }
 
@@ -1685,7 +1884,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
                el,T,i,j,discr_tc->tspec_perth);
          }
          elvect(j*dof+i) = (this)->GetFDDerivative(el,T,elfunmod,i,j);
-         if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,i);}
+         if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(el,T,i);}
       }
    }
 }
@@ -1755,8 +1954,8 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                elmat(k1*dof+i,k2*dof+j) = (energy1-energy2)/(fdeps);
                elmat(k2*dof+j,k1*dof+i) = (energy1-energy2)/(fdeps);
 
-               if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,i);}
-               if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,j);}
+               if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(el,T,i);}
+               if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(el,T,j);}
             }
          }
       }
