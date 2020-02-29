@@ -147,25 +147,25 @@ double ind_values(const Vector &x)
 
    if (opt==6) //rotated sine wave
    {
-       double val = 0.;
-       const double X = x(0);
-       const double Y = x(1);
+      double val = 0.;
+      const double X = x(0);
+      const double Y = x(1);
 
-       double xc = x(0)-0.5, yc = x(1)-0.5;
-       double th = 22.5*M_PI/180.;
-       double xn =  cos(th)*xc + sin(th)*yc;
-       double yn = -sin(th)*xc + cos(th)*yc;
-       double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-       double stretch = 1/cos(th2);
-       xc = xn/stretch;yc = yn/stretch;
-       double tfac = 20;
-       double s1 = 3;
-       double s2 = 3;
-       double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
-       if (wgt > 1) wgt = 1;
-       if (wgt < 0) wgt = 0;
-       val = wgt;
-       return val;
+      double xc = x(0)-0.5, yc = x(1)-0.5;
+      double th = 22.5*M_PI/180.;
+      double xn =  cos(th)*xc + sin(th)*yc;
+      double yn = -sin(th)*xc + cos(th)*yc;
+      double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+      double stretch = 1/cos(th2);
+      xc = xn/stretch; yc = yn/stretch;
+      double tfac = 20;
+      double s1 = 3;
+      double s2 = 3;
+      double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
+      if (wgt > 1) { wgt = 1; }
+      if (wgt < 0) { wgt = 0; }
+      val = wgt;
+      return val;
    }
 
 
@@ -600,85 +600,86 @@ int main (int argc, char *argv[])
          //Diffuse the interface
          DiffuseField(disc,2);
 
-        //Get  partials with respect to x and y of the grid function
-        disc.GetDerivative(1,0,d_x);
-        disc.GetDerivative(1,1,d_y);
+         //Get  partials with respect to x and y of the grid function
+         disc.GetDerivative(1,0,d_x);
+         disc.GetDerivative(1,1,d_y);
 
-      //Compute the squared magnitude of the gradient
-      for (int i = 0; i < size.Size(); i++)
-      {
+         //Compute the squared magnitude of the gradient
+         for (int i = 0; i < size.Size(); i++)
+         {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
-      }
-      const double max = size.Max();
-      double max_all;
-      MPI_Allreduce(&max, &max_all, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+         }
+         const double max = size.Max();
+         double max_all;
+         MPI_Allreduce(&max, &max_all, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-      for (int i = 0; i < d_x.Size(); i++)
-      {
+         for (int i = 0; i < d_x.Size(); i++)
+         {
             d_x(i) = std::abs(d_x(i));
             d_y(i) = std::abs(d_y(i));
-      }
-      const double eps = 0.01;
-      const double ratio = 20.0;
-      const double big_small_ratio = 40.0;
+         }
+         const double eps = 0.01;
+         const double ratio = 20.0;
+         const double big_small_ratio = 40.0;
 
-      for (int i = 0; i < size.Size(); i++)
-      {
+         for (int i = 0; i < size.Size(); i++)
+         {
             size(i) = (size(i)/max_all);
             aspr(i) = (d_x(i)+eps)/(d_y(i)+eps);
             aspr(i) = 0.1 + 0.9*(1-size(i))*(1-size(i));
-            if (aspr(i) > ratio){aspr(i) = ratio;}
-            if (aspr(i) < 1.0/ratio){aspr(i) = 1.0/ratio;}
-      }
-      Vector vals;
-      const int NE = pmesh->GetNE();
-      double volume = 0.0, volume_ind = 0.0;
-
-      for (int i = 0; i < NE; i++)
-      {
-         ElementTransformation *Tr = pmesh->GetElementTransformation(i);
-         const IntegrationRule &ir =
-            IntRules.Get(pmesh->GetElementBaseGeometry(i), Tr->OrderJ());
-         size.GetValues(i, ir, vals);
-         for (int j = 0; j < ir.GetNPoints(); j++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            Tr->SetIntPoint(&ip);
-            volume     += ip.weight * Tr->Weight();
-            volume_ind += vals(j) * ip.weight * Tr->Weight();
+            if (aspr(i) > ratio) {aspr(i) = ratio;}
+            if (aspr(i) < 1.0/ratio) {aspr(i) = 1.0/ratio;}
          }
+         Vector vals;
+         const int NE = pmesh->GetNE();
+         double volume = 0.0, volume_ind = 0.0;
+
+         for (int i = 0; i < NE; i++)
+         {
+            ElementTransformation *Tr = pmesh->GetElementTransformation(i);
+            const IntegrationRule &ir =
+               IntRules.Get(pmesh->GetElementBaseGeometry(i), Tr->OrderJ());
+            size.GetValues(i, ir, vals);
+            for (int j = 0; j < ir.GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(j);
+               Tr->SetIntPoint(&ip);
+               volume     += ip.weight * Tr->Weight();
+               volume_ind += vals(j) * ip.weight * Tr->Weight();
+            }
+         }
+         double volume_all, volume_ind_all;
+         int NE_ALL;
+         MPI_Allreduce(&volume, &volume_all, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(&volume_ind, &volume_ind_all, 1, MPI_DOUBLE, MPI_SUM,
+                       MPI_COMM_WORLD);
+         MPI_Allreduce(&NE, &NE_ALL, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+         const double avg_zone_size = volume_all / NE_ALL;
+
+         const double small_avg_ratio =
+            (volume_ind_all + (volume_all - volume_ind_all) / big_small_ratio)
+            / volume_all;
+
+         const double small_zone_size = small_avg_ratio * avg_zone_size;
+         const double big_zone_size   = big_small_ratio * small_zone_size;
+
+         for (int i = 0; i < size.Size(); i++)
+         {
+            const double val = size(i);
+            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            size(i) = big_zone_size / (1.0+a*val);
+         }
+
+         DiffuseField(size, 2);
+         DiffuseField(aspr, 2);
+
+         tc->SetParDiscreteTargetSize(size);
+         tc->SetParDiscreteTargetAspectRatio(aspr);
+         tc->FinalizeParDiscreteTargetSpec();
+         target_c = tc;
+         break;
       }
-      double volume_all, volume_ind_all;
-      int NE_ALL;
-      MPI_Allreduce(&volume, &volume_all, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(&volume_ind, &volume_ind_all, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      MPI_Allreduce(&NE, &NE_ALL, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
-      const double avg_zone_size = volume_all / NE_ALL;
-
-      const double small_avg_ratio =
-              (volume_ind_all + (volume_all - volume_ind_all) / big_small_ratio)
-              / volume_all;
-
-      const double small_zone_size = small_avg_ratio * avg_zone_size;
-      const double big_zone_size   = big_small_ratio * small_zone_size;
-
-      for (int i = 0; i < size.Size(); i++)
-      {
-         const double val = size(i);
-         const double a = (big_zone_size - small_zone_size) / small_zone_size;
-         size(i) = big_zone_size / (1.0+a*val);
-      }
-
-      DiffuseField(size, 2);
-      DiffuseField(aspr, 2);
-
-      tc->SetParDiscreteTargetSize(size);
-      tc->SetParDiscreteTargetAspectRatio(aspr);
-      tc->FinalizeParDiscreteTargetSpec();
-      target_c = tc;
-      break;
-    }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
@@ -691,10 +692,6 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetFDPar(fdscheme, pmesh->GetNE());
-   if (target_id == 5 || target_id == 6)
-   {
-      he_nlf_integ->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
-   }
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -1001,24 +998,24 @@ double weight_fun(const Vector &x)
 
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
-      //Setup the Laplacian operator
-      ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
-      Lap->AddDomainIntegrator(new DiffusionIntegrator());
-      Lap->Assemble();
-      Lap->Finalize();
-      HypreParMatrix *A = Lap->ParallelAssemble();
+   //Setup the Laplacian operator
+   ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
+   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   Lap->Assemble();
+   Lap->Finalize();
+   HypreParMatrix *A = Lap->ParallelAssemble();
 
-      HypreSmoother *S = new HypreSmoother(*A,0,smooth_steps);
-      S->iterative_mode = true;
+   HypreSmoother *S = new HypreSmoother(*A,0,smooth_steps);
+   S->iterative_mode = true;
 
-      Vector tmp(A->Width());
-      field.SetTrueVector();
-      Vector fieldtrue = field.GetTrueVector();
-      tmp = 0.0;
-      S->Mult(tmp, fieldtrue);
+   Vector tmp(A->Width());
+   field.SetTrueVector();
+   Vector fieldtrue = field.GetTrueVector();
+   tmp = 0.0;
+   S->Mult(tmp, fieldtrue);
 
-      field.SetFromTrueDofs(fieldtrue);
+   field.SetFromTrueDofs(fieldtrue);
 
-      delete S;
-      delete Lap;
+   delete S;
+   delete Lap;
 }

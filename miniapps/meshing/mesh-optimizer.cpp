@@ -149,25 +149,25 @@ double ind_values(const Vector &x)
 
    if (opt==6) //rotated sine wave
    {
-       double val = 0.;
-       const double X = x(0);
-       const double Y = x(1);
+      double val = 0.;
+      const double X = x(0);
+      const double Y = x(1);
 
-       double xc = x(0)-0.5, yc = x(1)-0.5;
-       double th = 22.5*M_PI/180.;
-       double xn =  cos(th)*xc + sin(th)*yc;
-       double yn = -sin(th)*xc + cos(th)*yc;
-       double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-       double stretch = 1/cos(th2);
-       xc = xn/stretch;yc = yn/stretch;
-       double tfac = 20;
-       double s1 = 3;
-       double s2 = 3;
-       double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
-       if (wgt > 1) wgt = 1;
-       if (wgt < 0) wgt = 0;
-       val = wgt;
-       return val;
+      double xc = x(0)-0.5, yc = x(1)-0.5;
+      double th = 22.5*M_PI/180.;
+      double xn =  cos(th)*xc + sin(th)*yc;
+      double yn = -sin(th)*xc + cos(th)*yc;
+      double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+      double stretch = 1/cos(th2);
+      xc = xn/stretch; yc = yn/stretch;
+      double tfac = 20;
+      double s1 = 3;
+      double s2 = 3;
+      double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
+      if (wgt > 1) { wgt = 1; }
+      if (wgt < 0) { wgt = 0; }
+      val = wgt;
+      return val;
    }
 
    return 0.0;
@@ -585,14 +585,14 @@ int main (int argc, char *argv[])
          //Compute the squared magnitude of the gradient
          for (int i = 0; i < size.Size(); i++)
          {
-               size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
+            size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
          }
          const double max = size.Max();
 
          for (int i = 0; i < d_x.Size(); i++)
          {
-               d_x(i) = std::abs(d_x(i));
-               d_y(i) = std::abs(d_y(i));
+            d_x(i) = std::abs(d_x(i));
+            d_y(i) = std::abs(d_y(i));
          }
          const double eps = 0.01;
          const double ratio = 20.0;
@@ -600,11 +600,11 @@ int main (int argc, char *argv[])
 
          for (int i = 0; i < size.Size(); i++)
          {
-               size(i) = (size(i)/max);
-               aspr(i) = (d_x(i)+eps)/(d_y(i)+eps);
-               aspr(i) = 0.1 + 0.9*(1-size(i))*(1-size(i));
-               if (aspr(i) > ratio){aspr(i) = ratio;}
-               if (aspr(i) < 1.0/ratio){aspr(i) = 1.0/ratio;}
+            size(i) = (size(i)/max);
+            aspr(i) = (d_x(i)+eps)/(d_y(i)+eps);
+            aspr(i) = 0.1 + 0.9*(1-size(i))*(1-size(i));
+            if (aspr(i) > ratio) {aspr(i) = ratio;}
+            if (aspr(i) < 1.0/ratio) {aspr(i) = 1.0/ratio;}
          }
          Vector vals;
          const int NE = mesh->GetNE();
@@ -627,8 +627,9 @@ int main (int argc, char *argv[])
 
          const double avg_zone_size = volume / NE;
 
-         const double small_avg_ratio = (volume_ind + (volume - volume_ind) / big_small_ratio) /
-                               volume;
+         const double small_avg_ratio = (volume_ind + (volume - volume_ind) /
+                                         big_small_ratio) /
+                                        volume;
 
          const double small_zone_size = small_avg_ratio * avg_zone_size;
          const double big_zone_size   = big_small_ratio * small_zone_size;
@@ -649,7 +650,7 @@ int main (int argc, char *argv[])
          tc->FinalizeSerialDiscreteTargetSpec();
          target_c = tc;
          break;
-       }
+      }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
    if (target_c == NULL)
@@ -659,10 +660,6 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetFDPar(fdscheme, mesh->GetNE());
-   if (target_id == 5 || target_id == 6)
-   {
-      he_nlf_integ->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
-   }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -944,21 +941,21 @@ double weight_fun(const Vector &x)
 
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
-      //Setup the Laplacian operator
-      BilinearForm *Lap = new BilinearForm(field.FESpace());
-      Lap->AddDomainIntegrator(new DiffusionIntegrator());
-      Lap->Assemble();
-      Lap->Finalize();
+   //Setup the Laplacian operator
+   BilinearForm *Lap = new BilinearForm(field.FESpace());
+   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   Lap->Assemble();
+   Lap->Finalize();
 
-      //Setup the smoothing operator
-      DSmoother *S = new DSmoother(0,1.0,smooth_steps);
-      S->iterative_mode = true;
-      S->SetOperator(Lap->SpMat());
+   //Setup the smoothing operator
+   DSmoother *S = new DSmoother(0,1.0,smooth_steps);
+   S->iterative_mode = true;
+   S->SetOperator(Lap->SpMat());
 
-      Vector tmp(field.Size());
-      tmp = 0.0;
-      S->Mult(tmp, field);
+   Vector tmp(field.Size());
+   tmp = 0.0;
+   S->Mult(tmp, field);
 
-      delete S;
-      delete Lap;
+   delete S;
+   delete Lap;
 }
