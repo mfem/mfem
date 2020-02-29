@@ -927,7 +927,8 @@ public:
 
    double SetFDh(const Vector &x, const FiniteElementSpace &fes);
 #ifdef MFEM_USE_MPI
-   double SetFDh(const Vector &x, const FiniteElementSpace &fes, const MPI_Comm &comm);
+   double SetFDh(const Vector &x, const FiniteElementSpace &fes,
+                 const MPI_Comm &comm);
 #endif
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
