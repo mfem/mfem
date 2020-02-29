@@ -140,6 +140,7 @@ int main(int argc, char *argv[])
    {
       fespace->SetElementOrder(i, order+1);
    }
+   fespace->Update(false);
 
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;

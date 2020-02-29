@@ -1462,7 +1462,7 @@ void FiniteElementSpace::Construct()
    cP_is_set = false;
    // 'Th' is initialized/destroyed before this method is called.
 
-   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
+   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT); // FIXME
 
    if (mesh->Dimension() > 1)
    {
@@ -1472,7 +1472,7 @@ void FiniteElementSpace::Construct()
       }
       else
       {
-         nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT);
+         nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT); // FIXME
       }
    }
 
@@ -1506,7 +1506,8 @@ void FiniteElementSpace::Construct()
       bdofs[0] = 0;
       for (int i = 0; i < mesh->GetNE(); i++)
       {
-         nbdofs += fec->DofForGeometry(mesh->GetElementBaseGeometry(i));
+         int p = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
+         nbdofs += fec->GetNumDof(mesh->GetElementGeometry(i), p);
          bdofs[i+1] = nbdofs;
       }
    }
@@ -1680,8 +1681,10 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    MFEM_VERIFY(i < mesh->GetNE(),
                "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
 
+   int p = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
+
    const FiniteElement *FE =
-      fec->FiniteElementForGeometry(mesh->GetElementBaseGeometry(i));
+      fec->GetFE(mesh->GetElementGeometry(i), p);
 
    if (NURBSext)
    {
@@ -2082,6 +2085,7 @@ void FiniteElementSpace::GetTrueTransferOperator(
 
 void FiniteElementSpace::Update(bool want_transform)
 {
+#if 0 // FIXME!!!
    if (mesh->GetSequence() == sequence)
    {
       return; // mesh and space are in sync, no-op
@@ -2091,6 +2095,7 @@ void FiniteElementSpace::Update(bool want_transform)
       MFEM_ABORT("Error in update sequence. Space needs to be updated after "
                  "each mesh modification.");
    }
+#endif
    sequence = mesh->GetSequence();
 
    if (NURBSext)

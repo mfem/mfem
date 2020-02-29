@@ -108,21 +108,8 @@ protected:
        to be of the default order (fec->DefaultOrder()). */
    Array<char> elem_order;
 
-#if 0
-   /** Polynomial order for each edge, calculated as the minimum order of
-       elements sharing the edge. If empty, edges are all of the same order. */
-   Array<char> edge_order;
-#endif
-
    int nvdofs, nedofs, nfdofs, nbdofs;
    int *fdofs, *bdofs;
-
-#if 0
-   /** If not empty, these contain the index of the first DOF of an edge,
-       face, or element interior. For spaces of uniform polynomial order and
-       uniform element type, the arrays are empty. */
-   Array<int> face_dofs, internal_dofs;
-#endif
 
    /// In a variable order space, holds a set of DOFs for each edge.
    Table edge_dof;
