@@ -1,14 +1,14 @@
 //                       MFEM Example 23 - Parallel Version
 //
-// Compile with: make ex23p
+// Compile with: make ex24p
 //
-// Sample runs:  mpirun -np 4 ex23p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0
-//               mpirun -np 4 ex23p -o 3 -f 1.0 -rs 1 -rp 1 -prob 1
-//               mpirun -np 4 ex23p -o 2 -f 3.0 -rs 3 -rp 1 -prob 2
-//               mpirun -np 4 ex23p -o 2 -f 1.0 -rs 1 -rp 1 -prob 3
-//               mpirun -np 4 ex23p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh
-//               mpirun -np 4 ex23p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh
-//               mpirun -np 4 ex23p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh
+// Sample runs:  mpirun -np 4 ex24p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0
+//               mpirun -np 4 ex24p -o 3 -f 1.0 -rs 1 -rp 1 -prob 1
+//               mpirun -np 4 ex24p -o 2 -f 3.0 -rs 3 -rp 1 -prob 2
+//               mpirun -np 4 ex24p -o 2 -f 1.0 -rs 1 -rp 1 -prob 3
+//               mpirun -np 4 ex24p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh
+//               mpirun -np 4 ex24p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh
+//               mpirun -np 4 ex24p -o 2 -f 2.0 -rs 1 -rp 1 -prob 4 -m ../data/inline-hex.mesh
 
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order indefinite

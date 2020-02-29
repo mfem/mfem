@@ -1,14 +1,14 @@
 //                       MFEM Example 23 - Serial Version
 //
-// Compile with: make ex23
+// Compile with: make ex24
 //
-// Sample runs:  ex23 -o 2 -f 1.0 -ref 2 -prob 0
-//               ex23 -o 3 -f 1.0 -ref 2 -prob 1
-//               ex23 -o 2 -f 3.0 -ref 3 -prob 2
-//               ex23 -o 2 -f 1.0 -ref 2 -prob 3
-//               ex23 -o 2 -f 1.0 -ref 2 -prob 0 -m ../data/beam-quad.mesh
-//               ex23 -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh
-//               ex23 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
+// Sample runs:  ex24 -o 2 -f 1.0 -ref 2 -prob 0
+//               ex24 -o 3 -f 1.0 -ref 2 -prob 1
+//               ex24 -o 2 -f 3.0 -ref 3 -prob 2
+//               ex24 -o 2 -f 1.0 -ref 2 -prob 3
+//               ex24 -o 2 -f 1.0 -ref 2 -prob 0 -m ../data/beam-quad.mesh
+//               ex24 -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh
+//               ex24 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
 
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order indefinite
