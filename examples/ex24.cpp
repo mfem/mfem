@@ -137,8 +137,8 @@ int main(int argc, char *argv[])
       a_NDH1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
 
+   // First approach: L2 projection
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
-
    a_NDH1->AddDomainIntegrator(new MixedVectorGradientIntegrator(*muinv));
 
    // 8. Assemble the parallel bilinear form and the corresponding linear
@@ -163,9 +163,7 @@ int main(int argc, char *argv[])
       NDH1.Mult(p, x);
    }
 
-   // 9. Define and apply a PCG solver for Ax = b with Jacobi
-   //    preconditioner.
-
+   // 9. Define and apply a PCG solver for Ax = b with Jacobi preconditioner.
    {
       GridFunction rhs(fespace);
       rhs = x;
@@ -196,7 +194,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Compute the same solution by applying GradientInterpolator in H(curl).
-
    DiscreteLinearOperator grad(H1fespace, fespace);
    grad.AddDomainInterpolator(new GradientInterpolator());
    grad.Assemble();
@@ -205,7 +202,6 @@ int main(int argc, char *argv[])
    grad.Mult(p, gradp);
 
    // 11. Compute the projection of the exact grad p.
-
    GridFunction exact_gradp(fespace);
    exact_gradp.ProjectCoefficient(gradp_coef);
    exact_gradp.SetTrueVector();
@@ -225,8 +221,8 @@ int main(int argc, char *argv[])
            "||_{L^2} = " << errProj << '\n' << endl;
    }
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 13. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);

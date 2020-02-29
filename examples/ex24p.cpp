@@ -26,7 +26,7 @@
 //               spaces. Using two different approaches, we project a gradient
 //               of a function in H^1 to H(curl). Other spaces and example
 //               computations are to be added in the future.
-
+//
 //               We recommend viewing examples 1 and 3 before viewing this
 //               example.
 
@@ -167,8 +167,8 @@ int main(int argc, char *argv[])
       a_NDH1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
 
+   // First approach: L2 projection
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
-
    a_NDH1->AddDomainIntegrator(new MixedVectorGradientIntegrator(*muinv));
 
    // 10. Assemble the parallel bilinear form and the corresponding linear
@@ -207,7 +207,6 @@ int main(int argc, char *argv[])
 
    // 11. Define and apply a parallel PCG solver for AX=B with Jacobi
    //     preconditioner.
-
    if (pa)
    {
       Array<int> ess_tdof_list; // empty
@@ -244,7 +243,6 @@ int main(int argc, char *argv[])
    x.SetFromTrueDofs(X);
 
    // 12. Compute the same solution by applying GradientInterpolator in H(curl).
-
    ParDiscreteLinearOperator grad(H1fespace, fespace);
    grad.AddDomainInterpolator(new GradientInterpolator());
    grad.Assemble();
@@ -253,7 +251,6 @@ int main(int argc, char *argv[])
    grad.Mult(p, gradp);
 
    // 13. Compute the projection of the exact grad p.
-
    ParGridFunction exact_gradp(fespace);
    exact_gradp.ProjectCoefficient(gradp_coef);
    exact_gradp.SetTrueVector();

@@ -204,9 +204,9 @@ int main(int argc, char *argv[])
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   // 13. Define and apply a parallel PCG solver for AX=B with the AMS
-   //     preconditioner from hypre, in the full assembly case.
-   //     With partial assembly, use no preconditioner, for now.
+   // 13. Solve the system AX=B using PCG with the AMS preconditioner from hypre
+   //     (in the full assembly case) or CG with Jacobi preconditioner (in the
+   //     partial assembly case).
 
    if (pa) // Jacobi preconditioning in partial assembly mode
    {
