@@ -577,10 +577,6 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
    he_nlf_integ->SetFDPar(fdscheme, mesh->GetNE());
-   if (target_id == 5)
-   {
-      he_nlf_integ->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
-   }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
