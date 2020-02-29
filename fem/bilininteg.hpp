@@ -1559,7 +1559,7 @@ private:
    Vector pa_data;
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
-   const GeometricFactors *geom;  ///< Not owned
+   const GeometricFactors *geom;   ///< Not owned
    int dim, ne, dofs1D, quad1D;
 };
 
@@ -2167,7 +2167,7 @@ protected:
    Vector pa_data;
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
-   const GeometricFactors *geom;  ///< Not owned
+   const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
@@ -2252,7 +2252,7 @@ protected:
    Vector pa_data;
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
-   const GeometricFactors *geom;  ///< Not owned
+   const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
