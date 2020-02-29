@@ -311,11 +311,15 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("PVExample9S", &mesh);
+      pd = new ParaViewDataCollection("Example9", &mesh);
+      pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", &u);
-      pd->SetLevelsOfDetail(2);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
       pd->SetTime(0.0);
+      pd->Save();
    }
 
    socketstream sout;
