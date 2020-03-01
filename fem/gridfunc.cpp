@@ -326,7 +326,7 @@ void GridFunction::GetTrueDofs(Vector &tv) const
    if (!R)
    {
       // R is identity -> make tv a reference to *this
-      tv.NewDataAndSize(const_cast<double*>((const double*)data), size);
+      tv = *this;
    }
    else
    {
