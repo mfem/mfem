@@ -20,15 +20,20 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   unit_test_main.cpp
   general/text-test.cpp
-  linalg/test_blockMatrix.cpp
   linalg/test_complex_operator.cpp
-  linalg/test_densematrix.cpp
   linalg/test_ilu.cpp
+  linalg/test_matrix_block.cpp
+  linalg/test_matrix_dense.cpp
+  linalg/test_matrix_rectangular.cpp
+  linalg/test_matrix_square.cpp
   linalg/test_ode.cpp
+  linalg/test_ode2.cpp
+  linalg/test_operator.cpp
   mesh/test_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
+  fem/test_assemblediagonalpa.cpp
   fem/test_calcshape.cpp
   fem/test_datacollection.cpp
   fem/test_fe.cpp
@@ -37,6 +42,7 @@ set(UNIT_TESTS_SRCS
   fem/test_inversetransform.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
   fem/test_quadraturefunc.cpp

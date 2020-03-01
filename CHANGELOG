@@ -67,6 +67,9 @@ Discretization improvements
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
 
+- Extended the support for partial assembly to H(curl) bilinear forms, as well
+  as the vector mass and vector diffusion bilinear integrators.
+
 - Added support for serendipity elements of arbitrary order on affinely-mapped
   square elements. Basis functions for these elements can be visualized using
   an option in the display-basis miniapp.
@@ -100,9 +103,6 @@ Discretization improvements
   be used to impose boundary conditions on the non-square off-diagonal blocks of
   a block operator (similar to FormLinearSystem in the square case).
 
-- Extended the support for partial assembly to vector mass and vector diffusion
-  bilinear integrators.
-
 Linear and nonlinear solvers
 ----------------------------
 - Added a general interface for specifying and solving nonlinear constrained
@@ -117,6 +117,8 @@ Linear and nonlinear solvers
   more details see linalg/ginkgo.hpp and the example code in examples/gingko.
 
 - Added Adams-Bashforth and Adams-Moulton time integrators.
+
+- Added several time integrators for 2nd order ODEs
 
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
@@ -137,7 +139,14 @@ New and updated examples and miniapps
   complex-valued finite element operators. The example defines and solves
   a family of time-harmonic PDEs related to damped harmonic oscillators.
 
-- Updated Example 1/1p to use diagonal preconditioning in partial assembly mode.
+- Added a new example, Example 24/24p, to demonstrate usage of mixed finite
+  element spaces in bilinear forms. Partial assembly is supported in this
+  example.
+
+- Added device support in Example 3/3p.
+
+- Updated Examples 1/1p and 3/3p to use diagonal preconditioning in partial
+  assembly mode.
 
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
@@ -184,8 +193,11 @@ Miscellaneous
   complete rework of the interface and requires changes at the application
   level. Example usage of the new interface can be found in examples/sundials.
 
-- Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
-  and the new ParaViewDataCollection class.
+- Added support for output in the ParaView XML format. Both low-order and
+  high-order Lagrange elements are supported. Output can be in ASCII or binary
+  format. Binary output can be compressed if MFEM is compiled with gzstream
+  enabled (MFEM_USE_GZSTREAM). See Examples 5/5p, 9/9p and the new
+  ParaViewDataCollection class.
 
 - Collected object files from the miniapps/common directory into a new library,
   libmfem-common for the convenience of application developers. The new library
@@ -444,6 +456,9 @@ New and updated examples and miniapps
 - Added a new serial and parallel example (ex19) that solves the quasi-static
   incompressible hyperelastic equations. The example demonstrates the use of
   block nonlinear forms as well as custom block preconditioners.
+
+- Added a new serial example (ex23) to demonstrate the use of second order
+  time integration to solve the wave equation.
 
 - Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
   electromagnetics phenomena as a coupled first order system of equations.
