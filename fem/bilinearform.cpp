@@ -1072,7 +1072,6 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 0;
-
    assembly = AssemblyLevel::FULL;
    ext = NULL;
 }
@@ -1087,6 +1086,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 1;
+   ext = NULL;
 
    // Copy the pointers to the integrators
    dbfi = mbf->dbfi;
@@ -1641,9 +1641,10 @@ void MixedBilinearForm::FormRectangularLinearSystem(const Array<int>
       return;
    }
 
+   const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetOutputProlongation();
    const Operator *Ri = this->GetRestriction();
-   InitTVectors(Po, Ri, x, b, X, B);
+   InitTVectors(Po, Ri, Pi, x, b, X, B);
 
    if (!mat_e)
    {

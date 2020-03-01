@@ -42,8 +42,12 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
      trialFes(a->FESpace()),
      testFes(a->FESpace())
 {
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
+   const Operator* elem_restrict =
+      trialFes->GetElementRestriction(UsesTensorBasis(*a->FESpace())?
+                                      ElementDofOrdering::LEXICOGRAPHIC :
+                                      ElementDofOrdering::NATIVE);
+
+   elem_restrict_lex = dynamic_cast<const ElementRestriction*>(elem_restrict);
    if (elem_restrict_lex)
    {
       localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
@@ -74,7 +78,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       {
          integrators[i]->AssembleDiagonalPA(localY);
       }
-      elem_restrict_lex->MultTranspose(localY, y);
+      elem_restrict_lex->MultTransposeUnsigned(localY, y);
    }
    else
    {
@@ -93,8 +97,14 @@ void PABilinearFormExtension::Update()
    height = width = fes->GetVSize();
    trialFes = fes;
    testFes = fes;
-   elem_restrict_lex = trialFes->GetElementRestriction(
-                          ElementDofOrdering::LEXICOGRAPHIC);
+
+   const Operator* elem_restrict =
+      trialFes->GetElementRestriction(UsesTensorBasis(*a->FESpace())?
+                                      ElementDofOrdering::LEXICOGRAPHIC :
+                                      ElementDofOrdering::NATIVE);
+
+   elem_restrict_lex = dynamic_cast<const ElementRestriction*>(elem_restrict);
+
    if (elem_restrict_lex)
    {
       localX.SetSize(elem_restrict_lex->Height());
@@ -171,7 +181,6 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       }
    }
 }
-
 
 MixedBilinearFormExtension::MixedBilinearFormExtension(MixedBilinearForm *form)
    : Operator(form->Height(), form->Width()), a(form)
