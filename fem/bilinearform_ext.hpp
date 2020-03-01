@@ -43,10 +43,12 @@ public:
    virtual const Operator *GetRestriction() const;
 
    virtual void Assemble() = 0;
+
    virtual void AssembleDiagonal(Vector &diag) const
    {
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
+
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -102,7 +104,7 @@ class PABilinearFormExtension : public BilinearFormExtension
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   const ElementRestriction *elem_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -141,7 +143,6 @@ public:
    ~MFBilinearFormExtension() {}
 };
 
-
 /** @brief Class extending the MixedBilinearForm class to support the different
     AssemblyLevel%s. */
 class MixedBilinearFormExtension : public Operator
@@ -179,6 +180,7 @@ public:
    virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double c=1.0) const = 0;
+
    virtual void Update() = 0;
 };
 
