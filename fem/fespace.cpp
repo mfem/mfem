@@ -2846,13 +2846,13 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_gatherMap = gatherMap.Read();
    MFEM_FORALL(i, dof*ne,
    {
-      const int sgid = d_gatherMap[i];
-      const bool pos = sgid >= 0;
-      const int j = pos ? sgid : -1-sgid;
+      const int gid = d_gatherMap[i];
+      const bool flip = gid >= 0;
+      const int j = flip ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
       {
          const double dofValue = d_x(t?c:j, t?j:c);
-         d_y(i % nd, c, i / nd) = pos ? dofValue : -dofValue;
+         d_y(i % nd, c, i / nd) = flip ? dofValue : -dofValue;
       }
    });
 }
