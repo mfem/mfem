@@ -330,8 +330,7 @@ void Device::Setup(const int device)
    {
       if (!ceed_option)
       {
-         // NOTE: The current default libCEED GPU backend (ceed-cuda) uses
-         // atomics and therefore is non-deterministic!
+         // NOTE: libCEED's /gpu/cuda/gen backend is non-deterministic!
          CeedDeviceSetup("/gpu/cuda/gen");
       }
       else
