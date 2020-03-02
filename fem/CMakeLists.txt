@@ -21,6 +21,7 @@ set(SRCS
   bilininteg_mass.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
+  bilininteg_hcurl.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
