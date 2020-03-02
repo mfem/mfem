@@ -23,13 +23,14 @@
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
 
+double yrefine=0.2;
 double region_eps = 1e-8;
 double region(const Vector &p)
 {
    const double x = p(0), y = p(1);
-   const double x0=0.249999999999999999999;
-   //return std::max(std::max(std::max(x - x0, -y-x0), y - x0), -x-x0);
-   return std::max(-y-x0, y - x0);
+   //const double yrefine=0.249999999999999999999;
+   //return std::max(std::max(std::max(x - yrefine, -y-yrefine), y - yrefine), -x-yrefine);
+   return std::max(-y-yrefine, y - yrefine);
 }
 
 int main(int argc, char *argv[])
@@ -95,6 +96,8 @@ int main(int argc, char *argv[])
    args.AddOption(&local_refine, "-local", "--local-refine", "-no-local",
                   "--no-local-refine",
                   "Enable or disable local refinement before unifrom refinement.");
+   args.AddOption(&yrefine, "-yrefine", "--y-region",
+                  "Local refinement distance in y.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
