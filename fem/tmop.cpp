@@ -1037,12 +1037,6 @@ void DiscreteAdaptTC::BackupTargetSpecification()
    for (int i=0; i<tspec.Size(); i++) {tspec_sav(i)=tspec(i);}
 }
 
-void DiscreteAdaptTC::RestoreTargetSpecification()
-{
-   MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
-   for (int i=0; i<tspec.Size(); i++) {tspec(i)=tspec_sav(i);}
-}
-
 void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const IntegrationRule &ir,
                                             const Vector &elfun,
@@ -1610,6 +1604,7 @@ double TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 double TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
 {
+   if (fdflag==0) {return 0.;}
    fdeps = pow(10,-2.)*ComputeMinJac(x,fes);
    return fdeps;
 }
@@ -1618,6 +1613,7 @@ double TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
 double TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes,
                                const MPI_Comm &comm)
 {
+   if (fdflag==0) {return 0.;}
    double min_jac = ComputeMinJac(x,fes);
    double min_jac_all;
    MPI_Allreduce(&min_jac, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, comm);

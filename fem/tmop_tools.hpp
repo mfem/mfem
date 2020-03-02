@@ -43,7 +43,6 @@ class InterpolatorFP : public AdaptivityEvaluator
 {
 private:
    Vector nodes0;
-   Vector field0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
    Array<uint> el_id_out, code_out, task_id_out;

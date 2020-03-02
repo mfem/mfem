@@ -112,7 +112,8 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
    }
 }
 
-void FindPointsGSLIB::FindPoints(Vector &point_pos, Array<unsigned int> &codes,
+void FindPointsGSLIB::FindPoints(const Vector &point_pos,
+                                 Array<unsigned int> &codes,
                                  Array<unsigned int> &proc_ids,
                                  Array<unsigned int> &elem_ids,
                                  Vector &ref_pos, Vector &dist)
