@@ -272,7 +272,6 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() //tri/tet/wedge
 {
    int gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
    const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fes = nodes->FESpace();
    Mesh *meshsplit;
 
    if (gt==2)   //Triangles
@@ -300,12 +299,11 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() //tri/tet/wedge
       int Nvert = 15;
       NEsplit = 4;
       meshsplit = new Mesh(3, Nvert, NEsplit, 0, 3);
-      double fc = 1./3.;
       const double hex_v[15][3] = {{0,0,0.},{1,0.,0.},{0.,1.,0.},{0,0.,1.},
          {0.5,0.,0.},{0.5,0.5,0.},{0.,0.5,0.},
          {0.,0.,0.5},{0.5,0.,0.5},{0.,0.5,0.5},
-         {fc,0.,fc},{fc,fc,fc},{0,fc,fc},
-         {fc,fc,0},{0.25,0.25,0.25}
+         {1./3.,0.,1./3.},{1./3.,1./3.,1./3.},{0,1./3.,1./3.},
+         {1./3.,1./3.,0},{0.25,0.25,0.25}
       };
       const int hex_e[4][8] = {{0,4,10,7,6,13,14,12},
          {4,1,8,10,13,5,11,14},

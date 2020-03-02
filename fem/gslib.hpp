@@ -101,7 +101,6 @@ public:
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as
        it calls MPI_Comm_free() for internal gslib communicators. */
-
    void FreeData();
 };
 
