@@ -24,7 +24,7 @@
 -snes_ksp_ew_threshold 0.1
 #======matrix free parameters for default
 -mat_mffd_type wp
--mat_mffd_err 1e-3
+-mat_mffd_err 1e-2
 
 #======matrix free parameters for ds
 #-mat_mffd_err 1e-1
@@ -50,7 +50,7 @@
 #-ksp_monitor_true_residual
 #
 #======Stiffness matrix======
--s1_ksp_rtol 1e-5
+-s1_ksp_rtol 1e-3
 -s1_ksp_type cg
 #-s1_ksp_type richardson #this will use boomeramg as a solver
 -s1_pc_type hypre
@@ -60,7 +60,7 @@
 #-s1_ksp_monitor
 #
 #======Schur matrix======
--s2_ksp_rtol 1e-5
+-s2_ksp_rtol 1e-3
 -s2_ksp_type gmres
 -s2_pc_type hypre
 #-s2_ksp_monitor_true_residual
@@ -75,7 +75,7 @@
 #-s3_ksp_view
 #
 #======ARe matrix======
--s4_ksp_rtol 1e-5
+-s4_ksp_rtol 1e-3
 -s4_ksp_type gmres
 -s4_pc_type hypre
 #-s4_ksp_monitor_true_residual

@@ -37,10 +37,13 @@ glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 3/2
 New mesh: stretched64x64.mesh the smallest cell size: 0.0112 largest is 0.1376
 
+Failed to converge with field-line diffusion; it probably does not like the large ratio between two cells
 
 
 2/27
 Testing supg without fd-fem how will it do on stretched grid??
+
+It looks like the preconditioner does not like a stretched grid?
 
 Let's focus on this run:
 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf 5 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6

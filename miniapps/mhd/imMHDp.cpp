@@ -23,6 +23,15 @@
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
 
+double region_eps = 1e-8;
+double region(const Vector &p)
+{
+   const double x = p(0), y = p(1);
+   const double x0=0.249999999999999999999;
+   //return std::max(std::max(std::max(x - x0, -y-x0), y - x0), -x-x0);
+   return std::max(-y-x0, y - x0);
+}
+
 int main(int argc, char *argv[])
 {
    int num_procs, myid;
@@ -43,6 +52,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    bool use_petsc = false;
    bool use_factory = false;
+   bool local_refine = false;
    const char *petscrc_file = "";
    int icase = 1;
    beta = 0.001; 
@@ -82,6 +92,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&local_refine, "-local", "--local-refine", "-no-local",
+                  "--no-local-refine",
+                  "Enable or disable local refinement before unifrom refinement.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
@@ -168,6 +181,36 @@ int main(int argc, char *argv[])
          return 3;
    }
 
+   
+
+   //++++++Refine locally first    
+   if (local_refine)
+   {
+      Vector pt;
+      Array<int> marked_elements;
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         // check all nodes of the element
+         IsoparametricTransformation T;
+         mesh->GetElementTransformation(i, &T);
+         for (int j = 0; j < T.GetPointMat().Width(); j++)
+         {
+            T.GetPointMat().GetColumnReference(j, pt);
+            if (region(pt) <= region_eps)
+            {
+               marked_elements.Append(i);
+               break;
+            }
+         }
+      }
+      mesh->GeneralRefinement(marked_elements);
+
+      //reordering the mesh for a continuous partitioning
+      //Array<int> ordering;
+      //mesh->GetHilbertElementOrdering(ordering);
+      //mesh->ReorderElements(ordering);
+   }
+
    //++++++Refine the mesh to increase the resolution.    
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
@@ -180,6 +223,7 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
+   pmesh->Rebalance();
 
    //+++++Define the vector finite element spaces representing  [Psi, Phi, w]
    // in block vector bv, with offsets given by the fe_offset array.
