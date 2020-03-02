@@ -282,6 +282,23 @@ int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
 }
 
 
+void SecondOrderTimeDependentOperator::Mult(const Vector &x,
+                                            const Vector &dxdt,
+                                            Vector &y) const
+{
+   mfem_error("SecondOrderTimeDependentOperator::Mult() is not overridden!");
+}
+
+void SecondOrderTimeDependentOperator::ImplicitSolve(const double dt0,
+                                                     const double dt1,
+                                                     const Vector &x,
+                                                     const Vector &dxdt,
+                                                     Vector &k)
+{
+   mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
+}
+
+
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
    : Operator(A->Height(), B->Width()),

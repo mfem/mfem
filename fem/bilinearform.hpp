@@ -576,6 +576,7 @@ protected:
 
    /// The form assembly level (full, partial, etc.)
    AssemblyLevel assembly;
+
    /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    MixedBilinearFormExtension *ext;

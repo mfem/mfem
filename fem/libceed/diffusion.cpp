@@ -27,17 +27,16 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
    const int ir_order = irm.GetOrder();
-   const mfem::IntegrationRule &ir =
-      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
+
    mesh->EnsureNodes();
-   InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis,
-                                     &ceedData.restr);
+   InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   InitCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis,
-                                     &ceedData.mesh_restr);
+   InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &ceedData.mesh_basis,
+                               &ceedData.mesh_restr);
+
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
    CeedInterlaceMode imode = CEED_NONINTERLACED;
@@ -102,9 +101,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
-                                        &ceedCoeff->basis,
-                                        &ceedCoeff->restr);
+      InitCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), irm, ceed,
+                                  &ceedCoeff->basis,
+                                  &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
