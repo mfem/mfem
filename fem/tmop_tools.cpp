@@ -416,14 +416,15 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          double fdeps = tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
-         if (discrtc) {
-             discrtc->UpdateTargetSpecification(x_loc);
-             if (tmopi->GetFDFlag()==1)
-             {
-                 discrtc->BackupTargetSpecification();
-                 discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-                 discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
-             }
+         if (discrtc)
+         {
+            discrtc->UpdateTargetSpecification(x_loc);
+            if (tmopi->GetFDFlag()==1)
+            {
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
 #endif
@@ -450,14 +451,15 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          double fdeps = tmopi->SetFDh(x_loc,*fesc);
-         if (discrtc) {
-             discrtc->UpdateTargetSpecification(x);
-             if (tmopi->GetFDFlag()==1)
-             {
-                 discrtc->BackupTargetSpecification();
-                 discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-                 discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
-             }
+         if (discrtc)
+         {
+            discrtc->UpdateTargetSpecification(x);
+            if (tmopi->GetFDFlag()==1)
+            {
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
    }
@@ -576,14 +578,15 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          double fdeps = tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
-         if (discrtc) {
-             discrtc->UpdateTargetSpecification(x_loc);
-             if (tmopi->GetFDFlag()==1)
-             {
-                 discrtc->BackupTargetSpecification();
-                 discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-                 discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
-             }
+         if (discrtc)
+         {
+            discrtc->UpdateTargetSpecification(x_loc);
+            if (tmopi->GetFDFlag()==1)
+            {
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
 #endif
@@ -610,14 +613,15 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          double fdeps = tmopi->SetFDh(x_loc,*fesc);
-         if (discrtc) {
-             discrtc->UpdateTargetSpecification(x);
-             if (tmopi->GetFDFlag()==1)
-             {
-                 discrtc->BackupTargetSpecification();
-                 discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-                 discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
-             }
+         if (discrtc)
+         {
+            discrtc->UpdateTargetSpecification(x);
+            if (tmopi->GetFDFlag()==1)
+            {
+               discrtc->BackupTargetSpecification();
+               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+            }
          }
       }
    }
