@@ -36,7 +36,6 @@ list(APPEND HDRS
   device.hpp
   error.hpp
   globals.hpp
-  zstr_strict_fstream.hpp
   zstr.hpp
   hash.hpp
   isockstream.hpp
