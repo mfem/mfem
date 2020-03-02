@@ -61,8 +61,7 @@ struct Backend
       /** @brief [device] CEED CUDA backend working in colaboration with the
           CUDA backend. Enabled when MFEM_USE_CEED = YES and
           MFEM_USE_CUDA = YES.
-          NOTE: The current default libCEED GPU backend (ceed-cuda) uses
-          atomics and therefore is non-deterministic! */
+          NOTE: The current default libCEED GPU backend is non-deterministic! */
       CEED_CUDA = 1 << 11
    };
 
