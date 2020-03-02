@@ -83,8 +83,9 @@ The MFEM library uses object-oriented design principles which reflect, in code,
 the independent mathematical concepts of meshing, linear algebra and finite
 element spaces and operators.
 
-- The MFEM source code has the following structure:
-  ```
+The MFEM source code has the following structure:
+
+```
   .
   ├── config
   │   └── cmake
@@ -118,8 +119,7 @@ element spaces and operators.
       ├── unit
       │   ├── ...
       └── ...
-
-  ```
+```
 
 #### Main directories and classes
 
@@ -178,10 +178,8 @@ device/host memory manager.
 #### Utilities, building and documentation
 - The `general/` directory contains C++ classes that serve as utilities for
   communication, error handling, arrays, (Boolean) tables, timing, etc.
-
 - The `config/` directory contains build-related files, both for the plain
   Makefile and the CMake build options.
-
 - The `doc/` directory contains configuration for the Doxygen code documentation
   that can either be built locally or browsed online at
   http://mfem.github.io/doxygen/html/index.html.
@@ -190,7 +188,6 @@ device/host memory manager.
 - `examples` and `miniapps` respectively gather simple and more fully-featured
   demonstrations of the usage on MFEM. They both rely on `data/` for the
   collection of meshes.
-
 - The `tests/` directory contains a unit test suite and will later contain more
   tests that run example codes.
 
@@ -213,7 +210,7 @@ will allow us to reach you directly with project announcements.
 
 #### Getting started (GitHub)
 Before you can start, you need a GitHub account, here are a few suggestions:
-  + Create the account at: github.com/join.
+  + Create the account at: [github.com/join](https://github.com/join).
   + For easy identification, please add your full name and maybe a picture of you at:
     https://github.com/settings/profile.
   + To receive notification, set a primary email at: https://github.com/settings/emails.
@@ -224,23 +221,18 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   organization. You will receive an invitation email, which you can directly accept.
   Alternatively, *after logging into GitHub*, you can accept the invitation at
   the top of https://github.com/mfem.
-
 - Consider making your membership public by going to https://github.com/orgs/mfem/people
   and clicking on the organization visibility drop box next to your name.
-
 - Project discussions and announcements will be posted at
   https://github.com/orgs/mfem/teams/everyone.
 
 #### Structure
 - The MFEM source code is in the [mfem](https://github.com/mfem/mfem)
   repository.
-
 - The website and corresponding documentation are in the
   [web](https://github.com/mfem/web) repository.
-
 - The [PyMFEM](https://github.com/mfem/PyMFEM) repository contains a Python
   wrapper for MFEM.
-
 - The [data](https://github.com/mfem/data) repository contains additional
   (large) datafiles for MFEM.
 
@@ -294,7 +286,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   - New features should be added only if they are necessary or generally useful.
   - Introduction of language constructions not currently used in MFEM should be
     justified and generally avoided (to maintain portability to various systems
-    and compilers, including new hardware testbeds).
+    and compilers, including early access hardware).
   - We prefer basic C++ and the C++03 standard, to keep the code readable by
     a large audience and to make sure it compiles anywhere.
 
@@ -433,7 +425,7 @@ Before a PR can be merged, it should satisfy the following:
 - [ ] Run the tests in `tests/scripts`.
 - [ ] (LLNL only) After merging:
    - [ ] Regenerate `README.html` files from companion documentation pull requests.
-   - [ ] Update the `baseline` and `compiler` tests, add new tests if necessary.
+   - [ ] Update internal tests to include the new features.
 
 ### Master/Next Workflow
 
@@ -512,7 +504,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 - [ ] Recreate the `next` branch as described in previous section.
 - [ ] Update and push documentation  to `mfem/doxygen`.
 - [ ] Update URL shortlinks:
-    - [ ] Create a shortlink at [https://goo.gl/](https://goo.gl/) for the release tarball, e.g. http://mfem.github.io/releases/mfem-3.1.tgz.
+    - [ ] Create a shortlink at [http://bit.ly/](http://bit.ly/) for the release tarball, e.g. http://mfem.github.io/releases/mfem-3.1.tgz.
     - [ ] (LLNL only) Add and commit the new shortlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
     - [ ] Add the new shortlinks to the MFEM packages in `spack`, `homebrew/science`, `VisIt`, etc.
 - [ ] Update website in `mfem/web` repo:
