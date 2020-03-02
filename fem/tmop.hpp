@@ -749,8 +749,6 @@ public:
 
    void BackupTargetSpecification();
 
-   void RestoreTargetSpecification();
-
    void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
                                 const double fdeps);
 
