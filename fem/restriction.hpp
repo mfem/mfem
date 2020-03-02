@@ -48,6 +48,9 @@ public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+
+   /// Compute MultTranspose without applying signs based on DOF orientations.
+   void MultTransposeUnsigned(const Vector &x, Vector &y) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.

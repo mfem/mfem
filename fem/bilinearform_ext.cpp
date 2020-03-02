@@ -119,7 +119,16 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       {
          integrators[i]->AssembleDiagonalPA(localY);
       }
-      elem_restrict->MultTranspose(localY, y);
+      const ElementRestriction* H1elem_restrict =
+         dynamic_cast<const ElementRestriction*>(elem_restrict);
+      if (H1elem_restrict)
+      {
+         H1elem_restrict->MultTransposeUnsigned(localY, y);
+      }
+      else
+      {
+         elem_restrict->MultTranspose(localY, y);
+      }
    }
    else
    {
@@ -277,7 +286,6 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       }
    }
 }
-
 
 MixedBilinearFormExtension::MixedBilinearFormExtension(MixedBilinearForm *form)
    : Operator(form->Height(), form->Width()), a(form)
