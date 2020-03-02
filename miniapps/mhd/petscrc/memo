@@ -32,6 +32,10 @@ glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+
+3/2
+New mesh: stretched64x64.mesh the smallest cell size: 0.0112 largest is 0.1376
 
 
 
@@ -47,9 +51,21 @@ Isn't it strange if I have stretched grid to compute eleLength?? Maybe that is t
 
 At t=4; use supg (only on omega) and fd on (psi) gives a good solution
 
-Without fd, the solutions with supg become very bad (omega). The original bad results are probably due to under resolved.
+-no-fd, the solutions with supg become very bad (omega). The original bad results are probably due to under resolved.
 
-Adding both supg and fd on psi seems not a good idea? Why? Did I have a bug somewhere in computing y2?
+-fd -no-supg is bad 
+
+So supg really helps!!
+
+Here is what is found at t=4:
+No-supg fd: unstable at t=3.5
+supg fd: good (adding supg into w only gives a slightly better result)
+no-supg no-fd: converges fastest but bad results
+supg no-fd: also bad results; supg is not strong enough (struggles to converge at a later time)
+
+With-supg and with-fd: it gets stuck at t=4.6 (probably because it is under resolved)
+
+
 
 2/26
 OMG, I truned off the stabilization term when testing stretched grid!!
