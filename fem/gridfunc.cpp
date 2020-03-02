@@ -341,7 +341,7 @@ void GridFunction::SetFromTrueDofs(const Vector &tv)
    const SparseMatrix *cP = fes->GetConformingProlongation();
    if (!cP)
    {
-      if (tv.HostRead() != data)
+      if (tv.Read() != data)
       {
          *this = tv;
       }
