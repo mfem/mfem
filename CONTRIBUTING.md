@@ -12,22 +12,19 @@
 
 # How to Contribute
 
-The MFEM team welcomes contributions at all levels: bugfixes; code
-improvements; simplifications; new mesh, discretization or solver
-capabilities; improved documentation; new examples and miniapps;
-HPC performance improvements; etc.
+The MFEM team welcomes contributions at all levels: bugfixes; code improvements;
+simplifications; new mesh, discretization or solver capabilities; improved
+documentation; new examples and miniapps; HPC performance improvements; etc.
 
-If you plan on contributing to MFEM, consider looking into issues first. There,
-you can check if a thread already exists for your desired feature or the bug
-you ran into. You may want to start a new thread to get feedback from the team
-before engaging yourself in a PR.
-
-Use a pull request (PR) toward the `mfem:master` branch to propose your
-contribution. If you are planning significant code changes, or have any
-questions, you can also open an [issue](https://github.com/mfem/mfem/issues)
-before issuing a PR. In addition to technical contributions, we also interested
-in your results and [simulation images](http://mfem.org/gallery/), which you
-can share via a pull request in [mfem/web](https://github.com/mfem/web).
+If you plan on contributing to MFEM, consider reviewing the
+[issue tracker](https://github.com/mfem/mfem/issues) first to check if a thread
+already exists for your desired feature or the bug you ran into. Use a pull
+request (PR) toward the `mfem:master` branch to propose your contribution. If
+you are planning significant code changes or have questions, you may want to
+open an [issue](https://github.com/mfem/mfem/issues) before issuing a PR. In
+addition to technical contributions, we are also interested in your results and
+[simulation images](http://mfem.org/gallery/), which you can share via a pull
+request in the [mfem/web](https://github.com/mfem/web) repo.
 
 See the [Quick Summary](#quick-summary) section for the main highlights of our
 GitHub workflow. For more details, consult the following sections and refer
@@ -70,7 +67,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 - PRs are treated similarly to journal submission with an "editor" assigning two
   reviewers to evaluate the changes.
 - The reviewers have 3 weeks to evaluate the PR and work with the author to
-  implement improvements and fix issues.
+  fix issues and implement improvements.
 - After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
 - After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
 - We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
@@ -82,9 +79,9 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 
 #### Source code structure:
 
-  The MFEM library uses object-oriented design principles which reflect, in
-  code, the independent mathematical concepts of meshing, linear algebra and
-  finite element spaces and operators.
+The MFEM library uses object-oriented design principles which reflect, in code,
+the independent mathematical concepts of meshing, linear algebra and finite
+element spaces and operators.
 
 - The MFEM source code has the following structure:
   ```
@@ -125,9 +122,10 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   ```
 
 #### Main directories and classes
-  The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
-  classes implementing the finite element, mesh and linear algebra concepts
-  respectively.
+
+The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
+classes implementing the finite element, mesh and linear algebra concepts
+respectively.
 
 - The main mesh classes are:
   + [`Mesh`](http://mfem.github.io/doxygen/html/classmfem_1_1Mesh.html)
@@ -150,10 +148,11 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + Sparse [smoothers](http://mfem.github.io/doxygen/html/sparsesmoothers_8hpp.html) and linear [solvers](http://mfem.github.io/doxygen/html/solvers_8hpp.html)
 
 #### Parallel implementation
-  Parallel MPI objects in MFEM inherit their serial counterparts, so a parallel
-  mesh for example is just a serial mesh on each task plus the information on
-  shared geometric entities between different tasks. The parallel source files
-  have a `p` prefix, e.g. `pmesh.cpp` vs. the serial `mesh.cpp`.
+
+Parallel MPI objects in MFEM inherit their serial counterparts, so a parallel
+mesh for example is just a serial mesh on each task plus the information on
+shared geometric entities between different tasks. The parallel source files
+have a `p` prefix, e.g. `pmesh.cpp` vs. the serial `mesh.cpp`.
 
 - The main parallel classes are
   + [`ParMesh`](http://mfem.github.io/doxygen/html/solvers_8hpp.html)
@@ -164,10 +163,11 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + [`HypreParMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
   + [`HypreSolver`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](http://mfem.github.io/doxygen/html/hypre_8hpp.html)
 
-#### Device specifics
-  GPU and multi-core CPU support is based on device kernels supporting different
-  backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
-  device/host memory manager.
+#### GPU and general device support
+
+GPU and multi-core CPU support is based on device kernels supporting different
+backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
+device/host memory manager.
 
 - The main device-relevant classes and sources are:
   + [`Device`](http://mfem.github.io/doxygen/html/device_8hpp.html)
@@ -175,7 +175,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   + the [`MFEM_FORALL`](http://mfem.github.io/doxygen/html/forall_8hpp.html) macro
   + the [`cuda.hpp`](http://mfem.github.io/doxygen/html/cuda_8hpp.html) and [`occa.hpp`](http://mfem.github.io/doxygen/html/occa_8hpp.html) files
 
-#### Utilities, build and documentation
+#### Utilities, building and documentation
 - The `general/` directory contains C++ classes that serve as utilities for
   communication, error handling, arrays, (Boolean) tables, timing, etc.
 
@@ -194,13 +194,13 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 - The `tests/` directory contains a unit test suite and will later contain more
   tests that run example codes.
 
-See also the [code overview](http://mfem.org/code-overview/) section on the
-MFEM website.
+See also the [code overview](http://mfem.org/code-overview/) section on the MFEM
+website.
 
 ## GitHub Workflow
 
-The MFEM GitHub organization -- https://github.com/mfem -- is the main
-developer hub for the MFEM project.
+The MFEM GitHub organization: https://github.com/mfem, is the main developer hub
+for the MFEM project.
 
 If you plan to make contributions or would like to stay up-to-date with changes
 in the code, *we strongly encourage you to [join the MFEM organization](#mfem-organization)*.
@@ -214,7 +214,7 @@ will allow us to reach you directly with project announcements.
 #### Getting started (GitHub)
 Before you can start, you need a GitHub account, here are a few suggestions:
   + Create the account at: github.com/join.
-  + For easy identification, please add your name and maybe a picture of you at:
+  + For easy identification, please add your full name and maybe a picture of you at:
     https://github.com/settings/profile.
   + To receive notification, set a primary email at: https://github.com/settings/emails.
   + For password-less pull/push over SSH, add your SSH keys at: https://github.com/settings/keys.
@@ -226,7 +226,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   the top of https://github.com/mfem.
 
 - Consider making your membership public by going to https://github.com/orgs/mfem/people
-  and clicking on the organization visibility dropbox next to your name.
+  and clicking on the organization visibility drop box next to your name.
 
 - Project discussions and announcements will be posted at
   https://github.com/orgs/mfem/teams/everyone.
@@ -294,12 +294,12 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   - New features should be added only if they are necessary or generally useful.
   - Introduction of language constructions not currently used in MFEM should be
     justified and generally avoided (to maintain portability to various systems
-    and compilers).
+    and compilers, including new hardware testbeds).
   - We prefer basic C++ and the C++03 standard, to keep the code readable by
     a large audience and to make sure it compiles anywhere.
 
 - *Keep the code general and reasonably efficient*
-  - The main goal is fast prototyping for research.
+  - The main goal is fast prototyping for research and application development.
   - When in doubt, generality wins over efficiency.
   - Respect the needs of different users (current and/or future).
 
@@ -373,7 +373,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 
 - Other tests, such as the `code-style`, `documentation` and `gitignore`
   checks in Travis enforce MFEM-specific rules which are explained in the
-  error messages and the `tests/scripts`.
+  error messages and the `tests/scripts` directory.
 
 ### Pull Request Checklist
 
@@ -392,7 +392,7 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Check if `make distclean; git status` shows any files that were generated from the source by the project (not an IDE) but we don't want to track in the repository.
     - [ ] Add new patterns (just for the new files above) and re-run the above test.
 - [ ] New examples:
-    - [ ] Add sample runs at the top of the example and make sure they work.
+    - [ ] All sample runs at the top of the example source file work.
     - [ ] Update `examples/makefile`:
       - [ ] Add the example code to the appropriate `SEQ_EXAMPLES` and `PAR_EXAMPLES` variables.
       - [ ] Add any files generated by it to the `clean` target.
@@ -408,7 +408,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] In `examples.md`, list the example under the appropriate categories, add new categories if necessary.
       - [ ] Add a short description of the example in the "Extensive Examples" section of `features.md`.
 - [ ] New miniapps:
-   - [ ] All sample runs at the top of the miniapp source file(s) work.
+   - [ ] All sample runs at the top of the miniapp source file work.
    - [ ] Update top-level `makefile` and `makefile` in corresponding miniapp directory.
    - [ ] Add the miniapp binary and any files generated by it to the top-level `.gitignore` file.
    - [ ] Update CMake build system:
@@ -522,7 +522,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 
 ## LLNL Workflow
 
-### Mirroring on BitBucket
+### Mirroring on Bitbucket
 
 - The GitHub `master` and `next` branches are mirrored to the LLNL institutional
   Bitbucket repository as `gh-master` and `gh-next`.
