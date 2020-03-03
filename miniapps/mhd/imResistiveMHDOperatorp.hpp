@@ -1553,7 +1553,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNb->TrueAddMult(J, y2, -1.);
    }
 
-   if(usesupg && false)
+   if(usesupg && true)
    {
      //---add supg to y3---
      delete StabMass;

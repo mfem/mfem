@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
    bool use_petsc = false;
    bool use_factory = false;
    bool local_refine = false;
+   int local_refine_levels = 2;
    const char *petscrc_file = "";
    int icase = 1;
    int part_method=1;   //part_method 0 or 1 gives good results for a static adaptive mesh
@@ -103,6 +104,8 @@ int main(int argc, char *argv[])
    args.AddOption(&local_refine, "-local", "--local-refine", "-no-local",
                   "--no-local-refine",
                   "Enable or disable local refinement before unifrom refinement.");
+   args.AddOption(&local_refine_levels, "-lr", "--local-refine",
+                  "Number of levels to refine locally.");
    args.AddOption(&yrefine, "-yrefine", "--y-region",
                   "Local refinement distance in y.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
@@ -202,7 +205,7 @@ int main(int argc, char *argv[])
    //++++++Refine locally first    
    if (local_refine)
    {
-      for(int lev=0; lev<2; lev++)
+      for(int lev=0; lev<local_refine_levels; lev++)
       {
         Vector pt;
         Array<int> marked_elements;
