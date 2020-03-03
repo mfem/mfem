@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
    bool local_refine = false;
    const char *petscrc_file = "";
    int icase = 1;
+   int part_method=1;   //part_method 0 or 1 gives good results for a static adaptive mesh
    beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
@@ -100,6 +101,8 @@ int main(int argc, char *argv[])
                   "Local refinement distance in y.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&part_method, "-part_method", "--partition-method",
+                  "Partitioning method: 0-5 (see mfem on partitioning choices).");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
                   "--no-implicit-supg",
                   "Use supg in the implicit solvers.");
@@ -184,7 +187,11 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   
+   //++++++Refine the mesh to increase the resolution.    
+   for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
+      mesh->UniformRefinement();
+   }
 
    //++++++Refine locally first    
    if (local_refine)
@@ -207,27 +214,36 @@ int main(int argc, char *argv[])
          }
       }
       mesh->GeneralRefinement(marked_elements);
-
-      //reordering the mesh for a continuous partitioning (this is not working in the current mfem)
-      //Array<int> ordering;
-      //mesh->GetHilbertElementOrdering(ordering);
-      //mesh->ReorderElements(ordering);
    }
 
-   //++++++Refine the mesh to increase the resolution.    
-   for (int lev = 0; lev < ser_ref_levels; lev++)
+   //+++++++here we need to generate a partitioning because the default one is wrong for ncmesh when local_refine is truned on
+   int *partitioning = NULL;
+   partitioning=mesh->GeneratePartitioning(num_procs, part_method);
+   //output partitioning for debugging
+   if (myid==0 && false) 
    {
-      mesh->UniformRefinement();
+      const char part_file[] = "partitioning.txt";
+      ofstream opart(part_file);
+      opart << "number_of_elements " << mesh->GetNE() << '\n'
+            << "number_of_processors " << num_procs << '\n';
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         opart << partitioning[i] << '\n';
+      }
+      cout << "Partitioning file: " << part_file << endl;
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
    delete mesh;
+   delete partitioning;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
-   if (local_refine)
-      pmesh->Rebalance();
+   //rebalancing may create some strange partitioning using certain partitioning methods
+   //rebalancing is probably not needed for a static adaptive mesh
+   if (local_refine && false)
+      pmesh->Rebalance();   
 
    //+++++Define the vector finite element spaces representing  [Psi, Phi, w]
    // in block vector bv, with offsets given by the fe_offset array.

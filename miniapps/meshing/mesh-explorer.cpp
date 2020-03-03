@@ -53,8 +53,9 @@ void transformation(const Vector &p, Vector &v)
    }
    else if (p.Size() == 2)
    {
-      v(0) = p(0) + s*p(1);
-      v(1) = p(1) + s*p(0);
+      double xscale=1;
+      v(0) = tan(p(0)*xscale)/tan(xscale);
+      v(1) = tan(p(1)*xscale)/tan(xscale);
    }
    else
    {
@@ -68,8 +69,11 @@ double region_eps = 1e-8;
 double region(const Vector &p)
 {
    const double x = p(0), y = p(1);
+   const double x0=0.25;
    // here we describe the region: (x <= 1/4) && (y >= 0) && (y <= 1)
-   return std::max(std::max(x - 0.25, -y), y - 1.0);
+   //return std::max(std::max(std::max(x - 0.45, -y-0.45), y - 0.45), -x-0.45);
+   //return std::max(std::max(std::max(x - x0, -y-x0), y - x0), -x-x0);
+   return (std::max( -y-x0, y - x0));
 }
 
 Mesh *read_par_mesh(int np, const char *mesh_prefix)
