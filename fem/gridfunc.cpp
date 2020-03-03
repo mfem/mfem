@@ -326,7 +326,7 @@ void GridFunction::GetTrueDofs(Vector &tv) const
    if (!R)
    {
       // R is identity -> make tv a reference to *this
-      tv = *this;
+      tv.MakeRef(const_cast<GridFunction &>(*this), 0, size);
    }
    else
    {
@@ -341,10 +341,7 @@ void GridFunction::SetFromTrueDofs(const Vector &tv)
    const SparseMatrix *cP = fes->GetConformingProlongation();
    if (!cP)
    {
-      if (tv.GetData() != data)
-      {
-         *this = tv;
-      }
+      *this = tv; // no real copy if 'tv' and '*this' use the same data
    }
    else
    {
