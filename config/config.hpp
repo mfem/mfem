@@ -34,8 +34,10 @@
 
 // Windows specific options
 #ifdef _WIN32
+#ifndef _USE_MATH_DEFINES
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
 #define _USE_MATH_DEFINES
+#endif
 #endif
 
 // Check dependencies:
