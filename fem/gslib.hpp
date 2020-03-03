@@ -40,7 +40,6 @@ protected:
    void GetQuadHexNodalCoordinates();
    void GetSimplexNodalCoordinates();
 
-
 public:
    FindPointsGSLIB();
 
