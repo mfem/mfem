@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
       }
       mesh->GeneralRefinement(marked_elements);
 
-      //reordering the mesh for a continuous partitioning
+      //reordering the mesh for a continuous partitioning (this is not working in the current mfem)
       //Array<int> ordering;
       //mesh->GetHilbertElementOrdering(ordering);
       //mesh->ReorderElements(ordering);
@@ -226,7 +226,8 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   pmesh->Rebalance();
+   if (local_refine)
+      pmesh->Rebalance();
 
    //+++++Define the vector finite element spaces representing  [Psi, Phi, w]
    // in block vector bv, with offsets given by the fe_offset array.
