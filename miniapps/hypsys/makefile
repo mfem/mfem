@@ -26,7 +26,7 @@ OUT_DIR = output
 DIRS = $(LIB_DIR) $(APP_DIR)
 
 OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/fe_evol.o
-APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app
+APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app
 
 MAIN_FILES = hypsys
 
@@ -53,6 +53,11 @@ CONFIG-NAME = p0e0o1-$(GEOM)
 # SHALLOW WATER
 MESH = data/periodic-tri.mesh
 CONFIG = -p 3 -e 0 -o 3 -c 0 -tf 2.828427125 -dt 0.0001 -s 3 -vs 1000
+CONFIG-NAME = p3e0o3-$(GEOM)
+
+# EULER
+MESH = data/periodic-square.mesh
+CONFIG = -p 4 -e 0 -o 1 -c 0 -tf 2 -dt 0.001 -s 3 -vs 1000
 CONFIG-NAME = p3e0o3-$(GEOM)
 
 ## Makefile rules. #############################################################
@@ -113,6 +118,14 @@ grid-convergence-swe:
 	hypsys $(CONFIG) -m $(MESH) -r 4; \
 	hypsys $(CONFIG) -m $(MESH) -r 5; \
 	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
+
+grid-convergence-euler:
+	rm errors.txt; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 2; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 3; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 4; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 5; \
+	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 6; \
 
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)

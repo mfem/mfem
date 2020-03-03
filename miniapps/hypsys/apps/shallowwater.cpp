@@ -20,7 +20,6 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
 
-   // Initialize the state.
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
 
    if (ConfigSWE.ConfigNum == 0)
@@ -44,8 +43,14 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    const int dim = u.Size() - 1;
    double H0 = 0.001;
 
-   if (u.Size() != NumEq) { MFEM_ABORT("Invalid solution vector."); }
-   if (u(0) < H0) { MFEM_ABORT("Water height too small."); }
+   if (u.Size() != NumEq)
+   {
+      MFEM_ABORT("Invalid solution vector.");
+   }
+   if (u(0) < H0)
+   {
+      MFEM_ABORT("Water height too small.");
+   }
 
    switch (dim)
    {
@@ -59,8 +64,10 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
       {
          FluxEval(0,0) = u(1);
          FluxEval(0,1) = u(2);
+
          FluxEval(1,0) = u(1)*u(1)/u(0) + 0.5 * GravConst * u(0)*u(0);
          FluxEval(1,1) = u(1)*u(2)/u(0);
+
          FluxEval(2,0) = u(2)*u(1)/u(0);
          FluxEval(2,1) = u(2)*u(2)/u(0) + 0.5 * GravConst * u(0)*u(0);
          break;
@@ -160,7 +167,16 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 
          break;
       }
-      default: { u = 0.; u(0) = X.Norml2() < 0.5 ? 1. : .1; }
+      case 1:
+      {
+         u = 0.;
+         u(0) = X.Norml2() < 0.5 ? 1. : .125;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("No such test case implemented.");
+      }
    }
 }
 

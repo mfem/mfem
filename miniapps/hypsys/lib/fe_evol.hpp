@@ -11,6 +11,7 @@
 #include "../apps/burgers.hpp"
 #include "../apps/kpp.hpp"
 #include "../apps/shallowwater.hpp"
+#include "../apps/euler.hpp"
 
 using namespace std;
 using namespace mfem;

@@ -121,6 +121,16 @@ int main(int argc, char *argv[])
          VectorOutput[1] = true;
          break;
       }
+      case 4:
+      {
+         NumEq = 2 + dim;
+         NumUnknowns = 3;
+         VectorOutput.SetSize(NumUnknowns);
+         VectorOutput[0] = false;
+         VectorOutput[1] = true;
+         VectorOutput[2] = false;
+         break;
+      }
       default:
       {
          cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
@@ -167,10 +177,11 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-      case 0: { hyp =  new Advection(&vfes, u_block, config); break; }
-      case 1: { hyp =  new Burgers(&vfes, u_block, config); break; }
-      case 2: { hyp =  new KPP(&vfes, u_block, config); break; }
-      case 3: { hyp =  new ShallowWater(&vfes, u_block, config); break; }
+      case 0: { hyp = new Advection(&vfes, u_block, config); break; }
+      case 1: { hyp = new Burgers(&vfes, u_block, config); break; }
+      case 2: { hyp = new KPP(&vfes, u_block, config); break; }
+      case 3: { hyp = new ShallowWater(&vfes, u_block, config); break; }
+      case 4: { hyp = new Euler(&vfes, u_block, config); break; }
       default:
          return -1;
    }
