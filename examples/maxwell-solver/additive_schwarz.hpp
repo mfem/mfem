@@ -47,6 +47,9 @@ public:
    ~MeshPartition();
 };
 
+
+
+
 class PatchAssembly // for now every vertex defines a patch
 {
    FiniteElementSpace *fespace=nullptr;
@@ -93,4 +96,4 @@ public:
    virtual ~AddSchwarz();
 };
 
-
+Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions);

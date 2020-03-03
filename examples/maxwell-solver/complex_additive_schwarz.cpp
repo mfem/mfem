@@ -4,6 +4,7 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
 {
    fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
+   int dim = mesh->Dimension();
    const FiniteElementCollection *fec = fespace->FEColl();
 
    // list of dofs to distiguish between interior/boundary and essential
@@ -28,17 +29,42 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
    // p->SaveMeshPartition();
    nrpatch = p->nrpatch;
    patch_fespaces.SetSize(nrpatch);
+   patch_meshes_ext.SetSize(nrpatch);
+   patch_fespaces_ext.SetSize(nrpatch);
+   dof2extdof_map.resize(nrpatch);
    patch_dof_map.resize(nrpatch);
    patch_mat.SetSize(nrpatch);
    patch_mat_inv.SetSize(nrpatch);
    ess_tdof_list.resize(nrpatch);
    for (int ip=0; ip<nrpatch; ++ip)
    {
-      // create finite element spaces for each patch
+      // Extend subdomain meshes so that they include the a PML
+      Array<int> ext_directions;
+      int nrlayers = 3;
+      for (int j=0; j<nrlayers; ++j)
+      {
+         for (int comp=0; comp<dim; ++comp)
+         {
+            ext_directions.Append(comp+1);
+         }
+      }
+      patch_meshes_ext[ip] = ExtendMesh(p->patch_mesh[ip],ext_directions);
+
+
+      // create finite element spaces for each patch // This might be avoided
       patch_fespaces[ip] = new FiniteElementSpace(p->patch_mesh[ip],fec);
+      // create finite element spaces on the extented (PML) meshes
+      patch_fespaces_ext[ip] = new FiniteElementSpace(patch_meshes_ext[ip],fec);
+
       // construct the patch tdof to global tdof map
       int nrdof = patch_fespaces[ip]->GetTrueVSize();
       patch_dof_map[ip].SetSize(2*nrdof);
+      dof2extdof_map[ip].SetSize(2*nrdof);
+
+      // build dof maps between patch and extended patch
+      //loop through the patch elements and constract the dof map
+      // The same elements in the extended mesh have the same ordering (but not the dofs)
+
       // loop through the elements in the patch
       for (int iel = 0; iel<p->element_map[ip].Size(); ++iel)
       {
@@ -46,22 +72,30 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
          int iel_idx = p->element_map[ip][iel];
          // get the dofs of this element
          Array<int> patch_elem_dofs;
+         Array<int> patch_elem_dofs_ext;
          Array<int> global_elem_dofs;
          patch_fespaces[ip]->GetElementDofs(iel,patch_elem_dofs);
+         patch_fespaces_ext[ip]->GetElementDofs(iel,patch_elem_dofs_ext);
          fespace->GetElementDofs(iel_idx,global_elem_dofs);
          // the sizes have to match
          MFEM_VERIFY(patch_elem_dofs.Size() == global_elem_dofs.Size(),
                      "Size inconsistency");
+         MFEM_VERIFY(patch_elem_dofs.Size() == patch_elem_dofs_ext.Size(),
+                     "Size inconsistency");            
          // loop through the dofs and take into account the signs;
          int ndof = patch_elem_dofs.Size();
          for (int i = 0; i<ndof; ++i)
          {
             int pdof_ = patch_elem_dofs[i];
             int gdof_ = global_elem_dofs[i];
+            int extdof_ = patch_elem_dofs_ext[i];
             int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
             int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
+            int extdof = (extdof_ >= 0) ? extdof_ : abs(extdof_) - 1;
             patch_dof_map[ip][pdof] = gdof;
             patch_dof_map[ip][pdof+nrdof] = gdof+fespace->GetTrueVSize();
+            dof2extdof_map[ip][pdof] = extdof;
+            dof2extdof_map[ip][pdof+nrdof] = extdof+patch_fespaces_ext[ip]->GetTrueVSize();
          }
       }
       // Define the patch bilinear form and apply boundary conditions (only the LHS)
@@ -120,12 +154,15 @@ ComplexPatchAssembly::~ComplexPatchAssembly()
    for (int ip=0; ip<nrpatch; ++ip)
    {
       // delete patch_fespaces[ip]; patch_fespaces[ip]=nullptr;
+      delete patch_meshes_ext[ip];
+      patch_meshes_ext[ip]=nullptr;
       delete patch_mat_inv[ip];
       patch_mat_inv[ip]=nullptr;
       delete patch_mat[ip];
       patch_mat[ip]=nullptr;
    }
    patch_fespaces.DeleteAll();
+   patch_meshes_ext.DeleteAll();
    patch_mat.DeleteAll();
    patch_mat_inv.DeleteAll();
 }

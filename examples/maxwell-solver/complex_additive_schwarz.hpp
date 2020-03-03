@@ -13,8 +13,11 @@ class ComplexPatchAssembly
 public:
    int nrpatch;
    Array<FiniteElementSpace *> patch_fespaces;
+   Array<FiniteElementSpace *> patch_fespaces_ext;
+   Array<Mesh *> patch_meshes_ext;
    std::vector<Array<int>> patch_dof_map;
    std::vector<Array<int>> complex_patch_dof_map;
+   std::vector<Array<int>> dof2extdof_map;
    Array<SparseMatrix *> patch_mat;
    Array<KLUSolver * > patch_mat_inv;
    std::vector<Array<int>> ess_tdof_list;
