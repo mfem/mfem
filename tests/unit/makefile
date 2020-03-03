@@ -64,7 +64,7 @@ $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
 # Template rule for devices
-# 1: postfix of 'unit_tests_', 2: prefix of '_OBJECT_FILES',
+# 1: postfix of 'sedov_tests_', 2: prefix of '_OBJECT_FILES',
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 comma=,
 define sedov_tests
