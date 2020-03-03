@@ -1581,6 +1581,8 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      //---add supg to y2---
      if(viscosity!=resistivity)
      {
+        if (myid==0) 
+            cout <<"======WARNING: viscosity and resistivity are not identical======"<<endl;
         delete StabMass;
         StabMass = new ParBilinearForm(&fespace);
         StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
@@ -1602,8 +1604,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    }
    else if(usesupg && true)
    {
-     //XXX for testing supg only
-     //---add supg to y3---
+     //---add supg only to y3 (omega)---
      delete StabMass;
      StabMass = new ParBilinearForm(&fespace);
      StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
@@ -1622,7 +1623,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabNb->Assemble(); 
      StabNb->TrueAddMult(J, y3, -1.);
    }
-   else if(usesupg && true)
+   else if(usesupg && false)
    {
      //XXX for testing supg only
      delete StabNv;

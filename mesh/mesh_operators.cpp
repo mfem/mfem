@@ -103,6 +103,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    //maybe a better way is to modify estimator?
    if (yRange && mesh.Nonconforming())
    {
+      Vector &local_err_ = const_cast<Vector &>(local_err);
       FiniteElementSpace * fes = mesh.GetNodes()->FESpace();
       Array<int> dofs;
       for (int el = 0; el < NE; el++)
@@ -119,7 +120,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
         //std::cout <<"el yMean="<<el<<' '<<yMean << '\n';
         
         if (yMean<=ymin && yMean>=ymax)
-           local_err(el) =0.;
+           local_err_(el) =0.;
       }
    }
 
