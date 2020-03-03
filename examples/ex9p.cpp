@@ -127,7 +127,7 @@ public:
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   Operator &M, &K;
+   OperatorHandle M, K;
    const Vector &b;
    Solver *M_prec;
    CGSolver M_solver;
@@ -508,30 +508,35 @@ int main(int argc, char *argv[])
 FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b)
    : TimeDependentOperator(_M.Height()),
-     M(_M.GetAssemblyLevel()==AssemblyLevel::FULL?
-       static_cast<Operator&>(*_M.ParallelAssemble()):
-       static_cast<Operator&>(_M)),
-     K(_K.GetAssemblyLevel()==AssemblyLevel::FULL?
-       static_cast<Operator&>(*_K.ParallelAssemble()):
-       static_cast<Operator&>(_K)),
      b(_b),
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
    bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
-   M_solver.SetOperator(M);
+
+   if (pa)
+   {
+      M.Reset(&_M, false);
+      K.Reset(&_K, false);
+   }
+   else
+   {
+      M.Reset(_M.ParallelAssemble(), true);
+      K.Reset(_K.ParallelAssemble(), true);
+   }
+
+   M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
    if (pa)
    {
-      ParBilinearForm &M_blf = static_cast<ParBilinearForm &>(M);
-      M_prec = new OperatorJacobiSmoother(M_blf, ess_tdof_list);
+      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
       dg_solver = NULL;
    }
    else
    {
-      HypreParMatrix &M_mat = static_cast<HypreParMatrix &>(M);
-      HypreParMatrix &K_mat = static_cast<HypreParMatrix &>(K);
+      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+      HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
@@ -548,7 +553,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
 
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
@@ -557,7 +562,7 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }
