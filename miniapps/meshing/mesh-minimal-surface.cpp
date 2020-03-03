@@ -60,16 +60,16 @@ class Surface: public Mesh
 protected:
    T *S;
    Array<int> &bc;
-   int order, nx, ny, nr, vdim;
+   int order, nx, ny, nr, vdim, amr;
    Mesh *msh = nullptr;
    H1_FECollection *fec = nullptr;
    FiniteElementSpace *fes = nullptr;
 public:
 
    // Reading from mesh file
-   Surface(Array<int> &bc, int order, const char *file, int nr, int vdim):
+   Surface(Array<int> &bc, int order, const char *file, int nr, int vdim, int amr):
       Mesh(file, true), S(static_cast<T*>(this)),
-      bc(bc), order(order), nr(nr), vdim(vdim)
+      bc(bc), order(order), nr(nr), vdim(vdim), amr(amr)
    {
       S->Postfix();
       S->Refine();
@@ -78,10 +78,10 @@ public:
    }
 
    // Generate Quad surface mesh
-   Surface(Array<int> &b, int order, int nx, int ny, int nr, int vdim):
+   Surface(Array<int> &b, int order, int nx, int ny, int nr, int vdim, int amr):
       Mesh(nx, ny, Element::QUADRILATERAL, true, 1.0, 1.0, false),
       S(static_cast<T*>(this)),
-      bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim)
+      bc(b), order(order), nx(nx), ny(ny), nr(nr), vdim(vdim), amr(amr)
    {
       S->Prefix();
       S->Create();
@@ -100,9 +100,9 @@ public:
 
    // Generated Cube surface mesh
    Surface(Array<int> &b, int order, int NV, int NE, int NBE,
-           int nr, int vdim):
+           int nr, int vdim, int amr):
       Mesh(DIM, NV, NE, NBE, SDIM), S(static_cast<T*>(this)),
-      bc(b), order(order), nx(NV), ny(NE), nr(nr), vdim(vdim)
+      bc(b), order(order), nx(NV), ny(NE), nr(nr), vdim(vdim), amr(amr)
    {
       S->Create();
       GenFESpace();
@@ -121,7 +121,7 @@ public:
    {
       for (int l = 0; l < nr; l++) { UniformRefinement(); }
       // Adaptive mesh refinement
-      //if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
+      if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
       //PrintCharacteristics();
    }
 
@@ -150,15 +150,15 @@ public:
 // Default surface mesh file
 struct MeshFromFile: public Surface<MeshFromFile>
 {
-   MeshFromFile(Array<int> &BC, int o, const char *file, int r, int d):
-      Surface(BC, o, file, r, d) {}
+   MeshFromFile(Array<int> &BC, int o, const char *file, int r, int d, int a):
+      Surface(BC, o, file, r, d, a) {}
 };
 
 // #0: Catenoid surface
 struct Catenoid: public Surface<Catenoid>
 {
-   Catenoid(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) { }
+   Catenoid(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, r, d , a) { }
 
    void Prefix()
    {
@@ -209,8 +209,8 @@ struct Catenoid: public Surface<Catenoid>
 // #1: Helicoid surface
 struct Helicoid: public Surface<Helicoid>
 {
-   Helicoid(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) { }
+   Helicoid(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, r, d, a) { }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -228,8 +228,8 @@ struct Helicoid: public Surface<Helicoid>
 // #2: Enneper's surface
 struct Enneper: public Surface<Enneper>
 {
-   Enneper(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) { }
+   Enneper(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, r, d, a) { }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -246,8 +246,8 @@ struct Enneper: public Surface<Enneper>
 // #3: Parametrization of Scherk's doubly periodic surface
 struct Scherk: public Surface<Scherk>
 {
-   Scherk(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) { }
+   Scherk(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, r, d, a) { }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -265,8 +265,8 @@ struct Scherk: public Surface<Scherk>
 // #4: Hold surface
 struct Hold: public Surface<Hold>
 {
-   Hold(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) { }
+   Hold(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, r, d, a) { }
 
    void Prefix()
    {
@@ -317,8 +317,8 @@ struct Hold: public Surface<Hold>
 // #5: 1/4th Peach street model
 struct QuarterPeach: public Surface<QuarterPeach>
 {
-   QuarterPeach(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) { }
+   QuarterPeach(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, r, d, a) { }
 
    void Prefix() { SetCurvature(1, false, SDIM, Ordering::byNODES); }
 
@@ -375,8 +375,8 @@ struct QuarterPeach: public Surface<QuarterPeach>
 // #6: Full Peach street model
 struct FullPeach: public Surface<FullPeach>
 {
-   FullPeach(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, 8, 6, 6, r, d) { }
+   FullPeach(Array<int> &BC, int o, int r, int d, int a):
+      Surface(BC, o, 8, 6, 6, r, d, a) { }
 
    void Create()
    {
@@ -445,8 +445,8 @@ struct FullPeach: public Surface<FullPeach>
 // #7: Full Peach street model
 struct SlottedSphere: public Surface<SlottedSphere>
 {
-   SlottedSphere(Array<int> &BC, int o, int r, int d):
-      Surface(BC, o, 64, 40, 0, r, d) { }
+   SlottedSphere(Array<int> &BC, int o, int r, int d, int a):
+      Surface(BC, o, 64, 40, 0, r, d, a) { }
    void Create()
    {
       constexpr double delta = 0.15;
@@ -561,8 +561,8 @@ struct SlottedSphere: public Surface<SlottedSphere>
 // #8: Shell surface model
 struct Shell: public Surface<Shell>
 {
-   Shell(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, r, d) {}
+   Shell(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, r, d, a) {}
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -689,8 +689,8 @@ cdouble WeierstrassZeta(const cdouble z,
 static double ALPHA = 1.0;
 struct Costa: public Surface<Costa>
 {
-   Costa(Array<int> &BC, int o, int x, int y, int r, int d):
-      Surface(BC, o, x, y, 0, r, d)  { }
+   Costa(Array<int> &BC, int o, int x, int y, int r, int d, int a):
+      Surface(BC, o, x, y, 0, r, d, a)  { }
 
    void Create()
    {
@@ -738,6 +738,8 @@ struct Costa: public Surface<Costa>
       FinalizeQuadMesh(true, 1, true);
       FinalizeTopology();
       for (int l = 0; l < nr; l++) { UniformRefinement(); }
+      if (amr)  { for (int l = 0; l < 1; l++) { RandomRefinement(0.5); } }
+      //PrintCharacteristics();
       SetCurvature(order, false, SDIM, Ordering::byNODES);
       Transform(Parametrization);
    }
@@ -966,20 +968,20 @@ public:
 };
 
 Mesh *NewMeshFromSurface(const int surface, Array<int> &bc,
-                         int o, int x, int y, int r, int d)
+                         int o, int x, int y, int r, int d, int a)
 {
    switch (surface)
    {
-      case 0: return new Catenoid(bc, o, x, y, r, d);
-      case 1: return new Helicoid(bc, o, x, y, r, d);
-      case 2: return new Enneper(bc, o, x, y, r, d);
-      case 3: return new Scherk(bc, o, x, y, r, d);
-      case 4: return new Hold(bc, o, x, y, r, d);
-      case 5: return new QuarterPeach(bc, o, x, y, r, d);
-      case 6: return new FullPeach(bc, o, r, d);
-      case 7: return new SlottedSphere(bc, o, r, d);
-      case 8: return new Costa(bc, o, x, y, r, d);
-      case 9: return new Shell(bc, o, x, y, r, d);
+      case 0: return new Catenoid(bc, o, x, y, r, d, a);
+      case 1: return new Helicoid(bc, o, x, y, r, d, a);
+      case 2: return new Enneper(bc, o, x, y, r, d, a);
+      case 3: return new Scherk(bc, o, x, y, r, d, a);
+      case 4: return new Hold(bc, o, x, y, r, d, a);
+      case 5: return new QuarterPeach(bc, o, x, y, r, d, a);
+      case 6: return new FullPeach(bc, o, r, d, a);
+      case 7: return new SlottedSphere(bc, o, r, d, a);
+      case 8: return new Costa(bc, o, x, y, r, d, a);
+      case 9: return new Shell(bc, o, x, y, r, d, a);
       default: ;
    }
    mfem_error("Unknown surface (0 <= surface <= 9)!");
@@ -1024,8 +1026,7 @@ int main(int argc, char *argv[])
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&lambda, "-l", "--lambda", "Lambda step toward solution.");
-   args.AddOption(&amr, "-amr", "--adaptive-mesh-refinement", "-no-amr",
-                  "--no-adaptive-mesh-refinement", "Enable AMR.");
+   args.AddOption(&amr, "-a", "--amr", "-no-a", "--no-amr", "Enable AMR.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&keys, "-k", "--keys", "GLVis configuration keys.");
@@ -1038,7 +1039,6 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    if (MyRank == 0) { args.PrintOptions(cout); }
-   MFEM_VERIFY(!amr, "AMR not yet supported!");
 
    // Enable hardware devices such as GPUs, and programming models such as
    // CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -1053,8 +1053,8 @@ int main(int argc, char *argv[])
    Mesh *mesh;
    Array<int> bc;
    const int d = solve_by_components ? 1 : 3;
-   mesh = (surface < 0) ? new MeshFromFile(bc, o, mesh_file, r, d) :
-          NewMeshFromSurface(surface, bc, o, x, y, r, d);
+   mesh = (surface < 0) ? new MeshFromFile(bc, o, mesh_file, r, d, amr) :
+          NewMeshFromSurface(surface, bc, o, x, y, r, d, amr);
    MFEM_VERIFY(mesh, "Not a valid surface number!");
 
    // Grab back the pmesh & pfes from the Surface object.

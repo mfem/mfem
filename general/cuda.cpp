@@ -17,7 +17,8 @@ namespace mfem
 
 // Internal debug option, useful for tracking CUDA allocations, deallocations
 // and transfers.
-// #define MFEM_TRACK_CUDA_MEM
+#define MFEM_TRACK_CUDA_MEM
+#undef MFEM_TRACK_CUDA_CPY
 
 #ifdef MFEM_USE_CUDA
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
@@ -35,7 +36,7 @@ void* CuMemAlloc(void** dptr, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
-   mfem::out << "CuMemAlloc(): allocating " << bytes << " bytes ... "
+   mfem::out << "\033[32mCuMemAlloc(): allocating " << bytes << " bytes ... \033[m"
              << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaMalloc(dptr, bytes));
@@ -50,7 +51,8 @@ void* CuMemFree(void *dptr)
 {
 #ifdef MFEM_USE_CUDA
 #ifdef MFEM_TRACK_CUDA_MEM
-   mfem::out << "CuMemFree(): deallocating memory @ " << dptr << " ... "
+   mfem::out << "\033[31mCuMemFree(): deallocating memory @ " << dptr <<
+             " ... \033[m"
              << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaFree(dptr));
@@ -64,12 +66,12 @@ void* CuMemFree(void *dptr)
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-#ifdef MFEM_TRACK_CUDA_MEM
+#ifdef MFEM_TRACK_CUDA_CPY
    mfem::out << "CuMemcpyHtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice));
-#ifdef MFEM_TRACK_CUDA_MEM
+#ifdef MFEM_TRACK_CUDA_CPY
    mfem::out << "done." << std::endl;
 #endif
 #endif
@@ -87,12 +89,12 @@ void* CuMemcpyHtoDAsync(void* dst, const void* src, size_t bytes)
 void* CuMemcpyDtoD(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-#ifdef MFEM_TRACK_CUDA_MEM
+#ifdef MFEM_TRACK_CUDA_CPY
    mfem::out << "CuMemcpyDtoD(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice));
-#ifdef MFEM_TRACK_CUDA_MEM
+#ifdef MFEM_TRACK_CUDA_CPY
    mfem::out << "done." << std::endl;
 #endif
 #endif
@@ -110,12 +112,12 @@ void* CuMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 void* CuMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_CUDA
-#ifdef MFEM_TRACK_CUDA_MEM
+#ifdef MFEM_TRACK_CUDA_CPY
    mfem::out << "CuMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToHost));
-#ifdef MFEM_TRACK_CUDA_MEM
+#ifdef MFEM_TRACK_CUDA_CPY
    mfem::out << "done." << std::endl;
 #endif
 #endif
