@@ -24,13 +24,19 @@
 #endif
 
 double yrefine=0.2;
-double region_eps = 1e-8;
-double region(const Vector &p)
+bool region(const Vector &p, const int lev)
 {
+   const double region_eps = 1e-8;
    const double x = p(0), y = p(1);
-   //const double yrefine=0.249999999999999999999;
    //return std::max(std::max(std::max(x - yrefine, -y-yrefine), y - yrefine), -x-yrefine);
-   return std::max(-y-yrefine, y - yrefine);
+   if(lev==0)
+      return std::max(-y-yrefine, y - yrefine)<region_eps;
+   else
+   {
+      double ynew=0.8*yrefine;
+      double xcenter=0.2, xedge=0.9;
+      return (fabs(y)<ynew+region_eps && (fabs(x)<xcenter+region_eps || fabs(x)>xedge-region_eps) );
+   }
 }
 
 int main(int argc, char *argv[])
@@ -196,24 +202,27 @@ int main(int argc, char *argv[])
    //++++++Refine locally first    
    if (local_refine)
    {
-      Vector pt;
-      Array<int> marked_elements;
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for(int lev=0; lev<2; lev++)
       {
-         // check all nodes of the element
-         IsoparametricTransformation T;
-         mesh->GetElementTransformation(i, &T);
-         for (int j = 0; j < T.GetPointMat().Width(); j++)
-         {
-            T.GetPointMat().GetColumnReference(j, pt);
-            if (region(pt) <= region_eps)
-            {
-               marked_elements.Append(i);
-               break;
-            }
-         }
+        Vector pt;
+        Array<int> marked_elements;
+        for (int i = 0; i < mesh->GetNE(); i++)
+        {
+           // check all nodes of the element
+           IsoparametricTransformation T;
+           mesh->GetElementTransformation(i, &T);
+           for (int j = 0; j < T.GetPointMat().Width(); j++)
+           {
+              T.GetPointMat().GetColumnReference(j, pt);
+              if (region(pt, lev))
+              {
+                 marked_elements.Append(i);
+                 break;
+              }
+           }
+        }
+        mesh->GeneralRefinement(marked_elements);
       }
-      mesh->GeneralRefinement(marked_elements);
    }
 
    //+++++++here we need to generate a partitioning because the default one is wrong for ncmesh when local_refine is truned on
@@ -240,8 +249,8 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
-   //rebalancing may create some strange partitioning using certain partitioning methods
-   //rebalancing is probably not needed for a static adaptive mesh
+   //Here rebalancing may create some strange partitioning using certain partitioning methods
+   //Note rebalancing is probably not needed for a static adaptive mesh
    if (local_refine && false)
       pmesh->Rebalance();   
 
