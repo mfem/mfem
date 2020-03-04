@@ -10,14 +10,15 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 if (MFEM_USE_MPI)
-  set(NAVIER_COMMON_FILES
+  list(APPEND NAVIER_COMMON_FILES
       navier_solver.cpp
       navier_solver.hpp
       ortho_solver.cpp
-      ortho_solver.hpp
-  )
+      ortho_solver.hpp)
 
-add_mfem_miniapp(navier_mms
+  convert_filenames_to_full_paths(NAVIER_COMMON_FILES)
+
+  add_mfem_miniapp(navier_mms
     MAIN navier_mms.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
