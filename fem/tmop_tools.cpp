@@ -261,11 +261,10 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field)
 {
-
    const int pts_cnt = new_nodes.Size() / dim;
 
-   // Interpolate FE function values on the found points.
-   if (el_id_out.Size()!=pts_cnt)
+   // The sizes may change between calls due to AMR procedures.
+   if (el_id_out.Size() != pts_cnt)
    {
       el_id_out.SetSize(pts_cnt);
       code_out.SetSize(pts_cnt);
@@ -274,9 +273,9 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
       dist_p_out(pts_cnt);
    }
 
+   // Interpolate FE function values on the found points.
    finder->FindPoints(new_nodes, code_out, task_id_out,
                       el_id_out, pos_r_out, dist_p_out);
-
    finder->Interpolate(code_out, task_id_out, el_id_out,
                        pos_r_out, field0_gf, new_field);
 }
