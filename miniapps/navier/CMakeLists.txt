@@ -37,8 +37,8 @@ add_mfem_miniapp(navier_mms
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
-  add_mfem_miniapp(navier_3dfoc
-    MAIN navier_3dfoc.cpp
-    ${NAVIER_COMMON_FILES}
-    LIBRARIES mfem)
+  # add_mfem_miniapp(navier_3dfoc
+  #   MAIN navier_3dfoc.cpp
+  #   ${NAVIER_COMMON_FILES}
+  #   LIBRARIES mfem)
 endif ()
