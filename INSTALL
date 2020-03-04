@@ -402,10 +402,10 @@ MFEM_USE_CONDUIT = YES/NO
    an installation of Conduit. If Conduit was built with HDF5 support, it also
    requires an installation of HDF5 (see also MFEM_USE_NETCDF).
 
-MFEM_USE_GZSTREAM = YES/NO
+MFEM_USE_ZLIB = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
-   read back files compressed with gzstream (or any compression utility capable
+   read back files compressed with zlib (or any compression utility capable
    of creating a gzip-compatible output such as gzip).
    MFEM will write compressed files if the mode argument in the constructor
    includes a 'z' character. With this feature disabled (NO), MFEM will not be
@@ -641,7 +641,7 @@ The specific libraries and their options are:
   URL: http://www.nongnu.org/libunwind
   Options: LIBUNWIND_OPT, LIBUNWIND_LIB.
 
-- ZLIB (optional), used when MFEM_USE_GZSTREAM = YES, or when MFEM_USE_NETCDF =
+- ZLIB (optional), used when MFEM_USE_ZLIB = YES, or when MFEM_USE_NETCDF =
   YES (in the default settings for NETCDF_OPT and NETCDF_LIB).
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
@@ -765,7 +765,7 @@ MFEM_USE_GINKGO
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
-MFEM_USE_GZSTREAM
+MFEM_USE_ZLIB
 MFEM_USE_PUMI
 MFEM_USE_HIOP
 MFEM_USE_CUDA
