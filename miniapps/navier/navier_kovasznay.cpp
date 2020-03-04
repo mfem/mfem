@@ -6,10 +6,14 @@ using namespace navier;
 
 struct s_FlowContext
 {
-   int order = 5;
+   int order = 9;
    double kin_vis = 1.0 / 40.0;
-   double t_final = 10e-5;
-   double dt = 1e-5;
+   double t_final = 100 * 0.001;
+   double dt = 0.001;
+   double reference_pressure = 0.0;
+   double reynolds = 1.0 / kin_vis;
+   double lam = 0.5 * reynolds
+                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
 } ctx;
 
 void vel_kovasznay(const Vector &x, double t, Vector &u)
@@ -17,34 +21,25 @@ void vel_kovasznay(const Vector &x, double t, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   double reynolds = 1.0 / ctx.kin_vis;
-   double lam = 0.5 * reynolds
-                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
-
-   u(0) = 1.0 - exp(lam * xi) * cos(2.0 * M_PI * yi);
-   u(1) = lam / (2.0 * M_PI) * exp(lam * xi) * sin(2.0 * M_PI * yi);
+   u(0) = 1.0 - exp(ctx.lam * xi) * cos(2.0 * M_PI * yi);
+   u(1) = ctx.lam / (2.0 * M_PI) * exp(ctx.lam * xi) * sin(2.0 * M_PI * yi);
 }
 
-double pres_kovasznay(const Vector &x)
+double pres_kovasznay(const Vector &x, double t)
 {
    double xi = x(0);
    double yi = x(1);
 
-   double reynolds = 1.0 / ctx.kin_vis;
-   double lam = 0.5 * reynolds
-                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
-
-   return -0.5 * exp(2.0 * lam * xi);
+   return 0.5 * (1.0 - exp(2.0 * ctx.lam * xi)) + ctx.reference_pressure;
 }
 
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 0;
+   int serial_refinements = 1;
 
    Mesh *mesh = new Mesh(2, 4, Element::QUADRILATERAL, false, 1.5, 2.0);
-
 
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
@@ -79,7 +74,7 @@ int main(int argc, char *argv[])
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 1;
    flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
-
+   flowsolver.AddPresDirichletBC(pres_kovasznay, attr);
 
    double t = 0.0;
    double dt = ctx.dt;
@@ -105,6 +100,7 @@ int main(int argc, char *argv[])
       // Compare against exact solution of velocity and pressure.
       u_gf = flowsolver.GetCurrentVelocity();
       p_gf = flowsolver.GetCurrentPressure();
+
       u_excoeff.SetTime(t);
       p_excoeff.SetTime(t);
       err_u = u_gf->ComputeL2Error(u_excoeff);
@@ -118,7 +114,7 @@ int main(int argc, char *argv[])
    }
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
+   int visport = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
    sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
