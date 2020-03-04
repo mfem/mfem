@@ -105,6 +105,10 @@ public:
    Surface(Opt &opt, int NV, int NE, int NBE): Mesh(DIM, NV, NE, NBE, SDIM),
       S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
 
+   // Generate 2D generic empty surface mesh
+   Surface(Opt &opt, bool): Mesh(),
+      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
+
    void Preflow() { S->Prefix(); S->Create(); }
 
    void Postflow()
@@ -116,7 +120,7 @@ public:
       S->BC();
    }
 
-   ~Surface() { delete fec; delete msh; delete fes; }
+   ~Surface() { delete msh; delete fec; delete fes; }
 
    void Prefix() { SetCurvature(opt.order, false, SDIM, Ordering::byNODES); }
 
@@ -413,7 +417,7 @@ struct FullPeach: public Surface<FullPeach>
       for (int j = 0; j < NBE; j++) { AddBdrQuad(quad_e[j], j+1); }
 
       RemoveUnusedVertices();
-      FinalizeQuadMesh(true, 0, true);
+      FinalizeQuadMesh(false, 0, true);
       FinalizeTopology();
       UniformRefinement();
    }
@@ -544,7 +548,7 @@ struct SlottedSphere: public Surface<SlottedSphere>
          AddQuad(QE[j], j+1);
       }
       RemoveUnusedVertices();
-      FinalizeQuadMesh(1, 1, true);
+      FinalizeQuadMesh(false, 0, true);
       EnsureNodes();
       FinalizeTopology();
    }
@@ -668,7 +672,7 @@ cdouble WeierstrassZeta(const cdouble z,
 static double ALPHA[3] {0.0};
 struct Costa: public Surface<Costa>
 {
-   Costa(Opt &opt): Surface(opt) { }
+   Costa(Opt &opt): Surface(opt, false) { }
 
    void Prefix()
    {
@@ -712,7 +716,7 @@ struct Costa: public Surface<Costa>
          }
       }
       RemoveUnusedVertices();
-      FinalizeQuadMesh(true, 0, true);
+      FinalizeQuadMesh(false, 0, true);
       FinalizeTopology();
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
@@ -871,6 +875,11 @@ public:
       double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
       mfem::out << "rnorm = " << rnorm << endl;
       const double lambda = opt.lambda;
+      if (by_component)
+      {
+         MFEM_VERIFY(!opt.radial,"'Component solver can't use radial option!");
+         return Converged(rnorm);
+      }
       if (opt.radial)
       {
          GridFunction delta(fes);
@@ -962,7 +971,7 @@ public:
    }
 };
 
-
+// Create the mesh from the options and update working mesh and fes
 Mesh *CreateSurface(Opt &opt)
 {
    Mesh *S = nullptr;
@@ -1022,24 +1031,24 @@ int main(int argc, char *argv[])
    opt.vdim = opt.solve_by_components ? 1 : SDIM;
    if (MyRank == 0) { args.PrintOptions(cout); }
 
-   // Initialize hardware devices.
+   // Initialize hardware devices
    Device device(opt.device_config);
    if (MyRank == 0) { device.Print(); }
 
-   // Initialize GLVis server if 'visualization' is set.
+   // Initialize GLVis server if 'visualization' is set
    if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
 
-   // Create our surface mesh from command line option.
+   // Create our surface mesh from command line option
    Mesh *S = CreateSurface(opt);
 
-   // Send to GLVis the first mesh.
+   // Send to GLVis the first mesh
    if (opt.vis) { Visualize(opt, GLVIZ_W, GLVIZ_H); }
 
-   // Create and launch the surface solver.
+   // Create and launch the surface solver
    if (opt.solve_by_components) { ByComponent(opt).Solve(); }
    else { ByVector(opt).Solve(); }
 
-   // Free the used memory.
+   // Free the used memory
    delete S;
    return 0;
 }
