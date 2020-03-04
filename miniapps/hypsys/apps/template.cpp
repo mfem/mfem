@@ -18,7 +18,6 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
 
-   // Initialize the state.
    VectorFunctionCoefficient ic(NumEq, InitialConditionTEMPLATE);
 
    if (ConfigTEMPLATE.ConfigNum == 0)

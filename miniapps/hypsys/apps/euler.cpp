@@ -183,8 +183,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          u(0) = pow(T0, 1. / (SpHeatRatio - 1.));
          u(1) = (1. - beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(1)) * u(0);
          u(2) = (1. + beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(0)) * u(0);
-         double pressure = u(0) * T0;
-         u(3) = pressure / (SpHeatRatio - 1.) + 0.5 * (u(1) * u(1) + u(2) * u(2)) / u(0);
+         u(3) = u(0) * T0 / (SpHeatRatio - 1.) + 0.5 * (u(1) * u(1) + u(2) * u(2)) / u(0);
          break;
       }
       case 1:

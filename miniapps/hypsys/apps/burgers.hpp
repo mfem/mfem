@@ -8,7 +8,7 @@ class Burgers : public HyperbolicSystem
 public:
    explicit Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
                     Configuration &config_);
-   ~Burgers() {};
+   ~Burgers() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const;

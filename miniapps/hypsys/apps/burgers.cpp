@@ -18,7 +18,6 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
 
-   // Initialize the state.
    FunctionCoefficient ic(InitialConditionBurgers);
 
    if (ConfigBurgers.ConfigNum == 0)
@@ -72,6 +71,7 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
       X(i) = 2. * (x(i) - center) / (ConfigBurgers.bbMax(i) - ConfigBurgers.bbMin(i));
    }
 
+   // TODO default test case to work in all dimensions
    switch (dim)
    {
       case 2: // TODO use transformed coordinates X instead of x

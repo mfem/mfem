@@ -38,7 +38,7 @@ ifeq ($(MFEM_USE_MPI), YES)
 endif
 
 # valgrind-test setup
-PROBLEM = 3
+PROBLEM = 0
 VALGRIND-CONFIG = -tf 0.01 -dt 0.001 -p $(PROBLEM) -e 0
 
 # grid-convergence-test setup
@@ -56,9 +56,9 @@ CONFIG = -p 3 -e 0 -o 3 -c 0 -tf 2.828427125 -dt 0.0001 -s 3 -vs 1000
 CONFIG-NAME = p3e0o3-$(GEOM)
 
 # EULER
-MESH = data/periodic-square.mesh
-CONFIG = -p 4 -e 0 -o 1 -c 0 -tf 2 -dt 0.001 -s 3 -vs 1000
-CONFIG-NAME = p3e0o3-$(GEOM)
+MESH = data/periodic-tri.mesh
+CONFIG = -p 4 -e 0 -o 1 -c 0 -tf 1 -dt 0.00025 -s 3 -vs 1000
+CONFIG-NAME = p4e0o1-$(GEOM)
 
 ## Makefile rules. #############################################################
 
@@ -96,9 +96,9 @@ clean:
 
 valgrind-test:
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-segment.mesh -r 4 -o 4
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-4tri.mesh -r 2 -o 2
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/inline-4tri.mesh -r 2 -o 2
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/unstr.mesh -r 0 -o 3
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/periodic-cube.mesh -r 1 -o 2
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-cube.mesh -r 1 -o 2
 
 grid-convergence-advection:
 	rm errors.txt; \
@@ -126,6 +126,7 @@ grid-convergence-euler:
 	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 4; \
 	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 5; \
 	mpirun -np 8 ./phypsys $(CONFIG) -m $(MESH) -r 6; \
+	mv errors.txt $(OUT_DIR)/$(CONFIG-NAME).txt
 
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)

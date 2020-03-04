@@ -9,8 +9,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
                      Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, 1, config_, VectorFunctionCoefficient (1,
-                                                                            InflowFunctionAdv))
+   : HyperbolicSystem(fes_, u_block, 1, config_,
+      VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
    ConfigAdv = config_;
 

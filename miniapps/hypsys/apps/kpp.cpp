@@ -17,7 +17,6 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
 
-   // Initialize the state.
    FunctionCoefficient ic(InitialConditionKPP);
 
    if (ConfigKPP.ConfigNum == 0)
@@ -72,6 +71,7 @@ double AnalyticalSolutionKPP(const Vector &x, double t)
       X(i) = 2. * (x(i) - center) / (ConfigKPP.bbMax(i) - ConfigKPP.bbMin(i));
    }
 
+// TODO default
    X(0) = 2 * X(0);
    X(1) = 2 * X(1) - 0.5;
 

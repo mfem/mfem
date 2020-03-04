@@ -28,7 +28,7 @@ public:
    explicit HyperbolicSystem(FiniteElementSpace *fes_, BlockVector &u_block,
                              int NumEq_, Configuration &config_, VectorFunctionCoefficient b_) :
       fes(fes_), inflow(fes_), u0(fes_, u_block), NumEq(NumEq_), b(b_) { };
-   ~HyperbolicSystem() { };
+   virtual ~HyperbolicSystem() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const = 0;

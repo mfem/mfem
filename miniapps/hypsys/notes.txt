@@ -12,7 +12,7 @@ TODO:
 
 
 Current state:
--Solves Advection, Burgers, KPP and Shallow Water.
+-Solves Advection, Burgers, KPP, Shallow Water, and Euler.
 -DG0 supported, fully MPI parallelized.
 -Only inflow and periodic boundary conditions are supported.
 
