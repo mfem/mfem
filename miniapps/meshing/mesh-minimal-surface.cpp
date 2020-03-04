@@ -52,18 +52,18 @@ constexpr Element::Type QUAD = Element::QUADRILATERAL;
 // Static variables for GLVis.
 static int NRanks, MyRank;
 static socketstream glvis;
-const int  visport = 19916;
-const char vishost[] = "localhost";
+constexpr int  visport = 19916;
+constexpr char vishost[] = "localhost";
 
 // Options for the solver
 struct Opt
 {
    Array<int> bc;
-   int order = 4;
-   int nx = 4;
-   int ny = 4;
+   int order = 3;
+   int nx = 6;
+   int ny = 6;
    int refine = 2;
-   int iter_max = 16;
+   int iter_max = 32;
    int surface = -1;
    int vdim = 3;
    bool pa = true;
@@ -687,7 +687,7 @@ cdouble WeierstrassZeta(const cdouble z,
 }
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
-static double ALPHA[2];
+static double ALPHA[3] {0.0};
 struct Costa: public Surface<Costa>
 {
    Costa(Opt &opt): Surface(opt) { }
@@ -695,8 +695,6 @@ struct Costa: public Surface<Costa>
    void Prefix()
    {
       const int nx = opt.nx, ny = opt.ny;
-      ALPHA[0] = 1.0 / (double) nx;
-      ALPHA[1] = 1.0 / (double) ny;
       MFEM_VERIFY(nx>2 && ny>2, "");
       const int nXhalf = (nx%2)==0 ? 4 : 2;
       const int nYhalf = (ny%2)==0 ? 4 : 2;
@@ -738,6 +736,7 @@ struct Costa: public Surface<Costa>
       RemoveUnusedVertices();
       FinalizeQuadMesh(true, 0, true);
       FinalizeTopology();
+      SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
    static void Parametrization(const Vector &x, Vector &p)
@@ -756,13 +755,34 @@ struct Costa: public Surface<Costa>
       const cdouble e1 = WeierstrassP(0.5);
       const cdouble zw = WeierstrassZeta(w);
       const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
-      p[0] = ALPHA[0] * real(PI*(u+PI/(4.*e1))- zw +PI/(2.*e1)*(dw));
-      p[1] = ALPHA[1] * real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
+      p[0] = 0.5 * real(PI*(u+PI/(4.*e1))- zw +PI/(2.*e1)*(dw));
+      p[1] = 0.5 * real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
       p[2] = sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
       if (y_top) { p[1] *= -1.0; }
       if (x_top) { p[0] *= -1.0; }
       const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
+      ALPHA[0] = fmax(p[0],ALPHA[0]);
+      ALPHA[1] = fmax(p[1],ALPHA[1]);
+      ALPHA[2] = fmax(p[2],ALPHA[2]);
+   }
+
+   void Snap()
+   {
+      Vector node(SDIM);
+      MFEM_VERIFY(ALPHA[0] > 0.0,"");
+      MFEM_VERIFY(ALPHA[1] > 0.0,"");
+      MFEM_VERIFY(ALPHA[2] > 0.0,"");
+      GridFunction &nodes = *GetNodes();
+      const double phi = (1.0+sqrt(5.0))/2.0;
+      for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
+      {
+         for (int d = 0; d < SDIM; d++)
+         {
+            const double alpha = d==2 ? phi : 1.0;
+            nodes(nodes.FESpace()->DofToVDof(i, d)) /= alpha * ALPHA[d];
+         }
+      }
    }
 };
 
