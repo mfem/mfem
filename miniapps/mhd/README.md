@@ -35,6 +35,8 @@ The following instructions are ordered based on the complexity
 * A serial solver (exMHD)
 * A parallel explicit solver (exMHDp)
 * A parallel implicit solver (imMHDp)
+TODO
+*Instructions on amr solvers (imAMRMHDp and exAMRMHDp)*
 
 ## Serial building
 
@@ -161,8 +163,7 @@ There is a known compiler bug (https://github.com/mfem/mfem/issues/956) on cori.
 ```
 
 #### Could I use glvis on cori?
-We were not able to build glvis on cori. 
-Visit is probably easier to build there.
+Yes, recently we were able to use glvis on cori. Visit or paraview is also another option.
 
 
 
