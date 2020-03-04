@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
 MFEM_VERSION = 40001
@@ -307,8 +307,8 @@ ifeq ($(MFEM_TIMER_TYPE),2)
    ALL_LIBS += $(POSIX_CLOCKS_LIB)
 endif
 
-# gzstream configuration
-ifeq ($(MFEM_USE_GZSTREAM),YES)
+# zlib configuration
+ifeq ($(MFEM_USE_ZLIB),YES)
    INCFLAGS += $(ZLIB_OPT)
    ALL_LIBS += $(ZLIB_LIB)
 endif
@@ -316,7 +316,7 @@ endif
 # List of all defines that may be enabled in config.hpp and config.mk:
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
- MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
+ MFEM_USE_ZLIB MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
  MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
  MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO\
  MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
@@ -611,7 +611,7 @@ status info:
 	$(info MFEM_USE_METIS_5       = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG             = $(MFEM_DEBUG))
 	$(info MFEM_USE_EXCEPTIONS    = $(MFEM_USE_EXCEPTIONS))
-	$(info MFEM_USE_GZSTREAM      = $(MFEM_USE_GZSTREAM))
+	$(info MFEM_USE_ZLIB          = $(MFEM_USE_ZLIB))
 	$(info MFEM_USE_LIBUNWIND     = $(MFEM_USE_LIBUNWIND))
 	$(info MFEM_USE_LAPACK        = $(MFEM_USE_LAPACK))
 	$(info MFEM_THREAD_SAFE       = $(MFEM_THREAD_SAFE))
