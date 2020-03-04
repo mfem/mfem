@@ -35,6 +35,7 @@ The following instructions are ordered based on the complexity
 * A serial solver (exMHD)
 * A parallel explicit solver (exMHDp)
 * A parallel implicit solver (imMHDp)
+
 TODO
 *Instructions on amr solvers (imAMRMHDp and exAMRMHDp)*
 
