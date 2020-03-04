@@ -29,7 +29,7 @@ namespace mfem
 {
 
 FindPointsGSLIB::FindPointsGSLIB()
-   : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
+   : mesh(NULL), simir(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
    gsl_comm = new comm;
 #ifdef MFEM_USE_MPI
@@ -49,7 +49,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
-   : mesh(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
+   : mesh(NULL), simir(NULL), gsl_mesh(), fdata2D(NULL), fdata3D(NULL), dim(-1)
 {
    gsl_comm = new comm;
    comm_init(gsl_comm, _comm);
@@ -59,26 +59,30 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
 void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
+               "Mixed meshes are not currently supported in FindPointsGSLIB.");
 
    mesh = &m;
    dim  = mesh->Dimension();
-   unsigned dof1D = mesh->GetNodalFESpace()->GetFE(0)->GetOrder() + 1;
+   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+   unsigned dof1D = fe->GetOrder() + 1;
    int NE = mesh->GetNE(),
-       dof_cnt = mesh->GetNodalFESpace()->GetFE(0)->GetDof(),
+       dof_cnt = fe->GetDof(),
        pts_cnt = NE * dof_cnt,
-       gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
+       gt = fe->GetGeomType();
 
-   if (gt == 2 || gt == 4 || gt == 6) // tri/tet/wedge
+   if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
+       gt == Geometry::PRISM) // tri/tet/wedge
    {
       GetSimplexNodalCoordinates();
    }
-   else if (gt == 3 || gt == 5) // quad/hex
+   else if (gt == Geometry::SQUARE || gt == Geometry::CUBE) // quad/hex
    {
       GetQuadHexNodalCoordinates();
    }
    else
    {
-      MFEM_ABORT("Element type not currently supported in FindPointsGSLIB");
+      MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
    }
 
    NE *= NEsplit;
@@ -182,6 +186,7 @@ void FindPointsGSLIB::FreeData()
    {
       findpts_free_3(fdata3D);
    }
+   gsl_mesh.Destroy();
 }
 
 void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
@@ -189,9 +194,10 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
 {
    MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");
 
-   int gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
+   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+   int gt = fe->GetGeomType();
 
-   if (gt == 3 || gt == 5)
+   if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
    {
       const GridFunction *nodes = mesh->GetNodes();
       const FiniteElementSpace *fes = nodes->FESpace();
@@ -202,6 +208,7 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
 
       const TensorBasisElement *tbe =
          dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
+      MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
       const Array<int> &dof_map = tbe->GetDofMap();
 
       int pt_id = 0;
@@ -215,9 +222,10 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
          }
       }
    }
-   else if (gt == 2 || gt == 4 || gt == 6) // triangle
+   else if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
+            gt == Geometry::PRISM) // triangle/tet/prism
    {
-      unsigned dof1D = mesh->GetNodalFESpace()->GetFE(0)->GetOrder() + 1;
+      unsigned dof1D = fe->GetOrder() + 1;
       int NE = NEsplit,
           dof_cnt = dof1D*dof1D;
       if (dim == 3) { dof_cnt *= dof1D; }
@@ -240,7 +248,6 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
    {
       MFEM_ABORT("Element type not currently supported.");
    }
-
 }
 
 void FindPointsGSLIB::GetQuadHexNodalCoordinates()
@@ -255,6 +262,7 @@ void FindPointsGSLIB::GetQuadHexNodalCoordinates()
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(fes->GetFE(0));
+   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
    const Array<int> &dof_map = tbe->GetDofMap();
 
    DenseMatrix pos(dof_cnt, dim);
@@ -280,7 +288,8 @@ void FindPointsGSLIB::GetQuadHexNodalCoordinates()
 
 void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
 {
-   int gt = mesh->GetNodalFESpace()->GetFE(0)->GetGeomType();
+   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+   int gt = fe->GetGeomType();
    const GridFunction *nodes = mesh->GetNodes();
    Mesh *meshsplit;
 
@@ -376,7 +385,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
       meshsplit->FinalizeHexMesh(1, 1, true);
    }
 
-   H1_FECollection fec(mesh->GetNodalFESpace()->GetFE(0)->GetOrder(),dim);
+   H1_FECollection fec(fe->GetOrder(),dim);
    FiniteElementSpace nodal_fes(meshsplit, &fec,dim);
    meshsplit->SetNodalFESpace(&nodal_fes);
 
@@ -388,6 +397,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(nodal_fes.GetFE(0));
+   MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
    const Array<int> &dof_map = tbe->GetDofMap();
 
    DenseMatrix pos(dof_cnt, dim);
