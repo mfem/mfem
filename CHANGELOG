@@ -11,6 +11,8 @@
 Version 4.0.1 (development)
 ===========================
 
+Starting with this version, the MFEM open source license is changed to BSD-3.
+
 Improved GPU support
 --------------------
 - Added support for matrix-free diagonal smoothers on GPUs.
@@ -216,11 +218,15 @@ Miscellaneous
   complete rework of the interface and requires changes at the application
   level. Example usage of the new interface can be found in examples/sundials.
 
+- Switched from gzstream to zstr for the implementation of zlib-compressed C++
+  output stream. The build system definition now uses MFEM_USE_ZLIB instead of
+  MFEM_USE_GZSTREAM, but the code interface (e.g. ofgzstream) remains the same.
+
 - Added support for output in the ParaView XML format. Both low-order and
   high-order Lagrange elements are supported. Output can be in ASCII or binary
-  format. Binary output can be compressed if MFEM is compiled with gzstream
-  enabled (MFEM_USE_GZSTREAM). See Examples 5/5p, 9/9p and the new
-  ParaViewDataCollection class.
+  format. The binary output can be compressed if MFEM is compiled with zlib
+  support (MFEM_USE_ZLIB). See the new ParaViewDataCollection class and the
+  updated Examples 5/5p and 9/9p.
 
 - Collected object files from the miniapps/common directory into a new library,
   libmfem-common for the convenience of application developers. The new library
