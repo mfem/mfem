@@ -1585,7 +1585,7 @@ double TMOP_Integrator::ComputeMinJac(const Vector &x,
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
 
-   double detv = 0.,detv_min = std::numeric_limits<float>::max();
+   double detv_min = std::numeric_limits<float>::max();
 
    for (int i = 0; i < NE; i++)
    {
@@ -1595,8 +1595,7 @@ double TMOP_Integrator::ComputeMinJac(const Vector &x,
       {
          fes.GetFE(i)->CalcDShape(ir->IntPoint(j), dshape);
          MultAtB(pos, dshape, Jpr);
-         detv = Jpr.Det();
-         detv_min = std::min(detv,detv_min);
+         detv_min = std::min(Jpr.Det(), detv_min);
       }
    }
    return detv_min;
@@ -1645,13 +1644,12 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
                                               ElementTransformation &T,
                                               const Vector &elfun, Vector &elvect)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   const int dof = el.GetDof(), dim = el.GetDim();
    int elnum = T.ElementNo;
    if (elnum>=ElemDer.Size())
    {
       ElemDer.Append(new Vector);
       ElemPertEnergy.Append(new Vector);
-
    }
    if (ElemDer[elnum]->Size() != dof*dim)
    {
@@ -1693,21 +1691,17 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                                             const Vector &elfun,
                                             DenseMatrix &elmat)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   const int dof = el.GetDof(), dim = el.GetDim();
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
    Jrt.SetSize(dim);
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
-   DenseMatrix Markermat;
-   Markermat.SetSize(dof*dim);
 
    Vector elfunmod;
    elfunmod.SetSize(dof*dim);
    elfunmod.SetData(elfun.GetData());
-
-   Vector ElemPertTemp(dof);
 
    Vector ElemDerLoc = *(ElemDer[T.ElementNo]);
    Vector ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
@@ -1715,7 +1709,6 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    {
       for (int j=0; j<i+1; j++)
       {
-         int idx = 0;
          for (int k1=0; k1<dim; k1++)
          {
             for (int k2=0; k2<dim; k2++)

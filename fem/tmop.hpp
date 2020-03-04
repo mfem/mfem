@@ -804,7 +804,7 @@ protected:
 
    mutable DiscreteAdaptTC *discr_tc;
 
-   // Parameters for Gradient & Hessian calculation
+   // Parameters for finite difference (FD) Gradient & Hessian calculations.
    int    fdflag;
    double fdeps;
    double elemenergy;
