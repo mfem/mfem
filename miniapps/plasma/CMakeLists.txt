@@ -22,10 +22,22 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
+  add_mfem_miniapp(stix3d
+    MAIN stix3d.cpp
+    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp
+    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem_miniapps_common)
+
   add_mfem_miniapp(braginskii
     MAIN braginskii.cpp
     EXTRA_SOURCES braginskii_solver.cpp braginskii_coefs.cpp
     EXTRA_HEADERS braginskii_solver.hpp braginskii_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem_miniapps_common)
+
+  add_mfem_miniapp(transport2d
+    MAIN transport2d.cpp
+    EXTRA_SOURCES transport_solver.cpp transport_coefs.cpp
+    EXTRA_HEADERS transport_solver.hpp transport_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
 endif()
