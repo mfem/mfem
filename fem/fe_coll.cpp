@@ -1886,8 +1886,15 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       }
       L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
       L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
-      // All trace elements use the default Gauss-Legendre points
-      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      // Trace element use the default Gauss-Legendre nodal points for positive basis
+      if (b_type == BasisType::Positive)
+      {
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      }
+      else
+      {
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
+      }
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
       TriDofOrd[0] = new int[6*TriDof];
@@ -1935,9 +1942,17 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
-      // All trace element use the default Gauss-Legendre nodal points
-      Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
-      Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      // Trace element use the default Gauss-Legendre nodal points for positive basis
+      if (b_type == BasisType::Positive)
+      {
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      }
+      else
+      {
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
+      }
 
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();

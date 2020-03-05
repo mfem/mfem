@@ -717,6 +717,7 @@ double Vector::Norml2() const
       return 0.0;
    } // end if 0 == size
 
+   data.Read(MemoryClass::HOST, size);
    if (1 == size)
    {
       return std::abs(data[0]);
