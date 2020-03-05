@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FESPACE
 #define MFEM_FESPACE
@@ -145,7 +145,11 @@ protected:
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
-   void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   void GetEntityDofs(int entity, int index, Array<int> &dofs,
+                      Geometry::Type master_geom = Geometry::INVALID) const;
+   // Get degenerate face DOFs: see explanation in method implementation.
+   void GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                              Geometry::Type master_geom) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
@@ -156,6 +160,7 @@ protected:
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
 
+   /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
    /// GridFunction interpolation operator applicable after mesh refinement.
@@ -304,8 +309,9 @@ public:
        The parameter @a e_ordering describes how the local DOFs in each element
        should be ordered, see ElementDofOrdering.
 
-       For discontinuous spaces, where the element-restriction is the identity,
-       this method will return NULL.
+       For discontinuous spaces, the element restriction corresponds to a
+       permutation of the degrees of freedom, implemented by the
+       L2ElementRestriction class.
 
        The returned Operator is owned by the FiniteElementSpace. */
    const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
@@ -894,8 +900,27 @@ public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+
+   /// Compute MultTranspose without applying signs based on DOF orientations.
+   void MultTransposeUnsigned(const Vector &x, Vector &y) const;
 };
 
+/// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetElementRestriction(). L-vectors
+    corresponding to grid functions in L2 finite element spaces differ from
+    E-vectors only in the ordering of the degrees of freedom. */
+class L2ElementRestriction : public Operator
+{
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndof;
+public:
+   L2ElementRestriction(const FiniteElementSpace&);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
 
 /** @brief A class that performs interpolation from an E-vector to quadrature
     point values and/or derivatives (Q-vectors). */
@@ -989,6 +1014,11 @@ public:
                       Vector &q_det,
                       const int eval_flags);
 };
+
+inline bool UsesTensorBasis(const FiniteElementSpace& fes)
+{
+   return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+}
 
 }
 

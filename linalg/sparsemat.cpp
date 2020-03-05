@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of sparse matrix
 
@@ -558,8 +558,8 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (!Finalized())
    {
-      const double *xp = x.GetData();
-      double *yp = y.GetData();
+      const double *xp = x.HostRead();
+      double *yp = y.HostReadWrite();
 
       //  The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
@@ -1386,6 +1386,40 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
       }
    }
 }
+
+void SparseMatrix::EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae)
+{
+   if (Rows)
+   {
+      RowNode *nd;
+      for (int row = 0; row < height; row++)
+      {
+         for (nd = Rows[row]; nd != NULL; nd = nd->Prev)
+         {
+            if (col_marker[nd->Column])
+            {
+               Ae.Add(row, nd->Column, nd->Value);
+               nd->Value = 0.0;
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int row = 0; row < height; row++)
+      {
+         for (int j = I[row]; j < I[row+1]; j++)
+         {
+            if (col_marker[J[j]])
+            {
+               Ae.Add(row, J[j], A[j]);
+               A[j] = 0.0;
+            }
+         }
+      }
+   }
+}
+
 
 void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
                                    DiagonalPolicy dpolicy)
@@ -2640,9 +2674,11 @@ SparseMatrix &SparseMatrix::operator=(double a)
 {
    if (Rows == NULL)
    {
-      for (int i = 0, nnz = I[height]; i < nnz; i++)
+      const int nnz = J.Capacity();
+      double *h_A = HostWrite(A, nnz);
+      for (int i = 0; i < nnz; i++)
       {
-         A[i] = a;
+         h_A[i] = a;
       }
    }
    else

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PFESPACE
 #define MFEM_PFESPACE
@@ -71,7 +71,7 @@ private:
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
-   mutable class ConformingProlongationOperator *Pconf;
+   mutable Operator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
@@ -113,7 +113,7 @@ private:
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
-   // Return the dofs associated with the interior of the given mesh entity.
+   /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
@@ -381,6 +381,52 @@ protected:
 
 public:
    ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/// Auxiliary device class used by ParFiniteElementSpace.
+class DeviceConformingProlongationOperator: public
+   ConformingProlongationOperator
+{
+protected:
+   bool mpi_gpu_aware;
+   Array<int> shr_ltdof, ext_ldof;
+   mutable Vector shr_buf, ext_buf;
+   int *shr_buf_offsets, *ext_buf_offsets;
+   Array<int> ltdof_ldof, unq_ltdof;
+   Array<int> unq_shr_i, unq_shr_j;
+   MPI_Request *requests;
+   // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
+   //         shr_buf[i] = src[shr_ltdof[i]]
+   void BcastBeginCopy(const Vector &src) const;
+
+   // Kernel: copy ltdofs from 'src' to ldofs in 'dst'.
+   //         dst[ltdof_ldof[i]] = src[i]
+   void BcastLocalCopy(const Vector &src, Vector &dst) const;
+
+   // Kernel: copy ext. dofs from 'ext_buf' to 'dst' - after recv.
+   //         dst[ext_ldof[i]] = ext_buf[i]
+   void BcastEndCopy(Vector &dst) const;
+
+   // Kernel: copy ext. dofs from 'src' to 'ext_buf' - prepare for send.
+   //         ext_buf[i] = src[ext_ldof[i]]
+   void ReduceBeginCopy(const Vector &src) const;
+
+   // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
+   //         dst[i] = src[ltdof_ldof[i]]
+   void ReduceLocalCopy(const Vector &src, Vector &dst) const;
+
+   // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
+   //         dst[shr_ltdof[i]] += shr_buf[i]
+   void ReduceEndAssemble(Vector &dst) const;
+
+public:
+   DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   virtual ~DeviceConformingProlongationOperator();
 
    virtual void Mult(const Vector &x, Vector &y) const;
 

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MEM_MANAGER_HPP
 #define MFEM_MEM_MANAGER_HPP
@@ -377,6 +377,16 @@ public:
    /// Copy @a size entries from @a *this to the host pointer @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this. */
    inline void CopyToHost(T *dest, int size) const;
+
+   /// Print the internal flags.
+   /** This method can be useful for debugging. It is explicitly instantiated
+       for Memory<T> with T = int and T = double. */
+   inline void PrintFlags() const;
+
+   /// If both the host and the device data are valid, compare their contents.
+   /** This method can be useful for debugging. It is explicitly instantiated
+       for Memory<T> with T = int and T = double. */
+   inline int CompareHostAndDevice(int size) const;
 };
 
 
@@ -446,6 +456,11 @@ private:
    // registered host pointer and src_h_ptr is not a registered host pointer.
    static void CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
                              std::size_t size, unsigned &dest_flags);
+
+   // Compare the contents of the host and the device memory - useful for
+   // debugging.
+   static int CompareHostAndDevice_(void *h_ptr, size_t size, unsigned flags);
+
 
    /// Adds an address in the map
    void *Insert(void *ptr, const std::size_t bytes);
@@ -542,7 +557,7 @@ template <typename T>
 inline void Memory<T>::Delete()
 {
    if (!(flags & REGISTERED) ||
-       MemoryManager::Delete_(h_ptr, flags) == MemoryType::HOST)
+       MemoryManager::Delete_((void*)h_ptr, flags) == MemoryType::HOST)
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
@@ -727,8 +742,22 @@ inline void Memory<T>::CopyToHost(T *dest, int size) const
 
 
 /** @brief Print the state of a Memory object based on its internal flags.
-    Useful in a debugger. */
+    Useful in a debugger. See also Memory<T>::PrintFlags(). */
 extern void MemoryPrintFlags(unsigned flags);
+
+
+template <typename T>
+inline void Memory<T>::PrintFlags() const
+{
+   MemoryPrintFlags(flags);
+}
+
+template <typename T>
+inline int Memory<T>::CompareHostAndDevice(int size) const
+{
+   if (!(flags & VALID_HOST) || !(flags & VALID_DEVICE)) { return 0; }
+   return MemoryManager::CompareHostAndDevice_(h_ptr, size*sizeof(T), flags);
+}
 
 
 /// The (single) global memory manager object

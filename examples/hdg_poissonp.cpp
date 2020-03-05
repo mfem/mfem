@@ -6,10 +6,10 @@
 //         mpirun -np 2 hdg_poissonp -o 5 -r 1 -tr 4 -no-vis
 //         mpirun -np 2 hdg_poissonp -o 1 -r 4 -tr 1
 //         mpirun -np 3 hdg_poissonp -o 5 -r 4 -tr 1
-//         mpirun -np 2 hdg_poissonp -o 1 -r 1 -tr 4 -no-vis -m ../data/inline-tri
-//         mpirun -np 2 hdg_poissonp -o 5 -r 1 -tr 4 -no-vis -m ../data/inline-tri
-//         mpirun -np 4 hdg_poissonp -o 1 -r 5 -tr 1 -m ../data/inline-tri
-//         mpirun -np 2 hdg_poissonp -o 5 -r 5 -tr 1 -m ../data/inline-tri
+//         mpirun -np 2 hdg_poissonp -o 1 -r 1 -tr 4 -no-vis -m ../data/inline-tri.mesh
+//         mpirun -np 2 hdg_poissonp -o 5 -r 1 -tr 4 -no-vis -m ../data/inline-tri.mesh
+//         mpirun -np 4 hdg_poissonp -o 1 -r 5 -tr 1 -m ../data/inline-tri.mesh
+//         mpirun -np 2 hdg_poissonp -o 5 -r 5 -tr 1 -m ../data/inline-tri.mesh
 //
 // Description:  This example code solves the 2D/3D diffusion problem
 //                -\nu Delta u = f

@@ -2,14 +2,14 @@
 //
 // Compile with: make advection
 //
-// Sample runs:  advection -o 1 -r 1 -tr 4 -no-vis
-//            advection -o 5 -r 1 -tr 4 -no-vis
-//            advection -o 1 -r 4 -tr 1
-//            advection -o 5 -r 4 -tr 1
-//            advection -o 1 -r 1 -tr 4 -no-vis -m ../data/inline-tri
-//            advection -o 5 -r 1 -tr 4 -no-vis -m ../data/inline-tri
-//            advection -o 1 -r 5 -tr 1 -m ../data/inline-tri
-//            advection -o 5 -r 5 -tr 1 -m ../data/inline-tri
+// Sample runs:  hdg_advection -o 1 -r 1 -tr 4 -no-vis
+//            hdg_advection -o 5 -r 1 -tr 4 -no-vis
+//            hdg_advection -o 1 -r 4 -tr 1
+//            hdg_advection -o 5 -r 4 -tr 1
+//            hdg_advection -o 1 -r 1 -tr 4 -no-vis -m ../data/inline-tri.mesh
+//            hdg_advection -o 5 -r 1 -tr 4 -no-vis -m ../data/inline-tri.mesh
+//            hdg_advection -o 1 -r 5 -tr 1 -m ../data/inline-tri.mesh
+//            hdg_advection -o 5 -r 5 -tr 1 -m ../data/inline-tri.mesh
 //
 //
 // Description:  This example code demonstrates the use of MFEM to define a

@@ -1,17 +1,17 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
 
-#include <cstring> // std::memcpy
+#include <cstring> // std::memcpy, std::memcmp
 
 #include <list>
 #include <unordered_map>
@@ -19,6 +19,12 @@
 
 namespace mfem
 {
+
+#ifdef MFEM_USE_HIP
+#define MFEM_GPU(...) Hip ## __VA_ARGS__
+#else
+#define MFEM_GPU(...) Cu ## __VA_ARGS__
+#endif
 
 MemoryType GetMemoryType(MemoryClass mc)
 {
@@ -49,6 +55,15 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2)
 
    return std::max(mc1, mc2);
 }
+
+
+// Instantiate Memory<T>::PrintFlags for T = int and T = double.
+template void Memory<int>::PrintFlags() const;
+template void Memory<double>::PrintFlags() const;
+
+// Instantiate Memory<T>::CompareHostAndDevice for T = int and T = double.
+template int Memory<int>::CompareHostAndDevice(int size) const;
+template int Memory<double>::CompareHostAndDevice(int size) const;
 
 
 namespace internal
@@ -111,7 +126,7 @@ void MemoryManager::Destroy()
    for (auto& n : maps->memories)
    {
       internal::Memory &mem = n.second;
-      if (mem.d_ptr) { CuMemFree(mem.d_ptr); }
+      if (mem.d_ptr) { MFEM_GPU(MemFree)(mem.d_ptr); }
    }
    for (auto& n : maps->aliases)
    {
@@ -157,7 +172,7 @@ void *MemoryManager::Erase(void *ptr, bool free_dev_ptr)
       mfem_error("Trying to erase an unknown pointer!");
    }
    internal::Memory &mem = mem_map_iter->second;
-   if (mem.d_ptr && free_dev_ptr) { CuMemFree(mem.d_ptr); }
+   if (mem.d_ptr && free_dev_ptr) { MFEM_GPU(MemFree)(mem.d_ptr); }
    maps->memories.erase(mem_map_iter);
    return ptr;
 }
@@ -177,12 +192,12 @@ void *MemoryManager::GetDevicePtr(const void *ptr, size_t bytes, bool copy_data)
    internal::Memory &base = maps->memories.at(ptr);
    if (!base.d_ptr)
    {
-      CuMemAlloc(&base.d_ptr, base.bytes);
+      MFEM_GPU(MemAlloc)(&base.d_ptr, base.bytes);
    }
    if (copy_data)
    {
       MFEM_ASSERT(bytes <= base.bytes, "invalid copy size");
-      CuMemcpyHtoD(base.d_ptr, ptr, bytes);
+      MFEM_GPU(MemcpyHtoD)(base.d_ptr, ptr, bytes);
       base.host = false;
    }
    return base.d_ptr;
@@ -259,11 +274,11 @@ void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
                "internal error");
    if (!base.d_ptr)
    {
-      CuMemAlloc(&base.d_ptr, base.bytes);
+      MFEM_GPU(MemAlloc)(&base.d_ptr, base.bytes);
    }
    if (copy_data)
    {
-      CuMemcpyHtoD((char*)base.d_ptr + alias->offset, alias_ptr, bytes);
+      MFEM_GPU(MemcpyHtoD)((char*)base.d_ptr + alias->offset, alias_ptr, bytes);
       base.host = false;
    }
    return (char*)base.d_ptr + alias->offset;
@@ -279,7 +294,7 @@ static void PullKnown(internal::Ledger *maps,
    // as device memory.
    if (copy_data && base.d_ptr)
    {
-      CuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes);
+      MFEM_GPU(MemcpyDtoH)(base.h_ptr, base.d_ptr, bytes);
       base.host = true;
    }
 }
@@ -295,9 +310,9 @@ static void PullAlias(const internal::Ledger *maps,
    // as device memory.
    if (copy_data && alias->mem->d_ptr)
    {
-      CuMemcpyDtoH(const_cast<void*>(ptr),
-                   static_cast<char*>(alias->mem->d_ptr) + alias->offset,
-                   bytes);
+      MFEM_GPU(MemcpyDtoH)(const_cast<void*>(ptr),
+                           static_cast<char*>(alias->mem->d_ptr) + alias->offset,
+                           bytes);
    }
 }
 
@@ -620,7 +635,7 @@ void MemoryManager::Copy_(void *dest_h_ptr, const void *src_h_ptr,
       }
       else
       {
-         CuMemcpyDtoH(dest_h_ptr, src_d_ptr, size);
+         MFEM_GPU(MemcpyDtoH)(dest_h_ptr, src_d_ptr, size);
       }
    }
    else
@@ -630,11 +645,11 @@ void MemoryManager::Copy_(void *dest_h_ptr, const void *src_h_ptr,
                          mm.GetDevicePtr(dest_h_ptr, size, false);
       if (src_on_host)
       {
-         CuMemcpyHtoD(dest_d_ptr, src_h_ptr, size);
+         MFEM_GPU(MemcpyHtoD)(dest_d_ptr, src_h_ptr, size);
       }
       else
       {
-         CuMemcpyDtoD(dest_d_ptr, src_d_ptr, size);
+         MFEM_GPU(MemcpyDtoD)(dest_d_ptr, src_d_ptr, size);
       }
    }
    dest_flags = dest_flags &
@@ -660,7 +675,7 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
       const void *src_d_ptr = (src_flags & Mem::ALIAS) ?
                               mm.GetAliasDevicePtr(src_h_ptr, size, false) :
                               mm.GetDevicePtr(src_h_ptr, size, false);
-      CuMemcpyDtoH(dest_h_ptr, src_d_ptr, size);
+      MFEM_GPU(MemcpyDtoH)(dest_h_ptr, src_d_ptr, size);
    }
 }
 
@@ -683,10 +698,23 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
       void *dest_d_ptr = (dest_flags & Mem::ALIAS) ?
                          mm.GetAliasDevicePtr(dest_h_ptr, size, false) :
                          mm.GetDevicePtr(dest_h_ptr, size, false);
-      CuMemcpyHtoD(dest_d_ptr, src_h_ptr, size);
+      MFEM_GPU(MemcpyHtoD)(dest_d_ptr, src_h_ptr, size);
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
+}
+
+int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
+                                         unsigned flags)
+{
+   void *d_ptr = (flags & Mem::ALIAS) ?
+                 mm.GetAliasDevicePtr(h_ptr, size, false) :
+                 mm.GetDevicePtr(h_ptr, size, false);
+   char *h_buf = new char[size];
+   CuMemcpyDtoH(h_buf, d_ptr, size);
+   int res = std::memcmp(h_ptr, h_buf, size);
+   delete [] h_buf;
+   return res;
 }
 
 

@@ -1,17 +1,20 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "forall.hpp"
 #include "cuda.hpp"
 #include "occa.hpp"
+#ifdef MFEM_USE_CEED
+#include <ceed.h>
+#endif
 
 #include <string>
 #include <map>
@@ -29,19 +32,26 @@ namespace internal
 occa::device occaDevice;
 #endif
 
+#ifdef MFEM_USE_CEED
+Ceed ceed = NULL;
+#endif
+
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
+   Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
+   Backend::HIP,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
+   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "occa-cuda", "raja-cuda", "cuda", "occa-omp", "raja-omp", "omp",
-   "occa-cpu", "raja-cpu", "cpu"
+   "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
+   "hip",
+   "occa-omp", "raja-omp", "omp",
+   "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
 
 } // namespace mfem::internal
@@ -53,7 +63,14 @@ Device Device::device_singleton;
 
 Device::~Device()
 {
-   if (destroy_mm) { mm.Destroy(); }
+   if (destroy_mm)
+   {
+      free(ceed_option);
+#ifdef MFEM_USE_CEED
+      CeedDestroy(&internal::ceed);
+#endif
+      mm.Destroy();
+   }
 }
 
 void Device::Configure(const std::string &device, const int dev)
@@ -63,21 +80,39 @@ void Device::Configure(const std::string &device, const int dev)
    {
       bmap[internal::backend_name[i]] = internal::backend_list[i];
    }
-   std::string::size_type beg = 0, end;
+   std::string::size_type beg = 0, end, option;
    while (1)
    {
       end = device.find(',', beg);
       end = (end != std::string::npos) ? end : device.size();
       const std::string bname = device.substr(beg, end - beg);
-      std::map<std::string, Backend::Id>::iterator it = bmap.find(bname);
-      MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << bname << '\'');
-      Get().MarkBackend(it->second);
+      option = bname.find(':');
+      if (option==std::string::npos) // No option
+      {
+         const std::string backend = bname;
+         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
+         MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
+         Get().MarkBackend(it->second);
+      }
+      else
+      {
+         const std::string backend = bname.substr(0, option);
+         const std::string boption = bname.substr(option+1);
+         Get().ceed_option = strdup(boption.c_str());
+         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
+         MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
+         Get().MarkBackend(it->second);
+      }
       if (end == device.size()) { break; }
       beg = end + 1;
    }
 
    // OCCA_CUDA needs CUDA or RAJA_CUDA:
    if (Allows(Backend::OCCA_CUDA) && !Allows(Backend::RAJA_CUDA))
+   {
+      Get().MarkBackend(Backend::CUDA);
+   }
+   if (Allows(Backend::CEED_CUDA))
    {
       Get().MarkBackend(Backend::CUDA);
    }
@@ -109,11 +144,19 @@ void Device::Print(std::ostream &out)
       }
    }
    out << '\n';
+#ifdef MFEM_USE_CEED
+   if (Allows(Backend::CEED_MASK))
+   {
+      const char *ceed_backend;
+      CeedGetResource(internal::ceed, &ceed_backend);
+      out << "libCEED backend: " << ceed_backend << '\n';
+   }
+#endif
 }
 
 void Device::UpdateMemoryTypeAndClass()
 {
-   if (Device::Allows(Backend::CUDA_MASK))
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
       mem_type = MemoryType::CUDA;
       mem_class = MemoryClass::CUDA;
@@ -137,9 +180,9 @@ void Device::Enable()
 #ifdef MFEM_USE_CUDA
 static void DeviceSetup(const int dev, int &ngpu)
 {
-   MFEM_CUDA_CHECK(cudaGetDeviceCount(&ngpu));
+   ngpu = CuGetDeviceCount();
    MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
-   MFEM_CUDA_CHECK(cudaSetDevice(dev));
+   MFEM_GPU_CHECK(cudaSetDevice(dev));
 }
 #endif
 
@@ -147,6 +190,18 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
    DeviceSetup(dev, ngpu);
+#endif
+}
+
+static void HipDeviceSetup(const int dev, int &ngpu)
+{
+#ifdef MFEM_USE_HIP
+   int deviceId;
+   MFEM_GPU_CHECK(hipGetDevice(&deviceId));
+   hipDeviceProp_t props;
+   MFEM_GPU_CHECK(hipGetDeviceProperties(&props, deviceId));
+   MFEM_VERIFY(dev==deviceId,"");
+   ngpu = 1;
 #endif
 }
 
@@ -210,16 +265,34 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
+static void CeedDeviceSetup(const char* ceed_spec)
+{
+#ifdef MFEM_USE_CEED
+   CeedInit(ceed_spec, &internal::ceed);
+   const char *ceed_backend;
+   CeedGetResource(internal::ceed, &ceed_backend);
+   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self"))
+   {
+      mfem::out << std::endl << "WARNING!!!\n"
+                "libCEED is not using the requested backend!!!\n"
+                "WARNING!!!\n" << std::endl;
+   }
+#endif
+}
+
 void Device::Setup(const int device)
 {
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
 
    ngpu = 0;
    dev = device;
-
 #ifndef MFEM_USE_CUDA
    MFEM_VERIFY(!Allows(Backend::CUDA_MASK),
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");
+#endif
+#ifndef MFEM_USE_HIP
+   MFEM_VERIFY(!Allows(Backend::HIP_MASK),
+               "the HIP backends require MFEM built with MFEM_USE_HIP=YES");
 #endif
 #ifndef MFEM_USE_RAJA
    MFEM_VERIFY(!Allows(Backend::RAJA_MASK),
@@ -230,10 +303,40 @@ void Device::Setup(const int device)
                "the OpenMP and RAJA OpenMP backends require MFEM built with"
                " MFEM_USE_OPENMP=YES");
 #endif
+#ifndef MFEM_USE_CEED
+   MFEM_VERIFY(!Allows(Backend::CEED_MASK),
+               "the CEED backends require MFEM built with MFEM_USE_CEED=YES");
+#else
+   MFEM_VERIFY(!Allows(Backend::CEED_CPU) || !Allows(Backend::CEED_CUDA),
+               "Only one CEED backend can be enabled at a time!");
+#endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA)) { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
+   if (Allows(Backend::CEED_CPU))
+   {
+      if (!ceed_option)
+      {
+         CeedDeviceSetup("/cpu/self");
+      }
+      else
+      {
+         CeedDeviceSetup(ceed_option);
+      }
+   }
+   if (Allows(Backend::CEED_CUDA))
+   {
+      if (!ceed_option)
+      {
+         CeedDeviceSetup("/gpu/cuda/gen");
+      }
+      else
+      {
+         CeedDeviceSetup(ceed_option);
+      }
+   }
 }
 
 } // mfem

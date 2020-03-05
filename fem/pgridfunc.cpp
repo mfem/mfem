@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -225,11 +225,13 @@ void ParGridFunction::ExchangeFaceNbrData()
    MPI_Request *recv_requests = requests + num_face_nbrs;
    MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
 
+   const double *h_data = this->HostRead();
    for (int i = 0; i < send_data.Size(); i++)
    {
-      send_data[i] = data[send_ldof[i]];
+      send_data[i] = h_data[send_ldof[i]];
    }
 
+   double *h_face_nbr_data = face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
@@ -239,7 +241,7 @@ void ParGridFunction::ExchangeFaceNbrData()
                 send_offset[fn+1] - send_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&face_nbr_data(recv_offset[fn]),
+      MPI_Irecv(&h_face_nbr_data[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
@@ -424,33 +426,27 @@ void ParGridFunction::ProjectBdrCoefficient(
 {
    Array<int> values_counter;
    AccumulateAndCountBdrValues(coeff, vcoeff, attr, values_counter);
-   if (pfes->Conforming())
+
+   Vector values(Size());
+   for (int i = 0; i < values.Size(); i++)
    {
-      Vector values(Size());
-      for (int i = 0; i < values.Size(); i++)
+      values(i) = values_counter[i] ? (*this)(i) : 0.0;
+   }
+
+   // Count the values globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   // Accumulate the values globally.
+   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   // Only the values in the master are guaranteed to be correct!
+   for (int i = 0; i < values.Size(); i++)
+   {
+      if (values_counter[i])
       {
-         values(i) = values_counter[i] ? (*this)(i) : 0.0;
-      }
-      // Count the values globally.
-      GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
-      // Accumulate the values globally.
-      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
-      // Only the values in the master are guaranteed to be correct!
-      for (int i = 0; i < values.Size(); i++)
-      {
-         if (values_counter[i])
-         {
-            (*this)(i) = values(i)/values_counter[i];
-         }
+         (*this)(i) = values(i)/values_counter[i];
       }
    }
-   else
-   {
-      // TODO: is this the same as the conforming case (after the merge of
-      //       cut-mesh-groups-dev)?
-      ComputeMeans(ARITHMETIC, values_counter);
-   }
+
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    pfes->GetEssentialVDofs(attr, ess_vdofs_marker);
@@ -468,33 +464,27 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 {
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
-   if (pfes->Conforming())
+
+   Vector values(Size());
+   for (int i = 0; i < values.Size(); i++)
    {
-      Vector values(Size());
-      for (int i = 0; i < values.Size(); i++)
+      values(i) = values_counter[i] ? (*this)(i) : 0.0;
+   }
+
+   // Count the values globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   // Accumulate the values globally.
+   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+   // Only the values in the master are guaranteed to be correct!
+   for (int i = 0; i < values.Size(); i++)
+   {
+      if (values_counter[i])
       {
-         values(i) = values_counter[i] ? (*this)(i) : 0.0;
-      }
-      // Count the values globally.
-      GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
-      // Accumulate the values globally.
-      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
-      // Only the values in the master are guaranteed to be correct!
-      for (int i = 0; i < values.Size(); i++)
-      {
-         if (values_counter[i])
-         {
-            (*this)(i) = values(i)/values_counter[i];
-         }
+         (*this)(i) = values(i)/values_counter[i];
       }
    }
-   else
-   {
-      // TODO: is this the same as the conforming case (after the merge of
-      //       cut-mesh-groups-dev)?
-      ComputeMeans(ARITHMETIC, values_counter);
-   }
+
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
@@ -693,7 +683,7 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
 
 void ParGridFunction::ComputeFlux(
    BilinearFormIntegrator &blfi,
-   GridFunction &flux, int wcoef, int subdomain)
+   GridFunction &flux, bool wcoef, int subdomain)
 {
    ParFiniteElementSpace *ffes =
       dynamic_cast<ParFiniteElementSpace*>(flux.FESpace());

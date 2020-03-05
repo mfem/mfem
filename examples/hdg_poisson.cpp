@@ -6,10 +6,10 @@
 //            hdg_poisson -o 5 -r 1 -tr 4 -no-vis
 //            hdg_poisson -o 1 -r 4 -tr 1
 //            hdg_poisson -o 5 -r 4 -tr 1
-//            hdg_poisson -o 1 -r 1 -tr 4 -no-vis -m ../data/inline-tri
-//            hdg_poisson -o 5 -r 1 -tr 4 -no-vis -m ../data/inline-tri
-//            hdg_poisson -o 1 -r 5 -tr 1 -m ../data/inline-tri
-//            hdg_poisson -o 5 -r 5 -tr 1 -m ../data/inline-tri
+//            hdg_poisson -o 1 -r 1 -tr 4 -no-vis -m ../data/inline-tri.mesh
+//            hdg_poisson -o 5 -r 1 -tr 4 -no-vis -m ../data/inline-tri.mesh
+//            hdg_poisson -o 1 -r 5 -tr 1 -m ../data/inline-tri.mesh
+//            hdg_poisson -o 5 -r 5 -tr 1 -m ../data/inline-tri.mesh
 //
 // Description:  This example code solves the 2D/3D diffusion problem
 //                     -\nu Delta u = f

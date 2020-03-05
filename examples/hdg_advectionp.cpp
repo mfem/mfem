@@ -2,13 +2,13 @@
 //
 // Compile with: make advectionp
 //
-// Sample runs:  mpirun -np 1 advectionp -o 1 -r 4 -tr 1 -no-vis // test scalability
-//            mpirun -np 2 advectionp -o 1 -r 4 -tr 1 -no-vis // test scalability
-//            mpirun -np 4 advectionp -o 1 -r 4 -tr 1 -no-vis // test scalability
-//            mpirun -np 4 advectionp -o 1 -r 0 -tr 3 -no-vis // test conv rates
-//            mpirun -np 4 advectionp -o 1 -r 2 -tr 1 -no-vis // test scalability
-//            mpirun -np 2 advectionp -o 5 -r 4 -tr 1 -no-vis // test conv rates
-//            mpirun -np 2 advectionp -o 5 -r 5 -tr 1 -m ../data/inline-tri -no-vis // test
+// Sample runs:  mpirun -np 1 hdg_advectionp -o 1 -r 4 -tr 1 -no-vis // test scalability
+//            mpirun -np 2 hdg_advectionp -o 1 -r 4 -tr 1 -no-vis // test scalability
+//            mpirun -np 4 hdg_advectionp -o 1 -r 4 -tr 1 -no-vis // test scalability
+//            mpirun -np 4 hdg_advectionp -o 1 -r 0 -tr 3 -no-vis // test conv rates
+//            mpirun -np 4 hdg_advectionp -o 1 -r 2 -tr 1 -no-vis // test scalability
+//            mpirun -np 2 hdg_advectionp -o 5 -r 4 -tr 1 -no-vis // test conv rates
+//            mpirun -np 2 hdg_advectionp -o 5 -r 5 -tr 1 -m ../data/inline-tri.mesh -no-vis // test
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               finite element discretization of the advection-reaction problem
