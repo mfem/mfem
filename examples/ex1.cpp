@@ -143,6 +143,17 @@ int main(int argc, char *argv[])
    }
    fespace->Update(false);
 
+   Array<int> dofs;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      fespace->GetElementDofs(i, dofs);
+      mfem::out << "Element " << i << " DOFs:";
+      for (int j = 0; j < dofs.Size(); j++) {
+         mfem::out << " " << dofs[j];
+      }
+      mfem::out << std::endl;
+   }
+
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 

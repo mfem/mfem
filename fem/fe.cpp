@@ -40,22 +40,19 @@ FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
 void FiniteElement::CalcVShape (
    const IntegrationPoint &ip, DenseMatrix &shape) const
 {
-   mfem_error ("FiniteElement::CalcVShape (ip, ...)\n"
-               "   is not implemented for this class!");
+   MFEM_ABORT("method is not implemented for this class");
 }
 
 void FiniteElement::CalcVShape (
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
-   mfem_error ("FiniteElement::CalcVShape (trans, ...)\n"
-               "   is not implemented for this class!");
+   MFEM_ABORT("method is not implemented for this class");
 }
 
 void FiniteElement::CalcDivShape (
    const IntegrationPoint &ip, Vector &divshape) const
 {
-   mfem_error ("FiniteElement::CalcDivShape (ip, ...)\n"
-               "   is not implemented for this class!");
+   MFEM_ABORT("method is not implemented for this class");
 }
 
 void FiniteElement::CalcPhysDivShape(
@@ -68,8 +65,7 @@ void FiniteElement::CalcPhysDivShape(
 void FiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                   DenseMatrix &curl_shape) const
 {
-   mfem_error ("FiniteElement::CalcCurlShape (ip, ...)\n"
-               "   is not implemented for this class!");
+   MFEM_ABORT("method is not implemented for this class");
 }
 
 void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
@@ -99,87 +95,82 @@ void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
 
 void FiniteElement::GetFaceDofs(int face, int **dofs, int *ndofs) const
 {
-   mfem_error ("FiniteElement::GetFaceDofs (...)");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::CalcHessian (const IntegrationPoint &ip,
                                  DenseMatrix &h) const
 {
-   mfem_error ("FiniteElement::CalcHessian (...) is not overloaded !");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
                                            DenseMatrix &I) const
 {
-   mfem_error ("GetLocalInterpolation (...) is not overloaded !");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::GetLocalRestriction(ElementTransformation &,
                                         DenseMatrix &) const
 {
-   mfem_error("FiniteElement::GetLocalRestriction() is not overloaded !");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix &I) const
 {
-   MFEM_ABORT("method is not overloaded !");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   mfem_error ("FiniteElement::Project (...) is not overloaded !");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   mfem_error ("FiniteElement::Project (...) (vector) is not overloaded !");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::ProjectMatrixCoefficient(
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
 {
-   mfem_error("FiniteElement::ProjectMatrixCoefficient() is not overloaded !");
+   MFEM_ABORT("method is not overloaded");
 }
 
 void FiniteElement::ProjectDelta(int vertex, Vector &dofs) const
 {
-   mfem_error("FiniteElement::ProjectDelta(...) is not implemented for "
-              "this element!");
+   MFEM_ABORT("method is not implemented for this element");
 }
 
 void FiniteElement::Project(
    const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
 {
-   mfem_error("FiniteElement::Project(...) (fe version) is not implemented "
-              "for this element!");
+   MFEM_ABORT("method is not implemented for this element");
 }
 
 void FiniteElement::ProjectGrad(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &grad) const
 {
-   mfem_error("FiniteElement::ProjectGrad(...) is not implemented for "
-              "this element!");
+   MFEM_ABORT("method is not implemented for this element");
 }
 
 void FiniteElement::ProjectCurl(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &curl) const
 {
-   mfem_error("FiniteElement::ProjectCurl(...) is not implemented for "
-              "this element!");
+   MFEM_ABORT("method is not implemented for this element");
 }
 
 void FiniteElement::ProjectDiv(
    const FiniteElement &fe, ElementTransformation &Trans,
    DenseMatrix &div) const
 {
-   mfem_error("FiniteElement::ProjectDiv(...) is not implemented for "
-              "this element!");
+   MFEM_ABORT("method is not implemented for this element");
 }
 
 void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
@@ -206,8 +197,7 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
 const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &,
                                              DofToQuad::Mode) const
 {
-   mfem_error("FiniteElement::GetDofToQuad(...) is not implemented for "
-              "this element!");
+   MFEM_ABORT("method is not implemented for this element");
    return *dof2quad_array[0]; // suppress a warning
 }
 

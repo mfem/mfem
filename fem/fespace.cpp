@@ -1607,7 +1607,7 @@ int FiniteElementSpace::FindEdgeDof(int edge, int pdof) const
    while (beg < end)
    {
       // return the appropriate range of DOFs
-      if ((*end - *beg) == pdof) { return *beg; }
+      if ((beg[1] - beg[0]) == pdof) { return beg[0]; }
       beg++;
    }
 
@@ -1872,31 +1872,48 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 
 int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
 {
-   int j, k, nv, ne;
-   Array<int> V; // TODO: LocalArray
+   int p, ne, base;
+   if (IsVariableOrder())
+   {
+      const int* beg = edge_dof.GetRow(edge);
+      const int* end = edge_dof.GetRow(edge + 1);
+      if (var >= end - beg) { return -1; } // past last edge DOFs
 
-   nv = fec->DofForGeometry(Geometry::POINT);
-   if (nv > 0)
-   {
-      mesh->GetEdgeVertices(edge, V);
+      base = beg[var];
+      ne = beg[var+1] - base;
+
+      p = ne + 1;
+      MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, p) == ne, "");
+      // TODO: how to safely deduce 'p' from the number of edge DOFs?
    }
-   ne = fec->DofForGeometry(Geometry::SEGMENT);
-   dofs.SetSize(2*nv+ne);
-   if (nv > 0)
+   else
    {
-      for (k = 0; k < 2; k++)
+      MFEM_ASSERT(var == 0, "");
+      p = fec->DefaultOrder();
+      ne = fec->GetNumDof(Geometry::SEGMENT, p);
+      base = nvdofs + edge*ne;
+   }
+
+   Array<int> V; // TODO: LocalArray
+   int nv = fec->GetNumDof(Geometry::POINT, p);
+   if (nv) { mesh->GetEdgeVertices(edge, V); }
+
+   dofs.SetSize(0);
+   dofs.Reserve(2*nv + ne);
+
+   for (int i = 0; i < 2; i++)
+   {
+      for (int j = 0; j < nv; j++)
       {
-         for (j = 0; j < nv; j++)
-         {
-            dofs[k*nv+j] = V[k]*nv+j;
-         }
+         dofs.Append(V[i]*nv + j);
       }
    }
-   nv *= 2;
-   for (j = 0, k = nvdofs+edge*ne; j < ne; j++, k++)
+   for (int j = 0; j < ne; j++)
    {
-      dofs[nv+j] = k;
+      dofs.Append(base + j);
    }
+
+   return p;
 }
 
 void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
