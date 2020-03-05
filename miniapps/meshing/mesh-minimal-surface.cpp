@@ -32,11 +32,13 @@
 // Device sample runs:
 //               mesh-minimal-surface -d cuda
 
-#include <cassert>
 #include "mfem.hpp"
+#include <fstream>
+#include <iostream>
+
+#include "../../../dbg.hpp"
 #include "linalg/densemat.hpp"
 #include "../../general/forall.hpp"
-#include "../../../dbg.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -47,7 +49,7 @@ constexpr int SDIM = 3;
 constexpr double PI = M_PI;
 constexpr double NRM = 1.e-4;
 constexpr double EPS = 1.e-14;
-//constexpr double AMR_PROB = 0.25;
+constexpr double AMR_THRESHOLD = 0.2;
 constexpr Element::Type QUAD = Element::QUADRILATERAL;
 constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
@@ -100,16 +102,16 @@ public:
    Surface(Opt &opt, const char *file): Mesh(file, true),
       S(static_cast<T*>(this)), opt(opt) { Postflow(); }
 
+   // Generate 2D generic empty surface mesh
+   Surface(Opt &opt, bool): Mesh(),
+      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
+
    // Generate 2D quad surface mesh
    Surface(Opt &opt): Mesh(opt.nx, opt.ny, QUAD, true, 1.0, 1.0, false),
       S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
 
    // Generate 2D generic surface mesh
    Surface(Opt &opt, int NV, int NE, int NBE): Mesh(DIM, NV, NE, NBE, SDIM),
-      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
-
-   // Generate 2D generic empty surface mesh
-   Surface(Opt &opt, bool): Mesh(),
       S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
 
    void Preflow() { S->Prefix(); S->Create(); }
@@ -134,11 +136,6 @@ public:
    void Refine()
    {
       for (int l = 0; l < opt.refine; l++) { UniformRefinement(); }
-      if (opt.amr)
-      {
-         EnsureNCMesh();
-         RandomRefinement(0.0);
-      }
    }
 
    void Snap()
@@ -164,6 +161,7 @@ public:
 
    void GenFESpace()
    {
+      dbg("");
       fec = new H1_FECollection(opt.order, DIM);
       msh = new Mesh(*this, true);
       fes = new FiniteElementSpace(msh, fec, opt.vdim);
@@ -818,7 +816,7 @@ static void Visualize(const Opt &opt)
 template<class Type> class SurfaceSolver
 {
 protected:
-   const Opt &opt;
+   Opt &opt;
    Mesh *mesh;
    Vector X, B;
    OperatorPtr A;
@@ -831,7 +829,7 @@ protected:
    const int print_iter = -1, max_num_iter = 2000;
    const double RTOLERANCE = EPS, ATOLERANCE = EPS*EPS;
 public:
-   SurfaceSolver(const Opt &opt):
+   SurfaceSolver(Opt &opt):
       opt(opt), mesh(opt.mesh), fes(opt.fes),
       a(fes), x(fes), x0(fes), b(fes), one(1.0),
       solver(static_cast<Type*>(this)), M(nullptr) { }
@@ -840,12 +838,12 @@ public:
 
    void Solve()
    {
-      Amr();
       if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
       for (int i=0; i < opt.max_iter; ++i)
       {
          if (MyRank == 0)
          { mfem::out << "Linearized iteration " << i << ": "; }
+         Amr();
          Update();
          a.Assemble();
          if (solver->Loop()) { break; }
@@ -919,7 +917,7 @@ public:
    void Amr()
    {
       if (!opt.amr) { return; }
-      Array<int> refs;
+      Array<Refinement> refs;
       const int NE = mesh->GetNE();
       const IntegrationRule *ir = &IntRules.Get(Geometry::SQUARE, opt.order);
       for (int i = 0; i < NE; i++)
@@ -931,7 +929,7 @@ public:
          {
             transf->SetIntPoint(&ir->IntPoint(j));
             const DenseMatrix &J = transf->Jacobian();
-            DenseMatrix JJT(3,3);
+            DenseMatrix JJT(SDIM, SDIM);
             MultAAt(J, JJT);
             const double det = fabs(JJT.Det());
             minJ = fmin(minJ, det);
@@ -942,46 +940,25 @@ public:
          if (fabs(maxJ) != 0.0)
          {
             const double rho = minJ / maxJ;
-            dbg("\033[33m J min/max/rho = (%.8e, %.8e, %.8e)", minJ, maxJ, rho);
             MFEM_VERIFY(rho <= 1.0,"");
-            const bool refine = rho < 0.1;
-            if (refine)
-            {
-               bool be = false;
-               for (int b = 0; b < fes->GetNBE(); b++)
-               {
-                  if (i == b)
-                  {
-                     dbg("\033[33m BDR! el #%d",i);
-                     be = true;
-                     break;
-                  }
-               }
-               if (!be)
-               {
-                  dbg("\033[33m Adding el #%d",i);
-                  refs.Append(i);
-               }
-            }
+            if (rho < AMR_THRESHOLD) { refs.Append(Refinement(i,3)); }
          }
       }
       if (refs.Size()>0)
       {
-         refs.Unique();
-         refs.Sort();
-         dbg("refs:"); refs.Print();
-         Array<Refinement> refinements;
-         for (int i=0; i<refs.Size(); i++)
-         {
-            const int k = refs.operator[](i);
-            refinements.Append(Refinement(k,3));
-         }
          const int nonconforming = -1;
-         const int nc_limit = 3;
-         mesh->GeneralRefinement(refinements, nonconforming, nc_limit);
+         const int nc_limit = 2;
+         mesh->GeneralRefinement(refs, nonconforming, nc_limit);
          fes->Update();
          x.Update();
          a.Update();
+         b.Update();
+         if (mesh->bdr_attributes.Size())
+         {
+            Array<int> ess_bdr(mesh->bdr_attributes.Max());
+            ess_bdr = 1;
+            fes->GetEssentialTrueDofs(ess_bdr, opt.bc);
+         }
       }
       if (opt.vis) { Visualize(opt); }
    }
