@@ -38,7 +38,7 @@ ifeq ($(MFEM_USE_MPI), YES)
 endif
 
 # valgrind-test setup
-PROBLEM = 0
+PROBLEM = 4
 VALGRIND-CONFIG = -tf 0.01 -dt 0.001 -p $(PROBLEM) -e 0
 
 # grid-convergence-test setup
@@ -57,8 +57,8 @@ CONFIG-NAME = p3e0o3-$(GEOM)
 
 # EULER
 MESH = data/periodic-tri.mesh
-CONFIG = -p 4 -e 0 -o 1 -c 0 -tf 1 -dt 0.00025 -s 3 -vs 1000
-CONFIG-NAME = p4e0o1-$(GEOM)
+CONFIG = -p 4 -e 0 -o 2 -c 0 -tf 1 -dt 0.0002 -s 3 -vs 1000
+CONFIG-NAME = p4e0o2-$(GEOM)
 
 ## Makefile rules. #############################################################
 
@@ -99,6 +99,8 @@ valgrind-test:
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/inline-4tri.mesh -r 2 -o 2
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/unstr.mesh -r 0 -o 3
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-cube.mesh -r 1 -o 2
+
+valgrind-parallel:
 
 grid-convergence-advection:
 	rm errors.txt; \

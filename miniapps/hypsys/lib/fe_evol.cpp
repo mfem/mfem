@@ -177,13 +177,6 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    }
 }
 
-FE_Evolution::~FE_Evolution()
-{
-   delete MassMat;
-   delete InvMassMat;
-}
-
-
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    switch (scheme)

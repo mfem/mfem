@@ -61,7 +61,11 @@ public:
                 DofInfo &dofs_, EvolutionScheme scheme_,
                 const Vector &LumpedMassMat_);
 
-   virtual ~FE_Evolution();
+   virtual ~FE_Evolution()
+   {
+      delete MassMat;
+      delete InvMassMat;
+   }
 
    void Mult(const Vector &x, Vector &y) const override;
    void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
