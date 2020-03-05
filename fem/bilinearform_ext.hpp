@@ -104,11 +104,16 @@ class PABilinearFormExtension : public BilinearFormExtension
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
-   const ElementRestriction *elem_restrict_lex; // Not owned
+   mutable Vector faceIntX, faceIntY;
+   mutable Vector faceBdrX, faceBdrY;
+   const Operator *elem_restrict; // Not owned
+   const Operator *int_face_restrict_lex; // Not owned
+   const Operator *bdr_face_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
 
+   void SetupRestrictionOperators();
    void Assemble();
    void AssembleDiagonal(Vector &diag) const;
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);

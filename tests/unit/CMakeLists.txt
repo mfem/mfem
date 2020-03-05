@@ -38,6 +38,7 @@ set(UNIT_TESTS_SRCS
   fem/test_assemblediagonalpa.cpp
   fem/test_calcshape.cpp
   fem/test_datacollection.cpp
+  fem/test_face_permutation.cpp
   fem/test_fe.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
