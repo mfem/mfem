@@ -493,6 +493,35 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
+
+const Operator *ParFiniteElementSpace::GetFaceRestriction(
+   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+{
+   const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
+   const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
+                          L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
+   auto key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   auto itr = L2F.find(key);
+   if (itr != L2F.end())
+   {
+      return itr->second;
+   }
+   else
+   {
+      Operator* res;
+      if (is_dg_space)
+      {
+         res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+      }
+      else
+      {
+         res = new H1FaceRestriction(*this, e_ordering, type);
+      }
+      L2F[key] = res;
+      return res;
+   }
+}
+
 void ParFiniteElementSpace::GetSharedEdgeDofs(
    int group, int ei, Array<int> &dofs) const
 {

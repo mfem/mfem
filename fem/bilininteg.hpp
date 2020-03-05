@@ -50,6 +50,10 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -202,6 +206,33 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace& fes)
+   {
+      bfi->AssemblePA(fes);
+   }
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
+   {
+      bfi->AssemblePAInteriorFaces(fes);
+   }
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes)
+   {
+      bfi->AssemblePABoundaryFaces(fes);
+   }
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const
+   {
+      bfi->AddMultPA(x, y);
+   }
+
+   virtual void AddMultPA(const Vector& x, Vector& y) const
+   {
+      bfi->AddMultTransposePA(x, y);
+   }
 
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
@@ -1933,19 +1964,17 @@ class ConvectionIntegrator : public BilinearFormIntegrator
 protected:
    VectorCoefficient *Q;
    double alpha;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
 
 private:
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
    Vector shape, vec2, BdFidxT;
 #endif
-
-   // PA extension
-   Vector pa_data;
-   Vector coeff;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
 
 public:
    ConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
@@ -1959,6 +1988,9 @@ public:
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(const FiniteElement &el,
+                                         ElementTransformation &Trans);
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -2457,6 +2489,11 @@ protected:
    Coefficient *rho;
    VectorCoefficient *u;
    double alpha, beta;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;             ///< Not owned
+   const FaceGeometricFactors *geom;  ///< Not owned
+   int dim, nf, nq, dofs1D, quad1D;
 
 private:
    Vector shape1, shape2;
@@ -2475,6 +2512,22 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         FaceElementTransformations &T);
+
+private:
+   void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
 /** Integrator for the DG form:
