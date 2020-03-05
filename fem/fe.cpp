@@ -241,10 +241,12 @@ void ScalarFiniteElement::NodalLocalInterpolation (
       f_ip.Set(v, Dim);
       CalcShape(f_ip, c_shape);
       for (int j = 0; j < Dof; j++)
+      {
          if (fabs(I(i,j) = c_shape(j)) < 1.0e-12)
          {
             I(i,j) = 0.0;
          }
+      }
    }
    if (MapType == INTEGRAL)
    {
