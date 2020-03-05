@@ -9,86 +9,87 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// #ifndef MFEM_ELEMMAT
-// #define MFEM_ELEMMAT
+#ifndef MFEM_ELEMMAT
+#define MFEM_ELEMMAT
 
-// #include "../general/cuda.hpp"
-// #include "vector.hpp"
+#include "../general/cuda.hpp"
+#include "../general/forall.hpp"
+#include "vector.hpp"
 
-// namespace mfem
-// {
+namespace mfem
+{
 
-// template <typename Scalar>
-// class EMat
-// {
-// private:
-//    const int ne;
-//    const int ndofs;
-//    Scalar *data;
+template <typename Scalar>
+class EMat
+{
+private:
+   const int ne;
+   const int ndofs;
+   const Scalar *data;
 
-// public:
-//    EMat(Scalar *ptr, const int ne, const int ndofs)
-//    : ne(ne), ndofs(ndofs), data(ptr)
-//    {
-//    }
+public:
+   EMat(const Scalar *ptr, const int ne, const int ndofs)
+   : ne(ne), ndofs(ndofs), data(ptr)
+   {
+   }
 
-//    // void AddMult(const Vector &x, Vector &y) const
-//    // {
-//    //    auto X = Reshape(x.Read(), ndofs, ne);
-//    //    auto Y = Reshape(y.ReadWrite(), ndofs, ne);
-//    //    auto A = Reshape(data, ndofs, ndofs, ne);
-//    //    MFEM_FORALL(glob_j, ne*ndofs,
-//    //    {
-//    //       const int e = glob_j/ndofs;
-//    //       const int j = glob_j%ndofs;
-//    //       Scalar res = 0.0;
-//    //       for (int i = 0; i < ndofs; i++)
-//    //       {
-//    //          res += A(i, j, e)*X(i, e);
-//    //       }
-//    //       Y(j, e) += res;
-//    //    }
-//    // }
+   void AddMult(const Vector &x, Vector &y) const
+   {
+      auto X = Reshape(x.Read(), ndofs, ne);
+      auto Y = Reshape(y.ReadWrite(), ndofs, ne);
+      auto A = Reshape(data, ndofs, ndofs, ne);
+      MFEM_FORALL(glob_j, ne*ndofs,
+      {
+         const int e = glob_j/ndofs;
+         const int j = glob_j%ndofs;
+         Scalar res = 0.0;
+         for (int i = 0; i < ndofs; i++)
+         {
+            res += A(i, j, e)*X(i, e);
+         }
+         Y(j, e) += res;
+      });
+   }
 
-//    // EMat<Scalar>& operator+=(const EMat<Scalar> &rhs)
-//    // {
-//    //    auto A = Reshape(data, ndofs, ndofs, ne);
-//    //    MFEM_FORALL_2D(e, ne, ndofs, ndofs, 1,
-//    //    {
-//    //       MFEM_FOREACH_THREAD(i,x,ndofs)
-//    //       {
-//    //          MFEM_FOREACH_THREAD(j,y,ndofs)
-//    //          {
-//    //             (*this)(e,i,j) += rhs(e,i,j);
-//    //          }
-//    //       }
-//    //    }
-//    //    return *this;
-//    // }
+   // EMat<Scalar>& operator+=(const EMat<Scalar> &rhs)
+   // {
+   //    auto A = Reshape(data, ndofs, ndofs, ne);
+   //    MFEM_FORALL_2D(e, ne, ndofs, ndofs, 1,
+   //    {
+   //       MFEM_FOREACH_THREAD(i,x,ndofs)
+   //       {
+   //          MFEM_FOREACH_THREAD(j,y,ndofs)
+   //          {
+   //             (*this)(e,i,j) += rhs(e,i,j);
+   //          }
+   //       }
+   //    }
+   //    return *this;
+   // }
 
-//    // MFEM_HOST_DEVICE inline
-//    // Scalar& operator()(const int e, const int i, const int j)
-//    // {
-//    //    return data[e*ndofs*ndofs + j*ndofs + i];
-//    // }
+   // MFEM_HOST_DEVICE inline
+   // Scalar& operator()(const int e, const int i, const int j)
+   // {
+   //    return data[e*ndofs*ndofs + j*ndofs + i];
+   // }
 
-//    // // bofbof
-//    // MFEM_HOST_DEVICE
-//    // void SetEMat(const int e, const Vector e_mat)
-//    // {
-//    //    auto A = Reshape(data, ndofs, ndofs, ne);
-//    //    auto mat = Reshape(e_mat.Read(), ndofs, ndofs);
-//    //    for (int i = 0; i < ndofs; i++)
-//    //    {
-//    //       for (int j = 0; j < ndofs; j++)
-//    //       {
-//    //          A(i, j, e) = mat(i, j);
-//    //       }
-//    //    }
-//    // }
-// };
+   // // bofbof
+   // MFEM_HOST_DEVICE
+   // void SetEMat(const int e, const Vector e_mat)
+   // {
+   //    auto A = Reshape(data, ndofs, ndofs, ne);
+   //    auto mat = Reshape(e_mat.Read(), ndofs, ndofs);
+   //    for (int i = 0; i < ndofs; i++)
+   //    {
+   //       for (int j = 0; j < ndofs; j++)
+   //       {
+   //          A(i, j, e) = mat(i, j);
+   //       }
+   //    }
+   // }
+};
 
-// using ElementMatrix = EMat<double>;
+using ElementMatrix = EMat<double>;
 
 // template <typename Scalar>
 // void L1Smoother(EMat<Scalar> &A, Vector &s)
@@ -109,6 +110,6 @@
 //    }
 // }
 
-// }
+}
 
-// #endif
+#endif
