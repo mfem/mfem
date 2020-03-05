@@ -50,8 +50,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    elem_restrict_lex = dynamic_cast<const ElementRestriction*>(elem_restrict);
    if (elem_restrict_lex)
    {
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetDeviceMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetDeviceMemoryType());
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
 }

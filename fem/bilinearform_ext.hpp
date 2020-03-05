@@ -34,7 +34,7 @@ public:
    BilinearFormExtension(BilinearForm *form);
 
    virtual MemoryClass GetMemoryClass() const
-   { return Device::GetMemoryClass(); }
+   { return Device::GetDeviceMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const;

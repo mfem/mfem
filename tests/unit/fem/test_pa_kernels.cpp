@@ -239,7 +239,7 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 
 double test_nl_convection_nd(int dim)
 {
-   Mesh *mesh;
+   Mesh *mesh = nullptr;
 
    if (dim == 2)
    {
@@ -291,15 +291,10 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
 template <typename INTEGRATOR>
 double test_vector_pa_integrator(int dim)
 {
-   Mesh *mesh;
-   if (dim == 2)
-   {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
-   }
+   Mesh *mesh =
+      (dim == 2) ?
+      new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
+      new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
 
    int order = 2;
    H1_FECollection fec(order, dim);

@@ -78,6 +78,8 @@ void OmpWrap(const int N, HBODY &&h_body)
       h_body(k);
    }
 #else
+   MFEM_CONTRACT_VAR(N);
+   MFEM_CONTRACT_VAR(h_body);
    MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
 #endif
 }
@@ -162,6 +164,8 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 #ifdef MFEM_USE_RAJA
    RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
 #else
+   MFEM_CONTRACT_VAR(N);
+   MFEM_CONTRACT_VAR(h_body);
    MFEM_ABORT("RAJA requested but RAJA is not enabled!");
 #endif
 }
@@ -296,6 +300,10 @@ inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
                        const int X=0, const int Y=0, const int Z=0)
 {
+   MFEM_CONTRACT_VAR(X);
+   MFEM_CONTRACT_VAR(Y);
+   MFEM_CONTRACT_VAR(Z);
+   MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
@@ -333,6 +341,8 @@ inline void ForallWrap(const bool use_dev, const int N,
    if (DIM == 3 && Device::Allows(Backend::HIP_MASK))
    { return HipWrap3D(N, d_body, X, Y, Z); }
 #endif
+
+   if (Device::Allows(Backend::DEBUG)) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // Handle all allowed OpenMP backends except Backend::OMP

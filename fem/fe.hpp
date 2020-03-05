@@ -1715,6 +1715,7 @@ private:
    typedef std::map< int, Array<double*>* > PointsMap;
    typedef std::map< int, Array<Basis*>* > BasisMap;
 
+   MemoryType h_mt;
    PointsMap points_container;
    BasisMap  bases_container;
 
@@ -1731,7 +1732,7 @@ private:
    QuadratureFunctions1D quad_func;
 
 public:
-   Poly_1D() { }
+   Poly_1D(): h_mt(MemoryType::HOST) { }
 
    /** @brief Get a pointer to an array containing the binomial coefficients "p
        choose k" for k=0,...,p for the given p. */

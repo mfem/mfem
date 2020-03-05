@@ -227,7 +227,7 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
    Vector coeff;
    if (Q == nullptr)
    {

@@ -475,9 +475,9 @@ SparseMatrix * BlockMatrix::CreateMonolithic() const
 {
    int nnz = NumNonZeroElems();
 
-   int * i_amono = new int[row_offsets[nRowBlocks]+2];
-   int * j_amono = new int[nnz];
-   double * data = new double[nnz];
+   int * i_amono = Memory<int>(row_offsets[nRowBlocks]+2);
+   int * j_amono = Memory<int>(nnz);
+   double * data = Memory<double>(nnz);
 
    for (int i = 0; i < row_offsets[nRowBlocks]+2; i++)
    {

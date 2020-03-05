@@ -13,7 +13,6 @@ set(PERFORMANCE_CXX_OPTIONS)
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-march=native"
-    "-std=c++11"
     "-Wpedantic"
     "-Wall"
     "-fcolor-diagnostics"
@@ -24,10 +23,11 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
     "-march=native"
-    "-std=c++11"
-    "-pedantic"
     "-Wall"
     "--param" "max-completely-peel-times=3")
+  if (NOT MFEM_USE_CUDA)
+     list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
+  endif()
 endif()
 
 add_mfem_miniapp(performance_ex1

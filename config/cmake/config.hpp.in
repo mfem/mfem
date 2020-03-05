@@ -129,6 +129,9 @@
 // Enable MFEM functionality based on the libCEED library
 #cmakedefine MFEM_USE_CEED
 
+// Enable MFEM functionality based on the Umpire library
+#cmakedefine MFEM_USE_UMPIRE
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.

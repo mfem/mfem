@@ -137,6 +137,7 @@ MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
+MFEM_USE_UMPIRE        = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -352,6 +353,11 @@ ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+
+# UMPIRE library configuration
+UMPIRE_DIR = @MFEM_DIR@/../umpire
+UMPIRE_OPT = -I$(UMPIRE_DIR)/include
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # If YES, enable some informational messages
 VERBOSE = NO

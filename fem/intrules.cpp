@@ -862,27 +862,28 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
    own_rules = 1;
 
-   PointIntRules.SetSize(2);
+   const MemoryType h_mt = MemoryType::HOST;
+   PointIntRules.SetSize(2, h_mt);
    PointIntRules = NULL;
 
-   SegmentIntRules.SetSize(32);
+   SegmentIntRules.SetSize(32, h_mt);
    SegmentIntRules = NULL;
 
    // TriangleIntegrationRule() assumes that this size is >= 26
-   TriangleIntRules.SetSize(32);
+   TriangleIntRules.SetSize(32, h_mt);
    TriangleIntRules = NULL;
 
-   SquareIntRules.SetSize(32);
+   SquareIntRules.SetSize(32, h_mt);
    SquareIntRules = NULL;
 
    // TetrahedronIntegrationRule() assumes that this size is >= 10
-   TetrahedronIntRules.SetSize(32);
+   TetrahedronIntRules.SetSize(32, h_mt);
    TetrahedronIntRules = NULL;
 
-   PrismIntRules.SetSize(32);
+   PrismIntRules.SetSize(32, h_mt);
    PrismIntRules = NULL;
 
-   CubeIntRules.SetSize(32);
+   CubeIntRules.SetSize(32, h_mt);
    CubeIntRules = NULL;
 }
 

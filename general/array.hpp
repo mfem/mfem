@@ -57,6 +57,9 @@ public:
    /// Creates an empty array
    inline Array() : size(0) { data.Reset(); }
 
+   /// Creates an empty array with a given MemoryType
+   inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
+
    /// Creates array of asize elements
    explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
