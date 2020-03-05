@@ -34,7 +34,7 @@ enum class MemoryType
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
-   DEVICE_DEBUG,   /**< Pseudo device memory; allocated on host from a
+   DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
    DEVICE_UMPIRE,  ///< Device memory; using Umpire
    SIZE            ///< Number of host and device memory types

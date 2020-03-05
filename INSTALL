@@ -422,9 +422,9 @@ MFEM_USE_PUMI = YES/NO
    support for parallel unstructured mesh modifications in MFEM.
 
 MFEM_USE_UMPIRE = YES/NO
-   Enables support for Umpire, which is a resource management library that
-   allows the discovery, provision, and management of memory on machines
-   with multiple memory devices like NUMA and GPUs.
+   Enables support for Umpire, a resource management library that allows the
+   discovery, provision, and management of memory on machines with multiple
+   memory devices like NUMA and GPUs.
 
 MFEM_USE_HIOP = YES/NO
   Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
