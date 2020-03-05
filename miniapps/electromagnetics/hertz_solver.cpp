@@ -16,7 +16,7 @@
 using namespace std;
 namespace mfem
 {
-using namespace miniapps;
+using namespace common;
 
 namespace electromagnetics
 {

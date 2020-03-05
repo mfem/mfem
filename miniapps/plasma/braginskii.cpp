@@ -46,7 +46,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 using namespace mfem::plasma;
 
 // Choice for the problem setup. See InitialCondition in ex18.hpp.
