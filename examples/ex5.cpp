@@ -265,9 +265,12 @@ int main(int argc, char *argv[])
    visit_dc.Save();
 
    // 14. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("PVExample5S", mesh);
-   paraview_dc.SetLevelsOfDetail(2);
-   paraview_dc.SetCycle(1);
+   ParaViewDataCollection paraview_dc("Example5", mesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetTime(0.0); // set the time
    paraview_dc.RegisterField("velocity",&u);
    paraview_dc.RegisterField("pressure",&p);
