@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH
 #define MFEM_MESH
@@ -22,7 +22,7 @@
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
-#include "../general/gzstream.hpp"
+#include "../general/zstr.hpp"
 #include <iostream>
 
 namespace mfem
@@ -651,7 +651,7 @@ public:
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
        (default) edges are not generated, if 1 edges are generated. */
-   /// \see mfem::igzstream() for on-the-fly decompression of compressed ascii
+   /// \see mfem::ifgzstream() for on-the-fly decompression of compressed ascii
    /// inputs.
    virtual void Load(std::istream &input, int generate_edges = 0,
                      int refine = 1, bool fix_orientation = true)
@@ -1159,17 +1159,17 @@ public:
    virtual void PrintXG(std::ostream &out = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
    /// Print the mesh in VTK format (linear and quadratic meshes only).
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes). */
@@ -1189,7 +1189,7 @@ public:
    /** @brief Prints the mesh with boundary elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has boundary
        attribute i+1. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
                                std::ostream &out, int elem_attr = 0) const;
 
@@ -1368,18 +1368,6 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy,
 
 /// Extrude a 2D mesh
 Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz);
-
-
-/// Input file stream that remembers the input file name (useful for example
-/// when reading NetCDF meshes) and supports optional gzstream decompression.
-class named_ifgzstream : public mfem::ifgzstream
-{
-public:
-   const char *filename;
-   named_ifgzstream(const char *mesh_name) :
-      mfem::ifgzstream(mesh_name), filename(mesh_name) {}
-};
-
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)
