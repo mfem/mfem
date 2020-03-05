@@ -264,6 +264,15 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
+   /** Returns an Operator that converts L-vectors to E-vectors on each face.
+       The parallel version is different from the serial one because of the
+       presence of shared faces. Shared faces are treated as interior faces,
+       the returned operator handles the communication needed to get the
+       shared face values from other MPI ranks */
+   virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType type,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
+
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
    void GetSharedQuadrilateralDofs(int group, int fi, Array<int> &dofs) const;
