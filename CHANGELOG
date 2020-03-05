@@ -8,26 +8,10 @@
                                http://mfem.org
 
 
-Version 4.1, released on Feb 29, 2020
-=====================================
+Version 4.1, released on March 9, 2020
+======================================
 
 Starting with this version, the MFEM open source license is changed to BSD-3.
-
-Partial Assembly for Discontinous Galerkin methods support
-----------------------------------------------------------
-- Added initial support for matrix free Discontinuous Galerkin methods using
-  a partial assembly operator decomposition. The implementation builds up on
-  the GPU/device support and extends it to easily support face integrators.
-  This initial support requires Gauss-Lobatto basis.
-
-- ex9 and ex9p are now supporting partial assembly on CPU and GPU devices.
-  Using partial assembly provides significantly improved performance,
-  particularly on high-order 3D problems using GPU devices.
-
-- Include the implementation of a first face integrator: DGTraceIntegrator.
-  Generic and optimnized implementations are provided.
-
-- Improved performance for Convection integrator using partial assembly.
 
 Improved GPU support
 --------------------
@@ -100,6 +84,22 @@ Meshing improvements
 - The TMOP mesh optimization algorithms were improved to support AMR meshes.
 
 - Improved element numbering after uniform mesh refinement.
+
+Partial Assembly for Discontinous Galerkin methods support
+----------------------------------------------------------
+- Added initial support for matrix free Discontinuous Galerkin methods using
+  a partial assembly operator decomposition. The implementation builds up on
+  the GPU/device support and extends it to easily support face integrators.
+  This initial support requires Gauss-Lobatto basis.
+
+- ex9 and ex9p are now supporting partial assembly on CPU and GPU devices.
+  Using partial assembly provides significantly improved performance,
+  particularly on high-order 3D problems using GPU devices.
+
+- Include the implementation of a first face integrator: DGTraceIntegrator.
+  Generic and optimnized implementations are provided.
+
+- Improved performance for Convection integrator using partial assembly.
 
 Discretization improvements
 ---------------------------
