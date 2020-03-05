@@ -478,6 +478,73 @@ IRSolver::IRSolver(
 }
 
 
+/* ---------------------- GinkgoPreconditioner ------------------------ */
+void GinkgoPreconditionerBase::Mult(const Vector &x, Vector &y) const
+{
+
+   if (!iterative_mode)
+   {
+      y = 0.0;
+   }
+ 
+   //Create Ginkgo wrapped-vectors
+   bool on_device = false;
+   if (exec_ != exec_->get_master()) {
+      on_device = true;
+   }
+   using vec = gko::matrix::Dense<double>;
+   auto gko_x = vec::create(exec_, gko::dim<2>{x.Size(), 1}, 
+                            gko::Array<double>::view(exec_,
+                            x.Size(), const_cast<double *>(
+                                            x.Read(on_device))), 1);
+
+   auto gko_y = vec::create(exec_, gko::dim<2>{y.Size(), 1}, 
+                            gko::Array<double>::view(exec_,
+                            y.Size(), y.ReadWrite(on_device)), 1);
+ 
+   gko_precond_.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
+
+}
+ 
+void GinkgoPreconditionerBase::SetOperator(const Operator &op)
+{
+
+  // Only accept SparseMatrix for this type (see SparseSmoother::SetOperator)
+  SparseMatrix *op_mat = const_cast<SparseMatrix*>(
+                                 dynamic_cast<const SparseMatrix*>(&op));
+  if (op_mat == NULL)
+  {
+    mfem_error("GinkgoPreconditioner::SetOperator : not a SparseMatrix!");
+  }
+  height = op_mat->Height();
+  width = op_mat->Width();
+
+  // Release current preconditioner
+  gko_precond_.release();
+
+  bool on_device = false;
+  if (exec_ != exec_->get_master()) {
+     on_device = true;
+  }
+  
+  using mtx = gko::matrix::Csr<double, int>; 
+  auto gko_sparse = mtx::create(
+       exec_, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+               gko::Array<double>::view(exec_, 
+                                        op_mat->NumNonZeroElems(),
+                                        op_mat->ReadWriteData(on_device)),
+               gko::Array<int>::view(exec_,
+                                     op_mat->NumNonZeroElems(),
+                                     op_mat->ReadWriteJ(on_device)),
+               gko::Array<int>::view(exec_,
+                                     op_mat->Height() + 1,
+                                     op_mat->ReadWriteI(on_device)));
+  gko_precond_ = gko_precond_factory_.get()->generate(
+                                              gko::give(gko_sparse));
+
+}
+
+
 } // namespace GinkgoWrappers
 
 } // namespace mfem

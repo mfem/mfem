@@ -12,6 +12,7 @@
 set(GINKGO_EXAMPLES_SRCS)
 list(APPEND GINKGO_EXAMPLES_SRCS
   ex1.cpp
+  ex1lor.cpp
 )
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
@@ -33,6 +34,8 @@ add_mfem_examples(GINKGO_EXAMPLES_SRCS ${PFX} "" test_ginkgo)
 
 # Command line options for the tests.
 set(EX1_COMMON_OPTS ex1 -m ../data/star.mesh --use_gko_solver)
+set(EX1LOR_COMMON_OPTS ex1lor -m ../../data/beam-hex.mesh -pc)
+
 set(EX1_TEST_OPTS ${EX9_COMMON_OPTS})
 
 # Add the tests: one test per source file.

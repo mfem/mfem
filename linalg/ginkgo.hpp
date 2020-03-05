@@ -640,6 +640,114 @@ public:
 };
 
 
+class GinkgoPreconditionerBase : public Solver
+{
+protected:
+  GinkgoPreconditionerBase(std::shared_ptr<const gko::Executor> exec,
+                             SparseMatrix &a, bool iter_mode=false) 
+    : Solver(a.Height(), a.Width(), iter_mode)
+     {
+       exec_ = std::move(exec);
+     }
+
+public:
+   std::shared_ptr<const gko::Executor> get_exec() {return this->exec_; }
+   const gko::LinOpFactory* get_gko_precond_factory()
+   {
+       return this->gko_precond_factory_.get(); 
+   }
+   gko::LinOp* get_gko_precond() {return this->gko_precond_.get(); }
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void SetOperator(const Operator &op); 
+
+protected:
+  std::shared_ptr<const gko::Executor> exec_; 
+  std::unique_ptr<const gko::LinOpFactory> gko_precond_factory_;
+  std::unique_ptr<gko::LinOp> gko_precond_;
+};
+
+
+class GinkgoJacobiPreconditioner : public GinkgoPreconditionerBase 
+{
+public:
+  GinkgoJacobiPreconditioner(std::shared_ptr<const gko::Executor> exec, 
+                              SparseMatrix &a,
+                              const char *storage_opt="none", 
+                              const double accuracy=1.e-1,
+                              bool iter_mode=false)
+    : GinkgoPreconditionerBase(exec, a, iter_mode)
+     {
+
+       bool on_device = false;
+       if (exec->get_master() != exec) {
+          on_device = true;
+       } 
+
+       using mtx = gko::matrix::Csr<double, int>; 
+       auto gko_sparse = mtx::create(
+           exec, gko::dim<2>(a.Height(), a.Width()),
+                 gko::Array<double>::view(exec, 
+                                          a.NumNonZeroElems(),
+                                          a.ReadWriteData(on_device)),
+                 gko::Array<int>::view(exec, 
+                                       a.NumNonZeroElems(),
+                                       a.ReadWriteJ(on_device)),
+                 gko::Array<int>::view(exec, a.Height() + 1,
+                                       a.ReadWriteI(on_device)));
+
+       if (storage_opt == "auto") {
+           gko_precond_factory_ = gko::preconditioner::Jacobi<double, int>::build()
+                                  .with_storage_optimization(
+                                       gko::precision_reduction::autodetect())
+                                  .with_accuracy(accuracy)
+                                  .on(exec);
+       } else {
+           gko_precond_factory_ = gko::preconditioner::Jacobi<double, int>::build()
+                                  .with_storage_optimization(
+                                       gko::precision_reduction(0, 0))
+                                  .with_accuracy(accuracy)
+                                  .on(exec);
+       }
+
+       gko_precond_ = gko_precond_factory_.get()->generate(
+                                                   gko::give(gko_sparse));
+     }
+};
+
+class GinkgoIluPreconditioner : public GinkgoPreconditionerBase 
+{
+public:
+  GinkgoIluPreconditioner(std::shared_ptr<const gko::Executor> exec, 
+                              SparseMatrix &a, bool iter_mode=false)
+    : GinkgoPreconditionerBase(exec, a, iter_mode)
+     {
+
+       bool on_device = false;
+       if (exec->get_master() != exec) {
+          on_device = true;
+       } 
+
+       using mtx = gko::matrix::Csr<double, int>; 
+       auto gko_sparse = mtx::create(
+           exec, gko::dim<2>(a.Height(), a.Width()),
+                 gko::Array<double>::view(exec, 
+                                          a.NumNonZeroElems(),
+                                          a.ReadWriteData(on_device)),
+                 gko::Array<int>::view(exec, 
+                                       a.NumNonZeroElems(),
+                                       a.ReadWriteJ(on_device)),
+                 gko::Array<int>::view(exec, a.Height() + 1,
+                                       a.ReadWriteI(on_device)));
+
+       gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
+                                    .on(exec);
+
+       gko_precond_ = gko_precond_factory_.get()->generate(
+                                                   gko::give(gko_sparse));
+     }
+};
+
 } // namespace GinkgoWrappers
 
 }
