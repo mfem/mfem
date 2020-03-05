@@ -101,6 +101,8 @@ valgrind-test:
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-cube.mesh -r 1 -o 2
 
 valgrind-parallel:
+	# valgrind --gen-suppressions=yes phypsys $(VALGRIND-CONFIG)
+	valgrind --suppressions=./my-mpi-suppressions.supp phypsys $(VALGRIND-CONFIG)
 
 grid-convergence-advection:
 	rm errors.txt; \

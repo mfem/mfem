@@ -8,7 +8,6 @@ TODO:
 -figure out a good way to avoid ifs/switches within the evolution - if possible let each scheme inherit from (p)fe_evol classes (Priority 2)
 -clean up hypsys.cpp and phypsys.cpp, try to move as much functionality into the apps-constructors as possible (Priority 3)
 -visualization of other unknowns / quotients of unknowns (Priority 4)
--System of Euler equations (Priority 5)
 
 
 Current state:
