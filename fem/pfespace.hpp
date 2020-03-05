@@ -269,8 +269,9 @@ public:
        presence of shared faces. Shared faces are treated as interior faces,
        the returned operator handles the communication needed to get the
        shared face values from other MPI ranks */
-   virtual const Operator *GetFaceRestriction(ElementDofOrdering e_ordering,
-      FaceType type, L2FaceValues mul = L2FaceValues::DoubleValued) const;
+   virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType type,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
