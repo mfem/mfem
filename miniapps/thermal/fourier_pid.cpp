@@ -24,6 +24,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -44,7 +45,7 @@ static double TWPara_  = 0.125;
 static double TWPerp_  = 0.125;
 
 static vector<Vector> aVec_;
-
+/*
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -68,7 +69,7 @@ public:
       return sqrt(InnerProduct(comm_, du_, Mu_) / nrm0);
    }
 };
-
+*/
 /*
 double QFunc(const Vector &x, double t)
 {
@@ -407,6 +408,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int ode_solver_type = 1;
+   int ode_msr_type = 1;
    int ode_acc_type = 2;
    int ode_rej_type = 1;
    int ode_lim_type = 1;
@@ -425,6 +427,9 @@ int main(int argc, char *argv[])
 
    double tol = -1.0;
    double rho = 1.2;
+
+   double etaScl = 1.0;
+   Vector etaVec;
 
    double gamma_acc = 0.9;
    double kI_acc = 1.0 / 15.0;
@@ -485,6 +490,10 @@ int main(int argc, char *argv[])
                   "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
+   args.AddOption(&ode_msr_type, "-err", "--error-measure",
+                  "Error measure:\n"
+                  "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
+                  "\t   2 - Absolute/Relative Error with 2-Norm\n");
    args.AddOption(&ode_acc_type, "-acc", "--accept-factor",
                   "Adjustment factor after accepted steps:\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
@@ -501,6 +510,10 @@ int main(int argc, char *argv[])
                   "Adjustment limiter:\n"
                   "\t   1 - Dead zone limiter\n"
                   "\t   2 - Maximum limiter");
+   args.AddOption(&etaScl, "-eta", "--eta-scalar",
+                  "Constant for denominator of relative error measure.");
+   args.AddOption(&etaVec, "-eta-vec", "--eta-vector",
+                  "Vector for denominator of relative error measure.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&gfprint, "-print", "--print","-no-print","--no-print",
@@ -627,13 +640,40 @@ int main(int argc, char *argv[])
    //    (SDIRK).
    ODEController ode_controller;
 
-   ODESolver                * ode_solver   = NULL;
+   ODEEmbeddedSolver        * ode_solver   = NULL;
+   ODERelativeErrorMeasure  * ode_err_msr  = NULL;
    ODEStepAdjustmentFactor  * ode_step_acc = NULL;
    ODEStepAdjustmentFactor  * ode_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_step_lim = NULL;
 
-   NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
+   //NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
 
+   switch (ode_solver_type)
+   {
+      case 0: ode_solver = new HeunEulerSolver; break;
+      case 1: ode_solver = new FehlbergRK12Solver; break;
+      case 2: ode_solver = new BogackiShampineSolver; break;
+      case 3: ode_solver = new FehlbergRK45Solver; break;
+      case 4: ode_solver = new CashKarpSolver; break;
+      case 5: ode_solver = new DormandPrinceSolver; break;
+   }
+   switch (ode_msr_type)
+   {
+      case 1:
+         ode_err_msr = (etaVec.Size() == 0) ?
+                       new MaxAbsRelDiffMeasure(etaScl) :
+                       new MaxAbsRelDiffMeasure(etaVec);
+         break;
+      case 2:
+         ode_err_msr = (etaVec.Size() == 0) ?
+                       new L2AbsRelDiffMeasure(etaScl) :
+                       new L2AbsRelDiffMeasure(etaVec);
+         break;
+      default:
+         cout << "Unknown difference measure type: " << ode_msr_type << '\n';
+         return 3;
+   }
+   /*
    switch (ode_solver_type)
    {
       // Implicit L-stable methods
@@ -652,6 +692,7 @@ int main(int argc, char *argv[])
          }
          return 3;
    }
+   */
    switch (ode_acc_type)
    {
       case 1:
@@ -846,7 +887,7 @@ int main(int argc, char *argv[])
                      AnisotropicConductionCoef, false,
                      HeatSourceCoef, false);
 
-   ode_diff_msr.SetOperator(oper.GetMassMatrix());
+   // ode_diff_msr.SetOperator(oper.GetMassMatrix());
 
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
@@ -881,17 +922,17 @@ int main(int argc, char *argv[])
       vis_qPerp.precision(8);
       vis_errqPerp.precision(8);
       */
-      miniapps::VisualizeField(vis_T, vishost, visport,
-                               T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
+      VisualizeField(vis_T, vishost, visport,
+		     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_ExactT, vishost, visport,
-                               ExactT, "Exact Temperature",
-                               Wx, Wy, Ww, Wh, h1_keys);
+      VisualizeField(vis_ExactT, vishost, visport,
+		     ExactT, "Exact Temperature",
+		     Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
-                               errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
+      VisualizeField(vis_errT, vishost, visport,
+		     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
       /*
       Wx += offx;
       Wy -= offy;
@@ -990,7 +1031,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
    // ode_exp_solver->Init(exp_oper);
 
-   ode_controller.Init(*ode_solver, ode_diff_msr,
+   ode_controller.Init(*ode_solver, *ode_err_msr,
                        *ode_step_acc, *ode_step_rej, *ode_step_lim);
 
    ode_controller.SetOutputFrequency(vis_steps);
@@ -1126,17 +1167,17 @@ int main(int argc, char *argv[])
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
          ExactT.ProjectCoefficient(TCoef);
 
-         miniapps::VisualizeField(vis_T, vishost, visport,
-                                  T1, "Temperature",
-                                  Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_T, vishost, visport,
+			T1, "Temperature",
+			Wx, Wy, Ww, Wh, h1_keys);
 
-         miniapps::VisualizeField(vis_ExactT, vishost, visport,
-                                  ExactT, "Exact Temperature",
-                                  Wx, Wy, Ww, Wh, h1_keys);
+         VisualizeField(vis_ExactT, vishost, visport,
+			ExactT, "Exact Temperature",
+			Wx, Wy, Ww, Wh, h1_keys);
 
-         miniapps::VisualizeField(vis_errT, vishost, visport,
-                                  errorT, "Error in T",
-                                  Wx, Wy, Ww, Wh, l2_keys);
+         VisualizeField(vis_errT, vishost, visport,
+			errorT, "Error in T",
+			Wx, Wy, Ww, Wh, l2_keys);
       }
    }
 

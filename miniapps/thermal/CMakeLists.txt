@@ -12,7 +12,7 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(fourier_pid
     MAIN fourier_pid.cpp
-    EXTRA_SOURCES fourier_pid_solver.cpp
-    EXTRA_HEADERS fourier_pid_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    EXTRA_SOURCES fourier_solver.cpp
+    EXTRA_HEADERS fourier_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 endif()

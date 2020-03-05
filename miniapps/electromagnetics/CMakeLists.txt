@@ -13,7 +13,7 @@ add_mfem_miniapp(hertz_ser
   MAIN hertz_ser.cpp
   EXTRA_SOURCES hertz_ser_solver.cpp
   EXTRA_HEADERS hertz_ser_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-  LIBRARIES mfem mfem_miniapps_common)
+  LIBRARIES mfem mfem-common)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(tesla
@@ -32,7 +32,7 @@ if (MFEM_USE_MPI)
    MAIN hertz.cpp
    EXTRA_SOURCES hertz_solver.cpp
    EXTRA_HEADERS hertz_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-   LIBRARIES mfem mfem_miniapps_common)
+   LIBRARIES mfem mfem-common)
 
  add_mfem_miniapp(joule
    MAIN joule.cpp
