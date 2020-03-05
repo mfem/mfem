@@ -34,7 +34,9 @@
 
 #include <cassert>
 #include "mfem.hpp"
+#include "linalg/densemat.hpp"
 #include "../../general/forall.hpp"
+#include "../../../dbg.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -45,8 +47,9 @@ constexpr int SDIM = 3;
 constexpr double PI = M_PI;
 constexpr double NRM = 1.e-4;
 constexpr double EPS = 1.e-14;
-constexpr double AMR_PROB = 0.25;
+//constexpr double AMR_PROB = 0.25;
 constexpr Element::Type QUAD = Element::QUADRILATERAL;
+constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
 // Static variables for GLVis
 static int NRanks, MyRank;
@@ -74,7 +77,7 @@ struct Opt
    bool radial = false;
    double lambda = 0.0;
    bool solve_by_components = false;
-   const char *keys = "gAmmaaa";
+   const char *keys = "gAmaaa"; // m
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
    Mesh *mesh = nullptr;
@@ -131,7 +134,11 @@ public:
    void Refine()
    {
       for (int l = 0; l < opt.refine; l++) { UniformRefinement(); }
-      if (opt.amr) { RandomRefinement(AMR_PROB); }
+      if (opt.amr)
+      {
+         EnsureNCMesh();
+         RandomRefinement(0.0);
+      }
    }
 
    void Snap()
@@ -833,6 +840,7 @@ public:
 
    void Solve()
    {
+      Amr();
       if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
       for (int i=0; i < opt.max_iter; ++i)
       {
@@ -906,6 +914,76 @@ public:
       // x = λ*nodes + (1-λ)*x
       add(lambda, *nodes, (1.0-lambda), x, x);
       return Converged(rnorm);
+   }
+
+   void Amr()
+   {
+      if (!opt.amr) { return; }
+      Array<int> refs;
+      const int NE = mesh->GetNE();
+      const IntegrationRule *ir = &IntRules.Get(Geometry::SQUARE, opt.order);
+      for (int i = 0; i < NE; i++)
+      {
+         double minJ = +NL_DMAX;
+         double maxJ = -NL_DMAX;
+         ElementTransformation *transf = mesh->GetElementTransformation(i);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            transf->SetIntPoint(&ir->IntPoint(j));
+            const DenseMatrix &J = transf->Jacobian();
+            DenseMatrix JJT(3,3);
+            MultAAt(J, JJT);
+            const double det = fabs(JJT.Det());
+            minJ = fmin(minJ, det);
+            maxJ = fmax(maxJ, det);
+         }
+         MFEM_VERIFY(minJ <= maxJ,"");
+         dbg("\033[33m J min/max = (%.8e, %.8e)", minJ, maxJ);
+         if (fabs(maxJ) != 0.0)
+         {
+            const double rho = minJ / maxJ;
+            dbg("\033[33m J min/max/rho = (%.8e, %.8e, %.8e)", minJ, maxJ, rho);
+            MFEM_VERIFY(rho <= 1.0,"");
+            const bool refine = rho < 0.1;
+            if (refine)
+            {
+               bool be = false;
+               for (int b = 0; b < fes->GetNBE(); b++)
+               {
+                  if (i == b)
+                  {
+                     dbg("\033[33m BDR! el #%d",i);
+                     be = true;
+                     break;
+                  }
+               }
+               if (!be)
+               {
+                  dbg("\033[33m Adding el #%d",i);
+                  refs.Append(i);
+               }
+            }
+         }
+      }
+      if (refs.Size()>0)
+      {
+         refs.Unique();
+         refs.Sort();
+         dbg("refs:"); refs.Print();
+         Array<Refinement> refinements;
+         for (int i=0; i<refs.Size(); i++)
+         {
+            const int k = refs.operator[](i);
+            refinements.Append(Refinement(k,3));
+         }
+         const int nonconforming = -1;
+         const int nc_limit = 3;
+         mesh->GeneralRefinement(refinements, nonconforming, nc_limit);
+         fes->Update();
+         x.Update();
+         a.Update();
+      }
+      if (opt.vis) { Visualize(opt); }
    }
 
    void Update()
