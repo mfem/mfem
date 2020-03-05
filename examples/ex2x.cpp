@@ -130,42 +130,31 @@ int main(int argc, char *argv[])
 
    ODEController ode_controller;
 
-   ODESolver                * ode_solver   = NULL;
-   ODEDifferenceMeasure     * ode_diff_msr = NULL;
+   ODEEmbeddedSolver        * ode_solver   = NULL;
+   ODERelativeErrorMeasure  * ode_err_msr  = NULL;
    ODEStepAdjustmentFactor  * ode_step_acc = NULL;
    ODEStepAdjustmentFactor  * ode_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_step_lim = NULL;
 
    switch (ode_solver_type)
    {
-      // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         return 3;
+      case 0: ode_solver = new HeunEulerSolver; break;
+      case 1: ode_solver = new FehlbergRK12Solver; break;
+      case 2: ode_solver = new BogackiShampineSolver; break;
+      case 3: ode_solver = new FehlbergRK45Solver; break;
+      case 4: ode_solver = new CashKarpSolver; break;
+      case 5: ode_solver = new DormandPrinceSolver; break;
    }
    switch (ode_msr_type)
    {
       case 1:
-         ode_diff_msr = new MaxAbsRelDiffMeasure(diff_eta);
+         ode_err_msr = new MaxAbsRelDiffMeasure(diff_eta);
          break;
       case 2:
-         ode_diff_msr = new L2AbsRelDiffMeasure(diff_eta);
+         ode_err_msr = new L2AbsRelDiffMeasure(diff_eta);
          break;
       default:
-         cout << "Unknown difference measure type: " << ode_msr_type << '\n';
+         cout << "Unknown error measure type: " << ode_msr_type << '\n';
          return 3;
    }
    switch (ode_acc_type)
@@ -220,7 +209,7 @@ int main(int argc, char *argv[])
    ExampleTDO tdo(prob);
    ode_solver->Init(tdo);
 
-   ode_controller.Init(*ode_solver, *ode_diff_msr,
+   ode_controller.Init(*ode_solver, *ode_err_msr,
                        *ode_step_acc, *ode_step_rej, *ode_step_lim);
 
    ode_controller.SetTimeStep(dt);
@@ -263,7 +252,7 @@ int main(int argc, char *argv[])
    ofs.close();
 
    delete ode_solver;
-   delete ode_diff_msr;
+   delete ode_err_msr;
    delete ode_step_acc;
    delete ode_step_rej;
    delete ode_step_lim;

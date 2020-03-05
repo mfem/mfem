@@ -709,6 +709,512 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 }
 
 
+void IMEX_BE_FE::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   k_imp.SetSize(f->Width());
+   y.SetSize(f->Width());
+   k_exp.SetSize(f->Width());
+}
+
+void IMEX_BE_FE::Step(Vector &x, double &t, double &dt)
+{
+   f->ExplicitMult(x, k_exp);
+   add(x, dt, k_exp, y);
+
+   f->SetTime(t + dt);
+   f->ImplicitSolve(dt, y, k_imp);
+
+   x.Add(dt, k_exp);
+   x.Add(dt, k_imp);
+   t += dt;
+}
+
+
+void IMEXRK2::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   f = ODESolver::f;
+   k_imp.SetSize(f->Width());
+   k_exp.SetSize(f->Width());
+   y.SetSize(f->Width());
+   z.SetSize(f->Width());
+}
+
+void IMEXRK2::Step(Vector &x, double &t, double &dt)
+{
+   double gamma = 1 - sqrt(2)/2;
+   double delta = -2*sqrt(2)/3;
+
+   // The method is given by
+   // k1_exp = f(u)
+   // k1_imp = g(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+   // k2_exp = f(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+   // k2_imp = g(u + delta*dt*k1_exp + (1-gamma)*dt*k1_imp
+   //              + (1-delta)*dt*k2_exp + gamma*dt*k2_imp)
+   // k3_exp = f(u + delta*dt*k1_exp + (1-gamma)*dt*k1_imp
+   //              + (1-delta)*dt*k2_exp + gamma*dt*k2_imp)
+   // u_new = u + dt*((1-gamma)*k1_imp + (1-gamma)*k2_exp
+   //                 + gamma*k2_imp + gamma*k3_exp)
+
+   // Take first explicit step
+   // k1_exp = f(u)
+   f->ExplicitMult(x, k_exp);
+   // b corresponding to this stage is zero, so don't add to solution
+
+   // Solve first implicit step
+   // y = u + gamma*dt*k1_exp
+   add(x, gamma*dt, k_exp, y);
+   // Solve x1_imp = g(u + gamma*dt*k1_exp + gamma*dt*k1_imp)
+   f->SetTime(t + gamma*dt);
+   f->ImplicitSolve(gamma*dt, y, k_imp);
+   // x = u + (1-gamma)*dt*k1_imp
+   x.Add((1-gamma)*dt, k_imp);
+
+   // Begin setting up rhs for second solve
+   // z = u + (1-gamma)*dt*k_imp + delta*dt*k_exp
+   add(x, delta*dt, k_exp, z);
+
+   // Take second explicit step
+   // y = x + gamma*dt*k1_exp + gamma*dt*k1_imp
+   y.Add(gamma*dt, k_imp);
+   // k2_exp = f(x + gamma*dt*k1_exp + gamma*dt*k1_imp)
+   f->ExplicitMult(y, k_exp);
+   // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp
+   x.Add((1-gamma)*dt, k_exp);
+
+   // Finish formoing rhs
+   // z = x + (1-gamma)*dt*k1_imp + delta*dt*k1_exp + (1-delta)*dt*k2_exp
+   z.Add((1-delta)*dt, k_exp);
+
+   // Solve second implicit step for k2_imp
+   f->SetTime(t + dt);
+   f->ImplicitSolve(gamma*dt, z, k_imp);
+   // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp + gamma*dt*k2_imp
+   x.Add(gamma*dt, k_imp);
+
+   // Take final explicit step for k3_exp
+   z.Add(gamma*dt, k_imp);
+   f->ExplicitMult(z, k_exp);
+
+   // x = u + (1-gamma)*dt*k1_imp + (1-gamma)*dt*k2_exp + gamma*dt*k2_imp
+   //       + gamma*dt*k3_exp
+   x.Add(gamma*dt, k_exp);
+
+   t += dt;
+}
+
+EmbeddedRKSolver::EmbeddedRKSolver(int _s, const double *_a,
+                                   const double *_b, const double *_b_embedded,
+                                   const double *_c)
+{
+   s = _s;
+   a = _a;
+   b = _b;
+   b_em = _b_embedded;
+   c = _c;
+   k = new Vector[s];
+}
+
+void EmbeddedRKSolver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   int n = f->Width();
+   y.SetSize(n, mem_type);
+   for (int i = 0; i < s; i++)
+   {
+      k[i].SetSize(n, mem_type);
+   }
+}
+
+void EmbeddedRKSolver::Step(Vector &x, double &t, double &dt)
+{
+   //   0     |
+   //  c[0]   | a[0]
+   //  c[1]   | a[1]  a[2]
+   //  ...    |    ...
+   //  c[s-2] | ...    a[s(s-1)/2-1]
+   // --------+---------------------
+   //         | b[0]  b[1]  ... b[s-1]
+   //         | b*[0] b*[1] ... b*[s-1]
+
+   f->SetTime(t);
+   f->Mult(x, k[0]);
+   for (int l = 0, i = 1; i < s; i++)
+   {
+      add(x, a[l++]*dt, k[0], y);
+      for (int j = 1; j < i; j++)
+      {
+         y.Add(a[l++]*dt, k[j]);
+      }
+
+      f->SetTime(t + c[i-1]*dt);
+      f->Mult(y, k[i]);
+   }
+   for (int i = 0; i < s; i++)
+   {
+      x.Add(b[i]*dt, k[i]);
+   }
+   t += dt;
+}
+
+void EmbeddedRKSolver::Step(Vector &x, Vector &e, double &t, double &dt)
+{
+   //   0     |
+   //  c[0]   | a[0]
+   //  c[1]   | a[1]  a[2]
+   //  ...    |    ...
+   //  c[s-2] | ...    a[s(s-1)/2-1]
+   // --------+---------------------
+   //         | b[0]  b[1]  ... b[s-1]
+   //         | b*[0] b*[1] ... b*[s-1]
+
+   if (e.Size() != x.Size()) { e.SetSize(x.Size()); }
+   e = 0.0;
+
+   f->SetTime(t);
+   f->Mult(x, k[0]);
+   for (int l = 0, i = 1; i < s; i++)
+   {
+      add(x, a[l++]*dt, k[0], y);
+      for (int j = 1; j < i; j++)
+      {
+         y.Add(a[l++]*dt, k[j]);
+      }
+
+      f->SetTime(t + c[i-1]*dt);
+      f->Mult(y, k[i]);
+   }
+   for (int i = 0; i < s; i++)
+   {
+      x.Add(b[i]*dt, k[i]);
+      e.Add((b_em[i]-b[i])*dt, k[i]);
+   }
+   t += dt;
+}
+
+EmbeddedRKSolver::~EmbeddedRKSolver()
+{
+   delete [] k;
+}
+
+const double HeunEulerSolver::a[] = {1.0};
+const double HeunEulerSolver::b[] = {0.5, 0.5};
+const double HeunEulerSolver::b_star[] = {1.0, 0.0};
+const double HeunEulerSolver::c[] = {1.0};
+
+const double FehlbergRK12Solver::a[] = {0.5, 0.00390625, 0.99609375};
+const double FehlbergRK12Solver::b[] = {0.00390625, 0.99609375, 0.0};
+const double FehlbergRK12Solver::b_star[] =
+{
+   0.001953125, 0.99609375, 0.001953125
+};
+const double FehlbergRK12Solver::c[] = {0.5, 1.0};
+
+const double BogackiShampineSolver::a[] =
+{
+   0.5,
+   0.0,
+   0.75,
+   0.2222222222222222222222222222222222222222,
+   0.3333333333333333333333333333333333333333,
+   0.4444444444444444444444444444444444444444
+};
+const double BogackiShampineSolver::b[] =
+{
+   0.2222222222222222222222222222222222222222,
+   0.3333333333333333333333333333333333333333,
+   0.4444444444444444444444444444444444444444,
+   0.0
+};
+const double BogackiShampineSolver::b_star[] =
+{
+   0.2916666666666666666666666666666666666667,
+   0.25,
+   0.3333333333333333333333333333333333333333,
+   0.125
+};
+const double BogackiShampineSolver::c[] = {0.5, 0.75, 1.0};
+
+const double FehlbergRK45Solver::a[] =
+{
+   0.25,
+   0.09375,
+   0.28125,
+   0.8793809740555302685480200273099681383705,
+   -3.277196176604460628129267182521620391443,
+   3.320892125625853436504324078288575329995,
+   2.032407407407407407407407407407407407407,
+   -8.0,
+   7.173489278752436647173489278752436647173,
+   -0.2058966861598440545808966861598440545809,
+   -0.2962962962962962962962962962962962962963,
+   2.0,
+   -1.381676413255360623781676413255360623782,
+   0.4529727095516569200779727095516569200780,
+   -0.275
+};
+const double FehlbergRK45Solver::b[] =
+{
+   0.1185185185185185185185185185185185185185,
+   0.0,
+   0.5189863547758284600389863547758284600390,
+   0.5061314903420166578061314903420166578061,
+   -0.18,
+   0.03636363636363636363636363636363636363636
+};
+const double FehlbergRK45Solver::b_star[] =
+{
+   0.1157407407407407407407407407407407407407,
+   0.0,
+   0.5489278752436647173489278752436647173489,
+   0.5353313840155945419103313840155945419103,
+   -0.2,
+   0.0
+};
+const double FehlbergRK45Solver::c[] =
+{
+   0.25,
+   0.375,
+   0.9230769230769230769230769230769230769231,
+   1.0,
+   0.5
+};
+
+const double CashKarpSolver::a[] =
+{
+   0.2,
+   0.075,
+   0.225,
+   0.3,
+   -0.9,
+   1.2,
+   0.2037037037037037037037037037037037037037,
+   2.5,
+   -2.592592592592592592592592592592592592593,
+   1.296296296296296296296296296296296296296,
+   0.02949580439814814814814814814814814814815,
+   0.341796875,
+   0.04159432870370370370370370370370370370370,
+   0.4003454137731481481481481481481481481481,
+   0.061767578125
+};
+const double CashKarpSolver::b[] =
+{
+   0.09788359788359788359788359788359788359788,
+   0.0,
+   0.4025764895330112721417069243156199677939,
+   0.2104377104377104377104377104377104377104,
+   0.0,
+   0.2891022021456804065499717673630717108978
+};
+const double CashKarpSolver::b_star[] =
+{
+   0.1021773726851851851851851851851851851852,
+   0.0,
+   0.3839079034391534391534391534391534391534,
+   0.2445927372685185185185185185185185185185,
+   0.01932198660714285714285714285714285714286,
+   0.25
+};
+const double CashKarpSolver::c[] =
+{
+   0.2,
+   0.3,
+   0.6,
+   1.0,
+   0.875
+};
+
+const double DormandPrinceSolver::a[] =
+{
+   0.2,
+   0.075,
+   0.225,
+   0.9777777777777777777777777777777777777778,
+   -3.733333333333333333333333333333333333333,
+   3.555555555555555555555555555555555555556,
+   2.952598689224203627495808565767413504039,
+   -11.59579332418838591678097850937357110197,
+   9.822892851699436061575979271452522481329,
+   -0.2908093278463648834019204389574759945130,
+   2.846275252525252525252525252525252525253,
+   -10.75757575757575757575757575757575757576,
+   8.906422717743472460453592529064227177435,
+   0.2784090909090909090909090909090909090909,
+   -0.2735313036020583190394511149228130360206,
+   0.09114583333333333333333333333333333333333,
+   0.0,
+   0.4492362982929020664869721473495058400719,
+   0.6510416666666666666666666666666666666667,
+   -0.3223761792452830188679245283018867924528,
+   0.1309523809523809523809523809523809523810
+};
+const double DormandPrinceSolver::b[] =
+{
+   0.09114583333333333333333333333333333333333,
+   0.0,
+   0.4492362982929020664869721473495058400719,
+   0.6510416666666666666666666666666666666667,
+   -0.3223761792452830188679245283018867924528,
+   0.1309523809523809523809523809523809523810,
+   0.0
+};
+const double DormandPrinceSolver::b_star[] =
+{
+   0.08991319444444444444444444444444444444444,
+   0.0,
+   0.4534890685834082060497154836777478286912,
+   0.6140625,
+   -0.2715123820754716981132075471698113207547,
+   0.08904761904761904761904761904761904761905,
+   0.025
+};
+const double DormandPrinceSolver::c[] =
+{
+   0.2,
+   0.3,
+   0.8,
+   0.8888888888888888888888888888888888888889,
+   1.0,
+   1.0
+};
+
+EmbeddedSDIRKSolver::EmbeddedSDIRKSolver(int _s, const double *_a,
+                                         const double *_b,
+                                         const double *_b_embedded,
+                                         const double *_c)
+{
+   s = _s;
+   a = _a;
+   b = _b;
+   b_em = _b_embedded;
+   c = _c;
+   k = new Vector[s];
+}
+
+void EmbeddedSDIRKSolver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   int n = f->Width();
+   y.SetSize(n, mem_type);
+   for (int i = 0; i < s; i++)
+   {
+      k[i].SetSize(n, mem_type);
+   }
+}
+
+void EmbeddedSDIRKSolver::Step(Vector &x, double &t, double &dt)
+{
+   //  c[0]   | a[0]
+   //  c[1]   | a[1]  a[2]
+   //  ...    |    ...
+   //  c[s-2] | ...    a[s(s-1)/2-1]
+   // --------+---------------------
+   //         | b[0]  b[1]  ... b[s-1]
+   //         | b*[0] b*[1] ... b*[s-1]
+
+   f->SetTime(t + dt * c[0]);
+   f->ImplicitSolve(dt * a[0], x, k[0]);
+   for (int l = 1, i = 1; i < s; i++)
+   {
+      add(x, dt * a[l++], k[0], y);
+      for (int j = 1; j < i; j++)
+      {
+         y.Add(dt * a[l++], k[j]);
+      }
+
+      f->SetTime(t + dt * c[i]);
+      f->ImplicitSolve(dt * a[l++], y, k[i]);
+   }
+   for (int i = 0; i < s; i++)
+   {
+      x.Add(dt * b[i], k[i]);
+   }
+   t += dt;
+}
+
+void EmbeddedSDIRKSolver::Step(Vector &x, Vector &e, double &t, double &dt)
+{
+   //  c[0]   | a[0]
+   //  c[1]   | a[1]  a[2]
+   //  ...    |    ...
+   //  c[s-2] | ...    a[s(s-1)/2-1]
+   // --------+---------------------
+   //         | b[0]  b[1]  ... b[s-1]
+   //         | b*[0] b*[1] ... b*[s-1]
+
+   if (e.Size() != x.Size()) { e.SetSize(x.Size()); }
+   e = 0.0;
+
+   f->SetTime(t + dt * c[0]);
+   f->ImplicitSolve(dt * a[0], x, k[0]);
+   for (int l = 1, i = 1; i < s; i++)
+   {
+      add(x, dt * a[l++], k[0], y);
+      for (int j = 1; j < i; j++)
+      {
+         y.Add(dt * a[l++], k[j]);
+      }
+
+      f->SetTime(t + dt * c[i]);
+      f->ImplicitSolve(dt * a[l++], y, k[i]);
+   }
+   for (int i = 0; i < s; i++)
+   {
+      x.Add(dt * b[i], k[i]);
+      e.Add(dt * (b_em[i] - b[i]), k[i]);
+   }
+   t += dt;
+}
+
+EmbeddedSDIRKSolver::~EmbeddedSDIRKSolver()
+{
+   delete [] k;
+}
+
+const double SDIRK212Solver::a[]      = {1.0, -1.0, 1.0};
+const double SDIRK212Solver::b[]      = {0.5, 0.5};
+const double SDIRK212Solver::b_star[] = {1.0, 0.0};
+const double SDIRK212Solver::c[]      = {1.0, 0.0};
+
+const double SDIRK534Solver::a[] =
+{
+   0.25,
+   0.5,
+   0.25,
+   0.34,
+   -0.04,
+   0.25,
+   0.2727941176470588235294117647058823529412,
+   -0.05036764705882352941176470588235294117647,
+   0.02757352941176470588235294117647058823529,
+   0.25,
+   1.041666666666666666666666666666666666667,
+   -1.020833333333333333333333333333333333333,
+   7.8125,
+   -7.083333333333333333333333333333333333333,
+   0.25
+};
+const double SDIRK534Solver::b[] =
+{
+   1.041666666666666666666666666666666666667,
+   -1.020833333333333333333333333333333333333,
+   7.8125,
+   -7.083333333333333333333333333333333333333,
+   0.25
+};
+const double SDIRK534Solver::b_star[] =
+{
+   1.229166666666666666666666666666666666667,
+   -0.1770833333333333333333333333333333333333,
+   7.03125,
+   -7.083333333333333333333333333333333333333,
+   0.0
+};
+const double SDIRK534Solver::c[] = {0.25, 0.75, 0.55, 0.5, 1.0};
+
+
 void
 SIASolver::Init(Operator &P, TimeDependentOperator & F)
 {
@@ -831,10 +1337,12 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
       next_x = x;
       double next_t = t;
 
-      sol->Step(next_x, next_t, dt);
+      sol->Step(next_x, error, next_t, dt);
 
-      double r = msr->Eval(x, next_x);
+      double r = msr->Eval(next_x, error);
       double a = -1.0;
+
+      if (epus) { r /= dt; }
 
       if (r <= rho * tol)
       {
@@ -844,12 +1352,15 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
          curr_r = r;
          x = next_x;
          t = next_t;
-         a = (*acc)(r, dt);
+         a = (*acc)(r);
+         rej->Reset();
       }
       else
       {
          nrejs++;
-         a = (*rej)(r, dt);
+         nrejs_tot++;
+         a = (*rej)(r);
+         acc->Reset();
       }
       dt = std::max(min_dt, (*lim)(a) * dt); // Prevent bottomless descent
    }
@@ -865,13 +1376,17 @@ void ODEController::Run(Vector &x, double &t, double tf)
 
       if (out)
       {
-         *out << t << '\t' << dt << '\t' << curr_r;
-         /*
-              for (int i=0; i<x.Size(); i++)
-              {
-                 *out << "\t" << x(i);
-              }
-         */
+         *out << t << '\t'
+              << nsteps + nrejs_tot << '\t'
+              << curr_r << '\t'
+              << dt;
+         if (log_sol_)
+         {
+            for (int i=0; i<x.Size(); i++)
+            {
+               *out << '\t' << x(i);
+            }
+         }
          *out << std::endl;
       }
       if (ofreq > 0 && nsteps % ofreq == 0)
@@ -882,48 +1397,48 @@ void ODEController::Run(Vector &x, double &t, double tf)
    }
 }
 
-double MaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
+double MaxAbsRelDiffMeasure::Eval(Vector &x, Vector &e)
 {
-   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
-               << u0.Size() << " and " << u1.Size());
+   MFEM_ASSERT(x.Size() == e.Size(), "Incompatible vector sizes: "
+               << x.Size() << " and " << e.Size());
    if (etaVec)
    {
-      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
-                  << etaVec->Size() << " should match " << u0.Size());
+      MFEM_ASSERT(x.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << x.Size());
    }
 
    double max = 0.0;
 
-   for (int i = 0; i < u0.Size(); i++)
+   for (int i = 0; i < x.Size(); i++)
    {
       double eta = (etaVec) ? (*etaVec)(i) : etaConst;
 
-      max = std::max(std::abs((u0(i) - u1(i)) / (eta + u1(i))), max);
+      max = std::max(std::abs((e(i)) / (eta + std::abs(x(i)))), max);
    }
 
    return max;
 }
 
-double L2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
+double L2AbsRelDiffMeasure::Eval(Vector &x, Vector &e)
 {
-   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
-               << u0.Size() << " and " << u1.Size());
+   MFEM_ASSERT(x.Size() == e.Size(), "Incompatible vector sizes: "
+               << x.Size() << " and " << e.Size());
    if (etaVec)
    {
-      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
-                  << etaVec->Size() << " should match " << u0.Size());
+      MFEM_ASSERT(x.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << x.Size());
    }
 
    double scale = 0.0;
    double sum = 0.0;
 
-   for (int i = 0; i < u0.Size(); i++)
+   for (int i = 0; i < x.Size(); i++)
    {
       double eta = (etaVec) ? (*etaVec)(i) : etaConst;
 
-      if (u0(i) != u1(i))
+      if (e(i) != 0.0)
       {
-         const double absdata = std::abs((u0(i)-u1(i)) / (eta + u1(i)));
+         const double absdata = std::abs(e(i)) / (eta + std::abs(x(i)));
          if (scale <= absdata)
          {
             const double sqr_arg = scale / absdata;
@@ -933,7 +1448,7 @@ double L2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
          } // end if scale <= absdata
          const double sqr_arg = absdata / scale;
          sum += (sqr_arg * sqr_arg); // else scale > absdata
-      } // end if u0(i) != u1(i)
+      } // end if e(i) != 0.0
    }
 
    return scale * std::sqrt(sum);
@@ -941,23 +1456,23 @@ double L2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
 
 #ifdef MFEM_USE_MPI
 
-double ParMaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
+double ParMaxAbsRelDiffMeasure::Eval(Vector &x, Vector &e)
 {
-   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
-               << u0.Size() << " and " << u1.Size());
+   MFEM_ASSERT(x.Size() == e.Size(), "Incompatible vector sizes: "
+               << x.Size() << " and " << e.Size());
    if (etaVec)
    {
-      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
-                  << etaVec->Size() << " should match " << u0.Size());
+      MFEM_ASSERT(x.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << x.Size());
    }
 
    double max = 0.0;
 
-   for (int i = 0; i < u0.Size(); i++)
+   for (int i = 0; i < x.Size(); i++)
    {
       double eta = (etaVec) ? (*etaVec)(i) : etaConst;
 
-      max = std::max(std::abs((u0(i)-u1(i)) / (eta + u1(i))), max);
+      max = std::max(std::abs(e(i)) / (eta + std::abs(x(i))), max);
    }
 
    double glb_max = 0.0;
@@ -965,26 +1480,26 @@ double ParMaxAbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
    return glb_max;
 }
 
-double ParL2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
+double ParL2AbsRelDiffMeasure::Eval(Vector &x, Vector &e)
 {
-   MFEM_ASSERT(u0.Size() == u1.Size(), "Incompatible vector sizes: "
-               << u0.Size() << " and " << u1.Size());
+   MFEM_ASSERT(x.Size() == e.Size(), "Incompatible vector sizes: "
+               << x.Size() << " and " << e.Size());
    if (etaVec)
    {
-      MFEM_ASSERT(u0.Size() == etaVec->Size(), "Incorrect scaling vector size: "
-                  << etaVec->Size() << " should match " << u0.Size());
+      MFEM_ASSERT(x.Size() == etaVec->Size(), "Incorrect scaling vector size: "
+                  << etaVec->Size() << " should match " << x.Size());
    }
 
    double scale = 0.0;
    double sum = 0.0;
 
-   for (int i = 0; i < u0.Size(); i++)
+   for (int i = 0; i < x.Size(); i++)
    {
       double eta = (etaVec) ? (*etaVec)(i) : etaConst;
 
-      if (u0(i) != u1(i))
+      if (e(i) != 0.0)
       {
-         const double absdata = std::abs((u0(i)-u1(i)) / (eta + u1(i)));
+         const double absdata = std::abs(e(i)) / (eta + std::abs(x(i)));
          if (scale <= absdata)
          {
             const double sqr_arg = scale / absdata;
@@ -994,7 +1509,7 @@ double ParL2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
          } // end if scale <= absdata
          const double sqr_arg = absdata / scale;
          sum += (sqr_arg * sqr_arg); // else scale > absdata
-      } // end if u0(i) != u1(i)
+      } // end if e(i) != 0.0
    }
 
    double loc_sum = scale * scale * sum;
@@ -1002,39 +1517,44 @@ double ParL2AbsRelDiffMeasure::Eval(Vector &u0, Vector &u1)
    MPI_Allreduce(&loc_sum, &glb_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
    return glb_sum;
 }
+
 #endif
 
-double StdAdjFactor::operator()(double err, double dt) const
+double StdAdjFactor::operator()(double err) const
 {
+   if (err == 0.0) { return 1.0; }
+
    return gamma * pow(tol / err, kI);
 }
 
-double PIAdjFactor::operator()(double err, double dt) const
+double PIAdjFactor::operator()(double err) const
 {
+   if (err == 0.0) { return 1.0; }
+
    double theta = pow(tol / err, kI) *
-                  ((prev_dt > 0.0 && prev_err > 0.0) ?
-                   pow(dt * prev_err / (err * prev_dt), kP) : 1.0);
+                  ((prev_err > 0.0) ?
+                   pow(prev_err / err, kP) : 1.0);
    prev_err = err;
-   prev_dt  = dt;
 
    return theta;
 }
 
-double PIDAdjFactor::operator()(double err, double dt) const
+double PIDAdjFactor::operator()(double err) const
 {
+   if (err == 0.0) { return 1.0; }
+
    double theta = pow(tol / err, kI) *
-                  ((prev_dt1 > 0.0 && prev_err1 > 0.0) ?
-                   pow(dt * prev_err1 / (err * prev_dt1), kP) : 1.0) *
-                  ((prev_dt2 > 0.0 && prev_err2 > 0.0) ?
+                  ((prev_err1 > 0.0) ?
+                   pow(prev_err1 / err, kP) : 1.0) *
+                  ((prev_err2 > 0.0) ?
                    pow(prev_err1 * prev_err1 / (err * prev_err2), kD) : 1.0);
 
    prev_err2 = prev_err1;
    prev_err1 = err;
-   prev_dt2  = prev_dt1;
-   prev_dt1  = dt;
 
    return theta;
 }
+
 
 void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f)
 {
