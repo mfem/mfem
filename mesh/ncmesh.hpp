@@ -152,10 +152,12 @@ public:
    {
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
-      char local;  ///< local number within 'element'
-      char geom;   ///< Geometry::Type (faces only) (char storage to save RAM)
+      signed char local; ///< local number within 'element'
+      signed char geom;  /**< Geometry::Type (faces only) (char storage to save
+                              RAM) */
 
-      MeshId(int index = -1, int element = -1, char local = -1, char geom = -1)
+      MeshId(int index = -1, int element = -1, signed char local = -1,
+             signed char geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
