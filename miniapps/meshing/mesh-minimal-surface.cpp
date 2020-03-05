@@ -64,7 +64,7 @@ constexpr char vishost[] = "localhost";
 // Options and data for the solver
 struct Opt
 {
-   Array<int> bc;
+   Array<int> *bc = nullptr;
    int order = 3;
    int nx = 6;
    int ny = 6;
@@ -173,7 +173,7 @@ public:
       {
          Array<int> ess_bdr(bdr_attributes.Max());
          ess_bdr = 1;
-         fes->GetEssentialTrueDofs(ess_bdr, opt.bc);
+         fes->GetEssentialTrueDofs(ess_bdr, *opt.bc);
       }
    }
 
@@ -457,7 +457,7 @@ struct FullPeach: public Surface<FullPeach>
       const SparseMatrix *R = fes->GetRestrictionMatrix();
       if (!R) { ess_tdofs.MakeRef(ess_cdofs); }
       else { R->BooleanMult(ess_cdofs, ess_tdofs); }
-      FiniteElementSpace::MarkerToList(ess_tdofs, opt.bc);
+      FiniteElementSpace::MarkerToList(ess_tdofs, *opt.bc);
    }
 };
 
@@ -832,7 +832,10 @@ public:
    SurfaceSolver(Opt &opt):
       opt(opt), mesh(opt.mesh), fes(opt.fes),
       a(fes), x(fes), x0(fes), b(fes), one(1.0),
-      solver(static_cast<Type*>(this)), M(nullptr) { }
+      solver(static_cast<Type*>(this)), M(nullptr)
+   {
+      opt.bc->GetMemory().UseDevice(true);
+   }
 
    ~SurfaceSolver() { delete M; }
 
@@ -864,7 +867,7 @@ public:
    {
       const bool by_component = opt.solve_by_components;
       b = 0.0;
-      a.FormLinearSystem(opt.bc, x, b, A, X, B);
+      a.FormLinearSystem(*opt.bc, x, b, A, X, B);
       CGSolver cg;
       cg.SetPrintLevel(print_iter);
       cg.SetMaxIter(max_num_iter);
@@ -876,7 +879,7 @@ public:
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
       GridFunction *nodes = by_component ? &x0 : fes->GetMesh()->GetNodes();
-      x.HostRead();
+      x.HostReadWrite();
       nodes->HostRead();
       double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
       mfem::out << "rnorm = " << rnorm << endl;
@@ -957,7 +960,7 @@ public:
          {
             Array<int> ess_bdr(mesh->bdr_attributes.Max());
             ess_bdr = 1;
-            fes->GetEssentialTrueDofs(ess_bdr, opt.bc);
+            fes->GetEssentialTrueDofs(ess_bdr, *opt.bc);
          }
       }
       if (opt.vis) { Visualize(opt); }
@@ -1089,6 +1092,7 @@ int main(int argc, char *argv[])
    // Initialize hardware devices
    Device device(opt.device_config);
    if (MyRank == 0) { device.Print(); }
+   opt.bc = new Array<int>(Device::GetHostMemoryType());
 
    // Initialize GLVis server if 'visualization' is set
    if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
@@ -1105,5 +1109,6 @@ int main(int argc, char *argv[])
 
    // Free the used memory
    delete S;
+   delete opt.bc;
    return 0;
 }
