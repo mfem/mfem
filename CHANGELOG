@@ -31,7 +31,7 @@ Improved GPU support
 
 - The MFEM memory manager now supports different memory types, associated with
   the following memory backends:
-  * Standard host memory, using C++ std::new and std::delete,
+  * Default host memory, using standard C++ new and delete,
   * CUDA pointers, using cudaMalloc and HIP pointers, using hipMalloc,
   * Managed CUDA/HIP memory (UVM), using cudaMallocManaged/hipMallocManaged,
   * Umpire-managed memory, including memory pools,
@@ -232,7 +232,7 @@ API changes
 -----------
 - In the enum classes MemoryType and MemoryClass, 'CUDA' was renamed to 'DEVICE'
   which now denotes either 'CUDA' or 'HIP' depending on the build configuration.
-  In the same enum classes, 'MANAGED' was renamed to 'CUDA_UVM'.
+  In the same enum classes, 'CUDA_UVM' was renamed to 'MANAGED'.
 
 
 Version 4.0, released on May 24, 2019
