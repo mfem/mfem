@@ -419,10 +419,9 @@ public:
    /// Returns the number of faces according to the requested type.
    /** If type==Boundary returns only the "true" number of boundary faces
        contrary to GetNBE() that returns "fake" boundary faces associated to
-       visualization for GLvis.
+       visualization for GLVis.
        Similarly, if type==Interior, the "fake" boundary faces associated to
-       visualization are counted as interior faces.
-   */
+       visualization are counted as interior faces. */
    inline int GetNFbyType(FaceType type) const
    { return mesh->GetNFbyType(type); }
 
