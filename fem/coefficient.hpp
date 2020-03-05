@@ -328,6 +328,7 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+   const Vector& GetVec() { return vec; }
 };
 
 class VectorFunctionCoefficient : public VectorCoefficient

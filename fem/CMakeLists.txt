@@ -13,13 +13,12 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_convection.cpp
+  bilininteg_dgtrace.cpp
   bilininteg_diffusion.cpp
   bilininteg_divergence.cpp
   bilininteg_gradient.cpp
   bilininteg_mass.cpp
-  bilininteg_divergence.cpp
-  bilininteg_gradient.cpp
-  bilininteg_convection.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
   bilininteg_hcurl.cpp
@@ -41,6 +40,8 @@ set(SRCS
   nonlinearform_ext.cpp
   nonlininteg.cpp
   nonlininteg_vectorconvection.cpp
+  quadinterpolator.cpp
+  restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
@@ -69,6 +70,8 @@ set(HDRS
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
+  quadinterpolator.hpp
+  restriction.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp

@@ -31,11 +31,15 @@ namespace mfem
 // Data type mesh
 
 class GeometricFactors;
+class FaceGeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
+
+/** An enum type to specify if interior or boundary faces are desired. */
+enum class FaceType : bool {Interior, Boundary};
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -57,6 +61,11 @@ protected:
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
+   /** These variables store the number of Interior and Boundary faces. Calling
+       fes->GetMesh()->GetNBE() doesn't return the expected value in 3D because
+       periodic meshes in 3D have some of their faces marked as boundary for
+       vizualization purpose in GLVis. */
+   mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
    int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
@@ -182,6 +191,8 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
+   Array<FaceGeometricFactors*>
+   face_geom_factors; ///< Optional face geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -198,7 +209,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
-   void DeleteLazyTables();
+   void ResetLazyData();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -693,6 +704,14 @@ public:
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
+   /// Returns the number of faces according to the requested type.
+   /** If type==Boundary returns only the "true" number of boundary faces
+       contrary to GetNBE() that returns "fake" boundary faces associated to
+       visualization for GLVis.
+       Similarly, if type==Interior, the "fake" boundary faces associated to
+       visualization are counted as interior faces. */
+   int GetNFbyType(FaceType type) const;
+
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
 
@@ -703,6 +722,12 @@ public:
        integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags);
+
+   /** @brief Return the mesh geometric factors for the faces corresponding
+        to the given integration rule. */
+   const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
+                                                       const int flags,
+                                                       FaceType type);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
@@ -1064,8 +1089,8 @@ public:
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
        new space dimension, 'space_dim' (if != -1), and 'ordering'. */
-   void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1);
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
 
    /// Refine all mesh elements.
    /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure
@@ -1344,6 +1369,59 @@ public:
    Vector detJ;
 };
 
+/** @brief Structure for storing face geometric factors: coordinates, Jacobians,
+    determinants of the Jacobians, and normal vectors. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetFaceGeometricFactors(). */
+class FaceGeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+   FaceType type;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+      NORMALS      = 1 << 3,
+   };
+
+   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                        FaceType type);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)
+       where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NF = number of faces in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NF) where
+       - NQ = number of quadrature points per face, and
+       - NF = number of faces in the mesh. */
+   Vector detJ;
+
+   /// Normals at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x DIM x NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector normal;
+};
 
 /// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient
