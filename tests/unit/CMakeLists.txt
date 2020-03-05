@@ -60,8 +60,8 @@ add_executable(unit_tests ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests mfem)
 
 
-# All device unit tests are built in another executable,
-# to be able to change the device.
+# All device unit tests are built into another executable, in order to be able
+# to change the device.
 set(SEDOV_TESTS_SRCS
     unit_test_main.cpp
     miniapps/test_sedov.cpp

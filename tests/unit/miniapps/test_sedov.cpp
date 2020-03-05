@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
@@ -3364,7 +3364,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    const int myid = mpi.WorldRank();
 
    const int problem = 1;
-   const char *mesh_file = "data/cube01_hex.mesh";
+   const char *mesh_file = "data/cube.mesh";
    int rs_levels = 0;
    const int rp_levels = 0;
    Array<int> cxyz;
@@ -3595,8 +3595,8 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       REQUIRE(t_final==Approx(0.6));
       REQUIRE(cfl==Approx(0.5));
       REQUIRE(cg_tol==Approx(1.e-14));
-      const int dim = strcmp(mesh_file,"data/square01_quad.mesh")==0?2:
-                      strcmp(mesh_file,"data/cube01_hex.mesh")==0?3:1;
+      const int dim = strcmp(mesh_file,"data/square.mesh")==0?2:
+                      strcmp(mesh_file,"data/cube.mesh")==0?3:1;
       REQUIRE((dim==2 || dim==3));
       if (dim==2)
       {
@@ -3641,27 +3641,27 @@ static int argn(const char *argv[], int argc =0)
 static void sedov_tests(MPI_Session &mpi)
 {
    const char *argv2D[]= {"sedov_tests",
-                          "-m", "data/square01_quad.mesh",
+                          "-m", "data/square.mesh",
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
 
    const char *argv2Drs1[]= {"sedov_tests",
                              "-rs", "1", "-ms", "20",
-                             "-m", "data/square01_quad.mesh",
+                             "-m", "data/square.mesh",
                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
    const char *argv3D[]= {"sedov_tests",
-                          "-m", "data/cube01_hex.mesh",
+                          "-m", "data/cube.mesh",
                           nullptr
                          };
    REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
 
    const char *argv3Drs1[]= {"sedov_tests",
                              "-rs", "1", "-ms", "28",
-                             "-m", "data/cube01_hex.mesh",
+                             "-m", "data/cube.mesh",
                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
