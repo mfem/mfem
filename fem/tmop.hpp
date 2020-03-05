@@ -807,7 +807,6 @@ protected:
    // Parameters for finite difference (FD) Gradient & Hessian calculations.
    int    fdflag;
    double fdeps;
-   double elemenergy;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -840,6 +839,7 @@ protected:
                                 ElementTransformation &T,
                                 const Vector &elfun, Vector &elvect);
 
+   /** Assumes that AssembleElementVectorFD has been called. */
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
@@ -847,8 +847,8 @@ protected:
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
-                          Vector &elfun,
-                          const int nodenum,const int idir);
+                          Vector &elfun, const int nodenum,const int idir,
+                          const double baseenergy, bool update);
 
    double ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
@@ -920,14 +920,18 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   void SetFDPar(int fdflag_, int sz);
+   /** @brief Sets the flag that tells the Integrator to use FD-based
+       approximation. */
+   void SetFDFlag(int fdflag_);
    int GetFDFlag() {return fdflag;}
 
-   double SetFDh(const Vector &x, const FiniteElementSpace &fes);
+   /** @brief Determines the perturbation, h, for FD-based approximation. */
+   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
 #ifdef MFEM_USE_MPI
-   double SetFDh(const Vector &x, const FiniteElementSpace &fes,
-                 const MPI_Comm &comm);
+   void SetFDh(const Vector &x, const FiniteElementSpace &fes,
+               const MPI_Comm &comm);
 #endif
+   double GetFDh() {return fdeps;}
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
 

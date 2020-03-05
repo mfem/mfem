@@ -1554,19 +1554,9 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    delete Tpr;
 }
 
-void TMOP_Integrator::SetFDPar(int fdflag_, int sz)
+void TMOP_Integrator::SetFDFlag(int fdflag_)
 {
    fdflag = fdflag_;
-   if (fdflag != 0)
-   {
-      ElemDer.SetSize(sz);
-      ElemPertEnergy.SetSize(sz);
-      for (int i=0; i<sz; i++)
-      {
-         ElemDer[i] = new Vector;
-         ElemPertEnergy[i] = new Vector;
-      }
-   }
 }
 
 double TMOP_Integrator::ComputeMinJac(const Vector &x,
@@ -1601,43 +1591,44 @@ double TMOP_Integrator::ComputeMinJac(const Vector &x,
    return detv_min;
 }
 
-double TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
 {
-   if (fdflag==0) {return 0.;}
+   if (fdflag==0) { return; }
    fdeps = pow(10,-2.)*ComputeMinJac(x,fes);
-   return fdeps;
 }
 
 #ifdef MFEM_USE_MPI
-double TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes,
-                               const MPI_Comm &comm)
+void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes,
+                             const MPI_Comm &comm)
 {
-   if (fdflag==0) {return 0.;}
+   if (fdflag==0) { return; }
    double min_jac = ComputeMinJac(x,fes);
    double min_jac_all;
    MPI_Allreduce(&min_jac, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, comm);
    fdeps = pow(10,-2.)*min_jac_all;
-   return fdeps;
 }
 #endif
 
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         ElementTransformation &T,
-                                        Vector &elfun,
-                                        const int nodenum,const int idir)
+                                        Vector &elfun, const int nodenum,
+                                        const int idir, const double baseenergy,
+                                        bool update)
 {
    int dof = el.GetDof();
    int idx = idir*dof+nodenum;
    elfun[idx]    += fdeps;
    double energy1 = GetElementEnergy(el, T, elfun);
    elfun[idx]    -= fdeps;
-   double energy2 = elemenergy;
-   double der     = (energy1-energy2)/fdeps;
+   double energy2 = baseenergy;
+   double dfdx    = (energy1-energy2)/fdeps;
+
+   if (!update) {return dfdx;}
 
    (*(ElemPertEnergy[T.ElementNo]))(idx) = energy1;
-   (*(ElemDer[T.ElementNo]))(idx) = der;
+   (*(ElemDer[T.ElementNo]))(idx) = dfdx;
 
-   return der;
+   return dfdx;
 }
 
 void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
@@ -1650,9 +1641,6 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    {
       ElemDer.Append(new Vector);
       ElemPertEnergy.Append(new Vector);
-   }
-   if (ElemDer[elnum]->Size() != dof*dim)
-   {
       ElemDer[elnum]->SetSize(dof*dim);
       ElemPertEnergy[elnum]->SetSize(dof*dim);
    }
@@ -1669,7 +1657,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    elfunmod.SetData(elfun.GetData());
 
    // Energy for unperturbed configuration
-   elemenergy = GetElementEnergy(el, T, elfun);
+   double elemenergy = GetElementEnergy(el, T, elfun);
 
    for (int j=0; j<dim; j++)
    {
@@ -1680,7 +1668,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
             discr_tc->UpdateTargetSpecificationAtNode(
                el,T,i,j,discr_tc->tspec_perth);
          }
-         elvect(j*dof+i) = GetFDDerivative(el,T,elfunmod,i,j);
+         elvect(j*dof+i) = GetFDDerivative(el,T,elfunmod,i,j,elemenergy,true);
          if (discr_tc) {discr_tc->RestoreTargetSpecificationAtNode(T,i);}
       }
    }
@@ -1703,8 +1691,9 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    elfunmod.SetSize(dof*dim);
    elfunmod.SetData(elfun.GetData());
 
-   Vector ElemDerLoc = *(ElemDer[T.ElementNo]);
-   Vector ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
+   Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
+   Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
+
    for (int i=0; i<dof; i++)
    {
       for (int j=0; j<i+1; j++)
@@ -1740,10 +1729,12 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                   }
                }
 
-               elemenergy = ElemPertLoc[k2*dof+j];
-               double energy1 = GetFDDerivative(el,T,elfunmod,i,k1);
+               double elemenergy = ElemPertLoc[k2*dof+j];
+               double energy1 = GetFDDerivative(el,T,elfunmod,i,k1,
+                                                elemenergy,false);
                elfunmod(k2*dof+j) -= fdeps;
                double energy2 = ElemDerLoc[k1*dof+i];
+
                elmat(k1*dof+i,k2*dof+j) = (energy1-energy2)/(fdeps);
                elmat(k2*dof+j,k1*dof+i) = (energy1-energy2)/(fdeps);
 

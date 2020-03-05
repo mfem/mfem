@@ -322,29 +322,19 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
-      ProcessNewState(x_out);
 
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
          if (!cP) {x_out_loc.SetData(x_out.GetData());}
          else {cP->Mult(x_out,x_out_loc);}
-         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
       }
 #ifdef MFEM_USE_MPI
       else
       {
          fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
-         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
-
-      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
-      {
-         if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
-         scale *= 0.5; continue;
-      }
 
       int jac_ok = 1;
       for (int i = 0; i < NE; i++)
@@ -358,6 +348,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
          }
       }
+
    break2:
       int jac_ok_all = jac_ok;
 #ifdef MFEM_USE_MPI
@@ -372,6 +363,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          if (print_level >= 0)
          { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
+         scale *= 0.5; continue;
+      }
+
+      ProcessNewState(x_out);
+      energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
+      {
+         if (print_level >= 0)
+         { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
          scale *= 0.5; continue;
       }
 
@@ -414,12 +414,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         double fdeps = tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
+         tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x_loc);
             if (tmopi->GetFDFlag()==1)
             {
+               double fdeps = tmopi->GetFDh();
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
                discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
@@ -449,12 +450,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         double fdeps = tmopi->SetFDh(x_loc,*fesc);
+         tmopi->SetFDh(x_loc,*fesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x);
             if (tmopi->GetFDFlag()==1)
             {
+               double fdeps = tmopi->GetFDh();
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
                discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
@@ -576,12 +578,13 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         double fdeps = tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
+         tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x_loc);
             if (tmopi->GetFDFlag()==1)
             {
+               double fdeps = tmopi->GetFDh();
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
                discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
@@ -611,12 +614,13 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         double fdeps = tmopi->SetFDh(x_loc,*fesc);
+         tmopi->SetFDh(x_loc,*fesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x);
             if (tmopi->GetFDFlag()==1)
             {
+               double fdeps = tmopi->GetFDh();
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
                discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
