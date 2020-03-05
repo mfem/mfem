@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PMESH
 #define MFEM_PMESH
@@ -141,6 +141,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
+
+   void RebalanceImpl(const Array<int> *partition);
+
    void DeleteFaceNbrData();
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
@@ -190,6 +193,8 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /// Ensure that bdr_attributes and attributes agree across processors
+   void DistributeAttributes(Array<int> &attr);
 
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -219,6 +224,8 @@ public:
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
 
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
+
+   virtual void SetAttributes();
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
@@ -260,6 +267,9 @@ public:
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
+
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
@@ -286,8 +296,14 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
 
-   /// Load balance the mesh. NC meshes only.
+   /** Load balance the mesh by equipartitioning the global space-filling
+       sequence of elements. Works for nonconforming meshes only. */
    void Rebalance();
+
+   /** Load balance a nonconforming mesh using a user-defined partition.
+       Each local element 'i' is migrated to processor rank 'partition[i]',
+       for 0 <= i < GetNE(). */
+   void Rebalance(const Array<int> &partition);
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */

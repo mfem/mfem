@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "fem.hpp"
 #include <cstdlib>
@@ -161,6 +161,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    else if (!strncmp(name, "H1Pos_", 6))
    {
       fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
+   }
+   else if (!strncmp(name, "H1Ser_", 6))
+   {
+      fec = new H1Ser_FECollection(atoi(name + 10), atoi(name + 6));
    }
    else if (!strncmp(name, "H1@", 3))
    {
@@ -1520,6 +1524,11 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          snprintf(h1_name, 32, "H1Pos_%dD_P%d", dim, p);
          break;
       }
+      case BasisType::Serendipity:
+      {
+         snprintf(h1_name, 32, "H1Ser_%dD_P%d", dim, p);
+         break;
+      }
       default:
       {
          MFEM_VERIFY(Quadrature1D::CheckClosed(pt_type) !=
@@ -1582,6 +1591,18 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
       }
+      else if (b_type == BasisType::Serendipity)
+      {
+         // Note: in fe_coll.hpp the DofForGeometry(Geometry::Type) method
+         // returns H1_dof[GeomType], so we need to fix the value of H1_dof here
+         // for the serendipity case.
+
+         // formula for number of interior serendipity DoFs (when p>1)
+         H1_dof[Geometry::SQUARE] = (pm3*pm2)/2;
+         H1_Elements[Geometry::SQUARE] = new H1Ser_QuadrilateralElement(p);
+         // allows for mixed tri/quad meshes
+         H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
+      }
       else
       {
          H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
@@ -1616,20 +1637,60 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
       }
-      // see Mesh::GetQuadOrientation in mesh/mesh.cpp
-      for (int j = 0; j < pm1; j++)
+
+      // For serendipity order >=4, the QuadDofOrd array must be re-defined. We
+      // do this by computing the corresponding tensor product QuadDofOrd array
+      // or two orders less, which contains enough DoFs for their serendipity
+      // basis. This could be optimized.
+      if (b_type == BasisType::Serendipity)
       {
-         for (int i = 0; i < pm1; i++)
+         if (p < 4)
          {
-            int o = i + j*pm1;
-            QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
-            QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
-            QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
-            QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
-            QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
-            QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
-            QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
-            QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+            // no face dofs --> don't need to adjust QuadDofOrd
+         }
+         else  // p >= 4 --> have face dofs
+         {
+            // Exactly the same as tensor product case, but with all orders
+            // reduced by 2 e.g. in case p=5 it builds a 2x2 array, even though
+            // there are only 3 serendipity dofs.
+            // In the tensor product case, the i and j index tensor directions,
+            // and o index from 0 to (pm1)^2,
+            const int pm4 = pm3 -1;
+
+            for (int j = 0; j < pm3; j++)   // pm3 instead of pm1, etc
+            {
+               for (int i = 0; i < pm3; i++)
+               {
+                  int o = i + j*pm3;
+                  QuadDofOrd[0][o] = i + j*pm3;  // (0,1,2,3)
+                  QuadDofOrd[1][o] = j + i*pm3;  // (0,3,2,1)
+                  QuadDofOrd[2][o] = j + (pm4 - i)*pm3;  // (1,2,3,0)
+                  QuadDofOrd[3][o] = (pm4 - i) + j*pm3;  // (1,0,3,2)
+                  QuadDofOrd[4][o] = (pm4 - i) + (pm4 - j)*pm3;  // (2,3,0,1)
+                  QuadDofOrd[5][o] = (pm4 - j) + (pm4 - i)*pm3;  // (2,1,0,3)
+                  QuadDofOrd[6][o] = (pm4 - j) + i*pm3;  // (3,0,1,2)
+                  QuadDofOrd[7][o] = i + (pm4 - j)*pm3;  // (3,2,1,0)
+               }
+            }
+
+         }
+      }
+      else // not serendipity
+      {
+         for (int j = 0; j < pm1; j++)
+         {
+            for (int i = 0; i < pm1; i++)
+            {
+               int o = i + j*pm1;
+               QuadDofOrd[0][o] = i + j*pm1;  // (0,1,2,3)
+               QuadDofOrd[1][o] = j + i*pm1;  // (0,3,2,1)
+               QuadDofOrd[2][o] = j + (pm2 - i)*pm1;  // (1,2,3,0)
+               QuadDofOrd[3][o] = (pm2 - i) + j*pm1;  // (1,0,3,2)
+               QuadDofOrd[4][o] = (pm2 - i) + (pm2 - j)*pm1;  // (2,3,0,1)
+               QuadDofOrd[5][o] = (pm2 - j) + (pm2 - i)*pm1;  // (2,1,0,3)
+               QuadDofOrd[6][o] = (pm2 - j) + i*pm1;  // (3,0,1,2)
+               QuadDofOrd[7][o] = i + (pm2 - j)*pm1;  // (3,2,1,0)
+            }
          }
       }
 
@@ -1825,8 +1886,15 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       }
       L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
       L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
-      // All trace elements use the default Gauss-Legendre points
-      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      // Trace element use the default Gauss-Legendre nodal points for positive basis
+      if (b_type == BasisType::Positive)
+      {
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      }
+      else
+      {
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
+      }
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
       TriDofOrd[0] = new int[6*TriDof];
@@ -1874,9 +1942,17 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
-      // All trace element use the default Gauss-Legendre nodal points
-      Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
-      Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      // Trace element use the default Gauss-Legendre nodal points for positive basis
+      if (b_type == BasisType::Positive)
+      {
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      }
+      else
+      {
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
+      }
 
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();

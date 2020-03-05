@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 #include "catch.hpp"
@@ -2090,7 +2090,6 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2218,7 +2217,6 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2426,7 +2424,6 @@ TEST_CASE("2D Bilinear Scalar Weak Divergence Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2508,7 +2505,6 @@ TEST_CASE("2D Bilinear Vector Weak Divergence Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -2874,7 +2870,6 @@ TEST_CASE("2D Bilinear Weak Gradient Dot Product Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
@@ -3034,7 +3029,6 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
           "[NonlinearFormIntegrator]")
 {
    int order = 2, n = 1, dim = 2;
-   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
    Mesh mesh(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);

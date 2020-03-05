@@ -31,7 +31,10 @@
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
+//               ex1 -pa -d ceed-cpu
+//               ex1 -pa -d ceed-cuda
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -62,7 +65,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   const char *device = "cpu";
+   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -75,7 +78,7 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device, "-d", "--device",
+   args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -88,13 +91,18 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Refine the mesh to increase the resolution. In this example we do
+   // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
@@ -107,7 +115,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 4. Define a finite element space on the mesh. Here we use continuous
+   // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -128,7 +136,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
@@ -140,19 +148,13 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
-
-   // 7. Set device config parameters from the command line options and switch
-   //    to working on the device.
-   Device::Configure(device);
-   Device::Print();
-   Device::Enable();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -195,18 +197,23 @@ int main(int argc, char *argv[])
       umf_solver.Mult(B, X);
 #endif
    }
-   else // No preconditioning for now in partial assembly mode.
+   else // Jacobi preconditioning in partial assembly mode
    {
-      CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      if (UsesTensorBasis(*fespace))
+      {
+         OperatorJacobiSmoother M(*a, ess_tdof_list);
+         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+      }
+      else
+      {
+         CG(*A, B, X, 1, 400, 1e-12, 0.0);
+      }
    }
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. Switch back to the host.
-   Device::Disable();
-
-   // 14. Save the refined mesh and the solution. This output can be viewed later
+   // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -215,7 +222,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 15. Send the solution by socket to a GLVis server.
+   // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -225,7 +232,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 15. Free the used memory.
    delete a;
    delete b;
    delete fespace;

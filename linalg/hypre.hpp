@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HYPRE
 #define MFEM_HYPRE
@@ -325,6 +325,10 @@ public:
                   double *data, HYPRE_Int *rows,
                   HYPRE_Int *cols); // constructor with 9 arguments
 
+   /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
+       structure and data from @a P. */
+   HypreParMatrix(const HypreParMatrix &P);
+
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
 
@@ -451,16 +455,18 @@ public:
 
    /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMult(int alpha, int *x, int beta, int *y)
+   void BooleanMult(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvec(A, alpha, const_cast<int*>(x),
+                                                beta, y);
    }
 
    /** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
        the sparsity pattern of the matrix are treated as "true". */
-   void BooleanMultTranspose(int alpha, int *x, int beta, int *y)
+   void BooleanMultTranspose(int alpha, const int *x, int beta, int *y)
    {
-      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, x, beta, y);
+      internal::hypre_ParCSRMatrixBooleanMatvecT(A, alpha, const_cast<int*>(x),
+                                                 beta, y);
    }
 
    /// Initialize all entries with value.
@@ -468,13 +474,16 @@ public:
    { internal::hypre_ParCSRMatrixSetConstantValues(A, value); return *this; }
 
    /** Perform the operation `*this += B`, assuming that both matrices use the
-       same row and column partitions and the same col_map_offd arrays. We also
-       assume that the sparsity pattern of `*this` contains that of `B`. */
+       same row and column partitions and the same col_map_offd arrays, or B has
+       an empty off-diagonal block. We also assume that the sparsity pattern of
+       `*this` contains that of `B`. */
    HypreParMatrix &operator+=(const HypreParMatrix &B) { return Add(1.0, B); }
 
    /** Perform the operation `*this += beta*B`, assuming that both matrices use
-       the same row and column partitions and the same col_map_offd arrays. We
-       also assume that the sparsity pattern of `*this` contains that of `B`. */
+       the same row and column partitions and the same col_map_offd arrays, or
+       B has an empty off-diagonal block. We also assume that the sparsity
+       pattern of `*this` contains that of `B`. For a more general case consider
+       the stand-alone function ParAdd described below. */
    HypreParMatrix &Add(const double beta, const HypreParMatrix &B)
    {
       MFEM_VERIFY(internal::hypre_ParCSRMatrixSum(A, beta, B.A) == 0,
@@ -516,6 +525,14 @@ public:
        Ae sum to the original matrix. */
    HypreParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
 
+   /** Eliminate columns from the matrix and store the eliminated elements in a
+       new matrix Ae (returned) so that the modified matrix and Ae sum to the
+       original matrix. */
+   HypreParMatrix* EliminateCols(const Array<int> &cols);
+
+   /// Eliminate rows from the diagonal and off-diagonal blocks of the matrix.
+   void EliminateRows(const Array<int> &rows);
+
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0);
    /// Reads the matrix from a file
@@ -538,8 +555,10 @@ public:
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
 
-/// Returns the matrix A * B
-HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
+/** Returns the matrix @a A * @a B. Returned matrix does not necessarily own
+    row or column starts unless the bool @a own_matrix is set to true. */
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
+                         bool own_matrix = false);
 /// Returns the matrix A + B
 /** It is assumed that both matrices use the same row and column partitions and
     the same col_map_offd arrays. */
@@ -664,6 +683,15 @@ public:
 /// Abstract class for hypre's solvers and preconditioners
 class HypreSolver : public Solver
 {
+public:
+   /// How to treat errors returned by hypre function calls.
+   enum ErrorMode
+   {
+      IGNORE_HYPRE_ERRORS, ///< Ignore hypre errors (see e.g. HypreADS)
+      WARN_HYPRE_ERRORS,   ///< Issue warnings on hypre errors
+      ABORT_HYPRE_ERRORS   ///< Abort on hypre errors (default in base class)
+   };
+
 protected:
    /// The linear system matrix
    HypreParMatrix *A;
@@ -673,6 +701,9 @@ protected:
 
    /// Was hypre's Setup function called already?
    mutable int setup_called;
+
+   /// How to treat hypre errors.
+   mutable ErrorMode error_mode;
 
 public:
    HypreSolver();
@@ -694,6 +725,17 @@ public:
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
 
+   /** @brief Set the behavior for treating hypre errors, see the ErrorMode
+       enum. The default mode in the base class is ABORT_HYPRE_ERRORS. */
+   /** Currently, there are three cases in derived classes where the error flag
+       is set to IGNORE_HYPRE_ERRORS:
+       * in the method HypreBoomerAMG::SetElasticityOptions(), and
+       * in the constructor of classes HypreAMS and HypreADS.
+       The reason for this is that a nonzero hypre error is returned) when
+       hypre_ParCSRComputeL1Norms() encounters zero row in a matrix, which is
+       expected in some cases with the above solvers. */
+   void SetErrorMode(ErrorMode err_mode) const { error_mode = err_mode; }
+
    virtual ~HypreSolver();
 };
 
@@ -703,8 +745,14 @@ class HyprePCG : public HypreSolver
 private:
    HYPRE_Solver pcg_solver;
 
+   HypreSolver * precond;
+
 public:
+   HyprePCG(MPI_Comm comm);
+
    HyprePCG(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -752,8 +800,17 @@ class HypreGMRES : public HypreSolver
 private:
    HYPRE_Solver gmres_solver;
 
+   HypreSolver * precond;
+
+   /// Default, generally robust, GMRES options
+   void SetDefaultOptions();
+
 public:
+   HypreGMRES(MPI_Comm comm);
+
    HypreGMRES(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -806,6 +863,8 @@ public:
    explicit HypreDiagScale(HypreParMatrix &A) : HypreSolver(&A) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
+   virtual void SetOperator(const Operator &op);
+
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScaleSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
@@ -821,8 +880,20 @@ class HypreParaSails : public HypreSolver
 private:
    HYPRE_Solver sai_precond;
 
+   /// Default, generally robust, ParaSails options
+   void SetDefaultOptions();
+
+   // If sai_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from sai_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
+   void ResetSAIPrecond(MPI_Comm comm);
+
 public:
+   HypreParaSails(MPI_Comm comm);
+
    HypreParaSails(HypreParMatrix &A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetSymmetry(int sym);
 
@@ -850,8 +921,20 @@ class HypreEuclid : public HypreSolver
 private:
    HYPRE_Solver euc_precond;
 
+   /// Default, generally robust, Euclid options
+   void SetDefaultOptions();
+
+   // If euc_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from euc_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
+   void ResetEuclidPrecond(MPI_Comm comm);
+
 public:
+   HypreEuclid(MPI_Comm comm);
+
    HypreEuclid(HypreParMatrix &A);
+
+   virtual void SetOperator(const Operator &op);
 
    /// The typecast to HYPRE_Solver returns the internal euc_precond
    virtual operator HYPRE_Solver() const { return euc_precond; }
@@ -931,6 +1014,9 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 class HypreAMS : public HypreSolver
 {
 private:
+   /// Constuct AMS solver from finite element space
+   void Init(ParFiniteElementSpace *edge_space);
+
    HYPRE_Solver ams;
 
    /// Vertex coordinates
@@ -941,7 +1027,11 @@ private:
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
 public:
+   HypreAMS(ParFiniteElementSpace *edge_fespace);
+
    HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetPrintLevel(int print_lvl);
 
@@ -963,6 +1053,9 @@ public:
 class HypreADS : public HypreSolver
 {
 private:
+   /// Constuct ADS solver from finite element space
+   void Init(ParFiniteElementSpace *face_fespace);
+
    HYPRE_Solver ads;
 
    /// Vertex coordinates
@@ -977,7 +1070,11 @@ private:
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
 public:
+   HypreADS(ParFiniteElementSpace *face_fespace);
+
    HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetPrintLevel(int print_lvl);
 

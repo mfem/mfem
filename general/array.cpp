@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 
 // Abstract array data type
@@ -19,54 +19,12 @@
 namespace mfem
 {
 
-BaseArray::BaseArray(int asize, int ainc, int elementsize)
-{
-   if (asize > 0)
-   {
-      data = mfem::New<char>(asize * elementsize);
-      size = allocsize = asize;
-   }
-   else
-   {
-      data = 0;
-      size = allocsize = 0;
-   }
-   inc = ainc;
-}
-
-BaseArray::~BaseArray()
-{
-   if (allocsize > 0)
-   {
-      mfem::Delete((char*)data);
-   }
-}
-
-void BaseArray::GrowSize(int minsize, int elementsize)
-{
-   void *p;
-   int nsize = (inc > 0) ? abs(allocsize) + inc : 2 * abs(allocsize);
-   if (nsize < minsize) { nsize = minsize; }
-
-   p = mfem::New<char>(nsize * elementsize);
-   if (size > 0)
-   {
-      mfem::Memcpy(p, data, size * elementsize);
-   }
-   if (allocsize > 0)
-   {
-      mfem::Delete((char*)data);
-   }
-   data = p;
-   allocsize = nsize;
-}
-
 template <class T>
 void Array<T>::Print(std::ostream &out, int width) const
 {
    for (int i = 0; i < size; i++)
    {
-      out << ((T*)data)[i];
+      out << data[i];
       if ( !((i+1) % width) || i+1 == size )
       {
          out << '\n';
@@ -113,10 +71,12 @@ T Array<T>::Max() const
 
    T max = operator[](0);
    for (int i = 1; i < size; i++)
+   {
       if (max < operator[](i))
       {
          max = operator[](i);
       }
+   }
 
    return max;
 }
@@ -128,10 +88,12 @@ T Array<T>::Min() const
 
    T min = operator[](0);
    for (int i = 1; i < size; i++)
+   {
       if (operator[](i) < min)
       {
          min = operator[](i);
       }
+   }
 
    return min;
 }

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 
 #include "../general/array.hpp"
@@ -117,11 +117,15 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
 BlockOperator::~BlockOperator()
 {
    if (owns_blocks)
+   {
       for (int iRow=0; iRow < nRowBlocks; ++iRow)
+      {
          for (int jCol=0; jCol < nColBlocks; ++jCol)
          {
             delete op(jCol,iRow);
          }
+      }
+   }
 }
 
 //-----------------------------------------------------------------------
@@ -157,6 +161,7 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    xblock.Update(x.GetData(), offsets);
 
    for (int i=0; i<nBlocks; ++i)
+   {
       if (op[i])
       {
          op[i]->Mult(xblock.GetBlock(i), yblock.GetBlock(i));
@@ -165,6 +170,7 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
+   }
 }
 
 // Action of the transpose operator
@@ -178,6 +184,7 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    xblock.Update(x.GetData(), offsets);
 
    for (int i=0; i<nBlocks; ++i)
+   {
       if (op[i])
       {
          (op[i])->MultTranspose(xblock.GetBlock(i), yblock.GetBlock(i));
@@ -186,15 +193,18 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
+   }
 }
 
 BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
 {
    if (owns_blocks)
+   {
       for (int i=0; i<nBlocks; ++i)
       {
          delete op[i];
       }
+   }
 }
 
 BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(

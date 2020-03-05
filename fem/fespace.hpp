@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FESPACE
 #define MFEM_FESPACE
@@ -16,7 +16,9 @@
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"
+#include "restriction.hpp"
 #include <iostream>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -59,9 +61,25 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
 }
 
 
+/// Constants describing the possible orderings of the DOFs in one element.
+enum class ElementDofOrdering
+{
+   /// Native ordering as defined by the FiniteElement.
+   /** This ordering can be used by tensor-product elements when the
+       interpolation from the DOFs to quadrature points does not use the
+       tensor-product structure. */
+   NATIVE,
+   /// Lexicographic ordering for tensor-product FiniteElements.
+   /** This ordering can be used only with tensor-product elements. */
+   LEXICOGRAPHIC
+};
+
 // Forward declarations
 class NURBSExtension;
 class BilinearFormIntegrator;
+class QuadratureSpace;
+class QuadratureInterpolator;
+class FaceQuadratureInterpolator;
 
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
@@ -110,6 +128,27 @@ protected:
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
 
+   /// The element restriction operators, see GetElementRestriction().
+   mutable OperatorHandle L2E_nat, L2E_lex;
+   /// The face restriction operators, see GetFaceRestriction().
+   using key_face = std::tuple<bool, ElementDofOrdering, FaceType, L2FaceValues>;
+   struct key_hash
+   {
+      std::size_t operator()(const key_face& k) const
+      {
+         return std::get<0>(k)
+                + 2 * (int)std::get<1>(k)
+                + 4 * (int)std::get<2>(k)
+                + 8 * (int)std::get<3>(k);
+      }
+   };
+   using map_L2F = std::unordered_map<const key_face,Operator*,key_hash>;
+   mutable map_L2F L2F;
+
+   mutable Array<QuadratureInterpolator*> E2Q_array;
+   mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;
+   mutable Array<FaceQuadratureInterpolator*> E2BFQ_array;
+
    long sequence; // should match Mesh::GetSequence
 
    void UpdateNURBS();
@@ -124,7 +163,11 @@ protected:
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
-   void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   void GetEntityDofs(int entity, int index, Array<int> &dofs,
+                      Geometry::Type master_geom = Geometry::INVALID) const;
+   // Get degenerate face DOFs: see explanation in method implementation.
+   void GetDegenerateFaceDofs(int index, Array<int> &dofs,
+                              Geometry::Type master_geom) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
@@ -135,6 +178,7 @@ protected:
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
 
+   /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
    /// GridFunction interpolation operator applicable after mesh refinement.
@@ -257,13 +301,70 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingProlongation() const;
+
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestriction() const;
 
+   /// The returned Operator is owned by the FiniteElementSpace.
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
+
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
+
+   /// Return an Operator that converts L-vectors to E-vectors.
+   /** An L-vector is a vector of size GetVSize() which is the same size as a
+       GridFunction. An E-vector represents the element-wise discontinuous
+       version of the FE space.
+
+       The layout of the E-vector is: ND x VDIM x NE, where ND is the number of
+       degrees of freedom, VDIM is the vector dimension of the FE space, and NE
+       is the number of the mesh elements.
+
+       The parameter @a e_ordering describes how the local DOFs in each element
+       should be ordered, see ElementDofOrdering.
+
+       For discontinuous spaces, the element restriction corresponds to a
+       permutation of the degrees of freedom, implemented by the
+       L2ElementRestriction class.
+
+       The returned Operator is owned by the FiniteElementSpace. */
+   const Operator *GetElementRestriction(ElementDofOrdering e_ordering) const;
+
+   /// Return an Operator that converts L-vectors to E-vectors on each face.
+   virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
+
+   /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
+       quadrature point values and/or derivatives (Q-vectors). */
+   /** An E-vector represents the element-wise discontinuous version of the FE
+       space and can be obtained, for example, from a GridFunction using the
+       Operator returned by GetElementRestriction().
+
+       All elements will use the same IntegrationRule, @a ir as the target
+       quadrature points. */
+   const QuadratureInterpolator *GetQuadratureInterpolator(
+      const IntegrationRule &ir) const;
+
+   /** @brief Return a QuadratureInterpolator that interpolates E-vectors to
+       quadrature point values and/or derivatives (Q-vectors). */
+   /** An E-vector represents the element-wise discontinuous version of the FE
+       space and can be obtained, for example, from a GridFunction using the
+       Operator returned by GetElementRestriction().
+
+       The target quadrature points in the elements are described by the given
+       QuadratureSpace, @a qs. */
+   const QuadratureInterpolator *GetQuadratureInterpolator(
+      const QuadratureSpace &qs) const;
+
+   /** @brief Return a FaceQuadratureInterpolator that interpolates E-vectors to
+       quadrature point values and/or derivatives (Q-vectors). */
+   const FaceQuadratureInterpolator *GetFaceQuadratureInterpolator(
+      const IntegrationRule &ir, FaceType type) const;
 
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
@@ -314,6 +415,15 @@ public:
 
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
+
+   /// Returns the number of faces according to the requested type.
+   /** If type==Boundary returns only the "true" number of boundary faces
+       contrary to GetNBE() that returns "fake" boundary faces associated to
+       visualization for GLVis.
+       Similarly, if type==Interior, the "fake" boundary faces associated to
+       visualization are counted as interior faces. */
+   inline int GetNFbyType(FaceType type) const
+   { return mesh->GetNFbyType(type); }
 
    /// Returns the type of element i.
    inline int GetElementType(int i) const
@@ -805,6 +915,11 @@ public:
 
    virtual const Operator &BackwardOperator();
 };
+
+inline bool UsesTensorBasis(const FiniteElementSpace& fes)
+{
+   return dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
+}
 
 }
 
