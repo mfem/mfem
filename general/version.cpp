@@ -145,6 +145,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_RAJA
       "MFEM_USE_RAJA\n"
 #endif
+#ifdef MFEM_USE_UMPIRE
+      "MFEM_USE_UMPIRE\n"
+#endif
 #ifdef MFEM_USE_OCCA
       "MFEM_USE_OCCA\n"
 #endif

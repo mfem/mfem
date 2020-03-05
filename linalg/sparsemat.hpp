@@ -259,7 +259,10 @@ public:
    void ToDenseMatrix(DenseMatrix & B) const;
 
    virtual MemoryClass GetMemoryClass() const
-   { return Finalized() ? Device::GetMemoryClass() : MemoryClass::HOST; }
+   {
+      return Finalized() ?
+             Device::GetDeviceMemoryClass() : Device::GetHostMemoryClass();
+   }
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;

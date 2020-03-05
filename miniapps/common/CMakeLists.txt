@@ -26,6 +26,10 @@ if (MFEM_USE_MPI)
     pfem_extras.hpp)
 endif()
 
+if (MFEM_USE_CUDA)
+  set_property(SOURCE ${SRCS} PROPERTY LANGUAGE CUDA)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 

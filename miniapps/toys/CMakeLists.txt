@@ -33,4 +33,3 @@ add_mfem_miniapp(toy_lissajous
 
 add_mfem_miniapp(toy_mondrian
     MAIN mondrian.cpp LIBRARIES mfem)
-
