@@ -443,8 +443,8 @@ public:
 
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
 
-   /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   virtual void GetElementDofs(int i, Array<int> &dofs) const;
+   /// Returns indices of degrees of freedom of element 'elem'.
+   virtual void GetElementDofs(int elem, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
@@ -455,7 +455,7 @@ public:
 
    /** Returns the indexes of the degrees of freedom for i'th edge
        including the dofs for the vertices of the edge. */
-   void GetEdgeDofs(int i, Array<int> &dofs) const;
+   int GetEdgeDofs(int edge, Array<int> &dofs, int var = 0) const;
 
    void GetVertexDofs(int i, Array<int> &dofs) const;
 

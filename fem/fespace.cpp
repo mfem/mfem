@@ -659,6 +659,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    if (cP_is_set) { return; }
    cP_is_set = true;
 
+   Array<int> master_dofs, slave_dofs;
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
    // For each slave DOF, the dependency matrix will contain a row that
    // expresses the slave DOF as a linear combination of its immediate master
    // DOFs. Rows of independent DOFs will remain empty.
@@ -669,11 +674,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
       if (!list.masters.size()) { continue; }
-
-      Array<int> master_dofs, slave_dofs;
-
-      IsoparametricTransformation T;
-      DenseMatrix I;
 
       // loop through all master edges/faces, constrain their slave edges/faces
       for (unsigned mi = 0; mi < list.masters.size(); mi++)
@@ -705,6 +705,38 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
+            AddDependencies(deps, master_dofs, slave_dofs, I);
+         }
+      }
+   }
+
+   // variable order spaces: handle edge interpolation
+   if (edge_dof.Size())
+   {
+      MFEM_ASSERT(edge_dof.Size() == mesh->GetNEdges()+1, "");
+
+      T.SetFE(&SegmentFE);
+      T.GetPointMat().SetSize(1, 2);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 1.0;
+      T.FinalizeTransformation();
+
+      for (int edge = 0; edge < mesh->GetNEdges(); edge++)
+      {
+         if (edge_dof.RowSize(edge) <= 1) { continue; }
+
+         int p = GetEdgeDofs(edge, master_dofs, 0);
+         const auto *master_fe = fec->GetFE(Geometry::SEGMENT, p);
+
+         // constrain all higher order edges: interpolate the lowest order edge
+         for (int var = 1; ; var++)
+         {
+            int q = GetEdgeDofs(edge, slave_dofs, var);
+            if (q < 0) { break; }
+
+            const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
+            master_fe->GetTransferMatrix(*slave_fe, T, I);
+
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
       }
@@ -1550,6 +1582,8 @@ int FiniteElementSpace::AssignEdgeDofs()
       int p = edge_orders[i].to;
       int dofs = fec->GetNumDof(Geometry::SEGMENT, p);
 
+      MFEM_ASSERT(dofs == p-1, ""); // FIXME later
+
       edge_orders[i].to = nedofs;
       nedofs += dofs;
    }
@@ -1836,15 +1870,15 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
-void FiniteElementSpace::GetEdgeDofs(int i, Array<int> &dofs) const
+int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
 {
    int j, k, nv, ne;
-   Array<int> V;
+   Array<int> V; // TODO: LocalArray
 
    nv = fec->DofForGeometry(Geometry::POINT);
    if (nv > 0)
    {
-      mesh->GetEdgeVertices(i, V);
+      mesh->GetEdgeVertices(edge, V);
    }
    ne = fec->DofForGeometry(Geometry::SEGMENT);
    dofs.SetSize(2*nv+ne);
@@ -1859,7 +1893,7 @@ void FiniteElementSpace::GetEdgeDofs(int i, Array<int> &dofs) const
       }
    }
    nv *= 2;
-   for (j = 0, k = nvdofs+i*ne; j < ne; j++, k++)
+   for (j = 0, k = nvdofs+edge*ne; j < ne; j++, k++)
    {
       dofs[nv+j] = k;
    }
