@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # This file describes the default MFEM build options.
 #
@@ -108,7 +108,7 @@ MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
-MFEM_USE_GZSTREAM      = NO
+MFEM_USE_ZLIB          = NO
 MFEM_USE_LIBUNWIND     = NO
 MFEM_USE_LAPACK        = NO
 MFEM_THREAD_SAFE       = NO
@@ -137,6 +137,7 @@ MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
+MFEM_USE_UMPIRE        = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -352,6 +353,11 @@ ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+
+# UMPIRE library configuration
+UMPIRE_DIR = @MFEM_DIR@/../umpire
+UMPIRE_OPT = -I$(UMPIRE_DIR)/include
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # If YES, enable some informational messages
 VERBOSE = NO
