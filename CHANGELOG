@@ -21,6 +21,9 @@ Improved GPU support
   backends is: "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "debug",
   "occa-omp", "raja-omp", "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
+- In addition to Examples 1 and 6, GPU/device acceleration is now available in
+  three additional example codes: 3/3p, 9/9p and 24/24p.
+
 - Added support for Umpire, a resource management library that allows the
   discovery, provision, and management of memory on machines with multiple
   memory devices like NUMA and GPUs, see https://github.com/LLNL/Umpire.
@@ -86,8 +89,8 @@ Discretization improvements
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
 
-- Extended the support for partial assembly to H(curl) bilinear forms, as well
-  as the vector mass and vector diffusion bilinear integrators.
+- Extended the support for partial assembly to DG integrarors, H(curl) bilinear
+  forms, and the vector mass and vector diffusion bilinear integrators.
 
 - Added support for serendipity elements of arbitrary order on affinely-mapped
   square elements. Basis functions for these elements can be visualized using
@@ -162,7 +165,7 @@ New and updated examples and miniapps
   element spaces in bilinear forms. Partial assembly is supported in this
   example.
 
-- Added device support in Example 3/3p.
+- Added device support in Example 3/3p and Example 9/9p.
 
 - Updated Examples 1/1p and 3/3p to use diagonal preconditioning in partial
   assembly mode.
