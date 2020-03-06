@@ -79,7 +79,7 @@ struct Opt
    bool radial = false;
    double lambda = 0.0;
    bool solve_by_components = false;
-   const char *keys = "gAmaaa"; // m
+   const char *keys = "gAmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
    Mesh *mesh = nullptr;
@@ -161,7 +161,6 @@ public:
 
    void GenFESpace()
    {
-      dbg("");
       fec = new H1_FECollection(opt.order, DIM);
       msh = new Mesh(*this, true);
       fes = new FiniteElementSpace(msh, fec, opt.vdim);
@@ -832,10 +831,7 @@ public:
    SurfaceSolver(Opt &opt):
       opt(opt), mesh(opt.mesh), fes(opt.fes),
       a(fes), x(fes), x0(fes), b(fes), one(1.0),
-      solver(static_cast<Type*>(this)), M(nullptr)
-   {
-      opt.bc->GetMemory().UseDevice(true);
-   }
+      solver(static_cast<Type*>(this)), M(nullptr) { }
 
    ~SurfaceSolver() { delete M; }
 
