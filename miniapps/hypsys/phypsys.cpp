@@ -2,13 +2,8 @@
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int N_Procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &N_Procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   MPI_Finalize();
-   return 0;
+   MPI_Session mpi(argc, argv);
+   const int myid = mpi.WorldRank();
 
    Configuration config;
    config.ProblemNum = 0;

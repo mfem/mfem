@@ -57,7 +57,7 @@ CONFIG-NAME = p3e0o3-$(GEOM)
 
 # EULER
 MESH = data/periodic-tri.mesh
-CONFIG = -p 4 -e 0 -o 2 -c 0 -tf 1 -dt 0.0002 -s 3 -vs 1000
+CONFIG = -p 4 -e 0 -o 2 -c 0 -tf 1 -dt 0.00005 -s 3 -vs 1000
 CONFIG-NAME = p4e0o2-$(GEOM)
 
 ## Makefile rules. #############################################################
