@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
          ref_levels =
            (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       }
-cout<<ref_levels <<endl;
+
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
