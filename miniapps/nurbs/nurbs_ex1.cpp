@@ -119,22 +119,34 @@ public:
 
 };
 
+
+double Neum(const Vector & x)
+{
+   return 10.0*x[0];
+}
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    const char *per_file  = "none";
+   int ref_levels = -1;
    Array<int> master(0);
    Array<int> slave(0);
    bool static_cond = false;
    bool visualization = 1;
    bool ibp = 1;
+   bool strongBC = 1;
+   double kappa = -1;
    Array<int> order(1);
    order[0] = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&per_file, "-p", "--per",
                   "Periodic BCS file.");
    args.AddOption(&master, "-pm", "--master",
@@ -147,6 +159,12 @@ int main(int argc, char *argv[])
    args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
                   "--no-ibp",
                   "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
+   args.AddOption(&strongBC, "-sbc", "--strong-bc", "-wbc",
+                  "--weak-bc",
+                  "Selects strong or weak enforcement of Dirichlet BCs.");
+   args.AddOption(&kappa, "-k", "--kappa",
+                  "One of the two DG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -157,6 +175,10 @@ int main(int argc, char *argv[])
    {
       args.PrintUsage(cout);
       return 1;
+   }
+   if (strongBC & (kappa < 0))
+   {
+      kappa = (order+1)*(order+1);
    }
    args.PrintOptions(cout);
 
@@ -171,8 +193,11 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
+      if (ref_levels < 0)
+      {
       int ref_levels =
          (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+      }
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -278,7 +303,15 @@ int main(int argc, char *argv[])
    if (mesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      if (strongBC)
+      {
+         ess_bdr    = 1;
+      }
+      else
+      {
+         ess_bdr    = 0;
+      }
+
       // Remove periodic BCs
       for (int i = 0; i < master.Size(); i++)
       {
@@ -291,9 +324,14 @@ int main(int argc, char *argv[])
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+
+   LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   if (!strongBC)
+     b->AddBdrFaceIntegrator(
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
@@ -314,6 +352,9 @@ int main(int argc, char *argv[])
    {
       a->AddDomainIntegrator(new Diffusion2Integrator(one));
    }
+
+   if (!strongBC)
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
