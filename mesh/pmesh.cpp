@@ -1688,7 +1688,6 @@ void ParMesh::GetFaceNbrElementTransformation(
          MFEM_ABORT("Nodes are not ParGridFunction!");
       }
    }
-   ElTr->FinalizeTransformation();
 }
 
 void ParMesh::DeleteFaceNbrData()
@@ -2348,7 +2347,6 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
 #endif
       FaceTransformation.SetFE(face_el);
    }
-   FaceTransformation.FinalizeTransformation();
    return &FaceTransformation;
 }
 

@@ -188,7 +188,6 @@ Geometry::Geometry()
       IsoparametricTransformation tri_T;
       tri_T.SetFE(&TriangleFE);
       GetPerfPointMat (TRIANGLE, tri_T.GetPointMat());
-      tri_T.FinalizeTransformation();
       tri_T.SetIntPoint(&GeomCenter[TRIANGLE]);
       *GeomToPerfGeomJac[TRIANGLE] = tri_T.Jacobian();
       CalcInverse(tri_T.Jacobian(), *PerfGeomToGeomJac[TRIANGLE]);
@@ -198,7 +197,6 @@ Geometry::Geometry()
       IsoparametricTransformation tet_T;
       tet_T.SetFE(&TetrahedronFE);
       GetPerfPointMat (TETRAHEDRON, tet_T.GetPointMat());
-      tet_T.FinalizeTransformation();
       tet_T.SetIntPoint(&GeomCenter[TETRAHEDRON]);
       *GeomToPerfGeomJac[TETRAHEDRON] = tet_T.Jacobian();
       CalcInverse(tet_T.Jacobian(), *PerfGeomToGeomJac[TETRAHEDRON]);
@@ -208,7 +206,6 @@ Geometry::Geometry()
       IsoparametricTransformation pri_T;
       pri_T.SetFE(&WedgeFE);
       GetPerfPointMat (PRISM, pri_T.GetPointMat());
-      pri_T.FinalizeTransformation();
       pri_T.SetIntPoint(&GeomCenter[PRISM]);
       *GeomToPerfGeomJac[PRISM] = pri_T.Jacobian();
       CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
