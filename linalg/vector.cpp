@@ -11,7 +11,7 @@
 
 // Implementation of data type vector
 
-#include "blas.hpp"
+#include "kernels.hpp"
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
@@ -723,7 +723,7 @@ double Vector::Norml2() const
    {
       return std::abs(data[0]);
    } // end if 1 == size
-   return blas::Norml2(size, data);
+   return kernels::Norml2(size, data);
 }
 
 double Vector::Normlinf() const

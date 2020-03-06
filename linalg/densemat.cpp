@@ -13,7 +13,7 @@
 // Implementation of data types dense matrix, inverse dense matrix
 
 
-#include "blas.hpp"
+#include "kernels.hpp"
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
@@ -172,7 +172,7 @@ const double &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const double *x, double *y) const
 {
-   blas::MultV(height, width, Data(), x, y);
+   kernels::MultV(height, width, Data(), x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -1238,11 +1238,11 @@ double DenseMatrix::CalcSingularvalue(const int i) const
    }
    else if (n == 2)
    {
-      return blas::CalcSingularvalue<2>(d);
+      return kernels::CalcSingularvalue<2>(d);
    }
    else
    {
-      return blas::CalcSingularvalue<3>(d);
+      return kernels::CalcSingularvalue<3>(d);
    }
 }
 
@@ -1260,11 +1260,11 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
 
    if (n == 2)
    {
-      blas::CalcEigenvalues<2>(d, lambda, vec);
+      kernels::CalcEigenvalues<2>(d, lambda, vec);
    }
    else
    {
-      blas::CalcEigenvalues<3>(d, lambda, vec);
+      kernels::CalcEigenvalues<3>(d, lambda, vec);
    }
 }
 
@@ -1414,7 +1414,7 @@ void DenseMatrix::Symmetrize()
       mfem_error("DenseMatrix::Symmetrize() : not a square matrix!");
    }
 #endif
-   blas::Symmetrize(Height(), Data());
+   kernels::Symmetrize(Height(), Data());
 }
 
 void DenseMatrix::Lump()
@@ -1926,7 +1926,7 @@ DenseMatrix::~DenseMatrix()
 void Add(const DenseMatrix &A, const DenseMatrix &B,
          double alpha, DenseMatrix &C)
 {
-   blas::Add(C.Height(), C.Width(), alpha, A.Data(), B.Data(), C.Data());
+   kernels::Add(C.Height(), C.Width(), alpha, A.Data(), B.Data(), C.Data());
 }
 
 void Add(double alpha, const double *A,
@@ -2017,7 +2017,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   blas::Mult(ah,aw,bw,bd,cd,ad);
+   kernels::Mult(ah,aw,bw,bd,cd,ad);
 #endif
 }
 
@@ -2253,10 +2253,10 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(0,0) = 1.0 / a.Det();
          break;
       case 2:
-         blas::CalcInverse<2>(a.Data(), inva.Data());
+         kernels::CalcInverse<2>(a.Data(), inva.Data());
          break;
       case 3:
-         blas::CalcInverse<3>(a.Data(), inva.Data());
+         kernels::CalcInverse<3>(a.Data(), inva.Data());
          break;
    }
 }
@@ -2413,7 +2413,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    const double *bd = B.Data();
    double *cd = ABt.Data();
 
-   blas::MultABt(ah, aw, bh, ad, bd, cd);
+   kernels::MultABt(ah, aw, bh, ad, bd, cd);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
