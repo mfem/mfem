@@ -14,6 +14,8 @@
 
 #include "../config/tconfig.hpp"
 #include "../fem/fespace.hpp"
+#include "../general/cuda.hpp"
+#include "../general/hip.hpp"
 
 namespace mfem
 {
@@ -103,7 +105,7 @@ struct StridedLayout2D
    static const int dim_2 = N2;
    static const int size = N1*N2;
 
-   static inline int ind(int i1, int i2)
+   MFEM_HOST_DEVICE static inline int ind(int i1, int i2)
    {
       return (S1*i1+S2*i2);
    }

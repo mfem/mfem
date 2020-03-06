@@ -16,6 +16,8 @@
 #include "../general/tassign.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
+#include "../general/cuda.hpp"
+#include "../general/hip.hpp"
 
 // Templated tensor implementation (up to order 4)
 
@@ -216,6 +218,7 @@ struct TensorOps<4> // rank = 4
 // Tensor or sub-tensor assign function: A {=,+=,*=} scalar_value.
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename scalar_t>
+MFEM_HOST_DEVICE
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
                     scalar_t value)
 {
@@ -229,6 +232,7 @@ inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
 template <AssignOp::Type Op,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t>
+MFEM_HOST_DEVICE
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
                     const B_layout_t &B_layout, const B_data_t &B_data)
 {
