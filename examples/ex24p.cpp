@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
       cg.SetPreconditioner(Jacobi);
-
+      X = 0.0;
       cg.Mult(B, X);
    }
    else

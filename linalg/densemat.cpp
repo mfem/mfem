@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 
 // Implementation of data types dense matrix, inverse dense matrix
@@ -70,8 +70,7 @@ using namespace std;
 
 DenseMatrix::DenseMatrix() : Matrix(0)
 {
-   data = NULL;
-   capacity = 0;
+   data.Reset();
 }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
@@ -80,28 +79,26 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data = new double[hw];
-      capacity = hw;
+      data.New(hw);
       std::memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
-      data = NULL;
-      capacity = 0;
+      data.Reset();
    }
 }
 
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
-   capacity = s*s;
-   if (capacity > 0)
+   if (s > 0)
    {
-      data = new double[capacity](); // init with zeroes
+      data.New(s*s);
+      *this = 0.0; // init with zeroes
    }
    else
    {
-      data = NULL;
+      data.Reset();
    }
 }
 
@@ -109,24 +106,26 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
 {
    MFEM_ASSERT(m >= 0 && n >= 0,
                "invalid DenseMatrix size: " << m << " x " << n);
-   capacity = m*n;
+   const int capacity = m*n;
    if (capacity > 0)
    {
-      data = new double[capacity](); // init with zeroes
+      data.New(capacity);
+      *this = 0.0; // init with zeroes
    }
    else
    {
-      data = NULL;
+      data.Reset();
    }
 }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    : Matrix(mat.width, mat.height)
 {
-   capacity = height*width;
+   MFEM_CONTRACT_VAR(ch);
+   const int capacity = height*width;
    if (capacity > 0)
    {
-      data = new double[capacity];
+      data.New(capacity);
 
       for (int i = 0; i < height; i++)
       {
@@ -138,7 +137,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    }
    else
    {
-      data = NULL;
+      data.Reset();
    }
 }
 
@@ -153,14 +152,11 @@ void DenseMatrix::SetSize(int h, int w)
    height = h;
    width = w;
    const int hw = h*w;
-   if (hw > std::abs(capacity))
+   if (hw > data.Capacity())
    {
-      if (capacity > 0)
-      {
-         delete [] data;
-      }
-      capacity = hw;
-      data = new double[hw](); // init with zeroes
+      data.Delete();
+      data.New(hw);
+      *this = 0.0; // init with zeroes
    }
 }
 
@@ -176,7 +172,7 @@ const double &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const double *x, double *y) const
 {
-   blas::MultV(height, width, data, x, y);
+   blas::MultV(height, width, Data(), x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -204,7 +200,7 @@ double DenseMatrix::operator *(const DenseMatrix &m) const
 
 void DenseMatrix::MultTranspose(const double *x, double *y) const
 {
-   double *d_col = data;
+   double *d_col = Data();
    for (int col = 0; col < width; col++)
    {
       double y_col = 0.0;
@@ -1009,7 +1005,10 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    delete [] WORK;
    delete [] ISUPPZ;
    delete [] A;
-
+#else
+   MFEM_CONTRACT_VAR(a);
+   MFEM_CONTRACT_VAR(ev);
+   MFEM_CONTRACT_VAR(evect);
 #endif
 }
 
@@ -1063,6 +1062,10 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    delete [] WORK;
    if (evect == NULL) { delete [] A; }
+#else
+   MFEM_CONTRACT_VAR(a);
+   MFEM_CONTRACT_VAR(ev);
+   MFEM_CONTRACT_VAR(evect);
 #endif
 }
 
@@ -1076,6 +1079,8 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 
 #else
 
+   MFEM_CONTRACT_VAR(ev);
+   MFEM_CONTRACT_VAR(evect);
    mfem_error("DenseMatrix::Eigensystem");
 
 #endif
@@ -1138,6 +1143,11 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
    delete [] WORK;
    delete [] B;
    if (evect == NULL) { delete [] A; }
+#else
+   MFEM_CONTRACT_VAR(a);
+   MFEM_CONTRACT_VAR(b);
+   MFEM_CONTRACT_VAR(ev);
+   MFEM_CONTRACT_VAR(evect);
 #endif
 }
 
@@ -1149,7 +1159,9 @@ void DenseMatrix::Eigensystem(DenseMatrix &b, Vector &ev,
    dsygv_Eigensystem(*this, b, ev, evect);
 
 #else
-
+   MFEM_CONTRACT_VAR(b);
+   MFEM_CONTRACT_VAR(ev);
+   MFEM_CONTRACT_VAR(evect);
    mfem_error("DenseMatrix::Eigensystem for generalized eigenvalues");
 #endif
 }
@@ -1188,6 +1200,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
       mfem_error();
    }
 #else
+   MFEM_CONTRACT_VAR(sv);
    // compiling without lapack
    mfem_error("DenseMatrix::SingularValues");
 #endif
@@ -1276,7 +1289,7 @@ void DenseMatrix::GetColumn(int c, Vector &col) const
    int m = Height();
    col.SetSize(m);
 
-   double *cp = data + c * m;
+   double *cp = Data() + c * m;
    double *vp = col.GetData();
 
    for (int i = 0; i < m; i++)
@@ -1533,7 +1546,7 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco)
 
 void DenseMatrix::CopyMN(const DenseMatrix &A, int row_offset, int col_offset)
 {
-   double *v = A.data;
+   double *v = A.Data();
 
    for (int j = 0; j < A.Width(); j++)
    {
@@ -1546,7 +1559,7 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int row_offset, int col_offset)
 
 void DenseMatrix::CopyMNt(const DenseMatrix &A, int row_offset, int col_offset)
 {
-   double *v = A.data;
+   double *v = A.Data();
 
    for (int i = 0; i < A.Width(); i++)
    {
@@ -1696,7 +1709,7 @@ void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
 #endif
 
    p  = data + ro + co * h;
-   ap = A.data;
+   ap = A.Data();
 
    for (int c = 0; c < aw; c++)
    {
@@ -1905,10 +1918,7 @@ void DenseMatrix::TestInversion()
 
 DenseMatrix::~DenseMatrix()
 {
-   if (capacity > 0)
-   {
-      delete [] data;
-   }
+   data.Delete();
 }
 
 
