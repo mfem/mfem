@@ -750,10 +750,10 @@ public:
    void BackupTargetSpecification();
 
    void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
-                                const Vector &vfdeps);
+                                const double fdeps);
 
    void SetupElementGradTSpec(const Vector &x,const FiniteElementSpace &fes,
-                              const Vector &vfdeps);
+                              const double fdeps);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -804,9 +804,9 @@ protected:
 
    mutable DiscreteAdaptTC *discr_tc;
 
-   // Parameters for finite difference (FD) Gradient & Hessian calculations.
+   // Parameters for FD-based Gradient & Hessian calculation.
    int    fdflag;
-   Vector vfdeps;
+   double fdeps;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -930,7 +930,7 @@ public:
 #ifdef MFEM_USE_MPI
    void SetFDh(const Vector &x, const ParFiniteElementSpace &pfes);
 #endif
-   Vector GetFDhvec() { return vfdeps; }
+   double GetFDh() { return fdeps; }
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc; }
 
