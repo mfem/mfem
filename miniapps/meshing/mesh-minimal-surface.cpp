@@ -49,7 +49,6 @@ constexpr int SDIM = 3;
 constexpr double PI = M_PI;
 constexpr double NRM = 1.e-4;
 constexpr double EPS = 1.e-14;
-constexpr double AMR_THRESHOLD = 0.2;
 constexpr Element::Type QUAD = Element::QUADRILATERAL;
 constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
@@ -78,6 +77,7 @@ struct Opt
    bool wait = false;
    bool radial = false;
    double lambda = 0.0;
+   double amr_threshold = 0.05;
    bool solve_by_components = false;
    const char *keys = "gAmaaa";
    const char *device_config = "cpu";
@@ -916,6 +916,11 @@ public:
    void Amr()
    {
       if (!opt.amr) { return; }
+      const bool adj = getenv("ADJ");
+      DenseMatrix JJt(SDIM, SDIM);
+      DenseMatrix Jadj(DIM, SDIM);
+      DenseMatrix Jadjt;
+      DenseMatrix JJadj(SDIM, SDIM);
       Array<Refinement> refs;
       const int NE = mesh->GetNE();
       const IntegrationRule *ir = &IntRules.Get(Geometry::SQUARE, opt.order);
@@ -923,24 +928,51 @@ public:
       {
          double minJ = +NL_DMAX;
          double maxJ = -NL_DMAX;
+         double minW = +NL_DMAX;
+         double maxW = -NL_DMAX;
          ElementTransformation *transf = mesh->GetElementTransformation(i);
          for (int j = 0; j < ir->GetNPoints(); j++)
          {
             transf->SetIntPoint(&ir->IntPoint(j));
             const DenseMatrix &J = transf->Jacobian();
-            DenseMatrix JJT(SDIM, SDIM);
-            MultAAt(J, JJT);
-            const double det = fabs(JJT.Det());
+            //dbg("\033[32mJ: %dx%d", J.Width(), J.Height());
+            double det,w;
+            if (!adj)
+            {
+               MultAAt(J, JJt);
+               det = (JJt.Det());//fabs
+               w = (J.Weight());//fabs
+            }
+            else
+            {
+               CalcAdjugate(J, Jadj);
+               Jadjt = Jadj;
+               Jadjt.Transpose();
+               Mult(J, Jadj, JJadj);
+               det = (JJadj.Det());//fabs
+               w = (Jadjt.Weight());//fabs
+            }
             minJ = fmin(minJ, det);
             maxJ = fmax(maxJ, det);
+            minW = fmin(minW, w);
+            maxW = fmax(maxW, w);
          }
          MFEM_VERIFY(minJ <= maxJ,"");
-         dbg("\033[33m J min/max = (%.8e, %.8e)", minJ, maxJ);
+         MFEM_VERIFY(minW <= maxW,"");
          if (fabs(maxJ) != 0.0)
          {
-            const double rho = minJ / maxJ;
-            MFEM_VERIFY(rho <= 1.0,"");
-            if (rho < AMR_THRESHOLD) { refs.Append(Refinement(i,3)); }
+            const double rhoJ = minJ / maxJ;
+            const double rhoW = minW / maxW;
+            //MFEM_VERIFY(rho <= 1.0,"");
+            int color = 33;
+            const bool refine = rhoW < opt.amr_threshold;
+            if (refine)
+            {
+               color = 32;
+               refs.Append(Refinement(i,3));
+            }
+            dbg("\033[%dm I[d:(%.2e,%.2e), w:(%.2e,%.2e)] = %.8e, %.8e",
+                color, minJ, maxJ, minW, maxW, rhoJ, rhoW);
          }
       }
       if (refs.Size()>0)
@@ -1071,6 +1103,7 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&opt.lambda, "-l", "--lambda", "Lambda step toward solution.");
    args.AddOption(&opt.amr, "-a", "--amr", "-no-a", "--no-amr", "Enable AMR.");
+   args.AddOption(&opt.amr_threshold, "-at", "--amr-threshold", "AMR threshold.");
    args.AddOption(&opt.device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&opt.keys, "-k", "--keys", "GLVis configuration keys.");
