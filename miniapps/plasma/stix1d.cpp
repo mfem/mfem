@@ -741,6 +741,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient rhoCoef3(rhoCoef1.constant * ion_frac);
    ConstantCoefficient tempCoef(10.0 * q_);
    */
+   if (mpi.Root() && logging > 0)
+   {
+      cout << "Building Finite Element Spaces..." << endl;
+   }
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
@@ -754,6 +758,10 @@ int main(int argc, char *argv[])
    BField.ProjectCoefficient(*BCoef);
    // LField.ProjectCoefficient(LCoef);
 
+   if (mpi.Root() && logging > 0)
+   {
+      cout << "Setting up density and temperature..." << endl;
+   }
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
@@ -762,6 +770,7 @@ int main(int argc, char *argv[])
 
    density_offsets[0] = 0;
    temperature_offsets[0] = 0;
+   temperature_offsets[1] = size_h1;
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
@@ -802,6 +811,11 @@ int main(int argc, char *argv[])
    density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
    density_gf.ProjectCoefficient(rhoCoef3);
    */
+
+   if (mpi.Root() && logging > 0)
+   {
+      cout << "Initializing more coefficients..." << endl;
+   }
 
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muInvCoef(1.0 / mu0_);
@@ -899,6 +913,10 @@ int main(int argc, char *argv[])
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
    // Create the Magnetostatic solver
+   if (mpi.Root() && logging > 0)
+   {
+      cout << "Creating CPDSolver..." << endl;
+   }
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,

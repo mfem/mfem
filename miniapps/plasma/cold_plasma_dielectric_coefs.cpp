@@ -526,7 +526,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
    switch (type_)
    {
       case CONSTANT:
-         cout << "returning const  " << p_[0] << endl;
+         // cout << "returning const  " << p_[0] << endl;
          return p_[0];
          break;
       case GRADIENT:

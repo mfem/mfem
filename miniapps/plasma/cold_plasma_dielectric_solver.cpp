@@ -847,7 +847,8 @@ CPDSolver::Update()
    if (L2FESpace_) { L2FESpace_->Update(); }
    if (L2VFESpace_) { L2VFESpace_->Update(); }
    HCurlFESpace_->Update();
-   if (HDivFESpace_) { HDivFESpace_->Update(false); }
+   HDivFESpace_->Update();
+   if (HDivFESpace2p_) { HDivFESpace2p_->Update(false); }
 
    if ( ess_bdr_.Size() > 0 )
    {
@@ -869,6 +870,7 @@ CPDSolver::Update()
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
    if (e_v_) { e_v_->Update(); }
+   if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
    // e_r_->Update();
    // e_i_->Update();
@@ -1146,6 +1148,7 @@ CPDSolver::Solve()
      Array<int> ess_tdof;
      m2_->FormSystemMatrix(ess_tdof, M2);
 
+     D.SetSize(HDivFESpace_->TrueVSize());
      RHS2.SetSize(HDivFESpace_->TrueVSize());
      rhs.ParallelAssemble(RHS2);
 
