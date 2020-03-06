@@ -31,8 +31,8 @@
 namespace mfem
 {
 
-// Embedding a #pragma directive within the MFEM_FORALL macro is not supported by all compilers.
-// The information given by this macro could still be useful.
+// Embedding a #pragma directive within the MFEM_FORALL macro is not supported
+// by all compilers. The information given by this macro could still be useful.
 #define MFEM_UNROLL(...)
 
 // Maximum size of dofs and quads in 1D.

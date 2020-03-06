@@ -23,15 +23,17 @@
 
 #include "matrix.hpp"
 
+// This header contains small dense linear algebra functions designed to be
+// inlined directly into device kernels. Many methods of the DenseMatrix class
+// call these kernels directly on the host.
+
 namespace mfem
 {
 
 namespace kernels
 {
 
-// *****************************************************************************
-/// Returns the l2 norm of the data.
-// template<typename T>
+/// Returns the l2 norm of the Vector with the given @a size and @a data.
 MFEM_HOST_DEVICE inline
 double Norml2(const int size, const double *data)
 {
@@ -58,8 +60,8 @@ double Norml2(const int size, const double *data)
    return scale * sqrt(sum);
 }
 
-// *****************************************************************************
-/// Multiply a matrix A with the transpose of a matrix B: A*Bt
+/// Multiply a matrix @a A of size @a ah x @a aw with the transpose of a matrix
+/// @a B of size @a bh x @a aw: A*Bt.
 // template<typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline
 void MultABt(const int ah, const int aw, const int bh,
@@ -87,7 +89,7 @@ void MultABt(const int ah, const int aw, const int bh,
    }
 }
 
-// *****************************************************************************
+/// Symmetrize a square matrix of size @a n with data @a d.
 // template<typename T>
 MFEM_HOST_DEVICE inline
 void Symmetrize(const int n, double *d)
@@ -102,7 +104,7 @@ void Symmetrize(const int n, double *d)
    }
 }
 
-// *****************************************************************************
+/// Utility function to swap the values of @a a and @a b.
 // template<typename T>
 MFEM_HOST_DEVICE static inline
 void Swap(double &a, double &b)
@@ -112,19 +114,20 @@ void Swap(double &a, double &b)
    b = tmp;
 }
 
-// *****************************************************************************
 const double Epsilon = std::numeric_limits<double>::epsilon();
 
-// *****************************************************************************
+/// Compute the determinant of a matrix of size dim with data @a d.
 // template<typename T>
 template<int dim> double Det(const double *d);
 
+/// Compute the determinant of a matrix of size 2 with data @a d.
 // template<typename T>
 template<> MFEM_HOST_DEVICE inline double Det<2>(const double *d)
 {
    return d[0] * d[3] - d[1] * d[2];
 }
 
+/// Compute the determinant of a matrix of size 3 with data @a d.
 // template<typename T>
 template<> MFEM_HOST_DEVICE inline double Det<3>(const double *d)
 {
@@ -133,10 +136,13 @@ template<> MFEM_HOST_DEVICE inline double Det<3>(const double *d)
           d[6] * (d[1] * d[5] - d[2] * d[4]);
 }
 
-// *****************************************************************************
+/// Return the inverse of the input matrix @a a of size dim into the output
+/// matrix @a inva.
 // template<typename T>
-template<int dim> void CalcInverse(const double *a, double *i);
+template<int dim> void CalcInverse(const double *a, double *inva);
 
+/// Return the inverse of the input matrix @a a of size 2 into the output matrix
+/// @a inva.
 // template<typename T>
 template<> MFEM_HOST_DEVICE inline
 void CalcInverse<2>(const double *a, double *inva)
@@ -150,6 +156,8 @@ void CalcInverse<2>(const double *a, double *inva)
    inva[1*n+1] =  a[0*n+0] * t ;
 }
 
+/// Return the inverse of the input matrix @a a of size 3 into the output matrix
+/// @a inva.
 // template<typename T>
 template<> MFEM_HOST_DEVICE inline
 void CalcInverse<3>(const double *a, double *inva)
@@ -170,8 +178,8 @@ void CalcInverse<3>(const double *a, double *inva)
    inva[2*n+2] = (a[0*n+0]*a[1*n+1]-a[0*n+1]*a[1*n+0])*t;
 }
 
-// *****************************************************************************
-/// C = A + alpha*B
+/// Compute C = A + alpha*B, where the matrices @a A, @a B and @a C are of size
+/// @a height x @a width.
 // template<typename TALPHA, typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline
 void Add(const int height, const int width, const double alpha,
@@ -187,8 +195,9 @@ void Add(const int height, const int width, const double alpha,
    }
 }
 
-// *****************************************************************************
-/// Matrix matrix multiplication.  A = B * C.
+/// Matrix-matrix multiplication: A = B * C, where the matrices @a A, @a B and
+/// @a C are of sizes @a aw x @a ah, @a aw x @a bw and @a bw x @a ah
+/// respectively.
 // template<typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline
 void Mult(const int ah, const int aw, const int bw,
@@ -208,8 +217,8 @@ void Mult(const int ah, const int aw, const int bw,
    }
 }
 
-// *****************************************************************************
-/// Matrix vector multiplication.
+/// Matrix vector multiplication: y = A x, where the matrix A is of size @a
+/// height x @a width with data given by @a data.
 // template<typename TDATA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
 void MultV(const int height, const int width,
@@ -241,7 +250,7 @@ void MultV(const int height, const int width,
    }
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues().
 MFEM_HOST_DEVICE static inline
 void Eigensystem2S(const double &d12, double &d1, double &d2,
                    double &c, double &s)
@@ -274,10 +283,15 @@ void Eigensystem2S(const double &d12, double &d1, double &d2,
    }
 }
 
-// *****************************************************************************
+/// Compute the spectrum of the matrix of size dim with data @a d and return the
+/// eigenvalues in the array @a lambda and the eigenvectors in the array @a vec
+/// (listed consecutively).
 template<int dim>
 void CalcEigenvalues(const double *d, double *lambda, double *vec);
 
+/// Compute the spectrum of the matrix of size 2 with data @a d and return the
+/// eigenvalues in the array @a lambda and the eigenvectors in the array @a vec
+/// (listed consecutively).
 template<> MFEM_HOST_DEVICE inline
 void CalcEigenvalues<2>(const double *d, double *lambda, double *vec)
 {
@@ -306,7 +320,7 @@ void CalcEigenvalues<2>(const double *d, double *lambda, double *vec)
    }
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 void GetScalingFactor(const double &d_max, double &mult)
 {
@@ -324,11 +338,11 @@ void GetScalingFactor(const double &d_max, double &mult)
    {
       mult = 1.;
    }
-   // mult = 2^d_exp is such that d_max/mult is in [0.5,1)
-   // or in other words d_max is in the interval [0.5,1)*mult
+   // mult = 2^d_exp is such that d_max/mult is in [0.5,1) or in other words
+   // d_max is in the interval [0.5,1)*mult
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 bool KernelVector2G(const int &mode,
                     double &d1, double &d12, double &d21, double &d2)
@@ -470,7 +484,7 @@ bool KernelVector2G(const int &mode,
    return false;
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 void Vec_normalize3_aux(const double &x1, const double &x2,
                         const double &x3,
@@ -489,7 +503,7 @@ void Vec_normalize3_aux(const double &x1, const double &x2,
    n3 = x3*t;
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 void Vec_normalize3(const double &x1, const double &x2, const double &x3,
                     double &n1, double &n2, double &n3)
@@ -518,7 +532,7 @@ void Vec_normalize3(const double &x1, const double &x2, const double &x3,
    Vec_normalize3_aux(x3, x1, x2, n3, n1, n2);
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 int KernelVector3G_aux(const int &mode,
                        double &d1, double &d2, double &d3,
@@ -625,7 +639,7 @@ done_column_1:
    return kdim;
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 int KernelVector3S(const int &mode, const double &d12,
                    const double &d13, const double &d23,
@@ -753,7 +767,7 @@ int KernelVector3S(const int &mode, const double &d12,
    return row;
 }
 
-// *****************************************************************************
+/// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 int Reduce3S(const int &mode,
              double &d1, double &d2, double &d3,
@@ -876,7 +890,9 @@ int Reduce3S(const int &mode,
    return k;
 }
 
-// *****************************************************************************
+/// Compute the spectrum of the matrix of size 2 with data @a d and return the
+/// eigenvalues in the array @a lambda and the eigenvectors in the array @a vec
+/// (listed consecutively).
 template<> MFEM_HOST_DEVICE inline
 void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
 {
@@ -1078,13 +1094,13 @@ done_3d:
    lambda[2] *= mult;
 }
 
-// *****************************************************************************
-template<int dim> double CalcSingularvalue(const double *d);
+/// Return the i'th singular value of the matrix of size dim with data @a d.
+template<int dim> double CalcSingularvalue(const double *d, const int i);
 
+/// Return the i'th singular value of the matrix of size 2 with data @a d.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<2>(const double *d)
+double CalcSingularvalue<2>(const double *d, const int i)
 {
-   constexpr int i = 2-1;
    double d0, d1, d2, d3;
    d0 = d[0];
    d1 = d[1];
@@ -1129,7 +1145,7 @@ double CalcSingularvalue<2>(const double *d)
    return t*mult;
 }
 
-// *****************************************************************************
+/// Utility function used in CalcSingularvalue<3>.
 MFEM_HOST_DEVICE static inline
 void Eigenvalues2S(const double &d12, double &d1, double &d2)
 {
@@ -1152,11 +1168,10 @@ void Eigenvalues2S(const double &d12, double &d1, double &d2)
    }
 }
 
-// *****************************************************************************
+/// Return the i'th singular value of the matrix of size 3 with data @a d.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<3>(const double *d)
+double CalcSingularvalue<3>(const double *d, const int i)
 {
-   constexpr int i = 3-1;
    double d0, d1, d2, d3, d4, d5, d6, d7, d8;
    d0 = d[0];  d3 = d[3];  d6 = d[6];
    d1 = d[1];  d4 = d[4];  d7 = d[7];
