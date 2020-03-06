@@ -38,8 +38,11 @@ namespace mfem
     (defined(__clang__) && ((__clang_major__ > 3) || \
                             (__clang_major__ == 3 && __clang_minor__ >= 7)))
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
-#elif defined(__xlC__) || defined(__ICC)
+#elif defined(__xlC__)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#elif defined(__ICC)
+// Using "MFEM_PRAGMA(unroll(N))" results in compiler remarks, so don't use it
+#define MFEM_UNROLL(N)
 #elif (__GNUC__ >= 8)
 // Using "MFEM_PRAGMA(GCC unroll N)" does not seem to work. Why?
 #define MFEM_UNROLL(N)
