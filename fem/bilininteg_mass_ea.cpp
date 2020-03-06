@@ -37,7 +37,6 @@ static void EAMassAssemble1D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       double r_Bi[MQ1];
       double r_Bj[MQ1];
@@ -60,6 +59,80 @@ static void EAMassAssemble1D(const int NE,
       }
    });
 }
+
+// template<int T_D1D = 0, int T_Q1D = 0>
+// static void EAMassAssemble2D(const int NE,
+//                              const Array<double> &basis,
+//                              const Vector &padata,
+//                              Vector &eadata,
+//                              const int d1d = 0,
+//                              const int q1d = 0)
+// {
+//    const int D1D = T_D1D ? T_D1D : d1d;
+//    const int Q1D = T_Q1D ? T_Q1D : q1d;
+//    MFEM_VERIFY(D1D <= MAX_D1D, "");
+//    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+//    auto B = Reshape(basis.Read(), Q1D, D1D);
+//    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
+//    auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, NE);
+//    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
+//    {
+//       const int D1D = T_D1D ? T_D1D : d1d;
+//       const int Q1D = T_Q1D ? T_Q1D : q1d;
+//       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+//       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+//       double r_B[MQ1][MD1];
+//       for (int d = 0; d < D1D; d++)
+//       {
+//          for (int q = 0; q < Q1D; q++)
+//          {
+//             r_B[q][d] = B(q,d);
+//          }
+//       }
+//       MFEM_SHARED double s_D[MQ1][MQ1];
+//       MFEM_FOREACH_THREAD(k1,x,Q1D)
+//       {
+//          MFEM_FOREACH_THREAD(k2,y,Q1D)
+//          {
+//             s_D[k1][k2] = D(k1,k2,e);
+//          }
+//       }
+//       MFEM_SYNC_THREAD;
+//       double C[MQ1];
+//       MFEM_FOREACH_THREAD(i1,x,D1D)
+//       {
+//          MFEM_FOREACH_THREAD(j1,y,D1D)
+//          {
+//             for (int k2 = 0; k2 < Q1D; ++k2)
+//             {
+//                C[k2] = 0.0;
+//                for (int k1 = 0; k1 < Q1D; ++k1)
+//                {
+//                   C[k2] += r_B[k1][i1] * r_B[k1][j1] * s_D[k1][k2];
+//                }
+//             }
+//          }
+//       }
+//       MFEM_FOREACH_THREAD(i1,x,D1D)
+//       {
+//          MFEM_FOREACH_THREAD(j1,y,D1D)
+//          {
+//             for (int i2 = 0; i2 < D1D; ++i2)
+//             {
+//                for (int j2 = 0; j2 < D1D; ++j2)
+//                {
+//                   double val = 0.0;
+//                   for (int k2 = 0; k2 < Q1D; ++k2)
+//                   {
+//                      val += r_B[k2][i2] * r_B[k2][j2] * C[k2];
+//                   }
+//                   M(i1, i2, j1, j2, e) = val;
+//                }
+//             }
+//          }
+//       }
+//    });
+// }
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAMassAssemble2D(const int NE,
@@ -99,33 +172,23 @@ static void EAMassAssemble2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      double C[MQ1];
       MFEM_FOREACH_THREAD(i1,x,D1D)
       {
-         MFEM_FOREACH_THREAD(j1,y,D1D)
+         MFEM_FOREACH_THREAD(i2,y,D1D)
          {
-            for (int k2 = 0; k2 < Q1D; ++k2)
-            {
-               C[k2] = 0.0;
-               for (int k1 = 0; k1 < Q1D; ++k1)
-               {
-                  C[k2] += r_B[k1][i1] * r_B[k1][j1] * s_D[k1][k2];
-               }
-            }
-         }
-      }
-      MFEM_FOREACH_THREAD(i1,x,D1D)
-      {
-         MFEM_FOREACH_THREAD(j1,y,D1D)
-         {
-            for (int i2 = 0; i2 < D1D; ++i2)
+            for (int j1 = 0; j1 < D1D; ++j1)
             {
                for (int j2 = 0; j2 < D1D; ++j2)
                {
                   double val = 0.0;
-                  for (int k2 = 0; k2 < Q1D; ++k2)
+                  for (int k1 = 0; k1 < Q1D; ++k1)
                   {
-                     val += r_B[k2][i2] * r_B[k2][j2] * C[k2];
+                     for (int k2 = 0; k2 < Q1D; ++k2)
+                     {
+                        val += r_B[k1][i1] * r_B[k1][j1]
+                              * r_B[k2][i2] * r_B[k2][j2]
+                              * s_D[k1][k2];
+                     }
                   }
                   M(i1, i2, j1, j2, e) = val;
                }
@@ -490,9 +553,6 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
 {
    AssemblePA(fes);
    const int ne = fes.GetMesh()->GetNE();
-   // const int ndofs = fes.GetFE(0)->GetDof();
-   // // emat.SetSize(ne*ndofs*ndofs, Device::GetMemoryType());
-   // ElementMatrix emat(ea_data.ReadWrite(), ne, ndofs);
    const Array<double> &B = maps->B;
    if (dim == 1)
    {

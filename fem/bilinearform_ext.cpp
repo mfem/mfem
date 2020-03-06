@@ -288,7 +288,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
-// Data and methods for partially-assembled bilinear forms
+// Data and methods for element-assembled bilinear forms
 EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
    : BilinearFormExtension(form),
      trialFes(a->FESpace()),
@@ -337,6 +337,14 @@ void EABilinearFormExtension::Assemble()
 {
    SetupRestrictionOperators();
 
+   const int ne = trialFes->GetMesh()->GetNE();
+   const int trialDofs = trialFes->GetFE(0)->GetDof();
+   const int testDofs = testFes->GetFE(0)->GetDof();
+
+   ea_data.SetSize(ne*trialDofs*testDofs, Device::GetMemoryType());
+   ea_data.UseDevice(true);
+   ea_data = 0.0;
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
@@ -344,19 +352,19 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data);
    }
 
-   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   const int intFaceIntegratorCount = intFaceIntegrators.Size();
-   for (int i = 0; i < intFaceIntegratorCount; ++i)
-   {
-      intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace());
-   }
+   // Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+   // const int intFaceIntegratorCount = intFaceIntegrators.Size();
+   // for (int i = 0; i < intFaceIntegratorCount; ++i)
+   // {
+   //    intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace());
+   // }
 
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
-   for (int i = 0; i < boundFaceIntegratorCount; ++i)
-   {
-      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace());
-   }
+   // Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
+   // const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
+   // for (int i = 0; i < boundFaceIntegratorCount; ++i)
+   // {
+   //    bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace());
+   // }
 }
 
 void EABilinearFormExtension::AssembleDiagonal(Vector &y) const
@@ -426,7 +434,7 @@ void EABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   ElementMatrix Ae(ea_data.Read(), testFes->GetNE(), testFes->GetFE(0)->GetDof());
+   ElementMatrix Ae(ea_data, testFes->GetNE(), testFes->GetFE(0)->GetDof());
 
    // Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 

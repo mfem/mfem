@@ -25,25 +25,26 @@ class EMat
 private:
    const int ne;
    const int ndofs;
-   const Scalar *data;
+   const Vector &data;
 
 public:
-   EMat(const Scalar *ptr, const int ne, const int ndofs)
-   : ne(ne), ndofs(ndofs), data(ptr)
+   EMat(const Vector &vec, const int ne, const int ndofs)
+   : ne(ne), ndofs(ndofs), data(vec)
    {
    }
 
    void AddMult(const Vector &x, Vector &y) const
    {
+      const int NDOFS = ndofs;
       auto X = Reshape(x.Read(), ndofs, ne);
       auto Y = Reshape(y.ReadWrite(), ndofs, ne);
-      auto A = Reshape(data, ndofs, ndofs, ne);
+      auto A = Reshape(data.Read(), ndofs, ndofs, ne);
       MFEM_FORALL(glob_j, ne*ndofs,
       {
-         const int e = glob_j/ndofs;
-         const int j = glob_j%ndofs;
+         const int e = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
          Scalar res = 0.0;
-         for (int i = 0; i < ndofs; i++)
+         for (int i = 0; i < NDOFS; i++)
          {
             res += A(i, j, e)*X(i, e);
          }

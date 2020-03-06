@@ -80,13 +80,13 @@ public:
        used later in the methods AddMultPA() and AddMultTransposePA(). */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
    /** Used with BilinearFormIntegrators that have different spaces. */
-   virtual void AssembleEA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes,
-                           Vector &emat);
+   // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
+   //                         const FiniteElementSpace &test_fes,
+   //                         Vector &emat);
 
-   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes);
+   // virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes);
 
-   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes);
+   // virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
