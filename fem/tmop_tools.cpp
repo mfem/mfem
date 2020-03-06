@@ -327,7 +327,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
          if (!cP) {x_out_loc.SetData(x_out.GetData());}
-         else {cP->Mult(x_out,x_out_loc);}
+         else {cP->Mult(x_out, x_out_loc);}
       }
 #ifdef MFEM_USE_MPI
       else
@@ -367,7 +367,16 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 
       ProcessNewState(x_out);
-      energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+      if (serial)
+      {
+         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+      }
+#ifdef MFEM_USE_MPI
+      else
+      {
+         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
+      }
+#endif
       if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
          if (print_level >= 0)
@@ -407,23 +416,24 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       const ParNonlinearForm *nlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
       const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
-      Vector x_loc(nlf->ParFESpace()->GetVSize());
-      nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
       const FiniteElementSpace *fesc = nlf->FESpace();
+      const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
+      Vector x_loc(pfesc->GetVSize());
+      pfesc->GetProlongationMatrix()->Mult(x, x_loc);
       for (int i=0; i<integrators.Size(); i++)
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
+         tmopi->SetFDh(x_loc, *pfesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x_loc);
             if (tmopi->GetFDFlag()==1)
             {
-               double fdeps = tmopi->GetFDh();
+               Vector vfdeps = tmopi->GetFDhvec();
                discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementVectorTSpec(x_loc, *fesc, vfdeps);
+               discrtc->SetupElementGradTSpec(x_loc, *fesc, vfdeps);
             }
          }
       }
@@ -450,16 +460,16 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc,*fesc);
+         tmopi->SetFDh(x_loc, *fesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x);
             if (tmopi->GetFDFlag()==1)
             {
-               double fdeps = tmopi->GetFDh();
+               Vector vfdeps = tmopi->GetFDhvec();
                discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementVectorTSpec(x_loc, *fesc, vfdeps);
+               discrtc->SetupElementGradTSpec(x_loc, *fesc, vfdeps);
             }
          }
       }
@@ -571,23 +581,24 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       const ParNonlinearForm *nlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
       const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
-      Vector x_loc(nlf->ParFESpace()->GetVSize());
-      nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
       const FiniteElementSpace *fesc = nlf->FESpace();
+      const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
+      Vector x_loc(pfesc->GetVSize());
+      pfesc->GetProlongationMatrix()->Mult(x, x_loc);
       for (int i=0; i<integrators.Size(); i++)
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc,*fesc,nlf->ParFESpace()->GetComm());
+         tmopi->SetFDh(x_loc, *pfesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x_loc);
             if (tmopi->GetFDFlag()==1)
             {
-               double fdeps = tmopi->GetFDh();
+               Vector vfdeps = tmopi->GetFDhvec();
                discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementVectorTSpec(x_loc, *fesc, vfdeps);
+               discrtc->SetupElementGradTSpec(x_loc, *fesc, vfdeps);
             }
          }
       }
@@ -614,16 +625,16 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc,*fesc);
+         tmopi->SetFDh(x_loc, *fesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x);
             if (tmopi->GetFDFlag()==1)
             {
-               double fdeps = tmopi->GetFDh();
+               Vector vfdeps = tmopi->GetFDhvec();
                discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc,*fesc,fdeps);
-               discrtc->SetupElementGradTSpec(x_loc,*fesc,fdeps);
+               discrtc->SetupElementVectorTSpec(x_loc, *fesc, vfdeps);
+               discrtc->SetupElementGradTSpec(x_loc, *fesc, vfdeps);
             }
          }
       }
