@@ -3,6 +3,7 @@
 // Compile with: make nurbs_ex1
 //
 // Sample runs:  nurbs_ex1 -m square-nurbs.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m square-nurbs.mesh -o 2 --weak-bc
 //               nurbs_ex1 -m cube-nurbs.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m pipe-nurbs-2d.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
@@ -119,13 +120,6 @@ public:
 
 };
 
-
-double Neum(const Vector & x)
-{
-   return 10.0*x[0];
-}
-
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -178,7 +172,7 @@ int main(int argc, char *argv[])
    }
    if (strongBC & (kappa < 0))
    {
-      kappa = (order+1)*(order+1);
+      kappa = (order.Max()+1)*(order.Max()+1);
    }
    args.PrintOptions(cout);
 
@@ -195,9 +189,10 @@ int main(int argc, char *argv[])
    {
       if (ref_levels < 0)
       {
-      int ref_levels =
-         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+         ref_levels =
+           (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       }
+cout<<ref_levels <<endl;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -292,8 +287,6 @@ int main(int argc, char *argv[])
          return 4;
       }
    }
-
-
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
