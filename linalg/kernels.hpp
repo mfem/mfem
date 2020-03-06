@@ -36,13 +36,9 @@ namespace mfem
 namespace kernels
 {
 
-<<<<<<< HEAD
 // *****************************************************************************
-/// Returns the l2 norm of the data.
-template<typename T>
-=======
 /// Returns the l2 norm of the Vector with the given @a size and @a data.
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
+template<typename T>
 MFEM_HOST_DEVICE inline
 double Norml2(const int size, const T *data)
 {
@@ -69,15 +65,10 @@ double Norml2(const int size, const T *data)
    return scale * sqrt(sum);
 }
 
-<<<<<<< HEAD
 // *****************************************************************************
-/// Multiply a matrix A with the transpose of a matrix B: A*Bt
+/** @brief Multiply a matrix @a A of size @a ah x @a aw with the transpose of a
+    matrix @a B of size @a bh x @a aw: A*Bt. */
 template<typename TA, typename TB, typename TC>
-=======
-/// Multiply a matrix @a A of size @a ah x @a aw with the transpose of a matrix
-/// @a B of size @a bh x @a aw: A*Bt.
-// template<typename TA, typename TB, typename TC>
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
 MFEM_HOST_DEVICE inline
 void MultABt(const int ah, const int aw, const int bh,
              const TA *A, const TB *B, TC *C)
@@ -104,13 +95,9 @@ void MultABt(const int ah, const int aw, const int bh,
    }
 }
 
-<<<<<<< HEAD
 // *****************************************************************************
-template<typename T>
-=======
 /// Symmetrize a square matrix of size @a n with data @a d.
-// template<typename T>
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
+template<typename T>
 MFEM_HOST_DEVICE inline
 void Symmetrize(const int n, T *d)
 {
@@ -124,13 +111,9 @@ void Symmetrize(const int n, T *d)
    }
 }
 
-<<<<<<< HEAD
 // *****************************************************************************
-template<typename T>
-=======
 /// Utility function to swap the values of @a a and @a b.
-// template<typename T>
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
+template<typename T>
 MFEM_HOST_DEVICE static inline
 void Swap(T &a, T &b)
 {
@@ -141,78 +124,28 @@ void Swap(T &a, T &b)
 
 const double Epsilon = std::numeric_limits<double>::epsilon();
 
-<<<<<<< HEAD
 // *****************************************************************************
+/// Compute the determinant of a matrix of size dim with data @a data.
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline T Det(const T *data)
 { return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data); }
 
 // *****************************************************************************
+/** @brief Return the inverse of the input matrix @a a of size dim into the
+    output matrix @a inva. */
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline
-void CalcInverse(const T *data, T *inv)
-=======
-/// Compute the determinant of a matrix of size dim with data @a d.
-// template<typename T>
-template<int dim> double Det(const double *d);
-
-/// Compute the determinant of a matrix of size 2 with data @a d.
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline double Det<2>(const double *d)
-{
-   return d[0] * d[3] - d[1] * d[2];
-}
-
-/// Compute the determinant of a matrix of size 3 with data @a d.
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline double Det<3>(const double *d)
-{
-   return d[0] * (d[4] * d[8] - d[5] * d[7]) +
-          d[3] * (d[2] * d[7] - d[1] * d[8]) +
-          d[6] * (d[1] * d[5] - d[2] * d[4]);
-}
-
-/// Return the inverse of the input matrix @a a of size dim into the output
-/// matrix @a inva.
-// template<typename T>
-template<int dim> void CalcInverse(const double *a, double *inva);
-
-/// Return the inverse of the input matrix @a a of size 2 into the output matrix
-/// @a inva.
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline
-void CalcInverse<2>(const double *a, double *inva)
-{
-   constexpr int n = 2;
-   const double d = kernels::Det<2>(a);
-   const double t = 1.0 / d;
-   inva[0*n+0] =  a[1*n+1] * t ;
-   inva[0*n+1] = -a[0*n+1] * t ;
-   inva[1*n+0] = -a[1*n+0] * t ;
-   inva[1*n+1] =  a[0*n+0] * t ;
-}
-
-/// Return the inverse of the input matrix @a a of size 3 into the output matrix
-/// @a inva.
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline
-void CalcInverse<3>(const double *a, double *inva)
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
+void CalcInverse(const T *a, T *inva)
 {
    typedef ColumnMajorLayout2D<dim,dim> layout_t;
-   const T det = TAdjDet<T>(layout_t(), data, layout_t(), inv);
-   //TAssign<AssignOp::Div>(layout_t(), inv, det);
+   const T det = TAdjDet<T>(layout_t(), a, layout_t(), inva);
+   TAssign<AssignOp::Div>(layout_t(), inva, det);
 }
 
-<<<<<<< HEAD
 // *****************************************************************************
-/// C = A + alpha*B
+/** @brief Compute C = A + alpha*B, where the matrices @a A, @a B and @a C are
+    of size @a height x @a width. */
 template<typename TALPHA, typename TA, typename TB, typename TC>
-=======
-/// Compute C = A + alpha*B, where the matrices @a A, @a B and @a C are of size
-/// @a height x @a width.
-// template<typename TALPHA, typename TA, typename TB, typename TC>
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
 MFEM_HOST_DEVICE inline
 void Add(const int height, const int width, const TALPHA alpha,
          const TA *A, const TB *B, TC *C)
@@ -227,16 +160,11 @@ void Add(const int height, const int width, const TALPHA alpha,
    }
 }
 
-<<<<<<< HEAD
 // *****************************************************************************
-/// Matrix matrix multiplication.  A = B * C.
+/** @brief Matrix-matrix multiplication: A = B * C, where the matrices @a A,
+    @a B and @a C are of sizes @a aw x @a ah, @a aw x @a bw and @a bw x @a ah,
+    respectively. */
 template<typename TA, typename TB, typename TC>
-=======
-/// Matrix-matrix multiplication: A = B * C, where the matrices @a A, @a B and
-/// @a C are of sizes @a aw x @a ah, @a aw x @a bw and @a bw x @a ah
-/// respectively.
-// template<typename TA, typename TB, typename TC>
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
 MFEM_HOST_DEVICE inline
 void Mult(const int ah, const int aw, const int bw,
           const TB *B, const TC *C, TA *A)
@@ -255,15 +183,10 @@ void Mult(const int ah, const int aw, const int bw,
    }
 }
 
-<<<<<<< HEAD
 // *****************************************************************************
-/// Matrix vector multiplication.
+/** @brief Matrix vector multiplication: y = A x, where the matrix A is of size
+    @a height x @a width with data given by @a data. */
 template<typename TDATA, typename TX, typename TY>
-=======
-/// Matrix vector multiplication: y = A x, where the matrix A is of size @a
-/// height x @a width with data given by @a data.
-// template<typename TDATA, typename TX, typename TY>
->>>>>>> b22edc0adc9347a7732a264a716d12b5da861ece
 MFEM_HOST_DEVICE inline
 void MultV(const int height, const int width,
            TDATA *data, const TX *x, TY *y)

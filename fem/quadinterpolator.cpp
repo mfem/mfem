@@ -832,7 +832,6 @@ static  void D2QGrad3D(const int NE,
 
 static void D2QGrad(const FiniteElementSpace &fes,
                     const DofToQuad *maps,
-                    const IntegrationRule& ir,
                     const Vector &e_vec,
                     Vector &q_der)
 {
@@ -1194,7 +1193,6 @@ static  void D2QPhysGrad3D(const int NE,
 static void D2QPhysGrad(const FiniteElementSpace &fes,
                         const GeometricFactors *geom,
                         const DofToQuad *maps,
-                        const IntegrationRule& ir,
                         const Vector &e_vec,
                         Vector &q_der)
 {
@@ -1242,7 +1240,7 @@ void QuadratureInterpolator::Derivatives(const Vector &e_vec,
    const IntegrationRule &ir = *IntRule;
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QGrad(*fespace, &d2q, ir, e_vec, q_der);
+   D2QGrad(*fespace, &d2q, e_vec, q_der);
 }
 
 void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
@@ -1250,13 +1248,14 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
 {
 
    Mesh *mesh = fespace->GetMesh();
-   mesh->DeleteGeometricFactors();
+   if (mesh->GetNE() == 0) { return; }
+   // mesh->DeleteGeometricFactors(); // This should be done outside
    const IntegrationRule &ir = *IntRule;
    const GeometricFactors *geom =
       mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QPhysGrad(*fespace, geom, &d2q, ir, e_vec, q_der);
+   D2QPhysGrad(*fespace, geom, &d2q, e_vec, q_der);
 }
 
 
