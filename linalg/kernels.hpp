@@ -22,6 +22,9 @@
 #include "../general/globals.hpp"
 
 #include "matrix.hpp"
+#include "tmatrix.hpp"
+#include "tlayout.hpp"
+#include "ttensor.hpp"
 
 namespace mfem
 {
@@ -31,27 +34,27 @@ namespace kernels
 
 // *****************************************************************************
 /// Returns the l2 norm of the data.
-// template<typename T>
+template<typename T>
 MFEM_HOST_DEVICE inline
-double Norml2(const int size, const double *data)
+double Norml2(const int size, const T *data)
 {
    if (0 == size) { return 0.0; }
    if (1 == size) { return std::abs(data[0]); }
-   double scale = 0.0;
-   double sum = 0.0;
+   T scale = 0.0;
+   T sum = 0.0;
    for (int i = 0; i < size; i++)
    {
       if (data[i] != 0.0)
       {
-         const double absdata = fabs(data[i]);
+         const T absdata = fabs(data[i]);
          if (scale <= absdata)
          {
-            const double sqr_arg = scale / absdata;
+            const T sqr_arg = scale / absdata;
             sum = 1.0 + sum * (sqr_arg * sqr_arg);
             scale = absdata;
             continue;
          } // end if scale <= absdata
-         const double sqr_arg = absdata / scale;
+         const T sqr_arg = absdata / scale;
          sum += (sqr_arg * sqr_arg); // else scale > absdata
       } // end if data[i] != 0
    }
@@ -60,10 +63,10 @@ double Norml2(const int size, const double *data)
 
 // *****************************************************************************
 /// Multiply a matrix A with the transpose of a matrix B: A*Bt
-// template<typename TA, typename TB, typename TC>
+template<typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline
 void MultABt(const int ah, const int aw, const int bh,
-             const double *A, const double *B, double *C)
+             const TA *A, const TB *B, TC *C)
 {
    const int ah_x_bh = ah*bh;
    for (int i=0; i<ah_x_bh; i+=1)
@@ -72,7 +75,7 @@ void MultABt(const int ah, const int aw, const int bh,
    }
    for (int k=0; k<aw; k+=1)
    {
-      double *c = C;
+      TC *c = C;
       for (int j=0; j<bh; j+=1)
       {
          const double bjk = B[j];
@@ -88,26 +91,26 @@ void MultABt(const int ah, const int aw, const int bh,
 }
 
 // *****************************************************************************
-// template<typename T>
+template<typename T>
 MFEM_HOST_DEVICE inline
-void Symmetrize(const int n, double *d)
+void Symmetrize(const int n, T *d)
 {
    for (int i = 0; i<n; i++)
    {
       for (int j = 0; j<i; j++)
       {
-         const double a = 0.5 * (d[i*n+j] + d[j*n+i]);
+         const T a = 0.5 * (d[i*n+j] + d[j*n+i]);
          d[j*n+i] = d[i*n+j] = a;
       }
    }
 }
 
 // *****************************************************************************
-// template<typename T>
+template<typename T>
 MFEM_HOST_DEVICE static inline
-void Swap(double &a, double &b)
+void Swap(T &a, T &b)
 {
-   double tmp = a;
+   T tmp = a;
    a = b;
    b = tmp;
 }
@@ -116,66 +119,26 @@ void Swap(double &a, double &b)
 const double Epsilon = std::numeric_limits<double>::epsilon();
 
 // *****************************************************************************
-// template<typename T>
-template<int dim> double Det(const double *d);
-
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline double Det<2>(const double *d)
-{
-   return d[0] * d[3] - d[1] * d[2];
-}
-
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline double Det<3>(const double *d)
-{
-   return d[0] * (d[4] * d[8] - d[5] * d[7]) +
-          d[3] * (d[2] * d[7] - d[1] * d[8]) +
-          d[6] * (d[1] * d[5] - d[2] * d[4]);
-}
+template<int dim, typename T>
+MFEM_HOST_DEVICE inline T Det(const T *data)
+{ return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data); }
 
 // *****************************************************************************
-// template<typename T>
-template<int dim> void CalcInverse(const double *a, double *i);
-
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline
-void CalcInverse<2>(const double *a, double *inva)
+template<int dim, typename T>
+MFEM_HOST_DEVICE inline
+void CalcInverse(const T *data, T *inv)
 {
-   constexpr int n = 2;
-   const double d = kernels::Det<2>(a);
-   const double t = 1.0 / d;
-   inva[0*n+0] =  a[1*n+1] * t ;
-   inva[0*n+1] = -a[0*n+1] * t ;
-   inva[1*n+0] = -a[1*n+0] * t ;
-   inva[1*n+1] =  a[0*n+0] * t ;
-}
-
-// template<typename T>
-template<> MFEM_HOST_DEVICE inline
-void CalcInverse<3>(const double *a, double *inva)
-{
-   constexpr int n = 3;
-   const double d = kernels::Det<3>(a);
-   const double t = 1.0 / d;
-   inva[0*n+0] = (a[1*n+1]*a[2*n+2]-a[1*n+2]*a[2*n+1])*t;
-   inva[0*n+1] = (a[0*n+2]*a[2*n+1]-a[0*n+1]*a[2*n+2])*t;
-   inva[0*n+2] = (a[0*n+1]*a[1*n+2]-a[0*n+2]*a[1*n+1])*t;
-
-   inva[1*n+0] = (a[1*n+2]*a[2*n+0]-a[1*n+0]*a[2*n+2])*t;
-   inva[1*n+1] = (a[0*n+0]*a[2*n+2]-a[0*n+2]*a[2*n+0])*t;
-   inva[1*n+2] = (a[0*n+2]*a[1*n+0]-a[0*n+0]*a[1*n+2])*t;
-
-   inva[2*n+0] = (a[1*n+0]*a[2*n+1]-a[1*n+1]*a[2*n+0])*t;
-   inva[2*n+1] = (a[0*n+1]*a[2*n+0]-a[0*n+0]*a[2*n+1])*t;
-   inva[2*n+2] = (a[0*n+0]*a[1*n+1]-a[0*n+1]*a[1*n+0])*t;
+   typedef ColumnMajorLayout2D<dim,dim> layout_t;
+   const T det = TAdjDet<T>(layout_t(), data, layout_t(), inv);
+   //TAssign<AssignOp::Div>(layout_t(), inv, det);
 }
 
 // *****************************************************************************
 /// C = A + alpha*B
-// template<typename TALPHA, typename TA, typename TB, typename TC>
+template<typename TALPHA, typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline
-void Add(const int height, const int width, const double alpha,
-         const double *A, const double *B, double *C)
+void Add(const int height, const int width, const TALPHA alpha,
+         const TA *A, const TB *B, TC *C)
 {
    for (int j = 0; j < width; j++)
    {
@@ -189,10 +152,10 @@ void Add(const int height, const int width, const double alpha,
 
 // *****************************************************************************
 /// Matrix matrix multiplication.  A = B * C.
-// template<typename TA, typename TB, typename TC>
+template<typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline
 void Mult(const int ah, const int aw, const int bw,
-          const double *B, const double *C, double *A)
+          const TB *B, const TC *C, TA *A)
 {
    const int ah_x_aw = ah*aw;
    for (int i = 0; i < ah_x_aw; i++) { A[i] = 0.0; }
@@ -210,10 +173,10 @@ void Mult(const int ah, const int aw, const int bw,
 
 // *****************************************************************************
 /// Matrix vector multiplication.
-// template<typename TDATA, typename TX, typename TY>
+template<typename TDATA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
 void MultV(const int height, const int width,
-           double *data, const double *x, double *y)
+           TDATA *data, const TX *x, TY *y)
 {
    if (width == 0)
    {
@@ -223,8 +186,8 @@ void MultV(const int height, const int width,
       }
       return;
    }
-   double *d_col = data;
-   double x_col = x[0];
+   TDATA *d_col = data;
+   TX x_col = x[0];
    for (int row = 0; row < height; row++)
    {
       y[row] = x_col*d_col[row];

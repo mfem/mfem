@@ -14,6 +14,8 @@
 
 #include "../config/tconfig.hpp"
 #include "../general/tassign.hpp"
+#include "../general/cuda.hpp"
+#include "../general/hip.hpp"
 
 namespace mfem
 {
@@ -266,6 +268,7 @@ struct MatrixOps<1,1>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
    static inline scalar_t AdjDet(const A_layout_t &a, const A_data_t &A,
                                  const B_layout_t &b, B_data_t &B)
    {
@@ -279,6 +282,7 @@ struct MatrixOps<2,2>
 {
    // Compute det(A).
    template <typename scalar_t, typename layout_t, typename data_t>
+   MFEM_HOST_DEVICE
    static inline scalar_t Det(const layout_t &a, const data_t &A)
    {
       MFEM_FLOPS_ADD(3);
@@ -304,6 +308,7 @@ struct MatrixOps<2,2>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
    static inline void Adjugate(const A_layout_t &a, const A_data_t &A,
                                const B_layout_t &b, B_data_t &B)
    {
@@ -317,6 +322,7 @@ struct MatrixOps<2,2>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
    static inline scalar_t AdjDet(const A_layout_t &a, const A_data_t &A,
                                  const B_layout_t &b, B_data_t &B)
    {
@@ -361,6 +367,7 @@ struct MatrixOps<3,3>
 {
    // Compute det(A).
    template <typename scalar_t, typename layout_t, typename data_t>
+   MFEM_HOST_DEVICE
    static inline scalar_t Det(const layout_t &a, const data_t &A)
    {
       MFEM_FLOPS_ADD(14);
@@ -396,6 +403,7 @@ struct MatrixOps<3,3>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
    static inline void Adjugate(const A_layout_t &a, const A_data_t &A,
                                const B_layout_t &b, B_data_t &B)
    {
@@ -415,6 +423,7 @@ struct MatrixOps<3,3>
    template <typename scalar_t,
              typename A_layout_t, typename A_data_t,
              typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
    static inline scalar_t AdjDet(const A_layout_t &a, const A_data_t &A,
                                  const B_layout_t &b, B_data_t &B)
    {
@@ -487,6 +496,7 @@ inline scalar_t TDet(const layout_t &a, const data_t &A)
 // The layout of A is (M x N1 x N2) and the size of D is M.
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename D_data_t>
+MFEM_HOST_DEVICE
 inline void TDet(const A_layout_t &a, const A_data_t &A, D_data_t &D)
 {
    MFEM_STATIC_ASSERT(A_layout_t::rank == 3, "invalid rank");
@@ -517,6 +527,7 @@ inline void TAdjugate(const A_layout_t &a, const A_data_t &A,
 template <typename scalar_t,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t>
+MFEM_HOST_DEVICE
 inline scalar_t TAdjDet(const A_layout_t &a, const A_data_t &A,
                         const B_layout_t &b, B_data_t &B)
 {

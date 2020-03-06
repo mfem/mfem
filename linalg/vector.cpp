@@ -723,7 +723,7 @@ double Vector::Norml2() const
    {
       return std::abs(data[0]);
    } // end if 1 == size
-   return kernels::Norml2(size, data);
+   return kernels::Norml2(size, (const double*) data);
 }
 
 double Vector::Normlinf() const

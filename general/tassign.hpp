@@ -13,6 +13,8 @@
 #define MFEM_TEMPLATE_ASSIGN
 
 #include "../config/tconfig.hpp"
+#include "../general/cuda.hpp"
+#include "../general/hip.hpp"
 
 namespace mfem
 {
@@ -73,6 +75,7 @@ template <>
 struct AssignOp_Impl<AssignOp::Div>
 {
    template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
    {
       MFEM_FLOPS_ADD(1);
@@ -94,6 +97,7 @@ struct AssignOp_Impl<AssignOp::rDiv>
 } // namespace mfem::internal
 
 template <AssignOp::Type Op, typename lvalue_t, typename rvalue_t>
+MFEM_HOST_DEVICE
 inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
 {
    return internal::AssignOp_Impl<Op>::Assign(a, b);
