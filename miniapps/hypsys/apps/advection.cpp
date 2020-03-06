@@ -1,6 +1,6 @@
 #include "advection.hpp"
 
-Configuration ConfigAdv;
+Configuration ConfigAdvection;
 
 double AnalyticalSolutionAdv(const Vector &x, double t);
 double InitialConditionAdv(const Vector &x);
@@ -12,9 +12,9 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    : HyperbolicSystem(fes_, u_block, 1, config_,
       VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
-   ConfigAdv = config_;
+   ConfigAdvection = config_;
 
-   if (ConfigAdv.ConfigNum == 0)
+   if (ConfigAdvection.ConfigNum == 0)
    {
       SteadyState = true;
    }
@@ -120,7 +120,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    FunctionCoefficient ic(InitialConditionAdv);
 
    // TODO diese Fallunterscheidung muss in Mult getroffen werden.
-   if (ConfigAdv.ConfigNum == 0)
+   if (ConfigAdvection.ConfigNum == 0)
    {
       // Use L2 projection to achieve optimal convergence order.
       L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
@@ -131,6 +131,17 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    }
    else // Bound preserving projection.
    {
+      u0.ProjectCoefficient(ic);
+   }
+
+   if (ConfigAdvection.ConfigNum == 0)
+   {
+      ProjType = 0;
+      L2_Projection(ic, u0);
+   }
+   else
+   {
+      ProjType = 1;
       u0.ProjectCoefficient(ic);
    }
 }
@@ -180,15 +191,15 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
-      s *= ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i);
+      double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
+      s *= ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i);
    }
 
    // Scale to be normed to a full revolution.
    s = pow(s, 1./dim) * M_PI;
 
-   switch (ConfigAdv.ConfigNum)
+   switch (ConfigAdvection.ConfigNum)
    {
       case 0: // Rotation around corner.
       {
@@ -222,11 +233,11 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigAdv.bbMin(i) + ConfigAdv.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigAdv.bbMax(i) - ConfigAdv.bbMin(i));
+      double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
    }
 
-   switch (ConfigAdv.ConfigNum)
+   switch (ConfigAdvection.ConfigNum)
    {
       case 0: // Smooth solution used for grid convergence studies.
       {

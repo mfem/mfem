@@ -18,19 +18,17 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
 
+   TimeDepBC = true;
    FunctionCoefficient ic(InitialConditionBurgers);
 
    if (ConfigBurgers.ConfigNum == 0)
    {
-      // Use L2 projection to achieve optimal convergence order.
-      L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
-      FiniteElementSpace l2_fes(mesh, &l2_fec, NumEq, Ordering::byNODES);
-      GridFunction l2_proj(&l2_fes);
-      l2_proj.ProjectCoefficient(ic);
-      u0.ProjectGridFunction(l2_proj);
+      ProjType = 0;
+      L2_Projection(ic, u0);
    }
-   else // Bound preserving projection.
+   else
    {
+      ProjType = 1;
       u0.ProjectCoefficient(ic);
    }
 }

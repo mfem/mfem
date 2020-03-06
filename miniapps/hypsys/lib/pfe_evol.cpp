@@ -76,8 +76,19 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
    x_gf_MPI = x;
    x_gf_MPI.ExchangeFaceNbrData();
    Vector &xMPI = x_gf_MPI.FaceNbrData();
-   hyp->b.SetTime(t);
-   x_gf_MPI.ProjectCoefficient(hyp->b); // TODO Fallunterscheidung: bc zeitabh.?
+
+   if (hyp->TimeDepBC)
+   {
+      hyp->BdrCond.SetTime(t);
+      if (!hyp->ProjType)
+      {
+         hyp->L2_Projection(hyp->BdrCond, x_gf_MPI);
+      }
+      else
+      {
+         x_gf_MPI.ProjectCoefficient(hyp->BdrCond);
+      }
+   }
 
    for (int e = 0; e < ne; e++)
    {

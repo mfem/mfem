@@ -1,6 +1,6 @@
 #include "shallowwater.hpp"
 
-Configuration ConfigSWE;
+Configuration ConfigShallowWater;
 
 const double GravConst = 1.; // TODO
 
@@ -13,7 +13,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_,
                       VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 1, InflowFunctionSWE))
 {
-   ConfigSWE = config_;
+   ConfigShallowWater = config_;
    SteadyState = false;
    SolutionKnown = true;
 
@@ -22,17 +22,14 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
 
-   if (ConfigSWE.ConfigNum == 0)
+   if (ConfigShallowWater.ConfigNum == 0)
    {
-      // Use L2 projection to achieve optimal convergence order.
-      L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
-      FiniteElementSpace l2_fes(mesh, &l2_fec, NumEq, Ordering::byNODES);
-      GridFunction l2_proj(&l2_fes);
-      l2_proj.ProjectCoefficient(ic);
-      u0.ProjectGridFunction(l2_proj);
+      ProjType = 0;
+      L2_Projection(ic, u0);
    }
-   else // Bound preserving projection.
+   else
    {
+      ProjType = 1;
       u0.ProjectCoefficient(ic);
    }
 }
@@ -134,11 +131,11 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigSWE.bbMin(i) + ConfigSWE.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigSWE.bbMax(i) - ConfigSWE.bbMin(i));
+      double center = (ConfigShallowWater.bbMin(i) + ConfigShallowWater.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigShallowWater.bbMax(i) - ConfigShallowWater.bbMin(i));
    }
 
-   switch (ConfigSWE.ConfigNum)
+   switch (ConfigShallowWater.ConfigNum)
    {
       case 0: // Vorticity advection
       {

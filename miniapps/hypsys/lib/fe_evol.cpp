@@ -282,10 +282,20 @@ double FE_Evolution::ConvergenceCheck(double dt, double tol,
 
 void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 {
-   z = 0.;
-   hyp->b.SetTime(t);
-   inflow.ProjectCoefficient(hyp->b); // TODO Fallunterscheidung: bc zeitabh.?
+   if (hyp->TimeDepBC)
+   {
+      hyp->BdrCond.SetTime(t);
+      if (!hyp->ProjType)
+      {
+         hyp->L2_Projection(hyp->BdrCond, inflow);
+      }
+      else
+      {
+         inflow.ProjectCoefficient(hyp->BdrCond);
+      }
+   }
 
+   z = 0.;
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);
