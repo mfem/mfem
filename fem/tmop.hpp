@@ -750,10 +750,10 @@ public:
    void BackupTargetSpecification();
 
    void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
-                                const double fdeps);
+                                const Vector &vfdeps);
 
    void SetupElementGradTSpec(const Vector &x,const FiniteElementSpace &fes,
-                              const double fdeps);
+                              const Vector &vfdeps);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -806,7 +806,7 @@ protected:
 
    // Parameters for finite difference (FD) Gradient & Hessian calculations.
    int    fdflag;
-   double fdeps;
+   Vector vfdeps;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -850,7 +850,7 @@ protected:
                           Vector &elfun, const int nodenum,const int idir,
                           const double baseenergy, bool update);
 
-   double ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
@@ -861,7 +861,7 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(0), fdeps(0.0)
+        fdflag(0)
    { }
 
    ~TMOP_Integrator()
@@ -922,18 +922,17 @@ public:
 
    /** @brief Sets the flag that tells the Integrator to use FD-based
        approximation. */
-   void SetFDFlag(int fdflag_);
-   int GetFDFlag() {return fdflag;}
+   void SetFDFlag(int fdflag_) { fdflag = fdflag_; }
+   int  GetFDFlag()            { return fdflag; }
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void SetFDh(const Vector &x, const FiniteElementSpace &fes);
 #ifdef MFEM_USE_MPI
-   void SetFDh(const Vector &x, const FiniteElementSpace &fes,
-               const MPI_Comm &comm);
+   void SetFDh(const Vector &x, const ParFiniteElementSpace &pfes);
 #endif
-   double GetFDh() {return fdeps;}
+   Vector GetFDhvec() { return vfdeps; }
 
-   DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
+   DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc; }
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
