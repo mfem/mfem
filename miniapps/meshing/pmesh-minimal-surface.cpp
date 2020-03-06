@@ -32,8 +32,12 @@
 // Device sample runs:
 //               pmesh-minimal-surface -d cuda
 
-#include <cassert>
 #include "mfem.hpp"
+#include <fstream>
+#include <iostream>
+
+#include "../../../dbg.hpp"
+#include "linalg/densemat.hpp"
 #include "../../general/forall.hpp"
 
 using namespace std;
@@ -45,8 +49,9 @@ constexpr int SDIM = 3;
 constexpr double PI = M_PI;
 constexpr double NRM = 1.e-4;
 constexpr double EPS = 1.e-14;
-constexpr double AMR_PROB = 0.25;
+constexpr double AMR_THRESHOLD = 0.2;
 constexpr Element::Type QUAD = Element::QUADRILATERAL;
+constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
 // Static variables for GLVis
 static int NRanks, MyRank;
@@ -59,7 +64,7 @@ constexpr char vishost[] = "localhost";
 // Options and data for the solver
 struct Opt
 {
-   Array<int> bc;
+   Array<int> *bc = nullptr;
    int order = 3;
    int nx = 6;
    int ny = 6;
@@ -74,7 +79,7 @@ struct Opt
    bool radial = false;
    double lambda = 0.0;
    bool solve_by_components = false;
-   const char *keys = "gAmmaaa";
+   const char *keys = "gAmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
    ParMesh *mesh = nullptr;
@@ -97,16 +102,16 @@ public:
    Surface(Opt &opt, const char *file): Mesh(file, true),
       S(static_cast<T*>(this)), opt(opt) { Postflow(); }
 
+   // Generate 2D generic empty surface mesh
+   Surface(Opt &opt, bool): Mesh(),
+      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
+
    // Generate 2D quad surface mesh
    Surface(Opt &opt): Mesh(opt.nx, opt.ny, QUAD, true, 1.0, 1.0, false),
       S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
 
    // Generate 2D generic surface mesh
    Surface(Opt &opt, int NV, int NE, int NBE): Mesh(DIM, NV, NE, NBE, SDIM),
-      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
-
-   // Generate 2D generic empty surface mesh
-   Surface(Opt &opt, bool): Mesh(),
       S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
 
    void Preflow() { S->Prefix(); S->Create(); }
@@ -131,7 +136,6 @@ public:
    void Refine()
    {
       for (int l = 0; l < opt.refine; l++) { UniformRefinement(); }
-      if (opt.amr) { RandomRefinement(AMR_PROB); }
    }
 
    void Snap()
@@ -158,6 +162,7 @@ public:
    void GenFESpace()
    {
       fec = new H1_FECollection(opt.order, DIM);
+      if (opt.amr) { EnsureNCMesh(); }
       msh = new ParMesh(MPI_COMM_WORLD, *this);
       fes = new ParFiniteElementSpace(msh, fec, opt.vdim);
    }
@@ -168,7 +173,7 @@ public:
       {
          Array<int> ess_bdr(bdr_attributes.Max());
          ess_bdr = 1;
-         fes->GetEssentialTrueDofs(ess_bdr, opt.bc);
+         fes->GetEssentialTrueDofs(ess_bdr, *opt.bc);
       }
    }
 
@@ -452,7 +457,7 @@ struct FullPeach: public Surface<FullPeach>
       const SparseMatrix *R = fes->GetRestrictionMatrix();
       if (!R) { ess_tdofs.MakeRef(ess_cdofs); }
       else { R->BooleanMult(ess_cdofs, ess_tdofs); }
-      ParFiniteElementSpace::MarkerToList(ess_tdofs, opt.bc);
+      ParFiniteElementSpace::MarkerToList(ess_tdofs, *opt.bc);
    }
 };
 
@@ -811,7 +816,7 @@ static void Visualize(const Opt &opt)
 template<class Type> class SurfaceSolver
 {
 protected:
-   const Opt &opt;
+   Opt &opt;
    ParMesh *mesh;
    Vector X, B;
    OperatorPtr A;
@@ -824,7 +829,7 @@ protected:
    const int print_iter = -1, max_num_iter = 2000;
    const double RTOLERANCE = EPS, ATOLERANCE = EPS*EPS;
 public:
-   SurfaceSolver(const Opt &opt):
+   SurfaceSolver(Opt &opt):
       opt(opt), mesh(opt.mesh), fes(opt.fes),
       a(fes), x(fes), x0(fes), b(fes), one(1.0),
       solver(static_cast<Type*>(this)), M(nullptr) { }
@@ -838,6 +843,7 @@ public:
       {
          if (MyRank == 0)
          { mfem::out << "Linearized iteration " << i << ": "; }
+         Amr();
          Update();
          a.Assemble();
          if (solver->Loop()) { break; }
@@ -858,7 +864,7 @@ public:
    {
       const bool by_component = opt.solve_by_components;
       b = 0.0;
-      a.FormLinearSystem(opt.bc, x, b, A, X, B);
+      a.FormLinearSystem(*opt.bc, x, b, A, X, B);
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetPrintLevel(print_iter);
       cg.SetMaxIter(max_num_iter);
@@ -870,7 +876,7 @@ public:
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
       GridFunction *nodes = by_component ? &x0 : fes->GetMesh()->GetNodes();
-      x.HostRead();
+      x.HostReadWrite();
       nodes->HostRead();
       double rnorm = nodes->DistanceTo(x) / nodes->Norml2();
       double glob_norm;
@@ -909,6 +915,55 @@ public:
       // x = λ*nodes + (1-λ)*x
       add(lambda, *nodes, (1.0-lambda), x, x);
       return Converged(rnorm);
+   }
+
+   void Amr()
+   {
+      if (!opt.amr) { return; }
+      Array<Refinement> refs;
+      const int NE = mesh->GetNE();
+      const IntegrationRule *ir = &IntRules.Get(Geometry::SQUARE, opt.order);
+      for (int i = 0; i < NE; i++)
+      {
+         double minJ = +NL_DMAX;
+         double maxJ = -NL_DMAX;
+         ElementTransformation *transf = mesh->GetElementTransformation(i);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            transf->SetIntPoint(&ir->IntPoint(j));
+            const DenseMatrix &J = transf->Jacobian();
+            DenseMatrix JJT(SDIM, SDIM);
+            MultAAt(J, JJT);
+            const double det = fabs(JJT.Det());
+            minJ = fmin(minJ, det);
+            maxJ = fmax(maxJ, det);
+         }
+         MFEM_VERIFY(minJ <= maxJ,"");
+         dbg("\033[33m J min/max = (%.8e, %.8e)", minJ, maxJ);
+         if (fabs(maxJ) != 0.0)
+         {
+            const double rho = minJ / maxJ;
+            MFEM_VERIFY(rho <= 1.0,"");
+            if (rho < AMR_THRESHOLD) { refs.Append(Refinement(i,3)); }
+         }
+      }
+      if (refs.Size()>0)
+      {
+         const int nonconforming = -1;
+         const int nc_limit = 2;
+         mesh->GeneralRefinement(refs, nonconforming, nc_limit);
+         fes->Update();
+         x.Update();
+         a.Update();
+         b.Update();
+         if (mesh->bdr_attributes.Size())
+         {
+            Array<int> ess_bdr(mesh->bdr_attributes.Max());
+            ess_bdr = 1;
+            fes->GetEssentialTrueDofs(ess_bdr, *opt.bc);
+         }
+      }
+      if (opt.vis) { Visualize(opt); }
    }
 
    void Update()
@@ -1042,6 +1097,7 @@ int main(int argc, char *argv[])
    // Initialize hardware devices
    Device device(opt.device_config);
    if (MyRank == 0) { device.Print(); }
+   opt.bc = new Array<int>(Device::GetHostMemoryType());
 
    // Initialize GLVis server if 'visualization' is set
    if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
@@ -1059,5 +1115,6 @@ int main(int argc, char *argv[])
    // Free the used memory
    delete S;
    MPI_Finalize();
+   delete opt.bc;
    return 0;
 }
