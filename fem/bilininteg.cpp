@@ -1959,7 +1959,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       D.SetSize(VQ ? VQ->GetVDim() : 0);
       K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
-      DenseMatrix tmp(trial_vshape.Height(), K.Width());
+      DenseMatrix tmp(test_vshape.Height(), K.Width());
 
       elmat.SetSize (test_dof, trial_dof);
 
@@ -1985,7 +1985,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          {
             MQ->Eval(K, Trans, ip);
             K *= w;
-            Mult(test_vshape,K,tmp);
+	    Mult(test_vshape,K,tmp);
             AddMultABt(tmp,trial_vshape,elmat);
          }
          else if (VQ)
