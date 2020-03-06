@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_BLAS_HPP
-#define MFEM_BLAS_HPP
+#ifndef MFEM_KERNELS_HPP
+#define MFEM_KERNELS_HPP
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
@@ -26,7 +26,7 @@
 namespace mfem
 {
 
-namespace blas
+namespace kernels
 {
 
 // *****************************************************************************
@@ -142,7 +142,7 @@ template<> MFEM_HOST_DEVICE inline
 void CalcInverse<2>(const double *a, double *inva)
 {
    constexpr int n = 2;
-   const double d = blas::Det<2>(a);
+   const double d = kernels::Det<2>(a);
    const double t = 1.0 / d;
    inva[0*n+0] =  a[1*n+1] * t ;
    inva[0*n+1] = -a[0*n+1] * t ;
@@ -155,7 +155,7 @@ template<> MFEM_HOST_DEVICE inline
 void CalcInverse<3>(const double *a, double *inva)
 {
    constexpr int n = 3;
-   const double d = blas::Det<3>(a);
+   const double d = kernels::Det<3>(a);
    const double t = 1.0 / d;
    inva[0*n+0] = (a[1*n+1]*a[2*n+2]-a[1*n+2]*a[2*n+1])*t;
    inva[0*n+1] = (a[0*n+2]*a[2*n+1]-a[0*n+1]*a[2*n+2])*t;
@@ -1387,8 +1387,8 @@ have_aa:
    return sqrt(fabs(aa))*mult; // take abs before we sort?
 }
 
-} // namespace blas
+} // namespace kernels
 
 } // namespace mfem
 
-#endif // MFEM_BLAS_HPP
+#endif // MFEM_KERNELS_HPP

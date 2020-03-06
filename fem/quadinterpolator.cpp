@@ -12,7 +12,7 @@
 #include "quadinterpolator.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
-#include "../linalg/blas.hpp"
+#include "../linalg/kernels.hpp"
 
 namespace mfem
 {
@@ -992,7 +992,7 @@ static void D2QPhysGrad2D(const int NE,
                }
             }
 
-            blas::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
+            kernels::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
 
             for (int r=0; r<VDIM; ++r)
             {
@@ -1168,7 +1168,7 @@ static  void D2QPhysGrad3D(const int NE,
                   }
                }
 
-               blas::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
+               kernels::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
 
                for (int r=0; r<VDIM; ++r)
                {
