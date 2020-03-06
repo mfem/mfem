@@ -72,6 +72,7 @@ struct TensorOps<2> // rank = 2
    // Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
+   MFEM_HOST_DEVICE
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
                       scalar_t value)
    {
