@@ -1150,7 +1150,6 @@ CPDSolver::Solve()
 
      D.SetSize(HDivFESpace_->TrueVSize());
      RHS2.SetSize(HDivFESpace_->TrueVSize());
-     rhs.ParallelAssemble(RHS2);
 
      HypreDiagScale diag(M2);
      
@@ -1158,9 +1157,18 @@ CPDSolver::Solve()
      pcg.SetPreconditioner(diag);
      pcg.SetTol(1e-12);
      pcg.SetMaxIter(1000);
+
+     rhs.real().ParallelAssemble(RHS2);
+
      pcg.Mult(RHS2, D);
 
-     d_->Distribute(D);
+     d_->real().Distribute(D);
+
+     rhs.imag().ParallelAssemble(RHS2);
+
+     pcg.Mult(RHS2, D);
+
+     d_->imag().Distribute(D);
    }
 
    delete BDP;
@@ -1219,6 +1227,9 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    visit_dc.RegisterField("Re_E", &e_->real());
    visit_dc.RegisterField("Im_E", &e_->imag());
+
+   visit_dc.RegisterField("Re_D", &d_->real());
+   visit_dc.RegisterField("Im_D", &d_->imag());
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
@@ -1282,6 +1293,12 @@ CPDSolver::InitializeGLVis()
 
    socks_["Ei"] = new socketstream;
    socks_["Ei"]->precision(8);
+
+   socks_["Dr"] = new socketstream;
+   socks_["Dr"]->precision(8);
+
+   socks_["Di"] = new socketstream;
+   socks_["Di"]->precision(8);
 
    if (BCoef_)
    {
