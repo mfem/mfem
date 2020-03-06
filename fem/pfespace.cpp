@@ -2028,7 +2028,6 @@ int ParFiniteElementSpace
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
-               T.FinalizeTransformation();
                fe->GetLocalInterpolation(T, I);
 
                // make each slave DOF dependent on all master DOFs

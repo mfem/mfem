@@ -391,14 +391,10 @@ void IsoparametricTransformation::SetIdentityTransformation(
       nodes.IntPoint(j).Get(&PointMat(0,j), dim);
    }
    geom = GeomType;
-   space_dim = dim;
 }
 
 const DenseMatrix &IsoparametricTransformation::EvalJacobian()
 {
-   MFEM_ASSERT(space_dim == PointMat.Height(),
-               "the IsoparametricTransformation has not been finalized;"
-               " call FinilizeTransformation() after setup");
    MFEM_ASSERT((EvalState & JACOBIAN_MASK) == 0, "");
 
    dshape.SetSize(FElem->GetDof(), FElem->GetDim());
@@ -415,9 +411,6 @@ const DenseMatrix &IsoparametricTransformation::EvalJacobian()
 
 const DenseMatrix &IsoparametricTransformation::EvalHessian()
 {
-   MFEM_ASSERT(space_dim == PointMat.Height(),
-               "the IsoparametricTransformation has not been finalized;"
-               " call FinilizeTransformation() after setup");
    MFEM_ASSERT((EvalState & HESSIAN_MASK) == 0, "");
 
    int Dim = FElem->GetDim();
@@ -433,7 +426,7 @@ const DenseMatrix &IsoparametricTransformation::EvalHessian()
    return d2Fdx2;
 }
 
-int IsoparametricTransformation::OrderJ()
+int IsoparametricTransformation::OrderJ() const
 {
    switch (FElem->Space())
    {
@@ -442,12 +435,12 @@ int IsoparametricTransformation::OrderJ()
       case FunctionSpace::Qk:
          return (FElem->GetOrder());
       default:
-         mfem_error("IsoparametricTransformation::OrderJ()");
+         MFEM_ABORT("unsupported finite element");
    }
    return 0;
 }
 
-int IsoparametricTransformation::OrderW()
+int IsoparametricTransformation::OrderW() const
 {
    switch (FElem->Space())
    {
@@ -456,12 +449,12 @@ int IsoparametricTransformation::OrderW()
       case FunctionSpace::Qk:
          return (FElem->GetOrder() * FElem->GetDim() - 1);
       default:
-         mfem_error("IsoparametricTransformation::OrderW()");
+         MFEM_ABORT("unsupported finite element");
    }
    return 0;
 }
 
-int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
+int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 {
    if (FElem->Space() == fe->Space())
    {
@@ -474,9 +467,11 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
             return ((k-1)*(d-1)+(l-1));
          case FunctionSpace::Qk:
             return (k*(d-1)+(l-1));
+         default:
+            MFEM_ABORT("unsupported finite element");
       }
    }
-   mfem_error("IsoparametricTransformation::OrderGrad(...)");
+   MFEM_ABORT("incompatible finite elements");
    return 0;
 }
 
