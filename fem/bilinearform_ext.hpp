@@ -104,7 +104,7 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
-   ~EABilinearFormExtension();
+   ~EABilinearFormExtension() {}
 
 private:
    void SetupRestrictionOperators();

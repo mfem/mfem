@@ -51,6 +51,32 @@ void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes, Vector &emat)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleEA(...)\n"
+              "   is not implemented for this class.");
+}
+
+// void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &trial_fes,
+//                 const FiniteElementSpace &test_fes,
+//                 Vector &emat)
+// {
+//    MFEM_ABORT("BilinearFormIntegrator::AssembleEA(...)\n"
+//               "   is not implemented for this class.");
+// }
+
+// void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace &fes)
+// {
+//    MFEM_ABORT("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
+//               "   is not implemented for this class.");
+// }
+
+// void BilinearFormIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace &fes)
+// {
+//    MFEM_ABORT("BilinearFormIntegrator::AssembleEABoundaryFaces(...)\n"
+//               "   is not implemented for this class.");
+// }
+
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("BilinearFormIntegrator::MultAssembled(...)\n"
