@@ -129,8 +129,8 @@ jobs:
            NPROCS=2
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -159,8 +159,8 @@ jobs:
            NPROCS=2
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
@@ -204,8 +204,8 @@ jobs:
            TMPDIR=/tmp
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -224,8 +224,8 @@ jobs:
            TMPDIR=/tmp
       cache:
         directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.18.2/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
           - $TRAVIS_BUILD_DIR/../metis-4.0
           - $HOME/local-cached
       before_cache:
@@ -291,18 +291,18 @@ install:
 
    # hypre
    - if [ $MPI == "YES" ]; then
-        if [ ! -e hypre-2.18.2/src/hypre/lib/libHYPRE.a ]; then
-           wget https://github.com/hypre-space/hypre/archive/v2.18.2.tar.gz --no-check-certificate;
-           rm -rf hypre-2.18.2;
-           tar xvzf v2.18.2.tar.gz;
-           cd hypre-2.18.2/src;
+        if [ ! -e hypre-2.10.0b/src/hypre/lib/libHYPRE.a ]; then
+           wget https://computation.llnl.gov/project/linear_solvers/download/hypre-2.10.0b.tar.gz --no-check-certificate;
+           rm -rf hypre-2.10.0b;
+           tar xvzf hypre-2.10.0b.tar.gz;
+           cd hypre-2.10.0b/src;
            ./configure --disable-fortran --without-fei CC=mpicc CXX=mpic++;
            make -j3;
            cd ../..;
         else
-            echo "Reusing cached hypre-2.18.2/";
+            echo "Reusing cached hypre-2.10.0b/";
         fi;
-        ln -s hypre-2.18.2 hypre;
+        ln -s hypre-2.10.0b hypre;
      else
         echo "Serial build, not using hypre";
      fi

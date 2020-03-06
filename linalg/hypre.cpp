@@ -3178,6 +3178,8 @@ void HypreBoomerAMG::SetCoord(int coord_dim, float *coord)
 }
 
 
+#if MFEM_HYPRE_VERSION >= 21800
+
 void HypreBoomerAMG::SetLAIROptions(int distance,
                                     std::string prerelax,
                                     std::string postrelax,
@@ -3412,6 +3414,7 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
    //HYPRE_BoomerAMGSetMaxCoarseSize(amg_precond, 1000);
 }
 
+#endif
 
 HypreBoomerAMG::~HypreBoomerAMG()
 {
