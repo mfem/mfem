@@ -713,14 +713,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // variable order spaces: handle edge interpolation
    if (edge_dof.Size())
    {
+      T.SetIdentityTransformation(Geometry::SEGMENT);
+
       MFEM_ASSERT(edge_dof.Size() == mesh->GetNEdges()+1, "");
-
-      T.SetFE(&SegmentFE);
-      T.GetPointMat().SetSize(1, 2);
-      T.GetPointMat()(0, 0) = 0.0;
-      T.GetPointMat()(0, 1) = 1.0;
-      T.FinalizeTransformation();
-
       for (int edge = 0; edge < mesh->GetNEdges(); edge++)
       {
          if (edge_dof.RowSize(edge) <= 1) { continue; }
