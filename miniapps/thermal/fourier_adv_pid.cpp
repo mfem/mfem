@@ -24,6 +24,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::common;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -44,7 +45,7 @@ static double TWPara_  = 0.125;
 static double TWPerp_  = 0.125;
 
 static vector<Vector> aVec_;
-
+/*
 class NormedDifferenceMeasure : public ODEDifferenceMeasure
 {
 private:
@@ -68,7 +69,7 @@ public:
       return sqrt(InnerProduct(comm_, du_, Mu_) / nrm0);
    }
 };
-
+*/
 /*
 double QFunc(const Vector &x, double t)
 {
@@ -428,10 +429,11 @@ int main(int argc, char *argv[])
    int ode_exp_rej_type = 2;
    int ode_exp_lim_type = 1;
    */
-   int ode_imp_solver_type = 1;
-   int ode_imp_acc_type = 3;
-   int ode_imp_rej_type = 2;
-   int ode_imp_lim_type = 1;
+   int ode_solver_type = 1;
+   int ode_msr_type = 1;
+   int ode_acc_type = 3;
+   int ode_rej_type = 2;
+   int ode_lim_type = 1;
 
    int vis_steps = 1;
    // double exp_dt = -1.0;
@@ -451,6 +453,9 @@ int main(int argc, char *argv[])
 
    double tol = -1.0;
    double rho = 1.2;
+
+   double etaScl = 1.0;
+   Vector etaVec;
 
    double gamma_acc = 0.9;
    double kI_acc = 1.0 / 15.0;
@@ -512,26 +517,30 @@ int main(int argc, char *argv[])
                   "Final Time.");
    args.AddOption(&tol, "-tol", "--tolerance",
                   "Tolerance used to determine convergence to steady state.");
-   args.AddOption(&ode_imp_solver_type, "-si", "--ode-imp-solver",
+   args.AddOption(&ode_solver_type, "-si", "--ode-imp-solver",
                   "ODE Implicit solver: L-stable methods\n\t"
                   "            1 - Backward Euler,\n\t"
                   "            2 - SDIRK23, 3 - SDIRK33,\n\t"
                   "            A-stable methods (not L-stable)\n\t"
                   "            22 - ImplicitMidPointSolver,\n\t"
                   "            23 - SDIRK23, 34 - SDIRK34.");
-   args.AddOption(&ode_imp_acc_type, "-acci", "--accept-factor-imp",
+   args.AddOption(&ode_msr_type, "-err", "--error-measure",
+                  "Error measure:\n"
+                  "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
+                  "\t   2 - Absolute/Relative Error with 2-Norm\n");
+   args.AddOption(&ode_acc_type, "-acci", "--accept-factor-imp",
                   "Adjustment factor after accepted steps for Implicit Solver:\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
                   "\t   4 - Proportional, Integrated, and Derivative errors\n");
-   args.AddOption(&ode_imp_rej_type, "-reji", "--reject-factor-imp",
+   args.AddOption(&ode_rej_type, "-reji", "--reject-factor-imp",
                   "Adjustment factor after rejected steps for Implicit Solver:\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
                   "\t   4 - Proportional, Integrated, and Derivative errors\n");
-   args.AddOption(&ode_imp_lim_type, "-limi", "--limiter-imp",
+   args.AddOption(&ode_lim_type, "-limi", "--limiter-imp",
                   "Adjustment limiter for Implicit Solver:\n"
                   "\t   1 - Dead zone limiter\n"
                   "\t   2 - Maximum limiter");
@@ -557,6 +566,10 @@ int main(int argc, char *argv[])
                   "\t   1 - Dead zone limiter\n"
                   "\t   2 - Maximum limiter");
    */
+   args.AddOption(&etaScl, "-eta", "--eta-scalar",
+                  "Constant for denominator of relative error measure.");
+   args.AddOption(&etaVec, "-eta-vec", "--eta-vector",
+                  "Vector for denominator of relative error measure.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&gfprint, "-print", "--print","-no-print","--no-print",
@@ -692,19 +705,20 @@ int main(int argc, char *argv[])
    //    (SDIRK).
 
    // ODEController ode_exp_controller;
-   ODEController ode_imp_controller;
+   ODEController ode_controller;
    /*
    ODESolver                * ode_exp_solver   = NULL;
    ODEStepAdjustmentFactor  * ode_exp_step_acc = NULL;
    ODEStepAdjustmentFactor  * ode_exp_step_rej = NULL;
    ODEStepAdjustmentLimiter * ode_exp_step_lim = NULL;
    */
-   ODESolver                * ode_imp_solver   = NULL;
-   ODEStepAdjustmentFactor  * ode_imp_step_acc = NULL;
-   ODEStepAdjustmentFactor  * ode_imp_step_rej = NULL;
-   ODEStepAdjustmentLimiter * ode_imp_step_lim = NULL;
+   ODEEmbeddedSolver        * ode_solver   = NULL;
+   ODERelativeErrorMeasure  * ode_err_msr  = NULL;
+   ODEStepAdjustmentFactor  * ode_step_acc = NULL;
+   ODEStepAdjustmentFactor  * ode_step_rej = NULL;
+   ODEStepAdjustmentLimiter * ode_step_lim = NULL;
 
-   NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
+   // NormedDifferenceMeasure ode_diff_msr(MPI_COMM_WORLD);
    /*
    switch (ode_exp_solver_type)
    {
@@ -773,6 +787,32 @@ int main(int argc, char *argv[])
          return 3;
    }
    */
+   switch (ode_solver_type)
+   {
+      case 0: ode_solver = new HeunEulerSolver; break;
+      case 1: ode_solver = new FehlbergRK12Solver; break;
+      case 2: ode_solver = new BogackiShampineSolver; break;
+      case 3: ode_solver = new FehlbergRK45Solver; break;
+      case 4: ode_solver = new CashKarpSolver; break;
+      case 5: ode_solver = new DormandPrinceSolver; break;
+   }
+   switch (ode_msr_type)
+   {
+      case 1:
+         ode_err_msr = (etaVec.Size() == 0) ?
+                       new MaxAbsRelDiffMeasure(etaScl) :
+                       new MaxAbsRelDiffMeasure(etaVec);
+         break;
+      case 2:
+         ode_err_msr = (etaVec.Size() == 0) ?
+                       new L2AbsRelDiffMeasure(etaScl) :
+                       new L2AbsRelDiffMeasure(etaVec);
+         break;
+      default:
+         cout << "Unknown difference measure type: " << ode_msr_type << '\n';
+         return 3;
+   }
+   /*
    switch (ode_imp_solver_type)
    {
       // Implicit L-stable methods
@@ -791,55 +831,56 @@ int main(int argc, char *argv[])
          }
          return 3;
    }
-   switch (ode_imp_acc_type)
+   */
+   switch (ode_acc_type)
    {
       case 1:
-         ode_imp_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
+         ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
          break;
       case 2:
-         ode_imp_step_acc = new IAdjFactor(kI_acc);
+         ode_step_acc = new IAdjFactor(kI_acc);
          break;
       case 3:
-         ode_imp_step_acc = new PIAdjFactor(kP_acc, kI_acc);
+         ode_step_acc = new PIAdjFactor(kP_acc, kI_acc);
          break;
       case 4:
-         ode_imp_step_acc = new PIDAdjFactor(kP_acc, kI_acc, kD_acc);
+         ode_step_acc = new PIDAdjFactor(kP_acc, kI_acc, kD_acc);
          break;
       default:
          cout << "Unknown adjustment factor type for implicit solver: "
-	      << ode_imp_acc_type << '\n';
+	      << ode_acc_type << '\n';
          return 3;
    }
-   switch (ode_imp_rej_type)
+   switch (ode_rej_type)
    {
       case 1:
-         ode_imp_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
+         ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
          break;
       case 2:
-         ode_imp_step_rej = new IAdjFactor(kI_rej);
+         ode_step_rej = new IAdjFactor(kI_rej);
          break;
       case 3:
-         ode_imp_step_rej = new PIAdjFactor(kP_rej, kI_rej);
+         ode_step_rej = new PIAdjFactor(kP_rej, kI_rej);
          break;
       case 4:
-         ode_imp_step_rej = new PIDAdjFactor(kP_rej, kI_rej, kD_rej);
+         ode_step_rej = new PIDAdjFactor(kP_rej, kI_rej, kD_rej);
          break;
       default:
          cout << "Unknown adjustment factor type for implicit solver: "
-	      << ode_imp_rej_type << '\n';
+	      << ode_rej_type << '\n';
          return 3;
    }
-   switch (ode_imp_lim_type)
+   switch (ode_lim_type)
    {
       case 1:
-         ode_imp_step_lim = new DeadZoneLimiter(lim_lo, lim_hi, lim_max);
+         ode_step_lim = new DeadZoneLimiter(lim_lo, lim_hi, lim_max);
          break;
       case 2:
-         ode_imp_step_lim = new MaxLimiter(lim_max);
+         ode_step_lim = new MaxLimiter(lim_max);
          break;
       default:
          cout << "Unknown adjustment limiter type for implicit solver: "
-	      << ode_imp_lim_type << '\n';
+	      << ode_lim_type << '\n';
          return 3;
    }
 
@@ -998,7 +1039,7 @@ int main(int argc, char *argv[])
 				  velCoef, false, imp_vel,
 				  HeatSourceCoef, false);
 
-   ode_diff_msr.SetOperator(imp_oper.GetMassMatrix());
+   // ode_diff_msr.SetOperator(imp_oper.GetMassMatrix());
 
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
@@ -1033,17 +1074,17 @@ int main(int argc, char *argv[])
       vis_qPerp.precision(8);
       vis_errqPerp.precision(8);
       */
-      miniapps::VisualizeField(vis_T, vishost, visport,
-                               T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
+      VisualizeField(vis_T, vishost, visport,
+		     T1, "Temperature", Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_ExactT, vishost, visport,
-                               ExactT, "Exact Temperature",
-			       Wx, Wy, Ww, Wh, h1_keys);
+      VisualizeField(vis_ExactT, vishost, visport,
+		     ExactT, "Exact Temperature",
+		     Wx, Wy, Ww, Wh, h1_keys);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
-                               errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
+      VisualizeField(vis_errT, vishost, visport,
+		     errorT, "Error in T", Wx, Wy, Ww, Wh, l2_keys);
       /*
       Wx += offx;
       Wy -= offy;
@@ -1149,7 +1190,7 @@ int main(int argc, char *argv[])
               << endl;
    }
 
-   ode_imp_solver->Init(imp_oper);
+   ode_solver->Init(imp_oper);
    /*
    ode_exp_solver->Init(exp_oper);
 
@@ -1162,14 +1203,14 @@ int main(int argc, char *argv[])
    ode_exp_controller.SetTolerance(tol);
    ode_exp_controller.SetRejectionLimit(rho);
    */
-   ode_imp_controller.Init(*ode_imp_solver, ode_diff_msr,
-			   *ode_imp_step_acc, *ode_imp_step_rej,
-			   *ode_imp_step_lim);
+   ode_controller.Init(*ode_solver, *ode_err_msr,
+		       *ode_step_acc, *ode_step_rej,
+		       *ode_step_lim);
 
-   ode_imp_controller.SetOutputFrequency(vis_steps);
-   ode_imp_controller.SetTimeStep(imp_dt);
-   ode_imp_controller.SetTolerance(tol);
-   ode_imp_controller.SetRejectionLimit(rho);
+   ode_controller.SetOutputFrequency(vis_steps);
+   ode_controller.SetTimeStep(imp_dt);
+   ode_controller.SetTolerance(tol);
+   ode_controller.SetRejectionLimit(rho);
 
    // ofstream ofs_exp_gp;
    ofstream ofs_imp_gp;
@@ -1179,7 +1220,7 @@ int main(int argc, char *argv[])
      // ofs_exp_gp.open("fourier_adv_pid_exp.dat");
       ofs_imp_gp.open("fourier_adv_pid_imp.dat");
       // ode_exp_controller.SetOutput(ofs_exp_gp);
-      ode_imp_controller.SetOutput(ofs_imp_gp);
+      ode_controller.SetOutput(ofs_imp_gp);
    }
 
    /*
@@ -1284,7 +1325,7 @@ int main(int argc, char *argv[])
    t = t_init;
    while (t < t_final)
    {
-      ode_imp_controller.Run(T1, t, t_final);
+      ode_controller.Run(T1, t, t_final);
       /*
       if (imp_dt > exp_dt)
       {
@@ -1328,17 +1369,17 @@ int main(int argc, char *argv[])
          T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
 	 ExactT.ProjectCoefficient(TCoef);
 
-	 miniapps::VisualizeField(vis_T, vishost, visport,
-                                  T1, "Temperature",
-                                  Wx, Wy, Ww, Wh, h1_keys);
+	 VisualizeField(vis_T, vishost, visport,
+			T1, "Temperature",
+			Wx, Wy, Ww, Wh, h1_keys);
 
-	 miniapps::VisualizeField(vis_ExactT, vishost, visport,
-                                  ExactT, "Exact Temperature",
-                                  Wx, Wy, Ww, Wh, h1_keys);
+	 VisualizeField(vis_ExactT, vishost, visport,
+			ExactT, "Exact Temperature",
+			Wx, Wy, Ww, Wh, h1_keys);
 
-         miniapps::VisualizeField(vis_errT, vishost, visport,
-                                  errorT, "Error in T",
-                                  Wx, Wy, Ww, Wh, l2_keys);
+         VisualizeField(vis_errT, vishost, visport,
+			errorT, "Error in T",
+			Wx, Wy, Ww, Wh, l2_keys);
       }
    }
 
@@ -1377,10 +1418,10 @@ int main(int argc, char *argv[])
    delete ode_exp_step_rej;
    delete ode_exp_step_lim;
    */ 
-   delete ode_imp_solver;
-   delete ode_imp_step_acc;
-   delete ode_imp_step_rej;
-   delete ode_imp_step_lim;
+   delete ode_solver;
+   delete ode_step_acc;
+   delete ode_step_rej;
+   delete ode_step_lim;
 
    delete pmesh;
 
