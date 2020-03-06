@@ -741,6 +741,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          mfem_error("FaceRestriction not yet implemented for this type of "
                     "element.");
          //TODO Something with GetFaceDofs?
+         orientation = 0;          // suppress compiler warning
+         face_id1 = face_id2 = 0;  // suppress compiler warning
       }
       if ((type==FaceType::Interior && e2>=0) ||
           (type==FaceType::Boundary && e2<0))
@@ -1035,6 +1037,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          mfem_error("FaceRestriction not yet implemented for this type of "
                     "element.");
          //TODO Something with GetFaceDofs?
+         orientation = 0;          // suppress compiler warning
+         face_id1 = face_id2 = 0;  // suppress compiler warning
       }
       if (type==FaceType::Interior &&
           (e2>=0 || (e2<0 && inf2>=0) )) //Interior/shared face

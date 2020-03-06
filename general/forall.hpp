@@ -33,7 +33,19 @@ namespace mfem
 
 // MFEM pragma macros that can be used inside MFEM_FORALL macros
 #define MFEM_PRAGMA(X) _Pragma(#X)
+// MFEM_UNROLL pragma macro
+#if defined(MFEM_USE_CUDA) || \
+    (defined(__clang__) && ((__clang_major__ > 3) || \
+                            (__clang_major__ == 3 && __clang_minor__ >= 7)))
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#elif defined(__xlC__) || defined(__ICC)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#elif (__GNUC__ >= 8)
+// Using "MFEM_PRAGMA(GCC unroll N)" does not seem to work. Why?
+#define MFEM_UNROLL(N)
+#else
+#define MFEM_UNROLL(N)
+#endif
 
 // Maximum size of dofs and quads in 1D.
 const int MAX_D1D = 14;
