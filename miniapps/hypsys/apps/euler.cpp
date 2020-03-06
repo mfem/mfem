@@ -10,8 +10,9 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u);
 
 Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
              Configuration &config_)
-    : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 2, config_,
-                       VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 2, InflowFunctionEuler))
+   : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 2, config_,
+                      VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 2,
+                                                InflowFunctionEuler))
 {
    ConfigEuler = config_;
    SteadyState = false;
@@ -51,7 +52,7 @@ double Euler::EvaluatePressure(const Vector &u) const
 }
 
 void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
-                             int e, int k, int i) const
+                         int e, int k, int i) const
 {
    const int dim = u.Size() - 2;
    double H0 = 0.001;
@@ -127,9 +128,11 @@ double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
       case 3:
          return abs(u(1)*n(0)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 4:
-         return abs(u(1)*n(0) + u(2)*n(1)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
+         return abs(u(1)*n(0) + u(2)*n(1)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(
+                                                            u) / u(0));
       case 5:
-         return abs(u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
+         return abs(u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0) + sqrt(
+                   SpHeatRatio * EvaluatePressure(u) / u(0));
       default:
          MFEM_ABORT("Invalid solution vector.");
    }
@@ -175,12 +178,14 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          // Parameters
          double beta = 5.;
          double r = X.Norml2();
-         double T0 = 1. - (SpHeatRatio - 1.) * beta * beta / (8. * SpHeatRatio * M_PI * M_PI) * exp(1 - r * r);
+         double T0 = 1. - (SpHeatRatio - 1.) * beta * beta / (8. * SpHeatRatio * M_PI *
+                                                              M_PI) * exp(1 - r * r);
 
          u(0) = pow(T0, 1. / (SpHeatRatio - 1.));
          u(1) = (1. - beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(1)) * u(0);
          u(2) = (1. + beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(0)) * u(0);
-         u(3) = u(0) * T0 / (SpHeatRatio - 1.) + 0.5 * (u(1) * u(1) + u(2) * u(2)) / u(0);
+         u(3) = u(0) * T0 / (SpHeatRatio - 1.) + 0.5 * (u(1) * u(1) + u(2) * u(2)) / u(
+                   0);
          break;
       }
       case 1:

@@ -8,7 +8,8 @@ void InflowFunctionKPP(const Vector &x, double t, Vector &u);
 
 KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
          Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, 1, config_, VectorFunctionCoefficient(1, InflowFunctionKPP))
+   : HyperbolicSystem(fes_, u_block, 1, config_, VectorFunctionCoefficient(1,
+                                                                           InflowFunctionKPP))
 {
    ConfigKPP = config_;
    SteadyState = false;
@@ -39,13 +40,13 @@ void KPP::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
 }
 
 double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                              int i) const
+                         int i) const
 {
    return 1.;
 }
 
 void KPP::ComputeErrors(Array<double> &errors, const GridFunction &u,
-                             double DomainSize, double t) const
+                        double DomainSize, double t) const
 {
    errors.SetSize(3);
    FunctionCoefficient uAnalytic(AnalyticalSolutionKPP);
@@ -72,7 +73,8 @@ double AnalyticalSolutionKPP(const Vector &x, double t)
    X(0) = 2 * X(0);
    X(1) = 2 * X(1) - 0.5;
 
-   return X.Norml2() <= 1 ? 3.5 * M_PI : 0.25 * M_PI; // TODO this is just the initial condition.
+   return X.Norml2() <= 1 ? 3.5 * M_PI : 0.25 *
+          M_PI; // TODO this is just the initial condition.
 }
 
 double InitialConditionKPP(const Vector &x)

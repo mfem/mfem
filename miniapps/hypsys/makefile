@@ -102,7 +102,8 @@ valgrind-test:
 
 valgrind-parallel:
 	# valgrind --gen-suppressions=yes phypsys $(VALGRIND-CONFIG)
-	valgrind --suppressions=./my-mpi-suppressions.supp phypsys $(VALGRIND-CONFIG)
+	valgrind --suppressions=$(MPI_HOME)/share/openmpi/openmpi-valgrind.supp phypsys $(VALGRIND-CONFIG)
+	# valgrind --suppressions=my-mpi-suppressions.supp phypsys $(VALGRIND-CONFIG)
 
 grid-convergence-advection:
 	rm errors.txt; \

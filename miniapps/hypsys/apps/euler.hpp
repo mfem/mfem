@@ -8,7 +8,7 @@ class Euler : public HyperbolicSystem
 public:
    explicit Euler(FiniteElementSpace *fes_, BlockVector &u_block,
                   Configuration &config_);
-   ~Euler(){};
+   ~Euler() {};
 
    virtual double EvaluatePressure(const Vector &u) const;
 

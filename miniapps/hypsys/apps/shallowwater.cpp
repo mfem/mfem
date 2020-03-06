@@ -131,8 +131,10 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (ConfigShallowWater.bbMin(i) + ConfigShallowWater.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigShallowWater.bbMax(i) - ConfigShallowWater.bbMin(i));
+      double center = (ConfigShallowWater.bbMin(i) + ConfigShallowWater.bbMax(
+                          i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigShallowWater.bbMax(
+                                        i) - ConfigShallowWater.bbMin(i));
    }
 
    switch (ConfigShallowWater.ConfigNum)

@@ -26,42 +26,46 @@ class HyperbolicSystem
 {
 public:
    explicit HyperbolicSystem(FiniteElementSpace *fes_, BlockVector &u_block,
-                             int NumEq_, Configuration &config_, VectorFunctionCoefficient BdrCond_) : fes(fes_), inflow(fes_), u0(fes_, u_block), NumEq(NumEq_), BdrCond(BdrCond_)
+                             int NumEq_, Configuration &config_,
+                             VectorFunctionCoefficient BdrCond_) : fes(fes_), inflow(fes_), u0(fes_,
+                                      u_block), NumEq(NumEq_), BdrCond(BdrCond_)
    {
-      l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(), fes->GetMesh()->Dimension());
-      l2_fes = new FiniteElementSpace(fes->GetMesh(), l2_fec, NumEq, Ordering::byNODES);
+      l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(),
+                                   fes->GetMesh()->Dimension());
+      l2_fes = new FiniteElementSpace(fes->GetMesh(), l2_fec, NumEq,
+                                      Ordering::byNODES);
       l2_proj = new GridFunction(l2_fes);
-      }
+   }
 
-      virtual ~HyperbolicSystem()
+   virtual ~HyperbolicSystem()
+   {
+      delete l2_proj;
+      delete l2_fes;
+      delete l2_fec;
+   }
+
+   virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
+                             int e, int k, int i = -1) const = 0;
+   virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                               int i) const = 0;
+   virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
+                              double DomainSize, double t) const = 0;
+   virtual void WriteErrors(const Array<double> &errors) const
+   {
+      ofstream file("errors.txt", ios_base::app);
+
+      if (!file)
       {
-         delete l2_proj;
-         delete l2_fes;
-         delete l2_fec;
+         MFEM_ABORT("Error opening file.");
       }
-
-      virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
-                                int e, int k, int i = -1) const = 0;
-      virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                                  int i) const = 0;
-      virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
-                                 double DomainSize, double t) const = 0;
-      virtual void WriteErrors(const Array<double> &errors) const
+      else
       {
-         ofstream file("errors.txt", ios_base::app);
-
-         if (!file)
-         {
-            MFEM_ABORT("Error opening file.");
-         }
-         else
-         {
-            ostringstream strs;
-            strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
-            string str = strs.str();
-            file << str;
-            file.close();
-         }
+         ostringstream strs;
+         strs << errors[0] << " " << errors[1] << " " << errors[2] << "\n";
+         string str = strs.str();
+         file << str;
+         file.close();
+      }
    }
 
    // L2 projection for scalar problems.
