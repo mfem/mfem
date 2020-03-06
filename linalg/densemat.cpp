@@ -1238,11 +1238,11 @@ double DenseMatrix::CalcSingularvalue(const int i) const
    }
    else if (n == 2)
    {
-      return kernels::CalcSingularvalue<2>(d);
+      return kernels::CalcSingularvalue<2>(d,i);
    }
    else
    {
-      return kernels::CalcSingularvalue<3>(d);
+      return kernels::CalcSingularvalue<3>(d,i);
    }
 }
 
