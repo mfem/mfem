@@ -398,9 +398,11 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
 
    // copy the original mesh;
    Mesh * mesh_orig = new Mesh(*mesh);
+   if (!directions.Size()) return mesh_orig;
+   
    int dim = mesh_orig->Dimension();
 
-   Mesh * mesh_ext;
+   Mesh * mesh_ext=nullptr;
 
    for (int j=0; j<directions.Size(); j++)
    {

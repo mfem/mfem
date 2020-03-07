@@ -34,13 +34,15 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
    dof2extdof_map.resize(nrpatch);
    patch_dof_map.resize(nrpatch);
    patch_mat.SetSize(nrpatch);
+   patch_mat_ext.SetSize(nrpatch);
    patch_mat_inv.SetSize(nrpatch);
+   patch_mat_inv_ext.SetSize(nrpatch);
    ess_tdof_list.resize(nrpatch);
    for (int ip=0; ip<nrpatch; ++ip)
    {
       // Extend subdomain meshes so that they include the a PML
       Array<int> ext_directions;
-      int nrlayers = 3;
+      int nrlayers = 0;
       for (int j=0; j<nrlayers; ++j)
       {
          for (int comp=0; comp<dim; ++comp)
@@ -107,6 +109,14 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
          patch_fespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_temp_list);
       }
 
+      Array <int> ess_list_ext;
+      if (patch_meshes_ext[ip]->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(patch_meshes_ext[ip]->bdr_attributes.Max());
+         ess_bdr = 0;
+         patch_fespaces_ext[ip]->GetEssentialTrueDofs(ess_bdr, ess_list_ext);
+      }
+
       // Adjust the essential tdof list for each patch
       for (int i=0; i<ess_temp_list.Size(); i++)
       {
@@ -117,6 +127,7 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
       }
 
       SesquilinearForm a(patch_fespaces[ip], &bf->real(), &bf->imag());
+      SesquilinearForm a_ext(patch_fespaces_ext[ip], &bf->real(), &bf->imag());
       // SesquilinearForm a(patch_fespaces[ip]);
       // double k = 12.0;
       // double omega = 2.0 * M_PI * k;
@@ -136,15 +147,28 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
       //    if (ip == 0) cout << "Homogeneous Dirichlet BCs on each subdomain" << endl;
       // }
       a.Assemble();
+      a_ext.Assemble();
       OperatorPtr Alocal;
       a.FormSystemMatrix(ess_tdof_list[ip],Alocal);
-      delete patch_fespaces[ip];
       ComplexSparseMatrix * AZ = Alocal.As<ComplexSparseMatrix>();
       patch_mat[ip] = AZ->GetSystemMatrix();
       patch_mat[ip]->Threshold(0.0);
       // Save the inverse
       patch_mat_inv[ip] = new KLUSolver;
       patch_mat_inv[ip]->SetOperator(*patch_mat[ip]);
+
+
+      OperatorPtr Alocal_ext;
+      a_ext.FormSystemMatrix(ess_list_ext,Alocal_ext);
+      ComplexSparseMatrix * AZ_ext = Alocal_ext.As<ComplexSparseMatrix>();
+      patch_mat_ext[ip] = AZ_ext->GetSystemMatrix();
+      patch_mat_ext[ip]->Threshold(0.0);
+      patch_mat_inv_ext[ip] = new KLUSolver;
+      patch_mat_inv_ext[ip]->SetOperator(*patch_mat_ext[ip]);
+
+
+      delete patch_fespaces[ip];
+      delete patch_fespaces_ext[ip];
    }
    delete p;
 }
@@ -202,6 +226,30 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
          sol_local.SetSize(ndofs);
 
          rnew.GetSubVector(*dof_map, res_local);
+
+         //-----------------------------------------------
+         // Extend by zero to the extended mesh
+         int nrdof_ext = p->patch_mat_ext[ip]->Height();
+         
+         Vector res_ext(nrdof_ext); res_ext = 0.0;
+         Vector sol_ext(nrdof_ext); sol_ext = 0.0;
+
+         res_ext.SetSubVector(p->dof2extdof_map[ip],res_local.GetData());
+
+         p->patch_mat_inv_ext[ip]->Mult(res_ext, sol_ext);
+
+         sol_ext.GetSubVector(p->dof2extdof_map[ip],sol_local);
+
+
+         //-----------------------------------------------
+
+         // p->patch_mat_inv[ip]->Mult(res_local, sol_local);
+
+
+
+
+         // for the overlapping case
+         // zero out the entries corresponding to the ess_bdr
          Array<int> ess_bdr_indices_re = p->ess_tdof_list[ip]; // real part
          Array<int> ess_bdr_indices(2*ess_bdr_indices_re.Size()); //imag part
 
@@ -210,9 +258,6 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
             ess_bdr_indices[i] = ess_bdr_indices_re[i];
             ess_bdr_indices[i+ess_bdr_indices_re.Size()] = ess_bdr_indices_re[i]+ndofs/2;
          }
-         // for the overlapping case
-         // zero out the entries corresponding to the ess_bdr
-         p->patch_mat_inv[ip]->Mult(res_local, sol_local);
          if (!part) 
          { 
             sol_local.SetSubVector(ess_bdr_indices,0.0); 

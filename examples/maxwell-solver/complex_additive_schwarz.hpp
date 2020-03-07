@@ -19,6 +19,8 @@ public:
    std::vector<Array<int>> complex_patch_dof_map;
    std::vector<Array<int>> dof2extdof_map;
    Array<SparseMatrix *> patch_mat;
+   Array<SparseMatrix *> patch_mat_ext;
+   Array<KLUSolver * > patch_mat_inv_ext;
    Array<KLUSolver * > patch_mat_inv;
    std::vector<Array<int>> ess_tdof_list;
 
