@@ -102,7 +102,8 @@ if (MFEM_USE_MPI)
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
-    pnonlinearform.cpp)
+    pnonlinearform.cpp
+    prestriction.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
@@ -110,7 +111,8 @@ if (MFEM_USE_MPI)
     pfespace.hpp
     pgridfunc.hpp
     plinearform.hpp
-    pnonlinearform.hpp)
+    pnonlinearform.hpp
+    prestriction.hpp)
 endif()
 
 if (MFEM_USE_CEED)
