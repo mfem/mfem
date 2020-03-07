@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-/// Returns the sign to apply to the normals on each face to point from e1 to e2.
+/// Return the sign to apply to the normals on each face to point from e1 to e2.
 static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
                      Array<bool> &signs)
 {
@@ -61,9 +61,9 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
    }
 }
 
-FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
-                                                       &fes,
-                                                       const IntegrationRule &ir, FaceType type_)
+FaceQuadratureInterpolator::FaceQuadratureInterpolator(
+   const FiniteElementSpace &fes,
+   const IntegrationRule &ir, FaceType type_)
    : type(type_), nf(fes.GetNFbyType(type)), signs(nf)
 {
    fespace = &fes;
@@ -73,13 +73,16 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(const FiniteElementSpace
    if (fespace->GetNE() == 0) { return; }
    GetSigns(*fespace, type, signs);
    const FiniteElement *fe = fespace->GetFE(0);
-   const ScalarFiniteElement *sfe = dynamic_cast<const ScalarFiniteElement*>(fe);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   const ScalarFiniteElement *sfe =
+      dynamic_cast<const ScalarFiniteElement*>(fe);
+   const TensorBasisElement *tfe =
+      dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(sfe != NULL, "Only scalar finite elements are supported");
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in FaceQuadratureInterpolator.");
+               "Only Gauss-Lobatto and Bernstein basis are supported in "
+               "FaceQuadratureInterpolator.");
 }
 
 template<const int T_VDIM, const int T_ND1D, const int T_NQ1D>
@@ -108,12 +111,12 @@ void FaceQuadratureInterpolator::Eval2D(
    auto F = Reshape(f_vec.Read(), ND1D, VDIM, NF);
    auto sign = signs.Read();
    auto val = Reshape(q_val.Write(), NQ1D, VDIM, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF);//Only tangential der
+   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF); // only tangential der
    auto det = Reshape(q_det.Write(), NQ1D, NF);
    auto n   = Reshape(q_nor.Write(), NQ1D, VDIM, NF);
    MFEM_VERIFY(eval_flags | DERIVATIVES,
                "Derivatives on the faces are not yet supported.");
-   //if Gauss-Lobatto
+   // If Gauss-Lobatto
    MFEM_FORALL(f, NF,
    {
       const int ND1D = T_ND1D ? T_ND1D : nd;
@@ -271,7 +274,7 @@ void FaceQuadratureInterpolator::Eval3D(
           || (eval_flags & DETERMINANTS)
           || (eval_flags & NORMALS))
       {
-         //We only compute the tangential derivatives
+         // We only compute the tangential derivatives
          double Gu[max_NQ1D][max_ND1D][VDIM];
          double Bu[max_NQ1D][max_ND1D][VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)
@@ -319,7 +322,8 @@ void FaceQuadratureInterpolator::Eval3D(
                }
             }
          }
-         if (VDIM == 3 && ((eval_flags & NORMALS) || (eval_flags & DETERMINANTS)))
+         if (VDIM == 3 && ((eval_flags & NORMALS) ||
+                           (eval_flags & DETERMINANTS)))
          {
             double n[3];
             for (int q2 = 0; q2 < NQ1D; ++q2)
@@ -327,9 +331,12 @@ void FaceQuadratureInterpolator::Eval3D(
                for (int q1 = 0; q1 < NQ1D; ++q1)
                {
                   const double s = sign[f] ? -1.0 : 1.0;
-                  n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*BGu[q2][q1][2] );
-                  n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*BGu[q2][q1][2] );
-                  n[2] = s*( BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*BGu[q2][q1][1] );
+                  n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*
+                             BGu[q2][q1][2] );
+                  n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*
+                            BGu[q2][q1][2] );
+                  n[2] = s*( BGu[q2][q1][0]*GBu[q2][q1][1]-GBu[q2][q1][0]*
+                             BGu[q2][q1][1] );
                   const double norm = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
                   if (eval_flags & DETERMINANTS) { det(q1,q2,f) = norm; }
                   if (eval_flags & NORMALS)
@@ -479,7 +486,8 @@ void FaceQuadratureInterpolator::Mult(
    }
    if (eval_func)
    {
-      eval_func(nf, vdim, maps, signs, e_vec, q_val, q_der, q_det, q_nor, eval_flags);
+      eval_func(nf, vdim, maps, signs, e_vec,
+                q_val, q_der, q_det, q_nor, eval_flags);
    }
    else
    {
