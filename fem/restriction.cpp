@@ -133,9 +133,9 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          const int sgid = elementMap[dof*e + did];  // signed
          const int gid = (sgid >= 0) ? sgid : -1-sgid;
          const int lid = dof*e + d;
-         const bool flip = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
-         gatherMap[lid] = flip ? gid : -1-gid;
-         indices[offsets[gid]++] = flip ? lid : -1-lid;
+         const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
+         gatherMap[lid] = plus ? gid : -1-gid;
+         indices[offsets[gid]++] = plus ? lid : -1-lid;
       }
    }
    // We shifted the offsets vector by 1 by using it as a counter.
@@ -159,12 +159,12 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    MFEM_FORALL(i, dof*ne,
    {
       const int gid = d_gatherMap[i];
-      const bool flip = gid >= 0;
-      const int j = flip ? gid : -1-gid;
+      const bool plus = gid >= 0;
+      const int j = plus ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
       {
          const double dofValue = d_x(t?c:j, t?j:c);
-         d_y(i % nd, c, i / nd) = flip ? dofValue : -dofValue;
+         d_y(i % nd, c, i / nd) = plus ? dofValue : -dofValue;
       }
    });
 }

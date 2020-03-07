@@ -375,24 +375,29 @@ void QuadratureInterpolator::MultTranspose(
 }
 
 
-template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_VDIM = 0>
 static void D2QValues2D(const int NE,
                         const Array<double> &b_,
                         const Vector &x_,
                         Vector &y_,
-                        const int d1d =0,
-                        const int q1d =0)
+                        const int d1d = 0,
+                        const int q1d = 0,
+                        const int vdim = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto y = Reshape(y_.Write(), Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.Write(), VDIM, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -417,60 +422,69 @@ static void D2QValues2D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      for (int c = 0; c < VDIM; c++)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            DD[dy][dx] = x(dx,dy,e);
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double dq = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               dq += B[qx][dx] * DD[dy][dx];
+               DD[dy][dx] = x(dx,dy,c,e);
             }
-            DQ[dy][qx] = dq;
          }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            double qq = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               qq += DQ[dy][qx] * B[qy][dy];
+               double dq = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  dq += B[qx][dx] * DD[dy][dx];
+               }
+               DQ[dy][qx] = dq;
             }
-            y(qx,qy,e) = qq;
          }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double qq = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  qq += DQ[dy][qx] * B[qy][dy];
+               }
+               y(c,qx,qy,e) = qq;
+            }
+         }
+         MFEM_SYNC_THREAD;
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
-template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
+template<int T_D1D = 0, int T_Q1D = 0, int MAX_D = 0, int MAX_Q = 0,
+         int T_VDIM = 0>
 static void D2QValues3D(const int NE,
                         const Array<double> &b_,
                         const Vector &x_,
                         Vector &y_,
-                        const int d1d =0,
-                        const int q1d =0)
+                        const int d1d = 0,
+                        const int q1d = 0,
+                        const int vdim = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.Write(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y = Reshape(y_.Write(), VDIM, Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -494,101 +508,124 @@ static void D2QValues3D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(dz,z,D1D)
+      for (int c = 0; c < VDIM; c++)
       {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
+         MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
+            MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               X[dz][dy][dx] = x(dx,dy,dz,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
+               MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  u += B[qx][dx] * X[dz][dy][dx];
+                  X[dz][dy][dx] = x(dx,dy,dz,c,e);
                }
-               DDQ[dz][dy][qx] = u;
             }
          }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               double u = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  u += DDQ[dz][dy][qx] * B[qy][dy];
+                  double u = 0.0;
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     u += B[qx][dx] * X[dz][dy][dx];
+                  }
+                  DDQ[dz][dy][qx] = u;
                }
-               DQQ[dz][qy][qx] = u;
             }
          }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               double u = 0.0;
-               for (int dz = 0; dz < D1D; ++dz)
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  u += DQQ[dz][qy][qx] * B[qz][dz];
+                  double u = 0.0;
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     u += DDQ[dz][dy][qx] * B[qy][dy];
+                  }
+                  DQQ[dz][qy][qx] = u;
                }
-               y(qx,qy,qz,e) = u;
             }
          }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
+               {
+                  double u = 0.0;
+                  for (int dz = 0; dz < D1D; ++dz)
+                  {
+                     u += DQQ[dz][qy][qx] * B[qz][dz];
+                  }
+                  y(c,qx,qy,qz,e) = u;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
 static void D2QValues(const FiniteElementSpace &fes,
                       const DofToQuad *maps,
-                      const IntegrationRule& ir,
                       const Vector &e_vec,
                       Vector &q_val)
 {
    const int dim = fes.GetMesh()->Dimension();
+   const int vdim = fes.GetVDim();
    const int NE = fes.GetNE();
-   const int D1D = fes.GetFE(0)->GetOrder() + 1;
-   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int id = (D1D<<4) | Q1D;
+   const int D1D = maps->ndof;
+   const int Q1D = maps->nqpt;
+   const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
-   if (dim==2)
+   if (dim == 2)
    {
       switch (id)
       {
-         case 0x24: return D2QValues2D<2,4,8>(NE, maps->B, e_vec, q_val);
-         case 0x36: return D2QValues2D<3,6,4>(NE, maps->B, e_vec, q_val);
-         case 0x48: return D2QValues2D<4,8,2>(NE, maps->B, e_vec, q_val);
-         default: return D2QValues2D(NE, maps->B, e_vec, q_val, D1D, Q1D);
-      }
-   }
-   if (dim==3)
-   {
-      switch (id)
-      {
-         case 0x24: return D2QValues3D<2,4>(NE, maps->B, e_vec, q_val);
-         case 0x36: return D2QValues3D<3,6>(NE, maps->B, e_vec, q_val);
-         case 0x48: return D2QValues3D<4,8>(NE, maps->B, e_vec, q_val);
+         case 0x124: return D2QValues2D<2,4,8,1>(NE, maps->B, e_vec, q_val);
+         case 0x136: return D2QValues2D<3,6,4,1>(NE, maps->B, e_vec, q_val);
+         case 0x148: return D2QValues2D<4,8,2,1>(NE, maps->B, e_vec, q_val);
+         case 0x224: return D2QValues2D<2,4,8,2>(NE, maps->B, e_vec, q_val);
+         case 0x236: return D2QValues2D<3,6,4,2>(NE, maps->B, e_vec, q_val);
+         case 0x248: return D2QValues2D<4,8,2,2>(NE, maps->B, e_vec, q_val);
          default:
          {
-            MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
-            return D2QValues3D<0,0,8,8>(NE, maps->B, e_vec, q_val, D1D, Q1D);
+            MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+                        << " are not supported!");
+            MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
+                        << MAX_Q1D << " 1D points are not supported!");
+            D2QValues2D(NE, maps->B, e_vec, q_val, D1D, Q1D, vdim);
+            return;
+         }
+      }
+   }
+   if (dim == 3)
+   {
+      switch (id)
+      {
+         case 0x124: return D2QValues3D<2,4,0,0,1>(NE, maps->B, e_vec, q_val);
+         case 0x136: return D2QValues3D<3,6,0,0,1>(NE, maps->B, e_vec, q_val);
+         case 0x148: return D2QValues3D<4,8,0,0,1>(NE, maps->B, e_vec, q_val);
+         case 0x324: return D2QValues3D<2,4,0,0,3>(NE, maps->B, e_vec, q_val);
+         case 0x336: return D2QValues3D<3,6,0,0,3>(NE, maps->B, e_vec, q_val);
+         case 0x348: return D2QValues3D<4,8,0,0,3>(NE, maps->B, e_vec, q_val);
+         default:
+         {
+            constexpr int MD = 8;
+            constexpr int MQ = 8;
+            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
+                        << " are not supported!");
+            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
+                        << " 1D points are not supported!");
+            D2QValues3D<0,0,MD,MQ>(NE, maps->B, e_vec, q_val, D1D, Q1D, vdim);
+            return;
          }
       }
    }
@@ -598,33 +635,38 @@ static void D2QValues(const FiniteElementSpace &fes,
 
 void QuadratureInterpolator::Values(const Vector &e_vec, Vector &q_val) const
 {
+   if (fespace->GetNE() == 0) { return; }
    const IntegrationRule &ir = *IntRule;
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QValues(*fespace, &d2q,ir, e_vec, q_val);
+   D2QValues(*fespace, &d2q, e_vec, q_val);
 }
 
-template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_VDIM = 0>
 static void D2QGrad2D(const int NE,
                       const double *b_,
                       const double *g_,
                       const double *x_,
                       double *y_,
-                      const int d1d =0,
-                      const int q1d =0)
+                      const int d1d = 0,
+                      const int q1d = 0,
+                      const int vdim = 1)
 {
-   constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    auto b = Reshape(b_, Q1D, D1D);
    auto g = Reshape(g_, Q1D, D1D);
    auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, NE);
+   auto y = Reshape(y_, VDIM, 2, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -652,7 +694,7 @@ static void D2QGrad2D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      for (int c = 0; c < 2; ++c)
+      for (int c = 0; c < VDIM; ++c)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
@@ -699,26 +741,31 @@ static void D2QGrad2D(const int NE,
    });
 }
 
-template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
+template<int T_D1D = 0, int T_Q1D = 0, int MAX_D = 0, int MAX_Q = 0,
+         int T_VDIM = 0>
 static  void D2QGrad3D(const int NE,
                        const double *b_,
                        const double *g_,
                        const double *x_,
                        double *y_,
-                       const int d1d =0,
-                       const int q1d =0)
+                       const int d1d = 0,
+                       const int q1d = 0,
+                       const int vdim = 0)
 {
-   constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    auto b = Reshape(b_, Q1D, D1D);
    auto g = Reshape(g_, Q1D, D1D);
    auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, Q1D, NE);
+   auto y = Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
       const int tidz = MFEM_THREAD_ID(z);
@@ -755,7 +802,6 @@ static  void D2QGrad3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dz,z,D1D)
                {
-
                   X[dx][dy][dz] = x(dx,dy,dz,c,e);
                }
             }
@@ -836,35 +882,56 @@ static void D2QGrad(const FiniteElementSpace &fes,
                     Vector &q_der)
 {
    const int dim = fes.GetMesh()->Dimension();
+   const int vdim = fes.GetVDim();
    const int NE = fes.GetNE();
-   const int D1D = fes.GetFE(0)->GetOrder() + 1;
+   const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
-   const int id = (D1D<<4) | Q1D;
+   const int id = (vdim<<8) | (D1D<<4) | Q1D;
    const double *B = maps->B.Read();
    const double *G = maps->G.Read();
    const double *X = e_vec.Read();
    double *Y = q_der.Write();
-   if (dim==2)
+   if (dim == 2)
    {
       switch (id)
       {
-         case 0x34: return D2QGrad2D<3,4,8>(NE, B, G, X, Y);
-         case 0x46: return D2QGrad2D<4,6,4>(NE, B, G, X, Y);
-         case 0x58: return D2QGrad2D<5,8,2>(NE, B, G, X, Y);
-         default: return D2QGrad2D(NE, B, G, X, Y, D1D, Q1D);
-      }
-   }
-   if (dim==3)
-   {
-      switch (id)
-      {
-         case 0x34: return D2QGrad3D<3,4>(NE, B, G, X, Y);
-         case 0x46: return D2QGrad3D<4,6>(NE, B, G, X, Y);
-         case 0x58: return D2QGrad3D<5,8>(NE, B, G, X, Y);
+         case 0x134: return D2QGrad2D<3,4,8,1>(NE, B, G, X, Y);
+         case 0x146: return D2QGrad2D<4,6,4,1>(NE, B, G, X, Y);
+         case 0x158: return D2QGrad2D<5,8,2,1>(NE, B, G, X, Y);
+         case 0x234: return D2QGrad2D<3,4,8,2>(NE, B, G, X, Y);
+         case 0x246: return D2QGrad2D<4,6,4,2>(NE, B, G, X, Y);
+         case 0x258: return D2QGrad2D<5,8,2,2>(NE, B, G, X, Y);
          default:
          {
-            MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
-            return D2QGrad3D<0,0,8,8>(NE, B, G, X, Y, D1D, Q1D);
+            MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+                        << " are not supported!");
+            MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
+                        << MAX_Q1D << " 1D points are not supported!");
+            D2QGrad2D(NE, B, G, X, Y, D1D, Q1D, vdim);
+            return;
+         }
+      }
+   }
+   if (dim == 3)
+   {
+      switch (id)
+      {
+         case 0x134: return D2QGrad3D<3,4,0,0,1>(NE, B, G, X, Y);
+         case 0x146: return D2QGrad3D<4,6,0,0,1>(NE, B, G, X, Y);
+         case 0x158: return D2QGrad3D<5,8,0,0,1>(NE, B, G, X, Y);
+         case 0x334: return D2QGrad3D<3,4,0,0,3>(NE, B, G, X, Y);
+         case 0x346: return D2QGrad3D<4,6,0,0,3>(NE, B, G, X, Y);
+         case 0x358: return D2QGrad3D<5,8,0,0,3>(NE, B, G, X, Y);
+         default:
+         {
+            constexpr int MD = 8;
+            constexpr int MQ = 8;
+            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
+                        << " are not supported!");
+            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
+                        << " 1D points are not supported!");
+            D2QGrad3D<0,0,MD,MQ>(NE, B, G, X, Y, D1D, Q1D, vdim);
+            return;
          }
       }
    }
@@ -872,40 +939,39 @@ static void D2QGrad(const FiniteElementSpace &fes,
    MFEM_ABORT("Unknown kernel");
 }
 
-template<int T_D1D =0, int T_Q1D =0, int T_NBZ =0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_VDIM = 0>
 static void D2QPhysGrad2D(const int NE,
                           const double *b_,
                           const double *g_,
                           const double *j_,
                           const double *x_,
                           double *y_,
-                          const int d1d =0,
-                          const int q1d =0)
+                          const int d1d = 0,
+                          const int q1d = 0,
+                          const int vdim = 0)
 {
-   constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    auto b = Reshape(b_, Q1D, D1D);
    auto g = Reshape(g_, Q1D, D1D);
-   auto j = Reshape(j_, Q1D, Q1D, VDIM, VDIM, NE);
+   auto j = Reshape(j_, Q1D, Q1D, 2, 2, NE);
    auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, NE);
+   auto y = Reshape(y_, VDIM, 2, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      constexpr int VDIM = 2;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
-
-      double Yloc[VDIM][VDIM];
-      double Jloc[VDIM][VDIM];
-      double Jinv[VDIM][VDIM];
 
       MFEM_SHARED double Xz[NBZ][MD1][MD1];
       double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
@@ -927,7 +993,7 @@ static void D2QPhysGrad2D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      for (int c = 0; c < 2; ++c)
+      for (int c = 0; c < VDIM; ++c)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
@@ -966,83 +1032,53 @@ static void D2QPhysGrad2D(const int NE,
                   u += DQ1[dy][qx] * B[qy][dy];
                   v += DQ0[dy][qx] * G[qy][dy];
                }
-               //Possible optimization:
-               //Use exclusive memory to
-               //store data at quad points
-               y(c,0,qx,qy,e) = u;
-               y(c,1,qx,qy,e) = v;
+               double Jloc[4], Jinv[4];
+               Jloc[0] = j(qx,qy,0,0,e);
+               Jloc[1] = j(qx,qy,1,0,e);
+               Jloc[2] = j(qx,qy,0,1,e);
+               Jloc[3] = j(qx,qy,1,1,e);
+               kernels::CalcInverse<2>(Jloc, Jinv);
+               y(c,0,qx,qy,e) = Jinv[0]*u + Jinv[1]*v;
+               y(c,1,qx,qy,e) = Jinv[2]*u + Jinv[3]*v;
             }
          }
          MFEM_SYNC_THREAD;
       }
-
-      //Transfer to physical space
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-
-            for (int r=0; r<VDIM; ++r)
-            {
-               for (int c=0; c<VDIM; ++c)
-               {
-                  Yloc[c][r] = y(c,r,qx,qy,e);
-                  Jloc[c][r] = j(qx,qy,c,r,e);
-               }
-            }
-
-            kernels::CalcInverse<2>((&Jloc)[0][0], (&Jinv)[0][0]);
-
-            for (int r=0; r<VDIM; ++r)
-            {
-               for (int c=0; c<VDIM; ++c)
-               {
-                  double dot(0.0);
-                  for (int k=0; k<VDIM; ++k)
-                  {
-                     dot += Yloc[r][k]*Jinv[k][c];
-                  }
-                  y(r,c,qx,qy,e) = dot;
-               }
-            }
-
-         }
-      }
    });
 }
 
-template<int T_D1D =0, int T_Q1D =0, int MAX_D =0, int MAX_Q =0>
+template<int T_D1D = 0, int T_Q1D = 0, int MAX_D = 0, int MAX_Q = 0,
+         int T_VDIM = 0>
 static  void D2QPhysGrad3D(const int NE,
                            const double *b_,
                            const double *g_,
                            const double *j_,
                            const double *x_,
                            double *y_,
-                           const int d1d =0,
-                           const int q1d =0)
+                           const int d1d = 0,
+                           const int q1d = 0,
+                           const int vdim = 0)
 {
-   constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    auto b = Reshape(b_, Q1D, D1D);
    auto g = Reshape(g_, Q1D, D1D);
-   auto j = Reshape(j_, Q1D, Q1D, Q1D, VDIM, VDIM, NE);
+   auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
    auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_, VDIM, VDIM, Q1D, Q1D, Q1D, NE);
+   auto y = Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      constexpr int VDIM = 3;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D;
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double G[MQ1][MD1];
-
-      double Yloc[VDIM][VDIM];
-      double Jloc[VDIM][VDIM];
-      double Jinv[VDIM][VDIM];
 
       MFEM_SHARED double sm0[3][MQ1*MQ1*MQ1];
       MFEM_SHARED double sm1[3][MQ1*MQ1*MQ1];
@@ -1138,53 +1174,22 @@ static  void D2QPhysGrad3D(const int NE,
                      v += DQQ1[dz][qy][qx] * B[qz][dz];
                      w += DQQ2[dz][qy][qx] * G[qz][dz];
                   }
-                  //Possible optimization:
-                  //Use exclusive memory to
-                  //store data at quad points
-                  y(c,0,qx,qy,qz,e) = u;
-                  y(c,1,qx,qy,qz,e) = v;
-                  y(c,2,qx,qy,qz,e) = w;
+                  double Jloc[9], Jinv[9];
+                  for (int col = 0; col < 3; col++)
+                  {
+                     for (int row = 0; row < 3; row++)
+                     {
+                        Jloc[row+3*col] = j(qx,qy,qz,row,col,e);
+                     }
+                  }
+                  kernels::CalcInverse<3>(Jloc, Jinv);
+                  y(c,0,qx,qy,qz,e) = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
+                  y(c,1,qx,qy,qz,e) = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
+                  y(c,2,qx,qy,qz,e) = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
                }
             }
          }
          MFEM_SYNC_THREAD;
-      }
-
-      //Transfer to physical space
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-
-               for (int r=0; r<VDIM; ++r)
-               {
-                  for (int c=0; c<VDIM; ++c)
-                  {
-                     Yloc[c][r] = y(c,r,qx,qy,qz,e);
-                     Jloc[c][r] = j(qx,qy,qz,c,r,e);
-                  }
-               }
-
-               kernels::CalcInverse<3>((&Jloc)[0][0], (&Jinv)[0][0]);
-
-               for (int r=0; r<VDIM; ++r)
-               {
-                  for (int c=0; c<VDIM; ++c)
-                  {
-
-                     double dot(0.0);
-                     for (int k=0; k<VDIM; ++k)
-                     {
-                        dot += Yloc[r][k]*Jinv[k][c];
-                     }
-                     y(r,c,qx,qy,qz,e) = dot;
-                  }
-               }
-
-            }
-         }
       }
    });
 }
@@ -1197,36 +1202,57 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
                         Vector &q_der)
 {
    const int dim = fes.GetMesh()->Dimension();
+   const int vdim = fes.GetVDim();
    const int NE = fes.GetNE();
-   const int D1D = fes.GetFE(0)->GetOrder() + 1;
+   const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
-   const int id = (D1D<<4) | Q1D;
+   const int id = (vdim<<8) | (D1D<<4) | Q1D;
    const double *B = maps->B.Read();
    const double *G = maps->G.Read();
    const double *J = geom->J.Read();
    const double *X = e_vec.Read();
    double *Y = q_der.Write();
-   if (dim==2)
+   if (dim == 2)
    {
       switch (id)
       {
-         case 0x34: return D2QPhysGrad2D<3,4,8>(NE, B, G, J, X, Y);
-         case 0x46: return D2QPhysGrad2D<4,6,4>(NE, B, G, J, X, Y);
-         case 0x58: return D2QPhysGrad2D<5,8,2>(NE, B, G, J, X, Y);
-         default: return D2QPhysGrad2D(NE, B, G, J, X, Y, D1D, Q1D);
-      }
-   }
-   if (dim==3)
-   {
-      switch (id)
-      {
-         case 0x34: return D2QPhysGrad3D<3,4>(NE, B, G, J, X, Y);
-         case 0x46: return D2QPhysGrad3D<4,6>(NE, B, G, J, X, Y);
-         case 0x58: return D2QPhysGrad3D<5,8>(NE, B, G, J, X, Y);
+         case 0x134: return D2QPhysGrad2D<3,4,8,1>(NE, B, G, J, X, Y);
+         case 0x146: return D2QPhysGrad2D<4,6,4,1>(NE, B, G, J, X, Y);
+         case 0x158: return D2QPhysGrad2D<5,8,2,1>(NE, B, G, J, X, Y);
+         case 0x234: return D2QPhysGrad2D<3,4,8,2>(NE, B, G, J, X, Y);
+         case 0x246: return D2QPhysGrad2D<4,6,4,2>(NE, B, G, J, X, Y);
+         case 0x258: return D2QPhysGrad2D<5,8,2,2>(NE, B, G, J, X, Y);
          default:
          {
-            MFEM_ASSERT(D1D<=8 && Q1D <=8, "Kernel needs the order to be <=8");
-            return D2QPhysGrad3D<0,0,8,8>(NE, B, G, J, X, Y, D1D, Q1D);
+            MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+                        << " are not supported!");
+            MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
+                        << MAX_Q1D << " 1D points are not supported!");
+            D2QPhysGrad2D(NE, B, G, J, X, Y, D1D, Q1D, vdim);
+            return;
+         }
+      }
+   }
+   if (dim == 3)
+   {
+      switch (id)
+      {
+         case 0x134: return D2QPhysGrad3D<3,4,0,0,1>(NE, B, G, J, X, Y);
+         case 0x146: return D2QPhysGrad3D<4,6,0,0,1>(NE, B, G, J, X, Y);
+         case 0x158: return D2QPhysGrad3D<5,8,0,0,1>(NE, B, G, J, X, Y);
+         case 0x334: return D2QPhysGrad3D<3,4,0,0,3>(NE, B, G, J, X, Y);
+         case 0x346: return D2QPhysGrad3D<4,6,0,0,3>(NE, B, G, J, X, Y);
+         case 0x358: return D2QPhysGrad3D<5,8,0,0,3>(NE, B, G, J, X, Y);
+         default:
+         {
+            constexpr int MD = 8;
+            constexpr int MQ = 8;
+            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
+                        << " are not supported!");
+            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
+                        << " 1D points are not supported!");
+            D2QPhysGrad3D<0,0,MD,MQ>(NE, B, G, J, X, Y, D1D, Q1D, vdim);
+            return;
          }
       }
    }
@@ -1237,6 +1263,7 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
 void QuadratureInterpolator::Derivatives(const Vector &e_vec,
                                          Vector &q_der) const
 {
+   if (fespace->GetNE() == 0) { return; }
    const IntegrationRule &ir = *IntRule;
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);

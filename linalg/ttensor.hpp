@@ -38,6 +38,7 @@ struct TensorOps<1> // rank = 1
    // Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
+   MFEM_HOST_DEVICE
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
                       scalar_t value)
    {
@@ -233,7 +234,6 @@ inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
 template <AssignOp::Type Op,
           typename A_layout_t, typename A_data_t,
           typename B_layout_t, typename B_data_t>
-MFEM_HOST_DEVICE
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
                     const B_layout_t &B_layout, const B_data_t &B_data)
 {
@@ -256,8 +256,8 @@ public:
    typedef StridedLayout1D<S,1> layout_type;
    static const layout_type layout;
 
-   data_t &operator[](int i) { return data[i]; }
-   const data_t &operator[](int i) const { return data[i]; }
+   MFEM_HOST_DEVICE data_t &operator[](int i) { return data[i]; }
+   MFEM_HOST_DEVICE const data_t &operator[](int i) const { return data[i]; }
 
    template <AssignOp::Type Op>
    void Assign(const data_t d)
