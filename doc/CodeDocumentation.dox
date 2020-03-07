@@ -83,6 +83,7 @@ namespace mfem {
  * - <a class="el" href="ex21p_8cpp_source.html">Example 21p</a>: parallel adaptive mesh refinement for linear elasticity
  * - <a class="el" href="ex22_8cpp_source.html">Example 22</a>: complex-valued linear systems for damped harmonic oscillators
  * - <a class="el" href="ex22p_8cpp_source.html">Example 22p</a>: parallel complex-valued linear systems for damped harmonic oscillators
+ * - <a class="el" href="ex23_8cpp_source.html">Example 23</a>: 2nd order in time the wave equation
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
