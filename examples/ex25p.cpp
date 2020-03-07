@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
    RestrictedCoefficient restr_omeg(omeg,attr);
 
    ParSesquilinearForm a(fespace, conv);
-   // Sesquilinear form inside the computational domain (excluding PML)
+   // Integrators inside the computational domain (excluding PML)
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
@@ -398,6 +398,7 @@ int main(int argc, char *argv[])
    MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
    MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
+   // Integrators inside the PML region
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
                          new CurlCurlIntegrator(restr_c1_Im));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
@@ -559,6 +560,7 @@ int main(int argc, char *argv[])
    // 19. Send the solution by socket to a GLVis server.
    if (visualization)
    {
+      // Define visualization keys for GLVis (see GLVis documentation)
       string keys;
       keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
       if (prob == beam && dim == 3) { keys = "keys macFFiYYYYYYYYYYYYYYYYYY\n"; }

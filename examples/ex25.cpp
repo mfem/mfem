@@ -352,6 +352,7 @@ int main(int argc, char *argv[])
    RestrictedCoefficient restr_omeg(omeg,attr);
 
    SesquilinearForm a(fespace, conv);
+   // Integrators inside the compuational domain (excluding the PML region)
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
@@ -370,13 +371,14 @@ int main(int argc, char *argv[])
    MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
    MatrixRestrictedCoefficient restr_c2_Im(c2_Im,attrPML);
 
+   // Integrators inside the PML region
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
                          new CurlCurlIntegrator(restr_c1_Im));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
 
-   // 12. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
+   // 12. Assemble the bilinear form and the corresponding linear
+   //     system, applying any necessary transformations such as:
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
    a.Assemble();
@@ -385,7 +387,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, Ah, X, B);
 
-   // 13. Transform to monolithic HypreParMatrix
+   // 13. Transform to monolithic SparseMatrix
    SparseMatrix *A = Ah.As<ComplexSparseMatrix>()->GetSystemMatrix();
 
    cout << "Size of linear system: " << A->Height() << endl;
@@ -422,7 +424,6 @@ int main(int argc, char *argv[])
       ScalarMatrixProductCoefficient c2_abs(absomeg,pml_c2_abs);
       MatrixRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
 
-      // Sesquilinear form inside the PML region
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_abs));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_abs));
 
@@ -515,6 +516,7 @@ int main(int argc, char *argv[])
    // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
+      // Define visualization keys for GLVis (see GLVis documentation)
       string keys;
       keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
       if (prob == beam && dim == 3) { keys = "keys macFFiYYYYYYYYYYYYYYYYYY\n"; }
