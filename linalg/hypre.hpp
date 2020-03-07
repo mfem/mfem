@@ -414,8 +414,10 @@ public:
 
    /** Returns principle submatrix given by array of indices of connections
        with relative size > \@ threshold in *this. */
+#if MFEM_HYPRE_VERSION >= 21800
    HypreParMatrix * ExtractSubmatrix(Array<int> &indices,
                                      double threshhold=0.0) const;
+#endif
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
    int GetNumRows() const
@@ -563,8 +565,10 @@ public:
    Type GetType() const { return Hypre_ParCSR; }
 };
 
+#if MFEM_HYPRE_VERSION >= 21800
 int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
                  const Vector *b, HypreParVector *d, int block, int job);
+#endif
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
     and `B` use the same row and column partitions and the same `col_map_offd`
@@ -757,6 +761,7 @@ public:
 };
 
 
+#if MFEM_HYPRE_VERSION >= 21800
 /// Abstract class for hypre's solvers and preconditioners
 class HypreTriSolve : public HypreSolver
 {
@@ -773,7 +778,7 @@ public:
    HypreParMatrix* GetData() { return A; }
    virtual ~HypreTriSolve() { }
 };
-
+#endif
 
 /// PCG solver in hypre
 class HyprePCG : public HypreSolver

@@ -108,7 +108,7 @@ public:
                                  AIR.filterA_tol, AIR.coarsen_type,
                                  -1, 1);
 #else
-      MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");      
+      MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");
 #endif
       AIR_solver->SetPrintLevel(0);
       AIR_solver->SetMaxLevels(50);

@@ -1034,6 +1034,7 @@ HypreParMatrix * HypreParMatrix::Transpose() const
    return new HypreParMatrix(At);
 }
 
+#if MFEM_HYPRE_VERSION >= 21800
 HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
                                                   double threshhold) const
 {
@@ -1072,7 +1073,7 @@ HypreParMatrix * HypreParMatrix::ExtractSubmatrix(Array<int> &indices,
    free(cpts_global);
    return new HypreParMatrix(submat);
 }
-
+#endif
 
 HYPRE_Int HypreParMatrix::Mult(HypreParVector &x, HypreParVector &y,
                                double a, double b)
@@ -1647,6 +1648,7 @@ void HypreParMatrix::Destroy()
  * job =  1, job 0 + scale b into d
  * job =  2, use A to scale b only
  */
+#if MFEM_HYPRE_VERSION >= 21800
 int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
                  const Vector *b, HypreParVector *d, int block, int job)
 {
@@ -1676,6 +1678,7 @@ int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
 
    return -1;
 }
+#endif
 
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
