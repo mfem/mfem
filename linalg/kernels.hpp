@@ -1064,7 +1064,8 @@ done_3d:
 /// Return the i'th singular value of the matrix of size dim with data @a d.
 template<int dim> double CalcSingularvalue(const double *d, const int i);
 
-/// Return the i'th singular value of the matrix of size 2 with data @a d.
+/// Return the i'th singular value of the matrix of size 2 with data @a d,
+/// indices starting at zero.
 template<> MFEM_HOST_DEVICE inline
 double CalcSingularvalue<2>(const double *d, const int i)
 {
@@ -1135,7 +1136,8 @@ void Eigenvalues2S(const double &d12, double &d1, double &d2)
    }
 }
 
-/// Return the i'th singular value of the matrix of size 3 with data @a d.
+/// Return the i'th singular value of the matrix of size 3 with data @a d,
+/// indices starting at zero.
 template<> MFEM_HOST_DEVICE inline
 double CalcSingularvalue<3>(const double *d, const int i)
 {
