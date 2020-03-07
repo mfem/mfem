@@ -11,16 +11,40 @@
 Version 4.0.1 (development)
 ===========================
 
+Starting with this version, the MFEM open source license is changed to BSD-3.
+
 Improved GPU support
 --------------------
 - Added support for matrix-free diagonal smoothers on GPUs like the damped
   Jacobi method and the Chebyshev accelerated polynomial smoother.
 
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. With this change and
-  the libCEED addition below, the current list of available backends is:
-  "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "occa-omp", "raja-omp",
-  "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
+  language that can run on both AMD and NVIDIA hardware. With this change plus
+  the libCEED and debug devise additions below, the current list of available
+  backends is: "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "debug",
+  "occa-omp", "raja-omp", "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
+
+- In addition to Examples 1 and 6, GPU/device acceleration is now available in
+  three additional example codes: 3/3p, 9/9p and 24/24p.
+
+- Added support for Umpire, a resource management library that allows the
+  discovery, provision, and management of memory on machines with multiple
+  memory devices like NUMA and GPUs, see https://github.com/LLNL/Umpire.
+
+- Added a "debug" device designed specifically to aid in debugging GPU code by
+  following the "device" code path (using separate host/device memory spaces and
+  host <-> device transfers) without any GPU hardware.
+
+- The MFEM memory manager now supports different memory types, associated with
+  the following memory backends:
+  * Default host memory, using standard C++ new and delete,
+  * CUDA pointers, using cudaMalloc and HIP pointers, using hipMalloc,
+  * Managed CUDA/HIP memory (UVM), using cudaMallocManaged/hipMallocManaged,
+  * Umpire-managed memory, including memory pools,
+  * 32- or 64-bit aligned memory, using posix_memalign (WIN32 also supported),
+  * Debug memory with mmap/mprotect protection used by the new "debug" device.
+
+- Added support for matrix-free diagonal smoothers on GPUs.
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
@@ -57,7 +81,7 @@ Meshing improvements
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
 
-- The TMOP mesh optimization algorithms have been improved to support AMR meshes.
+- The TMOP mesh optimization algorithms were improved to support AMR meshes.
 
 - Improved element numbering after uniform mesh refinement.
 
@@ -67,6 +91,9 @@ Discretization improvements
   that can robustly evaluate a GridFunction in an arbitrary collection of points
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
+
+- Extended the support for partial assembly to DG integrarors, H(curl) bilinear
+  forms, and the vector mass and vector diffusion bilinear integrators.
 
 - Added support for serendipity elements of arbitrary order on affinely-mapped
   square elements. Basis functions for these elements can be visualized using
@@ -86,6 +113,8 @@ Discretization improvements
 - Diagonals of partially assembled operators can now be computed efficiently.
   See the new methods AssembleDiagonal in BilinearForm, AssembleDiagonalPA in
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
+
+- Added second order derivatives of NURBS shape functions.
 
 - Added initial support for NonlinearForms to support the partial assembly mode.
 
@@ -110,7 +139,7 @@ Linear and nonlinear solvers
 ----------------------------
 - Added a general interface for specifying and solving nonlinear constrained
   optimization problems through the new classes OptimizationProblem and
-  OptimizationSolver, see linalg/solver.hpp
+  OptimizationSolver, see linalg/solver.hpp.
 
 - Added support for HiOp, a lightweight HPC solver for nonlinear optimization
   problems see class HiOpNLPOptimizer and the example codes in examples/hiop.
@@ -120,6 +149,8 @@ Linear and nonlinear solvers
   more details see linalg/ginkgo.hpp and the example code in examples/gingko.
 
 - Added Adams-Bashforth and Adams-Moulton time integrators.
+
+- Added several time integrators for 2nd order ODEs.
 
 - Added a block ILU(0) preconditioner for DG-type discretizations. Example 9
   (DG advection) now takes advantage of this for implicit time integration.
@@ -146,7 +177,14 @@ New and updated examples and miniapps
   complex-valued finite element operators. The example defines and solves
   a family of time-harmonic PDEs related to damped harmonic oscillators.
 
-- Updated Example 1/1p to use diagonal preconditioning in partial assembly mode.
+- Added a new example, Example 24/24p, to demonstrate usage of mixed finite
+  element spaces in bilinear forms. Partial assembly is supported in this
+  example.
+
+- Added device support in Example 3/3p and Example 9/9p.
+
+- Updated Examples 1/1p and 3/3p to use diagonal preconditioning in partial
+  assembly mode.
 
 - The mesh-optimizer and pmesh-optimizer miniapps have been updated to
   demonstrate the new r-adaptivity capabilities of TMOP.
@@ -173,8 +211,8 @@ New and updated examples and miniapps
 - Example 9 and 9p now support implicit time integration, using the new block
   ILU(0) solvers as preconditioners for the linear system.
 
-- Added examples 23 demonstrating the construction of a matrix-free p-multigrid
-  preconditioner for the iterative solution of the Laplace problem.
+- Added a new example 25/25p to demonstrate the construction of a matrix-free
+  p-multigrid preconditioner for the iterative solution of the Laplace problem.
 
 Improved testing
 ----------------
@@ -196,14 +234,27 @@ Miscellaneous
   complete rework of the interface and requires changes at the application
   level. Example usage of the new interface can be found in examples/sundials.
 
-- Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
-  and the new ParaViewDataCollection class.
+- Switched from gzstream to zstr for the implementation of zlib-compressed C++
+  output stream. The build system definition now uses MFEM_USE_ZLIB instead of
+  MFEM_USE_GZSTREAM, but the code interface (e.g. ofgzstream) remains the same.
+
+- Added support for output in the ParaView XML format. Both low-order and
+  high-order Lagrange elements are supported. Output can be in ASCII or binary
+  format. The binary output can be compressed if MFEM is compiled with zlib
+  support (MFEM_USE_ZLIB). See the new ParaViewDataCollection class and the
+  updated Examples 5/5p and 9/9p.
 
 - Collected object files from the miniapps/common directory into a new library,
   libmfem-common for the convenience of application developers. The new library
   is now used in several miniapps in the electromagnetic and tools directories.
 
 - Added unit tests for time integrators.
+
+API changes
+-----------
+- In the enum classes MemoryType and MemoryClass, 'CUDA' was renamed to 'DEVICE'
+  which now denotes either 'CUDA' or 'HIP' depending on the build configuration.
+  In the same enum classes, 'CUDA_UVM' was renamed to 'MANAGED'.
 
 
 Version 4.0, released on May 24, 2019
@@ -456,6 +507,9 @@ New and updated examples and miniapps
 - Added a new serial and parallel example (ex19) that solves the quasi-static
   incompressible hyperelastic equations. The example demonstrates the use of
   block nonlinear forms as well as custom block preconditioners.
+
+- Added a new serial example (ex23) to demonstrate the use of second order
+  time integration to solve the wave equation.
 
 - Added a new electromagnetics miniapp, Maxwell, for simulating time-domain
   electromagnetics phenomena as a coupled first order system of equations.
