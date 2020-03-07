@@ -41,6 +41,7 @@ set(SRCS
   nonlininteg.cpp
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
+  quadinterpolator_face.cpp
   restriction.cpp
   staticcond.cpp
   tmop.cpp
@@ -71,6 +72,7 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
+  quadinterpolator_face.hpp
   restriction.hpp
   staticcond.hpp
   tbilinearform.hpp
