@@ -375,14 +375,14 @@ void QuadratureInterpolator::MultTranspose(
 }
 
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_VDIM = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void D2QValues2D(const int NE,
                         const Array<double> &b_,
                         const Vector &x_,
                         Vector &y_,
+                        const int vdim = 1,
                         const int d1d = 0,
-                        const int q1d = 0,
-                        const int vdim = 0)
+                        const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -462,15 +462,15 @@ static void D2QValues2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int MAX_D = 0, int MAX_Q = 0,
-         int T_VDIM = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int MAX_D = 0, int MAX_Q = 0>
 static void D2QValues3D(const int NE,
                         const Array<double> &b_,
                         const Vector &x_,
                         Vector &y_,
+                        const int vdim = 1,
                         const int d1d = 0,
-                        const int q1d = 0,
-                        const int vdim = 0)
+                        const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -589,19 +589,19 @@ static void D2QValues(const FiniteElementSpace &fes,
    {
       switch (id)
       {
-         case 0x124: return D2QValues2D<2,4,8,1>(NE, maps->B, e_vec, q_val);
-         case 0x136: return D2QValues2D<3,6,4,1>(NE, maps->B, e_vec, q_val);
-         case 0x148: return D2QValues2D<4,8,2,1>(NE, maps->B, e_vec, q_val);
-         case 0x224: return D2QValues2D<2,4,8,2>(NE, maps->B, e_vec, q_val);
-         case 0x236: return D2QValues2D<3,6,4,2>(NE, maps->B, e_vec, q_val);
-         case 0x248: return D2QValues2D<4,8,2,2>(NE, maps->B, e_vec, q_val);
+         case 0x124: return D2QValues2D<1,2,4,8>(NE, maps->B, e_vec, q_val);
+         case 0x136: return D2QValues2D<1,3,6,4>(NE, maps->B, e_vec, q_val);
+         case 0x148: return D2QValues2D<1,4,8,2>(NE, maps->B, e_vec, q_val);
+         case 0x224: return D2QValues2D<2,2,4,8>(NE, maps->B, e_vec, q_val);
+         case 0x236: return D2QValues2D<2,3,6,4>(NE, maps->B, e_vec, q_val);
+         case 0x248: return D2QValues2D<2,4,8,2>(NE, maps->B, e_vec, q_val);
          default:
          {
             MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
                         << MAX_Q1D << " 1D points are not supported!");
-            D2QValues2D(NE, maps->B, e_vec, q_val, D1D, Q1D, vdim);
+            D2QValues2D(NE, maps->B, e_vec, q_val, vdim, D1D, Q1D);
             return;
          }
       }
@@ -610,12 +610,12 @@ static void D2QValues(const FiniteElementSpace &fes,
    {
       switch (id)
       {
-         case 0x124: return D2QValues3D<2,4,0,0,1>(NE, maps->B, e_vec, q_val);
-         case 0x136: return D2QValues3D<3,6,0,0,1>(NE, maps->B, e_vec, q_val);
-         case 0x148: return D2QValues3D<4,8,0,0,1>(NE, maps->B, e_vec, q_val);
-         case 0x324: return D2QValues3D<2,4,0,0,3>(NE, maps->B, e_vec, q_val);
-         case 0x336: return D2QValues3D<3,6,0,0,3>(NE, maps->B, e_vec, q_val);
-         case 0x348: return D2QValues3D<4,8,0,0,3>(NE, maps->B, e_vec, q_val);
+         case 0x124: return D2QValues3D<1,2,4>(NE, maps->B, e_vec, q_val);
+         case 0x136: return D2QValues3D<1,3,6>(NE, maps->B, e_vec, q_val);
+         case 0x148: return D2QValues3D<1,4,8>(NE, maps->B, e_vec, q_val);
+         case 0x324: return D2QValues3D<3,2,4>(NE, maps->B, e_vec, q_val);
+         case 0x336: return D2QValues3D<3,3,6>(NE, maps->B, e_vec, q_val);
+         case 0x348: return D2QValues3D<3,4,8>(NE, maps->B, e_vec, q_val);
          default:
          {
             constexpr int MD = 8;
@@ -624,7 +624,7 @@ static void D2QValues(const FiniteElementSpace &fes,
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
                         << " 1D points are not supported!");
-            D2QValues3D<0,0,MD,MQ>(NE, maps->B, e_vec, q_val, D1D, Q1D, vdim);
+            D2QValues3D<0,0,0,MD,MQ>(NE, maps->B, e_vec, q_val, vdim, D1D, Q1D);
             return;
          }
       }
@@ -642,15 +642,15 @@ void QuadratureInterpolator::Values(const Vector &e_vec, Vector &q_val) const
    D2QValues(*fespace, &d2q, e_vec, q_val);
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_VDIM = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void D2QGrad2D(const int NE,
                       const double *b_,
                       const double *g_,
                       const double *x_,
                       double *y_,
+                      const int vdim = 1,
                       const int d1d = 0,
-                      const int q1d = 0,
-                      const int vdim = 1)
+                      const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -741,16 +741,16 @@ static void D2QGrad2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int MAX_D = 0, int MAX_Q = 0,
-         int T_VDIM = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int MAX_D = 0, int MAX_Q = 0>
 static  void D2QGrad3D(const int NE,
                        const double *b_,
                        const double *g_,
                        const double *x_,
                        double *y_,
+                       const int vdim = 1,
                        const int d1d = 0,
-                       const int q1d = 0,
-                       const int vdim = 0)
+                       const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -895,19 +895,19 @@ static void D2QGrad(const FiniteElementSpace &fes,
    {
       switch (id)
       {
-         case 0x134: return D2QGrad2D<3,4,8,1>(NE, B, G, X, Y);
-         case 0x146: return D2QGrad2D<4,6,4,1>(NE, B, G, X, Y);
-         case 0x158: return D2QGrad2D<5,8,2,1>(NE, B, G, X, Y);
-         case 0x234: return D2QGrad2D<3,4,8,2>(NE, B, G, X, Y);
-         case 0x246: return D2QGrad2D<4,6,4,2>(NE, B, G, X, Y);
-         case 0x258: return D2QGrad2D<5,8,2,2>(NE, B, G, X, Y);
+         case 0x134: return D2QGrad2D<1,3,4,8>(NE, B, G, X, Y);
+         case 0x146: return D2QGrad2D<1,4,6,4>(NE, B, G, X, Y);
+         case 0x158: return D2QGrad2D<1,5,8,2>(NE, B, G, X, Y);
+         case 0x234: return D2QGrad2D<2,3,4,8>(NE, B, G, X, Y);
+         case 0x246: return D2QGrad2D<2,4,6,4>(NE, B, G, X, Y);
+         case 0x258: return D2QGrad2D<2,5,8,2>(NE, B, G, X, Y);
          default:
          {
             MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
                         << MAX_Q1D << " 1D points are not supported!");
-            D2QGrad2D(NE, B, G, X, Y, D1D, Q1D, vdim);
+            D2QGrad2D(NE, B, G, X, Y, vdim, D1D, Q1D);
             return;
          }
       }
@@ -916,12 +916,12 @@ static void D2QGrad(const FiniteElementSpace &fes,
    {
       switch (id)
       {
-         case 0x134: return D2QGrad3D<3,4,0,0,1>(NE, B, G, X, Y);
-         case 0x146: return D2QGrad3D<4,6,0,0,1>(NE, B, G, X, Y);
-         case 0x158: return D2QGrad3D<5,8,0,0,1>(NE, B, G, X, Y);
-         case 0x334: return D2QGrad3D<3,4,0,0,3>(NE, B, G, X, Y);
-         case 0x346: return D2QGrad3D<4,6,0,0,3>(NE, B, G, X, Y);
-         case 0x358: return D2QGrad3D<5,8,0,0,3>(NE, B, G, X, Y);
+         case 0x134: return D2QGrad3D<1,3,4>(NE, B, G, X, Y);
+         case 0x146: return D2QGrad3D<1,4,6>(NE, B, G, X, Y);
+         case 0x158: return D2QGrad3D<1,5,8>(NE, B, G, X, Y);
+         case 0x334: return D2QGrad3D<3,3,4>(NE, B, G, X, Y);
+         case 0x346: return D2QGrad3D<3,4,6>(NE, B, G, X, Y);
+         case 0x358: return D2QGrad3D<3,5,8>(NE, B, G, X, Y);
          default:
          {
             constexpr int MD = 8;
@@ -930,7 +930,7 @@ static void D2QGrad(const FiniteElementSpace &fes,
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
                         << " 1D points are not supported!");
-            D2QGrad3D<0,0,MD,MQ>(NE, B, G, X, Y, D1D, Q1D, vdim);
+            D2QGrad3D<0,0,0,MD,MQ>(NE, B, G, X, Y, vdim, D1D, Q1D);
             return;
          }
       }
@@ -939,16 +939,16 @@ static void D2QGrad(const FiniteElementSpace &fes,
    MFEM_ABORT("Unknown kernel");
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_VDIM = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void D2QPhysGrad2D(const int NE,
                           const double *b_,
                           const double *g_,
                           const double *j_,
                           const double *x_,
                           double *y_,
+                          const int vdim = 1,
                           const int d1d = 0,
-                          const int q1d = 0,
-                          const int vdim = 0)
+                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1047,17 +1047,17 @@ static void D2QPhysGrad2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int MAX_D = 0, int MAX_Q = 0,
-         int T_VDIM = 0>
+template<int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
+         int MAX_D = 0, int MAX_Q = 0>
 static  void D2QPhysGrad3D(const int NE,
                            const double *b_,
                            const double *g_,
                            const double *j_,
                            const double *x_,
                            double *y_,
+                           const int vdim = 1,
                            const int d1d = 0,
-                           const int q1d = 0,
-                           const int vdim = 0)
+                           const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1216,19 +1216,19 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
    {
       switch (id)
       {
-         case 0x134: return D2QPhysGrad2D<3,4,8,1>(NE, B, G, J, X, Y);
-         case 0x146: return D2QPhysGrad2D<4,6,4,1>(NE, B, G, J, X, Y);
-         case 0x158: return D2QPhysGrad2D<5,8,2,1>(NE, B, G, J, X, Y);
-         case 0x234: return D2QPhysGrad2D<3,4,8,2>(NE, B, G, J, X, Y);
-         case 0x246: return D2QPhysGrad2D<4,6,4,2>(NE, B, G, J, X, Y);
-         case 0x258: return D2QPhysGrad2D<5,8,2,2>(NE, B, G, J, X, Y);
+         case 0x134: return D2QPhysGrad2D<1,3,4,8>(NE, B, G, J, X, Y);
+         case 0x146: return D2QPhysGrad2D<1,4,6,4>(NE, B, G, J, X, Y);
+         case 0x158: return D2QPhysGrad2D<1,5,8,2>(NE, B, G, J, X, Y);
+         case 0x234: return D2QPhysGrad2D<2,3,4,8>(NE, B, G, J, X, Y);
+         case 0x246: return D2QPhysGrad2D<2,4,6,4>(NE, B, G, J, X, Y);
+         case 0x258: return D2QPhysGrad2D<2,5,8,2>(NE, B, G, J, X, Y);
          default:
          {
             MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
                         << MAX_Q1D << " 1D points are not supported!");
-            D2QPhysGrad2D(NE, B, G, J, X, Y, D1D, Q1D, vdim);
+            D2QPhysGrad2D(NE, B, G, J, X, Y, vdim, D1D, Q1D);
             return;
          }
       }
@@ -1237,12 +1237,12 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
    {
       switch (id)
       {
-         case 0x134: return D2QPhysGrad3D<3,4,0,0,1>(NE, B, G, J, X, Y);
-         case 0x146: return D2QPhysGrad3D<4,6,0,0,1>(NE, B, G, J, X, Y);
-         case 0x158: return D2QPhysGrad3D<5,8,0,0,1>(NE, B, G, J, X, Y);
-         case 0x334: return D2QPhysGrad3D<3,4,0,0,3>(NE, B, G, J, X, Y);
-         case 0x346: return D2QPhysGrad3D<4,6,0,0,3>(NE, B, G, J, X, Y);
-         case 0x358: return D2QPhysGrad3D<5,8,0,0,3>(NE, B, G, J, X, Y);
+         case 0x134: return D2QPhysGrad3D<1,3,4>(NE, B, G, J, X, Y);
+         case 0x146: return D2QPhysGrad3D<1,4,6>(NE, B, G, J, X, Y);
+         case 0x158: return D2QPhysGrad3D<1,5,8>(NE, B, G, J, X, Y);
+         case 0x334: return D2QPhysGrad3D<3,3,4>(NE, B, G, J, X, Y);
+         case 0x346: return D2QPhysGrad3D<3,4,6>(NE, B, G, J, X, Y);
+         case 0x358: return D2QPhysGrad3D<3,5,8>(NE, B, G, J, X, Y);
          default:
          {
             constexpr int MD = 8;
@@ -1251,7 +1251,7 @@ static void D2QPhysGrad(const FiniteElementSpace &fes,
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than " << MQ
                         << " 1D points are not supported!");
-            D2QPhysGrad3D<0,0,MD,MQ>(NE, B, G, J, X, Y, D1D, Q1D, vdim);
+            D2QPhysGrad3D<0,0,0,MD,MQ>(NE, B, G, J, X, Y, vdim, D1D, Q1D);
             return;
          }
       }
