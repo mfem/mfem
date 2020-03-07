@@ -23,7 +23,7 @@ namespace mfem
 
 class ParFiniteElementSpace;
 
-/// Operator that extracts Face degrees of freedom.
+/// Operator that extracts Face degrees of freedom in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
 class ParL2FaceRestriction : public Operator
