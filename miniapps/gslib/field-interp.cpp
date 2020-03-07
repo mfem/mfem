@@ -24,7 +24,7 @@
 // Compile with: make field-diff
 //
 // Sample runs:
-//    field-interp -m1 sedov.mesh -s1 sedov.gf -m2 cartesian64x64.mesh
+//    field-interp -m1 sedov.mesh -s1 sedov.gf -m2 ../../data/inline-tri.mesh -r 3 -o 2
 
 #include "mfem.hpp"
 #include <fstream>
@@ -39,18 +39,21 @@ int main (int argc, char *argv[])
    const char *mesh_file_2 = "cartesian64x64.mesh";
    const char *sltn_file_1 = "sedov.gf";
    int order = 2;
+   int ref_levels = 0;
    bool visualization = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file_1, "-m1", "--mesh1",
-                  "Mesh file for solution 1.");
-   args.AddOption(&mesh_file_2, "-m2", "--mesh2",
-                  "Mesh file for solution 2.");
+                  "Mesh file for the starting solution.");
    args.AddOption(&sltn_file_1, "-s1", "--solution1",
-                  "Grid function for solution 1.");
+                  "Grid function for the starting solution.");
+   args.AddOption(&mesh_file_2, "-m2", "--mesh2",
+                  "Mesh file for interpolation.");
    args.AddOption(&order, "-o", "--order",
                   "Order of the interpolated solution.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of refinements of the interpolation mesh.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -66,6 +69,11 @@ int main (int argc, char *argv[])
    Mesh mesh_1(mesh_file_1, 1, 1, false);
    Mesh mesh_2(mesh_file_2, 1, 1, false);
    const int dim = mesh_1.Dimension();
+
+   for (int lev = 0; lev < ref_levels; lev++)
+   {
+      mesh_2.UniformRefinement();
+   }
 
    MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
    if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
@@ -102,7 +110,7 @@ int main (int argc, char *argv[])
    }
 
    /*
-   const int zones = 2;
+   const int zones = 24;
    Mesh m(zones, zones, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    m.SetCurvature(2, false, 2, Ordering::byNODES);
    ostringstream mesh_name;
@@ -118,7 +126,7 @@ int main (int argc, char *argv[])
 
    GridFunction diff(&h1_fes);
 
-   mesh_2.SetCurvature(order, false, dim, false);
+   mesh_2.SetCurvature(order, false, dim, Ordering::byNODES);
    Vector vxyz = *mesh_2.GetNodes();
    const int nodes_cnt = vxyz.Size() / dim;
 
@@ -129,9 +137,9 @@ int main (int argc, char *argv[])
 
    // Get the values at the nodes of mesh 1.
    Array<unsigned int> el_id_out(nodes_cnt), code_out(nodes_cnt),
-                       task_id_out(nodes_cnt);
+         task_id_out(nodes_cnt);
    Vector pos_r_out(nodes_cnt * dim), dist_p_out(nodes_cnt * dim),
-          interp_vals(nodes_cnt);
+         interp_vals(nodes_cnt);
    finder.Setup(mesh_1, rel_bbox_el, newton_tol, npts_at_once);
    finder.FindPoints(vxyz, code_out, task_id_out,
                      el_id_out, pos_r_out, dist_p_out);
