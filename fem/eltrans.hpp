@@ -345,7 +345,7 @@ public:
 
    virtual ~IsoparametricTransformation() { }
 
-   /*MFEM_DEPRECATED*/ void FinalizeTransformation() {}
+   MFEM_DEPRECATED void FinalizeTransformation() {}
 };
 
 class IntegrationPointTransformation
