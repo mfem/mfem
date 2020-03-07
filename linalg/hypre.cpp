@@ -1426,7 +1426,10 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
 {
    if (rows.Size() > 0)
    {
-      internal::hypre_ParCSRMatrixEliminateRows(A, rows.Size(), rows.GetData());
+      Array<HYPRE_Int> r_sorted;
+      get_sorted_rows_cols(rows, r_sorted);
+      internal::hypre_ParCSRMatrixEliminateRows(A, r_sorted.Size(),
+                                                r_sorted.GetData());
    }
 }
 
