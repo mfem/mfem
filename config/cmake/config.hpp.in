@@ -98,6 +98,9 @@
 // Enable MFEM functionality based on the GnuTLS library
 #cmakedefine MFEM_USE_GNUTLS
 
+// Enable MFEM functionality based on the GSLIB library
+#cmakedefine MFEM_USE_GSLIB
+
 // Enable MFEM functionality based on the NetCDF library
 #cmakedefine MFEM_USE_NETCDF
 
