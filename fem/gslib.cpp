@@ -44,7 +44,7 @@ FindPointsGSLIB::FindPointsGSLIB()
 FindPointsGSLIB::~FindPointsGSLIB()
 {
    delete gsl_comm;
-   if (NEsplit > 1) { delete simir; }
+   delete simir;
 }
 
 #ifdef MFEM_USE_MPI
@@ -72,11 +72,11 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
        gt = fe->GetGeomType();
 
    if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
-       gt == Geometry::PRISM) // tri/tet/wedge
+       gt == Geometry::PRISM)
    {
       GetSimplexNodalCoordinates();
    }
-   else if (gt == Geometry::SQUARE || gt == Geometry::CUBE) // quad/hex
+   else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
    {
       GetQuadHexNodalCoordinates();
    }
@@ -195,7 +195,8 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
    MFEM_ASSERT(gf_in.FESpace()->GetVDim() == 1, "Scalar function expected.");
 
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
-   int gt = fe->GetGeomType();
+   const Geometry::Type gt = fe->GetGeomType();
+   const int NE = mesh->GetNE();
 
    if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
    {
@@ -203,7 +204,7 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
       const FiniteElementSpace *fes = nodes->FESpace();
       const IntegrationRule &ir = fes->GetFE(0)->GetNodes();
 
-      const int NE = mesh->GetNE(), dof_cnt = ir.GetNPoints();
+      const int dof_cnt = ir.GetNPoints();
       node_vals.SetSize(NE * dof_cnt);
 
       const TensorBasisElement *tbe =
@@ -223,22 +224,17 @@ void FindPointsGSLIB::GetNodeValues(const GridFunction &gf_in,
       }
    }
    else if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
-            gt == Geometry::PRISM) // triangle/tet/prism
+            gt == Geometry::PRISM)
    {
-      unsigned dof1D = fe->GetOrder() + 1;
-      int NE = NEsplit,
-          dof_cnt = dof1D*dof1D;
-      if (dim == 3) { dof_cnt *= dof1D; }
-      int pts_cnt = NE * dof_cnt,
-          pt_id = 0;
+      const int dof_cnt = simir->GetNPoints();
+      node_vals.SetSize(NE * dof_cnt);
 
-      const int tpts_cnt = pts_cnt*mesh->GetNE();
-      node_vals.SetSize(tpts_cnt);
+      int pt_id = 0;
       Vector vals_el;
-      for (int j = 0; j < mesh->GetNE(); j++)
+      for (int j = 0; j < NE; j++)
       {
          gf_in.GetValues(j, *simir, vals_el);
-         for (int i = 0; i < dof_cnt*NE; i++)
+         for (int i = 0; i < dof_cnt; i++)
          {
             node_vals(pt_id++) = vals_el(i);
          }
@@ -286,14 +282,15 @@ void FindPointsGSLIB::GetQuadHexNodalCoordinates()
    NEsplit = 1;
 }
 
-void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
+void FindPointsGSLIB::GetSimplexNodalCoordinates()
 {
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
-   int gt = fe->GetGeomType();
+   const Geometry::Type gt = fe->GetGeomType();
    const GridFunction *nodes = mesh->GetNodes();
-   Mesh *meshsplit;
+   Mesh *meshsplit = NULL;
 
-   if (gt == 2) // triangles
+   // Split the reference element into a reference submesh of quads or hexes.
+   if (gt == Geometry::TRIANGLE)
    {
       int Nvert = 7;
       NEsplit = 3;
@@ -320,7 +317,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
       }
       meshsplit->FinalizeQuadMesh(1, 1, true);
    }
-   else if (gt == 4) // tetrahedrons
+   else if (gt == Geometry::TETRAHEDRON)
    {
       int Nvert = 15;
       NEsplit = 4;
@@ -353,7 +350,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
       }
       meshsplit->FinalizeHexMesh(1, 1, true);
    }
-   else if (gt == 6) // wedges
+   else if (gt == Geometry::PRISM)
    {
       int Nvert = 14;
       NEsplit = 3;
@@ -385,15 +382,15 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
       meshsplit->FinalizeHexMesh(1, 1, true);
    }
 
+   // Curve the reference submesh.
    H1_FECollection fec(fe->GetOrder(),dim);
    FiniteElementSpace nodal_fes(meshsplit, &fec,dim);
    meshsplit->SetNodalFESpace(&nodal_fes);
 
-   Vector irlist;
    const int NE = meshsplit->GetNE(),
              dof_cnt = nodal_fes.GetFE(0)->GetDof(),
              pts_cnt = NE * dof_cnt;
-   irlist.SetSize(dim * pts_cnt);
+   Vector irlist(dim * pts_cnt);
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(nodal_fes.GetFE(0));
@@ -404,10 +401,9 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
    Vector posV(pos.Data(), dof_cnt * dim);
    Array<int> xdofs(dof_cnt * dim);
 
+   // Create an IntegrationRule on the nodes of the reference submesh.
    simir = new IntegrationRule(pts_cnt);
-
    GridFunction *nodesplit = meshsplit->GetNodes();
-
    int pt_id = 0;
    for (int i = 0; i < NE; i++)
    {
@@ -429,6 +425,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates() // tri/tet/wedge
       }
    }
 
+   // Initialize gsl_mesh with the positions of the split physical elements.
    pt_id = 0;
    Vector locval(dim);
    const int tpts_cnt = pts_cnt*mesh->GetNE();
