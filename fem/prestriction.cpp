@@ -43,7 +43,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
    if (nf==0) { return; }
-   //if fespace == L2
+   // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
@@ -53,7 +53,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                "ParL2FaceRestriction.");
    MFEM_VERIFY(fes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
-   // Assuming all finite elements are using Gauss-Lobatto.
+   // Assuming all finite elements are using Gauss-Lobatto dofs
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
    width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
@@ -93,21 +93,21 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1); // only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2); // only for hex
       }
       else
       {
          mfem_error("FaceRestriction not yet implemented for this type of "
                     "element.");
-         //TODO Something with GetFaceDofs?
+         // TODO Something with GetFaceDofs?
          orientation = 0;          // suppress compiler warning
          face_id1 = face_id2 = 0;  // suppress compiler warning
       }
       if (type==FaceType::Interior &&
-          (e2>=0 || (e2<0 && inf2>=0) )) //Interior/shared face
+          (e2>=0 || (e2<0 && inf2>=0) )) // interior/shared face
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -119,7 +119,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          }
          if (m==L2FaceValues::DoubleValued)
          {
-            if (e2>=0)//interior face
+            if (e2>=0) // interior face
             {
                for (int d = 0; d < dof; ++d)
                {
@@ -132,7 +132,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                   scatter_indices2[lid] = gid;
                }
             }
-            else if (inf2>=0) //shared boundary
+            else if (inf2>=0) // shared boundary
             {
                const int se2 = -1 - e2;
                Array<int> sharedDofs;
@@ -145,14 +145,14 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                   const int did = face_dof;
                   const int gid = sharedDofs[did];
                   const int lid = dof*f_ind + d;
-                  //trick to differentiate dof location inter/shared
+                  // Trick to differentiate dof location inter/shared
                   scatter_indices2[lid] = ndofs+gid;
                }
             }
          }
          f_ind++;
       }
-      else if ( type==FaceType::Boundary && e2<0 && inf2<0 ) //true boundary
+      else if (type==FaceType::Boundary && e2<0 && inf2<0) // true boundary
       {
          for (int d = 0; d < dof; ++d)
          {
@@ -203,7 +203,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (type==FaceType::Interior && e2>=0) //interior face
+               if (type==FaceType::Interior && e2>=0) // interior face
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, d);
@@ -240,21 +240,21 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
             const int did = faceMap1[d];
             const int gid = elementMap[e1*elem_dofs + did];
             const int lid = dof*f_ind + d;
-            //we don't shift lid to express that it's e1 of f
+            // We don't shift lid to express that it's e1 of f
             gather_indices[offsets[gid]++] = lid;
          }
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (type==FaceType::Interior && e2>=0) //interior face
+               if (type==FaceType::Interior && e2>=0) // interior face
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, d);
                   const int did = faceMap2[pd];
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;
-                  //we shift lid to express that it's e2 of f
+                  // We shift lid to express that it's e2 of f
                   gather_indices[offsets[gid]++] = nfdofs + lid;
                }
             }
@@ -303,16 +303,16 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            if (idx2>-1 && idx2<threshold) //interior face
+            if (idx2>-1 && idx2<threshold) // interior face
             {
                d_y(dof, c, 1, face) = d_x(t?c:idx2, t?idx2:c);
             }
-            else if (idx2>=threshold) //shared boundary
+            else if (idx2>=threshold) // shared boundary
             {
                d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold),
                                                  t?(idx2-threshold):c);
             }
-            else //true boundary
+            else // true boundary
             {
                d_y(dof, c, 1, face) = 0.0;
             }
