@@ -34,7 +34,7 @@ struct StridedLayout1D
    static const int dim_1 = N1;
    static const int size = N1;
 
-   static inline int ind(int i1)
+   MFEM_HOST_DEVICE static inline int ind(int i1)
    {
       return S1*i1;
    }
@@ -70,7 +70,7 @@ struct OffsetStridedLayout1D
 
    OffsetStridedLayout1D() { }
    OffsetStridedLayout1D(int offset_) : offset(offset_) { }
-   inline int ind(int i1) const
+   MFEM_HOST_DEVICE inline int ind(int i1) const
    {
       return offset+S1*i1;
    }
@@ -179,7 +179,7 @@ struct OffsetStridedLayout2D
 
    OffsetStridedLayout2D() { }
    OffsetStridedLayout2D(int offset_) : offset(offset_) { }
-   inline int ind(int i1, int i2) const
+   MFEM_HOST_DEVICE inline int ind(int i1, int i2) const
    {
       return offset+S1*i1+S2*i2;
    }
