@@ -77,7 +77,7 @@ struct Opt
    bool wait = false;
    bool radial = false;
    double lambda = 0.0;
-   double amr_threshold = 0.05;
+   double amr_threshold = 0.5;
    bool solve_by_components = false;
    const char *keys = "gAmaaa";
    const char *device_config = "cpu";
@@ -817,9 +817,8 @@ template<class Type> class SurfaceSolver
 protected:
    Opt &opt;
    Mesh *mesh;
-   Vector X, B;
-   OperatorPtr A;
    FiniteElementSpace *fes;
+   OperatorPtr A;
    BilinearForm a;
    GridFunction x, x0, b;
    ConstantCoefficient one;
@@ -840,10 +839,11 @@ public:
       if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
       for (int i=0; i < opt.max_iter; ++i)
       {
-         if (MyRank == 0)
-         { mfem::out << "Linearized iteration " << i << ": "; }
+         if (MyRank == 0) { mfem::out << "Linearized iteration " << i << ": "; }
          Amr();
-         Update();
+         if (opt.vis) { Visualize(opt); }
+         mesh->DeleteGeometricFactors();
+         a.Update();
          a.Assemble();
          if (solver->Loop()) { break; }
       }
@@ -861,7 +861,7 @@ public:
 
    bool ParAXeqB()
    {
-      const bool by_component = opt.solve_by_components;
+      Vector X, B;
       b = 0.0;
       a.FormLinearSystem(*opt.bc, x, b, A, X, B);
       CGSolver cg;
@@ -874,6 +874,7 @@ public:
       cg.SetOperator(*A);
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
+      const bool by_component = opt.solve_by_components;
       GridFunction *nodes = by_component ? &x0 : fes->GetMesh()->GetNodes();
       x.HostReadWrite();
       nodes->HostRead();
@@ -916,7 +917,7 @@ public:
    void Amr()
    {
       if (!opt.amr) { return; }
-      const bool adj = getenv("ADJ");
+      MFEM_VERIFY(opt.amr_threshold >= 0.0 && opt.amr_threshold <= 1.0, "");
       DenseMatrix JJt(SDIM, SDIM);
       DenseMatrix Jadj(DIM, SDIM);
       DenseMatrix Jadjt;
@@ -926,8 +927,6 @@ public:
       const IntegrationRule *ir = &IntRules.Get(Geometry::SQUARE, opt.order);
       for (int i = 0; i < NE; i++)
       {
-         double minJ = +NL_DMAX;
-         double maxJ = -NL_DMAX;
          double minW = +NL_DMAX;
          double maxW = -NL_DMAX;
          ElementTransformation *transf = mesh->GetElementTransformation(i);
@@ -935,70 +934,41 @@ public:
          {
             transf->SetIntPoint(&ir->IntPoint(j));
             const DenseMatrix &J = transf->Jacobian();
-            //dbg("\033[32mJ: %dx%d", J.Width(), J.Height());
-            double det,w;
-            if (!adj)
-            {
-               MultAAt(J, JJt);
-               det = (JJt.Det());//fabs
-               w = (J.Weight());//fabs
-            }
-            else
-            {
-               CalcAdjugate(J, Jadj);
-               Jadjt = Jadj;
-               Jadjt.Transpose();
-               Mult(J, Jadj, JJadj);
-               det = (JJadj.Det());//fabs
-               w = (Jadjt.Weight());//fabs
-            }
-            minJ = fmin(minJ, det);
-            maxJ = fmax(maxJ, det);
+            CalcAdjugate(J, Jadj);
+            Jadjt = Jadj;
+            Jadjt.Transpose();
+            const double w = Jadjt.Weight(); // = J.Weight();
+
             minW = fmin(minW, w);
             maxW = fmax(maxW, w);
          }
-         MFEM_VERIFY(minJ <= maxJ,"");
-         MFEM_VERIFY(minW <= maxW,"");
-         if (fabs(maxJ) != 0.0)
+         if (fabs(maxW) != 0.0)
          {
-            const double rhoJ = minJ / maxJ;
-            const double rhoW = minW / maxW;
-            //MFEM_VERIFY(rho <= 1.0,"");
-            int color = 33;
-            const bool refine = rhoW < opt.amr_threshold;
-            if (refine)
-            {
-               color = 32;
-               refs.Append(Refinement(i,3));
-            }
-            dbg("\033[%dm I[d:(%.2e,%.2e), w:(%.2e,%.2e)] = %.8e, %.8e",
-                color, minJ, maxJ, minW, maxW, rhoJ, rhoW);
+            const double rho = minW / maxW;
+            MFEM_VERIFY(rho <= 1.0, "");
+            if (rho < opt.amr_threshold) { refs.Append(Refinement(i, 3)); }
          }
       }
       if (refs.Size()>0)
       {
          const int nonconforming = -1;
-         const int nc_limit = 2;
+         const int nc_limit = 1;
+         mesh->GetNodes()->HostReadWrite();
          mesh->GeneralRefinement(refs, nonconforming, nc_limit);
          fes->Update();
+         x.HostReadWrite();
          x.Update();
          a.Update();
+         b.HostReadWrite();
          b.Update();
          if (mesh->bdr_attributes.Size())
          {
             Array<int> ess_bdr(mesh->bdr_attributes.Max());
             ess_bdr = 1;
+            opt.bc->HostReadWrite();
             fes->GetEssentialTrueDofs(ess_bdr, *opt.bc);
          }
       }
-      if (opt.vis) { Visualize(opt); }
-   }
-
-   void Update()
-   {
-      if (opt.vis) { Visualize(opt); }
-      mesh->DeleteGeometricFactors();
-      a.Update();
    }
 };
 
