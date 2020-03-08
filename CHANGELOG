@@ -132,8 +132,8 @@ Discretization improvements
   bilinear integrators.
 
 - Added support for matrix-free interpolation and restriction operators between
-  finite element spaces of different order on the same mesh or with the same
-  order on uniformly refined meshes.
+  continuous H1 finite element spaces of different order on the same mesh or with
+  the same order on uniformly refined meshes.
 
 Linear and nonlinear solvers
 ----------------------------
