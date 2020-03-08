@@ -172,7 +172,7 @@ const double &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const double *x, double *y) const
 {
-   kernels::MultV(height, width, Data(), x, y);
+   kernels::Mult(height, width, Data(), x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
