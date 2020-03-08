@@ -87,6 +87,7 @@ class FaceQuadratureInterpolator;
 class FiniteElementSpace
 {
    friend class InterpolationGridTransfer;
+   friend class PRefinementTransferOperator;
 
 protected:
    /// The mesh that FE space lives on (not owned).
