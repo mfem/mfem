@@ -1879,8 +1879,9 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
 {
    const int myid = mpi.WorldRank();
 
+   int dim = 3;
    const int problem = 1;
-   const char *mesh_file = "data/cube.mesh";
+   const char *mesh_file = "none";
    int rs_levels = 0;
    const int rp_levels = 0;
    Array<int> cxyz;
@@ -1904,6 +1905,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    double blast_position[] = {0.0, 0.0, 0.0};
 
    OptionsParser args(argc, argv);
+   args.AddOption(&dim, "-d", "--dim", "Dimension of the problem.");
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
@@ -1951,9 +1953,42 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       return -1;
    }
    //if (mpi.Root()) { args.PrintOptions(cout); }
-
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   const int dim = mesh->Dimension();
+   Mesh *mesh;
+   if (strncmp(mesh_file, "none", 4))
+   {
+      mesh = new Mesh(mesh_file, true, true);
+      dim = mesh->Dimension();
+   }
+   else
+   {
+      if (dim == 2)
+      {
+         constexpr Element::Type QUAD = Element::QUADRILATERAL;
+         mesh = new Mesh(2, 2, QUAD, true);
+         const int NBE = mesh->GetNBE();
+         for (int b = 0; b < NBE; b++)
+         {
+            Element *bel = mesh->GetBdrElement(b);
+            MFEM_ASSERT(bel->GetType() == Element::SEGMENT, "");
+            const int attr = (b < NBE/2) ? 2 : 1;
+            bel->SetAttribute(attr);
+         }
+      }
+      if (dim == 3)
+      {
+         mesh = new Mesh(2, 2, 2,Element::HEXAHEDRON, true);
+         const int NBE = mesh->GetNBE();
+         MFEM_ASSERT(NBE==24,"");
+         for (int b = 0; b < NBE; b++)
+         {
+            Element *bel = mesh->GetBdrElement(b);
+            MFEM_ASSERT(bel->GetType() == Element::QUADRILATERAL, "");
+            const int attr = (b < NBE/3) ? 3 : (b < 2*NBE/3) ? 1 : 2;
+            bel->SetAttribute(attr);
+         }
+      }
+   }
+   dim = mesh->Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int mesh_NE = mesh->GetNE();
    ParMesh *pmesh = NULL;
@@ -2111,9 +2146,9 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       REQUIRE(t_final==Approx(0.6));
       REQUIRE(cfl==Approx(0.5));
       REQUIRE(cg_tol==Approx(1.e-14));
-      const int dim = strcmp(mesh_file,"data/square.mesh")==0?2:
-                      strcmp(mesh_file,"data/cube.mesh")==0?3:1;
-      REQUIRE((dim==2 || dim==3));
+      //const int dim = strcmp(mesh_file,"data/square.mesh")==0?2:
+      //                strcmp(mesh_file,"data/cube.mesh")==0?3:1;
+      //REQUIRE((dim==2 || dim==3));
       if (dim==2)
       {
          const double p1_05[2] = {3.508254945225794e+00,
@@ -2156,29 +2191,21 @@ static int argn(const char *argv[], int argc =0)
 
 static void sedov_tests(MPI_Session &mpi)
 {
-   const char *argv2D[]= {"sedov_tests",
-                          "-m", "data/square.mesh",
-                          nullptr
-                         };
+   const char *argv2D[]= { "sedov_tests", "-d", "2", nullptr };
    REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
 
-   const char *argv2Drs1[]= {"sedov_tests",
-                             "-rs", "1", "-ms", "20",
-                             "-m", "data/square.mesh",
-                             nullptr
+   const char *argv2Drs1[]= { "sedov_tests", "-d", "2",
+                              "-rs", "1", "-ms", "20",
+                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
-   const char *argv3D[]= {"sedov_tests",
-                          "-m", "data/cube.mesh",
-                          nullptr
-                         };
+   const char *argv3D[]= { "sedov_tests", "-d", "3", nullptr };
    REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
 
-   const char *argv3Drs1[]= {"sedov_tests",
-                             "-rs", "1", "-ms", "28",
-                             "-m", "data/cube.mesh",
-                             nullptr
+   const char *argv3Drs1[]= { "sedov_tests", "-d", "3",
+                              "-rs", "1", "-ms", "28",
+                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
 
