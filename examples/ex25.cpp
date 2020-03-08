@@ -114,10 +114,9 @@ public:
 
    void EliminateBCs(Vector& x, Vector& b, Vector& X, Vector& B)
    {
-      Operator *oper;
-      GetOperatorAtFinestLevel()->FormLinearSystem(*essentialTrueDofs.Last(), x, b,
-                                                   oper, X, B);
-      delete oper;
+      OperatorPtr oper;
+      bfs.Last()->FormLinearSystem(*essentialTrueDofs.Last(), x, b,
+                                   oper, X, B);
    }
 
    void RecoverFEMSolution(const Vector& X, const Vector& b, Vector& x)

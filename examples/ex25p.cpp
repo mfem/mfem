@@ -118,10 +118,9 @@ public:
 
    void EliminateBCs(Vector& x, Vector& b, Vector& X, Vector& B)
    {
-      Operator *oper;
-      GetOperatorAtFinestLevel()->FormLinearSystem(*essentialTrueDofs.Last(), x, b,
-                                                   oper, X, B);
-      delete oper;
+      OperatorPtr oper;
+      bfs.Last()->FormLinearSystem(*essentialTrueDofs.Last(), x, b,
+                                   oper, X, B);
    }
 
    void RecoverFEMSolution(const Vector& X, const Vector& b, Vector& x)
@@ -261,7 +260,6 @@ int main(int argc, char *argv[])
 
    // 13. Solve the linear system A X = B.
    //     * With p-multigrid preconditioner
-
    MultigridDiffusionOperator* mgOperator = new MultigridDiffusionOperator(
       *spaceHierarchy, ess_bdr);
    MultigridSolver* prec = new MultigridSolver(mgOperator,
