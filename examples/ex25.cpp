@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int geometricrefinements = 0;
    int orderrefinements = 2;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -142,8 +143,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&geometricrefinements, "-gr", "--geometricrefinements",
+                  "Number of geometric refinements done prior to order refinements.");
    args.AddOption(&orderrefinements, "-or", "--orderrefinements",
-                  "Number of order refinements. Finest level in the hierarchy has order 2^{or}");
+                  "Number of order refinements. Finest level in the hierarchy has order 2^{or}.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -191,6 +194,10 @@ int main(int argc, char *argv[])
    Array<FiniteElementCollection*> collections;
    collections.Append(fec);
    SpaceHierarchy spaceHierarchy(mesh, fespace, true, true);
+   for (int level = 0; level < geometricrefinements; ++level)
+   {
+      spaceHierarchy.AddUniformlyRefinedLevel();
+   }
    for (int level = 0; level < orderrefinements; ++level)
    {
       collections.Append(new H1_FECollection(std::pow(2, level+1), dim));
