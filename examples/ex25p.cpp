@@ -88,18 +88,8 @@ public:
          Vector diag(spaceHierarchy.GetFESpaceAtLevel(level).GetTrueVSize());
          form->AssembleDiagonal(diag);
 
-         Vector ev(opr->Width());
-         OperatorJacobiSmoother invDiagOperator(diag, *essentialTrueDofs.Last(),
-                                                1.0);
-         ProductOperator diagPrecond(&invDiagOperator, opr.Ptr(), false, false);
-
-         PowerMethod powerMethod(MPI_COMM_WORLD);
-         double estLargestEigenvalue =
-            powerMethod.EstimateLargestEigenvalue(diagPrecond, ev, 10, 1e-8);
-
          Solver* smoother = new OperatorChebyshevSmoother(
-            opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
-            estLargestEigenvalue);
+            opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder, pmesh->GetComm());
 
          Operator* P =
             new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
