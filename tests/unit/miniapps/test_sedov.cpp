@@ -481,8 +481,6 @@ typedef void (*fForceMult)(const int E,
 static void kForceMult(const int DIM,
                        const int D1D,
                        const int Q1D,
-                       const int L1D,
-                       const int H1D,
                        const int NE,
                        const Array<double> &B,
                        const Array<double> &Bt,
@@ -943,7 +941,7 @@ public:
    {
 
       l2restrict->Mult(x, gVecL2);
-      kForceMult(dim, D1D, Q1D, L1D, H1D, nzones,
+      kForceMult(dim, D1D, Q1D, nzones,
                  l2D2Q->B, h1D2Q->Bt, h1D2Q->Gt, quad_data.stressJinvT,
                  gVecL2, gVecH1);
       h1restrict->MultTranspose(gVecH1, y);
@@ -1321,444 +1319,6 @@ class TaylorCoefficient : public Coefficient
    }
 };
 
-template<int D1D, int Q1D, int NBZ> static inline
-void D2QValues2D(const int NE, const Array<double> &b_,
-                 const Vector &x_, Vector &y_)
-{
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto y = Reshape(y_.Write(), Q1D, Q1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-   {
-      const int zid = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double DDz[NBZ][D1D*D1D];
-      double (*DD)[D1D] = (double (*)[D1D])(DDz + zid);
-      MFEM_SHARED double DQz[NBZ][D1D*Q1D];
-      double (*DQ)[Q1D] = (double (*)[Q1D])(DQz + zid);
-      if (zid == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            DD[dy][dx] = x(dx,dy,e);
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double dq = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               dq += B[qx][dx] * DD[dy][dx];
-            }
-            DQ[dy][qx] = dq;
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double qq = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               qq += DQ[dy][qx] * B[qy][dy];
-            }
-            y(qx,qy,e) = qq;
-         }
-      }
-      MFEM_SYNC_THREAD;
-   });
-}
-
-template<int D1D, int Q1D> static inline
-void D2QValues3D(const int NE, const Array<double> &b_,
-                 const Vector &x_, Vector &y_)
-{
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.Write(), Q1D, Q1D, Q1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double sm0[Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[Q1D*Q1D*Q1D];
-      double (*X)[D1D][D1D]   = (double (*)[D1D][D1D]) sm0;
-      double (*DDQ)[D1D][Q1D] = (double (*)[D1D][Q1D]) sm1;
-      double (*DQQ)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) sm0;
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               X[dz][dy][dx] = x(dx,dy,dz,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  u += B[qx][dx] * X[dz][dy][dx];
-               }
-               DDQ[dz][dy][qx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  u += DDQ[dz][dy][qx] * B[qy][dy];
-               }
-               DQQ[dz][qy][qx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dz = 0; dz < D1D; ++dz)
-               {
-                  u += DQQ[dz][qy][qx] * B[qz][dz];
-               }
-               y(qx,qy,qz,e) = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-   });
-}
-
-typedef void (*fD2QValues)(const int NE,
-                           const Array<double> &B,
-                           const Vector &e_vec,
-                           Vector &q_val);
-
-static void D2QValues(const FiniteElementSpace &fes,
-                      const DofToQuad *maps,
-                      const IntegrationRule& ir,
-                      const Vector &e_vec,
-                      Vector &q_val)
-{
-   const int dim = fes.GetMesh()->Dimension();
-   const int nzones = fes.GetNE();
-   const int dofs1D = fes.GetFE(0)->GetOrder() + 1;
-   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int id = (dim<<8)|(dofs1D<<4)|(quad1D);
-   static std::unordered_map<int, fD2QValues> call =
-   {
-      // 2D
-      {0x224,&D2QValues2D<2,4,8>},
-      //{0x236,&D2QValues2D<3,6,4>}, {0x248,&D2QValues2D<4,8,2>},
-      // 3D
-      {0x324,&D2QValues3D<2,4>},
-      //{0x336,&D2QValues3D<3,6>}, {0x348,&D2QValues3D<4,8>},
-   };
-   if (!call[id])
-   {
-      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-      MFEM_ABORT("Unknown kernel");
-   }
-   call[id](nzones, maps->B, e_vec, q_val);
-}
-
-void Values(FiniteElementSpace *fespace, const IntegrationRule &ir,
-            const Vector &e_vec, Vector &q_val)
-{
-   const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QValues(*fespace, &d2q,ir, e_vec, q_val);
-}
-
-template<int D1D, int Q1D, int NBZ> static inline
-void D2QGrad2D(const int NE,
-               const Array<double> &b_,
-               const Array<double> &g_,
-               const Vector &x_,
-               Vector &y_)
-{
-   constexpr int VDIM = 2;
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double G[Q1D][D1D];
-      MFEM_SHARED double Xz[NBZ][D1D][D1D];
-      double (*X)[D1D] = (double (*)[D1D])(Xz + tidz);
-      MFEM_SHARED double GD[2][NBZ][D1D][Q1D];
-      double (*DQ0)[Q1D] = (double (*)[Q1D])(GD[0] + tidz);
-      double (*DQ1)[Q1D] = (double (*)[Q1D])(GD[1] + tidz);
-
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      for (int c = 0; c < 2; ++c)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               X[dx][dy] = x(dx,dy,c,e);
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               double v = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double input = X[dx][dy];
-                  u += B[qx][dx] * input;
-                  v += G[qx][dx] * input;
-               }
-               DQ0[dy][qx] = u;
-               DQ1[dy][qx] = v;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               double v = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  u += DQ1[dy][qx] * B[qy][dy];
-                  v += DQ0[dy][qx] * G[qy][dy];
-               }
-               y(c,0,qx,qy,e) = u;
-               y(c,1,qx,qy,e) = v;
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
-template<int D1D, int Q1D> static inline
-void D2QGrad3D(const int NE,
-               const Array<double> &b_, const Array<double> &g_,
-               const Vector &x_, Vector &y_)
-{
-   constexpr int VDIM = 3;
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double G[Q1D][D1D];
-      MFEM_SHARED double sm0[3][Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[3][Q1D*Q1D*Q1D];
-      double (*X)[D1D][D1D]    = (double (*)[D1D][D1D]) (sm0+2);
-      double (*DDQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+0);
-      double (*DDQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
-      double (*DQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
-      double (*DQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
-      double (*DQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      for (int c = 0; c < VDIM; ++c)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD(dz,z,D1D)
-               {
-
-                  X[dx][dy][dz] = x(dx,dy,dz,c,e);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         MFEM_FOREACH_THREAD(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  double u = 0.0;
-                  double v = 0.0;
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     const double coords = X[dx][dy][dz];
-                     u += coords * B[qx][dx];
-                     v += coords * G[qx][dx];
-                  }
-                  DDQ0[dz][dy][qx] = u;
-                  DDQ1[dz][dy][qx] = v;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
-                  for (int dy = 0; dy < D1D; ++dy)
-                  {
-                     u += DDQ1[dz][dy][qx] * B[qy][dy];
-                     v += DDQ0[dz][dy][qx] * G[qy][dy];
-                     w += DDQ0[dz][dy][qx] * B[qy][dy];
-                  }
-                  DQQ0[dz][qy][qx] = u;
-                  DQQ1[dz][qy][qx] = v;
-                  DQQ2[dz][qy][qx] = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
-                  for (int dz = 0; dz < D1D; ++dz)
-                  {
-                     u += DQQ0[dz][qy][qx] * B[qz][dz];
-                     v += DQQ1[dz][qy][qx] * B[qz][dz];
-                     w += DQQ2[dz][qy][qx] * G[qz][dz];
-                  }
-                  y(c,0,qx,qy,qz,e) = u;
-                  y(c,1,qx,qy,qz,e) = v;
-                  y(c,2,qx,qy,qz,e) = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
-typedef void (*fD2QGrad)(const int NE,
-                         const Array<double> &B,
-                         const Array<double> &G,
-                         const Vector &e_vec,
-                         Vector &q_der);
-
-static void D2QGrad(const FiniteElementSpace &fes,
-                    const DofToQuad *maps,
-                    const IntegrationRule& ir,
-                    const Vector &e_vec,
-                    Vector &q_der)
-{
-   const int dim = fes.GetMesh()->Dimension();
-   const int NE = fes.GetNE();
-   const int D1D = fes.GetFE(0)->GetOrder() + 1;
-   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int id = (dim<<8)|(D1D<<4)|(Q1D);
-   static std::unordered_map<int, fD2QGrad> call =
-   {
-      // 2D
-      {0x234,&D2QGrad2D<3,4,8>},
-      //{0x246,&D2QGrad2D<4,6,4>},{0x258,&D2QGrad2D<5,8,2>},
-      // 3D
-      {0x334,&D2QGrad3D<3,4>},
-      //{0x346,&D2QGrad3D<4,6>},{0x358,&D2QGrad3D<5,8>},
-   };
-   if (!call[id])
-   {
-      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-      MFEM_ABORT("Unknown kernel");
-   }
-   call[id](NE, maps->B, maps->G, e_vec, q_der);
-}
-
-void Derivatives(FiniteElementSpace *fespace,  const IntegrationRule &ir,
-                 const Vector &e_vec, Vector &q_der)
-{
-   const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QGrad(*fespace, &d2q, ir, e_vec, q_der);
-}
-
 MFEM_HOST_DEVICE inline double smooth_step_01(double x, double eps)
 {
    const double y = (x + eps) / (2.0 * eps);
@@ -1870,7 +1430,6 @@ void QBody(const int nzones, const int z,
 template<int dim, int Q1D> static inline
 void QKernel(const int nzones,
              const int nqp,
-             const int nqp1D,
              const double gamma,
              const bool use_viscosity,
              const double h0,
@@ -1977,15 +1536,15 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
    H1ER->Mult(d_x, d_h1_v_local_in);
-   Derivatives(&H1, ir, d_h1_v_local_in, d_h1_grad_x_data);
+   q1->Derivatives(d_h1_v_local_in, d_h1_grad_x_data);
    d_v.MakeRef(&H1,*S_p, H1_size);
    H1ER->Mult(d_v, d_h1_v_local_in);
-   Derivatives(&H1, ir, d_h1_v_local_in, d_h1_grad_v_data);
+   q1->Derivatives(d_h1_v_local_in, d_h1_grad_v_data);
    d_e.MakeRef(&L2, *S_p, 2*H1_size);
-   Values(&L2, ir, d_e, d_l2_e_quads_data);
+   q2->Values(d_e, d_l2_e_quads_data);
    d_dt_est = quad_data.dt_est;
    const int id = (dim<<4) | nqp1D;
-   typedef void (*fQKernel)(const int NE, const int NQ, const int Q1D,
+   typedef void (*fQKernel)(const int NE, const int NQ,
                             const double gamma, const bool use_viscosity,
                             const double h0, const double h1order,
                             const double cfl, const double infinity,
@@ -2004,7 +1563,7 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
       mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
       MFEM_ABORT("Unknown kernel");
    }
-   qupdate[id](NE, NQ, nqp1D, gamma, use_viscosity, quad_data.h0,
+   qupdate[id](NE, NQ, gamma, use_viscosity, quad_data.h0,
                h1order, cfl, infinity, ir.GetWeights(), d_h1_grad_x_data,
                quad_data.rho0DetJ0w, d_l2_e_quads_data, d_h1_grad_v_data,
                quad_data.Jac0inv, d_dt_est, quad_data.stressJinvT);
