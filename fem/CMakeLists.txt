@@ -36,7 +36,6 @@ set(SRCS
   intrules.cpp
   linearform.cpp
   lininteg.cpp
-  mgbilinearform.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
@@ -70,7 +69,6 @@ set(HDRS
   intrules.hpp
   linearform.hpp
   lininteg.hpp
-  mgbilinearform.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
@@ -108,7 +106,6 @@ if (MFEM_USE_MPI)
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
-    pmgbilinearform.cpp
     pnonlinearform.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
@@ -117,7 +114,6 @@ if (MFEM_USE_MPI)
     pfespace.hpp
     pgridfunc.hpp
     plinearform.hpp
-    pmgbilinearform.hpp
     pnonlinearform.hpp)
 endif()
 

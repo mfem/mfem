@@ -1154,9 +1154,4 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
-MassIntegrator* MassIntegrator::Copy() const
-{
-   return new MassIntegrator(*this);
-}
-
 } // namespace mfem
