@@ -177,13 +177,6 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
-   /// Returns a pointer to a non-owned copy of the BilinearFormIntegrator
-   virtual BilinearFormIntegrator* Copy() const
-   {
-      MFEM_ABORT("Copy not implemented ");
-      return nullptr;
-   }
-
    virtual ~BilinearFormIntegrator() { }
 };
 
@@ -1875,8 +1868,6 @@ public:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
-   virtual DiffusionIntegrator* Copy() const;
-
    void SetupPA(const FiniteElementSpace &fes, const bool force = false);
 };
 
@@ -1946,8 +1937,6 @@ public:
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
-
-   virtual MassIntegrator* Copy() const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
