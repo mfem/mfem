@@ -51,8 +51,8 @@ void MPI_Reduce_(T *src, T *dst, const int n)
 class MPI_Session
 {
 public:
-   MPI_Session() {}
-   MPI_Session(int argc, char **argv) {}
+   MPI_Session() { }
+   MPI_Session(int, char**) { }
    bool Root() { return true; }
    int WorldRank() { return 0; }
    int WorldSize() { return 1; }
@@ -2146,9 +2146,6 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       REQUIRE(t_final==Approx(0.6));
       REQUIRE(cfl==Approx(0.5));
       REQUIRE(cg_tol==Approx(1.e-14));
-      //const int dim = strcmp(mesh_file,"data/square.mesh")==0?2:
-      //                strcmp(mesh_file,"data/cube.mesh")==0?3:1;
-      //REQUIRE((dim==2 || dim==3));
       if (dim==2)
       {
          const double p1_05[2] = {3.508254945225794e+00,
