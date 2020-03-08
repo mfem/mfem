@@ -75,13 +75,6 @@ public:
    /// corresponding to the fine space is restricted to the vector \p y
    /// corresponding to the coarse space.
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
-
-private:
-   /// Helper function to decode encoded dofs
-   static inline int DecodeDof(int dof)
-   {
-      return (dof >= 0) ? dof : (-1 - dof);
-   }
 };
 
 /// Matrix-free transfer operator between finite element spaces on the same mesh

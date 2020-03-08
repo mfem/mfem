@@ -148,7 +148,7 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          x.GetSubVector(h_vdofs, subX);
          for (int p = 0; p < h_dofs.Size(); ++p)
          {
-            if (processed[DecodeDof(h_dofs[p])])
+            if (processed[lFESpace.DecodeDof(h_dofs[p])])
             {
                subX[p] = 0.0;
             }
@@ -160,7 +160,7 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
       for (int p = 0; p < h_dofs.Size(); ++p)
       {
-         processed[DecodeDof(h_dofs[p])] = 1;
+         processed[lFESpace.DecodeDof(h_dofs[p])] = 1;
       }
    }
 }
