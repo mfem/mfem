@@ -1386,7 +1386,7 @@ void QBody(const int nzones, const int z,
       }
       for (int k=0; k<dim; k+=1) { compr_dir[k]=eig_vec_data[k]; }
       kernels::Mult(dim, dim, dim, J, d_Jac0inv+zq*dim*dim, Jpi);
-      kernels::MultV(dim, dim, Jpi, compr_dir, ph_dir);
+      kernels::Mult(dim, dim, Jpi, compr_dir, ph_dir);
       const double ph_dir_nl2 = kernels::Norml2(dim,ph_dir);
       const double compr_dir_nl2 = kernels::Norml2(dim, compr_dir);
       const double h = h0 * ph_dir_nl2 / compr_dir_nl2;

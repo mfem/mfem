@@ -26,9 +26,13 @@
 #include "tlayout.hpp"
 #include "ttensor.hpp"
 
-// This header contains small dense linear algebra functions designed to be
-// inlined directly into device kernels. Many methods of the DenseMatrix class
-// call these kernels directly on the host.
+// This header contains stand-alone functions for "small" dense linear algebra
+// (at quadrature point or element-level) designed to be inlined directly into
+// device kernels.
+
+// Many methods of the DenseMatrix class and some of the Vector class call these
+// kernels directly on the host, see the implementations in linalg/densemat.cpp
+// and linalag.vector.cpp.
 
 namespace mfem
 {
@@ -36,8 +40,7 @@ namespace mfem
 namespace kernels
 {
 
-// *****************************************************************************
-/// Returns the l2 norm of the Vector with the given @a size and @a data.
+/// Returns the l2 norm of the Vector with given @a size and @a data.
 template<typename T>
 MFEM_HOST_DEVICE inline
 double Norml2(const int size, const T *data)
@@ -65,131 +68,12 @@ double Norml2(const int size, const T *data)
    return scale * sqrt(sum);
 }
 
-// *****************************************************************************
-/** @brief Multiply a matrix @a A of size @a ah x @a aw with the transpose of a
-    matrix @a B of size @a bh x @a aw: A*Bt. */
-template<typename TA, typename TB, typename TC>
-MFEM_HOST_DEVICE inline
-void MultABt(const int ah, const int aw, const int bh,
-             const TA *A, const TB *B, TC *C)
-{
-   const int ah_x_bh = ah*bh;
-   for (int i=0; i<ah_x_bh; i+=1)
-   {
-      C[i] = 0.0;
-   }
-   for (int k=0; k<aw; k+=1)
-   {
-      TC *c = C;
-      for (int j=0; j<bh; j+=1)
-      {
-         const double bjk = B[j];
-         for (int i=0; i<ah; i+=1)
-         {
-            c[i] += A[i] * bjk;
-         }
-         c += ah;
-      }
-      A += ah;
-      B += bh;
-   }
-}
-
-// *****************************************************************************
-/// Symmetrize a square matrix of size @a n with data @a d.
-template<typename T>
-MFEM_HOST_DEVICE inline
-void Symmetrize(const int n, T *d)
-{
-   for (int i = 0; i<n; i++)
-   {
-      for (int j = 0; j<i; j++)
-      {
-         const T a = 0.5 * (d[i*n+j] + d[j*n+i]);
-         d[j*n+i] = d[i*n+j] = a;
-      }
-   }
-}
-
-// *****************************************************************************
-/// Utility function to swap the values of @a a and @a b.
-template<typename T>
-MFEM_HOST_DEVICE static inline
-void Swap(T &a, T &b)
-{
-   T tmp = a;
-   a = b;
-   b = tmp;
-}
-
-const double Epsilon = std::numeric_limits<double>::epsilon();
-
-// *****************************************************************************
-/// Compute the determinant of a matrix of size dim with data @a data.
-template<int dim, typename T>
-MFEM_HOST_DEVICE inline T Det(const T *data)
-{ return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data); }
-
-// *****************************************************************************
-/** @brief Return the inverse of the input matrix @a a of size dim into the
-    output matrix @a inva. */
-template<int dim, typename T>
-MFEM_HOST_DEVICE inline
-void CalcInverse(const T *a, T *inva)
-{
-   typedef ColumnMajorLayout2D<dim,dim> layout_t;
-   const T det = TAdjDet<T>(layout_t(), a, layout_t(), inva);
-   TAssign<AssignOp::Div>(layout_t(), inva, det);
-}
-
-// *****************************************************************************
-/** @brief Compute C = A + alpha*B, where the matrices @a A, @a B and @a C are
-    of size @a height x @a width. */
-template<typename TALPHA, typename TA, typename TB, typename TC>
-MFEM_HOST_DEVICE inline
-void Add(const int height, const int width, const TALPHA alpha,
-         const TA *A, const TB *B, TC *C)
-{
-   for (int j = 0; j < width; j++)
-   {
-      for (int i = 0; i < height; i++)
-      {
-         const int n = i*width+j;
-         C[n] = A[n] + alpha * B[n];
-      }
-   }
-}
-
-// *****************************************************************************
-/** @brief Matrix-matrix multiplication: A = B * C, where the matrices @a A,
-    @a B and @a C are of sizes @a aw x @a ah, @a aw x @a bw and @a bw x @a ah,
-    respectively. */
-template<typename TA, typename TB, typename TC>
-MFEM_HOST_DEVICE inline
-void Mult(const int ah, const int aw, const int bw,
-          const TB *B, const TC *C, TA *A)
-{
-   const int ah_x_aw = ah*aw;
-   for (int i = 0; i < ah_x_aw; i++) { A[i] = 0.0; }
-   for (int j = 0; j < aw; j++)
-   {
-      for (int k = 0; k < bw; k++)
-      {
-         for (int i = 0; i < ah; i++)
-         {
-            A[i+j*ah] += B[i+k*ah] * C[k+j*bw];
-         }
-      }
-   }
-}
-
-// *****************************************************************************
 /** @brief Matrix vector multiplication: y = A x, where the matrix A is of size
-    @a height x @a width with data given by @a data. */
-template<typename TDATA, typename TX, typename TY>
+    @a height x @a width with given @a data, while @a x and @a y specify the
+    data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void MultV(const int height, const int width,
-           TDATA *data, const TX *x, TY *y)
+void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
 {
    if (width == 0)
    {
@@ -199,7 +83,7 @@ void MultV(const int height, const int width,
       }
       return;
    }
-   TDATA *d_col = data;
+   TA *d_col = data;
    TX x_col = x[0];
    for (int row = 0; row < height; row++)
    {
@@ -214,6 +98,153 @@ void MultV(const int height, const int width,
          y[row] += x_col*d_col[row];
       }
       d_col += height;
+   }
+}
+
+/// Symmetrize a square matrix with given @a size and @a data: A -> (A+A^T)/2.
+template<typename T>
+MFEM_HOST_DEVICE inline
+void Symmetrize(const int size, T *data)
+{
+   for (int i = 0; i < size; i++)
+   {
+      for (int j = 0; j < i; j++)
+      {
+         const T a = 0.5 * (data[i*size+j] + data[j*size+i]);
+         data[j*size+i] = data[i*size+j] = a;
+      }
+   }
+}
+
+/// Compute the determinant of a square matrix of size dim with given @a data.
+template<int dim, typename T>
+MFEM_HOST_DEVICE inline T Det(const T *data)
+{ return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data); }
+
+/** @brief Return the inverse a matrix with given @a size and @a data into the
+    matrix with data @a inv_data. */
+template<int dim, typename T>
+MFEM_HOST_DEVICE inline
+void CalcInverse(const T *data, T *inv_data)
+{
+   typedef ColumnMajorLayout2D<dim,dim> layout_t;
+   const T det = TAdjDet<T>(layout_t(), data, layout_t(), inv_data);
+   TAssign<AssignOp::Div>(layout_t(), inv_data, det);
+}
+
+/** @brief Compute C = A + alpha*B, where the matrices A, B and C are of size @a
+    height x @a width with data @a Adata, @a Bdata and @a Cdata. */
+template<typename TALPHA, typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width, const TALPHA alpha,
+         const TA *Adata, const TB *Bdata, TC *Cdata)
+{
+   for (int j = 0; j < width; j++)
+   {
+      for (int i = 0; i < height; i++)
+      {
+         const int n = i*width+j;
+         Cdata[n] = Adata[n] + alpha * Bdata[n];
+      }
+   }
+}
+
+/** @brief Matrix-matrix multiplication: A = B * C, where the matrices A, B and
+    C are of sizes @a Aheight x @a Awidth, @a Aheight x @a Bwidth and @a Bwidth
+    x @a Awidth, respectively. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void Mult(const int Aheight, const int Awidth, const int Bwidth,
+          const TB *Bdata, const TC *Cdata, TA *Adata)
+{
+   const int ah_x_aw = Aheight * Awidth;
+   for (int i = 0; i < ah_x_aw; i++) { Adata[i] = 0.0; }
+   for (int j = 0; j < Awidth; j++)
+   {
+      for (int k = 0; k < Bwidth; k++)
+      {
+         for (int i = 0; i < Aheight; i++)
+         {
+            Adata[i+j*Aheight] += Bdata[i+k*Aheight] * Cdata[k+j*Bwidth];
+         }
+      }
+   }
+}
+
+/** @brief Multiply a matrix of size @a Aheight x @a Awidth and data @a Adata
+    with the transpose of a matrix of size @a Bheight x @a Awidth and data @a
+    Bdata: A * Bt. Return the result in a matrix with data @a ABtdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void MultABt(const int Aheight, const int Awidth, const int Bheight,
+             const TA *Adata, const TB *Bdata, TC *ABtdata)
+{
+   const int ah_x_bh = Aheight * Bheight;
+   for (int i = 0; i < ah_x_bh; i++) { ABtdata[i] = 0.0; }
+   for (int k = 0; k < Awidth; k++)
+   {
+      TC *c = ABtdata;
+      for (int j = 0; j < Bheight; j++)
+      {
+         const double bjk = Bdata[j];
+         for (int i = 0; i < Aheight; i++)
+         {
+            c[i] += Adata[i] * bjk;
+         }
+         c += Aheight;
+      }
+      Adata += Aheight;
+      Bdata += Bheight;
+   }
+}
+
+/// Compute the spectrum of the matrix of size dim with given @a data, returning
+/// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
+/// vec (listed consecutively).
+template<int dim>
+void CalcEigenvalues(const double *data, double *lambda, double *vec);
+
+/// Return the i'th singular value of the matrix of size dim with given @a data.
+template<int dim>
+double CalcSingularvalue(const double *data, const int i);
+
+
+// Utility functions for CalcEigenvalues and CalcSingularvalue
+namespace internal
+{
+
+/// Utility function to swap the values of @a a and @a b.
+template<typename T>
+MFEM_HOST_DEVICE static inline
+void Swap(T &a, T &b)
+{
+   T tmp = a;
+   a = b;
+   b = tmp;
+}
+
+const double Epsilon = std::numeric_limits<double>::epsilon();
+
+/// Utility function used in CalcSingularvalue<3>.
+MFEM_HOST_DEVICE static inline
+void Eigenvalues2S(const double &d12, double &d1, double &d2)
+{
+   const double sqrt_1_eps = sqrt(1./Epsilon);
+   if (d12 != 0.)
+   {
+      // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
+      double t;
+      const double zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
+      if (fabs(zeta) < sqrt_1_eps)
+      {
+         t = d12*copysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
+      }
+      else
+      {
+         t = d12*copysign(0.5/fabs(zeta), zeta);
+      }
+      d1 -= t;
+      d2 += t;
    }
 }
 
@@ -250,42 +281,6 @@ void Eigensystem2S(const double &d12, double &d1, double &d2,
    }
 }
 
-/// Compute the spectrum of the matrix of size dim with data @a d and return the
-/// eigenvalues in the array @a lambda and the eigenvectors in the array @a vec
-/// (listed consecutively).
-template<int dim>
-void CalcEigenvalues(const double *d, double *lambda, double *vec);
-
-/// Compute the spectrum of the matrix of size 2 with data @a d and return the
-/// eigenvalues in the array @a lambda and the eigenvectors in the array @a vec
-/// (listed consecutively).
-template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<2>(const double *d, double *lambda, double *vec)
-{
-   double d0 = d[0];
-   double d2 = d[2]; // use the upper triangular entry
-   double d3 = d[3];
-   double c, s;
-   Eigensystem2S(d2, d0, d3, c, s);
-   if (d0 <= d3)
-   {
-      lambda[0] = d0;
-      lambda[1] = d3;
-      vec[0] =  c;
-      vec[1] = -s;
-      vec[2] =  s;
-      vec[3] =  c;
-   }
-   else
-   {
-      lambda[0] = d3;
-      lambda[1] = d0;
-      vec[0] =  s;
-      vec[1] =  c;
-      vec[2] =  c;
-      vec[3] = -s;
-   }
-}
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
@@ -857,18 +852,54 @@ int Reduce3S(const int &mode,
    return k;
 }
 
-/// Compute the spectrum of the matrix of size 2 with data @a d and return the
-/// eigenvalues in the array @a lambda and the eigenvectors in the array @a vec
-/// (listed consecutively).
+} // namespace kernels::internal
+
+
+// Implementations of CalcEigenvalues and CalcSingularvalue for dim = 2, 3.
+
+/// Compute the spectrum of the matrix of size 2 with given @a data, returning
+/// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
+/// vec (listed consecutively).
 template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
+void CalcEigenvalues<2>(const double *data, double *lambda, double *vec)
 {
-   double d11 = d[0];
-   double d12 = d[3]; // use the upper triangular entries
-   double d22 = d[4];
-   double d13 = d[6];
-   double d23 = d[7];
-   double d33 = d[8];
+   double d0 = data[0];
+   double d2 = data[2]; // use the upper triangular entry
+   double d3 = data[3];
+   double c, s;
+   internal::Eigensystem2S(d2, d0, d3, c, s);
+   if (d0 <= d3)
+   {
+      lambda[0] = d0;
+      lambda[1] = d3;
+      vec[0] =  c;
+      vec[1] = -s;
+      vec[2] =  s;
+      vec[3] =  c;
+   }
+   else
+   {
+      lambda[0] = d3;
+      lambda[1] = d0;
+      vec[0] =  s;
+      vec[1] =  c;
+      vec[2] =  c;
+      vec[3] = -s;
+   }
+}
+
+/// Compute the spectrum of the matrix of size 3 with given @a data, returning
+/// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
+/// vec (listed consecutively).
+template<> MFEM_HOST_DEVICE inline
+void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
+{
+   double d11 = data[0];
+   double d12 = data[3]; // use the upper triangular entries
+   double d22 = data[4];
+   double d13 = data[6];
+   double d23 = data[7];
+   double d33 = data[8];
 
    double mult;
    {
@@ -879,7 +910,7 @@ void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
       if (d_max < fabs(d13)) { d_max = fabs(d13); }
       if (d_max < fabs(d23)) { d_max = fabs(d23); }
 
-      GetScalingFactor(d_max, mult);
+      internal::GetScalingFactor(d_max, mult);
    }
 
    d11 /= mult;  d22 /= mult;  d33 /= mult;
@@ -956,7 +987,7 @@ void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
       //  | d13  d23   c3 |
       // This vector is also an eigenvector for A corresponding to aa.
       // The vector z overwrites (c1,c2,c3).
-      switch (KernelVector3S(mode, d12, d13, d23, c1, c2, c3))
+      switch (internal::KernelVector3S(mode, d12, d13, d23, c1, c2, c3))
       {
          case 3:
             // 'aa' is a triple eigenvalue
@@ -978,8 +1009,8 @@ void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
       // A <-- Q P A P Q = |  0  d22 d23 |
       //                   |  0  d23 d33 |
       double v1, v2, v3, g;
-      int k = Reduce3S(mode, d11, d22, d33, d12, d13, d23,
-                       c1, c2, c3, v1, v2, v3, g);
+      int k = internal::Reduce3S(mode, d11, d22, d33, d12, d13, d23,
+                                 c1, c2, c3, v1, v2, v3, g);
       // Q = I - 2 v v^t
       // P - permutation matrix switching entries 1 and k
 
@@ -987,7 +1018,7 @@ void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
       // | d22 d23 |
       // | d23 d33 |
       double c, s;
-      Eigensystem2S(d23, d22, d33, c, s);
+      internal::Eigensystem2S(d23, d22, d33, c, s);
       // d22 <-> P Q (0, c, -s), d33 <-> P Q (0, s, c)
 
       double *vec_1, *vec_2, *vec_3;
@@ -1045,13 +1076,13 @@ void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
       switch (k)
       {
          case 2:
-            Swap(vec_2[0], vec_2[1]);
-            Swap(vec_3[0], vec_3[1]);
+            internal::Swap(vec_2[0], vec_2[1]);
+            internal::Swap(vec_3[0], vec_3[1]);
             break;
 
          case 3:
-            Swap(vec_2[0], vec_2[2]);
-            Swap(vec_3[0], vec_3[2]);
+            internal::Swap(vec_2[0], vec_2[2]);
+            internal::Swap(vec_3[0], vec_3[2]);
       }
    }
 
@@ -1061,19 +1092,15 @@ done_3d:
    lambda[2] *= mult;
 }
 
-/// Return the i'th singular value of the matrix of size dim with data @a d.
-template<int dim> double CalcSingularvalue(const double *d, const int i);
-
-/// Return the i'th singular value of the matrix of size 2 with data @a d,
-/// indices starting at zero.
+/// Return the i'th singular value of the matrix of size 2 with given @a data.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<2>(const double *d, const int i)
+double CalcSingularvalue<2>(const double *data, const int i)
 {
    double d0, d1, d2, d3;
-   d0 = d[0];
-   d1 = d[1];
-   d2 = d[2];
-   d3 = d[3];
+   d0 = data[0];
+   d1 = data[1];
+   d2 = data[2];
+   d3 = data[3];
    double mult;
 
    {
@@ -1081,7 +1108,7 @@ double CalcSingularvalue<2>(const double *d, const int i)
       if (d_max < fabs(d1)) { d_max = fabs(d1); }
       if (d_max < fabs(d2)) { d_max = fabs(d2); }
       if (d_max < fabs(d3)) { d_max = fabs(d3); }
-      GetScalingFactor(d_max, mult);
+      internal::GetScalingFactor(d_max, mult);
    }
 
    d0 /= mult;
@@ -1113,38 +1140,14 @@ double CalcSingularvalue<2>(const double *d, const int i)
    return t*mult;
 }
 
-/// Utility function used in CalcSingularvalue<3>.
-MFEM_HOST_DEVICE static inline
-void Eigenvalues2S(const double &d12, double &d1, double &d2)
-{
-   const double sqrt_1_eps = sqrt(1./Epsilon);
-   if (d12 != 0.)
-   {
-      // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
-      double t;
-      const double zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
-      if (fabs(zeta) < sqrt_1_eps)
-      {
-         t = d12*copysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
-      }
-      else
-      {
-         t = d12*copysign(0.5/fabs(zeta), zeta);
-      }
-      d1 -= t;
-      d2 += t;
-   }
-}
-
-/// Return the i'th singular value of the matrix of size 3 with data @a d,
-/// indices starting at zero.
+/// Return the i'th singular value of the matrix of size 3 with given @a data.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<3>(const double *d, const int i)
+double CalcSingularvalue<3>(const double *data, const int i)
 {
    double d0, d1, d2, d3, d4, d5, d6, d7, d8;
-   d0 = d[0];  d3 = d[3];  d6 = d[6];
-   d1 = d[1];  d4 = d[4];  d7 = d[7];
-   d2 = d[2];  d5 = d[5];  d8 = d[8];
+   d0 = data[0];  d3 = data[3];  d6 = data[6];
+   d1 = data[1];  d4 = data[4];  d7 = data[7];
+   d2 = data[2];  d5 = data[5];  d8 = data[8];
    double mult;
    {
       double d_max = fabs(d0);
@@ -1156,7 +1159,7 @@ double CalcSingularvalue<3>(const double *d, const int i)
       if (d_max < fabs(d6)) { d_max = fabs(d6); }
       if (d_max < fabs(d7)) { d_max = fabs(d7); }
       if (d_max < fabs(d8)) { d_max = fabs(d8); }
-      GetScalingFactor(d_max, mult);
+      internal::GetScalingFactor(d_max, mult);
    }
 
    d0 /= mult;  d1 /= mult;  d2 /= mult;
@@ -1318,7 +1321,7 @@ double CalcSingularvalue<3>(const double *d, const int i)
       //  | b13  b23   c3 |
       // This vector is also an eigenvector for B corresponding to aa
       // The vector z overwrites (c1,c2,c3).
-      switch (KernelVector3S(mode, b12, b13, b23, c1, c2, c3))
+      switch (internal::KernelVector3S(mode, b12, b13, b23, c1, c2, c3))
       {
          case 3:
             aa += r;
@@ -1335,15 +1338,15 @@ double CalcSingularvalue<3>(const double *d, const int i)
       // B <-- Q P B P Q = |  0  b22 b23 |
       //                   |  0  b23 b33 |
       double v1, v2, v3, g;
-      Reduce3S(mode, b11, b22, b33, b12, b13, b23,
-               c1, c2, c3, v1, v2, v3, g);
+      internal::Reduce3S(mode, b11, b22, b33, b12, b13, b23,
+                         c1, c2, c3, v1, v2, v3, g);
       // Q = I - g v v^t
       // P - permutation matrix switching rows and columns 1 and k
 
       // find the eigenvalues of
       //  | b22 b23 |
       //  | b23 b33 |
-      Eigenvalues2S(b23, b22, b33);
+      internal::Eigenvalues2S(b23, b22, b33);
 
       if (i == 2)
       {
