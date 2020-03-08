@@ -322,7 +322,7 @@ endif()
 if (MFEM_USE_RAJA)
    find_package(RAJA REQUIRED)
 endif()
-   
+
 # UMPIRE
 if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)

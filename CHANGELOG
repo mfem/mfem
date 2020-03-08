@@ -13,24 +13,28 @@ Version 4.1, released on March 9, 2020
 
 Starting with this version, the MFEM open source license is changed to BSD-3.
 
-Improved GPU support
---------------------
+Improved GPU capabilities
+-------------------------
 - Added initial support for AMD GPUs based on HIP: a C++ runtime API and kernel
-  language that can run on both AMD and NVIDIA hardware. With this change plus
-  the libCEED and debug devise additions below, the current list of available
-  backends is: "ceed-cuda", "occa-cuda", "raja-cuda", "cuda", "hip", "debug",
-  "occa-omp", "raja-omp", "omp", "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
-
-- In addition to Examples 1 and 6, GPU/device acceleration is now available in
-  three additional example codes: 3/3p, 9/9p and 24/24p.
+  language that can run on both AMD and NVIDIA hardware.
 
 - Added support for Umpire, a resource management library that allows the
   discovery, provision, and management of memory on machines with multiple
   memory devices like NUMA and GPUs, see https://github.com/LLNL/Umpire.
 
+- GPU acceleration is now available in 3 additional example codes: 3, 9 and 24.
+
+- Improved RAJA backend and multi-GPU MPI communications.
+
 - Added a "debug" device designed specifically to aid in debugging GPU code by
   following the "device" code path (using separate host/device memory spaces and
   host <-> device transfers) without any GPU hardware.
+
+- Added support for matrix-free diagonal smoothers on GPUs.
+
+- The current list of available device backends is: "ceed-cuda", "occa-cuda",
+  "raja-cuda", "cuda", "hip", "debug", "occa-omp", "raja-omp", "omp",
+  "ceed-cpu", "occa-cpu", "raja-cpu", and "cpu".
 
 - The MFEM memory manager now supports different memory types, associated with
   the following memory backends:
@@ -40,10 +44,6 @@ Improved GPU support
   * Umpire-managed memory, including memory pools,
   * 32- or 64-bit aligned memory, using posix_memalign (WIN32 also supported),
   * Debug memory with mmap/mprotect protection used by the new "debug" device.
-
-- Added support for matrix-free diagonal smoothers on GPUs.
-
-- Improved RAJA backend and multi-GPU MPI communications.
 
 libCEED support
 ---------------
@@ -60,7 +60,24 @@ libCEED support
   libCEED, see the sample runs in examples 1 and 6.
 
 - NOTE: The current default libCEED GPU backend (ceed-cuda) uses atomics and
-  therefore is non-deterministic!
+  therefore is non-deterministic.
+
+Partial assembly and matrix-free discretizations
+------------------------------------------------
+- Added initial support for matrix free Discontinuous Galerkin methods using
+  a partial assembly operator decomposition. The implementation builds up on
+  the GPU/device support and extends it to easily support face integrators.
+  This initial support requires Gauss-Lobatto basis.
+
+- Improved performance for Convection integrator using partial assembly.
+
+- ex9 and ex9p are now supporting partial assembly on CPU and GPU devices.
+  Using partial assembly provides significantly improved performance,
+  particularly on high-order 3D problems using GPU devices.
+
+- Include the implementation of a first face integrator: DGTraceIntegrator.
+  Generic and optimnized implementations are provided.
+
 
 Meshing improvements
 --------------------
@@ -84,22 +101,6 @@ Meshing improvements
 - The TMOP mesh optimization algorithms were improved to support AMR meshes.
 
 - Improved element numbering after uniform mesh refinement.
-
-Partial Assembly for Discontinous Galerkin methods support
-----------------------------------------------------------
-- Added initial support for matrix free Discontinuous Galerkin methods using
-  a partial assembly operator decomposition. The implementation builds up on
-  the GPU/device support and extends it to easily support face integrators.
-  This initial support requires Gauss-Lobatto basis.
-
-- ex9 and ex9p are now supporting partial assembly on CPU and GPU devices.
-  Using partial assembly provides significantly improved performance,
-  particularly on high-order 3D problems using GPU devices.
-
-- Include the implementation of a first face integrator: DGTraceIntegrator.
-  Generic and optimnized implementations are provided.
-
-- Improved performance for Convection integrator using partial assembly.
 
 Discretization improvements
 ---------------------------
