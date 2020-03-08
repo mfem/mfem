@@ -181,9 +181,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
+   // 5. Define a finite element space hierarchy on the mesh. Here we use
+   //    continuous Lagrange finite elements. We start with order 1 on the
+   //    coarse level and increase the order by of factor of 2 for each
+   //    additional level.
    FiniteElementCollection *fec = new H1_FECollection(1, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
 
@@ -199,7 +200,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << spaceHierarchy.GetFinestFESpace().GetTrueVSize() << endl;
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(&spaceHierarchy.GetFinestFESpace());
@@ -207,13 +208,16 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 8. Define the solution vector x as a finite element grid function
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(&spaceHierarchy.GetFinestFESpace());
    x = 0.0;
 
-   Vector B, X;
+   // 8. Create the multigrid operator using the previously created
+   //    SpaceHierarchy and additional boundary information. This operator
+   //    is then used to create the MultigridSolver as a preconditioner in the
+   //    iterative solver.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
    MultigridDiffusionOperator mgOperator(spaceHierarchy, ess_bdr);
@@ -222,15 +226,16 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " <<
         mgOperator.GetOperatorAtFinestLevel()->Height() << endl;
 
+   Vector B, X;
    mgOperator.EliminateBCs(x, *b, X, B);
 
-   // 12. Solve the linear system A X = B.
+   // 9. Solve the linear system A X = B.
    PCG(mgOperator, M, B, X, 1, 2000, 1e-12, 0.0);
 
-   // 13. Recover the solution as a finite element grid function.
+   // 10. Recover the solution as a finite element grid function.
    mgOperator.RecoverFEMSolution(X, *b, x);
 
-   // 14. Save the refined mesh and the solution. This output can be viewed later
+   // 11. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -239,7 +244,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 15. Send the solution by socket to a GLVis server.
+   // 12. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -249,7 +254,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 13. Free the used memory.
    delete b;
    for (int level = 0; level < collections.Size(); ++level)
    {

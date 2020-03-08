@@ -211,9 +211,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
+   // 7. Define a parallel finite element space hierarchy on the parallel mesh.
+   //    Here we use continuous Lagrange finite elements. We start with order 1
+   //    on the coarse level and increase the order by of factor of 2 for each
+   //    additional level.
    FiniteElementCollection *fec = new H1_FECollection(1, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
@@ -233,13 +234,7 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   if (pmesh->bdr_attributes.Size())
-   {
-      ess_bdr = 1;
-   }
-
-   // 9. Set up the parallel linear form b(.) which corresponds to the
+   // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm *b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
@@ -247,19 +242,21 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 10. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace. Initialize x with initial guess of zero,
-   //     which satisfies the boundary conditions.
+   // 9. Define the solution vector x as a parallel finite element grid function
+   //    corresponding to fespace. Initialize x with initial guess of zero,
+   //    which satisfies the boundary conditions.
    ParGridFunction x(&spaceHierarchy->GetFinestFESpace());
    x = 0.0;
 
-   // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
-
-
-   // 13. Solve the linear system A X = B.
-   //     * With p-multigrid preconditioner
+   // 10. Create the multigrid operator using the previously created parallel
+   //     SpaceHierarchy and additional boundary information. This operator
+   //     is then used to create the MultigridSolver as a preconditioner in the
+   //     iterative solver.
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   if (pmesh->bdr_attributes.Size())
+   {
+      ess_bdr = 1;
+   }
    MultigridDiffusionOperator* mgOperator = new MultigridDiffusionOperator(
       *spaceHierarchy, ess_bdr);
    MultigridSolver* prec = new MultigridSolver(mgOperator,
@@ -269,6 +266,7 @@ int main(int argc, char *argv[])
    Vector X, B;
    mgOperator->EliminateBCs(x, *b, X, B);
 
+   // 11. Solve the linear system A X = B.
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
@@ -277,11 +275,11 @@ int main(int argc, char *argv[])
    cg.SetPreconditioner(*prec);
    cg.Mult(B, X);
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
+   // 12. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    mgOperator->RecoverFEMSolution(X, *b, x);
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
+   // 13. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -297,7 +295,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -308,7 +306,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 17. Free the used memory.
+   // 15. Free the used memory.
    delete prec;
    delete mgOperator;
    delete b;
