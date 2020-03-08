@@ -616,8 +616,8 @@ The specific libraries and their options are:
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
 
-- libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED's master
-  branch, specifically, git-hash c00ee0d or later.
+- libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED v0.6
+  or later version, specifically, git-hash 3d05795 or later.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
