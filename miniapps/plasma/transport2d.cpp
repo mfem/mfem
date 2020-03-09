@@ -1438,17 +1438,17 @@ int main(int argc, char *argv[])
    ParGridFunction  ion_energy  (&fes, u.GetData() + offsets[3]);
    ParGridFunction elec_energy  (&fes, u.GetData() + offsets[4]);
 
-   ParGridFunctionArray pgf;
-   pgf.Append(&neu_density);
-   pgf.Append(&ion_density);
-   pgf.Append(&para_velocity);
-   pgf.Append(&ion_energy);
-   pgf.Append(&elec_energy);
+   ParGridFunctionArray yGF;
+   yGF.Append(&neu_density);
+   yGF.Append(&ion_density);
+   yGF.Append(&para_velocity);
+   yGF.Append(&ion_energy);
+   yGF.Append(&elec_energy);
 
-   ParGridFunctionArray dpgf;
+   ParGridFunctionArray kGF;
    for (int i=0; i<5; i++)
    {
-      dpgf.Append(new ParGridFunction(&fes, (double*)NULL));
+      kGF.Append(new ParGridFunction(&fes, (double*)NULL));
    }
 
    // ParGridFunction u(&fes);
@@ -1758,7 +1758,7 @@ int main(int argc, char *argv[])
    Vector estWeights(5);
    for (int i=0; i<5; i++) { estWeights[i] = amr_weights[i] / coefNrm[i]; }
 
-   VectorL2ZZErrorEstimator estimator(pgf, fes_l2_o0, flux_fes, smooth_flux_fes,
+   VectorL2ZZErrorEstimator estimator(yGF, fes_l2_o0, flux_fes, smooth_flux_fes,
                                       estWeights, dCoefs, DCoefs);
 
    if (max_elem_error < 0.0)

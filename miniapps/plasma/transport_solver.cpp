@@ -894,12 +894,12 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
                                ParFiniteElementSpace &vfes,
                                ParFiniteElementSpace &ffes,
                                Array<int> & offsets,
-                               ParGridFunctionArray &pgf,
-                               ParGridFunctionArray &dpgf,
                                int ion_charge,
                                double ion_mass,
                                double neutral_mass,
                                double neutral_temp,
+                               ParGridFunctionArray &yGF,
+                               ParGridFunctionArray &kGF,
                                double Di_perp, double Xi_perp, double Xe_perp,
                                VectorCoefficient &B3Coef,
                                Array<CoefficientByAttr> & Ti_dbc,
@@ -912,8 +912,8 @@ DGTransportTDO::DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
      fes_(&fes),
      vfes_(&vfes),
      ffes_(&ffes),
-     pgf_(&pgf),
-     dpgf_(&dpgf),
+     yGF_(yGF),
+     kGF_(kGF),
      offsets_(offsets),
      newton_op_prec_(offsets),
      newton_op_solver_(fes.GetComm()),
@@ -1216,181 +1216,59 @@ void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
  T_e_oper_.ExplicitMult(x_, y_);
 }
 */
-void DGTransportTDO::ImplicitSolve(const double dt, const Vector &u,
-                                   Vector &dudt)
+void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
+                                   Vector &k)
 {
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::ImplicitSolve" << endl;
    }
 
-   // cout << "calling DGTransportTDO::ImplicitSolve with arg u = " << u.GetData() <<
-   //   ", arg dudt = " << dudt.GetData() << ", pgf = " << (*pgf_)[0]->GetData() <<
-   //   " -> " << u.GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
-   //   dudt.GetData() << endl;
+   k = 0.0;
 
-   dudt = 0.0;
-
-   // Coefficient inside the NLOperator classes use data from pgf_ to evaluate
-   // fields.  We need to make sure this data accesses the provided vector u.
-   double *prev_u = (*pgf_)[0]->GetData();
+   // Coefficient inside the NLOperator classes use data from yGF_ to evaluate
+   // fields.  We need to make sure this data accesses the provided vector y.
+   double *prev_y = yGF_[0]->GetData();
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      // cout << "offsets_[" << i << "] = " << offsets_[i] << endl;
-      // (*pgf_)[i]->SetData(u.GetData() + offsets_[i]);
-      (*pgf_)[i]->MakeRef(fes_, u.GetData() + offsets_[i]);
+      yGF_[i]->MakeRef(&fes_, y.GetData() + offsets_[i]);
    }
-   pgf_->ExchangeFaceNbrData();
+   yGF_.ExchangeFaceNbrData();
 
-   double *prev_du = (*dpgf_)[0]->GetData();
+   double *prev_k = kGF_[0]->GetData();
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      // (*dpgf_)[i]->SetData(dudt.GetData() + offsets_[i]);
-      (*dpgf_)[i]->MakeRef(fes_, dudt.GetData() + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, k.GetData() + offsets_[i]);
    }
-   dpgf_->ExchangeFaceNbrData();
+   kGF_.ExchangeFaceNbrData();
 
    if (mpi_.Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in DGTransportTDO" << endl;
    }
    op_.SetTimeStep(dt);
-   // op_.UpdateGradient();
-   /*
-   int size = fes_->GetVSize();
 
-   {
-      Vector x(5*size); x = 0.0;
-      Vector h(5*size);
-      Vector h1(h.GetData(), size);
-
-      h = 0.0;
-      h1.Randomize();
-
-      double nrmu = u.Norml2();
-      double nrmh = h1.Norml2();
-      h1 *= 0.01 * nrmu / nrmh;
-
-      double cg = newton_solver_.CheckGradient(x, h);
-
-      cout << "Gradient check returns (d n_n / d n_n): " << cg << endl;
-   }
-   */
-   /*
-   {
-     Vector x(5*size); x = u;
-     Vector h(5*size);
-     h = 0.0;
-
-     Vector x2(x.GetData(), 2*size);
-     Vector h1(h.GetData(), size);
-     Vector h2(h.GetData(), 2*size);
-
-     double nrmx = x2.Norml2();
-     h1.Randomize();
-     double nrmh = h1.Norml2();
-     h1 *= 0.01 * nrmx / nrmh;
-     cout << "Norms " << nrmx << "\t" << h1.Norml2() << endl;
-     double cg = newton_solver_.CheckGradient(x2, h2);
-
-     cout << "Gradient check returns (n_n): " << cg << endl;
-   }
-   {
-     Vector x(5*size); x = u;
-     Vector h(5*size);
-     h = 0.0;
-
-     Vector x2(x.GetData(), 2*size);
-     Vector h1(&(h.GetData()[size]), size);
-     Vector h2(h.GetData(), 2*size);
-
-     double nrmx = x2.Norml2();
-     h1.Randomize();
-     double nrmh = h1.Norml2();
-     h1 *= 0.01 * nrmx / nrmh;
-
-     double cg = newton_solver_.CheckGradient(x2, h2);
-
-     cout << "Gradient check returns (n_i): " << cg << endl;
-   }
-   {
-     Vector x(5*size); x = u;
-     Vector h(5*size);
-     h = 0.0;
-
-     Vector x2(x.GetData(), 2*size);
-     Vector h2(h.GetData(), 2*size);
-
-     double nrmx = x2.Norml2();
-     h2.Randomize();
-     double nrmh = h2.Norml2();
-     h2 *= 0.01 * nrmx / nrmh;
-
-     double cg = newton_solver_.CheckGradient(x2, h2);
-
-     cout << "Gradient check returns: " << cg << endl;
-   }
-   */
-   // return;
    Vector zero;
-   // Vector dndt(dudt.GetData(), 2 * size);
-   // newton_solver_.Mult(zero, dndt);
-   /*
-   Operator &grad = op_.GetGradient(zero);
-   BlockOperator &blk_grad = dynamic_cast<BlockOperator&>(grad);
-   for (int i=0; i<5; i++)
-     if (!blk_grad.IsZeroBlock(i,i))
-     {
-       newton_op_prec_blocks_[i]->SetOperator(blk_grad.GetBlock(i,i));
-       newton_op_prec_.SetDiagonalBlock(i, newton_op_prec_blocks_[i]);
-     }
-   */
-   newton_solver_.Mult(zero, dudt);
-   /*
-   u_.SetDataAndSize(const_cast<double*>(&u[0*size]), size);
-   dudt_.SetDataAndSize(&dudt[0*size], size);
-   n_n_oper_.ImplicitSolve(dt, u_, dudt_);
+   newton_solver_.Mult(zero, k);
 
-   u_.SetDataAndSize(const_cast<double*>(&u[1*size]), size);
-   dudt_.SetDataAndSize(&dudt[1*size], size);
-   n_i_oper_.ImplicitSolve(dt, u_, dudt_);
-   */
-   /*
-   u_.SetDataAndSize(const_cast<double*>(&u[2*size]), size);
-   dudt_.SetDataAndSize(&dudt[2*size], size);
-   dudt_ = 0.0;
-   // v_i_oper_.ImplicitSolve(dt, u_, dudt_);
-
-   u_.SetDataAndSize(const_cast<double*>(&u[3*size]), size);
-   dudt_.SetDataAndSize(&dudt[3*size], size);
-   dudt_ = 0.0;
-   // T_i_oper_.ImplicitSolve(dt, u_, dudt_);
-
-   u_.SetDataAndSize(const_cast<double*>(&u[4*size]), size);
-   dudt_.SetDataAndSize(&dudt[4*size], size);
-   dudt_ = 0.0;
-   */
    // Restore the data arrays to those used before this method was called.
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      // (*pgf_)[i]->SetData(prev_u + offsets_[i]);
-      (*pgf_)[i]->MakeRef(fes_, prev_u + offsets_[i]);
+      yGF_[i]->MakeRef(&fes_, prev_y + offsets_[i]);
    }
-   pgf_->ExchangeFaceNbrData();
+   yGF_.ExchangeFaceNbrData();
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      // (*dpgf_)[i]->SetData(prev_du + offsets_[i]);
-      (*dpgf_)[i]->MakeRef(fes_, prev_du + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, prev_k + offsets_[i]);
    }
-   if (prev_du != NULL)
+   if (prev_k != NULL)
    {
-      dpgf_->ExchangeFaceNbrData();
+      kGF_.ExchangeFaceNbrData();
    }
 
-   // T_e_oper_.ImplicitSolve(dt, u_, dudt_);
    if (mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::ImplicitSolve" << endl;
@@ -1417,8 +1295,8 @@ void DGTransportTDO::Update()
 DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
                                        const DGParams & dg, int index,
                                        const string & field_name,
-                                       ParGridFunctionArray & pgf,
-                                       ParGridFunctionArray & dpgf,
+                                       ParGridFunctionArray & yGF,
+                                       ParGridFunctionArray & kGF,
                                        int vis_flag)
    : Operator(pgf[0]->ParFESpace()->GetVSize(),
               5*(pgf[0]->ParFESpace()->GetVSize())),
@@ -1428,7 +1306,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      dt_(0.0),
      fes_(pgf[0]->ParFESpace()),
      pmesh_(fes_->GetParMesh()),
-     pgf_(&pgf), dpgf_(&dpgf),
+     yGF_(yGF), kGF_(kGF),
      dbfi_m_(5),
      blf_(5),
      vis_flag_(vis_flag),
@@ -1460,7 +1338,7 @@ DGTransportTDO::NLOperator::RegisterDataFields(DataCollection & dc)
 
    if (this->CheckVisFlag(0))
    {
-      dc.RegisterField(field_name_, (*pgf_)[index_]);
+      dc.RegisterField(field_name_, yGF_[index_]);
    }
 }
 
@@ -1526,7 +1404,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       {
          if (dbfi_m_[j].Size() > 0)
          {
-            (*dpgf_)[j]->GetSubVector(vdofs_, locdvec_);
+            kGF_[j]->GetSubVector(vdofs_, locdvec_);
 
             dbfi_m_[j][0]->AssembleElementMatrix(fe, *eltrans, elmat_);
             for (int k = 1; k < dbfi_m_[j].Size(); k++)
@@ -1564,8 +1442,8 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          locvec_.SetSize(ndof);
          locdvec_.SetSize(ndof);
 
-         (*pgf_)[index_]->GetSubVector(vdofs_, locvec_);
-         (*dpgf_)[index_]->GetSubVector(vdofs_, locdvec_);
+         yGF_[index_]->GetSubVector(vdofs_, locvec_);
+         kGF_[index_]->GetSubVector(vdofs_, locdvec_);
 
          locvec_.Add(dt_, locdvec_);
 
@@ -1617,8 +1495,8 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             locvec_.SetSize(ndof);
             locdvec_.SetSize(ndof);
 
-            (*pgf_)[index_]->GetSubVector(vdofs_, locvec_);
-            (*dpgf_)[index_]->GetSubVector(vdofs_, locdvec_);
+            yGF_[index_]->GetSubVector(vdofs_, locvec_);
+            kGF_[index_]->GetSubVector(vdofs_, locdvec_);
 
             locvec_.Add(dt_, locdvec_);
 
@@ -1693,11 +1571,11 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
             // elmat.UseExternalData(elmat_.Data(), ndof, ndof + ndof2);
 
-            (*pgf_)[index_]->GetSubVector(vdofs_, locvec1);
-            (*dpgf_)[index_]->GetSubVector(vdofs_, locdvec1);
+            yGF_[index_]->GetSubVector(vdofs_, locvec1);
+            kGF_[index_]->GetSubVector(vdofs_, locdvec1);
 
-            (*pgf_)[index_]->FaceNbrData().GetSubVector(vdofs2_, locvec2);
-            (*dpgf_)[index_]->FaceNbrData().GetSubVector(vdofs2_, locdvec2);
+            yGF_[index_]->FaceNbrData().GetSubVector(vdofs2_, locvec2);
+            kGF_[index_]->FaceNbrData().GetSubVector(vdofs2_, locdvec2);
 
             locvec_.Add(dt_, locdvec_);
 
@@ -1770,8 +1648,8 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             locvec_.SetSize(ndof);
             locdvec_.SetSize(ndof);
 
-            (*pgf_)[index_]->GetSubVector(vdofs_, locvec_);
-            (*dpgf_)[index_]->GetSubVector(vdofs_, locdvec_);
+            yGF_[index_]->GetSubVector(vdofs_, locvec_);
+            kGF_[index_]->GetSubVector(vdofs_, locdvec_);
 
             locvec_.Add(dt_, locdvec_);
 
@@ -1927,8 +1805,8 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        const DGParams & dg,
                                        ParFiniteElementSpace & vfes,
-                                       ParGridFunctionArray & pgf,
-                                       ParGridFunctionArray & dpgf,
+                                       ParGridFunctionArray & yGF,
+                                       ParGridFunctionArray & kGF,
                                        Array<int> & offsets,
                                        int ion_charge, double ion_mass,
                                        double neutral_mass, double neutral_temp,
@@ -1943,8 +1821,8 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    : mpi_(mpi),
      neq_(5),
      logging_(logging),
-     fes_(pgf[0]->ParFESpace()),
-     pgf_(&pgf), dpgf_(&dpgf),
+     fes_(*yGF[0]->ParFESpace()),
+     yGF_(yGF), kGF_(kGF),
      op_(neq_),
      offsets_(offsets),
      grad_(NULL)
@@ -2078,15 +1956,15 @@ DGTransportTDO::CombinedOp::RegisterDataFields(DataCollection & dc)
 void
 DGTransportTDO::CombinedOp::PrepareDataFields()
 {
-   double *prev_k = (*dpgf_)[0]->GetData();
+   double *prev_k = kGF_[0]->GetData();
 
    Vector k(offsets_[neq_]); k = 0.0;
 
-   for (int i=0; i<dpgf_->Size(); i++)
+   for (int i=0; i<kGF_.Size(); i++)
    {
-      (*dpgf_)[i]->MakeRef(fes_, k.GetData() + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, k.GetData() + offsets_[i]);
    }
-   dpgf_->ExchangeFaceNbrData();
+   kGF_.ExchangeFaceNbrData();
 
 
    for (int i=0; i<neq_; i++)
@@ -2096,11 +1974,11 @@ DGTransportTDO::CombinedOp::PrepareDataFields()
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      (*dpgf_)[i]->MakeRef(fes_, prev_k + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, prev_k + offsets_[i]);
    }
    if (prev_k != NULL)
    {
-      dpgf_->ExchangeFaceNbrData();
+      kGF_.ExchangeFaceNbrData();
    }
 }
 
@@ -2132,25 +2010,22 @@ void DGTransportTDO::CombinedOp::Update()
    this->updateOffsets();
 }
 
-void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
+void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
 {
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient" << endl;
    }
-   // cout << "calling CombinedOp::UpdateGradient with arg x = " << x.GetData() <<
-   //       ", pgf = " << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() <<
-   //     " -> " << x.GetData() << endl;
 
    delete grad_;
 
-   double *prev_x = (*dpgf_)[0]->GetData();
+   double *prev_k = kGF_[0]->GetData();
 
-   for (int i=0; i<dpgf_->Size(); i++)
+   for (int i=0; i<kGF_.Size(); i++)
    {
-      (*dpgf_)[i]->MakeRef(fes_, x.GetData() + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, k.GetData() + offsets_[i]);
    }
-   dpgf_->ExchangeFaceNbrData();
+   kGF_.ExchangeFaceNbrData();
 
    grad_ = new BlockOperator(offsets_);
    grad_->owns_blocks = true;
@@ -2170,12 +2045,11 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &x) const
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      // (*dpgf_)[i]->SetData(prev_x + offsets_[i]);
-      (*dpgf_)[i]->MakeRef(fes_, prev_x + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, prev_k + offsets_[i]);
    }
-   if (prev_x != NULL)
+   if (prev_k != NULL)
    {
-      dpgf_->ExchangeFaceNbrData();
+      kGF_.ExchangeFaceNbrData();
    }
 
    if ( mpi_.Root() && logging_ > 1)
@@ -2194,13 +2068,13 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
    //    << (*pgf_)[0]->GetData() << ", dpgf = " << (*dpgf_)[0]->GetData() << " -> " <<
    //   k.GetData() << endl;
 
-   double *prev_k = (*dpgf_)[0]->GetData();
+   double *prev_k = kGF_[0]->GetData();
 
-   for (int i=0; i<dpgf_->Size(); i++)
+   for (int i=0; i<kGF_.Size(); i++)
    {
-      (*dpgf_)[i]->MakeRef(fes_, k.GetData() + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, k.GetData() + offsets_[i]);
    }
-   dpgf_->ExchangeFaceNbrData();
+   kGF_.ExchangeFaceNbrData();
 
    for (int i=0; i<neq_; i++)
    {
@@ -2217,12 +2091,11 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
 
    for (int i=0; i<offsets_.Size() - 1; i++)
    {
-      // (*dpgf_)[i]->SetData(prev_k + offsets_[i]);
-      (*dpgf_)[i]->MakeRef(fes_, prev_k + offsets_[i]);
+      kGF_[i]->MakeRef(&fes_, prev_k + offsets_[i]);
    }
    if (prev_k != NULL)
    {
-      dpgf_->ExchangeFaceNbrData();
+      kGF_.ExchangeFaceNbrData();
    }
 
    if ( mpi_.Root() && logging_ > 1)
@@ -2233,11 +2106,11 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &y) const
 
 DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    const DGParams & dg,
-                                                   ParGridFunctionArray & pgf,
-                                                   ParGridFunctionArray & dpgf,
                                                    int ion_charge,
                                                    double neutral_mass,
                                                    double neutral_temp,
+                                                   ParGridFunctionArray & yGF,
+                                                   ParGridFunctionArray & kGF,
                                                    int vis_flag)
    : NLOperator(mpi, dg, 0, "Neutral Density", pgf, dpgf, vis_flag),
      z_i_(ion_charge), m_n_(neutral_mass), T_n_(neutral_temp),
@@ -2533,9 +2406,9 @@ Operator *DGTransportTDO::NeutralDensityOp::GetGradientBlock(int i)
 DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            const DGParams & dg,
                                            ParFiniteElementSpace & vfes,
-                                           ParGridFunctionArray & pgf,
-                                           ParGridFunctionArray & dpgf,
                                            int ion_charge,
+                                           ParGridFunctionArray & yGF,
+                                           ParGridFunctionArray & kGF,
                                            double DPerp,
                                            VectorCoefficient & B3Coef,
                                            int vis_flag)
@@ -2552,7 +2425,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      DPerpCoef_(DPerp),
      DCoef_(DPerpCoef_, B3Coef),
      dtDCoef_(0.0, DCoef_),
-     ViCoef_(pgf, dpgf, B3Coef), dtViCoef_(0.0, ViCoef_),
+     ViCoef_(yGF, kGF, B3Coef), dtViCoef_(0.0, ViCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      SrcCoef_(ne1Coef_, ni1Coef_, rcCoef_),
      negSizCoef_(-1.0, SizCoef_),
@@ -2714,10 +2587,10 @@ void DGTransportTDO::IonDensityOp::Update()
 DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              const DGParams & dg,
                                              ParFiniteElementSpace & vfes,
-                                             ParGridFunctionArray & pgf,
-                                             ParGridFunctionArray & dpgf,
                                              int ion_charge,
                                              double ion_mass,
+                                             ParGridFunctionArray & yGF,
+                                             ParGridFunctionArray & kGF,
                                              double DPerp,
                                              VectorCoefficient & B3Coef,
                                              int vis_flag)
@@ -2938,10 +2811,10 @@ void DGTransportTDO::IonMomentumOp::Update()
 DGTransportTDO::IonStaticPressureOp::
 IonStaticPressureOp(const MPI_Session & mpi,
                     const DGParams & dg,
-                    ParGridFunctionArray & pgf,
-                    ParGridFunctionArray & dpgf,
                     int ion_charge,
                     double ion_mass,
+                    ParGridFunctionArray & yGF,
+                    ParGridFunctionArray & kGF,
                     double ChiPerp,
                     VectorCoefficient & B3Coef,
                     Array<CoefficientByAttr> & dbc,
@@ -3096,10 +2969,10 @@ void DGTransportTDO::IonStaticPressureOp::Update()
 DGTransportTDO::ElectronStaticPressureOp::
 ElectronStaticPressureOp(const MPI_Session & mpi,
                          const DGParams & dg,
-                         ParGridFunctionArray & pgf,
-                         ParGridFunctionArray & dpgf,
                          int ion_charge,
                          double ion_mass,
+                         ParGridFunctionArray & yGF,
+                         ParGridFunctionArray & kGF,
                          double ChiPerp,
                          VectorCoefficient & B3Coef,
                          Array<CoefficientByAttr> & dbc,
@@ -3133,8 +3006,8 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      dChiGradTCoef_(dChidTCoef_, grad_Te1Coef_),
      dtdChiGradTCoef_(0.0, dChiGradTCoef_),
      dbc_(dbc),
-     ChiParaGF_(new ParGridFunction((*pgf_)[4]->ParFESpace())),
-     ChiPerpGF_(new ParGridFunction((*pgf_)[4]->ParFESpace()))
+     ChiParaGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace())),
+     ChiPerpGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace()))
 {
    // Time derivative term: 1.5 T_e z_i dn_i/dt
    dbfi_m_[1].Append(new MassIntegrator(thTeCoef_));
@@ -3158,7 +3031,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                                                dg_.sigma,
                                                dg_.kappa));
       flfi_marker_.Append(new Array<int>);
-      flfi_marker_[i]->SetSize(pgf[0]->ParFESpace()->
+      flfi_marker_[i]->SetSize(yGF[0]->ParFESpace()->
                                GetParMesh()->bdr_attributes.Max());
 
       if (dbc_[i].attr.Size() == 1 && dbc_[i].attr[0] == -1)
@@ -3187,11 +3060,11 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    */
    // Gradient of non-linear operator
    // dOp / dn_i
-   blf_[1] = new ParBilinearForm((*pgf_)[1]->ParFESpace());
+   blf_[1] = new ParBilinearForm(yGF_[1]->ParFESpace());
    blf_[1]->AddDomainIntegrator(new MassIntegrator(thTeCoef_));
 
    // dOp / dT_e
-   blf_[4] = new ParBilinearForm((*pgf_)[4]->ParFESpace());
+   blf_[4] = new ParBilinearForm(yGF_[4]->ParFESpace());
    blf_[4]->AddDomainIntegrator(new MassIntegrator(thneCoef_));
 
    blf_[4]->AddDomainIntegrator(new DiffusionIntegrator(dtChiCoef_));
@@ -3267,15 +3140,15 @@ void DGTransportTDO::ElectronStaticPressureOp::Update()
 }
 
 DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
-                                 ParGridFunctionArray & pgf,
-                                 ParGridFunctionArray & dpgf,
+                                 ParGridFunctionArray & yGF,
+                                 ParGridFunctionArray & kGF,
                                  int index, const string & field_name,
                                  int vis_flag)
    : NLOperator(mpi, dg, index, field_name, pgf, dpgf, vis_flag)
 {
    dbfi_m_[index].Append(new MassIntegrator);
 
-   blf_[index_] = new ParBilinearForm((*pgf_)[index_]->ParFESpace());
+   blf_[index_] = new ParBilinearForm(yGF_[index_]->ParFESpace());
    blf_[index_]->AddDomainIntegrator(new MassIntegrator);
    blf_[index_]->Assemble();
    blf_[index_]->Finalize();

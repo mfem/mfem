@@ -632,12 +632,12 @@ private:
    mutable Vector B_;
 
 public:
-   IonAdvectionCoef(ParGridFunctionArray &pgf,
-                    ParGridFunctionArray &dpgf,
+   IonAdvectionCoef(ParGridFunctionArray &yGF,
+                    ParGridFunctionArray &kGF,
                     VectorCoefficient &B3Coef)
       : StateVariableVecCoef(2),
         dt_(0.0),
-        vi0_(pgf[2]), dvi0_(dpgf[2]),
+        vi0_(yGF[ION_PARA_VELOCITY]), dvi0_(kGF[ION_PARA_VELOCITY]),
         B3_(&B3Coef), B_(3) {}
 
    void SetTimeStep(double dt) { dt_ = dt; }
@@ -918,17 +918,17 @@ private:
    mutable Vector B_;
 
 public:
-   IonMomentumAdvectionCoef(ParGridFunctionArray &pgf,
-                            ParGridFunctionArray &dpgf,
+   IonMomentumAdvectionCoef(ParGridFunctionArray &yGF,
+                            ParGridFunctionArray &kGF,
                             double ion_mass,
                             Coefficient &DperpCoef,
                             VectorCoefficient &B3Coef)
       : StateVariableVecCoef(2),
         mi_(ion_mass),
         dt_(0.0),
-        ni0_(pgf[1]), vi0_(pgf[2]),
-        dni0_(dpgf[1]), dvi0_(dpgf[2]),
-        grad_ni0_(pgf[1]), grad_dni0_(dpgf[1]),
+        ni0_(yGF[ION_DENSITY]), vi0_(yGF[ION_PARA_VELOCITY]),
+        dni0_(kGF[ION_DENSITY]), dvi0_(kGF[ION_PARA_VELOCITY]),
+        grad_ni0_(yGF[ION_DENSITY]), grad_dni0_(kGF[ION_DENSITY]),
         Dperp_(&DperpCoef),
         B3_(&B3Coef), B_(3)
    {}
@@ -1208,14 +1208,22 @@ private:
    mutable Vector B_;
 
 public:
-   GradPressureCoefficient(ParGridFunctionArray &pgf,
-                           ParGridFunctionArray &dpgf,
+   GradPressureCoefficient(ParGridFunctionArray &yGF,
+                           ParGridFunctionArray &kGF,
                            int zi, VectorCoefficient & B3Coef)
       : zi_((double)zi), dt_(0.0),
-        ni0_(pgf[1]), Ti0_(pgf[3]), Te0_(pgf[4]),
-        dni0_(dpgf[1]), dTi0_(dpgf[3]), dTe0_(dpgf[4]),
-        grad_ni0_(pgf[1]), grad_Ti0_(pgf[3]), grad_Te0_(pgf[4]),
-        grad_dni0_(dpgf[1]), grad_dTi0_(dpgf[3]), grad_dTe0_(dpgf[4]),
+        ni0_(yGF[ION_DENSITY]),
+        Ti0_(yGF[ION_TEMPERATURE]),
+        Te0_(yGF[ELECTRON_TEMPERATURE]),
+        dni0_(kGF[ION_DENSITY]),
+        dTi0_(kGF[ION_TEMPERATURE]),
+        dTe0_(kGF[ELECTRON_TEMPERATURE]),
+        grad_ni0_(yGF[ION_DENSITY]),
+        grad_Ti0_(yGF[ION_TEMPERATURE]),
+        grad_Te0_(yGF[ELECTRON_TEMPERATURE]),
+        grad_dni0_(kGF[ION_DENSITY]),
+        grad_dTi0_(kGF[ION_TEMPERATURE]),
+        grad_dTe0_(kGF[ELECTRON_TEMPERATURE]),
         B3_(&B3Coef), B_(3) {}
 
    void SetTimeStep(double dt) { dt_ = dt; }
@@ -1467,8 +1475,8 @@ private:
       double dt_;
       ParFiniteElementSpace *fes_;
       ParMesh               *pmesh_;
-      ParGridFunctionArray  *pgf_;
-      ParGridFunctionArray  *dpgf_;
+      ParGridFunctionArray  &yGF_;
+      ParGridFunctionArray  &kGF_;
 
       // mutable Vector shape_;
       // mutable DenseMatrix dshape_;
@@ -1508,8 +1516,8 @@ private:
 
       NLOperator(const MPI_Session & mpi, const DGParams & dg, int index,
                  const std::string &field_name,
-                 ParGridFunctionArray & pgf,
-                 ParGridFunctionArray & dpgf,
+                 ParGridFunctionArray & yGF,
+                 ParGridFunctionArray & kGF,
                  int vis_flag);
 
    public:
@@ -1630,9 +1638,10 @@ private:
 
    public:
       NeutralDensityOp(const MPI_Session & mpi, const DGParams & dg,
-                       ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                        int ion_charge, double neutral_mass,
                        double neutral_temp,
+                       ParGridFunctionArray & yGF,
+                       ParGridFunctionArray & kGF,
                        int vis_flag);
 
       ~NeutralDensityOp();
@@ -1755,8 +1764,9 @@ private:
    public:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    ParFiniteElementSpace & vfes,
-                   ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                    int ion_charge, double DPerp,
+                   ParGridFunctionArray & yGF,
+                   ParGridFunctionArray & kGF,
                    VectorCoefficient & B3Coef,
                    int vis_flag);
 
@@ -1868,8 +1878,8 @@ private:
    public:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
                     ParFiniteElementSpace & vfes,
-                    ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
                     int ion_charge, double ion_mass, double DPerp,
+                    ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                     VectorCoefficient & B3Coef,
                     int vis_flag);
 
@@ -1964,9 +1974,9 @@ private:
 
    public:
       IonStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
-                          ParGridFunctionArray & pgf,
-                          ParGridFunctionArray & dpgf,
                           int ion_charge, double ion_mass, double ChiPerp,
+                          ParGridFunctionArray & yGF,
+                          ParGridFunctionArray & kGF,
                           VectorCoefficient & B3Coef,
                           Array<CoefficientByAttr> & dbc,
                           int vis_flag);
@@ -2069,9 +2079,9 @@ private:
 
    public:
       ElectronStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
-                               ParGridFunctionArray & pgf,
-                               ParGridFunctionArray & dpgf,
                                int ion_charge, double ion_mass, double ChiPerp,
+                               ParGridFunctionArray & yGF,
+                               ParGridFunctionArray & kGF,
                                VectorCoefficient & B3Coef,
                                Array<CoefficientByAttr> & dbc,
                                int vis_flag);
@@ -2091,8 +2101,8 @@ private:
    {
    public:
       DummyOp(const MPI_Session & mpi, const DGParams & dg,
-              ParGridFunctionArray & pgf,
-              ParGridFunctionArray & dpgf,
+              ParGridFunctionArray & yGF,
+              ParGridFunctionArray & kGF,
               int index, const std::string &field_name, int vis_flag);
 
       virtual void SetTimeStep(double dt)
@@ -2115,8 +2125,8 @@ private:
       int logging_;
 
       ParFiniteElementSpace *fes_;
-      ParGridFunctionArray  *pgf_;
-      ParGridFunctionArray  *dpgf_;
+      ParGridFunctionArray  &yGF_;
+      ParGridFunctionArray  &kGF_;
       /*
        NeutralDensityOp n_n_op_;
        IonDensityOp     n_i_op_;
@@ -2134,7 +2144,7 @@ private:
    public:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
                  ParFiniteElementSpace & vfes,
-                 ParGridFunctionArray & pgf, ParGridFunctionArray & dpgf,
+                 ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                  Array<int> & offsets,
                  int ion_charge, double ion_mass,
                  double neutral_mass, double neutral_temp,
@@ -2196,12 +2206,12 @@ public:
                   ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,
                   Array<int> &offsets,
-                  ParGridFunctionArray &pgf,
-                  ParGridFunctionArray &dpgf,
                   int ion_charge,
                   double ion_mass,
                   double neutral_mass,
                   double neutral_temp,
+                  ParGridFunctionArray &yGF,
+                  ParGridFunctionArray &kGF,
                   double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
                   Array<CoefficientByAttr> & Ti_dbc,
@@ -2266,7 +2276,7 @@ public:
     void SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc);
    */
    // virtual void ExplicitMult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &dudt);
+   virtual void ImplicitSolve(const double dt, const Vector &y, Vector &k);
 
    void Update();
 };
