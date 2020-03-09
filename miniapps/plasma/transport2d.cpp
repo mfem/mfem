@@ -873,10 +873,17 @@ int main(int argc, char *argv[])
    bool binary = false;
    int vis_steps = 10;
 
+   PlasmaParams plasma;
+   plasma.m_n = 2.01410178; // (amu)
+   plasma.T_n = 3.0;        // (eV)
+   plasma.m_i = 2.01410178; // (amu)
+   plasma.z_i = 1;          // ion charge
+   /*
    int      ion_charge = 1;
    double     ion_mass = 2.01410178; // (amu)
    double neutral_mass = 2.01410178; // (amu)
    double neutral_temp = 3.0;        // (eV)
+   */
 
    double      Di_perp = 1.0;        // Ion perp diffusion (m^2/s)
    double      Xi_perp = 1.0;        // Ion thermal diffusion (m^2/s)
@@ -957,14 +964,14 @@ int main(int argc, char *argv[])
    //                "exceeds dttol.");
    args.AddOption(&cfl, "-c", "--cfl-number",
                   "CFL number for timestep calculation.");
-   args.AddOption(&ion_charge, "-qi", "--ion-charge",
+   args.AddOption(&plasma.z_i, "-qi", "--ion-charge",
                   "Charge of the species "
                   "(in units of electron charge)");
-   args.AddOption(&ion_mass, "-mi", "--ion-mass",
+   args.AddOption(&plasma.m_i, "-mi", "--ion-mass",
                   "Mass of the ion species (in amu)");
-   args.AddOption(&neutral_mass, "-mn", "--neutral-mass",
+   args.AddOption(&plasma.m_n, "-mn", "--neutral-mass",
                   "Mass of the neutral species (in amu)");
-   args.AddOption(&neutral_temp, "-Tn", "--neutral-temp",
+   args.AddOption(&plasma.T_n, "-Tn", "--neutral-temp",
                   "Temperature of the neutral species (in eV)");
    args.AddOption(&nn_min_, "-nn-min", "--min-neutral-density",
                   "Minimum of inital neutral density");
@@ -1472,9 +1479,9 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient TeCoef(&elec_energy);
 
    // Coefficients representing secondary fields
-   ProductCoefficient      neCoef(ion_charge, niCoef);
-   ConstantCoefficient     vnCoef(sqrt(8.0 * neutral_temp * eV_ /
-                                       (M_PI * neutral_mass * amu_)));
+   ProductCoefficient      neCoef(plasma.z_i, niCoef);
+   ConstantCoefficient     vnCoef(sqrt(8.0 * plasma.T_n * eV_ /
+                                       (M_PI * plasma.m_n * amu_)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
    VectorFunctionCoefficient B3Coef(3, TotBFunc);
@@ -1483,15 +1490,15 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    MatrixFunctionCoefficient perpCoef(2, perpFunc);
    // ProductCoefficient          mnCoef(ion_mass * amu_, niCoef); // ???
-   ConstantCoefficient         mnCoef(ion_mass * amu_);
+   ConstantCoefficient         mnCoef(plasma.m_i * amu_);
    ProductCoefficient        nnneCoef(nnCoef, neCoef);
    ApproxIonizationRate        izCoef(TeCoef);
    ConstantCoefficient     DiPerpCoef(Di_perp);
    ConstantCoefficient     XiPerpCoef(Xi_perp);
    ConstantCoefficient     XePerpCoef(Xe_perp);
-   ThermalDiffusionCoef        XiCoef(dim, ion_charge, ion_mass,
+   ThermalDiffusionCoef        XiCoef(dim, plasma.z_i, plasma.m_i,
                                       XiPerpCoef, niCoef, TiCoef);
-   ThermalDiffusionCoef        XeCoef(dim, ion_charge, me_u_,
+   ThermalDiffusionCoef        XeCoef(dim, plasma.z_i, me_u_,
                                       XePerpCoef, neCoef, TeCoef, &niCoef);
 
    // Advection Coefficients
@@ -1502,7 +1509,7 @@ int main(int argc, char *argv[])
    // Diffusion Coefficients
    NeutralDiffusionCoef     DnCoef(neCoef, vnCoef, izCoef);
    IonDiffusionCoef         DiCoef(DiPerpCoef, B3Coef);
-   MomentumDiffusionCoef   EtaCoef(dim, ion_charge, ion_mass,
+   MomentumDiffusionCoef   EtaCoef(dim, plasma.z_i, plasma.m_i,
                                    DiPerpCoef, niCoef, TiCoef);
    ScalarMatrixProductCoefficient nXiCoef(niCoef, XiCoef);
    ScalarMatrixProductCoefficient nXeCoef(neCoef, XeCoef);
@@ -1671,8 +1678,7 @@ int main(int argc, char *argv[])
       coefNrm[4] = bnXeb / bMb;
    }
 
-   DGTransportTDO oper(mpi, dg, fes, vfes, ffes, offsets, pgf, dpgf,
-                       ion_charge, ion_mass, neutral_mass, neutral_temp,
+   DGTransportTDO oper(mpi, dg, plasma, fes, vfes, ffes, offsets, yGF, kGF,
                        Di_perp, Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc,
                        vis_flags, imex, op_flag, logging);
 

@@ -1341,6 +1341,14 @@ struct DGParams
    double kappa;
 };
 
+struct PlasmaParams
+{
+   double m_n;
+   double T_n;
+   double m_i;
+   int    z_i;
+};
+
 class DGAdvectionDiffusionTDO : public TimeDependentOperator
 {
 private:
@@ -1441,11 +1449,11 @@ private:
    const MPI_Session & mpi_;
    int logging_;
 
-   ParFiniteElementSpace *fes_;
-   ParFiniteElementSpace *vfes_;
-   ParFiniteElementSpace *ffes_;
-   ParGridFunctionArray  *pgf_;
-   ParGridFunctionArray  *dpgf_;
+   ParFiniteElementSpace &fes_;
+   ParFiniteElementSpace &vfes_;
+   ParFiniteElementSpace &ffes_;
+   ParGridFunctionArray  &yGF_;
+   ParGridFunctionArray  &kGF_;
 
    Array<int> &offsets_;
 
@@ -1463,20 +1471,48 @@ private:
 
    class NLOperator : public Operator
    {
+   private:
+      ConstantCoefficient dummyCoef_;
+
    protected:
-      const MPI_Session & mpi_;
-      const DGParams & dg_;
+      const MPI_Session &mpi_;
+      const DGParams &dg_;
+      const PlasmaParams &plasma_;
 
       int logging_;
       std::string log_prefix_;
 
+      double m_n_;
+      double T_n_;
+      double m_i_;
+      int z_i_;
+
       int index_;
       std::string field_name_;
       double dt_;
-      ParFiniteElementSpace *fes_;
-      ParMesh               *pmesh_;
+      ParFiniteElementSpace &fes_;
+      ParMesh               &pmesh_;
       ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
+
+      Array<Coefficient*> yCoef_;
+      Array<Coefficient*> kCoef_;
+      mutable Array<SumCoefficient*> y1Coef_;
+
+      Coefficient &nn0Coef_;
+      Coefficient &ni0Coef_;
+      Coefficient &vi0Coef_;
+      Coefficient &Ti0Coef_;
+      Coefficient &Te0Coef_;
+
+      Coefficient &nn1Coef_;
+      Coefficient &ni1Coef_;
+      Coefficient &vi1Coef_;
+      Coefficient &Ti1Coef_;
+      Coefficient &Te1Coef_;
+
+      ProductCoefficient  ne0Coef_;
+      ProductCoefficient  ne1Coef_;
 
       // mutable Vector shape_;
       // mutable DenseMatrix dshape_;
@@ -1514,7 +1550,8 @@ private:
       // Sockets used to communicate with GLVis
       std::map<std::string, socketstream*> socks_;
 
-      NLOperator(const MPI_Session & mpi, const DGParams & dg, int index,
+      NLOperator(const MPI_Session & mpi, const DGParams & dg,
+                 const PlasmaParams & plasma, int index,
                  const std::string &field_name,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
@@ -1526,7 +1563,7 @@ private:
 
       void SetLogging(int logging, const std::string & prefix = "");
 
-      virtual void SetTimeStep(double dt) { dt_ = dt; }
+      virtual void SetTimeStep(double dt);
 
       virtual void Mult(const Vector &k, Vector &y) const;
 
@@ -1588,25 +1625,26 @@ private:
    {
    private:
       enum VisField {DIFFUSION_COEF = 1, SOURCE = 2};
+      /*
+       int    z_i_;
+       double m_n_;
+       double T_n_;
+      */
+      /*
+       mutable GridFunctionCoefficient nn0Coef_;
+       mutable GridFunctionCoefficient ni0Coef_;
+       mutable GridFunctionCoefficient Te0Coef_;
 
-      int    z_i_;
-      double m_n_;
-      double T_n_;
+       GridFunctionCoefficient dnnCoef_;
+       GridFunctionCoefficient dniCoef_;
+       GridFunctionCoefficient dTeCoef_;
 
-      mutable GridFunctionCoefficient nn0Coef_;
-      mutable GridFunctionCoefficient ni0Coef_;
-      mutable GridFunctionCoefficient Te0Coef_;
-
-      GridFunctionCoefficient dnnCoef_;
-      GridFunctionCoefficient dniCoef_;
-      GridFunctionCoefficient dTeCoef_;
-
-      mutable SumCoefficient  nn1Coef_;
-      mutable SumCoefficient  ni1Coef_;
-      mutable SumCoefficient  Te1Coef_;
-
-      ProductCoefficient      ne0Coef_;
-      ProductCoefficient      ne1Coef_;
+       mutable SumCoefficient  nn1Coef_;
+       mutable SumCoefficient  ni1Coef_;
+       mutable SumCoefficient  Te1Coef_;
+      */
+      // ProductCoefficient      ne0Coef_;
+      // ProductCoefficient      ne1Coef_;
       ConstantCoefficient      vnCoef_;
       ApproxIonizationRate     izCoef_;
       ApproxRecombinationRate  rcCoef_;
@@ -1638,10 +1676,11 @@ private:
 
    public:
       NeutralDensityOp(const MPI_Session & mpi, const DGParams & dg,
-                       int ion_charge, double neutral_mass,
-                       double neutral_temp,
+                       const PlasmaParams & plasma,
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
+                       // int ion_charge, double neutral_mass,
+                       // double neutral_temp,
                        int vis_flag);
 
       ~NeutralDensityOp();
@@ -1708,26 +1747,26 @@ private:
                      ADVECTION_COEF = 2, SOURCE = 3
                     };
 
-      int    z_i_;
+      // int    z_i_;
       double DPerpConst_;
+      /*
+       GridFunctionCoefficient nn0Coef_;
+       GridFunctionCoefficient ni0Coef_;
+       GridFunctionCoefficient vi0Coef_;
+       GridFunctionCoefficient Te0Coef_;
 
-      GridFunctionCoefficient nn0Coef_;
-      GridFunctionCoefficient ni0Coef_;
-      GridFunctionCoefficient vi0Coef_;
-      GridFunctionCoefficient Te0Coef_;
+       GridFunctionCoefficient dnnCoef_;
+       GridFunctionCoefficient dniCoef_;
+       GridFunctionCoefficient dviCoef_;
+       GridFunctionCoefficient dTeCoef_;
 
-      GridFunctionCoefficient dnnCoef_;
-      GridFunctionCoefficient dniCoef_;
-      GridFunctionCoefficient dviCoef_;
-      GridFunctionCoefficient dTeCoef_;
-
-      mutable SumCoefficient  nn1Coef_;
-      mutable SumCoefficient  ni1Coef_;
-      mutable SumCoefficient  vi1Coef_;
-      mutable SumCoefficient  Te1Coef_;
-
-      ProductCoefficient      ne0Coef_;
-      ProductCoefficient      ne1Coef_;
+       mutable SumCoefficient  nn1Coef_;
+       mutable SumCoefficient  ni1Coef_;
+       mutable SumCoefficient  vi1Coef_;
+       mutable SumCoefficient  Te1Coef_;
+      */
+      //ProductCoefficient      ne0Coef_;
+      // ProductCoefficient      ne1Coef_;
 
       ApproxIonizationRate     izCoef_;
       ApproxRecombinationRate  rcCoef_;
@@ -1763,10 +1802,12 @@ private:
 
    public:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
+                   const PlasmaParams & plasma,
                    ParFiniteElementSpace & vfes,
-                   int ion_charge, double DPerp,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
+                   // int ion_charge,
+                   double DPerp,
                    VectorCoefficient & B3Coef,
                    int vis_flag);
 
@@ -1821,31 +1862,31 @@ private:
                      ADVECTION_COEF = 3, SOURCE = 4
                     };
 
-      int    z_i_;
-      double m_i_;
+      // int    z_i_;
+      // double m_i_;
       double DPerpConst_;
       ConstantCoefficient DPerpCoef_;
+      /*
+       GridFunctionCoefficient nn0Coef_;
+       GridFunctionCoefficient ni0Coef_;
+       GridFunctionCoefficient vi0Coef_;
+       GridFunctionCoefficient Ti0Coef_;
+       GridFunctionCoefficient Te0Coef_;
 
-      GridFunctionCoefficient nn0Coef_;
-      GridFunctionCoefficient ni0Coef_;
-      GridFunctionCoefficient vi0Coef_;
-      GridFunctionCoefficient Ti0Coef_;
-      GridFunctionCoefficient Te0Coef_;
+       GridFunctionCoefficient dnnCoef_;
+       GridFunctionCoefficient dniCoef_;
+       GridFunctionCoefficient dviCoef_;
+       GridFunctionCoefficient dTiCoef_;
+       GridFunctionCoefficient dTeCoef_;
 
-      GridFunctionCoefficient dnnCoef_;
-      GridFunctionCoefficient dniCoef_;
-      GridFunctionCoefficient dviCoef_;
-      GridFunctionCoefficient dTiCoef_;
-      GridFunctionCoefficient dTeCoef_;
-
-      mutable SumCoefficient  nn1Coef_;
-      mutable SumCoefficient  ni1Coef_;
-      mutable SumCoefficient  vi1Coef_;
-      mutable SumCoefficient  Ti1Coef_;
-      mutable SumCoefficient  Te1Coef_;
-
-      ProductCoefficient      ne0Coef_;
-      ProductCoefficient      ne1Coef_;
+       mutable SumCoefficient  nn1Coef_;
+       mutable SumCoefficient  ni1Coef_;
+       mutable SumCoefficient  vi1Coef_;
+       mutable SumCoefficient  Ti1Coef_;
+       mutable SumCoefficient  Te1Coef_;
+      */
+      // ProductCoefficient      ne0Coef_;
+      // ProductCoefficient      ne1Coef_;
 
       ProductCoefficient    mini1Coef_;
       ProductCoefficient    mivi1Coef_;
@@ -1877,9 +1918,11 @@ private:
 
    public:
       IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
+                    const PlasmaParams & plasma,
                     ParFiniteElementSpace & vfes,
-                    int ion_charge, double ion_mass, double DPerp,
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
+                    // int ion_charge, double ion_mass,
+                    double DPerp,
                     VectorCoefficient & B3Coef,
                     int vis_flag);
 
@@ -1930,30 +1973,30 @@ private:
    class IonStaticPressureOp : public NLOperator
    {
    private:
-      int    z_i_;
-      double m_i_;
+      // int    z_i_;
+      // double m_i_;
       double ChiPerpConst_;
+      /*
+       GridFunctionCoefficient nn0Coef_;
+       GridFunctionCoefficient ni0Coef_;
+       GridFunctionCoefficient vi0Coef_;
+       GridFunctionCoefficient Ti0Coef_;
+       GridFunctionCoefficient Te0Coef_;
 
-      GridFunctionCoefficient nn0Coef_;
-      GridFunctionCoefficient ni0Coef_;
-      GridFunctionCoefficient vi0Coef_;
-      GridFunctionCoefficient Ti0Coef_;
-      GridFunctionCoefficient Te0Coef_;
+       GridFunctionCoefficient dnnCoef_;
+       GridFunctionCoefficient dniCoef_;
+       GridFunctionCoefficient dviCoef_;
+       GridFunctionCoefficient dTiCoef_;
+       GridFunctionCoefficient dTeCoef_;
 
-      GridFunctionCoefficient dnnCoef_;
-      GridFunctionCoefficient dniCoef_;
-      GridFunctionCoefficient dviCoef_;
-      GridFunctionCoefficient dTiCoef_;
-      GridFunctionCoefficient dTeCoef_;
-
-      mutable SumCoefficient  nn1Coef_;
-      mutable SumCoefficient  ni1Coef_;
-      mutable SumCoefficient  vi1Coef_;
-      mutable SumCoefficient  Ti1Coef_;
-      mutable SumCoefficient  Te1Coef_;
-
-      ProductCoefficient      ne0Coef_;
-      ProductCoefficient      ne1Coef_;
+       mutable SumCoefficient  nn1Coef_;
+       mutable SumCoefficient  ni1Coef_;
+       mutable SumCoefficient  vi1Coef_;
+       mutable SumCoefficient  Ti1Coef_;
+       mutable SumCoefficient  Te1Coef_;
+      */
+      // ProductCoefficient      ne0Coef_;
+      // ProductCoefficient      ne1Coef_;
 
       ProductCoefficient      thTiCoef_; // 3/2 * Ti
       ProductCoefficient      thniCoef_; // 3/2 * ni
@@ -1974,9 +2017,11 @@ private:
 
    public:
       IonStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
-                          int ion_charge, double ion_mass, double ChiPerp,
+                          const PlasmaParams & plasma,
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
+                          // int ion_charge, double ion_mass,
+                          double ChiPerp,
                           VectorCoefficient & B3Coef,
                           Array<CoefficientByAttr> & dbc,
                           int vis_flag);
@@ -2026,34 +2071,35 @@ private:
    class ElectronStaticPressureOp : public NLOperator
    {
    private:
-      int    z_i_;
-      double m_i_;
+      // int    z_i_;
+      // double m_i_;
       double ChiPerpConst_;
+      /*
+       GridFunctionCoefficient nn0Coef_;
+       GridFunctionCoefficient ni0Coef_;
+       GridFunctionCoefficient vi0Coef_;
+       GridFunctionCoefficient Ti0Coef_;
+       GridFunctionCoefficient Te0Coef_;
 
-      GridFunctionCoefficient nn0Coef_;
-      GridFunctionCoefficient ni0Coef_;
-      GridFunctionCoefficient vi0Coef_;
-      GridFunctionCoefficient Ti0Coef_;
-      GridFunctionCoefficient Te0Coef_;
-
-      GridFunctionCoefficient dnnCoef_;
-      GridFunctionCoefficient dniCoef_;
-      GridFunctionCoefficient dviCoef_;
-      GridFunctionCoefficient dTiCoef_;
-      GridFunctionCoefficient dTeCoef_;
-
+       GridFunctionCoefficient dnnCoef_;
+       GridFunctionCoefficient dniCoef_;
+       GridFunctionCoefficient dviCoef_;
+       GridFunctionCoefficient dTiCoef_;
+       GridFunctionCoefficient dTeCoef_;
+      */
       GradientGridFunctionCoefficient grad_Te0Coef_;
       GradientGridFunctionCoefficient grad_dTeCoef_;
-
-      mutable SumCoefficient  nn1Coef_;
-      mutable SumCoefficient  ni1Coef_;
-      mutable SumCoefficient  vi1Coef_;
-      mutable SumCoefficient  Ti1Coef_;
-      mutable SumCoefficient  Te1Coef_;
+      /*
+       mutable SumCoefficient  nn1Coef_;
+       mutable SumCoefficient  ni1Coef_;
+       mutable SumCoefficient  vi1Coef_;
+       mutable SumCoefficient  Ti1Coef_;
+       mutable SumCoefficient  Te1Coef_;
+      */
       mutable VectorSumCoefficient  grad_Te1Coef_;
 
-      ProductCoefficient      ne0Coef_;
-      ProductCoefficient      ne1Coef_;
+      // ProductCoefficient      ne0Coef_;
+      // ProductCoefficient      ne1Coef_;
 
       ProductCoefficient      thTeCoef_; // 3/2 * Te
       ProductCoefficient      thneCoef_; // 3/2 * ne
@@ -2079,9 +2125,11 @@ private:
 
    public:
       ElectronStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
-                               int ion_charge, double ion_mass, double ChiPerp,
+                               const PlasmaParams & plasma,
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
+                               // int ion_charge, double ion_mass,
+                               double ChiPerp,
                                VectorCoefficient & B3Coef,
                                Array<CoefficientByAttr> & dbc,
                                int vis_flag);
@@ -2101,6 +2149,7 @@ private:
    {
    public:
       DummyOp(const MPI_Session & mpi, const DGParams & dg,
+              const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
               int index, const std::string &field_name, int vis_flag);
@@ -2124,7 +2173,7 @@ private:
       int neq_;
       int logging_;
 
-      ParFiniteElementSpace *fes_;
+      ParFiniteElementSpace &fes_;
       ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
       /*
@@ -2143,11 +2192,12 @@ private:
 
    public:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
+                 const PlasmaParams & plasma,
                  ParFiniteElementSpace & vfes,
                  ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                  Array<int> & offsets,
-                 int ion_charge, double ion_mass,
-                 double neutral_mass, double neutral_temp,
+                 // int ion_charge, double ion_mass,
+                 // double neutral_mass, double neutral_temp,
                  double DiPerp, double XiPerp, double XePerp,
                  VectorCoefficient & B3Coef,
                  Array<CoefficientByAttr> & Ti_dbc,
@@ -2202,14 +2252,11 @@ private:
 
 public:
    DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
+                  const PlasmaParams & plasma,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,
                   Array<int> &offsets,
-                  int ion_charge,
-                  double ion_mass,
-                  double neutral_mass,
-                  double neutral_temp,
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
                   double Di_perp, double Xi_perp, double Xe_perp,
