@@ -905,9 +905,9 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                               */
                                double Di_perp, double Xi_perp, double Xe_perp,
                                VectorCoefficient &B3Coef,
-                               Array<CoefficientByAttr> & Ti_dbc,
-                               Array<CoefficientByAttr> & Te_dbc,
-                               const Array<int> & vis_flags,
+                               vector<CoefficientByAttr> &Ti_dbc,
+                               vector<CoefficientByAttr> &Te_dbc,
+                               const Array<int> &vis_flags,
                                bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
      mpi_(mpi),
@@ -1804,8 +1804,8 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        double XiPerp,
                                        double XePerp,
                                        VectorCoefficient &B3Coef,
-                                       Array<CoefficientByAttr> & Ti_dbc,
-                                       Array<CoefficientByAttr> & Te_dbc,
+                                       vector<CoefficientByAttr> & Ti_dbc,
+                                       vector<CoefficientByAttr> & Te_dbc,
                                        const Array<int> & vis_flags,
                                        unsigned int op_flag, int logging)
    : mpi_(mpi),
@@ -2817,7 +2817,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
                     // double ion_mass,
                     double ChiPerp,
                     VectorCoefficient & B3Coef,
-                    Array<CoefficientByAttr> & dbc,
+                    vector<CoefficientByAttr> & dbc,
                     int vis_flag)
    : NLOperator(mpi, dg, plasma, 3, "Ion Temperature", yGF, kGF, vis_flag),
      // z_i_(ion_charge), m_i_(ion_mass),
@@ -2860,7 +2860,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
                                            dg_.kappa));
    bfbfi_marker_.Append(NULL);
 
-   for (int i=0; i<dbc_.Size(); i++)
+   for (unsigned int i=0; i<dbc_.size(); i++)
    {
       flfi_.Append(new DGDirichletLFIntegrator(*dbc_[i].coef, ChiCoef_,
                                                dg_.sigma,
@@ -2975,7 +2975,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                          ParGridFunctionArray & kGF,
                          double ChiPerp,
                          VectorCoefficient & B3Coef,
-                         Array<CoefficientByAttr> & dbc,
+                         vector<CoefficientByAttr> & dbc,
                          int vis_flag)
    : NLOperator(mpi, dg, plasma, 4, "Electron Temperature", yGF, kGF, vis_flag),
      ChiPerpConst_(ChiPerp),
@@ -3027,7 +3027,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                                            dg_.kappa));
    bfbfi_marker_.Append(NULL);
 
-   for (int i=0; i<dbc_.Size(); i++)
+   for (unsigned int i=0; i<dbc_.size(); i++)
    {
       flfi_.Append(new DGDirichletLFIntegrator(*dbc_[i].coef, ChiCoef_,
                                                dg_.sigma,

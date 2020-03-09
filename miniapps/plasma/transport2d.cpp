@@ -1537,20 +1537,20 @@ int main(int argc, char *argv[])
    elec_energy.ProjectCoefficient(Te0Coef);
 
 
-   Array<CoefficientByAttr>  Ti_dbc;
+   vector<CoefficientByAttr>  Ti_dbc;
    if (prob_ == 1)
    {
-      Ti_dbc.SetSize(2);
+      Ti_dbc.resize(2);
       Ti_dbc[0].attr.Append(1);
       Ti_dbc[0].coef = new ConstantCoefficient(Ti_max_);
       Ti_dbc[1].attr.Append(2);
       Ti_dbc[1].coef = new ConstantCoefficient(Ti_min_);
    }
 
-   Array<CoefficientByAttr>  Te_dbc;
+   vector<CoefficientByAttr>  Te_dbc;
    if (prob_ == 1)
    {
-      Te_dbc.SetSize(2);
+      Te_dbc.resize(2);
       Te_dbc[0].attr.Append(1);
       Te_dbc[0].coef = new ConstantCoefficient(Te_max_);
       Te_dbc[1].attr.Append(2);

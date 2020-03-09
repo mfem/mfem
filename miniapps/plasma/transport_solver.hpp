@@ -2010,7 +2010,7 @@ private:
       Aniso2DDiffusionCoef             ChiCoef_;
       ScalarMatrixProductCoefficient   dtChiCoef_;
 
-      const Array<CoefficientByAttr> & dbc_;
+      const std::vector<CoefficientByAttr> & dbc_;
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
@@ -2023,7 +2023,7 @@ private:
                           // int ion_charge, double ion_mass,
                           double ChiPerp,
                           VectorCoefficient & B3Coef,
-                          Array<CoefficientByAttr> & dbc,
+                          std::vector<CoefficientByAttr> & dbc,
                           int vis_flag);
 
       ~IonStaticPressureOp();
@@ -2118,7 +2118,7 @@ private:
       MatVecCoefficient                dChiGradTCoef_;
       ScalarVectorProductCoefficient   dtdChiGradTCoef_;
 
-      const Array<CoefficientByAttr> & dbc_;
+      const std::vector<CoefficientByAttr> & dbc_;
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
@@ -2131,7 +2131,7 @@ private:
                                // int ion_charge, double ion_mass,
                                double ChiPerp,
                                VectorCoefficient & B3Coef,
-                               Array<CoefficientByAttr> & dbc,
+                               std::vector<CoefficientByAttr> & dbc,
                                int vis_flag);
 
       ~ElectronStaticPressureOp();
@@ -2200,8 +2200,8 @@ private:
                  // double neutral_mass, double neutral_temp,
                  double DiPerp, double XiPerp, double XePerp,
                  VectorCoefficient & B3Coef,
-                 Array<CoefficientByAttr> & Ti_dbc,
-                 Array<CoefficientByAttr> & Te_dbc,
+                 std::vector<CoefficientByAttr> & Ti_dbc,
+                 std::vector<CoefficientByAttr> & Te_dbc,
                  const Array<int> & vis_flags,
                  // VectorCoefficient & bHatCoef,
                  // MatrixCoefficient & PerpCoef,
@@ -2261,8 +2261,8 @@ public:
                   ParGridFunctionArray &kGF,
                   double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
-                  Array<CoefficientByAttr> & Ti_dbc,
-                  Array<CoefficientByAttr> & Te_dbc,
+                  std::vector<CoefficientByAttr> & Ti_dbc,
+                  std::vector<CoefficientByAttr> & Te_dbc,
                   const Array<int> & vis_flags,
                   bool imex = true,
                   unsigned int op_flag = 31,
