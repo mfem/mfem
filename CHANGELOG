@@ -166,44 +166,35 @@ New and updated examples and miniapps
   The toys include simulations of cellular automata, Rubik's cube, Mandelbrot
   set, a tool to convert any image to mfem mesh, and more.
 
-- Added two new miniapps: Find Points (serial + parallel) and Field Diff in
-  miniapps/gslib that show how GSLIB-FindPoints can be used to interpolate a
-  (Par)GridFunction in an arbitrary number of physical space points in 2D and
-  3D. The GridFunction must be in H1 and in the same space as the mesh that is
-  used to find the points.
+- Added eight new example codes:
+  * Example 22/22p demonstrates the use of the new complex-valued finite element
+    operators by defining and solving a family of time-harmonic PDEs related to
+    damped harmonic oscillators.
+  * Example 23 solves a simple 2D/3D wave equation with the new second order
+    time integrators.
+  * Example 24/24p demonstrates usage of mixed finite element spaces in bilinear
+    forms. Partial assembly is supported in this example.
+  * Added a version of Example 1 in examples/ginkgo demonstrating the use of the
+    Gingko interface to solve a linear system.
+  * Added a version of Example 9/9p in examples/hiop demonstrating the nonlinear
+    constrained optimization interface and use of the SLBQP and HiOp solvers.
 
-- Added a new example, Example 22/22p, to demonstrate the use of the new
-  complex-valued finite element operators. The example defines and solves
-  a family of time-harmonic PDEs related to damped harmonic oscillators.
+- Added two new miniapps: Find Points and Field Diff in miniapps/gslib that show
+  how GSLIB-FindPoints can be used to interpolate a (Par) GridFunction in an
+  arbitrary number of physical space points in 2D and 3D. The GridFunction must
+  be in H1 and in the same space as the mesh that is used to find the points.
 
-- Added a new example, Example 24/24p, to demonstrate usage of mixed finite
-  element spaces in bilinear forms. Partial assembly is supported in this
-  example.
-
-- Added device support in Example 3/3p and Example 9/9p.
-
-- Updated Examples 1/1p and 3/3p to use diagonal preconditioning in partial
-  assembly mode.
-
-- The mesh-optimizer and pmesh-optimizer miniapps have been updated to
-  demonstrate the new r-adaptivity capabilities of TMOP.
-
-- New options to reorder and partition the mesh in the mesh-explorer miniapp.
-
-- The mesh-explorer miniapp now supports visualization of boundary attributes of
-  3D meshes (key 'b').
-
-- The (p)mesh-optimizer miniapp has been updated to demonstrate mesh
-  optimization for an AMR mesh.
-
-- Added a modification of Example 1 in examples/ginkgo that demonstrates the use
-  of the Gingko interface to solve a linear system.
-
-- Added a modification of ex9 in examples/hiop that demonstrates the nonlinear
-  constrained optimization interface and the use of the SLBQP and HiOp solvers.
-
-- Example 9 and 9p now support implicit time integration, using the new block
-  ILU(0) solvers as preconditioners for the linear system.
+- Several examples and miniapps were updated:
+  * Added device support in Example 3/3p and Example 9/9p.
+  * Example 1/1p and Example 3/3p now use diagonal preconditioning in partial
+    assembly mode.
+  * Example 9/9p now supports implicit time integration, using the new block
+    ILU(0) solvers as preconditioners for the linear system.
+  * The mesh-optimizer and pmesh-optimizer miniapps now include the new
+    r-adaptivity capabilities of TMOP. They were also updated to support mesh
+    optimization on non-conforming AMR meshes.
+  * New options to reorder and partition the mesh and boundary attribute
+    visualization (key 'b') are now available in the mesh-explorer miniapp.
 
 Improved testing
 ----------------
