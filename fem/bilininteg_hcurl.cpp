@@ -152,6 +152,8 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
    }
 
+   fetype = el->GetDerivType();
+
    if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
       PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
@@ -161,6 +163,16 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
+   }
+   else if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
+   {
+      PAHdivSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+                    coeff, pa_data);
+   }
+   else if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 2)
+   {
+      PAHdivSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+                    coeff, pa_data);
    }
    else
    {
@@ -419,11 +431,39 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
 void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (dim == 3)
-      PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                    mapsO->B, mapsC->B, pa_data, diag);
+   {
+      if (fetype == mfem::FiniteElement::CURL)
+      {
+         PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                       mapsO->B, mapsC->B, pa_data, diag);
+      }
+      else if (fetype == mfem::FiniteElement::DIV)
+      {
+         PAHdivMassAssembleDiagonal3D(dofs1D, quad1D, ne,
+                                      mapsO->B, mapsC->B, pa_data, diag);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown kernel.");
+      }
+   }
    else
-      PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne,
-                                    mapsO->B, mapsC->B, pa_data, diag);
+   {
+      if (fetype == mfem::FiniteElement::CURL)
+      {
+         PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne,
+                                       mapsO->B, mapsC->B, pa_data, diag);
+      }
+      else if (fetype == mfem::FiniteElement::DIV)
+      {
+         PAHdivMassAssembleDiagonal2D(dofs1D, quad1D, ne,
+                                      mapsO->B, mapsC->B, pa_data, diag);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown kernel.");
+      }
+   }
 }
 
 template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
@@ -619,13 +659,37 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
    {
-      PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                         mapsC->Bt, pa_data, x, y);
+      if (fetype == mfem::FiniteElement::CURL)
+      {
+         PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                            mapsC->Bt, pa_data, x, y);
+      }
+      else if (fetype == mfem::FiniteElement::DIV)
+      {
+         PAHdivMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                           mapsC->Bt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown kernel.");
+      }
    }
    else
    {
-      PAHcurlMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                         mapsC->Bt, pa_data, x, y);
+      if (fetype == mfem::FiniteElement::CURL)
+      {
+         PAHcurlMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                            mapsC->Bt, pa_data, x, y);
+      }
+      else if (fetype == mfem::FiniteElement::DIV)
+      {
+         PAHdivMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
+                           mapsC->Bt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown kernel.");
+      }
    }
 }
 
