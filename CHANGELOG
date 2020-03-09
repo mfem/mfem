@@ -67,6 +67,8 @@ Discretization improvements
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
 
+- Added support for simplices in GSLIB-FindPoints.
+
 - Added support for serendipity elements of arbitrary order on affinely-mapped
   square elements. Basis functions for these elements can be visualized using
   an option in the display-basis miniapp.
