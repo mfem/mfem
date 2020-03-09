@@ -28,11 +28,11 @@ class FindPointsGSLIB
 {
 protected:
    Mesh *mesh;
-   IntegrationRule *simir;
+   IntegrationRule *ir_simplex;
    Vector gsl_mesh;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
-   int dim, NEsplit;
+   int dim;
 
    struct comm *gsl_comm;
 
