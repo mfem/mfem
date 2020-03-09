@@ -1352,6 +1352,9 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
    Ti1Coef_ = *y1Coef_[3];
    Te1Coef_ = *y1Coef_[4];
 
+   ne0Coef_.SetBCoef(ni0Coef_);
+   ne1Coef_.SetBCoef(ni1Coef_);
+   
    blf_ = NULL;
 
    if (vis_flag_ < 0) { vis_flag_ = this->GetDefaultVisFlag(); }
