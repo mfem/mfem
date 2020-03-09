@@ -297,7 +297,7 @@ private:
    ParBilinearForm * m2_;
    ParMixedBilinearForm * m12EpsRe_;
    ParMixedBilinearForm * m12EpsIm_;
-  
+
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)

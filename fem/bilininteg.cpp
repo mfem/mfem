@@ -1985,7 +1985,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          {
             MQ->Eval(K, Trans, ip);
             K *= w;
-	    Mult(test_vshape,K,tmp);
+            Mult(test_vshape,K,tmp);
             AddMultABt(tmp,trial_vshape,elmat);
          }
          else if (VQ)

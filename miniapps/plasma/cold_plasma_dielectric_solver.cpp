@@ -362,7 +362,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    // H1FESpace_    = new H1_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
-      
+
    if (BCoef_)
    {
       if (L2FESpace_ == NULL)
@@ -633,7 +633,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
    rhs_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*rhsrCoef_),
-			     new VectorFEDomainLFIntegrator(*rhsiCoef_));
+                             new VectorFEDomainLFIntegrator(*rhsiCoef_));
 
    if (nkbcs_ != NULL)
    {
@@ -1125,50 +1125,50 @@ CPDSolver::Solve()
    e_->Distribute(E);
 
    {
-     HypreParMatrix M2;
-     Vector D, RHS2;
+      HypreParMatrix M2;
+      Vector D, RHS2;
 
-     ParComplexLinearForm rhs(HDivFESpace_);
-     ParComplexLinearForm tmp(HDivFESpace_);
+      ParComplexLinearForm rhs(HDivFESpace_);
+      ParComplexLinearForm tmp(HDivFESpace_);
 
-     m12EpsRe_->Mult(e_->real(), rhs.real());
-     m12EpsIm_->Mult(e_->imag(), tmp.real());
+      m12EpsRe_->Mult(e_->real(), rhs.real());
+      m12EpsIm_->Mult(e_->imag(), tmp.real());
 
-     m12EpsRe_->Mult(e_->imag(), rhs.imag());
-     m12EpsIm_->Mult(e_->real(), tmp.imag());
+      m12EpsRe_->Mult(e_->imag(), rhs.imag());
+      m12EpsIm_->Mult(e_->real(), tmp.imag());
 
-     rhs.real() -= tmp.real();
-     rhs.imag() += tmp.imag();
+      rhs.real() -= tmp.real();
+      rhs.imag() += tmp.imag();
 
-     if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
-     {
-       rhs.imag() *= -1.0;
-     }
+      if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+      {
+         rhs.imag() *= -1.0;
+      }
 
-     Array<int> ess_tdof;
-     m2_->FormSystemMatrix(ess_tdof, M2);
+      Array<int> ess_tdof;
+      m2_->FormSystemMatrix(ess_tdof, M2);
 
-     D.SetSize(HDivFESpace_->TrueVSize());
-     RHS2.SetSize(HDivFESpace_->TrueVSize());
+      D.SetSize(HDivFESpace_->TrueVSize());
+      RHS2.SetSize(HDivFESpace_->TrueVSize());
 
-     HypreDiagScale diag(M2);
-     
-     HyprePCG pcg(M2);
-     pcg.SetPreconditioner(diag);
-     pcg.SetTol(1e-12);
-     pcg.SetMaxIter(1000);
+      HypreDiagScale diag(M2);
 
-     rhs.real().ParallelAssemble(RHS2);
+      HyprePCG pcg(M2);
+      pcg.SetPreconditioner(diag);
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(1000);
 
-     pcg.Mult(RHS2, D);
+      rhs.real().ParallelAssemble(RHS2);
 
-     d_->real().Distribute(D);
+      pcg.Mult(RHS2, D);
 
-     rhs.imag().ParallelAssemble(RHS2);
+      d_->real().Distribute(D);
 
-     pcg.Mult(RHS2, D);
+      rhs.imag().ParallelAssemble(RHS2);
 
-     d_->imag().Distribute(D);
+      pcg.Mult(RHS2, D);
+
+      d_->imag().Distribute(D);
    }
 
    delete BDP;
@@ -1385,7 +1385,7 @@ CPDSolver::DisplayToGLVis()
       VectorSumCoefficient diCoef(d_i, d_r, *coskx_, *negsinkx_);
 
       d_v_->ProjectCoefficient(drCoef, diCoef);
-}
+   }
    else
    {
       e_v_ = e_;
