@@ -695,8 +695,8 @@ mfem_check_command = \
     printf $$red"%s"$$end"\n"   "[FAILED] "$(strip $(3)); err_code=1;\
   fi
 
-# Verify C++ code styling in MFEM and that std::cout and std::cerr are not used
-# in the library (use mfem::out and mfem::err instead)
+# Verify the C++ code styling in MFEM and check that std::cout and std::cerr are
+# not used in the library (use mfem::out and mfem::err instead).
 style:
 	@echo "Applying C++ code style..."
 	@astyle_version="$$($(ASTYLE_BIN) --version)";\
