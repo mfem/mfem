@@ -24,10 +24,13 @@ CCC = $(CC) $(CCOPTS)
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
-SOURCE_FILES = $(SRC)unit_test_main.cpp $(sort $(wildcard $(SRC)*/*.cpp))
+SOURCE_FILES = $(sort $(wildcard $(SRC)*/*.cpp))
 HEADER_FILES = $(SRC)catch.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
+
+SEQ_MAIN_OBJ = unit_test_main.o
+PAR_MAIN_OBJ = unit_test_main_p.o
 
 # Sedov numerical tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
@@ -40,7 +43,7 @@ SEDOV_CUDA_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.
 SEDOV_CUDA_UVM_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
 
 SEQ_UNIT_TESTS = unit_tests $(SEDOV_TESTS)
-PAR_UNIT_TESTS = $(SEDOV_TESTS)
+PAR_UNIT_TESTS = unit_tests_p $(SEDOV_TESTS)
 
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
@@ -54,12 +57,15 @@ all: $(UNIT_TESTS)
 .SUFFIXES: .cpp .o
 .PHONY: all clean
 
-unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+unit_tests_p: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
