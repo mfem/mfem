@@ -30,11 +30,20 @@ int main(int argc, char *argv[])
    }
 
 #ifdef MFEM_USE_MPI
-   // Exclude tests marked as Parallel in a serial run, even when compiled with
-   // MPI. This is done because there is no MPI session initialized.
+   mfem::MPI_Session mpi;
+   GlobalMPISession = &mpi;
+
+   // Exclude all tests that are not labeled with Parallel.
    auto cfg = session.configData();
-   cfg.testsOrTags.push_back("~[Parallel]");
+   cfg.testsOrTags.push_back("[Parallel]");
    session.useConfigData(cfg);
+
+   if (mpi.Root())
+   {
+      mfem::out
+            << "WARNING: Only running the [Parallel] label."
+            << std::endl;
+   }
 #endif
 
    int result = session.run();
