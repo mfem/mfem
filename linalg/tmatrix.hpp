@@ -480,6 +480,7 @@ struct MatrixOps<3,3>::Symm<false>
 
 // Compute the determinant of a (small) matrix: det(A).
 template <typename scalar_t, typename layout_t, typename data_t>
+MFEM_HOST_DEVICE
 inline scalar_t TDet(const layout_t &a, const data_t &A)
 {
    MFEM_STATIC_ASSERT(layout_t::rank == 2, "invalid rank");

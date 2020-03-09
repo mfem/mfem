@@ -126,7 +126,7 @@ void QuadratureInterpolator::Eval2D(
             {
                // The check (VDIM == 2) should eliminate this block when VDIM is
                // known at compile time and (VDIM != 2).
-               det(q,e) = D[0]*D[3] - D[1]*D[2];
+               det(q,e) = kernels::Det<2>(D);
             }
          }
       }
@@ -217,9 +217,7 @@ void QuadratureInterpolator::Eval3D(
             {
                // The check (VDIM == 3) should eliminate this block when VDIM is
                // known at compile time and (VDIM != 3).
-               det(q,e) = D[0] * (D[4] * D[8] - D[5] * D[7]) +
-                          D[3] * (D[2] * D[7] - D[1] * D[8]) +
-                          D[6] * (D[1] * D[5] - D[2] * D[4]);
+               det(q,e) = kernels::Det<3>(D);
             }
          }
       }
