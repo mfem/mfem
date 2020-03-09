@@ -129,7 +129,7 @@ void CalcInverse(const T *data, T *inv_data)
 {
    typedef ColumnMajorLayout2D<dim,dim> layout_t;
    const T det = TAdjDet<T>(layout_t(), data, layout_t(), inv_data);
-   TAssign<AssignOp::Mult>(layout_t(), inv_data, 1.0/det);
+   TAssign<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
 }
 
 /** @brief Compute C = A + alpha*B, where the matrices A, B and C are of size @a
