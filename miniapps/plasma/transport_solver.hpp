@@ -264,23 +264,27 @@ public:
    }
 };
 
+enum FieldType {INVALID = -1,
+                NEUTRAL_DENSITY      = 0,
+                ION_DENSITY          = 1,
+                ION_PARA_VELOCITY    = 2,
+                ION_TEMPERATURE      = 3,
+                ELECTRON_TEMPERATURE = 4
+               };
+
 class StateVariableFunc
 {
 public:
-   enum DerivType {INVALID, NEUTRAL_DENSITY,
-                   ION_DENSITY, ION_PARA_VELOCITY, ION_TEMPERATURE,
-                   ELECTRON_TEMPERATURE
-                  };
 
-   virtual bool NonTrivialValue(DerivType deriv) const = 0;
+   virtual bool NonTrivialValue(FieldType deriv) const = 0;
 
-   void SetDerivType(DerivType deriv) { derivType_ = deriv; }
-   DerivType GetDerivType() const { return derivType_; }
+   void SetDerivType(FieldType deriv) { derivType_ = deriv; }
+   FieldType GetDerivType() const { return derivType_; }
 
 protected:
-   StateVariableFunc(DerivType deriv = INVALID) : derivType_(deriv) {}
+   StateVariableFunc(FieldType deriv = INVALID) : derivType_(deriv) {}
 
-   DerivType derivType_;
+   FieldType derivType_;
 };
 
 
@@ -328,7 +332,7 @@ public:
                            const IntegrationPoint &ip) { return 0.0; }
 
 protected:
-   StateVariableCoef(DerivType deriv = INVALID) : StateVariableFunc(deriv) {}
+   StateVariableCoef(FieldType deriv = INVALID) : StateVariableFunc(deriv) {}
 };
 
 class StateVariableVecCoef : public StateVariableFunc, public VectorCoefficient
@@ -385,7 +389,7 @@ public:
                          const IntegrationPoint &ip) { V = 0.0; }
 
 protected:
-   StateVariableVecCoef(int dim, DerivType deriv = INVALID)
+   StateVariableVecCoef(int dim, FieldType deriv = INVALID)
       : StateVariableFunc(deriv), VectorCoefficient(dim) {}
 };
 
@@ -443,10 +447,10 @@ public:
                          const IntegrationPoint &ip) { M = 0.0; }
 
 protected:
-   StateVariableMatCoef(int dim, DerivType deriv = INVALID)
+   StateVariableMatCoef(int dim, FieldType deriv = INVALID)
       : StateVariableFunc(deriv), MatrixCoefficient(dim) {}
 
-   StateVariableMatCoef(int h, int w, DerivType deriv = INVALID)
+   StateVariableMatCoef(int h, int w, FieldType deriv = INVALID)
       : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
 };
 
@@ -466,7 +470,7 @@ public:
    ApproxIonizationRate(Coefficient &TeCoef)
       : TeCoef_(&TeCoef) {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
    }
@@ -501,7 +505,7 @@ public:
    ApproxRecombinationRate(Coefficient &TeCoef)
       : TeCoef_(&TeCoef) {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
    }
@@ -536,7 +540,7 @@ public:
                         StateVariableCoef &izCoef)
       : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ION_DENSITY ||
               deriv == ELECTRON_TEMPERATURE);
@@ -590,7 +594,7 @@ public:
    IonDiffusionCoef(Coefficient &DperpCoef, VectorCoefficient &B3Coef)
       : StateVariableMatCoef(2), Dperp_(&DperpCoef), B3_(&B3Coef), B_(3) {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -638,7 +642,7 @@ public:
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ION_PARA_VELOCITY);
    }
@@ -689,7 +693,7 @@ public:
                  StateVariableCoef &izCoef)
       : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(1e10) {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == NEUTRAL_DENSITY ||
               deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
@@ -749,7 +753,7 @@ public:
                StateVariableCoef &rcCoef)
       : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef) {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
               deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
@@ -809,7 +813,7 @@ public:
         TiCoef_(&TiCoef)
    {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -931,7 +935,7 @@ public:
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -993,7 +997,7 @@ public:
         niCoef_(&niCoef), TiCoef_(&TiCoef)
    {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -1032,12 +1036,12 @@ public:
    ElectronThermalParaDiffusionCoef(double ion_charge,
                                     Coefficient &neCoef,
                                     Coefficient &TeCoef,
-                                    DerivType deriv = INVALID)
+                                    FieldType deriv = INVALID)
       : StateVariableCoef(deriv),
         z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
    {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
    }
@@ -1138,7 +1142,7 @@ public:
         Para_(para ? &Coef : NULL), Perp_(para ? NULL : &Coef),
         B3_(&B3Coef), B_(3) {}
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -1216,7 +1220,7 @@ public:
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
-   bool NonTrivialValue(DerivType deriv) const
+   bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
               deriv == ION_DENSITY || deriv == ION_TEMPERATURE ||
