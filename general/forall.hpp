@@ -31,28 +31,19 @@
 namespace mfem
 {
 
-// MFEM pragma macros that can be used inside MFEM_FORALL macros
-#define MFEM_PRAGMA(X) _Pragma(#X)
-// MFEM_UNROLL pragma macro
-#if defined(MFEM_USE_CUDA) || \
-    (defined(__clang__) && ((__clang_major__ > 3) || \
-                            (__clang_major__ == 3 && __clang_minor__ >= 7)))
-#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
-#elif defined(__xlC__)
-#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
-#elif defined(__ICC)
-// Using "MFEM_PRAGMA(unroll(N))" results in compiler remarks, so don't use it
-#define MFEM_UNROLL(N)
-#elif (__GNUC__ >= 8)
-// Using "MFEM_PRAGMA(GCC unroll N)" does not seem to work. Why?
-#define MFEM_UNROLL(N)
-#else
-#define MFEM_UNROLL(N)
-#endif
-
 // Maximum size of dofs and quads in 1D.
 const int MAX_D1D = 14;
 const int MAX_Q1D = 14;
+
+// MFEM pragma macros that can be used inside MFEM_FORALL macros.
+#define MFEM_PRAGMA(X) _Pragma(#X)
+
+// MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#else
+#define MFEM_UNROLL(N)
+#endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.

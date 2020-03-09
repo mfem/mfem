@@ -119,7 +119,9 @@ void Symmetrize(const int size, T *data)
 /// Compute the determinant of a square matrix of size dim with given @a data.
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline T Det(const T *data)
-{ return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data); }
+{
+   return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data);
+}
 
 /** @brief Return the inverse a matrix with given @a size and @a data into the
     matrix with data @a inv_data. */

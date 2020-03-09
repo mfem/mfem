@@ -54,10 +54,14 @@ protected:
 public:
    WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
 
+   using SecondOrderTimeDependentOperator::Mult;
    virtual void Mult(const Vector &u, const Vector &du_dt,
                      Vector &d2udt2) const;
+
    /** Solve the Backward-Euler equation:
-       d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t), for the unknown d2udt2.*/
+       d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t),
+       for the unknown d2udt2. */
+   using SecondOrderTimeDependentOperator::ImplicitSolve;
    virtual void ImplicitSolve(const double fac0, const double fac1,
                               const Vector &u, const Vector &dudt, Vector &d2udt2);
 
