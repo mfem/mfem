@@ -8,8 +8,8 @@
                                http://mfem.org
 
 
-Version 4.1, released on March 9, 2020
-======================================
+Version 4.1, released on March 10, 2020
+=======================================
 
 Starting with this version, the MFEM open source license is changed to BSD-3.
 
@@ -42,7 +42,7 @@ Improved GPU capabilities
   * CUDA pointers, using cudaMalloc and HIP pointers, using hipMalloc,
   * Managed CUDA/HIP memory (UVM), using cudaMallocManaged/hipMallocManaged,
   * Umpire-managed memory, including memory pools,
-  * 32- or 64-bit aligned memory, using posix_memalign (WIN32 also supported),
+  * 32- or 64-byte aligned memory, using posix_memalign (WIN32 also supported),
   * Debug memory with mmap/mprotect protection used by the new "debug" device.
 
 libCEED support
