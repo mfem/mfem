@@ -123,7 +123,7 @@ typedef struct
    mfem::Operator::Type  jacType;    // OperatorType for the Jacobian
    // Objective for line search
    void (*objective)(mfem::Operator *op, const mfem::Vector&, double*);
-   // PostCheck function (to be called after successfull line search)
+   // PostCheck function (to be called after successful line search)
    void (*postcheck)(mfem::Operator *op, const mfem::Vector&, mfem::Vector&,
                      mfem::Vector&, bool&, bool&);
    // General purpose update function (to be called at the beginning of

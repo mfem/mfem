@@ -534,7 +534,7 @@ public:
    /// Prints a sparse matrix to stream out in CSR format.
    void PrintCSR2(std::ostream &out) const;
 
-   /// Print various sparse matrix staticstics.
+   /// Print various sparse matrix statistics.
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix

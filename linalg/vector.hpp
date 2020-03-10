@@ -225,7 +225,7 @@ public:
 
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    Vector &operator=(const Vector &v);
 
    /// Redefine '=' for vector = constant.

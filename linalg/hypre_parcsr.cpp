@@ -1529,7 +1529,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    else
    {
       /* A and B have different column mappings for their off-diagonal blocks so
-      we need to use the column maps to create full-width CSR matricies. */
+      we need to use the column maps to create full-width CSR matrices. */
 
       int  ierr = 0;
       hypre_CSRMatrix * csr_A;
