@@ -703,7 +703,6 @@ static void PADivDivApply2D(const int D1D,
             for (int dy = 0; dy < D1Dy; ++dy)
             {
                const double wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
-
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
@@ -1279,7 +1278,7 @@ static void PAHdivL2Apply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double aXY[MAX_D1D][MAX_D1D];
+         double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
 
          for (int dy = 0; dy < D1D; ++dy)
          {
@@ -1290,7 +1289,7 @@ static void PAHdivL2Apply3D(const int D1D,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double aX[MAX_D1D];
+            double aX[HDIV_MAX_D1D];
             for (int dx = 0; dx < D1D; ++dx)
             {
                aX[dx] = 0;
@@ -1432,6 +1431,266 @@ static void PAHdivL2Apply2D(const int D1D,
    }); // end of element loop
 }
 
+static void PAHdivL2ApplyTranspose3D(const int D1D,
+                                     const int Q1D,
+                                     const int NE,
+                                     const Array<double> &_Bo,
+                                     const Array<double> &_Gct,
+                                     const Array<double> &_Bot,
+                                     const Vector &_op,
+                                     const Vector &_x,
+                                     Vector &_y)
+{
+   constexpr static int VDIM = 3;
+
+   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto Gct = Reshape(_Gct.Read(), Q1D, D1D);
+   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               div[qz][qy][qx] = 0.0;
+            }
+         }
+      }
+
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         double aXY[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               aXY[qy][qx] = 0.0;
+            }
+         }
+
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double aX[HDIV_MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               aX[qx] = 0.0;
+            }
+
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double t = x(dx,dy,dz, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  aX[qx] += t * Bo(qx,dx);
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = Bo(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  aXY[qy][qx] += aX[qx] * wy;
+               }
+            }
+         }
+
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            const double wz = Bo(qz,dz);
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  div[qz][qy][qx] += aXY[qy][qx] * wz;
+               }
+            }
+         }
+      }
+
+      // Apply D operator.
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               div[qz][qy][qx] *= op(qx,qy,qz,e);
+            }
+         }
+      }
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+
+         int osc = 0;
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D : D1D - 1;
+            const int D1Dy = (c == 1) ? D1D : D1D - 1;
+            const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  aXY[dy][dx] = 0;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               double aX[HDIV_MAX_D1D];
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  aX[dx] = 0;
+               }
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                  }
+               }
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     aXY[dy][dx] += aX[dx] * wy;
+                  }
+               }
+            }
+
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += aXY[dy][dx] * wz;
+                  }
+               }
+            }
+
+            osc += D1Dx * D1Dy * D1Dz;
+         }  // loop c
+      }  // loop qz
+   }); // end of element loop
+}
+
+static void PAHdivL2ApplyTranspose2D(const int D1D,
+                                     const int Q1D,
+                                     const int NE,
+                                     const Array<double> &_Bo,
+                                     const Array<double> &_Gct,
+                                     const Array<double> &_Bot,
+                                     const Vector &_op,
+                                     const Vector &_x,
+                                     Vector &_y)
+{
+   constexpr static int VDIM = 2;
+
+   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
+   auto Gct = Reshape(_Gct.Read(), Q1D, D1D);
+   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
+   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double div[MAX_Q1D][MAX_Q1D];
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            div[qy][qx] = 0.0;
+         }
+      }
+
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         double aX[MAX_Q1D];
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            aX[qx] = 0.0;
+         }
+
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double t = x(dx,dy,e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               aX[qx] += t * Bo(qx,dx);
+            }
+         }
+
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double wy = Bo(qy,dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               div[qy][qx] += aX[qx] * wy;
+            }
+         }
+      }
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            div[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         int osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+         {
+            const int D1Dy = (c == 1) ? D1D : D1D - 1;
+            const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+            double aX[MAX_D1D];
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               aX[dx] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  aX[dx] += div[qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+               }
+            }
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               const double wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  y(dx + (dy * D1Dx) + osc, e) += aX[dx] * wy;
+               }
+            }
+
+            osc += D1Dx * D1Dy;
+         }  // loop c
+      }  // loop qy
+   }); // end of element loop
+}
+
 void VectorFEDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
@@ -1440,6 +1699,21 @@ void VectorFEDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (dim == 2)
       PAHdivL2Apply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
                       mapsO->Bt, pa_data, x, y);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
+                                                      Vector &y) const
+{
+   if (dim == 3)
+      PAHdivL2ApplyTranspose3D(dofs1D, quad1D, ne, mapsO->B, mapsC->Gt,
+                               mapsO->Bt, pa_data, x, y);
+   else if (dim == 2)
+      PAHdivL2ApplyTranspose2D(dofs1D, quad1D, ne, mapsO->B, mapsC->Gt,
+                               mapsO->Bt, pa_data, x, y);
    else
    {
       MFEM_ABORT("Unsupported dimension!");
