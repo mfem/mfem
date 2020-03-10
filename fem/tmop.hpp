@@ -700,13 +700,21 @@ public:
 };
 
 class ParGridFunction;
+class TMOPNewtonSolver;
+class TMOPDescentNewtonSolver;
 
 class DiscreteAdaptTC : public TargetConstructor
 {
 protected:
+   friend class TMOPNewtonSolver;
+   friend class TMOPDescentNewtonSolver;
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
-   Vector tspec;         //eta(x)
+   Vector tspec;             //eta(x)
+   Vector tspec_sav;
+   Vector tspec_perth;       //eta(x+h)
+   Vector tspec_pert2h;      //eta(x+2*h)
+   Vector tspec_pertmix;     //eta(x+h,y+h)
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
@@ -716,12 +724,13 @@ protected:
    // Owned.
    AdaptivityEvaluator *adapt_eval;
 
-public:
-   Vector tspec_sav;
-   Vector tspec_perth;       //eta(x+h)
-   Vector tspec_pert2h;      //eta(x+2*h)
-   Vector tspec_pertmix;     //eta(x+h,y+h)
+   void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
+                                const double fdeps);
 
+   void SetupElementGradTSpec(const Vector &x,const FiniteElementSpace &fes,
+                              const double fdeps);
+
+public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
         tspec(), tspec_fes(NULL), adapt_eval(NULL) { }
@@ -743,23 +752,22 @@ public:
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
                                         int nodenum, int idir,
-                                        Vector &IntData);
+                                        const Vector &IntData);
 
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
    void BackupTargetSpecification();
-
-   void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
-                                const double fdeps);
-
-   void SetupElementGradTSpec(const Vector &x,const FiniteElementSpace &fes,
-                              const double fdeps);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
       if (adapt_eval) { delete adapt_eval; }
       adapt_eval = ae;
    }
+
+   const Vector &GetTspecSav()     { return tspec_sav; }
+   const Vector &GetTspecPerth()   { return tspec_perth; }
+   const Vector &GetTspecPert2h()  { return tspec_pert2h; }
+   const Vector &GetTspecPertmix() { return tspec_pertmix; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.

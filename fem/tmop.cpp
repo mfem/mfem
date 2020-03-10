@@ -1011,7 +1011,7 @@ void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
 void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                                       ElementTransformation &T,
                                                       int dofidx, int dir,
-                                                      Vector &IntData)
+                                                      const Vector &IntData)
 {
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
@@ -1662,7 +1662,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
          if (discr_tc)
          {
             discr_tc->UpdateTargetSpecificationAtNode(
-               el, T, i, j, discr_tc->tspec_perth);
+               el, T, i, j, discr_tc->GetTspecPerth());
          }
          elvect(j*dof+i) = GetFDDerivative(el, T, elfunmod, i, j, e_fx, true);
          if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
@@ -1698,11 +1698,11 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                if (discr_tc)
                {
                   discr_tc->UpdateTargetSpecificationAtNode(
-                     el, T, j, k2, discr_tc->tspec_perth);
+                     el, T, j, k2, discr_tc->GetTspecPerth());
                   if (j!=i)
                   {
                      discr_tc->UpdateTargetSpecificationAtNode(
-                        el, T, i, k1, discr_tc->tspec_perth);
+                        el, T, i, k1, discr_tc->GetTspecPerth());
                   }
                   else   // j==i
                   {
@@ -1710,12 +1710,12 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                      {
                         int idx = k1+k2-1;
                         discr_tc->UpdateTargetSpecificationAtNode(
-                           el, T, i, idx, discr_tc->tspec_pertmix);
+                           el, T, i, idx, discr_tc->GetTspecPertmix());
                      }
                      else   //j==i && k1==k2
                      {
                         discr_tc->UpdateTargetSpecificationAtNode(
-                           el, T, i, k1, discr_tc->tspec_pert2h);
+                           el, T, i, k1, discr_tc->GetTspecPert2h());
                      }
                   }
                }
