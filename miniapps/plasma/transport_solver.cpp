@@ -1301,7 +1301,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
                                        int vis_flag)
    : Operator(yGF[0]->ParFESpace()->GetVSize(),
               5*(yGF[0]->ParFESpace()->GetVSize())),
-     dummyCoef_(0.0),
+     dummyCoef_(NULL, INVALID),
      mpi_(mpi), dg_(dg), plasma_(plasma),
      m_n_(plasma.m_n),
      T_n_(plasma.T_n),
@@ -1327,6 +1327,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      ne0Coef_(z_i_, dummyCoef_),
      ne1Coef_(z_i_, dummyCoef_),
      dbfi_m_(5),
+     dbfi_mc_(5),
      blf_(5),
      vis_flag_(vis_flag),
      dc_(NULL)
@@ -1335,8 +1336,10 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
 
    for (int i=0; i<yGF_.Size(); i++)
    {
-      yCoef_[i] = new GridFunctionCoefficient(yGF_[i]);
-      kCoef_[i] = new GridFunctionCoefficient(kGF_[i]);
+      yCoef_[i] = new StateVariableGridFunctionCoefficient(yGF_[i],
+                                                           (FieldType)i);
+      kCoef_[i] = new StateVariableGridFunctionCoefficient(kGF_[i],
+                                                           (FieldType)i);
       y1Coef_[i] = new SumCoefficient(*yCoef_[i], *kCoef_[i]);
    }
 
@@ -1354,7 +1357,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
 
    ne0Coef_.SetBCoef(ni0Coef_);
    ne1Coef_.SetBCoef(ni1Coef_);
-   
+
    blf_ = NULL;
 
    if (vis_flag_ < 0) { vis_flag_ = this->GetDefaultVisFlag(); }
@@ -1371,6 +1374,18 @@ DGTransportTDO::NLOperator::~NLOperator()
    for (int i=0; i<5; i++)
    {
       delete blf_[i];
+   }
+}
+
+void DGTransportTDO::NLOperator::AddToM(StateVariableCoef &MCoef)
+{
+   for (int i=0; i<5; i++)
+   {
+      if (MCoef.NonTrivialValue((FieldType)i))
+      {
+         dbfi_m_[i].Append(new MassIntegrator(MCoef));
+         dbfi_mc_[i].Append(&MCoef);
+      }
    }
 }
 
@@ -1454,9 +1469,11 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          {
             kGF_[j]->GetSubVector(vdofs_, locdvec_);
 
+            dbfi_mc_[j][0]->SetDerivType((FieldType)j);
             dbfi_m_[j][0]->AssembleElementMatrix(fe, *eltrans, elmat_);
             for (int k = 1; k < dbfi_m_[j].Size(); k++)
             {
+               dbfi_mc_[j][k]->SetDerivType((FieldType)j);
                dbfi_m_[j][k]->AssembleElementMatrix(fe, *eltrans, elmat_k_);
                elmat_ += elmat_k_;
             }
@@ -2142,7 +2159,8 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    dSizdniCoef_.SetDerivType(ION_DENSITY);
 
    // Time derivative term: dn_n / dt
-   dbfi_m_[0].Append(new MassIntegrator);
+   // dbfi_m_[0].Append(new MassIntegrator);
+   AddToM(nn0Coef_);
 
    // Diffusion term: -Div(D_n Grad n_n)
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
@@ -2444,7 +2462,8 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    dSizdniCoef_.SetDerivType(ION_DENSITY);
 
    // Time derivative term: dn_i / dt
-   dbfi_m_[1].Append(new MassIntegrator);
+   // dbfi_m_[1].Append(new MassIntegrator);
+   AddToM(ni0Coef_);
 
    // Diffusion term: -Div(D_i Grad n_i)
    dbfi_.Append(new DiffusionIntegrator(DCoef_));
@@ -2611,6 +2630,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      mini1Coef_(m_i_, ni1Coef_),
      mivi1Coef_(m_i_, vi1Coef_),
      B3Coef_(&B3Coef),
+     momCoef_(m_i_, ni0Coef_, vi0Coef_),
      EtaParaCoef_(z_i_, m_i_, Ti1Coef_),
      EtaPerpCoef_(DPerpConst_, mini1Coef_),
      EtaCoef_(EtaParaCoef_, EtaPerpCoef_, *B3Coef_),
@@ -2628,11 +2648,14 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      MomParaGF_(NULL),
      SGF_(NULL)
 {
+   /*
    // Time derivative term: m_i v_i dn_i/dt
    dbfi_m_[1].Append(new MassIntegrator(mivi1Coef_));
 
    // Time derivative term: m_i n_i dv_i/dt
    dbfi_m_[2].Append(new MassIntegrator(mini1Coef_));
+   */
+   AddToM(momCoef_);
 
    // Diffusion term: -Div(eta Grad v_i)
    dbfi_.Append(new DiffusionIntegrator(EtaCoef_));
@@ -2838,6 +2861,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
      thniCoef_(1.5, *y1Coef_[ION_DENSITY]),
      izCoef_(*y1Coef_[ELECTRON_TEMPERATURE]),
      B3Coef_(&B3Coef),
+     presCoef_(ni0Coef_, Ti0Coef_),
      ChiParaCoef_(plasma.z_i, plasma.m_i,
                   *y1Coef_[ION_DENSITY], *y1Coef_[ION_TEMPERATURE]),
      ChiPerpCoef_(ChiPerpConst_, *y1Coef_[ION_DENSITY]),
@@ -2847,11 +2871,14 @@ IonStaticPressureOp(const MPI_Session & mpi,
      ChiParaGF_(new ParGridFunction(&fes_)),
      ChiPerpGF_(new ParGridFunction(&fes_))
 {
-   // Time derivative term: 1.5 T_i dn_i/dt
-   dbfi_m_[1].Append(new MassIntegrator(thTiCoef_));
+   /*
+    // Time derivative term: 1.5 T_i dn_i/dt
+    dbfi_m_[1].Append(new MassIntegrator(thTiCoef_));
 
-   // Time derivative term: 1.5 n_i dT_i/dt
-   dbfi_m_[3].Append(new MassIntegrator(thniCoef_));
+    // Time derivative term: 1.5 n_i dT_i/dt
+    dbfi_m_[3].Append(new MassIntegrator(thniCoef_));
+   */
+   AddToM(presCoef_);
 
    // Diffusion term: -Div(chi Grad T_i)
    dbfi_.Append(new DiffusionIntegrator(ChiCoef_));
@@ -3001,6 +3028,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      thneCoef_(1.5, ne1Coef_),
      izCoef_(*y1Coef_[ELECTRON_TEMPERATURE]),
      B3Coef_(&B3Coef),
+     presCoef_(z_i_, ni0Coef_, Ti0Coef_),
      ChiParaCoef_(plasma.z_i, ne1Coef_, *y1Coef_[ELECTRON_TEMPERATURE]),
      dChidTParaCoef_(plasma.z_i, ne1Coef_,
                      *y1Coef_[ELECTRON_TEMPERATURE], ELECTRON_TEMPERATURE),
@@ -3014,11 +3042,14 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiParaGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace())),
      ChiPerpGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace()))
 {
-   // Time derivative term: 1.5 T_e z_i dn_i/dt
-   dbfi_m_[1].Append(new MassIntegrator(thTeCoef_));
+   /*
+    // Time derivative term: 1.5 T_e z_i dn_i/dt
+    dbfi_m_[1].Append(new MassIntegrator(thTeCoef_));
 
-   // Time derivative term: 1.5 n_e dT_e/dt
-   dbfi_m_[4].Append(new MassIntegrator(thneCoef_));
+    // Time derivative term: 1.5 n_e dT_e/dt
+    dbfi_m_[4].Append(new MassIntegrator(thneCoef_));
+   */
+   AddToM(presCoef_);
 
    // Diffusion term: -Div(chi Grad T_e)
    dbfi_.Append(new DiffusionIntegrator(ChiCoef_));

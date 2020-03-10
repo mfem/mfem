@@ -288,7 +288,8 @@ protected:
 };
 
 
-class StateVariableCoef : public StateVariableFunc, public Coefficient
+class StateVariableCoef : public StateVariableFunc,
+   public Coefficient
 {
 public:
    virtual double Eval(ElementTransformation &T,
@@ -335,7 +336,8 @@ protected:
    StateVariableCoef(FieldType deriv = INVALID) : StateVariableFunc(deriv) {}
 };
 
-class StateVariableVecCoef : public StateVariableFunc, public VectorCoefficient
+class StateVariableVecCoef : public StateVariableFunc,
+   public VectorCoefficient
 {
 public:
    virtual void Eval(Vector &V,
@@ -393,7 +395,8 @@ protected:
       : StateVariableFunc(deriv), VectorCoefficient(dim) {}
 };
 
-class StateVariableMatCoef : public StateVariableFunc, public MatrixCoefficient
+class StateVariableMatCoef : public StateVariableFunc,
+   public MatrixCoefficient
 {
 public:
    virtual void Eval(DenseMatrix &M,
@@ -452,6 +455,50 @@ protected:
 
    StateVariableMatCoef(int h, int w, FieldType deriv = INVALID)
       : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
+};
+
+class StateVariableGridFunctionCoefficient : public StateVariableCoef
+{
+private:
+   GridFunctionCoefficient gfc_;
+   FieldType fieldType_;
+
+public:
+   StateVariableGridFunctionCoefficient(FieldType field)
+      : fieldType_(field)
+   {}
+
+   StateVariableGridFunctionCoefficient(GridFunction *gf, FieldType field)
+      : gfc_(gf), fieldType_(field)
+   {}
+
+   void SetGridFunction(GridFunction *gf) { gfc_.SetGridFunction(gf); }
+   GridFunction * GetGridFunction() const { return gfc_.GetGridFunction(); }
+
+   FieldType GetFieldType() const { return fieldType_; }
+
+   bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID || deriv == fieldType_);
+   }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      if (derivType_ == INVALID)
+      {
+         return gfc_.Eval(T, ip);
+      }
+      else if (derivType_ == fieldType_)
+      {
+         return 1.0;
+      }
+      else
+      {
+         return 0.0;
+      }
+   }
+
 };
 
 /** Given the electron temperature in eV this coefficient returns an
@@ -792,6 +839,49 @@ public:
    }
 };
 
+class IonMomentumParaCoef : public StateVariableCoef
+{
+private:
+   double m_i_;
+   Coefficient &niCoef_;
+   Coefficient &viCoef_;
+
+public:
+   IonMomentumParaCoef(double m_i, Coefficient &niCoef, Coefficient &viCoef)
+      : m_i_(m_i), niCoef_(niCoef), viCoef_(viCoef) {}
+
+   bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY || deriv == ION_PARA_VELOCITY);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+
+      return m_i_ * ni * vi;
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double vi = viCoef_.Eval(T, ip);
+
+      return m_i_ * vi;
+   }
+
+   double Eval_dVi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+
+      return m_i_ * ni;
+   }
+};
+
 class IonMomentumParaDiffusionCoef : public StateVariableCoef
 {
 private:
@@ -974,6 +1064,77 @@ public:
       V[1] = mi_ * (ni1 * vi1 * B_[1] / Bmag +
                     Dperp * ((B_[0] * B_[0] + B_[2] * B_[2]) * gni1_[1] -
                              B_[0] * B_[1] * gni1_[0]) / Bmag2);
+   }
+};
+
+class StaticPressureCoef : public StateVariableCoef
+{
+private:
+   FieldType fieldType_;
+   int z_i_;
+   Coefficient &niCoef_;
+   Coefficient &TCoef_;
+
+public:
+   StaticPressureCoef(Coefficient &niCoef, Coefficient &TCoef)
+      : fieldType_(ION_TEMPERATURE),
+        z_i_(1), niCoef_(niCoef), TCoef_(TCoef) {}
+
+   StaticPressureCoef(int z_i, Coefficient &niCoef, Coefficient &TCoef)
+      : fieldType_(ELECTRON_TEMPERATURE),
+        z_i_(z_i), niCoef_(niCoef), TCoef_(TCoef) {}
+
+   bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY || deriv == fieldType_);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      return 1.5 * z_i_ * ni * Ts;
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double Ts = TCoef_.Eval(T, ip);
+
+      return 1.5 * z_i_ * Ts;
+   }
+
+   double Eval_dTi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      if (fieldType_ == ION_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+
+         return 1.5 * z_i_ * ni;
+      }
+      else
+      {
+         return 0.0;
+      }
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      if (fieldType_ == ELECTRON_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+
+         return 1.5 * z_i_ * ni;
+      }
+      else
+      {
+         return 0.0;
+      }
    }
 };
 
@@ -1472,7 +1633,7 @@ private:
    class NLOperator : public Operator
    {
    private:
-      ConstantCoefficient dummyCoef_;
+      StateVariableGridFunctionCoefficient dummyCoef_;
 
    protected:
       const MPI_Session &mpi_;
@@ -1485,7 +1646,7 @@ private:
       double m_n_;
       double T_n_;
       double m_i_;
-      int z_i_;
+      int    z_i_;
 
       int index_;
       std::string field_name_;
@@ -1495,15 +1656,15 @@ private:
       ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
 
-      Array<Coefficient*> yCoef_;
-      Array<Coefficient*> kCoef_;
+      Array<StateVariableGridFunctionCoefficient*> yCoef_;
+      Array<StateVariableGridFunctionCoefficient*> kCoef_;
       mutable Array<SumCoefficient*> y1Coef_;
 
-      Coefficient &nn0Coef_;
-      Coefficient &ni0Coef_;
-      Coefficient &vi0Coef_;
-      Coefficient &Ti0Coef_;
-      Coefficient &Te0Coef_;
+      StateVariableGridFunctionCoefficient &nn0Coef_;
+      StateVariableGridFunctionCoefficient &ni0Coef_;
+      StateVariableGridFunctionCoefficient &vi0Coef_;
+      StateVariableGridFunctionCoefficient &Ti0Coef_;
+      StateVariableGridFunctionCoefficient &Te0Coef_;
 
       Coefficient &nn1Coef_;
       Coefficient &ni1Coef_;
@@ -1528,6 +1689,7 @@ private:
 
       // Domain integrators for time derivatives of field variables
       Array<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
+      Array<Array<StateVariableCoef*> >      dbfi_mc_; // Domain Integrators
 
       // Domain integrators for field variables at next time step
       Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
@@ -1556,6 +1718,9 @@ private:
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
                  int vis_flag);
+
+
+      void AddToM(StateVariableCoef &MCoef);
 
    public:
 
@@ -1893,6 +2058,7 @@ private:
 
       VectorCoefficient * B3Coef_;
 
+      IonMomentumParaCoef            momCoef_;
       IonMomentumParaDiffusionCoef   EtaParaCoef_;
       ProductCoefficient             EtaPerpCoef_;
       Aniso2DDiffusionCoef           EtaCoef_;
@@ -2005,6 +2171,7 @@ private:
 
       VectorCoefficient *      B3Coef_;
 
+      StaticPressureCoef               presCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
@@ -2108,6 +2275,7 @@ private:
 
       VectorCoefficient *      B3Coef_;
 
+      StaticPressureCoef               presCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
       ElectronThermalParaDiffusionCoef dChidTParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
