@@ -24,23 +24,34 @@ CCC = $(CC) $(CCOPTS)
 # -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
 INCLUDES = -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
-SOURCE_FILES = $(SRC)unit_test_main.cpp $(sort $(wildcard $(SRC)*/*.cpp))
+SOURCE_FILES = $(sort $(wildcard $(SRC)*/*.cpp))
 HEADER_FILES = $(SRC)catch.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
-# Sedov numerical tests
-SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
-SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
-SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda)
-SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda_uvm)
-SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
-SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
-SEDOV_CUDA_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.o))
-SEDOV_CUDA_UVM_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+SEQ_MAIN_OBJ = unit_test_main.o
+PAR_MAIN_OBJ = punit_test_main.o
 
-SEQ_UNIT_TESTS = unit_tests $(SEDOV_TESTS)
-PAR_UNIT_TESTS = $(SEDOV_TESTS)
+# Sedov numerical seq/par files and tests
+SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
+
+SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
+SEQ_SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda)
+SEQ_SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda_uvm)
+PAR_SEDOV_TESTS = $(SEQ_SEDOV_TESTS:%=p%)
+
+SEQ_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
+SEQ_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
+SEQ_SEDOV_CUDA_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.o))
+SEQ_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+
+PAR_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu.o)
+PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
+PAR_SEDOV_CUDA_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
+PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
+
+SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
+PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
 
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
@@ -54,12 +65,15 @@ all: $(UNIT_TESTS)
 .SUFFIXES: .cpp .o
 .PHONY: all clean
 
-unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests: $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(SEQ_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
@@ -69,20 +83,36 @@ $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 comma=,
 define sedov_tests
 sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_TESTS -DMFEM_SEDOV_DEVICE='"$(3)"'
-sedov_tests_$(1): unit_test_main.o $$(SEDOV_$(2)_OBJ_FILES) \
+sedov_tests_$(1): unit_test_main.o $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
  $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(<) $$(SEDOV_$(2)_OBJ_FILES) \
+	$$(CCC) $$(<) $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
 	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+$$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
 	@mkdir -p $$(@D)
 	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
 	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
 endef
-
 $(eval $(call sedov_tests,cpu,CPU,cpu))
 $(eval $(call sedov_tests,debug,DEBUG,debug))
 $(eval $(call sedov_tests,cuda,CUDA,cuda))
 $(eval $(call sedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+define psedov_tests
+psedov_tests_$(1): SEDOV_TESTS_FLAGS =-DMFEM_SEDOV_MPI
+psedov_tests_$(1): SEDOV_TESTS_FLAGS+=-DMFEM_SEDOV_TESTS -DMFEM_SEDOV_DEVICE='"$(3)"'
+psedov_tests_$(1): punit_test_main.o $$(PAR_SEDOV_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(PAR_SEDOV_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call psedov_tests,cpu,CPU,cpu))
+$(eval $(call psedov_tests,debug,DEBUG,debug))
+$(eval $(call psedov_tests,cuda,CUDA,cuda))
+$(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
