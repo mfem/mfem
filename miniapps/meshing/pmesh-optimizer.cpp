@@ -208,7 +208,6 @@ double ori_values(const Vector &x)
       return theta;
    }
 
-
    return 0.0;
 }
 
@@ -319,7 +318,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-08;
+   double newton_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -782,7 +781,7 @@ int main (int argc, char *argv[])
    if (tauval > 0.0)
    {
       tauval = 0.0;
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(),*ir);
+      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
       newton = tns;
       if (myid == 0)
       { cout << "TMOPNewtonSolver is used (as all det(J) > 0)." << endl; }
