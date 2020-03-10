@@ -181,7 +181,7 @@ public:
       int edge_flags; ///< edge orientation flags
       DenseMatrix point_matrix; ///< position within the master edge/face
 
-      Slave(int index, int element, char local, char geom)
+      Slave(int index, int element, signed char local, signed char geom)
          : MeshId(index, element, local, geom)
          , master(-1), edge_flags(0) {}
 

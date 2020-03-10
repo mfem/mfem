@@ -16,6 +16,8 @@
 #include "../general/tassign.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
+#include "../general/cuda.hpp"
+#include "../general/hip.hpp"
 
 // Templated tensor implementation (up to order 4)
 
@@ -36,6 +38,7 @@ struct TensorOps<1> // rank = 1
    // Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
+   MFEM_HOST_DEVICE
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
                       scalar_t value)
    {
@@ -70,6 +73,7 @@ struct TensorOps<2> // rank = 2
    // Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
+   MFEM_HOST_DEVICE
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
                       scalar_t value)
    {
@@ -216,6 +220,7 @@ struct TensorOps<4> // rank = 4
 // Tensor or sub-tensor assign function: A {=,+=,*=} scalar_value.
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename scalar_t>
+MFEM_HOST_DEVICE
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
                     scalar_t value)
 {
@@ -251,8 +256,8 @@ public:
    typedef StridedLayout1D<S,1> layout_type;
    static const layout_type layout;
 
-   data_t &operator[](int i) { return data[i]; }
-   const data_t &operator[](int i) const { return data[i]; }
+   MFEM_HOST_DEVICE data_t &operator[](int i) { return data[i]; }
+   MFEM_HOST_DEVICE const data_t &operator[](int i) const { return data[i]; }
 
    template <AssignOp::Type Op>
    void Assign(const data_t d)
