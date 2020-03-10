@@ -138,7 +138,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    }
    else
    {
-      // handle the case when 'a' contains offdiagonal
+      // handle the case when 'a' contains off-diagonal
       int lvsize = pfes->GetVSize();
       const HYPRE_Int *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
       HYPRE_Int ldof_offset = pfes->GetMyDofOffset();

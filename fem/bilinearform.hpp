@@ -96,11 +96,9 @@ protected:
    StaticCondensation *static_cond; ///< Owned.
    Hybridization *hybridization; ///< Owned.
 
-   /**
-    * This member allows one to specify what should be done
-    * to the diagonal matrix entries and corresponding RHS
-    * values upon elimination of the constrained DoFs.
-    */
+   /** This data member allows one to specify what should be done to the
+       diagonal matrix entries and corresponding RHS values upon elimination of
+       the constrained DoFs. */
    DiagonalPolicy diag_policy;
 
    int precompute_sparsity;
