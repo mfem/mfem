@@ -195,7 +195,7 @@ IrrotationalProjector::Mult(const Vector &x, Vector &y) const
    if ( pcg_ == NULL ) { this->InitSolver(); }
    pcg_->Mult(RHS_, Psi_);
 
-   // Compute the parallel grid function correspoinding to Psi
+   // Compute the parallel grid function corresponding to Psi
    s0_->RecoverFEMSolution(Psi_, *xDiv_, *psi_);
 
    // Compute the irrotational portion of x
