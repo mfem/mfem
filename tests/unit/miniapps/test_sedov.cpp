@@ -17,14 +17,20 @@
 #include "catch.hpp"
 #include <unordered_map>
 
+#include "config/config.hpp"
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
+#warning PAR
 #include "mfem.hpp"
 #include "general/forall.hpp"
-
-#ifdef MFEM_USE_MPI
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
+#undef MFEM_USE_MPI
+#include "mfem.hpp"
+#include "general/forall.hpp"
+#define MFEM_MPI_STUB
 typedef int MPI_Comm;
 typedef int HYPRE_Int;
 #define ParMesh Mesh
@@ -50,9 +56,8 @@ void MPI_Reduce_(T *src, T *dst, const int n)
 class MPI_Session
 {
 public:
-   MPI_Session() {}
-   MPI_Session(int argc, char **argv) {}
-   bool Root() { return true; }
+   MPI_Session() { printf("\n\033[1;33m[MPI_Session]\033[m"); }
+   bool Root() { printf("\n\033[1;33m[Root]\033[m"); return true; }
    int WorldRank() { return 0; }
    int WorldSize() { return 1; }
 };
@@ -64,9 +69,9 @@ using namespace mfem;
 namespace mfem
 {
 
-static void v0(const Vector &x, Vector &v) { v = 0.0; }
-static double rho0(const Vector &x) { return 1.0; }
-static double gamma(const Vector &x) { return 1.4; }
+static void v0(const Vector&, Vector &v) { v = 0.0; }
+static double rho0(const Vector&) { return 1.0; }
+static double gamma(const Vector&) { return 1.4; }
 
 MFEM_HOST_DEVICE static inline
 double norml2(const int size, const double *data)
@@ -3668,31 +3673,45 @@ static void sedov_tests(MPI_Session &mpi)
 
 }
 
+#if defined(MFEM_SEDOV_MPI)
 #ifndef MFEM_SEDOV_TESTS
-
+#warning Main_Parallel
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-#ifdef MFEM_USE_MPI
+   printf("\n\033[33m[1]\033[m"); fflush(0);
    MPI_Session &mpi = *GlobalMPISession;
-#else
-   MPI_Session mpi;
-#endif
    sedov_tests(mpi);
 }
-
 #else
-
+#warning Main_Parallel_Device
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-#ifdef MFEM_USE_MPI
+   printf("\n\033[33m[2]\033[m"); fflush(0);
    MPI_Session &mpi = *GlobalMPISession;
-#else
-   MPI_Session mpi;
-#endif
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
-   if (mpi.Root()) {device.Print();}
+   device.Print();
    sedov_tests(mpi);
 }
-
-#endif // MFEM_SEDOV_TESTS
+#endif
+#else // All are serial now:
+#ifndef MFEM_SEDOV_TESTS
+#warning Main_Serial
+TEST_CASE("Sedov", "[Sedov]")
+{
+   printf("\n\033[33m[3]\033[m"); fflush(0);
+   MPI_Session seq;
+   sedov_tests(seq);
+}
+#else
+#warning Main_Serial_Device
+TEST_CASE("Sedov", "[Sedov]")
+{
+   printf("\n\033[33m[4]\033[m"); fflush(0);
+   Device device;
+   device.Configure(MFEM_SEDOV_DEVICE);
+   MPI_Session seq;
+   sedov_tests(seq);
+}
+#endif
+#endif
