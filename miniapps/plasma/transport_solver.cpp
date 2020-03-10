@@ -1327,7 +1327,6 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      ne0Coef_(z_i_, dummyCoef_),
      ne1Coef_(z_i_, dummyCoef_),
      dbfi_m_(5),
-     dbfi_mc_(5),
      blf_(5),
      vis_flag_(vis_flag),
      dc_(NULL)
@@ -1336,10 +1335,8 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
 
    for (int i=0; i<yGF_.Size(); i++)
    {
-      yCoef_[i] = new StateVariableGridFunctionCoefficient(yGF_[i],
-                                                           (FieldType)i);
-      kCoef_[i] = new StateVariableGridFunctionCoefficient(kGF_[i],
-                                                           (FieldType)i);
+      yCoef_[i] = new StateVariableGridFunctionCoef(yGF_[i], (FieldType)i);
+      kCoef_[i] = new StateVariableGridFunctionCoef(kGF_[i], (FieldType)i);
       y1Coef_[i] = new SumCoefficient(*yCoef_[i], *kCoef_[i]);
    }
 
@@ -1375,6 +1372,10 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete blf_[i];
    }
+   for (int i=0; i<coefs_.Size(); i++)
+   {
+      delete coefs_[i];
+   }
 }
 
 void DGTransportTDO::NLOperator::AddToM(StateVariableCoef &MCoef)
@@ -1383,8 +1384,10 @@ void DGTransportTDO::NLOperator::AddToM(StateVariableCoef &MCoef)
    {
       if (MCoef.NonTrivialValue((FieldType)i))
       {
-         dbfi_m_[i].Append(new MassIntegrator(MCoef));
-         dbfi_mc_[i].Append(&MCoef);
+         StateVariableCoef * coef = MCoef.Clone();
+         coef->SetDerivType((FieldType)i);
+         coefs_.Append(coef);
+         dbfi_m_[i].Append(new MassIntegrator(*coef));
       }
    }
 }
@@ -1469,11 +1472,9 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
          {
             kGF_[j]->GetSubVector(vdofs_, locdvec_);
 
-            dbfi_mc_[j][0]->SetDerivType((FieldType)j);
             dbfi_m_[j][0]->AssembleElementMatrix(fe, *eltrans, elmat_);
             for (int k = 1; k < dbfi_m_[j].Size(); k++)
             {
-               dbfi_mc_[j][k]->SetDerivType((FieldType)j);
                dbfi_m_[j][k]->AssembleElementMatrix(fe, *eltrans, elmat_k_);
                elmat_ += elmat_k_;
             }

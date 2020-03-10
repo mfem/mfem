@@ -292,6 +292,9 @@ class StateVariableCoef : public StateVariableFunc,
    public Coefficient
 {
 public:
+
+   virtual StateVariableCoef * Clone() const = 0;
+
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
@@ -457,20 +460,32 @@ protected:
       : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
 };
 
-class StateVariableGridFunctionCoefficient : public StateVariableCoef
+class StateVariableGridFunctionCoef : public StateVariableCoef
 {
 private:
    GridFunctionCoefficient gfc_;
    FieldType fieldType_;
 
 public:
-   StateVariableGridFunctionCoefficient(FieldType field)
+   StateVariableGridFunctionCoef(FieldType field)
       : fieldType_(field)
    {}
 
-   StateVariableGridFunctionCoefficient(GridFunction *gf, FieldType field)
+   StateVariableGridFunctionCoef(GridFunction *gf, FieldType field)
       : gfc_(gf), fieldType_(field)
    {}
+
+   StateVariableGridFunctionCoef(const StateVariableGridFunctionCoef &other)
+   {
+      derivType_ = other.derivType_;
+      fieldType_ = other.fieldType_;
+      gfc_       = other.gfc_;
+   }
+
+   virtual StateVariableGridFunctionCoef * Clone() const
+   {
+      return new StateVariableGridFunctionCoef(*this);
+   }
 
    void SetGridFunction(GridFunction *gf) { gfc_.SetGridFunction(gf); }
    GridFunction * GetGridFunction() const { return gfc_.GetGridFunction(); }
@@ -517,6 +532,17 @@ public:
    ApproxIonizationRate(Coefficient &TeCoef)
       : TeCoef_(&TeCoef) {}
 
+   ApproxIonizationRate(const ApproxIonizationRate &other)
+   {
+      derivType_ = other.derivType_;
+      TeCoef_    = other.TeCoef_;
+   }
+
+   virtual ApproxIonizationRate * Clone() const
+   {
+      return new ApproxIonizationRate(*this);
+   }
+
    bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
@@ -552,6 +578,17 @@ public:
    ApproxRecombinationRate(Coefficient &TeCoef)
       : TeCoef_(&TeCoef) {}
 
+   ApproxRecombinationRate(const ApproxRecombinationRate &other)
+   {
+      derivType_ = other.derivType_;
+      TeCoef_    = other.TeCoef_;
+   }
+
+   virtual ApproxRecombinationRate * Clone() const
+   {
+      return new ApproxRecombinationRate(*this);
+   }
+
    bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
@@ -586,6 +623,19 @@ public:
    NeutralDiffusionCoef(ProductCoefficient &neCoef, Coefficient &vnCoef,
                         StateVariableCoef &izCoef)
       : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
+
+   NeutralDiffusionCoef(const NeutralDiffusionCoef &other)
+   {
+      derivType_ = other.derivType_;
+      ne_ = other.ne_;
+      vn_ = other.vn_;
+      iz_ = other.iz_;
+   }
+
+   virtual NeutralDiffusionCoef * Clone() const
+   {
+      return new NeutralDiffusionCoef(*this);
+   }
 
    bool NonTrivialValue(FieldType deriv) const
    {
@@ -740,6 +790,19 @@ public:
                  StateVariableCoef &izCoef)
       : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(1e10) {}
 
+   IonSourceCoef(const IonSourceCoef &other)
+   {
+      derivType_ = other.derivType_;
+      ne_ = other.ne_;
+      nn_ = other.nn_;
+      iz_ = other.iz_;
+   }
+
+   virtual IonSourceCoef * Clone() const
+   {
+      return new IonSourceCoef(*this);
+   }
+
    bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == NEUTRAL_DENSITY ||
@@ -800,6 +863,19 @@ public:
                StateVariableCoef &rcCoef)
       : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef) {}
 
+   IonSinkCoef(const IonSinkCoef &other)
+   {
+      derivType_ = other.derivType_;
+      ne_ = other.ne_;
+      ni_ = other.ni_;
+      rc_ = other.rc_;
+   }
+
+   virtual IonSinkCoef * Clone() const
+   {
+      return new IonSinkCoef(*this);
+   }
+
    bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
@@ -850,6 +926,19 @@ public:
    IonMomentumParaCoef(double m_i, Coefficient &niCoef, Coefficient &viCoef)
       : m_i_(m_i), niCoef_(niCoef), viCoef_(viCoef) {}
 
+   IonMomentumParaCoef(const IonMomentumParaCoef &other)
+      : niCoef_(other.niCoef_),
+        viCoef_(other.viCoef_)
+   {
+      derivType_ = other.derivType_;
+      m_i_ = other.m_i_;
+   }
+
+   virtual IonMomentumParaCoef * Clone() const
+   {
+      return new IonMomentumParaCoef(*this);
+   }
+
    bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
@@ -885,8 +974,8 @@ public:
 class IonMomentumParaDiffusionCoef : public StateVariableCoef
 {
 private:
-   double zi_;
-   double mi_;
+   double z_i_;
+   double m_i_;
    const double lnLambda_;
    const double a_;
 
@@ -895,13 +984,29 @@ private:
 public:
    IonMomentumParaDiffusionCoef(int ion_charge, double ion_mass,
                                 Coefficient &TiCoef)
-      : zi_((double)ion_charge), mi_(ion_mass),
+      : z_i_((double)ion_charge), m_i_(ion_mass),
         lnLambda_(17.0),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-           sqrt(mi_ * amu_ * pow(eV_, 5) / M_PI) /
-           (lnLambda_ * amu_ * pow(q_ * zi_, 4))),
+           sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
+           (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
         TiCoef_(&TiCoef)
    {}
+
+   IonMomentumParaDiffusionCoef(const IonMomentumParaDiffusionCoef &other)
+      : z_i_(other.z_i_), m_i_(other.m_i_),
+        lnLambda_(17.0),
+        a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+           sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
+           (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
+        TiCoef_(other.TiCoef_)
+   {
+      derivType_ = other.derivType_;
+   }
+
+   virtual IonMomentumParaDiffusionCoef * Clone() const
+   {
+      return new IonMomentumParaDiffusionCoef(*this);
+   }
 
    bool NonTrivialValue(FieldType deriv) const
    {
@@ -1084,6 +1189,20 @@ public:
       : fieldType_(ELECTRON_TEMPERATURE),
         z_i_(z_i), niCoef_(niCoef), TCoef_(TCoef) {}
 
+   StaticPressureCoef(const StaticPressureCoef &other)
+      : niCoef_(other.niCoef_),
+        TCoef_(other.TCoef_)
+   {
+      derivType_ = other.derivType_;
+      fieldType_ = other.fieldType_;
+      z_i_       = other.z_i_;
+   }
+
+   virtual StaticPressureCoef * Clone() const
+   {
+      return new StaticPressureCoef(*this);
+   }
+
    bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
@@ -1158,6 +1277,22 @@ public:
         niCoef_(&niCoef), TiCoef_(&TiCoef)
    {}
 
+   IonThermalParaDiffusionCoef(const IonThermalParaDiffusionCoef &other)
+   {
+      derivType_ = other.derivType_;
+      z_i_       = other.z_i_;
+      m_i_       = other.m_i_;
+      m_i_kg_    = other.m_i_kg_;
+      niCoef_    = other.niCoef_;
+      TiCoef_    = other.TiCoef_;
+
+   }
+
+   virtual IonThermalParaDiffusionCoef * Clone() const
+   {
+      return new IonThermalParaDiffusionCoef(*this);
+   }
+
    bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
@@ -1201,6 +1336,20 @@ public:
       : StateVariableCoef(deriv),
         z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
    {}
+
+   ElectronThermalParaDiffusionCoef(
+      const ElectronThermalParaDiffusionCoef &other)
+   {
+      derivType_ = other.derivType_;
+      z_i_ = other.z_i_;
+      neCoef_ = other.neCoef_;
+      TeCoef_ = other.TeCoef_;
+   }
+
+   virtual ElectronThermalParaDiffusionCoef * Clone() const
+   {
+      return new ElectronThermalParaDiffusionCoef(*this);
+   }
 
    bool NonTrivialValue(FieldType deriv) const
    {
@@ -1386,6 +1535,32 @@ public:
         grad_dTi0_(kGF[ION_TEMPERATURE]),
         grad_dTe0_(kGF[ELECTRON_TEMPERATURE]),
         B3_(&B3Coef), B_(3) {}
+
+   GradPressureCoefficient(const GradPressureCoefficient & other)
+      : ni0_(other.ni0_),
+        Ti0_(other.Ti0_),
+        Te0_(other.Te0_),
+        dni0_(other.dni0_),
+        dTi0_(other.dTi0_),
+        dTe0_(other.dTe0_),
+        grad_ni0_(ni0_.GetGridFunction()),
+        grad_Ti0_(Ti0_.GetGridFunction()),
+        grad_Te0_(Te0_.GetGridFunction()),
+        grad_dni0_(dni0_.GetGridFunction()),
+        grad_dTi0_(dTi0_.GetGridFunction()),
+        grad_dTe0_(dTe0_.GetGridFunction()),
+        B_(3)
+   {
+      derivType_ = other.derivType_;
+      zi_ = other.zi_;
+      dt_ = other.dt_;
+      B3_ = other.B3_;
+   }
+
+   virtual GradPressureCoefficient * Clone() const
+   {
+      return new GradPressureCoefficient(*this);
+   }
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
@@ -1633,7 +1808,8 @@ private:
    class NLOperator : public Operator
    {
    private:
-      StateVariableGridFunctionCoefficient dummyCoef_;
+      StateVariableGridFunctionCoef dummyCoef_;
+      Array<StateVariableCoef*> coefs_;
 
    protected:
       const MPI_Session &mpi_;
@@ -1656,15 +1832,15 @@ private:
       ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
 
-      Array<StateVariableGridFunctionCoefficient*> yCoef_;
-      Array<StateVariableGridFunctionCoefficient*> kCoef_;
+      Array<StateVariableGridFunctionCoef*> yCoef_;
+      Array<StateVariableGridFunctionCoef*> kCoef_;
       mutable Array<SumCoefficient*> y1Coef_;
 
-      StateVariableGridFunctionCoefficient &nn0Coef_;
-      StateVariableGridFunctionCoefficient &ni0Coef_;
-      StateVariableGridFunctionCoefficient &vi0Coef_;
-      StateVariableGridFunctionCoefficient &Ti0Coef_;
-      StateVariableGridFunctionCoefficient &Te0Coef_;
+      StateVariableGridFunctionCoef &nn0Coef_;
+      StateVariableGridFunctionCoef &ni0Coef_;
+      StateVariableGridFunctionCoef &vi0Coef_;
+      StateVariableGridFunctionCoef &Ti0Coef_;
+      StateVariableGridFunctionCoef &Te0Coef_;
 
       Coefficient &nn1Coef_;
       Coefficient &ni1Coef_;
@@ -1689,7 +1865,7 @@ private:
 
       // Domain integrators for time derivatives of field variables
       Array<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
-      Array<Array<StateVariableCoef*> >      dbfi_mc_; // Domain Integrators
+      // Array<Array<StateVariableCoef*> >      dbfi_mc_; // Domain Integrators
 
       // Domain integrators for field variables at next time step
       Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
