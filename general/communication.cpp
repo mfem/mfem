@@ -1394,7 +1394,7 @@ MPI_Comm ReorderRanksZCurve(MPI_Comm comm)
 
       KdTreeSort(coords, 0, dim, size);
 
-      //DebugRankCoords(coords, dim, size);
+      // DebugRankCoords(coords, dim, size);
 
       for (int i = 0; i < size; i++)
       {

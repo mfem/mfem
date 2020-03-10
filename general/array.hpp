@@ -398,7 +398,7 @@ public:
    inline void MakeRef(const Array2D &master)
    { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
 
-   /// Delete all dynamically allocated memory, reseting all dimentions to zero.
+   /// Delete all dynamically allocated memory, resetting all dimensions to zero.
    inline void DeleteAll() { M = 0; N = 0; array1d.DeleteAll(); }
 
    /// Prints array to stream with width elements per row
