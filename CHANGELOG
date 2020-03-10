@@ -22,7 +22,7 @@ Improved GPU capabilities
   discovery, provision, and management of memory on machines with multiple
   memory devices like NUMA and GPUs, see https://github.com/LLNL/Umpire.
 
-- GPU acceleration is now available in 3 additional example codes: 3, 9 and 24.
+- GPU acceleration is now available in 3 additional examples: 3, 9 and 24.
 
 - Improved RAJA backend and multi-GPU MPI communications.
 
@@ -78,14 +78,14 @@ Partial assembly and matrix-free discretizations
   BilinearFormIntegrator and the implementations in fem/bilininteg_*.cpp.
 
 - In many examples, the partial assembly algorithms provides significantly
-  improved performance, particularly in high-order 3D GPU runs.
+  improved performance, particularly in high-order 3D runs on GPUs.
 
 Meshing improvements
 --------------------
 - The algorithms for mesh element numbering were changed to have significantly
   better caching and parallel partitioning properties. Both initial (see e.g.
   Mesh::GetHilbertElementOrdering) and ordering after uniform refinement were
-  improved. Note that ordering can have a round-off effect on solver results.
+  improved. NOTE: new ordering can have a round-off effect on solver results.
 
 - Added support for non-conforming AMR on both prisms and tetrahedra, including
   coarsening and parallel load balancing. Anisotropic prism refinement is only
@@ -166,7 +166,7 @@ New and updated examples and miniapps
   The toys include simulations of cellular automata, Rubik's cube, Mandelbrot
   set, a tool to convert any image to mfem mesh, and more.
 
-- Added eight new example codes:
+- Added 8 new example codes:
   * Example 22/22p demonstrates the use of the new complex-valued finite element
     operators by defining and solving a family of time-harmonic PDEs related to
     damped harmonic oscillators.
@@ -174,9 +174,9 @@ New and updated examples and miniapps
     time integrators.
   * Example 24/24p demonstrates usage of mixed finite element spaces in bilinear
     forms. Partial assembly is supported in this example.
-  * Added a version of Example 1 in examples/ginkgo demonstrating the use of the
+  * A version of Example 1 in examples/ginkgo demonstrating the use of the
     Gingko interface to solve a linear system.
-  * Added a version of Example 9/9p in examples/hiop demonstrating the nonlinear
+  * A version of Example 9/9p in examples/hiop demonstrating the nonlinear
     constrained optimization interface and use of the SLBQP and HiOp solvers.
 
 - Added two new miniapps: Find Points and Field Diff in miniapps/gslib that show
