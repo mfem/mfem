@@ -23,6 +23,7 @@
 #warning PAR
 #include "mfem.hpp"
 #include "general/forall.hpp"
+#include "linalg/kernels.hpp"
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
@@ -30,6 +31,7 @@ extern mfem::MPI_Session *GlobalMPISession;
 #undef MFEM_USE_MPI
 #include "mfem.hpp"
 #include "general/forall.hpp"
+#include "linalg/kernels.hpp"
 #define MFEM_MPI_STUB
 typedef int MPI_Comm;
 typedef int HYPRE_Int;
@@ -56,8 +58,9 @@ void MPI_Reduce_(T *src, T *dst, const int n)
 class MPI_Session
 {
 public:
-   MPI_Session() { printf("\n\033[1;33m[MPI_Session]\033[m"); }
-   bool Root() { printf("\n\033[1;33m[Root]\033[m"); return true; }
+   MPI_Session() { }
+   MPI_Session(int, char**) { }
+   bool Root() { return true; }
    int WorldRank() { return 0; }
    int WorldSize() { return 1; }
 };
@@ -72,1050 +75,6 @@ namespace mfem
 static void v0(const Vector&, Vector &v) { v = 0.0; }
 static double rho0(const Vector&) { return 1.0; }
 static double gamma(const Vector&) { return 1.4; }
-
-MFEM_HOST_DEVICE static inline
-double norml2(const int size, const double *data)
-{
-   if (0 == size) { return 0.0; }
-   if (1 == size) { return std::abs(data[0]); }
-   double scale = 0.0;
-   double sum = 0.0;
-   for (int i = 0; i < size; i++)
-   {
-      if (data[i] != 0.0)
-      {
-         const double absdata = fabs(data[i]);
-         if (scale <= absdata)
-         {
-            const double sqr_arg = scale / absdata;
-            sum = 1.0 + sum * (sqr_arg * sqr_arg);
-            scale = absdata;
-            continue;
-         }
-         //MFEM_VERIFY(scale>0.0,"");
-         const double sqr_arg = absdata / scale;
-         sum += (sqr_arg * sqr_arg);
-      }
-   }
-   return scale * sqrt(sum);
-}
-
-MFEM_HOST_DEVICE static inline
-void symmetrize(const int n, double *d)
-{
-   for (int i = 0; i<n; i++)
-   {
-      for (int j = 0; j<i; j++)
-      {
-         const double a = 0.5 * (d[i*n+j] + d[j*n+i]);
-         d[j*n+i] = d[i*n+j] = a;
-      }
-   }
-}
-
-MFEM_HOST_DEVICE static inline
-void multABt(const int ah, const int aw, const int bh,
-             const double *A, const double *B, double *C)
-{
-   const int ah_x_bh = ah*bh;
-   for (int i=0; i<ah_x_bh; i+=1)
-   {
-      C[i] = 0.0;
-   }
-   for (int k=0; k<aw; k+=1)
-   {
-      double *c = C;
-      for (int j=0; j<bh; j+=1)
-      {
-         const double bjk = B[j];
-         for (int i=0; i<ah; i+=1)
-         {
-            c[i] += A[i] * bjk;
-         }
-         c += ah;
-      }
-      A += ah;
-      B += bh;
-   }
-}
-
-namespace blas
-{
-
-MFEM_HOST_DEVICE static inline void Swap(double &a, double &b)
-{
-   double tmp = a;
-   a = b;
-   b = tmp;
-}
-
-const static double Epsilon = std::numeric_limits<double>::epsilon();
-
-template<int dim> double Det(const double *d);
-
-template<> MFEM_HOST_DEVICE inline double Det<2>(const double *d)
-{
-   return d[0] * d[3] - d[1] * d[2];
-}
-
-template<> MFEM_HOST_DEVICE inline double Det<3>(const double *d)
-{
-   return d[0] * (d[4] * d[8] - d[5] * d[7]) +
-          d[3] * (d[2] * d[7] - d[1] * d[8]) +
-          d[6] * (d[1] * d[5] - d[2] * d[4]);
-}
-
-template<int dim> void CalcInverse(const double *a, double *i);
-
-template<> MFEM_HOST_DEVICE inline
-void CalcInverse<2>(const double *a, double *inva)
-{
-   constexpr int n = 2;
-   const double d = blas::Det<2>(a);
-   const double t = 1.0 / d;
-   inva[0*n+0] =  a[1*n+1] * t ;
-   inva[0*n+1] = -a[0*n+1] * t ;
-   inva[1*n+0] = -a[1*n+0] * t ;
-   inva[1*n+1] =  a[0*n+0] * t ;
-}
-
-template<> MFEM_HOST_DEVICE inline
-void CalcInverse<3>(const double *a, double *inva)
-{
-   constexpr int n = 3;
-   const double d = blas::Det<3>(a);
-   const double t = 1.0 / d;
-   inva[0*n+0] = (a[1*n+1]*a[2*n+2]-a[1*n+2]*a[2*n+1])*t;
-   inva[0*n+1] = (a[0*n+2]*a[2*n+1]-a[0*n+1]*a[2*n+2])*t;
-   inva[0*n+2] = (a[0*n+1]*a[1*n+2]-a[0*n+2]*a[1*n+1])*t;
-
-   inva[1*n+0] = (a[1*n+2]*a[2*n+0]-a[1*n+0]*a[2*n+2])*t;
-   inva[1*n+1] = (a[0*n+0]*a[2*n+2]-a[0*n+2]*a[2*n+0])*t;
-   inva[1*n+2] = (a[0*n+2]*a[1*n+0]-a[0*n+0]*a[1*n+2])*t;
-
-   inva[2*n+0] = (a[1*n+0]*a[2*n+1]-a[1*n+1]*a[2*n+0])*t;
-   inva[2*n+1] = (a[0*n+1]*a[2*n+0]-a[0*n+0]*a[2*n+1])*t;
-   inva[2*n+2] = (a[0*n+0]*a[1*n+1]-a[0*n+1]*a[1*n+0])*t;
-}
-
-MFEM_HOST_DEVICE static inline
-void Add(const int height, const int width, const double alpha,
-         const double *A, const double *B, double *C)
-{
-   for (int j = 0; j < width; j++)
-   {
-      for (int i = 0; i < height; i++)
-      {
-         const int n = i*width+j;
-         C[n] = A[n] + alpha * B[n];
-      }
-   }
-}
-
-MFEM_HOST_DEVICE static inline
-void Mult(const int ah, const int aw, const int bw,
-          const double *B, const double *C, double *A)
-{
-   const int ah_x_aw = ah*aw;
-   for (int i = 0; i < ah_x_aw; i++) { A[i] = 0.0; }
-   for (int j = 0; j < aw; j++)
-   {
-      for (int k = 0; k < bw; k++)
-      {
-         for (int i = 0; i < ah; i++)
-         {
-            A[i+j*ah] += B[i+k*ah] * C[k+j*bw];
-         }
-      }
-   }
-}
-
-MFEM_HOST_DEVICE static inline
-void MultV(const int height, const int width,
-           double *data, const double *x, double *y)
-{
-   if (width == 0)
-   {
-      for (int row = 0; row < height; row++)
-      {
-         y[row] = 0.0;
-      }
-      return;
-   }
-   double *d_col = data;
-   double x_col = x[0];
-   for (int row = 0; row < height; row++)
-   {
-      y[row] = x_col*d_col[row];
-   }
-   d_col += height;
-   for (int col = 1; col < width; col++)
-   {
-      x_col = x[col];
-      for (int row = 0; row < height; row++)
-      {
-         y[row] += x_col*d_col[row];
-      }
-      d_col += height;
-   }
-}
-
-MFEM_HOST_DEVICE static inline
-void Eigensystem2S(const double &d12, double &d1, double &d2,
-                   double &c, double &s)
-{
-   const double sqrt_1_eps = sqrt(1./Epsilon);
-   if (d12 == 0.0)
-   {
-      c = 1.;
-      s = 0.;
-   }
-   else
-   {
-      double t;
-      const double zeta = (d2 - d1)/(2*d12);
-      const double azeta = fabs(zeta);
-      if (azeta < sqrt_1_eps)
-      {
-         t = copysign(1./(azeta + sqrt(1. + zeta*zeta)), zeta);
-      }
-      else
-      {
-         t = copysign(0.5/azeta, zeta);
-      }
-      c = sqrt(1./(1. + t*t));
-      s = c*t;
-      t *= d12;
-      d1 -= t;
-      d2 += t;
-   }
-}
-
-template<int dim>
-void CalcEigenvalues(const double *d, double *lambda, double *vec);
-
-template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<2>(const double *d, double *lambda, double *vec)
-{
-   double d0 = d[0];
-   double d2 = d[2];
-   double d3 = d[3];
-   double c, s;
-   Eigensystem2S(d2, d0, d3, c, s);
-   if (d0 <= d3)
-   {
-      lambda[0] = d0;
-      lambda[1] = d3;
-      vec[0] =  c;
-      vec[1] = -s;
-      vec[2] =  s;
-      vec[3] =  c;
-   }
-   else
-   {
-      lambda[0] = d3;
-      lambda[1] = d0;
-      vec[0] =  s;
-      vec[1] =  c;
-      vec[2] =  c;
-      vec[3] = -s;
-   }
-}
-
-MFEM_HOST_DEVICE static inline
-void GetScalingFactor(const double &d_max, double &mult)
-{
-   int d_exp;
-   if (d_max > 0.)
-   {
-      mult = frexp(d_max, &d_exp);
-      if (d_exp == std::numeric_limits<double>::max_exponent)
-      {
-         mult *= std::numeric_limits<double>::radix;
-      }
-      mult = d_max/mult;
-   }
-   else
-   {
-      mult = 1.;
-   }
-}
-
-MFEM_HOST_DEVICE static inline
-bool KernelVector2G(const int &mode,
-                    double &d1, double &d12, double &d21, double &d2)
-{
-   double n1 = fabs(d1) + fabs(d21);
-   double n2 = fabs(d2) + fabs(d12);
-   bool swap_columns = (n2 > n1);
-   double mu;
-   if (!swap_columns)
-   {
-      if (n1 == 0.)
-      {
-         return true;
-      }
-
-      if (mode == 0)
-      {
-         if (fabs(d1) > fabs(d21))
-         {
-            Swap(d1, d21);
-            Swap(d12, d2);
-         }
-      }
-      else
-      {
-         if (fabs(d1) < fabs(d21))
-         {
-            Swap(d1, d21);
-            Swap(d12, d2);
-         }
-      }
-   }
-   else
-   {
-      if (mode == 0)
-      {
-         if (fabs(d12) > fabs(d2))
-         {
-            Swap(d1, d2);
-            Swap(d12, d21);
-         }
-         else
-         {
-            Swap(d1, d12);
-            Swap(d21, d2);
-         }
-      }
-      else
-      {
-         if (fabs(d12) < fabs(d2))
-         {
-            Swap(d1, d2);
-            Swap(d12, d21);
-         }
-         else
-         {
-            Swap(d1, d12);
-            Swap(d21, d2);
-         }
-      }
-   }
-   n1 = hypot(d1, d21);
-   if (d21 != 0.)
-   {
-      mu = copysign(n1, d1);
-      n1 = -d21*(d21/(d1 + mu));
-      d1 = mu;
-      if (fabs(n1) <= fabs(d21))
-      {
-         n1 = n1/d21;
-         mu = (2./(1. + n1*n1))*(n1*d12 + d2);
-         d2  = d2  - mu;
-         d12 = d12 - mu*n1;
-      }
-      else
-      {
-         n2 = d21/n1;
-         mu = (2./(1. + n2*n2))*(d12 + n2*d2);
-         d2  = d2  - mu*n2;
-         d12 = d12 - mu;
-      }
-   }
-   mu = -d12/d1;
-   n2 = 1./(1. + fabs(mu));
-   if (fabs(d1) <= n2*fabs(d2))
-   {
-      d2 = 0.;
-      d1 = 1.;
-   }
-   else
-   {
-      d2 = n2;
-      d1 = mu*n2;
-   }
-   if (swap_columns)
-   {
-      Swap(d1, d2);
-   }
-   return false;
-}
-
-MFEM_HOST_DEVICE static inline
-void Vec_normalize3_aux(const double &x1, const double &x2,
-                        const double &x3,
-                        double &n1, double &n2, double &n3)
-{
-   double t, r;
-
-   const double m = fabs(x1);
-   r = x2/m;
-   t = 1. + r*r;
-   r = x3/m;
-   t = sqrt(1./(t + r*r));
-   n1 = copysign(t, x1);
-   t /= m;
-   n2 = x2*t;
-   n3 = x3*t;
-}
-
-MFEM_HOST_DEVICE static inline
-void Vec_normalize3(const double &x1, const double &x2, const double &x3,
-                    double &n1, double &n2, double &n3)
-{
-   if (fabs(x1) >= fabs(x2))
-   {
-      if (fabs(x1) >= fabs(x3))
-      {
-         if (x1 != 0.)
-         {
-            Vec_normalize3_aux(x1, x2, x3, n1, n2, n3);
-         }
-         else
-         {
-            n1 = n2 = n3 = 0.;
-         }
-         return;
-      }
-   }
-   else if (fabs(x2) >= fabs(x3))
-   {
-      Vec_normalize3_aux(x2, x1, x3, n2, n1, n3);
-      return;
-   }
-   Vec_normalize3_aux(x3, x1, x2, n3, n1, n2);
-}
-
-MFEM_HOST_DEVICE static inline
-int KernelVector3G_aux(const int &mode,
-                       double &d1, double &d2, double &d3,
-                       double &c12, double &c13, double &c23,
-                       double &c21, double &c31, double &c32)
-{
-   int kdim;
-   double mu, n1, n2, n3, s1, s2, s3;
-   s1 = hypot(c21, c31);
-   n1 = hypot(d1, s1);
-   if (s1 != 0.)
-   {
-      mu = copysign(n1, d1);
-      n1 = -s1*(s1/(d1 + mu));
-      d1 = mu;
-      if (fabs(n1) >= fabs(c21))
-      {
-         if (fabs(n1) >= fabs(c31))
-         {
-            s2 = c21/n1;
-            s3 = c31/n1;
-            mu = 2./(1. + s2*s2 + s3*s3);
-            n2  = mu*(c12 + s2*d2  + s3*c32);
-            n3  = mu*(c13 + s2*c23 + s3*d3);
-            c12 = c12 -    n2;
-            d2  = d2  - s2*n2;
-            c32 = c32 - s3*n2;
-            c13 = c13 -    n3;
-            c23 = c23 - s2*n3;
-            d3  = d3  - s3*n3;
-            goto done_column_1;
-         }
-      }
-      else if (fabs(c21) >= fabs(c31))
-      {
-         s1 = n1/c21;
-         s3 = c31/c21;
-         mu = 2./(1. + s1*s1 + s3*s3);
-         n2  = mu*(s1*c12 + d2  + s3*c32);
-         n3  = mu*(s1*c13 + c23 + s3*d3);
-         c12 = c12 - s1*n2;
-         d2  = d2  -    n2;
-         c32 = c32 - s3*n2;
-         c13 = c13 - s1*n3;
-         c23 = c23 -    n3;
-         d3  = d3  - s3*n3;
-         goto done_column_1;
-      }
-      s1 = n1/c31;
-      s2 = c21/c31;
-      mu = 2./(1. + s1*s1 + s2*s2);
-      n2  = mu*(s1*c12 + s2*d2  + c32);
-      n3  = mu*(s1*c13 + s2*c23 + d3);
-      c12 = c12 - s1*n2;
-      d2  = d2  - s2*n2;
-      c32 = c32 -    n2;
-      c13 = c13 - s1*n3;
-      c23 = c23 - s2*n3;
-      d3  = d3  -    n3;
-   }
-done_column_1:
-   if (KernelVector2G(mode, d2, c23, c32, d3))
-   {
-      d2 = c12/d1;
-      d3 = c13/d1;
-      d1 = 1.;
-      kdim = 2;
-   }
-   else
-   {
-      d1 = -(c12*d2 + c13*d3)/d1;
-      kdim = 1;
-   }
-   Vec_normalize3(d1, d2, d3, d1, d2, d3);
-   return kdim;
-}
-
-MFEM_HOST_DEVICE static inline
-int KernelVector3S(const int &mode, const double &d12,
-                   const double &d13, const double &d23,
-                   double &d1, double &d2, double &d3)
-{
-   double c12 = d12, c13 = d13, c23 = d23;
-   double c21, c31, c32;
-   int col, row;
-   c32 = fabs(d1) + fabs(c12) + fabs(c13);
-   c31 = fabs(d2) + fabs(c12) + fabs(c23);
-   c21 = fabs(d3) + fabs(c13) + fabs(c23);
-   if (c32 >= c21)
-   {
-      col = (c32 >= c31) ? 1 : 2;
-   }
-   else
-   {
-      col = (c31 >= c21) ? 2 : 3;
-   }
-   switch (col)
-   {
-      case 1:
-         if (c32 == 0.)
-         {
-            return 3;
-         }
-         break;
-
-      case 2:
-         if (c31 == 0.)
-         {
-            return 3;
-         }
-         Swap(c13, c23);
-         Swap(d1, d2);
-         break;
-
-      case 3:
-         if (c21 == 0.)
-         {
-            return 3;
-         }
-         Swap(c12, c23);
-         Swap(d1, d3);
-   }
-   if (mode == 0)
-   {
-      if (fabs(d1) <= fabs(c13))
-      {
-         row = (fabs(d1) <= fabs(c12)) ? 1 : 2;
-      }
-      else
-      {
-         row = (fabs(c12) <= fabs(c13)) ? 2 : 3;
-      }
-   }
-   else
-   {
-      if (fabs(d1) >= fabs(c13))
-      {
-         row = (fabs(d1) >= fabs(c12)) ? 1 : 2;
-      }
-      else
-      {
-         row = (fabs(c12) >= fabs(c13)) ? 2 : 3;
-      }
-   }
-   switch (row)
-   {
-      case 1:
-         c21 = c12;
-         c31 = c13;
-         c32 = c23;
-         break;
-
-      case 2:
-         c21 = d1;
-         c31 = c13;
-         c32 = c23;
-         d1 = c12;
-         c12 = d2;
-         d2 = d1;
-         c13 = c23;
-         c23 = c31;
-         break;
-
-      case 3:
-         c21 = c12;
-         c31 = d1;
-         c32 = c12;
-         d1 = c13;
-         c12 = c23;
-         c13 = d3;
-         d3 = d1;
-   }
-   row = KernelVector3G_aux(mode, d1, d2, d3, c12, c13, c23, c21, c31, c32);
-   switch (col)
-   {
-      case 2:
-         Swap(d1, d2);
-         break;
-
-      case 3:
-         Swap(d1, d3);
-   }
-   return row;
-}
-
-MFEM_HOST_DEVICE static inline
-int Reduce3S(const int &mode,
-             double &d1, double &d2, double &d3,
-             double &d12, double &d13, double &d23,
-             double &z1, double &z2, double &z3,
-             double &v1, double &v2, double &v3,
-             double &g)
-{
-   int k;
-   double s, w1, w2, w3;
-   if (mode == 0)
-   {
-      if (fabs(z1) <= fabs(z3))
-      {
-         k = (fabs(z1) <= fabs(z2)) ? 1 : 2;
-      }
-      else
-      {
-         k = (fabs(z2) <= fabs(z3)) ? 2 : 3;
-      }
-   }
-   else
-   {
-      if (fabs(z1) >= fabs(z3))
-      {
-         k = (fabs(z1) >= fabs(z2)) ? 1 : 2;
-      }
-      else
-      {
-         k = (fabs(z2) >= fabs(z3)) ? 2 : 3;
-      }
-   }
-   switch (k)
-   {
-      case 2:
-         Swap(d13, d23);
-         Swap(d1, d2);
-         Swap(z1, z2);
-         break;
-
-      case 3:
-         Swap(d12, d23);
-         Swap(d1, d3);
-         Swap(z1, z3);
-   }
-   s = hypot(z2, z3);
-   if (s == 0.)
-   {
-      v1 = v2 = v3 = 0.;
-      g = 1.;
-   }
-   else
-   {
-      g = copysign(1., z1);
-      v1 = -s*(s/(z1 + g));
-      g = fabs(v1);
-      if (fabs(z2) > g) { g = fabs(z2); }
-      if (fabs(z3) > g) { g = fabs(z3); }
-      v1 = v1/g;
-      v2 = z2/g;
-      v3 = z3/g;
-      g = 2./(v1*v1 + v2*v2 + v3*v3);
-      w1 = g*( d1*v1 + d12*v2 + d13*v3);
-      w2 = g*(d12*v1 +  d2*v2 + d23*v3);
-      w3 = g*(d13*v1 + d23*v2 +  d3*v3);
-      s = (g/2)*(v1*w1 + v2*w2 + v3*w3);
-      w1 -= s*v1;
-      w2 -= s*v2;
-      w3 -= s*v3;
-      d1  -= 2*v1*w1;
-      d2  -= 2*v2*w2;
-      d23 -= v2*w3 + v3*w2;
-      d3  -= 2*v3*w3;
-   }
-   switch (k)
-   {
-      case 2:
-         Swap(z1, z2);
-         break;
-      case 3:
-         Swap(z1, z3);
-   }
-   return k;
-}
-
-template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<3>(const double *d, double *lambda, double *vec)
-{
-   double d11 = d[0];
-   double d12 = d[3];
-   double d22 = d[4];
-   double d13 = d[6];
-   double d23 = d[7];
-   double d33 = d[8];
-   double mult;
-   {
-      double d_max = fabs(d11);
-      if (d_max < fabs(d22)) { d_max = fabs(d22); }
-      if (d_max < fabs(d33)) { d_max = fabs(d33); }
-      if (d_max < fabs(d12)) { d_max = fabs(d12); }
-      if (d_max < fabs(d13)) { d_max = fabs(d13); }
-      if (d_max < fabs(d23)) { d_max = fabs(d23); }
-      GetScalingFactor(d_max, mult);
-   }
-   d11 /= mult;  d22 /= mult;  d33 /= mult;
-   d12 /= mult;  d13 /= mult;  d23 /= mult;
-   double aa = (d11 + d22 + d33)/3;
-   double c1 = d11 - aa;
-   double c2 = d22 - aa;
-   double c3 = d33 - aa;
-   double Q, R;
-   Q = (2*(d12*d12 + d13*d13 + d23*d23) + c1*c1 + c2*c2 + c3*c3)/6;
-   R = (c1*(d23*d23 - c2*c3)+ d12*(d12*c3 - 2*d13*d23) + d13*d13*c2)/2;
-   if (Q <= 0.)
-   {
-      lambda[0] = lambda[1] = lambda[2] = aa;
-      vec[0] = 1.; vec[3] = 0.; vec[6] = 0.;
-      vec[1] = 0.; vec[4] = 1.; vec[7] = 0.;
-      vec[2] = 0.; vec[5] = 0.; vec[8] = 1.;
-   }
-   else
-   {
-      double sqrtQ = sqrt(Q);
-      double sqrtQ3 = Q*sqrtQ;
-      double r;
-      if (fabs(R) >= sqrtQ3)
-      {
-         if (R < 0.)
-         {
-            r = 2*sqrtQ;
-         }
-         else
-         {
-            r = -2*sqrtQ;
-         }
-      }
-      else
-      {
-         R = R/sqrtQ3;
-
-         if (R < 0.)
-         {
-            r = -2*sqrtQ*cos((acos(R) + 2.0*M_PI)/3);
-         }
-         else
-         {
-            r = -2*sqrtQ*cos(acos(R)/3);
-         }
-      }
-      aa += r;
-      c1 = d11 - aa;
-      c2 = d22 - aa;
-      c3 = d33 - aa;
-      const int mode = 0;
-      switch (KernelVector3S(mode, d12, d13, d23, c1, c2, c3))
-      {
-         case 3:
-            lambda[0] = lambda[1] = lambda[2] = aa;
-            vec[0] = 1.; vec[3] = 0.; vec[6] = 0.;
-            vec[1] = 0.; vec[4] = 1.; vec[7] = 0.;
-            vec[2] = 0.; vec[5] = 0.; vec[8] = 1.;
-            goto done_3d;
-         case 2:
-         case 1:;
-      }
-      double v1, v2, v3, g;
-      int k = Reduce3S(mode, d11, d22, d33, d12, d13, d23,
-                       c1, c2, c3, v1, v2, v3, g);
-      double c, s;
-      Eigensystem2S(d23, d22, d33, c, s);
-      double *vec_1, *vec_2, *vec_3;
-      if (d11 <= d22)
-      {
-         if (d22 <= d33)
-         {
-            lambda[0] = d11;  vec_1 = vec;
-            lambda[1] = d22;  vec_2 = vec + 3;
-            lambda[2] = d33;  vec_3 = vec + 6;
-         }
-         else if (d11 <= d33)
-         {
-            lambda[0] = d11;  vec_1 = vec;
-            lambda[1] = d33;  vec_3 = vec + 3;
-            lambda[2] = d22;  vec_2 = vec + 6;
-         }
-         else
-         {
-            lambda[0] = d33;  vec_3 = vec;
-            lambda[1] = d11;  vec_1 = vec + 3;
-            lambda[2] = d22;  vec_2 = vec + 6;
-         }
-      }
-      else
-      {
-         if (d11 <= d33)
-         {
-            lambda[0] = d22;  vec_2 = vec;
-            lambda[1] = d11;  vec_1 = vec + 3;
-            lambda[2] = d33;  vec_3 = vec + 6;
-         }
-         else if (d22 <= d33)
-         {
-            lambda[0] = d22;  vec_2 = vec;
-            lambda[1] = d33;  vec_3 = vec + 3;
-            lambda[2] = d11;  vec_1 = vec + 6;
-         }
-         else
-         {
-            lambda[0] = d33;  vec_3 = vec;
-            lambda[1] = d22;  vec_2 = vec + 3;
-            lambda[2] = d11;  vec_1 = vec + 6;
-         }
-      }
-      vec_1[0] = c1;
-      vec_1[1] = c2;
-      vec_1[2] = c3;
-      d22 = g*(v2*c - v3*s);
-      d33 = g*(v2*s + v3*c);
-      vec_2[0] =    - v1*d22;  vec_3[0] =   - v1*d33;
-      vec_2[1] =  c - v2*d22;  vec_3[1] = s - v2*d33;
-      vec_2[2] = -s - v3*d22;  vec_3[2] = c - v3*d33;
-      switch (k)
-      {
-         case 2:
-            Swap(vec_2[0], vec_2[1]);
-            Swap(vec_3[0], vec_3[1]);
-            break;
-
-         case 3:
-            Swap(vec_2[0], vec_2[2]);
-            Swap(vec_3[0], vec_3[2]);
-      }
-   }
-done_3d:
-   lambda[0] *= mult;
-   lambda[1] *= mult;
-   lambda[2] *= mult;
-}
-
-template<int dim> double CalcSingularvalue(const double *d);
-
-template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<2>(const double *d)
-{
-   constexpr int i = 2-1;
-   double d0, d1, d2, d3;
-   d0 = d[0];
-   d1 = d[1];
-   d2 = d[2];
-   d3 = d[3];
-   double mult;
-   {
-      double d_max = fabs(d0);
-      if (d_max < fabs(d1)) { d_max = fabs(d1); }
-      if (d_max < fabs(d2)) { d_max = fabs(d2); }
-      if (d_max < fabs(d3)) { d_max = fabs(d3); }
-      GetScalingFactor(d_max, mult);
-   }
-   d0 /= mult;
-   d1 /= mult;
-   d2 /= mult;
-   d3 /= mult;
-   double t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
-   double s = d0*d2 + d1*d3;
-   s = sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + sqrt(t*t + s*s));
-   if (s == 0.0)
-   {
-      return 0.0;
-   }
-   t = fabs(d0*d3 - d1*d2) / s;
-   if (t > s)
-   {
-      if (i == 0)
-      {
-         return t*mult;
-      }
-      return s*mult;
-   }
-   if (i == 0)
-   {
-      return s*mult;
-   }
-   return t*mult;
-}
-
-MFEM_HOST_DEVICE static inline
-void Eigenvalues2S(const double &d12, double &d1, double &d2)
-{
-   const double sqrt_1_eps = sqrt(1./Epsilon);
-   if (d12 != 0.)
-   {
-      double t;
-      const double zeta = (d2 - d1)/(2*d12);
-      if (fabs(zeta) < sqrt_1_eps)
-      {
-         t = d12*copysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
-      }
-      else
-      {
-         t = d12*copysign(0.5/fabs(zeta), zeta);
-      }
-      d1 -= t;
-      d2 += t;
-   }
-}
-
-template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<3>(const double *d)
-{
-   constexpr int i = 3-1;
-   double d0, d1, d2, d3, d4, d5, d6, d7, d8;
-   d0 = d[0];  d3 = d[3];  d6 = d[6];
-   d1 = d[1];  d4 = d[4];  d7 = d[7];
-   d2 = d[2];  d5 = d[5];  d8 = d[8];
-   double mult;
-   {
-      double d_max = fabs(d0);
-      if (d_max < fabs(d1)) { d_max = fabs(d1); }
-      if (d_max < fabs(d2)) { d_max = fabs(d2); }
-      if (d_max < fabs(d3)) { d_max = fabs(d3); }
-      if (d_max < fabs(d4)) { d_max = fabs(d4); }
-      if (d_max < fabs(d5)) { d_max = fabs(d5); }
-      if (d_max < fabs(d6)) { d_max = fabs(d6); }
-      if (d_max < fabs(d7)) { d_max = fabs(d7); }
-      if (d_max < fabs(d8)) { d_max = fabs(d8); }
-      GetScalingFactor(d_max, mult);
-   }
-   d0 /= mult;  d1 /= mult;  d2 /= mult;
-   d3 /= mult;  d4 /= mult;  d5 /= mult;
-   d6 /= mult;  d7 /= mult;  d8 /= mult;
-   double b11 = d0*d0 + d1*d1 + d2*d2;
-   double b12 = d0*d3 + d1*d4 + d2*d5;
-   double b13 = d0*d6 + d1*d7 + d2*d8;
-   double b22 = d3*d3 + d4*d4 + d5*d5;
-   double b23 = d3*d6 + d4*d7 + d5*d8;
-   double b33 = d6*d6 + d7*d7 + d8*d8;
-   double aa = (b11 + b22 + b33)/3;
-   double c1, c2, c3;
-   {
-      double b11_b22 = ((d0-d3)*(d0+d3)+(d1-d4)*(d1+d4)+(d2-d5)*(d2+d5));
-      double b22_b33 = ((d3-d6)*(d3+d6)+(d4-d7)*(d4+d7)+(d5-d8)*(d5+d8));
-      double b33_b11 = ((d6-d0)*(d6+d0)+(d7-d1)*(d7+d1)+(d8-d2)*(d8+d2));
-      c1 = (b11_b22 - b33_b11)/3;
-      c2 = (b22_b33 - b11_b22)/3;
-      c3 = (b33_b11 - b22_b33)/3;
-   }
-   double Q, R;
-   Q = (2*(b12*b12 + b13*b13 + b23*b23) + c1*c1 + c2*c2 + c3*c3)/6;
-   R = (c1*(b23*b23 - c2*c3)+ b12*(b12*c3 - 2*b13*b23) +b13*b13*c2)/2;
-   if (Q <= 0.) { ; }
-   else
-   {
-      double sqrtQ = sqrt(Q);
-      double sqrtQ3 = Q*sqrtQ;
-      double r;
-      if (fabs(R) >= sqrtQ3)
-      {
-         if (R < 0.)
-         {
-            r = 2*sqrtQ;
-         }
-         else
-         {
-            r = -2*sqrtQ;
-         }
-      }
-      else
-      {
-         R = R/sqrtQ3;
-         if (fabs(R) <= 0.9)
-         {
-            if (i == 2)
-            {
-               aa -= 2*sqrtQ*cos(acos(R)/3);
-            }
-            else if (i == 0)
-            {
-               aa -= 2*sqrtQ*cos((acos(R) + 2.0*M_PI)/3);
-            }
-            else
-            {
-               aa -= 2*sqrtQ*cos((acos(R) - 2.0*M_PI)/3);
-            }
-            goto have_aa;
-         }
-         if (R < 0.)
-         {
-            r = -2*sqrtQ*cos((acos(R) + 2.0*M_PI)/3);
-            if (i == 0)
-            {
-               aa += r;
-               goto have_aa;
-            }
-         }
-         else
-         {
-            r = -2*sqrtQ*cos(acos(R)/3);
-            if (i == 2)
-            {
-               aa += r;
-               goto have_aa;
-            }
-         }
-      }
-      c1 -= r;
-      c2 -= r;
-      c3 -= r;
-      const int mode = 1;
-      switch (KernelVector3S(mode, b12, b13, b23, c1, c2, c3))
-      {
-         case 3:
-            aa += r;
-            goto have_aa;
-         case 2:
-         case 1:;
-      }
-      double v1, v2, v3, g;
-      Reduce3S(mode, b11, b22, b33, b12, b13, b23,
-               c1, c2, c3, v1, v2, v3, g);
-      Eigenvalues2S(b23, b22, b33);
-      if (i == 2)
-      {
-         aa = fmin(fmin(b11, b22), b33);
-      }
-      else if (i == 1)
-      {
-         if (b11 <= b22)
-         {
-            aa = (b22 <= b33) ? b22 : fmax(b11, b33);
-         }
-         else
-         {
-            aa = (b11 <= b33) ? b11 : fmax(b33, b22);
-         }
-      }
-      else
-      {
-         aa = fmax(fmax(b11, b22), b33);
-      }
-   }
-have_aa:
-   return sqrt(fabs(aa))*mult;
-}
-} // namespace blas
 
 namespace hydrodynamics
 {
@@ -1529,8 +488,6 @@ typedef void (*fForceMult)(const int E,
 static void kForceMult(const int DIM,
                        const int D1D,
                        const int Q1D,
-                       const int L1D,
-                       const int H1D,
                        const int NE,
                        const Array<double> &B,
                        const Array<double> &Bt,
@@ -1991,7 +948,7 @@ public:
    {
 
       l2restrict->Mult(x, gVecL2);
-      kForceMult(dim, D1D, Q1D, L1D, H1D, nzones,
+      kForceMult(dim, D1D, Q1D, nzones,
                  l2D2Q->B, h1D2Q->Bt, h1D2Q->Gt, quad_data.stressJinvT,
                  gVecL2, gVecH1);
       h1restrict->MultTranspose(gVecH1, y);
@@ -2214,7 +1171,7 @@ public:
       auto d_y = y.Write();
       MFEM_FORALL(i, N, d_y[i] = d_x[i] / d_diag[i];);
    }
-   void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator&) { }
 };
 
 struct TimingData
@@ -2240,7 +1197,7 @@ private:
    Vector d_dt_est;
    Vector d_l2_e_quads_data;
    Vector d_h1_v_local_in, d_h1_grad_x_data, d_h1_grad_v_data;
-   const QuadratureInterpolator *q1,*q2;
+   const QuadratureInterpolator *q1, *q2;
 public:
    QUpdate(const int d, const int ne, const bool uv,
            const double c, const double g, TimingData *t,
@@ -2279,9 +1236,8 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
    Vector rho0Q(NQ*NE);
    rho0Q.UseDevice(true);
-   Vector j, detj;
    const QuadratureInterpolator *qi = l2_fes.GetQuadratureInterpolator(ir);
-   qi->Mult(rho0, QuadratureInterpolator::VALUES, rho0Q, j, detj);
+   qi->Values(rho0, rho0Q);
    auto W = ir.GetWeights().Read();
    auto R = Reshape(rho0Q.Read(), NQ, NE);
    auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
@@ -2369,444 +1325,6 @@ class TaylorCoefficient : public Coefficient
    }
 };
 
-template<int D1D, int Q1D, int NBZ> static inline
-void D2QValues2D(const int NE, const Array<double> &b_,
-                 const Vector &x_, Vector &y_)
-{
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto y = Reshape(y_.Write(), Q1D, Q1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-   {
-      const int zid = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double DDz[NBZ][D1D*D1D];
-      double (*DD)[D1D] = (double (*)[D1D])(DDz + zid);
-      MFEM_SHARED double DQz[NBZ][D1D*Q1D];
-      double (*DQ)[Q1D] = (double (*)[Q1D])(DQz + zid);
-      if (zid == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            DD[dy][dx] = x(dx,dy,e);
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double dq = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               dq += B[qx][dx] * DD[dy][dx];
-            }
-            DQ[dy][qx] = dq;
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double qq = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               qq += DQ[dy][qx] * B[qy][dy];
-            }
-            y(qx,qy,e) = qq;
-         }
-      }
-      MFEM_SYNC_THREAD;
-   });
-}
-
-template<int D1D, int Q1D> static inline
-void D2QValues3D(const int NE, const Array<double> &b_,
-                 const Vector &x_, Vector &y_)
-{
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.Write(), Q1D, Q1D, Q1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double sm0[Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[Q1D*Q1D*Q1D];
-      double (*X)[D1D][D1D]   = (double (*)[D1D][D1D]) sm0;
-      double (*DDQ)[D1D][Q1D] = (double (*)[D1D][Q1D]) sm1;
-      double (*DQQ)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) sm0;
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               X[dz][dy][dx] = x(dx,dy,dz,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  u += B[qx][dx] * X[dz][dy][dx];
-               }
-               DDQ[dz][dy][qx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  u += DDQ[dz][dy][qx] * B[qy][dy];
-               }
-               DQQ[dz][qy][qx] = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               for (int dz = 0; dz < D1D; ++dz)
-               {
-                  u += DQQ[dz][qy][qx] * B[qz][dz];
-               }
-               y(qx,qy,qz,e) = u;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-   });
-}
-
-typedef void (*fD2QValues)(const int NE,
-                           const Array<double> &B,
-                           const Vector &e_vec,
-                           Vector &q_val);
-
-static void D2QValues(const FiniteElementSpace &fes,
-                      const DofToQuad *maps,
-                      const IntegrationRule& ir,
-                      const Vector &e_vec,
-                      Vector &q_val)
-{
-   const int dim = fes.GetMesh()->Dimension();
-   const int nzones = fes.GetNE();
-   const int dofs1D = fes.GetFE(0)->GetOrder() + 1;
-   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int id = (dim<<8)|(dofs1D<<4)|(quad1D);
-   static std::unordered_map<int, fD2QValues> call =
-   {
-      // 2D
-      {0x224,&D2QValues2D<2,4,8>},
-      //{0x236,&D2QValues2D<3,6,4>}, {0x248,&D2QValues2D<4,8,2>},
-      // 3D
-      {0x324,&D2QValues3D<2,4>},
-      //{0x336,&D2QValues3D<3,6>}, {0x348,&D2QValues3D<4,8>},
-   };
-   if (!call[id])
-   {
-      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-      MFEM_ABORT("Unknown kernel");
-   }
-   call[id](nzones, maps->B, e_vec, q_val);
-}
-
-void Values(FiniteElementSpace *fespace, const IntegrationRule &ir,
-            const Vector &e_vec, Vector &q_val)
-{
-   const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QValues(*fespace, &d2q,ir, e_vec, q_val);
-}
-
-template<int D1D, int Q1D, int NBZ> static inline
-void D2QGrad2D(const int NE,
-               const Array<double> &b_,
-               const Array<double> &g_,
-               const Vector &x_,
-               Vector &y_)
-{
-   constexpr int VDIM = 2;
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double G[Q1D][D1D];
-      MFEM_SHARED double Xz[NBZ][D1D][D1D];
-      double (*X)[D1D] = (double (*)[D1D])(Xz + tidz);
-      MFEM_SHARED double GD[2][NBZ][D1D][Q1D];
-      double (*DQ0)[Q1D] = (double (*)[Q1D])(GD[0] + tidz);
-      double (*DQ1)[Q1D] = (double (*)[Q1D])(GD[1] + tidz);
-
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      for (int c = 0; c < 2; ++c)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               X[dx][dy] = x(dx,dy,c,e);
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               double v = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double input = X[dx][dy];
-                  u += B[qx][dx] * input;
-                  v += G[qx][dx] * input;
-               }
-               DQ0[dy][qx] = u;
-               DQ1[dy][qx] = v;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u = 0.0;
-               double v = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  u += DQ1[dy][qx] * B[qy][dy];
-                  v += DQ0[dy][qx] * G[qy][dy];
-               }
-               y(c,0,qx,qy,e) = u;
-               y(c,1,qx,qy,e) = v;
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
-template<int D1D, int Q1D> static inline
-void D2QGrad3D(const int NE,
-               const Array<double> &b_, const Array<double> &g_,
-               const Vector &x_, Vector &y_)
-{
-   constexpr int VDIM = 3;
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y = Reshape(y_.Write(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
-   {
-      const int tidz = MFEM_THREAD_ID(z);
-      MFEM_SHARED double B[Q1D][D1D];
-      MFEM_SHARED double G[Q1D][D1D];
-      MFEM_SHARED double sm0[3][Q1D*Q1D*Q1D];
-      MFEM_SHARED double sm1[3][Q1D*Q1D*Q1D];
-      double (*X)[D1D][D1D]    = (double (*)[D1D][D1D]) (sm0+2);
-      double (*DDQ0)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+0);
-      double (*DDQ1)[D1D][Q1D] = (double (*)[D1D][Q1D]) (sm0+1);
-      double (*DQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+0);
-      double (*DQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+1);
-      double (*DQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm1+2);
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      for (int c = 0; c < VDIM; ++c)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD(dz,z,D1D)
-               {
-
-                  X[dx][dy][dz] = x(dx,dy,dz,c,e);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         MFEM_FOREACH_THREAD(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  double u = 0.0;
-                  double v = 0.0;
-                  for (int dx = 0; dx < D1D; ++dx)
-                  {
-                     const double coords = X[dx][dy][dz];
-                     u += coords * B[qx][dx];
-                     v += coords * G[qx][dx];
-                  }
-                  DDQ0[dz][dy][qx] = u;
-                  DDQ1[dz][dy][qx] = v;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dz,z,D1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
-                  for (int dy = 0; dy < D1D; ++dy)
-                  {
-                     u += DDQ1[dz][dy][qx] * B[qy][dy];
-                     v += DDQ0[dz][dy][qx] * G[qy][dy];
-                     w += DDQ0[dz][dy][qx] * B[qy][dy];
-                  }
-                  DQQ0[dz][qy][qx] = u;
-                  DQQ1[dz][qy][qx] = v;
-                  DQQ2[dz][qy][qx] = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qz,z,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qx,x,Q1D)
-               {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
-                  for (int dz = 0; dz < D1D; ++dz)
-                  {
-                     u += DQQ0[dz][qy][qx] * B[qz][dz];
-                     v += DQQ1[dz][qy][qx] * B[qz][dz];
-                     w += DQQ2[dz][qy][qx] * G[qz][dz];
-                  }
-                  y(c,0,qx,qy,qz,e) = u;
-                  y(c,1,qx,qy,qz,e) = v;
-                  y(c,2,qx,qy,qz,e) = w;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
-typedef void (*fD2QGrad)(const int NE,
-                         const Array<double> &B,
-                         const Array<double> &G,
-                         const Vector &e_vec,
-                         Vector &q_der);
-
-static void D2QGrad(const FiniteElementSpace &fes,
-                    const DofToQuad *maps,
-                    const IntegrationRule& ir,
-                    const Vector &e_vec,
-                    Vector &q_der)
-{
-   const int dim = fes.GetMesh()->Dimension();
-   const int NE = fes.GetNE();
-   const int D1D = fes.GetFE(0)->GetOrder() + 1;
-   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
-   const int id = (dim<<8)|(D1D<<4)|(Q1D);
-   static std::unordered_map<int, fD2QGrad> call =
-   {
-      // 2D
-      {0x234,&D2QGrad2D<3,4,8>},
-      //{0x246,&D2QGrad2D<4,6,4>},{0x258,&D2QGrad2D<5,8,2>},
-      // 3D
-      {0x334,&D2QGrad3D<3,4>},
-      //{0x346,&D2QGrad3D<4,6>},{0x358,&D2QGrad3D<5,8>},
-   };
-   if (!call[id])
-   {
-      mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-      MFEM_ABORT("Unknown kernel");
-   }
-   call[id](NE, maps->B, maps->G, e_vec, q_der);
-}
-
-void Derivatives(FiniteElementSpace *fespace,  const IntegrationRule &ir,
-                 const Vector &e_vec, Vector &q_der)
-{
-   const DofToQuad::Mode mode = DofToQuad::TENSOR;
-   const DofToQuad &d2q = fespace->GetFE(0)->GetDofToQuad(ir, mode);
-   D2QGrad(*fespace, &d2q, ir, e_vec, q_der);
-}
-
 MFEM_HOST_DEVICE inline double smooth_step_01(double x, double eps)
 {
    const double y = (x + eps) / (2.0 * eps);
@@ -2848,9 +1366,9 @@ void QBody(const int nzones, const int z,
    const double weight =  d_weights[q];
    const double inv_weight = 1. / weight;
    const double *J = d_Jacobians + dim2*(nqp*z + q);
-   const double detJ = mfem::blas::Det<dim>(J);
+   const double detJ = kernels::Det<dim>(J);
    min_detJ = std::fmin(min_detJ,detJ);
-   blas::CalcInverse<dim>(J,Jinv);
+   kernels::CalcInverse<dim>(J,Jinv);
    const double rho = inv_weight * d_rho0DetJ0w[zq] / detJ;
    const double e   = std::fmax(0.0, d_e_quads[zq]);
    const double p   = (gamma - 1.0) * rho * e;
@@ -2861,8 +1379,8 @@ void QBody(const int nzones, const int z,
    if (use_viscosity)
    {
       const double *dV = d_grad_v_ext + dim2*(nqp*z + q);
-      blas::Mult(dim, dim, dim, dV, Jinv, sgrad_v);
-      symmetrize(dim,sgrad_v);
+      kernels::Mult(dim, dim, dim, dV, Jinv, sgrad_v);
+      kernels::Symmetrize(dim,sgrad_v);
       if (dim==1)
       {
          eig_val_data[0] = sgrad_v[0];
@@ -2870,22 +1388,22 @@ void QBody(const int nzones, const int z,
       }
       else
       {
-         blas::CalcEigenvalues<dim>(sgrad_v, eig_val_data, eig_vec_data);
+         kernels::CalcEigenvalues<dim>(sgrad_v, eig_val_data, eig_vec_data);
       }
       for (int k=0; k<dim; k+=1) { compr_dir[k]=eig_vec_data[k]; }
-      blas::Mult(dim, dim, dim, J, d_Jac0inv+zq*dim*dim, Jpi);
-      blas::MultV(dim, dim, Jpi, compr_dir, ph_dir);
-      const double ph_dir_nl2 = norml2(dim,ph_dir);
-      const double compr_dir_nl2 = norml2(dim, compr_dir);
+      kernels::Mult(dim, dim, dim, J, d_Jac0inv+zq*dim*dim, Jpi);
+      kernels::Mult(dim, dim, Jpi, compr_dir, ph_dir);
+      const double ph_dir_nl2 = kernels::Norml2(dim,ph_dir);
+      const double compr_dir_nl2 = kernels::Norml2(dim, compr_dir);
       const double h = h0 * ph_dir_nl2 / compr_dir_nl2;
       const double mu = eig_val_data[0];
       visc_coeff = 2.0 * rho * h * h * std::fabs(mu);
       const double eps = 1e-12;
       visc_coeff += 0.5 * rho * h * sound_speed *
                     (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
-      blas::Add(dim, dim, visc_coeff, stress, sgrad_v, stress);
+      kernels::Add(dim, dim, visc_coeff, stress, sgrad_v, stress);
    }
-   const double sv = blas::CalcSingularvalue<dim>(J);
+   const double sv = kernels::CalcSingularvalue<dim>(J, dim-1);
    const double h_min = sv / h1order;
    const double inv_h_min = 1. / h_min;
    const double inv_rho_inv_h_min_sq = inv_h_min * inv_h_min / rho ;
@@ -2903,7 +1421,7 @@ void QBody(const int nzones, const int z,
          d_dt_est[zq] = std::fmin(d_dt_est[zq], cfl_inv_dt);
       }
    }
-   mfem::multABt(dim, dim, dim, stress, Jinv, stressJiT);
+   kernels::MultABt(dim, dim, dim, stress, Jinv, stressJiT);
    for (int k=0; k<dim2; k+=1) { stressJiT[k] *= weight * detJ; }
    for (int vd = 0 ; vd < dim; vd++)
    {
@@ -2918,7 +1436,6 @@ void QBody(const int nzones, const int z,
 template<int dim, int Q1D> static inline
 void QKernel(const int nzones,
              const int nqp,
-             const int nqp1D,
              const double gamma,
              const bool use_viscosity,
              const double h0,
@@ -3025,15 +1542,17 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
    H1ER->Mult(d_x, d_h1_v_local_in);
-   Derivatives(&H1, ir, d_h1_v_local_in, d_h1_grad_x_data);
+   q1->SetOutputLayout(QVectorLayout::byVDIM);
+   q1->Derivatives(d_h1_v_local_in, d_h1_grad_x_data);
    d_v.MakeRef(&H1,*S_p, H1_size);
    H1ER->Mult(d_v, d_h1_v_local_in);
-   Derivatives(&H1, ir, d_h1_v_local_in, d_h1_grad_v_data);
+   q1->Derivatives(d_h1_v_local_in, d_h1_grad_v_data);
    d_e.MakeRef(&L2, *S_p, 2*H1_size);
-   Values(&L2, ir, d_e, d_l2_e_quads_data);
+   q2->SetOutputLayout(QVectorLayout::byVDIM);
+   q2->Values(d_e, d_l2_e_quads_data);
    d_dt_est = quad_data.dt_est;
    const int id = (dim<<4) | nqp1D;
-   typedef void (*fQKernel)(const int NE, const int NQ, const int Q1D,
+   typedef void (*fQKernel)(const int NE, const int NQ,
                             const double gamma, const bool use_viscosity,
                             const double h0, const double h1order,
                             const double cfl, const double infinity,
@@ -3052,7 +1571,7 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
       mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
       MFEM_ABORT("Unknown kernel");
    }
-   qupdate[id](NE, NQ, nqp1D, gamma, use_viscosity, quad_data.h0,
+   qupdate[id](NE, NQ, gamma, use_viscosity, quad_data.h0,
                h1order, cfl, infinity, ir.GetWeights(), d_h1_grad_x_data,
                quad_data.rho0DetJ0w, d_l2_e_quads_data, d_h1_grad_v_data,
                quad_data.Jac0inv, d_dt_est, quad_data.stressJinvT);
@@ -3368,8 +1887,9 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
 {
    const int myid = mpi.WorldRank();
 
+   int dim = 3;
    const int problem = 1;
-   const char *mesh_file = "data/cube.mesh";
+   const char *mesh_file = "none";
    int rs_levels = 0;
    const int rp_levels = 0;
    Array<int> cxyz;
@@ -3393,6 +1913,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    double blast_position[] = {0.0, 0.0, 0.0};
 
    OptionsParser args(argc, argv);
+   args.AddOption(&dim, "-d", "--dim", "Dimension of the problem.");
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
@@ -3440,9 +1961,42 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       return -1;
    }
    //if (mpi.Root()) { args.PrintOptions(cout); }
-
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   const int dim = mesh->Dimension();
+   Mesh *mesh;
+   if (strncmp(mesh_file, "none", 4))
+   {
+      mesh = new Mesh(mesh_file, true, true);
+      dim = mesh->Dimension();
+   }
+   else
+   {
+      if (dim == 2)
+      {
+         constexpr Element::Type QUAD = Element::QUADRILATERAL;
+         mesh = new Mesh(2, 2, QUAD, true);
+         const int NBE = mesh->GetNBE();
+         for (int b = 0; b < NBE; b++)
+         {
+            Element *bel = mesh->GetBdrElement(b);
+            MFEM_ASSERT(bel->GetType() == Element::SEGMENT, "");
+            const int attr = (b < NBE/2) ? 2 : 1;
+            bel->SetAttribute(attr);
+         }
+      }
+      if (dim == 3)
+      {
+         mesh = new Mesh(2, 2, 2,Element::HEXAHEDRON, true);
+         const int NBE = mesh->GetNBE();
+         MFEM_ASSERT(NBE==24,"");
+         for (int b = 0; b < NBE; b++)
+         {
+            Element *bel = mesh->GetBdrElement(b);
+            MFEM_ASSERT(bel->GetType() == Element::QUADRILATERAL, "");
+            const int attr = (b < NBE/3) ? 3 : (b < 2*NBE/3) ? 1 : 2;
+            bel->SetAttribute(attr);
+         }
+      }
+   }
+   dim = mesh->Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int mesh_NE = mesh->GetNE();
    ParMesh *pmesh = NULL;
@@ -3600,9 +2154,6 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
       REQUIRE(t_final==Approx(0.6));
       REQUIRE(cfl==Approx(0.5));
       REQUIRE(cg_tol==Approx(1.e-14));
-      const int dim = strcmp(mesh_file,"data/square.mesh")==0?2:
-                      strcmp(mesh_file,"data/cube.mesh")==0?3:1;
-      REQUIRE((dim==2 || dim==3));
       if (dim==2)
       {
          const double p1_05[2] = {3.508254945225794e+00,
@@ -3645,29 +2196,21 @@ static int argn(const char *argv[], int argc =0)
 
 static void sedov_tests(MPI_Session &mpi)
 {
-   const char *argv2D[]= {"sedov_tests",
-                          "-m", "data/square.mesh",
-                          nullptr
-                         };
+   const char *argv2D[]= { "sedov_tests", "-d", "2", nullptr };
    REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
 
-   const char *argv2Drs1[]= {"sedov_tests",
-                             "-rs", "1", "-ms", "20",
-                             "-m", "data/square.mesh",
-                             nullptr
+   const char *argv2Drs1[]= { "sedov_tests", "-d", "2",
+                              "-rs", "1", "-ms", "20",
+                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
-   const char *argv3D[]= {"sedov_tests",
-                          "-m", "data/cube.mesh",
-                          nullptr
-                         };
+   const char *argv3D[]= { "sedov_tests", "-d", "3", nullptr };
    REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
 
-   const char *argv3Drs1[]= {"sedov_tests",
-                             "-rs", "1", "-ms", "28",
-                             "-m", "data/cube.mesh",
-                             nullptr
+   const char *argv3Drs1[]= { "sedov_tests", "-d", "3",
+                              "-rs", "1", "-ms", "28",
+                              nullptr
                             };
    REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
 
