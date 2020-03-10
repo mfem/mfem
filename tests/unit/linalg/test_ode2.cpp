@@ -227,5 +227,3 @@ TEST_CASE("Second order ODE methods",
       REQUIRE(check.order(new WBZAlphaSolver(1.0)) + tol > 2.0 );
    }
 }
-
-

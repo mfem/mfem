@@ -1216,7 +1216,6 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
          {
             // Tests requiring an RT test space with same order of
             // convergence as the RT trial space
-
             BilinearForm m_rt(&fespace_rt);
             m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
             m_rt.Assemble();

@@ -558,7 +558,6 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
          {
             // Tests requiring an ND test space with same order of
             // convergence as the ND trial space
-
             BilinearForm m_nd(&fespace_nd);
             m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
             m_nd.Assemble();
@@ -858,7 +857,6 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
          {
             // Tests requiring an RT test space with same order of
             // convergence as the RT trial space
-
             BilinearForm m_rt(&fespace_rt);
             m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
             m_rt.Assemble();
