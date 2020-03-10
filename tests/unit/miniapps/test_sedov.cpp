@@ -21,13 +21,13 @@
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
-#ifdef MFEM_USE_MPI
+#if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-typedef int MPI_Comm;
 typedef int HYPRE_Int;
+typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
 #define GlobalTrueVSize GetVSize
@@ -37,21 +37,8 @@ typedef int HYPRE_Int;
 #define PFesGetParMeshGetComm(...)
 #define PFesGetParMeshGetComm0(...) 0
 #define MPI_Finalize()
-#define MPI_INT int
-#define MPI_LONG long
-#define MPI_DOUBLE double
-#define HYPRE_MPI_INT int
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #define MPI_Reduce(src, dst, n, T,...) *dst = *src
-class MPI_Session
-{
-public:
-   MPI_Session() { }
-   MPI_Session(int, char**) { }
-   bool Root() { return true; }
-   int WorldRank() { return 0; }
-   int WorldSize() { return 1; }
-};
 #endif
 
 using namespace std;
@@ -1045,7 +1032,7 @@ static void ComputeDiagonal3D(const int height, const int nzones,
 class PAMassOperator : public Operator
 {
 private:
-#ifdef MFEM_USE_MPI
+#if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
    const MPI_Comm comm;
 #endif
    const int dim, nzones;
@@ -1063,7 +1050,7 @@ public:
                   const IntegrationRule &ir,
                   Tensors1D *t1D) :
       Operator(pfes.GetTrueVSize()),
-#ifdef MFEM_USE_MPI
+#if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
       comm(PFesGetParMeshGetComm0(pfes)),
 #endif
       dim(pfes.GetMesh()->Dimension()),
@@ -1871,10 +1858,8 @@ public:
 };
 } // namespace hydrodynamics
 
-int sedov(MPI_Session &mpi, int argc, char *argv[])
+int sedov(int myid, int argc, char *argv[])
 {
-   const int myid = mpi.WorldRank();
-
    int dim = 3;
    const int problem = 1;
    const char *mesh_file = "none";
@@ -1945,10 +1930,9 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root()) { args.PrintUsage(cout); }
+      if (myid == 0) { args.PrintUsage(cout); }
       return -1;
    }
-   //if (mpi.Root()) { args.PrintOptions(cout); }
    Mesh *mesh;
    if (strncmp(mesh_file, "none", 4))
    {
@@ -1988,7 +1972,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int mesh_NE = mesh->GetNE();
    ParMesh *pmesh = NULL;
-#ifdef MFEM_USE_MPI
+#if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 #else
    pmesh = new Mesh(*mesh);
@@ -2020,7 +2004,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    const HYPRE_Int L2GTVSize = L2FESpace.GlobalTrueVSize();
    const int H1Vsize = H1FESpace.GetVSize();
    const int L2Vsize = L2FESpace.GetVSize();
-   if (mpi.Root())
+   if (myid == 0)
    {
       cout << "Number of local/global kinematic (position, velocity) dofs: "
            << H1Vsize << "/" << H1GTVSize << endl;
@@ -2102,7 +2086,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
          t = t_old;
          S = S_old;
          oper.ResetQuadratureData();
-         if (mpi.Root()) { cout << "Repeating step " << ti << endl; }
+         if (myid == 0) { cout << "Repeating step " << ti << endl; }
          if (steps < max_tsteps) { last_step = false; }
          ti--; continue;
       }
@@ -2116,7 +2100,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
          double loc_norm = e_gf * e_gf, tot_norm;
          MPI_Allreduce(&loc_norm, &tot_norm, 1, MPI_DOUBLE, MPI_SUM,
                        pmesh->GetComm());
-         if (mpi.Root())
+         if (myid == 0)
          {
             const double sqrt_tot_norm = sqrt(tot_norm);
             cout << fixed;
@@ -2168,7 +2152,7 @@ int sedov(MPI_Session &mpi, int argc, char *argv[])
    REQUIRE(checks==2);
    REQUIRE(ode_solver_type==4);
    steps *= 4;
-   //oper.PrintTimingData(mpi.Root(), steps, fom);
+   //oper.PrintTimingData(myid, steps, fom);
    delete ode_solver;
    delete pmesh;
    delete mat_gf_coeff;
@@ -2182,25 +2166,25 @@ static int argn(const char *argv[], int argc =0)
    return argc;
 }
 
-static void sedov_tests(MPI_Session &mpi)
+static void sedov_tests(int myid)
 {
    const char *argv2D[]= { "sedov_tests", "-d", "2", nullptr };
-   REQUIRE(sedov(mpi, argn(argv2D), const_cast<char**>(argv2D))==0);
+   REQUIRE(sedov(myid, argn(argv2D), const_cast<char**>(argv2D))==0);
 
    const char *argv2Drs1[]= { "sedov_tests", "-d", "2",
                               "-rs", "1", "-ms", "20",
                               nullptr
                             };
-   REQUIRE(sedov(mpi, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
+   REQUIRE(sedov(myid, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
 
    const char *argv3D[]= { "sedov_tests", "-d", "3", nullptr };
-   REQUIRE(sedov(mpi, argn(argv3D), const_cast<char**>(argv3D))==0);
+   REQUIRE(sedov(myid, argn(argv3D), const_cast<char**>(argv3D))==0);
 
    const char *argv3Drs1[]= { "sedov_tests", "-d", "3",
                               "-rs", "1", "-ms", "28",
                               nullptr
                             };
-   REQUIRE(sedov(mpi, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
+   REQUIRE(sedov(myid, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
 
 }
 
@@ -2208,8 +2192,7 @@ static void sedov_tests(MPI_Session &mpi)
 #ifndef MFEM_SEDOV_TESTS
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   MPI_Session &mpi = *GlobalMPISession;
-   sedov_tests(mpi);
+   sedov_tests(GlobalMPISession->WorldRank());
 }
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
@@ -2217,16 +2200,14 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
-   MPI_Session &mpi = *GlobalMPISession;
-   sedov_tests(mpi);
+   sedov_tests(GlobalMPISession->WorldRank());
 }
 #endif
 #else
 #ifndef MFEM_SEDOV_TESTS
 TEST_CASE("Sedov", "[Sedov]")
 {
-   MPI_Session seq;
-   sedov_tests(seq);
+   sedov_tests(0);
 }
 #else
 TEST_CASE("Sedov", "[Sedov]")
@@ -2234,8 +2215,7 @@ TEST_CASE("Sedov", "[Sedov]")
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
-   MPI_Session seq;
-   sedov_tests(seq);
+   sedov_tests(0);
 }
 #endif
 #endif
