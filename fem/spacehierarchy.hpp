@@ -34,7 +34,7 @@ public:
    /// Constructs an empty space hierarchy
    SpaceHierarchy();
 
-   /// Constructs a space hierarchy with the given mesh and space on level zero.
+   /// Constructs a space hierarchy with the given mesh and space on the coarsest level.
    /// The ownership of the mesh and space may be transferred to the
    /// SpaceHierarchy by setting the according boolean variables.
    SpaceHierarchy(Mesh* mesh, FiniteElementSpace* fespace, bool ownM,
