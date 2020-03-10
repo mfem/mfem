@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64")
-   set(MFEM_PERF_CXX_ARCH_FLAGS "-mtune=native") # Unsupported mcpu option
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=native" "-mtune=native")
 else()
    set(MFEM_PERF_CXX_ARCH_FLAGS "-march=native")
 endif()
