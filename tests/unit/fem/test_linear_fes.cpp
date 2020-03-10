@@ -436,4 +436,3 @@ TEST_CASE("Hex mesh with linear grid function",
    }
 
 }
-
