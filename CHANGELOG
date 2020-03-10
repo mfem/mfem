@@ -240,9 +240,9 @@ Miscellaneous
 
 API changes
 -----------
-- In the enum classes MemoryType and MemoryClass, 'CUDA' was renamed to 'DEVICE'
-  which now denotes either 'CUDA' or 'HIP' depending on the build configuration.
-  In the same enum classes, 'CUDA_UVM' was renamed to 'MANAGED'.
+- In the enum classes MemoryType and MemoryClass, "CUDA" was renamed to "DEVICE"
+  which now denotes either "CUDA" or "HIP" depending on the build configuration.
+  In the same enum classes, "CUDA_UVM" was renamed to "MANAGED".
 
 
 Version 4.0, released on May 24, 2019
