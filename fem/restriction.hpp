@@ -20,9 +20,6 @@ namespace mfem
 
 class FiniteElementSpace;
 enum class ElementDofOrdering;
-#ifdef MFEM_USE_MPI
-class ParFiniteElementSpace;
-#endif
 
 /** An enum type to specify if only e1 value is requested (SingleValued) or both
     e1 and e2 (DoubleValued). */
@@ -43,6 +40,7 @@ protected:
    const int nedofs;
    Array<int> offsets;
    Array<int> indices;
+   Array<int> gatherMap;
 
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
@@ -122,40 +120,19 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-#ifdef MFEM_USE_MPI
-
-/// Operator that extracts Face degrees of freedom.
-/** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParL2FaceRestriction : public Operator
-{
-protected:
-   const ParFiniteElementSpace &fes;
-   const int nf;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   const int dof;
-   const L2FaceValues m;
-   const int nfdofs;
-   Array<int> scatter_indices1;
-   Array<int> scatter_indices2;
-   Array<int> offsets;
-   Array<int> gather_indices;
-
-public:
-   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
-                        FaceType type,
-                        L2FaceValues m = L2FaceValues::DoubleValued);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-};
-
-#endif // MFEM_USE_MPI
+// Return the face degrees of freedom returned in Lexicographic order.
+void GetFaceDofs(const int dim, const int face_id,
+                 const int dof1d, Array<int> &faceMap);
 
 // Convert from Native ordering to lexicographic ordering
 int ToLexOrdering(const int dim, const int face_id, const int size1d,
                   const int index);
+
+// Permute dofs or quads on a face for e2 to match with the ordering of e1
+int PermuteFaceL2(const int dim, const int face_id1,
+                  const int face_id2, const int orientation,
+                  const int size1d, const int index);
+
 
 }
 
