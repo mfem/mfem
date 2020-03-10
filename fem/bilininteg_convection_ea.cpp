@@ -238,20 +238,20 @@ static void EAConvectionAssemble3D0D(const int NE,
             r_G[q][d] = G(q,d);
          }
       }
-      MFEM_SHARED double s_D[MQ1][MQ1][MQ1][3];
-      MFEM_FOREACH_THREAD(k1,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(k2,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(k3,z,Q1D)
-            {
-               s_D[k1][k2][k3][0] = D(k1,k2,k3,0,e);
-               s_D[k1][k2][k3][1] = D(k1,k2,k3,1,e);
-               s_D[k1][k2][k3][2] = D(k1,k2,k3,2,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
+      // MFEM_SHARED double s_D[MQ1][MQ1][MQ1][3];
+      // MFEM_FOREACH_THREAD(k1,x,Q1D)
+      // {
+      //    MFEM_FOREACH_THREAD(k2,y,Q1D)
+      //    {
+      //       MFEM_FOREACH_THREAD(k3,z,Q1D)
+      //       {
+      //          s_D[k1][k2][k3][0] = D(k1,k2,k3,0,e);
+      //          s_D[k1][k2][k3][1] = D(k1,k2,k3,1,e);
+      //          s_D[k1][k2][k3][2] = D(k1,k2,k3,2,e);
+      //       }
+      //    }
+      // }
+      // MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD(i1,x,D1D)
       {
          MFEM_FOREACH_THREAD(i2,y,D1D)
@@ -271,9 +271,12 @@ static void EAConvectionAssemble3D0D(const int NE,
                            {
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
-                                 val += (r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3] * s_D[k1][k2][k3][0]
-                                       + r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3] * s_D[k1][k2][k3][1]
-                                       + r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3] * s_D[k1][k2][k3][2])
+                                 double D0 = D(k1,k2,k3,0,e);
+                                 double D1 = D(k1,k2,k3,1,e);
+                                 double D2 = D(k1,k2,k3,2,e);
+                                 val += (r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3] * D0
+                                       + r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3] * D1
+                                       + r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3] * D2)
                                        * r_B[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
                               }
                            }
