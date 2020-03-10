@@ -184,6 +184,9 @@ New and updated examples and miniapps
   arbitrary number of physical space points in 2D and 3D. The GridFunction must
   be in H1 and in the same space as the mesh that is used to find the points.
 
+- Added a simple miniapp, Get Values, that extracts field values at a set of
+  points, from previously saved data via DataCollection classes.
+
 - Several examples and miniapps were updated:
   * Added device support in Example 3/3p and Example 9/9p.
   * Example 1/1p and Example 3/3p now use diagonal preconditioning in partial
@@ -195,6 +198,10 @@ New and updated examples and miniapps
     optimization on non-conforming AMR meshes.
   * New options to reorder and partition the mesh and boundary attribute
     visualization (key 'b') are now available in the mesh-explorer miniapp.
+
+- Collected object files from the miniapps/common directory into a new library,
+  libmfem-common for the convenience of application developers. The new library
+  is now used in several miniapps in the electromagnetic and tools directories.
 
 Improved testing
 ----------------
@@ -215,23 +222,21 @@ Improved testing
 
 Miscellaneous
 -------------
-- Upgraded the SUNDIALS interface to utilize SUNDIALS 5.0. This necessitated a
-  complete rework of the interface and requires changes at the application
-  level. Example usage of the new interface can be found in examples/sundials.
-
 - Added support for output in the ParaView XML format. Both low-order and
   high-order Lagrange elements are supported. Output can be in ASCII or binary
   format. The binary output can be compressed if MFEM is compiled with zlib
   support (MFEM_USE_ZLIB). See the new ParaViewDataCollection class and the
   updated Examples 5/5p and 9/9p.
 
+- Upgraded the SUNDIALS interface to utilize SUNDIALS 5.0. This necessitated a
+  complete rework of the interface and requires changes at the application
+  level. Example usage of the new interface can be found in examples/sundials.
+
 - Switched from gzstream to zstr for the implementation of zlib-compressed C++
   output stream. The build system definition now uses MFEM_USE_ZLIB instead of
   MFEM_USE_GZSTREAM, but the code interface (e.g. ofgzstream) remains the same.
 
-- Collected object files from the miniapps/common directory into a new library,
-  libmfem-common for the convenience of application developers. The new library
-  is now used in several miniapps in the electromagnetic and tools directories.
+- Various other simplifications, extensions, and bugfixes in the code.
 
 API changes
 -----------
