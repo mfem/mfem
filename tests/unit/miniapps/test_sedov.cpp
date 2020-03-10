@@ -1190,7 +1190,7 @@ private:
    Vector d_dt_est;
    Vector d_l2_e_quads_data;
    Vector d_h1_v_local_in, d_h1_grad_x_data, d_h1_grad_v_data;
-   const QuadratureInterpolator *q1,*q2;
+   const QuadratureInterpolator *q1, *q2;
 public:
    QUpdate(const int d, const int ne, const bool uv,
            const double c, const double g, TimingData *t,
@@ -1229,9 +1229,8 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
    Vector rho0Q(NQ*NE);
    rho0Q.UseDevice(true);
-   Vector j, detj;
    const QuadratureInterpolator *qi = l2_fes.GetQuadratureInterpolator(ir);
-   qi->Mult(rho0, QuadratureInterpolator::VALUES, rho0Q, j, detj);
+   qi->Values(rho0, rho0Q);
    auto W = ir.GetWeights().Read();
    auto R = Reshape(rho0Q.Read(), NQ, NE);
    auto J = Reshape(geom->J.Read(), NQ, dim, dim, NE);
@@ -1536,11 +1535,13 @@ void QUpdate::UpdateQuadratureData(const Vector &S,
    GridFunction d_x, d_v, d_e;
    d_x.MakeRef(&H1,*S_p, 0);
    H1ER->Mult(d_x, d_h1_v_local_in);
+   q1->SetOutputLayout(QVectorLayout::byVDIM);
    q1->Derivatives(d_h1_v_local_in, d_h1_grad_x_data);
    d_v.MakeRef(&H1,*S_p, H1_size);
    H1ER->Mult(d_v, d_h1_v_local_in);
    q1->Derivatives(d_h1_v_local_in, d_h1_grad_v_data);
    d_e.MakeRef(&L2, *S_p, 2*H1_size);
+   q2->SetOutputLayout(QVectorLayout::byVDIM);
    q2->Values(d_e, d_l2_e_quads_data);
    d_dt_est = quad_data.dt_est;
    const int id = (dim<<4) | nqp1D;
