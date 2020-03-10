@@ -413,7 +413,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
             {
                mfem_error("FaceRestriction used on degenerated mesh.");
             }
-            GetFaceDofs(dim, face_id, dof1d, faceMap); / /Only for hex
+            GetFaceDofs(dim, face_id, dof1d, faceMap); // Only for hex
          }
          else
          {
