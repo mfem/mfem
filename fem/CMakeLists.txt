@@ -16,7 +16,8 @@ set(SRCS
   bilininteg_convection_pa.cpp
   bilininteg_convection_ea.cpp
   bilininteg_dgtrace.cpp
-  bilininteg_diffusion.cpp
+  bilininteg_diffusion_pa.cpp
+  bilininteg_diffusion_ea.cpp
   bilininteg_divergence.cpp
   bilininteg_gradient.cpp
   bilininteg_mass_ea.cpp

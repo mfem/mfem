@@ -12,7 +12,6 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/mass.hpp"
 #include "../linalg/elementmatrix.hpp"
 
 namespace mfem
@@ -579,7 +578,7 @@ static void EAConvectionAssemble3D3D(const int NE,
    });
 }
 
-void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
+void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                          Vector &ea_data)
 {
    AssemblePA(fes);
