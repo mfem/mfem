@@ -22,7 +22,8 @@ namespace mfem
 
 /// Initialize a Mass Integrator using libCEED
 void CeedPAMassAssemble(const FiniteElementSpace &fes,
-                        const mfem::IntegrationRule &ir,  CeedData& ceedData);
+                        const mfem::IntegrationRule &ir,
+                        CeedData& ceedData);
 
 }
 

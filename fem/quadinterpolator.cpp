@@ -627,7 +627,7 @@ void FaceQuadratureInterpolator::Eval3D(
           || (eval_flags & DETERMINANTS)
           || (eval_flags & NORMALS))
       {
-         //We only compute the tangential derivatives
+         // We only compute the tangential derivatives
          double Gu[max_NQ1D][max_ND1D][VDIM];
          double Bu[max_NQ1D][max_ND1D][VDIM];
          for (int d2 = 0; d2 < ND1D; ++d2)

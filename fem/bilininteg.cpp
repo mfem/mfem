@@ -2216,7 +2216,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // integrant is rational function if det(J) is not constant
+      // integrand is rational function if det(J) is not constant
       int order = 2 * Tr.OrderGrad(&el); // order of the numerator
       ir = (el.Space() == FunctionSpace::rQk) ?
            &RefinedIntRules.Get(el.GetGeomType(), order) :

@@ -88,7 +88,7 @@ public:
        that have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    ParGridFunction &operator=(const ParGridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 

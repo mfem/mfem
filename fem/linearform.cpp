@@ -268,5 +268,4 @@ LinearForm::~LinearForm()
    }
 }
 
-
 }
