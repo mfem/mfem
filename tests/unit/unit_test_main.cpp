@@ -13,10 +13,6 @@
 #include "mfem.hpp"
 #include "catch.hpp"
 
-#ifdef MFEM_USE_MPI
-mfem::MPI_Session *GlobalMPISession;
-#endif
-
 int main(int argc, char *argv[])
 {
    // There must be exactly one instance.

@@ -17,22 +17,15 @@
 #include "catch.hpp"
 #include <unordered_map>
 
-#include "config/config.hpp"
-
-#if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-#warning PAR
 #include "mfem.hpp"
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
+
+#ifdef MFEM_USE_MPI
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
-#undef MFEM_USE_MPI
-#include "mfem.hpp"
-#include "general/forall.hpp"
-#include "linalg/kernels.hpp"
-#define MFEM_MPI_STUB
 typedef int MPI_Comm;
 typedef int HYPRE_Int;
 #define ParMesh Mesh
@@ -44,17 +37,12 @@ typedef int HYPRE_Int;
 #define PFesGetParMeshGetComm(...)
 #define PFesGetParMeshGetComm0(...) 0
 #define MPI_Finalize()
-#define MPI_Allreduce(src,dst,...) *dst = *src
 #define MPI_INT int
 #define MPI_LONG long
-#define HYPRE_MPI_INT int
 #define MPI_DOUBLE double
-template<typename T>
-void MPI_Reduce_(T *src, T *dst, const int n)
-{
-   for (int i=0; i<n; i++) { dst[i] = src[i]; }
-}
-#define MPI_Reduce(src, dst, n, T,...) MPI_Reduce_<T>(src,dst,n)
+#define HYPRE_MPI_INT int
+#define MPI_Allreduce(src,dst,...) *dst = *src
+#define MPI_Reduce(src, dst, n, T,...) *dst = *src
 class MPI_Session
 {
 public:
@@ -2218,41 +2206,34 @@ static void sedov_tests(MPI_Session &mpi)
 
 #if defined(MFEM_SEDOV_MPI)
 #ifndef MFEM_SEDOV_TESTS
-#warning Main_Parallel
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   printf("\n\033[33m[1]\033[m"); fflush(0);
    MPI_Session &mpi = *GlobalMPISession;
    sedov_tests(mpi);
 }
 #else
-#warning Main_Parallel_Device
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   printf("\n\033[33m[2]\033[m"); fflush(0);
-   MPI_Session &mpi = *GlobalMPISession;
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
+   MPI_Session &mpi = *GlobalMPISession;
    sedov_tests(mpi);
 }
 #endif
-#else // All are serial now:
+#else
 #ifndef MFEM_SEDOV_TESTS
-#warning Main_Serial
 TEST_CASE("Sedov", "[Sedov]")
 {
-   printf("\n\033[33m[3]\033[m"); fflush(0);
    MPI_Session seq;
    sedov_tests(seq);
 }
 #else
-#warning Main_Serial_Device
 TEST_CASE("Sedov", "[Sedov]")
 {
-   printf("\n\033[33m[4]\033[m"); fflush(0);
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
+   device.Print();
    MPI_Session seq;
    sedov_tests(seq);
 }
