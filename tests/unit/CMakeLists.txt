@@ -18,7 +18,6 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
-  unit_test_main.cpp
   general/test_mem.cpp
   general/test_text.cpp
   general/test_zlib.cpp
@@ -56,10 +55,14 @@ if (MFEM_USE_CUDA)
    set_property(SOURCE ${UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
 
-# All non-device unit tests are built into a single executable 'unit_tests'.
-add_executable(unit_tests ${UNIT_TESTS_SRCS})
+# All serial non-device unit tests are built into a single executable 'unit_tests'.
+add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests mfem)
 
+# All parallel non-device unit tests are built into a single executable
+# 'unit_tests_p'.
+add_executable(unit_tests_p unit_test_main_p.cpp ${UNIT_TESTS_SRCS})
+target_link_libraries(unit_tests_p mfem)
 
 # All device unit tests are built into another executable, in order to be able
 # to change the device.
