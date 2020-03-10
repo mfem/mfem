@@ -17,6 +17,13 @@
 namespace mfem
 {
 
+/// Type describing possible layouts for Q-vectors.
+enum class QVectorLayout
+{
+   byNODES,  ///< NQPT x VDIM x NE
+   byVDIM    ///< VDIM x NQPT x NE
+};
+
 /** @brief A class that performs interpolation from an E-vector to quadrature
     point values and/or derivatives (Q-vectors). */
 /** An E-vector represents the element-wise discontinuous version of the FE
@@ -34,6 +41,7 @@ protected:
    const FiniteElementSpace *fespace;  ///< Not owned
    const QuadratureSpace *qspace;      ///< Not owned
    const IntegrationRule *IntRule;     ///< Not owned
+   mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
    mutable bool use_tensor_products;
 
@@ -69,6 +77,15 @@ public:
    void DisableTensorProducts(bool disable = true) const
    { use_tensor_products = !disable; }
 
+   /** @brief Query the current output Q-vector layout. The default value is
+       QVectorLayout::byNODES. */
+   QVectorLayout GetOutputLayout() const { return q_layout; }
+
+   /** @brief Set the desired output Q-vector layout. The default value is
+       QVectorLayout::byNODES. */
+   void SetOutputLayout(QVectorLayout out_layout) const
+   { q_layout = out_layout; }
+
    /// Interpolate the E-vector @a e_vec to quadrature points.
    /** The @a eval_flags are a bitwise mask of constants from the EvalFlags
        enumeration. When the VALUES flag is set, the values at quadrature points
@@ -82,15 +99,14 @@ public:
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
-   /// This computation uses tensor product structure.
    void Values(const Vector &e_vec, Vector &q_val) const;
 
-   /// Interpolate the derivatives of the E-vector @a e_vec at quadrature
-   /// points. This computation uses tensor product structure.
+   /** @brief Interpolate the derivatives of the E-vector @a e_vec at quadrature
+       points. */
    void Derivatives(const Vector &e_vec, Vector &q_der) const;
 
-   /// Interpolate the derivatives in physical space of the E-vector @a e_vec at
-   /// quadrature points. This computation uses tensor product structure.
+   /** @brief Interpolate the derivatives in physical space of the E-vector
+       @a e_vec at quadrature points. */
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
    /// Perform the transpose operation of Mult(). (TODO)

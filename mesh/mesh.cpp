@@ -10284,6 +10284,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
+   qi->SetOutputLayout(QVectorLayout::byNODES);
    if (elem_restr)
    {
       Vector Enodes(vdim*ND*NE);
