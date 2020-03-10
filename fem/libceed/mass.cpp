@@ -39,20 +39,9 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
 
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
-   CeedInterlaceMode imode = CEED_NONINTERLACED;
-   if (fes.GetOrdering()==Ordering::byVDIM)
-   {
-      imode = CEED_INTERLACED;
-   }
-   CeedElemRestrictionCreateIdentity(ceed, imode, nelem, nqpts,
-                                     nqpts*nelem, 1, &ceedData.restr_i);
-   CeedInterlaceMode mesh_imode = CEED_NONINTERLACED;
-   if (mesh_fes->GetOrdering()==Ordering::byVDIM)
-   {
-      mesh_imode = CEED_INTERLACED;
-   }
-   CeedElemRestrictionCreateIdentity(ceed, mesh_imode, nelem, nqpts,
-                                     nqpts*nelem, 1, &ceedData.mesh_restr_i);
+   const int qdatasize = 1;
+   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, nelem*nqpts, qdatasize,
+                                    CEED_STRIDES_BACKEND, &ceedData.restr_i);
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
    CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
@@ -114,7 +103,7 @@ void CeedPAMassAssemble(const FiniteElementSpace &fes,
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
                         ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
-   CeedOperatorSetField(ceedData.build_oper, "weights", ceedData.mesh_restr_i,
+   CeedOperatorSetField(ceedData.build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
                         ceedData.mesh_basis, CEED_VECTOR_NONE);
    CeedOperatorSetField(ceedData.build_oper, "rho", ceedData.restr_i,
                         CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
