@@ -323,7 +323,7 @@ static void GetFaceDofs(const int dim, const int face_id,
                   }
                }
                break;
-            case 5:/ / TOP
+            case 5: // TOP
                for (int i = 0; i < dof1d; ++i)
                {
                   for (int j = 0; j < dof1d; ++j)
@@ -1323,4 +1323,4 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
    }
 }
 
-} //namespace mfem
+} // namespace mfem
