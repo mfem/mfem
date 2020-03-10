@@ -212,7 +212,6 @@ double ori_values(const Vector &x)
       return theta;
    }
 
-
    return 0.0;
 }
 
@@ -316,7 +315,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-08;
+   double newton_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -767,7 +766,6 @@ int main (int argc, char *argv[])
       newton = new TMOPDescentNewtonSolver(*ir);
       cout << "The TMOPDescentNewtonSolver is used (as some det(J) < 0).\n";
    }
-
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
    newton->SetRelTol(newton_rtol);
