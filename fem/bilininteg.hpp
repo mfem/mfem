@@ -2002,6 +2002,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace&);
 
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &el,
