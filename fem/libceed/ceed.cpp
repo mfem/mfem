@@ -281,7 +281,7 @@ const std::string &GetCeedPath()
 
 void CeedPAAssemble(const FiniteElementSpace &fes,
                     const mfem::IntegrationRule &irm,
-                    CeedPAOperator& op,
+                    const CeedPAOperator& op,
                     CeedData& ceedData)
 {
    Ceed ceed(internal::ceed);
@@ -376,10 +376,10 @@ void CeedPAAssemble(const FiniteElementSpace &fes,
    CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
                                qf.c_str(),
                                &ceedData.apply_qfunc);
-   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, op.test_op);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, op.trial_op);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "qdata", qdatasize,
                          CEED_EVAL_NONE);
-   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dim, op.trial_op);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dim, op.test_op);
    CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
                            sizeof(ceedData.build_ctx));
 
