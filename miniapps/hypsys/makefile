@@ -44,7 +44,7 @@ VALGRIND-CONFIG = -tf 0.01 -dt 0.001 -p $(PROBLEM) -e 0
 # grid-convergence-test setup
 MESH0 = data/inline-3$(GEOM).mesh
 MESH1 = data/inline-4$(GEOM).mesh
-GEOM = tri
+GEOM = quad
 
 # ADVECTION
 CONFIG = -p 0 -e 0 -o 1 -c 0 -tf 1 -dt 0.00001 -s 1 -vs 1000
@@ -56,8 +56,8 @@ CONFIG = -p 3 -e 0 -o 3 -c 0 -tf 2.828427125 -dt 0.0001 -s 3 -vs 1000
 CONFIG-NAME = p3e0o3-$(GEOM)
 
 # EULER
-MESH = data/periodic-tri.mesh
-CONFIG = -p 4 -e 0 -o 2 -c 0 -tf 1 -dt 0.00005 -s 3 -vs 1000
+MESH = data/periodic-square.mesh
+CONFIG = -p 4 -e 0 -o 2 -c 0 -tf 2 -dt 0.00005 -s 3 -vs 1000
 CONFIG-NAME = p4e0o2-$(GEOM)
 
 ## Makefile rules. #############################################################
@@ -102,8 +102,8 @@ valgrind-test:
 
 valgrind-parallel:
 	# valgrind --gen-suppressions=yes phypsys $(VALGRIND-CONFIG)
-	valgrind --suppressions=$(MPI_HOME)/share/openmpi/openmpi-valgrind.supp phypsys $(VALGRIND-CONFIG)
-	# valgrind --suppressions=my-mpi-suppressions.supp phypsys $(VALGRIND-CONFIG)
+	# valgrind --suppressions=$(MPI_HOME)/share/openmpi/openmpi-valgrind.supp phypsys $(VALGRIND-CONFIG)
+	valgrind --suppressions=./my-mpi-suppressions.supp phypsys $(VALGRIND-CONFIG)
 
 grid-convergence-advection:
 	rm errors.txt; \
