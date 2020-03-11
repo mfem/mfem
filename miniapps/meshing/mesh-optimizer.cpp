@@ -575,7 +575,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   he_nlf_integ->SetFDFlag(fdscheme);
+   if (fdscheme!=0) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -632,7 +632,7 @@ int main (int argc, char *argv[])
       target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
-      he_nlf_integ2->SetFDFlag(fdscheme);
+      if (fdscheme!=0) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);

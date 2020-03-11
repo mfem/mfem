@@ -1331,7 +1331,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &elfun, Vector &elvect)
 {
-   if (fdflag == 0)
+   if (!fdflag)
    {
       AssembleElementVectorExact(el, T, elfun, elvect);
    }
@@ -1346,7 +1346,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           const Vector &elfun,
                                           DenseMatrix &elmat)
 {
-   if (fdflag == 0)
+   if (!fdflag)
    {
       AssembleElementGradExact(el, T, elfun, elmat);
    }
@@ -1555,62 +1555,6 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 }
 
 
-void TMOP_Integrator::ComputeMinJac(const Vector &x,
-                                    const FiniteElementSpace &fes)
-{
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(fes.GetFE(0)->GetGeomType(),
-                          2*fes.GetFE(0)->GetOrder() + 3)); // <---
-   }
-   const int NE = fes.GetMesh()->GetNE(), dim = fes.GetFE(0)->GetDim(),
-             dof = fes.GetFE(0)->GetDof(), nsp = ir->GetNPoints();
-
-   Array<int> xdofs(dof * dim);
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
-   Vector posV(pos.Data(), dof * dim);
-
-   double detv_min = std::numeric_limits<float>::max();
-   fdeps = std::numeric_limits<float>::max();
-
-   double detv_sum;
-   double detv_avg_min = std::numeric_limits<float>::max();
-   for (int i = 0; i < NE; i++)
-   {
-      fes.GetElementVDofs(i, xdofs);
-      x.GetSubVector(xdofs, posV);
-      detv_sum = 0.;
-      for (int j = 0; j < nsp; j++)
-      {
-         fes.GetFE(i)->CalcDShape(ir->IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
-         detv_min = std::min(Jpr.Det(), detv_min);
-         detv_sum += std::fabs(Jpr.Det());
-      }
-      double detv_avg = pow(detv_sum/nsp, 1./dim);
-      detv_avg_min = std::min(detv_avg,detv_avg_min);
-   }
-   fdeps = detv_avg_min*pow(10., -5.);
-}
-
-void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
-{
-   if (fdflag == 0) { return; }
-   ComputeMinJac(x, fes);
-}
-
-#ifdef MFEM_USE_MPI
-void TMOP_Integrator::SetFDh(const Vector &x, const ParFiniteElementSpace &pfes)
-{
-   if (fdflag == 0) { return; }
-   ComputeMinJac(x, pfes);
-   double min_jac = fdeps;
-   double min_jac_all;
-   MPI_Allreduce(&min_jac, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
-   fdeps = min_jac_all;
-}
-#endif
 
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         ElementTransformation &T,
@@ -1807,6 +1751,78 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    }
 }
 
+void TMOP_Integrator::ComputeMinJac(const Vector &x,
+                                    const FiniteElementSpace &fes)
+{
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(fes.GetFE(0)->GetGeomType(),
+                          2*fes.GetFE(0)->GetOrder() + 3)); // <---
+   }
+   const int NE = fes.GetMesh()->GetNE(), dim = fes.GetFE(0)->GetDim(),
+             dof = fes.GetFE(0)->GetDof(), nsp = ir->GetNPoints();
+
+   Array<int> xdofs(dof * dim);
+   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
+   Vector posV(pos.Data(), dof * dim);
+
+   fdeps = std::numeric_limits<float>::max();
+
+   double detv_sum;
+   double detv_avg_min = std::numeric_limits<float>::max();
+   for (int i = 0; i < NE; i++)
+   {
+      fes.GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, posV);
+      detv_sum = 0.;
+      for (int j = 0; j < nsp; j++)
+      {
+         fes.GetFE(i)->CalcDShape(ir->IntPoint(j), dshape);
+         MultAtB(pos, dshape, Jpr);
+         detv_sum += std::fabs(Jpr.Det());
+      }
+      double detv_avg = pow(detv_sum/nsp, 1./dim);
+      detv_avg_min = std::min(detv_avg,detv_avg_min);
+   }
+   fdeps = detv_avg_min*pow(10., -5.);
+}
+
+void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
+{
+   if (!fdflag) { return; }
+   ComputeMinJac(x, fes);
+}
+
+#ifdef MFEM_USE_MPI
+void TMOP_Integrator::SetFDh(const Vector &x, const ParFiniteElementSpace &pfes)
+{
+   if (!fdflag) { return; }
+   ComputeMinJac(x, pfes);
+   double min_jac = fdeps;
+   double min_jac_all;
+   MPI_Allreduce(&min_jac, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
+   fdeps = min_jac_all;
+}
+#endif
+
+void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
+{
+   fdflag = true;
+   const FiniteElementSpace *fes = x.FESpace();
+   SetFDh(x,*fes);
+}
+
+#ifdef MFEM_USE_MPI
+void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
+{
+   fdflag = true;
+   const ParFiniteElementSpace *pfes = x.ParFESpace();
+   SetFDh(x,*pfes);
+}
+#endif
+
+
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,
                                    const Mesh &mesh, GridFunction &metric_gf)
@@ -1851,5 +1867,4 @@ void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
       }
    }
 }
-
 } // namespace mfem
