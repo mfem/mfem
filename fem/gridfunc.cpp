@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of GridFunction
 
@@ -240,7 +240,7 @@ void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
 void GridFunction::SumFluxAndCount(BilinearFormIntegrator &blfi,
                                    GridFunction &flux,
                                    Array<int>& count,
-                                   int wcoef,
+                                   bool wcoef,
                                    int subdomain)
 {
    GridFunction &u = *this;
@@ -285,7 +285,7 @@ void GridFunction::SumFluxAndCount(BilinearFormIntegrator &blfi,
 }
 
 void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
-                               GridFunction &flux, int wcoef,
+                               GridFunction &flux, bool wcoef,
                                int subdomain)
 {
    Array<int> count(flux.Size());
@@ -326,7 +326,7 @@ void GridFunction::GetTrueDofs(Vector &tv) const
    if (!R)
    {
       // R is identity -> make tv a reference to *this
-      tv.NewDataAndSize(const_cast<double*>((const double*)data), size);
+      tv.MakeRef(const_cast<GridFunction &>(*this), 0, size);
    }
    else
    {
@@ -341,10 +341,7 @@ void GridFunction::SetFromTrueDofs(const Vector &tv)
    const SparseMatrix *cP = fes->GetConformingProlongation();
    if (!cP)
    {
-      if (tv.GetData() != data)
-      {
-         *this = tv;
-      }
+      *this = tv; // no real copy if 'tv' and '*this' use the same data
    }
    else
    {
@@ -474,6 +471,101 @@ const
 
    GetValues(i, ir, vals, vdim);
 }
+
+void GridFunction::GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                                 int vdim)
+const
+{
+   Array<int> dofs;
+   int n = ir.GetNPoints();
+   laps.SetSize(n);
+   fes->GetElementDofs(i, dofs);
+   fes->DofsToVDofs(vdim-1, dofs);
+   const FiniteElement *FElem = fes->GetFE(i);
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+               "invalid FE map type");
+
+   int dof = FElem->GetDof();
+   Vector DofLap(dof), loc_data(dof);
+   GetSubVector(dofs, loc_data);
+   for (int k = 0; k < n; k++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(k);
+      ET->SetIntPoint(&ip);
+      FElem->CalcPhysLaplacian(*ET, DofLap);
+      laps(k) = DofLap * loc_data;
+   }
+}
+
+void GridFunction::GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                                 DenseMatrix &tr, int vdim)
+const
+{
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   ET->Transform(ir, tr);
+
+   GetLaplacians(i, ir, laps, vdim);
+}
+
+
+void GridFunction::GetHessians(int i, const IntegrationRule &ir,
+                               DenseMatrix &hess,
+                               int vdim)
+const
+{
+
+   Array<int> dofs;
+   int n = ir.GetNPoints();
+   fes->GetElementDofs(i, dofs);
+   fes->DofsToVDofs(vdim-1, dofs);
+   const FiniteElement *FElem = fes->GetFE(i);
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   int dim = FElem->GetDim();
+   int size = (dim*(dim+1))/2;
+
+   MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
+               "invalid FE map type");
+
+   int dof = FElem->GetDof();
+   DenseMatrix DofHes(dof, size);
+   hess.SetSize(n, size);
+
+   Vector loc_data(dof);
+   GetSubVector(dofs, loc_data);
+
+   hess = 0.0;
+   for (int k = 0; k < n; k++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(k);
+      ET->SetIntPoint(&ip);
+      FElem->CalcPhysHessian(*ET, DofHes);
+
+      for (int i = 0; i < size; i++)
+      {
+         for (int d = 0; d < dof; d++)
+         {
+            hess(k,i) += DofHes(d,i) * loc_data[d];
+         }
+      }
+   }
+}
+
+void GridFunction::GetHessians(int i, const IntegrationRule &ir,
+                               DenseMatrix &hess,
+                               DenseMatrix &tr, int vdim)
+const
+{
+   ElementTransformation *ET;
+   ET = fes->GetElementTransformation(i);
+   ET->Transform(ir, tr);
+
+   GetHessians(i, ir, hess, vdim);
+}
+
 
 int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
                                 Vector &vals, DenseMatrix &tr,
@@ -1224,6 +1316,9 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
    Array<int> vdofs;
    Vector vals;
    *this = 0.0;
+
+   HostReadWrite();
+
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -1262,6 +1357,9 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
    Array<int> vdofs;
    Vector vals;
    *this = 0.0;
+
+   HostReadWrite();
+
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -1318,6 +1416,9 @@ void GridFunction::AccumulateAndCountBdrValues(
    values_counter = 0;
 
    vdim = fes->GetVDim();
+
+   HostReadWrite();
+
    for (i = 0; i < fes->GetNBE(); i++)
    {
       if (attr[fes->GetBdrAttribute(i) - 1] == 0) { continue; }
@@ -1453,6 +1554,8 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
 
    values_counter.SetSize(Size());
    values_counter = 0;
+
+   HostReadWrite();
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {
@@ -1788,7 +1891,7 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 {
    Array<int> values_counter;
-   this->HostReadWrite();
+   // this->HostReadWrite(); // done inside the next call
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
 #ifdef MFEM_DEBUG
@@ -2900,9 +3003,9 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux, Vector &error_estimates,
                         Array<int>* aniso_flags,
-                        int with_subdomains)
+                        int with_subdomains,
+                        bool with_coeff)
 {
-   const int with_coeff = 0;
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
    ElementTransformation *Transf;

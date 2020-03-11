@@ -83,6 +83,9 @@ namespace mfem {
  * - <a class="el" href="ex21p_8cpp_source.html">Example 21p</a>: parallel adaptive mesh refinement for linear elasticity
  * - <a class="el" href="ex22_8cpp_source.html">Example 22</a>: complex-valued linear systems for damped harmonic oscillators
  * - <a class="el" href="ex22p_8cpp_source.html">Example 22p</a>: parallel complex-valued linear systems for damped harmonic oscillators
+ * - <a class="el" href="ex23_8cpp_source.html">Example 23</a>: second order in time wave equation
+ * - <a class="el" href="ex24_8cpp_source.html">Example 24</a>: mixed finite element spaces and interpolators
+ * - <a class="el" href="ex24p_8cpp_source.html">Example 24p</a>: parallel mixed finite element spaces and interpolators
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
@@ -122,6 +125,11 @@ namespace mfem {
  *   <a class="el" href="hiop_2ex9_8cpp_source.html">9</a> and
  *   <a class="el" href="hiop_2ex9p_8cpp_source.html">9p</a>,
  *   demonstrating the use of MFEM's \link hiop.hpp HiOp classes\endlink
+ *
+ * <H4>Ginkgo Examples</H4>
+ * - Variants of Example
+ *   <a class="el" href="ginkgo_2ex1_8cpp_source.html">1</a>
+ *   demonstrating the use of MFEM's \link ginkgo.hpp Ginkgo classes\endlink
  *
  * <H3>Miniapps</H3>
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
