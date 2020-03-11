@@ -73,7 +73,8 @@ punit_tests: $(PAR_MAIN_OBJ) $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DAT
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-%.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(SEQ_MAIN_OBJ): %.o: $(SRC)%.cpp \
+ $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
