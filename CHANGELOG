@@ -206,7 +206,7 @@ New and updated examples and miniapps
 Improved testing
 ----------------
 - Added a large number of unit tests in the tests/unit directory, including
-  several parallel unit test.
+  several parallel unit tests.
 
 - Added a new directory, tests/scripts, with several shell scripts that perform
   simple checks on the code including: code styling, documentation formatting,
