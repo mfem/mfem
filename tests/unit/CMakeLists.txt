@@ -148,7 +148,7 @@ if (MFEM_USE_MPI)
       target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_DEVICE="cuda")
       target_link_libraries(psedov_tests_cuda mfem)
 
-      add_executable(psedov_tests_cuda_uvm ${SEDOV_TESTS_SRCS})
+      add_executable(psedov_tests_cuda_uvm ${PAR_SEDOV_TESTS_SRCS})
       target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_MPI=1)
       target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_TESTS=1)
       target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_DEVICE="cuda:uvm")
