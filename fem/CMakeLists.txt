@@ -41,6 +41,7 @@ set(SRCS
   nonlininteg.cpp
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
+  quadinterpolator_face.cpp
   restriction.cpp
   staticcond.cpp
   tmop.cpp
@@ -71,6 +72,7 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
+  quadinterpolator_face.hpp
   restriction.hpp
   staticcond.hpp
   tbilinearform.hpp
@@ -102,7 +104,8 @@ if (MFEM_USE_MPI)
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
-    pnonlinearform.cpp)
+    pnonlinearform.cpp
+    prestriction.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
@@ -110,7 +113,8 @@ if (MFEM_USE_MPI)
     pfespace.hpp
     pgridfunc.hpp
     plinearform.hpp
-    pnonlinearform.hpp)
+    pnonlinearform.hpp
+    prestriction.hpp)
 endif()
 
 if (MFEM_USE_CEED)
