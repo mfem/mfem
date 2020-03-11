@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "restriction.hpp"
@@ -232,10 +232,10 @@ void GetFaceDofs(const int dim, const int face_id,
       case 1:
          switch (face_id)
          {
-            case 0://WEST
+            case 0: // WEST
                faceMap[0] = 0;
                break;
-            case 1://EAST
+            case 1: // EAST
                faceMap[0] = dof1d-1;
                break;
          }
@@ -243,25 +243,25 @@ void GetFaceDofs(const int dim, const int face_id,
       case 2:
          switch (face_id)
          {
-            case 0://SOUTH
+            case 0: // SOUTH
                for (int i = 0; i < dof1d; ++i)
                {
                   faceMap[i] = i;
                }
                break;
-            case 1://EAST
+            case 1: // EAST
                for (int i = 0; i < dof1d; ++i)
                {
                   faceMap[i] = dof1d-1 + i*dof1d;
                }
                break;
-            case 2://NORTH
+            case 2: // NORTH
                for (int i = 0; i < dof1d; ++i)
                {
                   faceMap[i] = (dof1d-1)*dof1d + i;
                }
                break;
-            case 3://WEST
+            case 3: // WEST
                for (int i = 0; i < dof1d; ++i)
                {
                   faceMap[i] = i*dof1d;
@@ -272,7 +272,7 @@ void GetFaceDofs(const int dim, const int face_id,
       case 3:
          switch (face_id)
          {
-            case 0://BOTTOM
+            case 0: // BOTTOM
                for (int i = 0; i < dof1d; ++i)
                {
                   for (int j = 0; j < dof1d; ++j)
@@ -281,7 +281,7 @@ void GetFaceDofs(const int dim, const int face_id,
                   }
                }
                break;
-            case 1://SOUTH
+            case 1: // SOUTH
                for (int i = 0; i < dof1d; ++i)
                {
                   for (int j = 0; j < dof1d; ++j)
@@ -290,7 +290,7 @@ void GetFaceDofs(const int dim, const int face_id,
                   }
                }
                break;
-            case 2://EAST
+            case 2: // EAST
                for (int i = 0; i < dof1d; ++i)
                {
                   for (int j = 0; j < dof1d; ++j)
@@ -299,7 +299,7 @@ void GetFaceDofs(const int dim, const int face_id,
                   }
                }
                break;
-            case 3://NORTH
+            case 3: // NORTH
                for (int i = 0; i < dof1d; ++i)
                {
                   for (int j = 0; j < dof1d; ++j)
@@ -308,7 +308,7 @@ void GetFaceDofs(const int dim, const int face_id,
                   }
                }
                break;
-            case 4://WEST
+            case 4: // WEST
                for (int i = 0; i < dof1d; ++i)
                {
                   for (int j = 0; j < dof1d; ++j)
@@ -317,7 +317,7 @@ void GetFaceDofs(const int dim, const int face_id,
                   }
                }
                break;
-            case 5://TOP
+            case 5: // TOP
                for (int i = 0; i < dof1d; ++i)
                {
                   for (int j = 0; j < dof1d; ++j)
@@ -346,7 +346,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      gather_indices(nf*dof)
 {
    if (nf==0) { return; }
-   //if fespace == H1
+   // If fespace == H1
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
@@ -400,20 +400,20 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
-         // Assumes Gauss-Lobato basis
+         // Assumes Gauss-Lobatto basis
          if (dof_reorder)
          {
             if (orientation != 0)
             {
                mfem_error("FaceRestriction used on degenerated mesh.");
             }
-            GetFaceDofs(dim, face_id, dof1d, faceMap);//Only for hex
+            GetFaceDofs(dim, face_id, dof1d, faceMap); // Only for hex
          }
          else
          {
             mfem_error("FaceRestriction not yet implemented for this type of "
                        "element.");
-            //TODO Something with GetFaceDofs?
+            // TODO Something with GetFaceDofs?
          }
          for (int d = 0; d < dof; ++d)
          {
@@ -581,7 +581,7 @@ static int ToLexOrdering3D(const int face_id, const int size1d, const int i,
    {
       return (size1d-1-i) + j*size1d;
    }
-   else//face_id==0
+   else // face_id==0
    {
       return i + (size1d-1-j)*size1d;
    }
@@ -680,7 +680,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      offsets(ndofs+1),
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
-   //if fespace == L2
+   // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
@@ -730,18 +730,16 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
       {
          orientation = inf1 % 64;
          face_id1 = inf1 / 64;
-         GetFaceDofs(dim, face_id1, dof1d, faceMap1);//Only for hex
+         GetFaceDofs(dim, face_id1, dof1d, faceMap1); // Only for hex
          orientation = inf2 % 64;
          face_id2 = inf2 / 64;
-         GetFaceDofs(dim, face_id2, dof1d, faceMap2);//Only for hex
+         GetFaceDofs(dim, face_id2, dof1d, faceMap2); // Only for hex
       }
       else
       {
          mfem_error("FaceRestriction not yet implemented for this type of "
                     "element.");
-         //TODO Something with GetFaceDofs?
-         orientation = 0;          // suppress compiler warning
-         face_id1 = face_id2 = 0;  // suppress compiler warning
+         // TODO Something with GetFaceDofs?
       }
       if ((type==FaceType::Interior && e2>=0) ||
           (type==FaceType::Boundary && e2<0))
@@ -758,7 +756,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (type==FaceType::Interior && e2>=0) //interior face
+               if (type==FaceType::Interior && e2>=0) // interior face
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, d);
@@ -808,7 +806,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (type==FaceType::Interior && e2>=0) //interior face
+               if (type==FaceType::Interior && e2>=0) // interior face
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, d);
@@ -845,21 +843,21 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
             const int did = faceMap1[d];
             const int gid = elementMap[e1*elem_dofs + did];
             const int lid = dof*f_ind + d;
-            //we don't shift lid to express that it's e1 of f
+            // We don't shift lid to express that it's e1 of f
             gather_indices[offsets[gid]++] = lid;
          }
          if (m==L2FaceValues::DoubleValued)
          {
             for (int d = 0; d < dof; ++d)
             {
-               if (type==FaceType::Interior && e2>=0) //interior face
+               if (type==FaceType::Interior && e2>=0) // interior face
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
                                                orientation, dof1d, d);
                   const int did = faceMap2[pd];
                   const int gid = elementMap[e2*elem_dofs + did];
                   const int lid = dof*f_ind + d;
-                  //we shift lid to express that it's e2 of f
+                  // We shift lid to express that it's e2 of f
                   gather_indices[offsets[gid]++] = nfdofs + lid;
                }
             }
@@ -971,4 +969,4 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
    }
 }
 
-}//namespace mfem
+} // namespace mfem

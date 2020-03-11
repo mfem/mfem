@@ -3,14 +3,21 @@
 // Compile with: make ex23
 //
 // Sample runs:  ex23
-//               ex23 -m ../data/inline-tri.mesh
-//               ex23 -m ../data/disc-nurbs.mesh -r 3 -o 2 -tf 2
+//               ex23 -o 4 -tf 5
+//               ex23 -m ../data/square-disc.mesh -o 2 -tf 2 --neumann
+//               ex23 -m ../data/disc-nurbs.mesh -r 3 -o 4 -tf 2
+//               ex23 -m ../data/inline-hex.mesh -o 1 -tf 2 --neumann
+//               ex23 -m ../data/inline-tet.mesh -o 1 -tf 2 --neumann
 //
 // Description:  This example solves the wave equation problem of the form:
 //
 //                               d^2u/dt^2 = c^2 \Delta u.
 //
-//               The example demonstrates the use of 2nd order time integration.
+//               The example demonstrates the use of time dependent operators,
+//               implicit solvers and second order time integration.
+//
+//               We recommend viewing examples 9 and 10 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -163,14 +170,7 @@ WaveOperator::~WaveOperator()
 
 double InitialSolution(const Vector &x)
 {
-   if (x.Norml2() < 0.5)
-   {
-      return 1.0;
-   }
-   else
-   {
-      return 0.0;
-   }
+   return exp(-x.Norml2()*x.Norml2()*30);
 }
 
 double InitialRate(const Vector &x)
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    const char *ref_dir  = "";
    int ref_levels = 2;
-   int order = 1;
+   int order = 2;
    int ode_solver_type = 10;
    double t_final = 0.5;
    double dt = 1.0e-2;
@@ -218,10 +218,8 @@ int main(int argc, char *argv[])
    args.AddOption(&dirichlet, "-dir", "--dirichlet", "-neu",
                   "--neumann",
                   "BC switch.");
-
    args.AddOption(&ref_dir, "-r", "--ref",
                   "Reference directory for checking final solution.");
-
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -230,7 +228,6 @@ int main(int argc, char *argv[])
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -244,9 +241,8 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Define the ODE solver used for time integration. Several implicit
-   //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
-   //    explicit Runge-Kutta methods are available.
+   // 3. Define the ODE solver used for time integration. Several second order
+   //    time integrators are available.
    SecondOrderODESolver *ode_solver;
    switch (ode_solver_type)
    {
@@ -419,5 +415,3 @@ int main(int argc, char *argv[])
 
    return 0;
 }
-
-

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Implementation of data type mesh
@@ -2893,10 +2893,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Copy the element-to-edge Table, el_to_edge
    el_to_edge = (mesh.el_to_edge) ? new Table(*mesh.el_to_edge) : NULL;
 
-   // Copy the boudary-to-edge Table, bel_to_edge (3D)
+   // Copy the boundary-to-edge Table, bel_to_edge (3D)
    bel_to_edge = (mesh.bel_to_edge) ? new Table(*mesh.bel_to_edge) : NULL;
 
-   // Copy the boudary-to-edge Array, be_to_edge (2D)
+   // Copy the boundary-to-edge Array, be_to_edge (2D)
    mesh.be_to_edge.Copy(be_to_edge);
 
    // Duplicate the faces and faces_info.
@@ -10210,7 +10210,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                }
             }
          }
-         // Try neighbours for non-conforming meshes
+         // Try neighbors for non-conforming meshes
          if (ncmesh)
          {
             Array<int> neigh;
