@@ -95,14 +95,14 @@ struct CeedPAOperator
 {
    int qdatasize;
    std::string header;
-   CeedQFunctionUser const_qf;
    std::string const_func;
-   CeedQFunctionUser grid_qf;
+   CeedQFunctionUser const_qf;
    std::string grid_func;
-   CeedQFunctionUser apply_qf;
+   CeedQFunctionUser grid_qf;
    std::string apply_func;
-   CeedEvalMode test_op;
+   CeedQFunctionUser apply_qf;
    CeedEvalMode trial_op;
+   CeedEvalMode test_op;
 };
 
 /** @brief Identifies the type of coefficient of the Integrator to initialize
@@ -120,7 +120,7 @@ const std::string &GetCeedPath();
 
 void CeedPAAssemble(const FiniteElementSpace &fes,
                     const mfem::IntegrationRule &irm,
-                    CeedPAOperator& op,
+                    const CeedPAOperator& op,
                     CeedData& ceedData);
 
 /** @brief Function that determines if a CEED kernel should be used, based on
