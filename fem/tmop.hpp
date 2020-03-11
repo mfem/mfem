@@ -790,6 +790,8 @@ public:
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
 protected:
+   friend class TMOPNewtonSolver;
+   friend class TMOPDescentNewtonSolver;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
@@ -813,7 +815,7 @@ protected:
    mutable DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
-   int    fdflag;
+   bool   fdflag;
    double fdeps;
 
    Array <Vector *> ElemDer;        //f'(x)
@@ -858,6 +860,11 @@ protected:
                           Vector &elfun, const int nodenum,const int idir,
                           const double baseenergy, bool update);
 
+   /** @brief Determines the perturbation, h, for FD-based approximation. */
+   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
+#ifdef MFEM_USE_MPI
+   void SetFDh(const Vector &x, const ParFiniteElementSpace &pfes);
+#endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
 public:
@@ -869,7 +876,7 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(0)
+        fdflag(false)
    { }
 
    ~TMOP_Integrator()
@@ -928,18 +935,6 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   /** @brief Sets the flag that tells the Integrator to use FD-based
-       approximation. */
-   void SetFDFlag(int fdflag_) { fdflag = fdflag_; }
-   int  GetFDFlag()            { return fdflag; }
-
-   /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
-#ifdef MFEM_USE_MPI
-   void SetFDh(const Vector &x, const ParFiniteElementSpace &pfes);
-#endif
-   double GetFDh() { return fdeps; }
-
    DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc; }
 
    /** @brief Computes the normalization factors of the metric and limiting
@@ -948,6 +943,15 @@ public:
 #ifdef MFEM_USE_MPI
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
+
+   /** @brief Enables FD-based approximation and computes fdeps. */
+   void EnableFiniteDifferences(const GridFunction &x);
+#ifdef MFEM_USE_MPI
+   void EnableFiniteDifferences(const ParGridFunction &x);
+#endif
+
+   bool   GetFDFlag() { return fdflag; }
+   double GetFDh()    { return fdeps; }
 };
 
 

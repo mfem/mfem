@@ -429,7 +429,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             discrtc->UpdateTargetSpecification(x_loc);
             double fdeps = tmopi->GetFDh();
-            if (tmopi->GetFDFlag() == 1)
+            if (tmopi->GetFDFlag())
             {
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
@@ -465,7 +465,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             discrtc->UpdateTargetSpecification(x);
             double fdeps = tmopi->GetFDh();
-            if (tmopi->GetFDFlag() == 1)
+            if (tmopi->GetFDFlag())
             {
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
@@ -594,7 +594,7 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
          {
             discrtc->UpdateTargetSpecification(x_loc);
             double fdeps = tmopi->GetFDh();
-            if (tmopi->GetFDFlag() == 1)
+            if (tmopi->GetFDFlag())
             {
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
@@ -630,7 +630,7 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
          {
             discrtc->UpdateTargetSpecification(x);
             double fdeps = tmopi->GetFDh();
-            if (tmopi->GetFDFlag() == 1)
+            if (tmopi->GetFDFlag())
             {
                discrtc->BackupTargetSpecification();
                discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
