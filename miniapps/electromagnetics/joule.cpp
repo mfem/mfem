@@ -120,6 +120,10 @@ static double mj_ = 0.0;
 static double sj_ = 0.0;
 static double wj_ = 0.0;
 
+// Initialize variables used in joule_solver.cpp
+int electromagnetics::SOLVER_PRINT_LEVEL = 0;
+int electromagnetics::STATIC_COND        = 0;
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
