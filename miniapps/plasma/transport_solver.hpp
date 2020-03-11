@@ -288,8 +288,7 @@ protected:
 };
 
 
-class StateVariableCoef : public StateVariableFunc,
-   public Coefficient
+class StateVariableCoef : public StateVariableFunc, public Coefficient
 {
 public:
 
@@ -919,11 +918,13 @@ class IonMomentumParaCoef : public StateVariableCoef
 {
 private:
    double m_i_;
-   Coefficient &niCoef_;
-   Coefficient &viCoef_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &viCoef_;
 
 public:
-   IonMomentumParaCoef(double m_i, Coefficient &niCoef, Coefficient &viCoef)
+   IonMomentumParaCoef(double m_i,
+                       StateVariableCoef &niCoef,
+                       StateVariableCoef &viCoef)
       : m_i_(m_i), niCoef_(niCoef), viCoef_(viCoef) {}
 
    IonMomentumParaCoef(const IonMomentumParaCoef &other)
@@ -948,8 +949,8 @@ public:
    double Eval_Func(ElementTransformation &T,
                     const IntegrationPoint &ip)
    {
-      double ni = niCoef_.Eval(T, ip);
-      double vi = viCoef_.Eval(T, ip);
+      double ni = niCoef_.Eval_Func(T, ip);
+      double vi = viCoef_.Eval_Func(T, ip);
 
       return m_i_ * ni * vi;
    }
@@ -957,7 +958,7 @@ public:
    double Eval_dNi(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
-      double vi = viCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval_Func(T, ip);
 
       return m_i_ * vi;
    }
@@ -965,7 +966,7 @@ public:
    double Eval_dVi(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
-      double ni = niCoef_.Eval(T, ip);
+      double ni = niCoef_.Eval_Func(T, ip);
 
       return m_i_ * ni;
    }
@@ -979,11 +980,11 @@ private:
    const double lnLambda_;
    const double a_;
 
-   Coefficient       * TiCoef_;
+   StateVariableCoef * TiCoef_;
 
 public:
    IonMomentumParaDiffusionCoef(int ion_charge, double ion_mass,
-                                Coefficient &TiCoef)
+                                StateVariableCoef &TiCoef)
       : z_i_((double)ion_charge), m_i_(ion_mass),
         lnLambda_(17.0),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
@@ -1010,15 +1011,72 @@ public:
 
    bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID || deriv == ION_TEMPERATURE);
    }
 
    double Eval_Func(ElementTransformation &T,
                     const IntegrationPoint &ip)
    {
-      double Ti = TiCoef_->Eval(T, ip);
+      double Ti = TiCoef_->Eval_Func(T, ip);
       double EtaPara = a_ * sqrt(pow(Ti, 5));
       return EtaPara;
+   }
+
+   double Eval_dTi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double Ti = TiCoef_->Eval_Func(T, ip);
+      double dEtaPara = 2.5 * a_ * sqrt(pow(Ti, 3));
+      return dEtaPara;
+   }
+
+};
+
+class IonMomentumPerpDiffusionCoef : public StateVariableCoef
+{
+private:
+   double Dperp_;
+   double m_i_;
+
+   StateVariableCoef * niCoef_;
+
+public:
+   IonMomentumPerpDiffusionCoef(double Dperp, double ion_mass,
+                                StateVariableCoef &niCoef)
+      : Dperp_(Dperp), m_i_(ion_mass),
+        niCoef_(&niCoef)
+   {}
+
+   IonMomentumPerpDiffusionCoef(const IonMomentumPerpDiffusionCoef &other)
+      : Dperp_(other.Dperp_), m_i_(other.m_i_),
+        niCoef_(other.niCoef_)
+   {
+      derivType_ = other.derivType_;
+   }
+
+   virtual IonMomentumPerpDiffusionCoef * Clone() const
+   {
+      return new IonMomentumPerpDiffusionCoef(*this);
+   }
+
+   bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID || deriv == ION_DENSITY);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_->Eval_Func(T, ip);
+      double EtaPerp = Dperp_ * m_i_ * ni;
+      return EtaPerp;
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double dEtaPerp = Dperp_ * m_i_;
+      return dEtaPerp;
    }
 
 };
@@ -2229,14 +2287,14 @@ private:
       // ProductCoefficient      ne0Coef_;
       // ProductCoefficient      ne1Coef_;
 
-      ProductCoefficient    mini1Coef_;
-      ProductCoefficient    mivi1Coef_;
+      // ProductCoefficient    mini1Coef_;
+      // ProductCoefficient    mivi1Coef_;
 
       VectorCoefficient * B3Coef_;
 
       IonMomentumParaCoef            momCoef_;
       IonMomentumParaDiffusionCoef   EtaParaCoef_;
-      ProductCoefficient             EtaPerpCoef_;
+      IonMomentumPerpDiffusionCoef   EtaPerpCoef_;
       Aniso2DDiffusionCoef           EtaCoef_;
       ScalarMatrixProductCoefficient dtEtaCoef_;
 
@@ -2340,8 +2398,8 @@ private:
       // ProductCoefficient      ne0Coef_;
       // ProductCoefficient      ne1Coef_;
 
-      ProductCoefficient      thTiCoef_; // 3/2 * Ti
-      ProductCoefficient      thniCoef_; // 3/2 * ni
+      // ProductCoefficient      thTiCoef_; // 3/2 * Ti
+      // ProductCoefficient      thniCoef_; // 3/2 * ni
 
       ApproxIonizationRate     izCoef_;
 
@@ -2444,8 +2502,8 @@ private:
       // ProductCoefficient      ne0Coef_;
       // ProductCoefficient      ne1Coef_;
 
-      ProductCoefficient      thTeCoef_; // 3/2 * Te
-      ProductCoefficient      thneCoef_; // 3/2 * ne
+      // ProductCoefficient      thTeCoef_; // 3/2 * Te
+      // ProductCoefficient      thneCoef_; // 3/2 * ne
 
       ApproxIonizationRate     izCoef_;
 

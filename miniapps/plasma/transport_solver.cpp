@@ -1388,6 +1388,12 @@ void DGTransportTDO::NLOperator::AddToM(StateVariableCoef &MCoef)
          coef->SetDerivType((FieldType)i);
          coefs_.Append(coef);
          dbfi_m_[i].Append(new MassIntegrator(*coef));
+
+         if (blf_[i] == NULL)
+         {
+            blf_[i] = new ParBilinearForm(&fes_);
+         }
+         blf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
       }
    }
 }
@@ -2180,8 +2186,8 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
 
    // Gradient of non-linear operator
    // dOp / dn_n
-   blf_[0] = new ParBilinearForm(&fes_);
-   blf_[0]->AddDomainIntegrator(new MassIntegrator);
+   // blf_[0] = new ParBilinearForm(&fes_);
+   // blf_[0]->AddDomainIntegrator(new MassIntegrator);
    blf_[0]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
    blf_[0]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
                                                                 dg_.sigma,
@@ -2488,12 +2494,15 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
 
    // Gradient of non-linear operator
    // dOp / dn_n
-   blf_[0] = new ParBilinearForm(&fes_);
+   if (blf_[0] == NULL)
+   {
+      blf_[0] = new ParBilinearForm(&fes_);
+   }
    blf_[0]->AddDomainIntegrator(new MassIntegrator(negdtdSizdnnCoef_));
 
    // dOp / dn_i
-   blf_[1] = new ParBilinearForm(&fes_);
-   blf_[1]->AddDomainIntegrator(new MassIntegrator);
+   // blf_[1] = new ParBilinearForm(&fes_);
+   // blf_[1]->AddDomainIntegrator(new MassIntegrator);
    blf_[1]->AddDomainIntegrator(new DiffusionIntegrator(dtDCoef_));
    blf_[1]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtDCoef_,
                                                                 dg_.sigma,
@@ -2628,12 +2637,12 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      // Ti1Coef_(Ti0Coef_, dTiCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
      // ne0Coef_(z_i_, ni0Coef_),
      //  ne1Coef_(z_i_, ni1Coef_),
-     mini1Coef_(m_i_, ni1Coef_),
-     mivi1Coef_(m_i_, vi1Coef_),
+     // mini1Coef_(m_i_, ni1Coef_),
+     // mivi1Coef_(m_i_, vi1Coef_),
      B3Coef_(&B3Coef),
      momCoef_(m_i_, ni0Coef_, vi0Coef_),
-     EtaParaCoef_(z_i_, m_i_, Ti1Coef_),
-     EtaPerpCoef_(DPerpConst_, mini1Coef_),
+     EtaParaCoef_(z_i_, m_i_, Ti0Coef_),
+     EtaPerpCoef_(DPerpConst_, m_i_, ni0Coef_),
      EtaCoef_(EtaParaCoef_, EtaPerpCoef_, *B3Coef_),
      dtEtaCoef_(0.0, EtaCoef_),
      miniViCoef_(yGF, kGF, m_i_, DPerpCoef_, B3Coef),
@@ -2679,13 +2688,13 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
 
    // Gradient of non-linear operator
    // dOp / dn_i
-   blf_[1] = new ParBilinearForm(&fes_);
-   blf_[1]->AddDomainIntegrator(new MassIntegrator(mivi1Coef_));
+   // blf_[1] = new ParBilinearForm(&fes_);
+   // blf_[1]->AddDomainIntegrator(new MassIntegrator(mivi1Coef_));
    // ToDo: add d(gradPCoef)/dn_i
 
    // dOp / dv_i
-   blf_[2] = new ParBilinearForm(&fes_);
-   blf_[2]->AddDomainIntegrator(new MassIntegrator(mini1Coef_));
+   // blf_[2] = new ParBilinearForm(&fes_);
+   // blf_[2]->AddDomainIntegrator(new MassIntegrator(mini1Coef_));
    blf_[2]->AddDomainIntegrator(new DiffusionIntegrator(dtEtaCoef_));
    blf_[2]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtEtaCoef_,
                                                                 dg_.sigma,
@@ -2858,8 +2867,8 @@ IonStaticPressureOp(const MPI_Session & mpi,
      // Ti1Coef_(Ti0Coef_, dTiCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
      // ne0Coef_(z_i_, *yCoef_[ION_DENSITY]),
      // ne1Coef_(z_i_, *y1Coef_[ION_DENSITY]),
-     thTiCoef_(1.5, *y1Coef_[ION_TEMPERATURE]),
-     thniCoef_(1.5, *y1Coef_[ION_DENSITY]),
+     // thTiCoef_(1.5, *y1Coef_[ION_TEMPERATURE]),
+     // thniCoef_(1.5, *y1Coef_[ION_DENSITY]),
      izCoef_(*y1Coef_[ELECTRON_TEMPERATURE]),
      B3Coef_(&B3Coef),
      presCoef_(ni0Coef_, Ti0Coef_),
@@ -2925,12 +2934,12 @@ IonStaticPressureOp(const MPI_Session & mpi,
    */
    // Gradient of non-linear operator
    // dOp / dn_i
-   blf_[1] = new ParBilinearForm(&fes_);
-   blf_[1]->AddDomainIntegrator(new MassIntegrator(thTiCoef_));
+   // blf_[1] = new ParBilinearForm(&fes_);
+   // blf_[1]->AddDomainIntegrator(new MassIntegrator(thTiCoef_));
 
    // dOp / dT_i
-   blf_[3] = new ParBilinearForm(&fes_);
-   blf_[3]->AddDomainIntegrator(new MassIntegrator(thniCoef_));
+   // blf_[3] = new ParBilinearForm(&fes_);
+   // blf_[3]->AddDomainIntegrator(new MassIntegrator(thniCoef_));
 
    blf_[3]->AddDomainIntegrator(new DiffusionIntegrator(dtChiCoef_));
    blf_[3]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
@@ -3025,8 +3034,8 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      grad_Te1Coef_(grad_Te0Coef_, grad_dTeCoef_),
      // ne0Coef_(z_i_, *yCoef_[ION_DENSITY]),
      // ne1Coef_(z_i_, *y1Coef_[ION_DENSITY]),
-     thTeCoef_(1.5 * plasma.z_i, *y1Coef_[ELECTRON_TEMPERATURE]),
-     thneCoef_(1.5, ne1Coef_),
+     // thTeCoef_(1.5 * plasma.z_i, *y1Coef_[ELECTRON_TEMPERATURE]),
+     // thneCoef_(1.5, ne1Coef_),
      izCoef_(*y1Coef_[ELECTRON_TEMPERATURE]),
      B3Coef_(&B3Coef),
      presCoef_(z_i_, ni0Coef_, Ti0Coef_),
@@ -3097,12 +3106,12 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    */
    // Gradient of non-linear operator
    // dOp / dn_i
-   blf_[1] = new ParBilinearForm(yGF_[1]->ParFESpace());
-   blf_[1]->AddDomainIntegrator(new MassIntegrator(thTeCoef_));
+   // blf_[1] = new ParBilinearForm(yGF_[1]->ParFESpace());
+   // blf_[1]->AddDomainIntegrator(new MassIntegrator(thTeCoef_));
 
    // dOp / dT_e
-   blf_[4] = new ParBilinearForm(yGF_[4]->ParFESpace());
-   blf_[4]->AddDomainIntegrator(new MassIntegrator(thneCoef_));
+   // blf_[4] = new ParBilinearForm(yGF_[4]->ParFESpace());
+   // blf_[4]->AddDomainIntegrator(new MassIntegrator(thneCoef_));
 
    blf_[4]->AddDomainIntegrator(new DiffusionIntegrator(dtChiCoef_));
    blf_[4]->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dtChiCoef_,
