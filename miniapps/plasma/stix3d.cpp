@@ -712,7 +712,7 @@ int main(int argc, char *argv[])
 
       int Wx = 0, Wy = 0; // window position
       int Ww = 350, Wh = 350; // window size
-      int offx = Ww+10, offy = Wh+45; // window offsets
+      int offx = Ww+10;//, offy = Wh+45; // window offsets
 
       socketstream sock_Er, sock_Ei, sock_B;
       // sock_Er.precision(8);

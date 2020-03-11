@@ -73,7 +73,7 @@ static double B_max_ = 1.0;
 static double v_max_ = 0.0;
 
 // Maximum characteristic speed (updated by integrators)
-static double max_char_speed_;
+//static double max_char_speed_;
 
 // Background fields and initial conditions
 static int prob_ = 4;
