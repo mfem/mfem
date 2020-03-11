@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_CONFIG_HEADER
@@ -97,6 +97,9 @@
 
 // Enable MFEM functionality based on the GnuTLS library
 #cmakedefine MFEM_USE_GNUTLS
+
+// Enable MFEM functionality based on the GSLIB library
+#cmakedefine MFEM_USE_GSLIB
 
 // Enable MFEM functionality based on the NetCDF library
 #cmakedefine MFEM_USE_NETCDF
