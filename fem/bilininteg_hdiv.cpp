@@ -1093,6 +1093,46 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
    }
 }
 
+// PA H(div)-L2 (div u, p) assemble 2D kernel
+static void PADivL2Setup2D(const int Q1D,
+                           const int NE,
+                           const Array<double> &w,
+                           Vector &_coeff,
+                           Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         y(q,e) = W[q] * coeff(q,e);
+      }
+   });
+}
+
+static void PADivL2Setup3D(const int Q1D,
+                           const int NE,
+                           const Array<double> &w,
+                           Vector &_coeff,
+                           Vector &op)
+{
+   const int NQ = Q1D*Q1D*Q1D;
+   auto W = w.Read();
+   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         y(q,e) = W[q] * coeff(q, e);
+      }
+   });
+}
+
 void
 VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                          const FiniteElementSpace &test_fes)
@@ -1102,13 +1142,13 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const FiniteElement *trial_fel = trial_fes.GetFE(0);
    const FiniteElement *test_fel = test_fes.GetFE(0);
 
-   const NodalTensorFiniteElement *trial_el =
-      dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
-   MFEM_VERIFY(trial_el != NULL, "Only NodalTensorFiniteElement is supported!");
+   const VectorTensorFiniteElement *trial_el =
+      dynamic_cast<const VectorTensorFiniteElement*>(trial_fel);
+   MFEM_VERIFY(trial_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const VectorTensorFiniteElement *test_el =
-      dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
-   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   const NodalTensorFiniteElement *test_el =
+      dynamic_cast<const NodalTensorFiniteElement*>(test_fel);
+   MFEM_VERIFY(test_el != NULL, "Only NodalTensorFiniteElement is supported!");
 
    const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule(
                                   *trial_el, *trial_el,
@@ -1117,23 +1157,24 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
-   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "");
+   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder() + 1, "");
 
    ne = trial_fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   mapsC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &trial_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
    dofs1D = mapsC->ndof;
    quad1D = mapsC->nqpt;
 
+   L2mapsO = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   L2dofs1D = L2mapsO->ndof;
+
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
    Vector coeff(ne * nq);
    coeff = 1.0;
@@ -1149,16 +1190,13 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       }
    }
 
-   // Use the same setup functions as DivDivIntegrator.
-   if (test_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
+   if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
    {
-      PADivDivSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
-                      coeff, pa_data);
+      PADivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
    }
-   else if (test_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 2)
+   else if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 2)
    {
-      PADivDivSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
-                      coeff, pa_data);
+      PADivL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
    }
    else
    {
@@ -1170,10 +1208,11 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply3D(const int D1D,
                             const int Q1D,
+                            const int L2D1D,
                             const int NE,
                             const Array<double> &_Bo,
                             const Array<double> &_Gc,
-                            const Array<double> &_Bot,
+                            const Array<double> &_L2Bot,
                             const Vector &_op,
                             const Vector &_x,
                             Vector &_y)
@@ -1182,10 +1221,10 @@ static void PAHdivL2Apply3D(const int D1D,
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+   auto L2Bot = Reshape(_L2Bot.Read(), L2D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
    auto x = Reshape(_x.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1280,9 +1319,9 @@ static void PAHdivL2Apply3D(const int D1D,
       {
          double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
 
-         for (int dy = 0; dy < D1D; ++dy)
+         for (int dy = 0; dy < L2D1D; ++dy)
          {
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < L2D1D; ++dx)
             {
                aXY[dy][dx] = 0;
             }
@@ -1290,33 +1329,33 @@ static void PAHdivL2Apply3D(const int D1D,
          for (int qy = 0; qy < Q1D; ++qy)
          {
             double aX[HDIV_MAX_D1D];
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < L2D1D; ++dx)
             {
                aX[dx] = 0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               for (int dx = 0; dx < D1D; ++dx)
+               for (int dx = 0; dx < L2D1D; ++dx)
                {
-                  aX[dx] += div[qz][qy][qx] * Bot(dx,qx);
+                  aX[dx] += div[qz][qy][qx] * L2Bot(dx,qx);
                }
             }
-            for (int dy = 0; dy < D1D; ++dy)
+            for (int dy = 0; dy < L2D1D; ++dy)
             {
-               const double wy = Bot(dy,qy);
-               for (int dx = 0; dx < D1D; ++dx)
+               const double wy = L2Bot(dy,qy);
+               for (int dx = 0; dx < L2D1D; ++dx)
                {
                   aXY[dy][dx] += aX[dx] * wy;
                }
             }
          }
 
-         for (int dz = 0; dz < D1D; ++dz)
+         for (int dz = 0; dz < L2D1D; ++dz)
          {
-            const double wz = Bot(dz,qz);
-            for (int dy = 0; dy < D1D; ++dy)
+            const double wz = L2Bot(dz,qz);
+            for (int dy = 0; dy < L2D1D; ++dy)
             {
-               for (int dx = 0; dx < D1D; ++dx)
+               for (int dx = 0; dx < L2D1D; ++dx)
                {
                   y(dx,dy,dz,e) += aXY[dy][dx] * wz;
                }
@@ -1330,10 +1369,11 @@ static void PAHdivL2Apply3D(const int D1D,
 // integrated against L_2 test functions corresponding to y.
 static void PAHdivL2Apply2D(const int D1D,
                             const int Q1D,
+                            const int L2D1D,
                             const int NE,
                             const Array<double> &_Bo,
                             const Array<double> &_Gc,
-                            const Array<double> &_Bot,
+                            const Array<double> &_L2Bot,
                             const Vector &_op,
                             const Vector &_x,
                             Vector &_y)
@@ -1342,10 +1382,10 @@ static void PAHdivL2Apply2D(const int D1D,
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+   auto L2Bot = Reshape(_L2Bot.Read(), D1D-1, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
    auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
-   auto y = Reshape(_y.ReadWrite(), D1D, D1D, NE);
+   auto y = Reshape(_y.ReadWrite(), L2D1D, L2D1D, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -1408,21 +1448,21 @@ static void PAHdivL2Apply2D(const int D1D,
       for (int qy = 0; qy < Q1D; ++qy)
       {
          double aX[MAX_D1D];
-         for (int dx = 0; dx < D1D; ++dx)
+         for (int dx = 0; dx < L2D1D; ++dx)
          {
             aX[dx] = 0;
          }
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < L2D1D; ++dx)
             {
-               aX[dx] += div[qy][qx] * Bot(dx,qx);
+               aX[dx] += div[qy][qx] * L2Bot(dx,qx);
             }
          }
-         for (int dy = 0; dy < D1D; ++dy)
+         for (int dy = 0; dy < L2D1D; ++dy)
          {
-            const double wy = Bot(dy,qy);
-            for (int dx = 0; dx < D1D; ++dx)
+            const double wy = L2Bot(dy,qy);
+            for (int dx = 0; dx < L2D1D; ++dx)
             {
                y(dx,dy,e) += aX[dx] * wy;
             }
@@ -1694,11 +1734,11 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
 void VectorFEDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
-      PAHdivL2Apply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                      mapsO->Bt, pa_data, x, y);
+      PAHdivL2Apply3D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
+                      L2mapsO->Bt, pa_data, x, y);
    else if (dim == 2)
-      PAHdivL2Apply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                      mapsO->Bt, pa_data, x, y);
+      PAHdivL2Apply2D(dofs1D, quad1D, L2dofs1D, ne, mapsO->B, mapsC->G,
+                      L2mapsO->Bt, pa_data, x, y);
    else
    {
       MFEM_ABORT("Unsupported dimension!");
