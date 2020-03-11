@@ -1951,7 +1951,8 @@ private:
                  const std::string &field_name,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
-                 int vis_flag);
+                 int vis_flag, int logging = 0,
+                 const std::string & log_prefix = "");
 
 
       void AddToM(StateVariableCoef &MCoef);
@@ -2080,7 +2081,8 @@ private:
                        ParGridFunctionArray & kGF,
                        // int ion_charge, double neutral_mass,
                        // double neutral_temp,
-                       int vis_flag);
+                       int vis_flag, int logging = 0,
+                       const std::string & log_prefix = "");
 
       ~NeutralDensityOp();
 
@@ -2208,7 +2210,8 @@ private:
                    // int ion_charge,
                    double DPerp,
                    VectorCoefficient & B3Coef,
-                   int vis_flag);
+                   int vis_flag, int logging = 0,
+                   const std::string & log_prefix = "");
 
       ~IonDensityOp();
 
@@ -2324,7 +2327,8 @@ private:
                     // int ion_charge, double ion_mass,
                     double DPerp,
                     VectorCoefficient & B3Coef,
-                    int vis_flag);
+                    int vis_flag, int logging = 0,
+                    const std::string & log_prefix = "");
 
       ~IonMomentumOp();
 
@@ -2425,7 +2429,8 @@ private:
                           double ChiPerp,
                           VectorCoefficient & B3Coef,
                           std::vector<CoefficientByAttr> & dbc,
-                          int vis_flag);
+                          int vis_flag, int logging = 0,
+                          const std::string & log_prefix = "");
 
       ~IonStaticPressureOp();
 
@@ -2534,7 +2539,8 @@ private:
                                double ChiPerp,
                                VectorCoefficient & B3Coef,
                                std::vector<CoefficientByAttr> & dbc,
-                               int vis_flag);
+                               int vis_flag, int logging = 0,
+                               const std::string & log_prefix = "");
 
       ~ElectronStaticPressureOp();
 
@@ -2554,7 +2560,8 @@ private:
               const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
-              int index, const std::string &field_name, int vis_flag);
+              int index, const std::string &field_name, int vis_flag,
+              int logging = 0, const std::string & log_prefix = "");
 
       virtual void SetTimeStep(double dt)
       {
