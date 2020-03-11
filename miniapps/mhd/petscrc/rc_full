@@ -21,7 +21,7 @@
 -mat_mffd_err 1e-3
 -ksp_type fgmres
 -ksp_converged_reason
--ksp_monitor_true_residual
+#-ksp_monitor_true_residual
 #======Stiffness matrix======
 -s1_ksp_rtol 1e-5
 -s1_ksp_type cg
@@ -31,7 +31,7 @@
 -s2_ksp_type gmres
 -s2_pc_type hypre
 #======Mass matrix======
--s3_ksp_rtol 1e-5
+-s3_ksp_rtol 1e-6
 -s3_ksp_type cg
 #======ARe matrix======
 -s4_ksp_rtol 1e-5

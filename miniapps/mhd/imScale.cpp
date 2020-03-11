@@ -14,6 +14,7 @@
 #include "myIntegrator.hpp"
 #include "imScale.hpp"
 #include "PCSolver.hpp"
+#include "InitialConditions.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -21,56 +22,6 @@
 #ifndef MFEM_USE_PETSC
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
-
-using namespace std;
-using namespace mfem;
-
-double alpha; //a global value of magnetude for the pertubation
-double Lx;  //size of x domain
-double lambda;
-double resiG;
-
-//initial condition
-double InitialPhi(const Vector &x)
-{
-    return 0.0;
-}
-
-double InitialW(const Vector &x)
-{
-    return 0.0;
-}
-
-double InitialJ(const Vector &x)
-{
-   return -M_PI*M_PI*(1.0+4.0/Lx/Lx)*alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-double InitialPsi(const Vector &x)
-{
-   return -x(1)+alpha*sin(M_PI*x(1))*cos(2.0*M_PI/Lx*x(0));
-}
-
-
-double InitialJ3(const Vector &x)
-{
-   double ep=.2;
-   return (ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2)
-        -M_PI*M_PI*1.25*alpha*cos(.5*M_PI*x(1))*cos(M_PI*x(0));
-}
-
-double InitialPsi3(const Vector &x)
-{
-   double ep=.2;
-   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) )
-          +alpha*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
-}
-
-double E0rhs3(const Vector &x)
-{
-   double ep=.2;
-   return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
-}
 
 int main(int argc, char *argv[])
 {
@@ -84,25 +35,21 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 2;
-   int ode_solver_type = 2;
+   int ode_solver_type = 3;
    double t_final = 5.0;
    double dt = 0.0001;
-   double visc = 0.0;
-   double resi = 0.0;
+   double visc = 1e-3;
+   double resi = 1e-3;
    bool visit = false;
    bool use_petsc = false;
    bool use_factory = false;
    const char *petscrc_file = "";
-   alpha = 0.001; 
+   beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
 
    int vis_steps = 1;
 
-   lambda=.5/M_PI;
-   resi=.001;
-   visc=.001;
-   resiG=resi;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -147,6 +94,8 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   lambda=.5/M_PI;
+   resiG=resi;
   
    if (myid == 0) args.PrintOptions(cout);
 
@@ -266,7 +215,8 @@ int main(int argc, char *argv[])
    oper.SetTime(t);
    ode_solver2->Init(oper);
 
-   double start;
+   MPI_Barrier(MPI_COMM_WORLD); 
+   double start = MPI_Wtime();
 
    //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -293,6 +243,33 @@ int main(int argc, char *argv[])
 
    if (myid == 0) 
        cout <<"######Runtime = "<<end-start<<" ######"<<endl;
+
+   //++++++Save the solutions.
+   {
+      phi.SetFromTrueVector(); psi.SetFromTrueVector(); w.SetFromTrueVector();
+
+      ostringstream mesh_name, phi_name, psi_name, w_name,j_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
+      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
+      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
+
+      ofstream omesh(mesh_name.str().c_str());
+      omesh.precision(8);
+      pmesh->Print(omesh);
+
+      ofstream osol(phi_name.str().c_str());
+      osol.precision(8);
+      phi.Save(osol);
+
+      ofstream osol3(psi_name.str().c_str());
+      osol3.precision(8);
+      psi.Save(osol3);
+
+      ofstream osol4(w_name.str().c_str());
+      osol4.precision(8);
+      w.Save(osol4);
+   }
 
    //+++++Free the used memory.
    delete ode_solver;
