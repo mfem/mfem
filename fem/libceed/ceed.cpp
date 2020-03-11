@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "ceed.hpp"
@@ -102,7 +102,7 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
    Array<int> tp_el_dof(el_dof.Size_of_connections());
    const TensorBasisElement * tfe =
       dynamic_cast<const TensorBasisElement *>(fe);
-   if (tfe) //Lexicographic ordering using dof_map
+   if (tfe) // Lexicographic ordering using dof_map
    {
       const Array<int>& dof_map = tfe->GetDofMap();
       for (int i = 0; i < Q; i++)
@@ -133,7 +133,7 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
          }
       }
    }
-   else  //Native ordering
+   else  // Native ordering
    {
       for (int i = 0; i < Q; i++)
       {

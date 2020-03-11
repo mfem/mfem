@@ -25,8 +25,8 @@ ifeq ($(MFEM_USE_GSLIB),YES)
    SEQ_MINIAPPS = findpts field-diff
    PAR_MINIAPPS = pfindpts
 else
-   SEQ_MINIAPPS = 
-   PAR_MINIAPPS = 
+   SEQ_MINIAPPS =
+   PAR_MINIAPPS =
 endif
 
 ifeq ($(MFEM_USE_MPI),NO)
