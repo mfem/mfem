@@ -489,9 +489,10 @@ public:
    void SetGridFunction(GridFunction *gf) { gfc_.SetGridFunction(gf); }
    GridFunction * GetGridFunction() const { return gfc_.GetGridFunction(); }
 
+   void SetFieldType(FieldType field) { fieldType_ = field; }
    FieldType GetFieldType() const { return fieldType_; }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == fieldType_);
    }
@@ -542,7 +543,7 @@ public:
       return new ApproxIonizationRate(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
    }
@@ -588,7 +589,7 @@ public:
       return new ApproxRecombinationRate(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
    }
@@ -636,7 +637,7 @@ public:
       return new NeutralDiffusionCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ION_DENSITY ||
               deriv == ELECTRON_TEMPERATURE);
@@ -690,7 +691,7 @@ public:
    IonDiffusionCoef(Coefficient &DperpCoef, VectorCoefficient &B3Coef)
       : StateVariableMatCoef(2), Dperp_(&DperpCoef), B3_(&B3Coef), B_(3) {}
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -738,7 +739,7 @@ public:
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ION_PARA_VELOCITY);
    }
@@ -802,7 +803,7 @@ public:
       return new IonSourceCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == NEUTRAL_DENSITY ||
               deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
@@ -875,7 +876,7 @@ public:
       return new IonSinkCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
               deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
@@ -940,7 +941,7 @@ public:
       return new IonMomentumParaCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
               deriv == ION_DENSITY || deriv == ION_PARA_VELOCITY);
@@ -1009,7 +1010,7 @@ public:
       return new IonMomentumParaDiffusionCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ION_TEMPERATURE);
    }
@@ -1059,7 +1060,7 @@ public:
       return new IonMomentumPerpDiffusionCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ION_DENSITY);
    }
@@ -1188,7 +1189,7 @@ public:
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -1261,7 +1262,7 @@ public:
       return new StaticPressureCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
               deriv == ION_DENSITY || deriv == fieldType_);
@@ -1351,7 +1352,7 @@ public:
       return new IonThermalParaDiffusionCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -1409,7 +1410,7 @@ public:
       return new ElectronThermalParaDiffusionCoef(*this);
    }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
    }
@@ -1510,7 +1511,7 @@ public:
         Para_(para ? &Coef : NULL), Perp_(para ? NULL : &Coef),
         B3_(&B3Coef), B_(3) {}
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID);
    }
@@ -1622,7 +1623,7 @@ public:
 
    void SetTimeStep(double dt) { dt_ = dt; }
 
-   bool NonTrivialValue(FieldType deriv) const
+   virtual bool NonTrivialValue(FieldType deriv) const
    {
       return (deriv == INVALID ||
               deriv == ION_DENSITY || deriv == ION_TEMPERATURE ||
@@ -1892,25 +1893,25 @@ private:
       ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
 
-      Array<StateVariableGridFunctionCoef*> yCoef_;
-      Array<StateVariableGridFunctionCoef*> kCoef_;
-      mutable Array<SumCoefficient*> y1Coef_;
+      Array<StateVariableGridFunctionCoef*> yCoefPtrs_;
+      Array<StateVariableGridFunctionCoef*> kCoefPtrs_;
+      mutable Array<SumCoefficient*> y1CoefPtrs_;
+      /*
+       StateVariableGridFunctionCoef *nn0CoefPtr_;
+       StateVariableGridFunctionCoef *ni0CoefPtr_;
+       StateVariableGridFunctionCoef *vi0CoefPtr_;
+       StateVariableGridFunctionCoef *Ti0CoefPtr_;
+       StateVariableGridFunctionCoef *Te0CoefPtr_;
 
-      StateVariableGridFunctionCoef &nn0Coef_;
-      StateVariableGridFunctionCoef &ni0Coef_;
-      StateVariableGridFunctionCoef &vi0Coef_;
-      StateVariableGridFunctionCoef &Ti0Coef_;
-      StateVariableGridFunctionCoef &Te0Coef_;
+       Coefficient *nn1CoefPtr_;
+       Coefficient *ni1CoefPtr_;
+       Coefficient *vi1CoefPtr_;
+       Coefficient *Ti1CoefPtr_;
+       Coefficient *Te1CoefPtr_;
 
-      Coefficient &nn1Coef_;
-      Coefficient &ni1Coef_;
-      Coefficient &vi1Coef_;
-      Coefficient &Ti1Coef_;
-      Coefficient &Te1Coef_;
-
-      ProductCoefficient  ne0Coef_;
-      ProductCoefficient  ne1Coef_;
-
+       ProductCoefficient  ne0Coef_;
+       ProductCoefficient  ne1Coef_;
+      */
       // mutable Vector shape_;
       // mutable DenseMatrix dshape_;
       // mutable DenseMatrix dshapedxt_;
@@ -2032,6 +2033,16 @@ private:
        double m_n_;
        double T_n_;
       */
+      StateVariableGridFunctionCoef &nn0Coef_;
+      StateVariableGridFunctionCoef &ni0Coef_;
+      StateVariableGridFunctionCoef &Te0Coef_;
+
+      SumCoefficient &nn1Coef_;
+      SumCoefficient &ni1Coef_;
+      SumCoefficient &Te1Coef_;
+
+      ProductCoefficient      ne0Coef_;
+      ProductCoefficient      ne1Coef_;
       /*
        mutable GridFunctionCoefficient nn0Coef_;
        mutable GridFunctionCoefficient ni0Coef_;
@@ -2152,22 +2163,30 @@ private:
 
       // int    z_i_;
       double DPerpConst_;
+
+      StateVariableGridFunctionCoef &ni0Coef_;
+
+      SumCoefficient &nn1Coef_;
+      SumCoefficient &ni1Coef_;
+      SumCoefficient &Te1Coef_;
+
+      ProductCoefficient ne1Coef_;
       /*
-       GridFunctionCoefficient nn0Coef_;
-       GridFunctionCoefficient ni0Coef_;
-       GridFunctionCoefficient vi0Coef_;
-       GridFunctionCoefficient Te0Coef_;
+        GridFunctionCoefficient nn0Coef_;
+        GridFunctionCoefficient ni0Coef_;
+        GridFunctionCoefficient vi0Coef_;
+        GridFunctionCoefficient Te0Coef_;
 
-       GridFunctionCoefficient dnnCoef_;
-       GridFunctionCoefficient dniCoef_;
-       GridFunctionCoefficient dviCoef_;
-       GridFunctionCoefficient dTeCoef_;
+        GridFunctionCoefficient dnnCoef_;
+        GridFunctionCoefficient dniCoef_;
+        GridFunctionCoefficient dviCoef_;
+        GridFunctionCoefficient dTeCoef_;
 
-       mutable SumCoefficient  nn1Coef_;
-       mutable SumCoefficient  ni1Coef_;
-       mutable SumCoefficient  vi1Coef_;
-       mutable SumCoefficient  Te1Coef_;
-      */
+        mutable SumCoefficient  nn1Coef_;
+        mutable SumCoefficient  ni1Coef_;
+        mutable SumCoefficient  vi1Coef_;
+        mutable SumCoefficient  Te1Coef_;
+       */
       //ProductCoefficient      ne0Coef_;
       // ProductCoefficient      ne1Coef_;
 
@@ -2270,27 +2289,35 @@ private:
       // double m_i_;
       double DPerpConst_;
       ConstantCoefficient DPerpCoef_;
+
+      StateVariableGridFunctionCoef &ni0Coef_;
+      StateVariableGridFunctionCoef &vi0Coef_;
+      StateVariableGridFunctionCoef &Ti0Coef_;
+
+      SumCoefficient &nn1Coef_;
+      SumCoefficient &ni1Coef_;
+      SumCoefficient &Te1Coef_;
       /*
-       GridFunctionCoefficient nn0Coef_;
-       GridFunctionCoefficient ni0Coef_;
-       GridFunctionCoefficient vi0Coef_;
-       GridFunctionCoefficient Ti0Coef_;
-       GridFunctionCoefficient Te0Coef_;
+        GridFunctionCoefficient nn0Coef_;
+        GridFunctionCoefficient ni0Coef_;
+        GridFunctionCoefficient vi0Coef_;
+        GridFunctionCoefficient Ti0Coef_;
+        GridFunctionCoefficient Te0Coef_;
 
-       GridFunctionCoefficient dnnCoef_;
-       GridFunctionCoefficient dniCoef_;
-       GridFunctionCoefficient dviCoef_;
-       GridFunctionCoefficient dTiCoef_;
-       GridFunctionCoefficient dTeCoef_;
+        GridFunctionCoefficient dnnCoef_;
+        GridFunctionCoefficient dniCoef_;
+        GridFunctionCoefficient dviCoef_;
+        GridFunctionCoefficient dTiCoef_;
+        GridFunctionCoefficient dTeCoef_;
 
-       mutable SumCoefficient  nn1Coef_;
-       mutable SumCoefficient  ni1Coef_;
-       mutable SumCoefficient  vi1Coef_;
-       mutable SumCoefficient  Ti1Coef_;
-       mutable SumCoefficient  Te1Coef_;
-      */
+        mutable SumCoefficient  nn1Coef_;
+        mutable SumCoefficient  ni1Coef_;
+        mutable SumCoefficient  vi1Coef_;
+        mutable SumCoefficient  Ti1Coef_;
+        mutable SumCoefficient  Te1Coef_;
+       */
       // ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
+      ProductCoefficient      ne1Coef_;
 
       // ProductCoefficient    mini1Coef_;
       // ProductCoefficient    mivi1Coef_;
@@ -2382,25 +2409,28 @@ private:
       // int    z_i_;
       // double m_i_;
       double ChiPerpConst_;
+
+      StateVariableGridFunctionCoef &ni0Coef_;
+      StateVariableGridFunctionCoef &Ti0Coef_;
       /*
-       GridFunctionCoefficient nn0Coef_;
-       GridFunctionCoefficient ni0Coef_;
-       GridFunctionCoefficient vi0Coef_;
-       GridFunctionCoefficient Ti0Coef_;
-       GridFunctionCoefficient Te0Coef_;
+        GridFunctionCoefficient nn0Coef_;
+        GridFunctionCoefficient ni0Coef_;
+        GridFunctionCoefficient vi0Coef_;
+        GridFunctionCoefficient Ti0Coef_;
+        GridFunctionCoefficient Te0Coef_;
 
-       GridFunctionCoefficient dnnCoef_;
-       GridFunctionCoefficient dniCoef_;
-       GridFunctionCoefficient dviCoef_;
-       GridFunctionCoefficient dTiCoef_;
-       GridFunctionCoefficient dTeCoef_;
+        GridFunctionCoefficient dnnCoef_;
+        GridFunctionCoefficient dniCoef_;
+        GridFunctionCoefficient dviCoef_;
+        GridFunctionCoefficient dTiCoef_;
+        GridFunctionCoefficient dTeCoef_;
 
-       mutable SumCoefficient  nn1Coef_;
-       mutable SumCoefficient  ni1Coef_;
-       mutable SumCoefficient  vi1Coef_;
-       mutable SumCoefficient  Ti1Coef_;
-       mutable SumCoefficient  Te1Coef_;
-      */
+        mutable SumCoefficient  nn1Coef_;
+        mutable SumCoefficient  ni1Coef_;
+        mutable SumCoefficient  vi1Coef_;
+        mutable SumCoefficient  Ti1Coef_;
+        mutable SumCoefficient  Te1Coef_;
+       */
       // ProductCoefficient      ne0Coef_;
       // ProductCoefficient      ne1Coef_;
 
@@ -2482,6 +2512,9 @@ private:
       // int    z_i_;
       // double m_i_;
       double ChiPerpConst_;
+
+      StateVariableGridFunctionCoef &ni0Coef_;
+      StateVariableGridFunctionCoef &Te0Coef_;
       /*
        GridFunctionCoefficient nn0Coef_;
        GridFunctionCoefficient ni0Coef_;
@@ -2507,7 +2540,7 @@ private:
       mutable VectorSumCoefficient  grad_Te1Coef_;
 
       // ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
+      ProductCoefficient      ne1Coef_;
 
       // ProductCoefficient      thTeCoef_; // 3/2 * Te
       // ProductCoefficient      thneCoef_; // 3/2 * ne
