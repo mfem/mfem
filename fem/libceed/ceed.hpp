@@ -91,6 +91,19 @@ struct CeedData
 
 };
 
+struct CeedPAOperator
+{
+   int qdatasize;
+   std::string header;
+   CeedQFunctionUser const_qf;
+   std::string const_func;
+   CeedQFunctionUser grid_qf;
+   std::string grid_func;
+   CeedQFunctionUser apply_qf;
+   std::string apply_func;
+   CeedEvalMode test_op;
+   CeedEvalMode trial_op;
+};
 
 /** @brief Identifies the type of coefficient of the Integrator to initialize
     accordingly the CeedData. */
@@ -104,6 +117,11 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
+
+void CeedPAAssemble(const FiniteElementSpace &fes,
+                    const mfem::IntegrationRule &irm,
+                    CeedPAOperator& op,
+                    CeedData& ceedData);
 
 /** @brief Function that determines if a CEED kernel should be used, based on
     the current mfem::Device configuration. */
