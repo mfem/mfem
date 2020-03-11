@@ -27,10 +27,11 @@ namespace electromagnetics
 {
 
 // Some global variable for convenience
-static const double      SOLVER_TOL = 1.0e-9;
-static const int      SOLVER_MAX_IT = 1000;
-static       int SOLVER_PRINT_LEVEL = 0;
-static       int        STATIC_COND = 0;
+const double       SOLVER_TOL = 1.0e-9;
+const int       SOLVER_MAX_IT = 1000;
+// Initialized in joule.cpp and used in joule_solver.cpp:
+extern int SOLVER_PRINT_LEVEL;
+extern int        STATIC_COND;
 
 // These are defined in joule.cpp
 void edot_bc(const Vector &x, Vector &E);
