@@ -870,7 +870,10 @@ void TransportPrec::SetOperator(const Operator &op)
 
             Operator & diag_op = blk_op->GetBlock(i,i);
             HypreParMatrix & M = dynamic_cast<HypreParMatrix&>(diag_op);
-            diag_prec_[i] = new HypreBoomerAMG(M);
+
+            HypreBoomerAMG * amg = new HypreBoomerAMG(M);
+            amg->SetPrintLevel(0);
+            diag_prec_[i] = amg;
             /*
                  if (i == 0)
                  {
@@ -934,12 +937,12 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    {
       cout << "Constructing DGTransportTDO" << endl;
    }
-   const double rel_tol = 1e-8;
+   const double rel_tol = 1e-6;
 
-   newton_op_solver_.SetRelTol(rel_tol * 1.0e-2);
+   newton_op_solver_.SetRelTol(rel_tol * 1.0e-4);
    newton_op_solver_.SetAbsTol(0.0);
    newton_op_solver_.SetMaxIter(300);
-   newton_op_solver_.SetPrintLevel(1);
+   newton_op_solver_.SetPrintLevel(3);
    newton_op_solver_.SetPreconditioner(newton_op_prec_);
 
    newton_solver_.iterative_mode = false;
@@ -947,7 +950,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    newton_solver_.SetOperator(op_);
    newton_solver_.SetPrintLevel(1); // print Newton iterations
    newton_solver_.SetRelTol(rel_tol);
-   newton_solver_.SetAbsTol(0.0);
+   newton_solver_.SetAbsTol(1e-4);
    newton_solver_.SetMaxIter(10);
 
    BxyGF_ = new ParGridFunction(&vfes_);
