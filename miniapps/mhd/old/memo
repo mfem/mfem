@@ -5,3 +5,5 @@ imMHDpTdofs.cpp: identical to exMHDp but use J as an auxilary varible and use tr
 mini: a minimal case to demonstrate the failure of new PetscParVector
 
 amrTest: a simplified test to verify the dynamic amr interface in an implicit scheme (using tdofs as the block vector)
+
+assembleMatrix: test matrices and output in matlab format
