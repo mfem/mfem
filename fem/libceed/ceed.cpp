@@ -287,7 +287,8 @@ void CeedPAAssemble(const FiniteElementSpace &fes,
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
    const int ir_order = irm.GetOrder();
-   CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
+   CeedInt nqpts, nelem = mesh->GetNE();
+   CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
 
    mesh->EnsureNodes();
    InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
@@ -376,10 +377,12 @@ void CeedPAAssemble(const FiniteElementSpace &fes,
    CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
                                qf.c_str(),
                                &ceedData.apply_qfunc);
-   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dim, op.trial_op);
+   CeedInt dimU = vdim*(op.trial_op==CEED_EVAL_GRAD ? dim : 1);
+   CeedInt dimV = vdim*(op.test_op==CEED_EVAL_GRAD ? dim : 1);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
    CeedQFunctionAddInput(ceedData.apply_qfunc, "qdata", qdatasize,
                          CEED_EVAL_NONE);
-   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dim, op.test_op);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
    CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
                            sizeof(ceedData.build_ctx));
 
