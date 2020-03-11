@@ -70,12 +70,12 @@ struct Opt
    int surface = 0;
    bool pa = true;
    bool vis = true;
-   bool amr = false;
+   bool amr = true;
    bool wait = false;
    bool radial = false;
    bool by_vdim = false;
-   double lambda = 0.0;
-   double amr_threshold = 0.5;
+   double lambda = 0.1;
+   double amr_threshold = 0.8;
    const char *keys = "gAmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
