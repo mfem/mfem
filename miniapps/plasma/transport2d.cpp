@@ -391,7 +391,7 @@ double viFunc(const Vector &x)
    {
       case 1:
       {
-         double a = 0.4;
+         // double a = 0.4;
          double b = 0.64;
 
          return -v_max_ * sin(M_PI * (pow(x[0] / b, 2) + pow(x[1] / b, 2)));
@@ -1683,6 +1683,11 @@ int main(int argc, char *argv[])
                        vis_flags, imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
+
+   if (visualization)
+   {
+      oper.InitializeGLVis();
+   }
    /*
    oper.SetNnDiffusionCoefficient(DnCoef);
    oper.SetNnSourceCoefficient(SnCoef);
@@ -1901,7 +1906,10 @@ int main(int argc, char *argv[])
          VisualizeField(sout[4], vishost, visport, elec_energy, oss.str().c_str(),
                         Wx + 4 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
       }
-
+      if (visualization)
+      {
+         oper.DisplayToGLVis();
+      }
       if (visit)
       {
          cycle++;

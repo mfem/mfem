@@ -1026,6 +1026,7 @@ DGTransportTDO::InitializeGLVis()
 {
    if ( mpi_.Root() && logging_ > 0 )
    { cout << "Opening GLVis sockets." << endl << flush; }
+   op_.InitializeGLVis();
 }
 
 void
@@ -1033,13 +1034,15 @@ DGTransportTDO::DisplayToGLVis()
 {
    if ( mpi_.Root() && logging_ > 1 )
    { cout << "Sending data to GLVis ..." << flush; }
-
+   /*
    char vishost[] = "localhost";
    int  visport   = 19916;
 
    int Wx = 0, Wy = 0; // window position
    int Ww = 350, Wh = 350; // window size
    int offx = Ww+10, offy = Wh+45; // window offsets
+   */
+   op_.DisplayToGLVis();
 
    if ( mpi_.Root() && logging_ > 1 ) { cout << " " << flush; }
 }
@@ -1303,6 +1306,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
    : Operator(yGF[0]->ParFESpace()->GetVSize(),
               5*(yGF[0]->ParFESpace()->GetVSize())),
      dummyCoef_(NULL, INVALID),
+     coefGF_(yGF[0]->ParFESpace()),
      mpi_(mpi), dg_(dg), plasma_(plasma),
      logging_(logging), log_prefix_(log_prefix),
      m_n_(plasma.m_n),
@@ -1378,6 +1382,10 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete coefs_[i];
    }
+   for (unsigned int i=0; i<sout_.size(); i++)
+   {
+      delete sout_[i];
+   }
 }
 
 void DGTransportTDO::NLOperator::AddToM(StateVariableCoef &MCoef)
@@ -1442,11 +1450,38 @@ DGTransportTDO::NLOperator::PrepareDataFields()
 void
 DGTransportTDO::NLOperator::InitializeGLVis()
 {
+   if ((int)sout_.size() < coefs_.Size())
+   {
+      sout_.resize(coefs_.Size());
+      for (int i=0; i<coefs_.Size(); i++)
+      {
+         sout_[i] = new socketstream;
+      }
+   }
 }
 
 void
 DGTransportTDO::NLOperator::DisplayToGLVis()
 {
+   for (int i=0; i<coefs_.Size(); i++)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+
+      int Wx = 0, Wy = 0; // window position
+      int Ww = 275, Wh = 250; // window size
+      int Dx = 3, Dy = 25;
+
+      ostringstream oss;
+      oss << "coef " << index_ << " " << i + 1;
+
+      coefGF_.ProjectCoefficient(*coefs_[i]);
+
+      int c = i % 4;
+      int r = i / 4;
+      VisualizeField(*sout_[i], vishost, visport, coefGF_, oss.str().c_str(),
+                     Wx + c * (Ww + Dx), Wy + r * (Wh + Dy), Ww, Wh);
+   }
 }
 
 void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
@@ -1811,13 +1846,6 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
    {
       return NULL;
    }
-   /*
-    switch (i)
-    {
-       default:
-          return NULL;
-    }
-   */
 }
 
 DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,

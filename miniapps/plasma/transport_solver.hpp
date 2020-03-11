@@ -1868,6 +1868,8 @@ private:
    private:
       StateVariableGridFunctionCoef dummyCoef_;
       Array<StateVariableCoef*> coefs_;
+      std::vector<socketstream*> sout_;
+      ParGridFunction coefGF_;
 
    protected:
       const MPI_Session &mpi_;
