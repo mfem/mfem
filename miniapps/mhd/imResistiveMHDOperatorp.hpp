@@ -15,6 +15,9 @@ int isupg=2;    //1: test supg with v term only (it assumes viscosity==resistivi
 bool usesupg=true;  //add supg in both psi and omega
 bool usefd=true;    //add field-line diffusion for psi in implicit solvers
 
+int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary condition
+                //is forced at physical boundary, preconditioner prefers enforcing boundary)
+                
 int iSc=0;      //the parameter to control precondtioner
 bool lumpedMass = false;
 
@@ -45,12 +48,12 @@ private:
    const Array<int> &ess_tdof_list;
    const Array<int> &ess_bdr;
 
-   mutable ParGridFunction phiGf, psiGf, wGf;
+   mutable ParGridFunction phiGf, psiGf, wGf, gftmp;
    mutable ParBilinearForm *Nv, *Nb, *Pw;
    mutable ParBilinearForm *StabMass, *StabNb, *StabNv; //for stablize B term
    mutable ParLinearForm *PB_VPsi, *PB_VOmega, *PB_BJ;
    mutable BlockOperator *Jacobian;
-   mutable Vector z, zdiff, z2, z3, J;
+   mutable Vector z, zdiff, z2, z3, J, zFull;
 
 public:
    ReducedSystemOperator(ParFiniteElementSpace &f,
@@ -725,16 +728,18 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    Vector dpsi_dt(dvx_dt.GetData() +  sc, sc);
    Vector   dw_dt(dvx_dt.GetData() +2*sc, sc);
 
-   //different way to solve J; the first one is the correct way
+   //different way to solve J; the first one is the correct way (however preconditioner
+   //does not like it for harder problems when resi is small!!)
    //compute the current as an auxilary variable
-   if (true)
+   if (iUpdateJ==0)
    {
       KBMat->Mult(psi, z);
       z.Neg();
       M_solver2.Mult(z, J);
    }
-   else if (false)
+   else if (iUpdateJ==-1)
    {
+      //this is not working anymore...
       Vector Z;
       HypreParMatrix A;
       KBMat->Mult(psi, z);
@@ -743,7 +748,8 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       M->FormLinearSystem(ess_tdof_list, j, gftmp, A, J, Z); //apply Dirichelt boundary 
       M_solver.Mult(Z, J); 
    }
-   else{
+   else if (iUpdateJ==1)
+   {
       Vector &k_ = const_cast<Vector &>(vx);
       gftmp.MakeTRef(&fespace, k_, sc);
       gftmp.SetFromTrueVector();
@@ -754,6 +760,8 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
       M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
       M_solver.Mult(Z, J); 
    }
+   else
+      MFEM_ABORT("Error: wrong option of iUpdateJ"); 
 
 
    //compute dw_dt
@@ -1041,12 +1049,27 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
 {
    //the current is J=-M^{-1}*K*Psi
    int sc = height/3;
-
    Vector psi(k.GetData() + sc, sc);
-   KBMat->Mult(psi, z);
-   z.Neg();
-   M_solver2.Mult(z, J);
-   jout->SetFromTrueDofs(J);
+
+   if (iUpdateJ==0)
+   {
+      KBMat->Mult(psi, z);
+      z.Neg();
+      M_solver2.Mult(z, J);
+      jout->SetFromTrueDofs(J);
+   }
+   else if (iUpdateJ==1)
+   {
+      gftmp.SetFromTrueDofs(psi);
+      Vector Z;
+      HypreParMatrix A;
+      KB->Mult(gftmp, zFull);
+      zFull.Neg(); // z = -z
+      M->FormLinearSystem(ess_tdof_list, j, zFull, A, J, Z); //apply Dirichelt boundary 
+      M_solver.Mult(Z, J); 
+   }
+   else
+      MFEM_ABORT("Error: wrong option of iUpdateJ"); 
 }
 
 void ResistiveMHDOperator::DestroyHypre()
@@ -1098,12 +1121,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      initialMdt(false), E0Vec(NULL), StabE0(NULL), E0rhs(NULL), M_solver(M_solver_), M_solver2(M_solver2_),
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi), 
      phi(NULL), psi(NULL), w(NULL), 
-     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_),
+     ess_tdof_list(ess_tdof_list_),ess_bdr(ess_bdr_), gftmp(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL), 
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
      Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
-     J(height/3)
+     J(height/3), zFull(f.GetVSize())
 { 
     useFull=0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1138,12 +1161,12 @@ ReducedSystemOperator::ReducedSystemOperator(ParFiniteElementSpace &f,
      M_solver(M_solver_), M_solver2(M_solver2_), 
      dt(0.0), dtOld(0.0), viscosity(visc), resistivity(resi),
      phi(NULL), psi(NULL), w(NULL), 
-     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_),
+     ess_tdof_list(ess_tdof_list_), ess_bdr(ess_bdr_), gftmp(&fespace),
      Nv(NULL), Nb(NULL), Pw(NULL),  
      StabMass(NULL), StabNb(NULL), StabNv(NULL),
      PB_VPsi(NULL), PB_VOmega(NULL), PB_BJ(NULL),
      Jacobian(NULL), z(height/3), zdiff(height/3), z2(height/3), z3(height/3), 
-     J(height/3)
+     J(height/3), zFull(f.GetVSize())
 { 
     useFull = useFull_;
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
@@ -1442,19 +1465,26 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
       PB_VOmega->Assemble();
    }
 
-   KBMat.Mult(psiNew, z);
-   z.Neg();
-   M_solver2->Mult(z, J);
-
-   //------compute the current as an auxilary variable (this is the old and wrong way)------
-   /*
-   Vector J, Z;
-   HypreParMatrix A;
-   KB->Mult(psiGf, zFull);
-   zFull.Neg(); // z = -z
-   M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
-   M_solver->Mult(Z, J); 
-   */
+   //------compute the current as an auxilary variable (no boundary condition)------
+   if (iUpdateJ==0)
+   {
+      KBMat.Mult(psiNew, z);
+      z.Neg();
+      M_solver2->Mult(z, J);
+   }
+   else if (iUpdateJ==1)
+   {
+   //------compute the current as an auxilary variable (Dirichelt boundary condition)------
+      gftmp.SetFromTrueDofs(psiNew);
+      Vector Z;
+      HypreParMatrix A;
+      KB->Mult(gftmp, zFull);
+      zFull.Neg(); // z = -z
+      M->FormLinearSystem(ess_tdof_list, *j0, zFull, A, J, Z); //apply Dirichelt boundary 
+      M_solver->Mult(Z, J); 
+   }
+   else
+      MFEM_ABORT("ERROR in ReducedSystemOperator::Mult: wrong option for iUpdateJ"); 
 
    //+++++compute y1
    Kmat.Mult(phiNew,y1);

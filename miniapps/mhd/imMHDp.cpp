@@ -112,6 +112,8 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.AddOption(&part_method, "-part_method", "--partition-method",
                   "Partitioning method: 0-5 (see mfem on partitioning choices).");
+   args.AddOption(&iUpdateJ, "-updatej", "--update-j",
+                  "UpdateJ: 0 - no boundary condition used; 1 - Dirichlet used on J boundary.");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
                   "--no-implicit-supg",
                   "Use supg in the implicit solvers.");

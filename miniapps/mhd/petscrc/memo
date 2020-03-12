@@ -26,18 +26,129 @@ glvis -m refined.mesh -g current.sol -k "mmcRjl" -ww 800 -wh 800
 glvis -m refined.mesh -g psiPer.sol -k "mmc" -ww 800 -wh 800
 glvis -m refined.mesh -g phi.sol -k "mmc" -ww 800 -wh 800
 glvis -m refined.mesh -g omega.sol -k "mmc" -ww 800 -wh 800
-
-
 glvis -m refined.mesh -g psiPer.sol -k "mmRjl" -ww 1000 -wh 1000
 
 parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+glvis -np 36 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+
+3/11
+Compare two solvers (coarse mesh they are comparable):
+srun -n 36 imMHDp-old -m ./Meshes/xperiodic-new.mesh -rs 7 -rp 0 -o 2 -i 3 -vs 2 -tf .2 -dt .1 -usepetsc --petscopts ./petscrc/rc_full -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd
+
+After the boundary is fixed (Dirichlet), rs=9 o=2 works fine for res=1e-4 and visc=1e-4!!
+
+rs=9 o=3 struggles, maybe reduce the time step??
+
+3/9
+
+0. Implemented supg, it gets better but it could not passed the first peak for res=1e-6. See (why under-resolved?)
+/net/scratch3/qtang/mfem.p/runs/case3r5o3-HolderRes1e-6/rs4t5
+I refined, but the solver fails at an even earlier time. Need preconditioner on supg?
+
+Supg and FD do not like stretched grid, see 
+/net/scratch3/qtang/mfem.p/runs/case3r5o3res1e-6-stab-w-t6
+
+1. I found the preconditioner does not like the "auxiliary" formulation of J, because they are inconsistent with how J is kupdated. can we use Dirichlet on J on the boundary? 
+
+2. The boundary condition still has the question mark. I think that may affect preconditioner when res is small?? 
+
+(Maybe fixed after fixing the boundary) 3. The preconditioner is sensitive to the choice of all the parameters
+
+
+Two more possible fixes:
+1. Add preconditioner for supg
+2. Add the more regularity into the solution (diffusion for omega)
+
+3/8
+When o=2 and resi=1e-4, the solution can be computed without supg or fd to t=8
+* Note when o=2, hyper diffusion becomes very bad!
+
+In general, when it fails, I am not sure if it is because I pick the wrong preconditioner parameters or the solver actually fails...
+
+For instance, for a resolution of 512*512 (under-resolved!!) and o=2,
+rtol0=0.3
+mffd=1e-2
+Not converged at t=2...
+
+rtol0=0.1
+mffd=1e-3
+Converged!!
+
+That could explain why my solver fails to converge!!
+
+When R=9, now it is not converged for res=1e-4?? Figure that out!!
+
+Is the matrix symmetric?? Yes
+
+3/5
+Q1:
+* I think the fd may be the killer for the solver; let's turn that off and see what happen (case3r5o3res1e-4visc1e-6) 
+  Yes, without fd, it actually works well and run up to t=4.4
+  With fd; it does not work with this viscosity, why? Maybe reduce alpha?
+
+Q2:
+  It also does not like the double refined mesh? Why? Even 1e-4 1e-4 without any stabilization terms! It appears to indicate I need to reduce my time step!!!
+  The equivalent mesh is 512*512. The adaptive mesh is not good...
+
+  Let's change rc_debug to see. Maybe change refined region later?
+
+  I start to redo the uniform mesh with supg and fd turned off. It appears not convergent if I pick a wrong rc_debug
+  So it seems rc_debug can be sensitive! (If I mess up rc_debug in o=2, it also fails)
+
+Q3:
+* try supg with full stabilized terms on both omega and psi; is it better for res=1e-5 visc=1e-5?
+
+3/3
+Use R1 base mesh:
+r6+local1: it stops after t=3.9
+r5+local1: it fails after t=5.1
+But why? It is not due to supg since v is small, maybe we should reduce time step, or maybe we should reduce eps in jfnk??
+r=6+local=1 means resolution of 2^10
+
+So let us add one more level (it fails with R0+r5+local2? Ugh..)
+
+When the mesh is finer, reduce preconditioner tol seems help?! Maybe I should play with rc_debug than doing more levels of refinement?
+
+OK, things become so strange. Let's move back to 1e-5. 
+It got stuck again at an earlier time? 
+
+Test this:
+../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf 1 -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -supg -fd -local -lr 1
+
+***Should we turn off supg on psi?? ***
+
+This runs got stuck at t=4.*
+If no supg, it got stuck earlier t=3.8!
+
+For res=1e-5+vis=1e-5:
+with supg, it got stuck at t=4.4
+
+For res=1e-6+vis=1e-6
+With supg, it got stuck at t=5.1
+
+Two possibility: 
+1. We need to provide a preconditioner for supg terms;
+2. We need more regularities in finite element
+
+ 
 
 3/2
 New mesh: stretched64x64.mesh the smallest cell size: 0.0112 largest is 0.1376
 
 Failed to converge with field-line diffusion; it probably does not like the large ratio between two cells
+
+Uniform: r=6 is comparable to r4 with xperiodicR1 (maybe stick with this mesh for now)
+
+Both have no problems to run up to t=4 with supg and fd (with stretched grid it is not good)
+
+r=6 it got stuck after t=5.1
+
+Replace it with an adaptive version of supg
+
+r=6: without fd; it fails to converge!
+r=6: with fd and supg: it runs to t=5.1 until it becomes underresolved
 
 
 2/27
