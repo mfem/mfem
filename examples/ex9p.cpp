@@ -98,9 +98,9 @@ public:
       delete AIR_solver;
 
       // Scale A by block-diagonal inverse
+#if MFEM_HYPRE_VERSION >= 21800
       BlockInvScal(A, &A_s, NULL, NULL, blocksize, 0);
       AIR_solver = new HypreBoomerAMG(A_s);
-#if MFEM_HYPRE_VERSION >= 21800
       AIR_solver->SetLAIROptions(AIR.distanceR, AIR.prerelax,
                                  AIR.postrelax, AIR.strength_tolC,
                                  AIR.strength_tolR, AIR.filter_tolR,
@@ -234,8 +234,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
-                const FiniteElementSpace &fes, const AIR_parameters &_AIR);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+                const AIR_parameters &_AIR);
    FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -624,8 +624,7 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     b(_b),
+   : TimeDependentOperator(_M.Height()), b(_b),
      M_solver(_M.ParFESpace()->GetComm()),
      z(_M.Height())
 {
@@ -669,17 +668,35 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
 }
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b, const FiniteElementSpace &fes,
-                           const AIR_parameters &_AIR)
-   : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()),
-     dg_solver(M, K, fes, _AIR), z(_M.Height())
+FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
+                           const Vector &_b, const AIR_parameters &_AIR)
+   : TimeDependentOperator(_M.Height()), b(_b),
+     M_solver(_M.ParFESpace()->GetComm()),
+     z(_M.Height())
 {
-   M_prec.SetType(HypreSmoother::Jacobi);
+   bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
+
+   if (pa)
+   {
+      MFEM_ABORT("AIR solver not available for partial assembly.\n");
+   }
+   else
+   {
+      M.Reset(_M.ParallelAssemble(), true);
+      K.Reset(_K.ParallelAssemble(), true);
+   }
+
+   HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+   HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
+   HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::GS);
+   M_prec = hypre_prec;
+   M_prec.SetType(HypreSmoother::GS);
+
+   dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace(), _AIR);
+
+   M_solver.SetOperator(*M);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
-
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
