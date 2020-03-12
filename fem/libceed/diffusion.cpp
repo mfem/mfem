@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "diffusion.hpp"
 
@@ -27,33 +27,21 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
    const int ir_order = irm.GetOrder();
-   const mfem::IntegrationRule &ir =
-      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir_order);
    CeedInt nqpts, nelem = mesh->GetNE(), dim = mesh->SpaceDimension();
+
    mesh->EnsureNodes();
-   InitCeedTensorBasisAndRestriction(fes, ir, ceed, &ceedData.basis,
-                                     &ceedData.restr);
+   InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
 
    const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
    MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-   InitCeedTensorBasisAndRestriction(*mesh_fes, ir, ceed, &ceedData.mesh_basis,
-                                     &ceedData.mesh_restr);
+   InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &ceedData.mesh_basis,
+                               &ceedData.mesh_restr);
+
    CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
 
-   CeedInterlaceMode imode = CEED_NONINTERLACED;
-   if (fes.GetOrdering()==Ordering::byVDIM)
-   {
-      imode = CEED_INTERLACED;
-   }
-   CeedElemRestrictionCreateIdentity(ceed, imode, nelem, nqpts, nqpts * nelem,
-                                     dim * (dim + 1) / 2, &ceedData.restr_i);
-   CeedInterlaceMode mesh_imode = CEED_NONINTERLACED;
-   if (mesh_fes->GetOrdering()==Ordering::byVDIM)
-   {
-      mesh_imode = CEED_INTERLACED;
-   }
-   CeedElemRestrictionCreateIdentity(ceed, mesh_imode, nelem, nqpts,
-                                     nqpts * nelem, 1, &ceedData.mesh_restr_i);
+   const int qdatasize = dim * (dim + 1) / 2;
+   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, nelem*nqpts, qdatasize,
+                                    CEED_STRIDES_BACKEND, &ceedData.restr_i);
 
    CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
    CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
@@ -102,9 +90,9 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    if (ceedData.coeff_type==CeedCoeff::Grid)
    {
       CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
-      InitCeedTensorBasisAndRestriction(*ceedCoeff->coeff->FESpace(), ir, ceed,
-                                        &ceedCoeff->basis,
-                                        &ceedCoeff->restr);
+      InitCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), irm, ceed,
+                                  &ceedCoeff->basis,
+                                  &ceedCoeff->restr);
       CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
                        &ceedCoeff->coeffVector);
       CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
@@ -114,7 +102,7 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
    }
    CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
                         ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
-   CeedOperatorSetField(ceedData.build_oper, "weights", ceedData.mesh_restr_i,
+   CeedOperatorSetField(ceedData.build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
                         ceedData.mesh_basis, CEED_VECTOR_NONE);
    CeedOperatorSetField(ceedData.build_oper, "rho", ceedData.restr_i,
                         CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);

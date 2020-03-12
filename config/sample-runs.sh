@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 make="${MAKE:-make}"
 mpiexec="${MPIEXEC:-mpirun}"
@@ -201,11 +201,11 @@ function help_message()
       -s|-show    Show all configured sample runs and exit
       -n          Dry run: replace "\$sample_run" with "echo \$sample_run"
       <var>=<value>
-                  Set a shell script varible; see below for valid variables
+                  Set a shell script variable; see below for valid variables
        *          Any other parameter is treated as <mfem_dir>
       <mfem_dir>  [${mfem_dir}] is the MFEM source directory
 
-   This script tests all the sample runs listed in the begining comments of
+   This script tests all the sample runs listed in the beginning comments of
    MFEM's serial or parallel example and miniapp codes. The list of sample runs
    is auto-generated and can be viewed with the -s|-show option.
 
