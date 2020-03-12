@@ -538,21 +538,19 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
 
 int FaceElementTransformations::SetActiveSide(int s)
 {
-   int dir;
-
    if (s == 2) // automatic choice of side
    {
       if (Elem1 && Elem2)
       {
-         dir = (Elem1->Attribute <= Elem2->Attribute) ? 0 : 1;
+         side = (Elem1->Attribute <= Elem2->Attribute) ? 0 : 1;
       }
       else if (Elem1)
       {
-         dir = 0;
+         side = 0;
       }
       else if (Elem2)
       {
-         dir = 1;
+         side = 1;
       }
       else
       {
@@ -564,11 +562,11 @@ int FaceElementTransformations::SetActiveSide(int s)
    {
       if (s == 0 && Elem1)
       {
-         dir = 0;
+         side = 0;
       }
       else if (s == 1 && Elem2)
       {
-         dir = 1;
+         side = 1;
       }
       else
       {
@@ -576,9 +574,8 @@ int FaceElementTransformations::SetActiveSide(int s)
                     "for the requested side is NULL.");
       }
    }
-   side = dir;
 
-   return dir;
+   return side;
 }
 
 ElementTransformation *
