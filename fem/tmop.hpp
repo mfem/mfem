@@ -742,12 +742,15 @@ public:
                                         ElementTransformation &T,
                                         int nodenum, int idir,
                                         const Vector &IntData);
+   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
+   /** Used for finite-difference based computations. Computes the target
+       specifications after a mesh perturbation in x or y direction. */
    void UpdateGradientTargetSpecification(const Vector &x, const double fdeps);
 
+   /** Used for finite-difference based computations. Computes the target
+       specifications after two mesh perturbations in x and/or y direction. */
    void UpdateHessianTargetSpecification(const Vector &x, const double fdeps);
-
-   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -755,10 +758,9 @@ public:
       adapt_eval = ae;
    }
 
-   const Vector &GetTspecSav()     { return tspec_sav; }
-   const Vector &GetTspecPerth()   { return tspec_perth; }
-   const Vector &GetTspecPert2h()  { return tspec_pert2h; }
-   const Vector &GetTspecPertmix() { return tspec_pertmix; }
+   const Vector &GetTspecPert1H()   { return tspec_perth; }
+   const Vector &GetTspecPert2H()   { return tspec_pert2h; }
+   const Vector &GetTspecPertMixH() { return tspec_pertmix; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -805,7 +807,7 @@ protected:
    // Normalization factor for the limiting term.
    double lim_normal;
 
-   mutable DiscreteAdaptTC *discr_tc;
+   DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool   fdflag;
@@ -850,7 +852,7 @@ protected:
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
                           Vector &elfun, const int nodenum,const int idir,
-                          const double baseenergy, bool update);
+                          const double baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void SetFDh(const Vector &x, const FiniteElementSpace &fes);
@@ -942,8 +944,8 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   bool   GetFDFlag() { return fdflag; }
-   double GetFDh()    { return fdeps; }
+   bool   GetFDFlag() const { return fdflag; }
+   double GetFDh()    const { return fdeps; }
 };
 
 

@@ -235,19 +235,19 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI
-   if (pmesh) {finder = new FindPointsGSLIB(pfes->GetComm());}
-   else       {finder = new FindPointsGSLIB();}
-   if (pfes)  {f = pfes;}
+   if (pfes)
+   {
+      f = pfes;
+      finder = new FindPointsGSLIB(pfes->GetComm());
+   }
+   else { finder = new FindPointsGSLIB(); }
 #else
    finder = new FindPointsGSLIB();
 #endif
    finder->Setup(*m, rel_bbox_el, newton_tol, npts_at_once);
 
    field0_gf.SetSpace(f);
-   for (int i = 0; i < init_field.Size(); i++)
-   {
-      field0_gf(i) = init_field(i);
-   }
+   field0_gf = init_field;
 
    dim = f->GetFE(0)->GetDim();
    const int pts_cnt = init_nodes.Size() / dim;
@@ -415,14 +415,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *nlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
-      const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
-      const FiniteElementSpace    *fesc  = nlf->FESpace();
+      const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
       const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
       Vector x_loc(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
-      for (int i=0; i<integrators.Size(); i++)
+      for (int i=0; i<integs.Size(); i++)
       {
-         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
+         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          tmopi->SetFDh(x_loc, *pfesc);
          if (discrtc)
@@ -442,7 +441,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       const NonlinearForm *nlf =
          dynamic_cast<const NonlinearForm *>(oper);
-      const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+      const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
       Vector x_loc;
@@ -455,9 +454,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
          x_loc = x;
       }
-      for (int i=0; i<integrators.Size(); i++)
+      for (int i=0; i<integs.Size(); i++)
       {
-         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
+         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          tmopi->SetFDh(x_loc, *fesc);
          if (discrtc)
@@ -578,14 +577,13 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *nlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
-      const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
-      const FiniteElementSpace    *fesc  = nlf->FESpace();
+      const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
       const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
       Vector x_loc(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
-      for (int i=0; i<integrators.Size(); i++)
+      for (int i=0; i<integs.Size(); i++)
       {
-         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
+         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          tmopi->SetFDh(x_loc, *pfesc);
          if (discrtc)
@@ -605,7 +603,7 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
    {
       const NonlinearForm *nlf =
          dynamic_cast<const NonlinearForm *>(oper);
-      const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+      const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
       Vector x_loc;
@@ -618,9 +616,9 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       {
          x_loc = x;
       }
-      for (int i=0; i<integrators.Size(); i++)
+      for (int i=0; i<integs.Size(); i++)
       {
-         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integrators[i]);
+         TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          tmopi->SetFDh(x_loc, *fesc);
          if (discrtc)

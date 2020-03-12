@@ -113,8 +113,6 @@ Meshing improvements
   Hessian for r-adaptivity using discrete fields, and allows use of skewness
   and orientation based metrics.
 
-- Improved element numbering after uniform mesh refinement.
-
 Discretization improvements
 ---------------------------
 - Added support for GSLIB-FindPoints, a general high-order interpolation utility
