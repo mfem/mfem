@@ -361,6 +361,21 @@ public:
 
    FaceElementTransformations() : side(2) {}
 
+   /** FaceElementTransformations objects are often used when
+       performing the surface integrals on the interfaces between
+       elements needed by Discontinuous Galerkin methods.  Since the
+       fields are generally multivalued on such interfaces it is
+       important to specify which neighboring element should supply
+       the field values.  This is controlled by setting the "active
+       side" in the FaceElementTransformations object.
+
+       Possible values for s are 0, 1, and 2:
+          0 - Set Elem1No as the active side
+          1 - Set Elem2No as the active side
+          2 - Choose the active side automatically.  This selects Elem1No
+              unless Elem2No exists and has a lower attribute number than
+              Elem1No.
+    */
    int SetActiveSide(int s);
    int GetActiveSide() const { return side; }
 
