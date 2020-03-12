@@ -36,7 +36,6 @@
 #include <fstream>
 #include <iostream>
 
-#include "../../../dbg.hpp"
 #include "linalg/densemat.hpp"
 #include "../../general/forall.hpp"
 
@@ -116,6 +115,7 @@ public:
       Refine();
       Snap();
       fec = new H1_FECollection(opt.order, DIM);
+      if (opt.amr) { EnsureNCMesh(); }
       mesh = new Mesh(*this, true);
       fes = new FiniteElementSpace(mesh, fec, opt.by_vdim ? 1 : SDIM);
       BC();
