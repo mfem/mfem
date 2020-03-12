@@ -972,8 +972,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
    adapt_eval->SetInitialField
    (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
 
-   tspec_sav.SetSize(tspec.Size());
-   BackupTargetSpecification();
+   tspec_sav = tspec;
 }
 #endif
 
@@ -991,14 +990,14 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
    adapt_eval->SetInitialField
    (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
 
-   tspec_sav.SetSize(tspec.Size());
-   BackupTargetSpecification();
+   tspec_sav = tspec;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
 {
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec);
+   tspec_sav = tspec;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
@@ -1029,12 +1028,6 @@ void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
    tspec(dofs[dofidx]) = tspec_sav(dofs[dofidx]);
-}
-
-void DiscreteAdaptTC::BackupTargetSpecification()
-{
-   MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
-   for (int i=0; i<tspec.Size(); i++) {tspec_sav(i) = tspec(i);}
 }
 
 void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
@@ -1076,11 +1069,10 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void DiscreteAdaptTC::SetupElementVectorTSpec(const Vector &x,
-                                              const FiniteElementSpace &fes,
-                                              const double fdeps)
+void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
+                                                        const double fdeps)
 {
-   const int dim = fes.GetFE(0)->GetDim();
+   const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
 
    if (tspec_perth.Size() != x.Size())
@@ -1108,11 +1100,10 @@ void DiscreteAdaptTC::SetupElementVectorTSpec(const Vector &x,
    } // loop-j
 }
 
-void DiscreteAdaptTC::SetupElementGradTSpec(const Vector &x,
-                                            const FiniteElementSpace &fes,
-                                            const double fdeps)
+void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
+                                                       const double fdeps)
 {
-   const int dim = fes.GetFE(0)->GetDim();
+   const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
 
    if (tspec_pert2h.Size() != x.Size())
@@ -1811,6 +1802,12 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
    fdflag = true;
    const FiniteElementSpace *fes = x.FESpace();
    SetFDh(x,*fes);
+   if (discr_tc)
+   {
+      discr_tc->UpdateTargetSpecification(x);
+      discr_tc->UpdateGradientTargetSpecification(x, fdeps);
+      discr_tc->UpdateHessianTargetSpecification(x, fdeps);
+   }
 }
 
 #ifdef MFEM_USE_MPI
@@ -1819,6 +1816,12 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
    fdflag = true;
    const ParFiniteElementSpace *pfes = x.ParFESpace();
    SetFDh(x,*pfes);
+   if (discr_tc)
+   {
+      discr_tc->UpdateTargetSpecification(x);
+      discr_tc->UpdateGradientTargetSpecification(x, fdeps);
+      discr_tc->UpdateHessianTargetSpecification(x, fdeps);
+   }
 }
 #endif
 

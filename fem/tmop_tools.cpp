@@ -431,9 +431,8 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             double fdeps = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
-               discrtc->SetupElementGradTSpec(x_loc, *fesc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
             }
          }
       }
@@ -467,9 +466,8 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             double fdeps = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
-               discrtc->SetupElementGradTSpec(x_loc, *fesc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
             }
          }
       }
@@ -596,9 +594,8 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
             double fdeps = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
-               discrtc->SetupElementGradTSpec(x_loc, *fesc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
             }
          }
       }
@@ -632,9 +629,8 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
             double fdeps = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->BackupTargetSpecification();
-               discrtc->SetupElementVectorTSpec(x_loc, *fesc, fdeps);
-               discrtc->SetupElementGradTSpec(x_loc, *fesc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
             }
          }
       }

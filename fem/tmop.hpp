@@ -700,14 +700,10 @@ public:
 };
 
 class ParGridFunction;
-class TMOPNewtonSolver;
-class TMOPDescentNewtonSolver;
 
 class DiscreteAdaptTC : public TargetConstructor
 {
 protected:
-   friend class TMOPNewtonSolver;
-   friend class TMOPDescentNewtonSolver;
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    Vector tspec;             //eta(x)
@@ -723,12 +719,6 @@ protected:
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
    AdaptivityEvaluator *adapt_eval;
-
-   void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
-                                const double fdeps);
-
-   void SetupElementGradTSpec(const Vector &x,const FiniteElementSpace &fes,
-                              const double fdeps);
 
 public:
    DiscreteAdaptTC(TargetType ttype)
@@ -746,17 +736,18 @@ public:
        new mesh positions are given by new_x. */
    void UpdateTargetSpecification(const Vector &new_x);
 
-   void UpdateTargetSpecification(Vector &new_x,
-                                  Vector &IntData);
+   void UpdateTargetSpecification(Vector &new_x, Vector &IntData);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
                                         int nodenum, int idir,
                                         const Vector &IntData);
 
-   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
+   void UpdateGradientTargetSpecification(const Vector &x, const double fdeps);
 
-   void BackupTargetSpecification();
+   void UpdateHessianTargetSpecification(const Vector &x, const double fdeps);
+
+   void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -780,6 +771,8 @@ public:
                                       DenseTensor &Jtr) const;
 };
 
+class TMOPNewtonSolver;
+class TMOPDescentNewtonSolver;
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
 
@@ -853,7 +846,6 @@ protected:
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
-
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
