@@ -50,7 +50,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.0.1)
+set(${PROJECT_NAME}_VERSION 4.1.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -322,7 +322,7 @@ endif()
 if (MFEM_USE_RAJA)
    find_package(RAJA REQUIRED)
 endif()
-   
+
 # UMPIRE
 if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
