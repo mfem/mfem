@@ -581,35 +581,39 @@ int FaceElementTransformations::SetActiveSide(int s)
 ElementTransformation *
 FaceElementTransformations::GetActiveElementTransformation()
 {
-   if (side == 0)
+   while(1)
    {
-      return Elem1;
-   }
-   else if (side == 1)
-   {
-      return Elem2;
-   }
+      if (side == 0)
+      {
+         return Elem1;
+      }
+      else if (side == 1)
+      {
+         return Elem2;
+      }
 
-   // Automatic selection has not yet occured.
-   SetActiveSide(2);
-   return GetActiveElementTransformation();
+      // Automatic selection has not yet occured.
+      SetActiveSide(2);
+   }
 }
 
 IntegrationPointTransformation *
 FaceElementTransformations::GetActivePointTransformation()
 {
-   if (side == 0)
+   while(1)
    {
-      return &Loc1;
-   }
-   else if (side == 1)
-   {
-      return &Loc2;
-   }
+      if (side == 0)
+      {
+         return &Loc1;
+      }
+      else if (side == 1)
+      {
+         return &Loc2;
+      }
 
-   // Automatic selection has not yet occured.
-   SetActiveSide(2);
-   return GetActivePointTransformation();
+      // Automatic selection has not yet occured.
+      SetActiveSide(2);
+   }
 }
 
 }
