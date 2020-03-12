@@ -168,7 +168,6 @@ int main(int argc, char *argv[])
    u = hyp->u0;
 
    // uk is used for visualization.
-   // TODO: visualize other fields (vectors) and write to files.
    GridFunction uk(&fes, u_block.GetBlock(0));
    double InitialMass = LumpedMassMat * uk;
 
@@ -232,10 +231,8 @@ int main(int argc, char *argv[])
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
-         //for (int k = 0; k < NumUnknowns; k++)
-         //{
+
          VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, VectorOutput[0]);
-         //}
       }
    }
 

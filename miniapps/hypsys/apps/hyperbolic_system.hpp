@@ -27,8 +27,8 @@ class HyperbolicSystem
 public:
    explicit HyperbolicSystem(FiniteElementSpace *fes_, BlockVector &u_block,
                              int NumEq_, Configuration &config_,
-                             VectorFunctionCoefficient BdrCond_) : fes(fes_), inflow(fes_), u0(fes_,
-                                      u_block), NumEq(NumEq_), BdrCond(BdrCond_)
+                             VectorFunctionCoefficient BdrCond_) : fes(fes_), u0(fes_, u_block),
+                             NumEq(NumEq_), BdrCond(BdrCond_)
    {
       l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(),
                                    fes->GetMesh()->Dimension());
@@ -87,7 +87,7 @@ public:
    const int NumEq;
 
    FiniteElementSpace *fes;
-   GridFunction inflow, u0; // TODO is this inflow used?
+   GridFunction u0;
 
    // Auxiliary data needed for L2 projections
    L2_FECollection *l2_fec;

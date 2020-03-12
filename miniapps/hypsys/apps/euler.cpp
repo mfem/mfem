@@ -2,7 +2,7 @@
 
 Configuration ConfigEuler;
 
-const double SpHeatRatio = 1.4; // TODO
+const double SpHeatRatio = 1.4;
 
 void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u);
 void InitialConditionEuler(const Vector &x, Vector &u);

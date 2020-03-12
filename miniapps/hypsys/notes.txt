@@ -5,7 +5,8 @@ TODO:
    For systems of equations use physical bdr conditions and Riemann solver - distinction between types of bdr conditions?
 -figure out a good way to avoid ifs/switches within the evolution - if possible let each scheme inherit from (p)fe_evol classes (Priority 2)
 -clean up hypsys.cpp and phypsys.cpp, try to move as much functionality into the apps-constructors as possible (Priority 3)
--visualization of other unknowns / quotients of unknowns (Priority 4)
+-visualization of other unknowns / quotients of unknowns, vector valued unknowns (Priority 4)
+-find a good way to set global parameters (GravConst in SWE, gamma in Euler) (Priority 5)
 
 
 Current state:

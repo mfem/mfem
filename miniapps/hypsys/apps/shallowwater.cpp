@@ -2,7 +2,7 @@
 
 Configuration ConfigShallowWater;
 
-const double GravConst = 1.; // TODO
+const double GravConst = 1.;
 
 void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u);
 void InitialConditionSWE(const Vector &x, Vector &u);
