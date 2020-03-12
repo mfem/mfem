@@ -24,7 +24,7 @@ void ParFE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          if (nbr < 0)
          {
             // TODO more general boundary conditions, Riemann problem
-            uNbr = x_gf_MPI(DofInd);
+            uNbr = inflow(DofInd);
          }
          else
          {
@@ -72,7 +72,6 @@ double ParFE_Evolution::ConvergenceCheck(double dt, double tol,
 
 void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
 {
-   z = 0.;
    x_gf_MPI = x;
    x_gf_MPI.ExchangeFaceNbrData();
    Vector &xMPI = x_gf_MPI.FaceNbrData();
@@ -82,14 +81,15 @@ void ParFE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       hyp->BdrCond.SetTime(t);
       if (!hyp->ProjType)
       {
-         hyp->L2_Projection(hyp->BdrCond, x_gf_MPI);
+         hyp->L2_Projection(hyp->BdrCond, inflow);
       }
       else
       {
-         x_gf_MPI.ProjectCoefficient(hyp->BdrCond);
+         inflow.ProjectCoefficient(hyp->BdrCond);
       }
    }
 
+   z = 0.;
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);

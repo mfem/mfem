@@ -17,3 +17,4 @@ Next major tasks:
 -Low order IDP schemes
    * Once different evolution schemes are considered, check combinations of schemes: e.g. DG0 only for standard evolution.
 -Limiting
+-Entropy Stability

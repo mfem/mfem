@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
    }
    MPI_Comm comm = pmesh.GetComm();
 
-   int NumEq;       // number of scalar unknowns, e.g. 3 for SWE in 2D.
+   int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
    int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
 
    Array<bool> VectorOutput;
@@ -147,13 +147,10 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace vfes(&pmesh, &fec, NumEq, Ordering::byNODES);
 
    Array<int> offsets(NumEq + 1);
-   for (int k = 0; k <= NumEq; k++)
-   {
-      offsets[k] = k * pfes.GetNDofs();
-   }
+   for (int k = 0; k <= NumEq; k++) { offsets[k] = k * pfes.GetNDofs(); }
    BlockVector u_block(offsets);
 
-   const int ProblemSize = vfes.GlobalTrueVSize();
+   const int ProblemSize = vfes.GlobalVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << ProblemSize << ".\n";
@@ -194,8 +191,8 @@ int main(int argc, char *argv[])
    ParGridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-   ParGridFunction uk(&pfes, u_block.GetBlock(0)); // TODO for all
-   double InitialMass, MassMPI = LumpedMassMat * u;
+   ParGridFunction uk(&pfes, u_block.GetBlock(0)); // TODO for all, also file output
+   double InitialMass, MassMPI = LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    // Visualization with GLVis, VisIt is currently not supported.

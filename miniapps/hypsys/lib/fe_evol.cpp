@@ -175,6 +175,18 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
          }
       }
    }
+
+   if (!hyp->TimeDepBC)
+   {
+      if (!hyp->ProjType)
+      {
+         hyp->L2_Projection(hyp->BdrCond, inflow);
+      }
+      else
+      {
+         inflow.ProjectCoefficient(hyp->BdrCond);
+      }
+   }
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
