@@ -49,6 +49,10 @@
 
 // ------------------------------------------------------------------------------
 
+// Copyright (c) 2019-2020, Lawrence Livermore National Security, LLC and other
+// gecko project contributors. See the above license for details.
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <algorithm>
 #include <functional>
 #include <cstdlib>
