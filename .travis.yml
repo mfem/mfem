@@ -134,7 +134,7 @@ jobs:
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .; rm -f Lib/*.{c,o}
 
     - os: linux
       compiler: gcc
@@ -164,7 +164,7 @@ jobs:
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .; rm -f Lib/*.{c,o}
 
     - os: linux
       compiler: gcc
@@ -190,7 +190,7 @@ jobs:
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .; rm -f Lib/*.{c,o}
 
     # ========================
     #      Mac OS X tests
@@ -236,7 +236,7 @@ jobs:
           - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .; rm -f Lib/*.{c,o}
 
     - os: osx
       # osx_image: xcode7.3
@@ -256,7 +256,7 @@ jobs:
           - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .; rm -f Lib/*.{c,o}
 
 before_install:
    # No addon for brew yet, have to install OSX packages this way.
