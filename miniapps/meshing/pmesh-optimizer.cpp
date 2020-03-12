@@ -34,8 +34,10 @@
 // Sample runs:
 //   Adapted analytic Hessian:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted analytic Hessian wit orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Adapted analytic Hessian with size+orientation:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//   Adapted analytic Hessian with Shape+size+orientation
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape:
@@ -72,45 +74,34 @@ double ind_values(const Vector &x)
 {
    const int opt = 6;
    const double small = 0.001, big = 0.01;
+   double val = 0.;
 
    // Sine wave.
    if (opt==1)
    {
       const double X = x(0), Y = x(1);
-      const double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                         std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-
-      return ind * small + (1.0 - ind) * big;
+      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
    }
-
-   if (opt==2)
+   else if (opt==2)
    {
       // Circle in the middle.
-      double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.15; double r2 = 0.35; double sf=30.0;
       val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-
-      return val * small + (1.0 - val) * big;
    }
-
-   if (opt == 3)
+   else if (opt == 3)
    {
       // cross
       const double X = x(0), Y = x(1);
       const double r1 = 0.45, r2 = 0.55;
       const double sf = 40.0;
 
-      double val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
-                           std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
-      if (val > 1.) { val = 1.0; }
-
-      return val * small + (1.0 - val) * big;
+      val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
+                    std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
    }
-
-   if (opt==4)
+   else if (opt==4)
    {
       // Multiple circles
       double r1,r2,val,rval;
@@ -139,16 +130,11 @@ double ind_values(const Vector &x)
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
       val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));
-      if (val > 1.0) {val = 1.;}
-      if (val < 0.0) {val = 0.;}
-
-      return val * small + (1.0 - val) * big;
    }
 
    if (opt==5)
    {
       // cross
-      double val = 0.;
       double X = x(0)-0.5, Y = x(1)-0.5;
       double rval = std::sqrt(X*X + Y*Y);
       double thval = 60.*M_PI/180.;
@@ -160,27 +146,22 @@ double ind_values(const Vector &x)
       val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
               + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
       if (rval > 0.4) {val = 0.;}
-      if (val > 1.0) {val = 1.;}
-      if (val < 0.0) {val = 0.;}
-
-      return val * small + (1.0 - val) * big;
    }
 
    if (opt==6)
    {
-      double val = 0.;
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-      if (val < 0.) {val = 0;}
-
-      return val * small + (1.0 - val) * big;
    }
 
-   return 0.0;
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+
+   return val * small + (1.0 - val) * big;
 }
+
 
 double ori_values(const Vector &x)
 {
@@ -580,7 +561,7 @@ int main (int argc, char *argv[])
 #ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
-         if (fdscheme==0) {tc->SetAdaptivityEvaluator(new AdvectorCG);}
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
          tc->SetParDiscreteTargetSpec(size);
          target_c = tc;
