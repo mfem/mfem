@@ -1,19 +1,20 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 
 #include "pfespace.hpp"
+#include "prestriction.hpp"
 #include "../general/forall.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -493,6 +494,35 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
+
+const Operator *ParFiniteElementSpace::GetFaceRestriction(
+   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+{
+   const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
+   const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
+                          L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
+   auto key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   auto itr = L2F.find(key);
+   if (itr != L2F.end())
+   {
+      return itr->second;
+   }
+   else
+   {
+      Operator* res;
+      if (is_dg_space)
+      {
+         res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+      }
+      else
+      {
+         res = new H1FaceRestriction(*this, e_ordering, type);
+      }
+      L2F[key] = res;
+      return res;
+   }
+}
+
 void ParFiniteElementSpace::GetSharedEdgeDofs(
    int group, int ei, Array<int> &dofs) const
 {
@@ -616,15 +646,15 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    int ldof  = GetVSize();
    int ltdof = TrueVSize();
 
-   HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
-   HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
+   HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
+   HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
    int diag_counter;
 
-   HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
-   HYPRE_Int *j_offd = new HYPRE_Int[ldof-ltdof];
+   HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
+   HYPRE_Int *j_offd = Memory<HYPRE_Int>(ldof-ltdof);
    int offd_counter;
 
-   HYPRE_Int *cmap   = new HYPRE_Int[ldof-ltdof];
+   HYPRE_Int *cmap   = Memory<HYPRE_Int>(ldof-ltdof);
 
    HYPRE_Int *col_starts = GetTrueDofOffsets();
    HYPRE_Int *row_starts = GetDofOffsets();
@@ -2332,7 +2362,7 @@ HypreParMatrix* ParFiniteElementSpace
    }
 
    // create offd column mapping
-   HYPRE_Int *cmap = new HYPRE_Int[col_map.size()];
+   HYPRE_Int *cmap = Memory<HYPRE_Int>(col_map.size());
    int offd_col = 0;
    for (std::map<HYPRE_Int, int>::iterator
         it = col_map.begin(); it != col_map.end(); ++it)
@@ -2341,14 +2371,14 @@ HypreParMatrix* ParFiniteElementSpace
       it->second = offd_col++;
    }
 
-   HYPRE_Int *I_diag = new HYPRE_Int[vdim*local_rows + 1];
-   HYPRE_Int *I_offd = new HYPRE_Int[vdim*local_rows + 1];
+   HYPRE_Int *I_diag = Memory<HYPRE_Int>(vdim*local_rows + 1);
+   HYPRE_Int *I_offd = Memory<HYPRE_Int>(vdim*local_rows + 1);
 
-   HYPRE_Int *J_diag = new HYPRE_Int[nnz_diag];
-   HYPRE_Int *J_offd = new HYPRE_Int[nnz_offd];
+   HYPRE_Int *J_diag = Memory<HYPRE_Int>(nnz_diag);
+   HYPRE_Int *J_offd = Memory<HYPRE_Int>(nnz_offd);
 
-   double *A_diag = new double[nnz_diag];
-   double *A_offd = new double[nnz_offd];
+   double *A_diag = Memory<double>(nnz_diag);
+   double *A_offd = Memory<double>(nnz_offd);
 
    int vdim1 = bynodes ? vdim : 1;
    int vdim2 = bynodes ? 1 : vdim;
@@ -2399,7 +2429,7 @@ HypreParMatrix* ParFiniteElementSpace
 
 static HYPRE_Int* make_i_array(int nrows)
 {
-   HYPRE_Int *I = new HYPRE_Int[nrows+1];
+   HYPRE_Int *I = Memory<HYPRE_Int>(nrows+1);
    for (int i = 0; i <= nrows; i++) { I[i] = -1; }
    return I;
 }
@@ -2411,7 +2441,7 @@ static HYPRE_Int* make_j_array(HYPRE_Int* I, int nrows)
    {
       if (I[i] >= 0) { nnz++; }
    }
-   HYPRE_Int *J = new HYPRE_Int[nnz];
+   HYPRE_Int *J = Memory<HYPRE_Int>(nnz);
 
    I[nrows] = -1;
    for (int i = 0, k = 0; i <= nrows; i++)
@@ -2511,7 +2541,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    }
    SortPairs<HYPRE_Int, int>(cmap_offd, offd_cols);
 
-   HYPRE_Int* cmap = new HYPRE_Int[offd_cols];
+   HYPRE_Int* cmap = Memory<HYPRE_Int>(offd_cols);
    for (int i = 0; i < offd_cols; i++)
    {
       cmap[i] = cmap_offd[i].one;
@@ -2731,7 +2761,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    offd->SetWidth(col_map.size());
 
    // create offd column mapping for use by hypre
-   HYPRE_Int *cmap = new HYPRE_Int[offd->Width()];
+   HYPRE_Int *cmap = Memory<HYPRE_Int>(offd->Width());
    for (std::map<HYPRE_Int, int>::iterator
         it = col_map.begin(); it != col_map.end(); ++it)
    {
@@ -3026,8 +3056,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == pfes.GetTrueVSize(), "");
-   MFEM_ASSERT(tdofs == R->GetI()[tdofs], "");
-   ltdof_ldof = Array<int>(const_cast<int*>(R->GetJ()), tdofs);
+   MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
+   ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
    ltdof_ldof.UseDevice();
    {
       Table nbr_ltdof;
@@ -3037,7 +3067,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       shr_ltdof.CopyFrom(nbr_ltdof.GetJ());
       shr_buf.SetSize(nb_connections);
       shr_buf.UseDevice(true);
-      shr_buf_offsets = nbr_ltdof.GetI();
+      shr_buf_offsets = nbr_ltdof.GetIMemory();
       {
          Array<int> shr_ltdof(nbr_ltdof.GetJ(), nb_connections);
          Array<int> unique_ltdof(shr_ltdof);
@@ -3055,7 +3085,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
          unq_shr_i = Array<int>(unique_shr.GetI(), unique_shr.Size()+1);
          unq_shr_j = Array<int>(unique_shr.GetJ(), unique_shr.Size_of_connections());
       }
-      delete [] nbr_ltdof.GetJ();
+      nbr_ltdof.GetJMemory().Delete();
       nbr_ltdof.LoseData();
    }
    {
@@ -3066,8 +3096,8 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       ext_ldof.CopyFrom(nbr_ldof.GetJ());
       ext_buf.SetSize(nb_connections);
       ext_buf.UseDevice(true);
-      ext_buf_offsets = nbr_ldof.GetI();
-      delete [] nbr_ldof.GetJ();
+      ext_buf_offsets = nbr_ldof.GetIMemory();
+      nbr_ldof.GetJMemory().Delete();
       nbr_ldof.LoseData();
    }
    const GroupTopology &gtopo = gc.GetGroupTopology();
@@ -3103,7 +3133,7 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
    ExtractSubVector(shr_ltdof.Size(), shr_ltdof, x, shr_buf);
    // If the above kernel is executed asynchronously, we should wait for it to
    // complete
-   if (mpi_gpu_aware) { Device::Synchronize(); }
+   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
 }
 
 static void SetSubVector(const int N,
@@ -3167,8 +3197,8 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
 DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
 {
    delete [] requests;
-   delete [] ext_buf_offsets;
-   delete [] shr_buf_offsets;
+   ext_buf_offsets.Delete();
+   shr_buf_offsets.Delete();
 }
 
 void DeviceConformingProlongationOperator::ReduceBeginCopy(
@@ -3179,7 +3209,7 @@ void DeviceConformingProlongationOperator::ReduceBeginCopy(
    ExtractSubVector(ext_ldof.Size(), ext_ldof, x, ext_buf);
    // If the above kernel is executed asynchronously, we should wait for it to
    // complete
-   if (mpi_gpu_aware) { Device::Synchronize(); }
+   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
 }
 
 void DeviceConformingProlongationOperator::ReduceLocalCopy(
