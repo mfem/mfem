@@ -37,6 +37,7 @@
 #include <iostream>
 
 #include "linalg/densemat.hpp"
+#include "../../../dbg.hpp"
 #include "../../general/forall.hpp"
 
 using namespace std;
@@ -70,70 +71,77 @@ struct Opt
    int surface = 0;
    bool pa = true;
    bool vis = true;
-   bool amr = true;
+   bool amr = false;
    bool wait = false;
    bool radial = false;
    bool by_vdim = false;
    double lambda = 0.1;
-   double amr_threshold = 0.8;
+   double amr_threshold = 0.75;
    const char *keys = "gAmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
 };
 
-// Surface mesh class
-template<typename T>
-class Surface: public Mesh
+// Helper<T,U> for CRTP
+template<typename T/*, template<typename> class U*/> struct CRTP
 {
-protected:
-   T *S;
+   //friend U<T>;
+   inline operator T&() { return static_cast<T&>(*this); }
+   inline operator const T&() const { return static_cast<const T&>(*this); }
+};
+
+template<class T> class ByNodes;
+
+// Surface mesh class
+//template<typename T>
+class Surface: public Mesh//, public CRTP<T/*,Surface*/>
+{
+public:
+   //T &S;
    Opt &opt;
    Mesh *mesh;
    Array<int> bc;
    H1_FECollection *fec;
    FiniteElementSpace *fes;
-
 public:
    // Reading from mesh file
    Surface(Opt &opt, const char *file): Mesh(file, true),
-      S(static_cast<T*>(this)), opt(opt) { Postflow(); }
+      /*S(*this),*/ opt(opt) { Postflow(); }
 
    // Generate 2D generic empty surface mesh
    Surface(Opt &opt, bool): Mesh(),
-      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
+      /*S(*this),*/ opt(opt) { Preflow(); Postflow(); }
 
    // Generate 2D quad surface mesh
    Surface(Opt &opt): Mesh(opt.nx, opt.ny, QUAD, true, 1.0, 1.0, false),
-      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
+      /*S(*this),*/ opt(opt)  { Preflow(); Postflow(); }
 
    // Generate 2D generic surface mesh
    Surface(Opt &opt, int NV, int NE, int NBE): Mesh(DIM, NV, NE, NBE, SDIM),
-      S(static_cast<T*>(this)), opt(opt) { Preflow(); Postflow(); }
+      /*S(*this),*/ opt(opt) { Preflow(); Postflow(); }
 
-   void Preflow() { S->Prefix(); S->Create(); }
+   void Preflow() { /*S.*/Prefix(); /*S.*/Create(); }
 
    void Postflow()
    {
-      S->Postfix();
-      S->Refine();
-      S->Snap();
-      this->Data();
-      S->BC();
-      this->Solve();
+      /*S.*/Postfix();
+      /*S.*/Refine();
+      /*S.*/Snap();
+      Data();
+      /*S.*/BC();
+      Solve();
    }
 
    ~Surface() { delete mesh; delete fec; delete fes; }
 
-   void Prefix() { SetCurvature(opt.order, false, SDIM, Ordering::byNODES); }
+   virtual void Prefix() { SetCurvature(opt.order, false, SDIM, Ordering::byNODES); }
 
-   void Create() { Transform(T::Parametrization); }
+   virtual void Create() { dbg("\033[37m[Surface] Create"); } //{ Transform(T::Parametrization); }
 
-   void Postfix() { SetCurvature(opt.order, false, SDIM, Ordering::byNODES); }
+   virtual void Postfix() { SetCurvature(opt.order, false, SDIM, Ordering::byNODES); }
 
-   void Refine()
-   {
-      for (int l = 0; l < opt.refine; l++) { UniformRefinement(); }
-   }
+   virtual void Refine()
+   { for (int l = 0; l < opt.refine; l++) { UniformRefinement(); } }
 
    void Snap()
    {
@@ -173,7 +181,7 @@ public:
       }
    }
 
-   // Visualize some solution on the given mesh
+   // Initialize visualization of some given mesh
    static void Visualize(const Opt &opt, const Mesh *mesh,
                          const int w, const int h)
    {
@@ -186,6 +194,7 @@ public:
       glvis << flush;
    }
 
+   // Visualize some solution on the given mesh
    static void Visualize(const Opt &opt, const Mesh *mesh)
    {
       glvis << "parallel " << NRanks << " " << MyRank << "\n";
@@ -195,13 +204,14 @@ public:
       glvis << flush;
    }
 
-   // Surface solver class
-   template<class U> class Solver
+   // Surface Solver class
+   //template<class T, class U> class SSolver: public CRTP<U>
+   class SurfaceSolver
    {
    protected:
-      T &S;
+      Surface &S;
       const Opt &opt;
-      U *solver;
+      //U &solver;
       OperatorPtr A;
       BilinearForm a;
       GridFunction x, x0, b;
@@ -210,11 +220,10 @@ public:
       const int print_iter = -1, max_num_iter = 2000;
       const double RTOLERANCE = EPS, ATOLERANCE = EPS*EPS;
    public:
-      Solver(T &S, const Opt &opt): S(S), opt(opt),
-         solver(static_cast<U*>(this)),
+      SurfaceSolver(Surface &S, const Opt &opt): S(S), opt(opt), //solver(*this),
          a(S.fes), x(S.fes), x0(S.fes), b(S.fes), one(1.0) { }
 
-      ~Solver() { delete M; }
+      ~SurfaceSolver() { delete M; }
 
       void Solve()
       {
@@ -223,13 +232,15 @@ public:
          {
             if (MyRank == 0) { mfem::out << "Linearized iteration " << i << ": "; }
             Amr();
-            if (opt.vis) { Visualize(opt, S.mesh); }
+            if (opt.vis) { S.Visualize(opt, S.mesh); }
             S.mesh->DeleteGeometricFactors();
             a.Update();
             a.Assemble();
-            if (solver->Loop()) { break; }
+            if (/*solver.*/Loop()) { break; }
          }
       }
+
+      virtual bool Loop() = 0;
 
    protected:
       bool Converged(const double rnorm)
@@ -356,11 +367,12 @@ public:
    };
 
    // Surface solver 'by vector'
-   class ByNodes: public Solver<ByNodes>
+   class ByNodes: public SurfaceSolver//<T,ByNodes<T>>
    {
    public:
-      using U = Solver<ByNodes>;
-      ByNodes(T &S, const Opt &opt): Solver<ByNodes>(S,opt)
+      using U = SurfaceSolver;//<T,ByNodes<T>>;
+      ByNodes(Surface &S, const Opt &opt): SurfaceSolver/*<T,ByNodes<T>>*/(S,
+                                                                              opt)
       { U::a.AddDomainIntegrator(new VectorDiffusionIntegrator(U::one)); }
 
       bool Loop()
@@ -372,11 +384,11 @@ public:
       }
    };
 
-   // Surface solver 'by components'
-   class ByVDim: public Solver<ByVDim>
+   // Surface solver 'by ByVDim'
+   class ByVDim: public SurfaceSolver//<T,ByVDim<T>>
    {
-   private:
-      using U = Solver<ByVDim>;
+   public:
+      using U = SurfaceSolver;//<T,ByVDim>;
       void SetNodes(const GridFunction &Xi, const int c)
       {
          auto d_Xi = Xi.Read();
@@ -393,8 +405,7 @@ public:
          MFEM_FORALL(i, ndof, d_Xi[i] = d_nodes[c*ndof + i]; );
       }
 
-   public:
-      ByVDim(T &S, const Opt &opt): Solver<ByVDim>(S,opt)
+      ByVDim(Surface &S, const Opt &opt): SurfaceSolver/*<T,ByVDim>*/(S,opt)
       { U::a.AddDomainIntegrator(new DiffusionIntegrator(U::one)); }
 
       bool Loop()
@@ -415,22 +426,25 @@ public:
    int Solve()
    {
       // Initialize GLVis server if 'visualization' is set
-      if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+      if (opt.vis) { glvis.open(vishost, visport); }
       // Send to GLVis the first mesh
       if (opt.vis) { Visualize(opt, mesh, GLVIZ_W, GLVIZ_H); }
       // Create and launch the surface solver
-      if (opt.by_vdim) { ByVDim(*S, opt).Solve(); }
-      else { ByNodes(*S, opt).Solve(); }
+      if (opt.by_vdim) { ByVDim(*this, opt).Solve(); }
+      else { ByNodes(*this, opt).Solve(); }
       return 0;
    }
 };
 
 // #0: Default surface mesh file
-struct MeshFromFile: public Surface<MeshFromFile>
-{ MeshFromFile(Opt &opt): Surface(opt, opt.mesh_file) { } };
+struct MeshFromFile: public Surface//<MeshFromFile>
+{
+   MeshFromFile(Opt &opt): Surface(opt, opt.mesh_file) { }
+   void Create() { }
+};
 
 // #1: Catenoid surface
-struct Catenoid: public Surface<Catenoid>
+struct Catenoid: public Surface//<Catenoid>
 {
    Catenoid(Opt &opt): Surface(opt) { }
 
@@ -468,6 +482,8 @@ struct Catenoid: public Surface<Catenoid>
       RemoveInternalBoundaries();
    }
 
+   void Create() override { Transform(Catenoid::Parametrization); }
+
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(SDIM);
@@ -481,9 +497,11 @@ struct Catenoid: public Surface<Catenoid>
 };
 
 // #2: Helicoid surface
-struct Helicoid: public Surface<Helicoid>
+struct Helicoid: public Surface//<Helicoid>
 {
    Helicoid(Opt &opt): Surface(opt) { }
+
+   void Create() { Transform(Parametrization); }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -498,9 +516,11 @@ struct Helicoid: public Surface<Helicoid>
 };
 
 // #3: Enneper's surface
-struct Enneper: public Surface<Enneper>
+struct Enneper: public Surface//<Enneper>
 {
    Enneper(Opt &opt): Surface(opt) { }
+
+   void Create() { Transform(Parametrization); }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -515,7 +535,7 @@ struct Enneper: public Surface<Enneper>
 };
 
 // #4: Hold surface
-struct Hold: public Surface<Hold>
+struct Hold: public Surface//<Hold>
 {
    Hold(Opt &opt): Surface(opt) { }
 
@@ -552,6 +572,8 @@ struct Hold: public Surface<Hold>
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
    }
+
+   void Create() { Transform(Parametrization); }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -677,7 +699,7 @@ cdouble WeierstrassZeta(const cdouble z,
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
 static double ALPHA[3] {0.0};
-struct Costa: public Surface<Costa>
+struct Costa: public Surface//<Costa>
 {
    Costa(Opt &opt): Surface(opt, false) { }
 
@@ -728,6 +750,8 @@ struct Costa: public Surface<Costa>
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
+   void Create() { Transform(Parametrization); }
+
    static void Parametrization(const Vector &x, Vector &p)
    {
       p.SetSize(3);
@@ -777,9 +801,11 @@ struct Costa: public Surface<Costa>
 };
 
 // #6: Shell surface model
-struct Shell: public Surface<Shell>
+struct Shell: public Surface//<Shell>
 {
    Shell(Opt &opt): Surface((opt.niters = 1, opt)) { }
+
+   void Create() { Transform(Parametrization); }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -794,9 +820,11 @@ struct Shell: public Surface<Shell>
 };
 
 // #7: Scherk's doubly periodic surface
-struct Scherk: public Surface<Scherk>
+struct Scherk: public Surface//<Scherk>
 {
    Scherk(Opt &opt): Surface(opt) { }
+
+   void Create() { Transform(Parametrization); }
 
    static void Parametrization(const Vector &x, Vector &p)
    {
@@ -812,7 +840,7 @@ struct Scherk: public Surface<Scherk>
 };
 
 // #8: Full Peach street model
-struct FullPeach: public Surface<FullPeach>
+struct FullPeach: public Surface//<FullPeach>
 {
    static constexpr int NV = 8;
    static constexpr int NE = 6;
@@ -878,9 +906,11 @@ struct FullPeach: public Surface<FullPeach>
 };
 
 // #9: 1/4th Peach street model
-struct QuarterPeach: public Surface<QuarterPeach>
+struct QuarterPeach: public Surface//<QuarterPeach>
 {
    QuarterPeach(Opt &opt): Surface(opt) { }
+
+   void Create() { Transform(Parametrization); }
 
    static void Parametrization(const Vector &X, Vector &p)
    {
@@ -933,7 +963,7 @@ struct QuarterPeach: public Surface<QuarterPeach>
 };
 
 // #10: Slotted sphere mesh
-struct SlottedSphere: public Surface<SlottedSphere>
+struct SlottedSphere: public Surface//<SlottedSphere>
 {
    SlottedSphere(Opt &opt): Surface((opt.niters = 4, opt), 64, 40, 0) { }
 
