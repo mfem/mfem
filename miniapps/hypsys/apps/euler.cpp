@@ -15,23 +15,26 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
                                                 InflowFunctionEuler))
 {
    ConfigEuler = config_;
-   SteadyState = false;
-   SolutionKnown = true;
-
-   Mesh *mesh = fes->GetMesh();
-   const int dim = mesh->Dimension();
 
    VectorFunctionCoefficient ic(NumEq, InitialConditionEuler);
 
    if (ConfigEuler.ConfigNum == 0)
    {
+      SolutionKnown = true;
+      SteadyState = false;
+      TimeDepBC = false;
       ProjType = 0;
       L2_Projection(ic, u0);
+      ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
    }
    else
    {
+      SolutionKnown = false;
+      SteadyState = false;
+      TimeDepBC = false;
       ProjType = 1;
       u0.ProjectCoefficient(ic);
+      ProblemName = "Euler Equations of Gas dynamics - SOD Shock Tube";
    }
 }
 

@@ -14,15 +14,28 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 {
    ConfigAdvection = config_;
 
+   FunctionCoefficient ic(InitialConditionAdv);
+
    if (ConfigAdvection.ConfigNum == 0)
    {
+      SolutionKnown = true;
       SteadyState = true;
+      TimeDepBC = false;
+      ProjType = 0;
+      L2_Projection(ic, u0);
+      ProblemName = "Advection - Smooth Circular Convection";
    }
    else
    {
+      SolutionKnown = true;
       SteadyState = false;
+      TimeDepBC = false;
+      ProjType = 1;
+      u0.ProjectCoefficient(ic);
+      ProblemName = "Advection - Solid Body Rotation";
    }
 
+   // The following computes and stores all necessary evaluations of the time-independent velocity.
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
@@ -115,34 +128,6 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
             }
          }
       }
-   }
-
-   FunctionCoefficient ic(InitialConditionAdv);
-
-   // TODO diese Fallunterscheidung muss in Mult getroffen werden.
-   if (ConfigAdvection.ConfigNum == 0)
-   {
-      // Use L2 projection to achieve optimal convergence order.
-      L2_FECollection l2_fec(fes->GetFE(0)->GetOrder(), dim);
-      FiniteElementSpace l2_fes(mesh, &l2_fec);
-      GridFunction l2_proj(&l2_fes);
-      l2_proj.ProjectCoefficient(ic);
-      u0.ProjectGridFunction(l2_proj);
-   }
-   else // Bound preserving projection.
-   {
-      u0.ProjectCoefficient(ic);
-   }
-
-   if (ConfigAdvection.ConfigNum == 0)
-   {
-      ProjType = 0;
-      L2_Projection(ic, u0);
-   }
-   else
-   {
-      ProjType = 1;
-      u0.ProjectCoefficient(ic);
    }
 }
 

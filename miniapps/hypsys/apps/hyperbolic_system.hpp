@@ -87,7 +87,7 @@ public:
    const int NumEq;
 
    FiniteElementSpace *fes;
-   GridFunction inflow, u0;
+   GridFunction inflow, u0; // TODO is this inflow used?
 
    // Auxiliary data needed for L2 projections
    L2_FECollection *l2_fec;
@@ -96,10 +96,12 @@ public:
 
    mutable VectorFunctionCoefficient BdrCond;
 
-   bool SolutionKnown = true;
-   bool FileOutput = true;
+   string ProblemName;
+   bool SolutionKnown;
    bool SteadyState;
-   bool TimeDepBC = false; // TODO set all defaults properly
+   bool TimeDepBC;
+
+   bool FileOutput = true;
 };
 
 #endif

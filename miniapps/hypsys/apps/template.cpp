@@ -12,23 +12,26 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
                       VectorFunctionCoefficient(NUMEQ, InflowFunctionTEMPLATE))
 {
    ConfigTEMPLATE = config_;
-   SteadyState = false;
-   SolutionKnown = false;
-
-   Mesh *mesh = fes->GetMesh();
-   const int dim = mesh->Dimension();
 
    VectorFunctionCoefficient ic(NumEq, InitialConditionTEMPLATE);
 
    if (ConfigTEMPLATE.ConfigNum == 0)
    {
+      SolutionKnown = ;
+      SteadyState = ;
+      TimeDepBC = ;
       ProjType = 0;
       L2_Projection(ic, u0);
+      ProblemName = "TEMPLATE - ";
    }
    else
    {
+      SolutionKnown = ;
+      SteadyState = ;
+      TimeDepBC = ;
       ProjType = 1;
       u0.ProjectCoefficient(ic);
+      ProblemName = "TEMPLATE - ";
    }
 }
 

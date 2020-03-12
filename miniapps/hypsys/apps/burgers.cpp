@@ -12,24 +12,22 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
                                                                             InflowFunctionBurgers))
 {
    ConfigBurgers = config_;
-   SteadyState = false;
-   SolutionKnown = true;
 
-   Mesh *mesh = fes->GetMesh();
-   const int dim = mesh->Dimension();
-
-   TimeDepBC = true;
    FunctionCoefficient ic(InitialConditionBurgers);
 
    if (ConfigBurgers.ConfigNum == 0)
    {
-      ProjType = 0;
-      L2_Projection(ic, u0);
+      ProblemName = "Burgers Equation - Smooth Solution";
+      MFEM_ABORT("No such test case implemented.");
    }
    else
    {
+      SolutionKnown = true;
+      SteadyState = false;
+      TimeDepBC = true;
       ProjType = 1;
       u0.ProjectCoefficient(ic);
+      ProblemName = "Burgers Equation - Riemann Problem";
    }
 }
 

@@ -191,12 +191,14 @@ int main(int argc, char *argv[])
    ParGridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-   ParGridFunction uk(&pfes, u_block.GetBlock(0)); // TODO for all, also file output
+   // uk is used for visualization.
+   // TODO: visualize other fields (vectors) and write to files.
+   ParGridFunction uk(&pfes, u_block.GetBlock(0));
    double InitialMass, MassMPI = LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    // Visualization with GLVis, VisIt is currently not supported.
-   if (hyp->FileOutput) // TODO test this, final. Both also in parallel and for vectors.
+   if (hyp->FileOutput)
    {
       ofstream omesh("grid.mesh");
       omesh.precision(config.precision);
@@ -214,7 +216,7 @@ int main(int argc, char *argv[])
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(comm);
       // TODO name of glvis window
-      ParVisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+      ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk, VectorOutput[0]);
    }
 
    ParFE_Evolution pevol(&vfes, hyp, pdofs, scheme, LumpedMassMat);
@@ -268,7 +270,7 @@ int main(int argc, char *argv[])
          }
          //for (int k = 0; k < NumUnknowns; k++)
          //{
-         ParVisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+         ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk, VectorOutput[0]);
          //}
       }
    }
@@ -309,7 +311,7 @@ int main(int argc, char *argv[])
    {
       ofstream osol("final.gf");
       osol.precision(config.precision);
-      u.SaveAsOne(osol);
+      uk.SaveAsOne(osol);
    }
 
    delete hyp;

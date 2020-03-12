@@ -12,23 +12,22 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
                                                                            InflowFunctionKPP))
 {
    ConfigKPP = config_;
-   SteadyState = false;
-   SolutionKnown = false;
-
-   Mesh *mesh = fes->GetMesh();
-   const int dim = mesh->Dimension();
 
    FunctionCoefficient ic(InitialConditionKPP);
 
    if (ConfigKPP.ConfigNum == 0)
    {
-      ProjType = 0;
-      L2_Projection(ic, u0);
+      ProblemName = "KPP Equation - Smooth Solution";
+      MFEM_ABORT("No such test case implemented.");
    }
    else
    {
+      SolutionKnown = false;
+      SteadyState = false;
+      TimeDepBC = false; // TODO make consistent
       ProjType = 1;
       u0.ProjectCoefficient(ic);
+      ProblemName = "KPP Equation - Riemann Problem";
    }
 }
 

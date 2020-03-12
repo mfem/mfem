@@ -167,11 +167,13 @@ int main(int argc, char *argv[])
    GridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-   GridFunction uk(&fes, u_block.GetBlock(0)); // TODO for all
+   // uk is used for visualization.
+   // TODO: visualize other fields (vectors) and write to files.
+   GridFunction uk(&fes, u_block.GetBlock(0));
    double InitialMass = LumpedMassMat * uk;
 
    // Visualization with GLVis, VisIt is currently not supported.
-   if (hyp->FileOutput) // TODO test this, final. Both also in parallel and for vectors.
+   if (hyp->FileOutput)
    {
       ofstream omesh("grid.mesh");
       omesh.precision(config.precision);
@@ -184,7 +186,7 @@ int main(int argc, char *argv[])
    socketstream sout;
    char vishost[] = "localhost";
    int visport = 19916;
-   VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+   VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, VectorOutput[0]);
 
    FE_Evolution evol(&vfes, hyp, dofs, scheme, LumpedMassMat);
 
@@ -232,7 +234,7 @@ int main(int argc, char *argv[])
          }
          //for (int k = 0; k < NumUnknowns; k++)
          //{
-         VisualizeField(sout, vishost, visport, uk, VectorOutput[0]);
+         VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, VectorOutput[0]);
          //}
       }
    }
@@ -260,7 +262,7 @@ int main(int argc, char *argv[])
    {
       ofstream osol("final.gf");
       osol.precision(config.precision);
-      u.Save(osol);
+      uk.Save(osol);
    }
 
    delete hyp;

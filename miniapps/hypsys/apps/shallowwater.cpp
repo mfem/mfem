@@ -17,20 +17,25 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    SteadyState = false;
    SolutionKnown = true;
 
-   Mesh *mesh = fes->GetMesh();
-   const int dim = mesh->Dimension();
-
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
 
    if (ConfigShallowWater.ConfigNum == 0)
    {
+      SolutionKnown = true;
+      SteadyState = false;
+      TimeDepBC = false;
       ProjType = 0;
       L2_Projection(ic, u0);
+      ProblemName = "Shallow Water Equations - Vorticity Advection";
    }
    else
    {
+      SolutionKnown = false;
+      SteadyState = false;
+      TimeDepBC = false;
       ProjType = 1;
       u0.ProjectCoefficient(ic);
+      ProblemName = "Shallow Water Equations - Dam Break";
    }
 }
 
