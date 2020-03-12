@@ -538,11 +538,11 @@ int main(int argc, char *argv[])
    FE_Evolution *adv;
    if (solver_type == 1)
    {
-      adv = new FE_Evolution(*M, *K, *B, *fes, AIR0);
+      adv = new FE_Evolution(*m, *k, *B, AIR0);
    }
    else
    {
-      adv = new FE_Evolution(*M, *K, *B);
+      adv = new FE_Evolution(*m, *k, *B);
    }
 
    double t = 0.0;
@@ -690,13 +690,11 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
    HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::GS);
    M_prec = hypre_prec;
-   M_prec.SetType(HypreSmoother::GS);
 
    dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace(), _AIR);
 
+   M_solver.SetPreconditioner(*M_prec);
    M_solver.SetOperator(*M);
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
