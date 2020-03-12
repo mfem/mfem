@@ -14,8 +14,6 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
                       VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 1, InflowFunctionSWE))
 {
    ConfigShallowWater = config_;
-   SteadyState = false;
-   SolutionKnown = true;
 
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
 
@@ -23,7 +21,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       SolutionKnown = true;
       SteadyState = false;
-      TimeDepBC = false;
+      TimeDepBC = false; // Usage of periodic meshes is required.
       ProjType = 0;
       L2_Projection(ic, u0);
       ProblemName = "Shallow Water Equations - Vorticity Advection";
@@ -32,7 +30,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       SolutionKnown = false;
       SteadyState = false;
-      TimeDepBC = false;
+      TimeDepBC = false; // TODO Choose a boundary condition for dam break and adjust this.
       ProjType = 1;
       u0.ProjectCoefficient(ic);
       ProblemName = "Shallow Water Equations - Dam Break";
@@ -132,7 +130,7 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
    const int dim = x.Size();
    u.SetSize(dim+1);
 
-   // Map to the reference domain [-1,1] x [-1,1].
+   // Map to the reference domain [-1,1].
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
@@ -144,14 +142,14 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 
    switch (ConfigShallowWater.ConfigNum)
    {
-      case 0: // Vorticity advection
+      case 0:
       {
-         X *= 50.; // Map to test case specific domain [-50,50] x [-50,50].
-
-         if (dim == 1)
+         if (dim != 2)
          {
-            MFEM_ABORT("Test case only implemented in 2D.");
+            MFEM_ABORT("Test case is only implemented in 2D.");
          }
+
+         X *= 50.; // Map to test case specific domain [-50,50].
 
          // Parameters
          double M = .5;

@@ -22,7 +22,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       SolutionKnown = true;
       SteadyState = false;
-      TimeDepBC = false;
+      TimeDepBC = false; // Usage of periodic meshes is required.
       ProjType = 0;
       L2_Projection(ic, u0);
       ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
@@ -31,7 +31,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       SolutionKnown = false;
       SteadyState = false;
-      TimeDepBC = false;
+      TimeDepBC = false; // TODO Choose a boundary condition for shock tube and adjust this.
       ProjType = 1;
       u0.ProjectCoefficient(ic);
       ProblemName = "Euler Equations of Gas dynamics - SOD Shock Tube";
@@ -159,7 +159,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
    const int dim = x.Size();
    u.SetSize(dim + 2);
 
-   // Map to the reference domain [-1,1] x [-1,1].
+   // Map to the reference domain [-1,1].
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
@@ -169,14 +169,14 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 
    switch (ConfigEuler.ConfigNum)
    {
-      case 0: // Vorticity advection
+      case 0:
       {
-         X *= 5.; // Map to test case specific domain [-5,5] x [-5,5].
-
          if (dim != 2)
          {
             MFEM_ABORT("Test case only implemented in 2D.");
          }
+
+         X *= 5.; // Map to test case specific domain [-5,5].
 
          // Parameters
          double beta = 5.;

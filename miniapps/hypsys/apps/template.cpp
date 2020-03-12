@@ -61,6 +61,16 @@ void TEMPLATE::ComputeErrors(Array<double> &errors, const GridFunction &u,
 
 void AnalyticalSolutionTEMPLATE(const Vector &x, double t, Vector &u)
 {
+   const int dim = x.Size();
+
+   // Map to the reference domain [-1,1].
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      double center = (ConfigKPP.bbMin(i) + ConfigKPP.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigKPP.bbMax(i) - ConfigKPP.bbMin(i));
+   }
+
    // TODO
 }
 

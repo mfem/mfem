@@ -8,8 +8,8 @@ void InflowFunctionKPP(const Vector &x, double t, Vector &u);
 
 KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
          Configuration &config_)
-   : HyperbolicSystem(fes_, u_block, 1, config_, VectorFunctionCoefficient(1,
-                                                                           InflowFunctionKPP))
+   : HyperbolicSystem(fes_, u_block, 1, config_,
+   VectorFunctionCoefficient(1, InflowFunctionKPP))
 {
    ConfigKPP = config_;
 
@@ -68,12 +68,21 @@ double AnalyticalSolutionKPP(const Vector &x, double t)
       X(i) = 2. * (x(i) - center) / (ConfigKPP.bbMax(i) - ConfigKPP.bbMin(i));
    }
 
-   // TODO default / convergence test
-   X(0) = 2 * X(0);
-   X(1) = 2 * X(1) - 0.5;
+   switch (ConfigKPP.ConfigNum)
+   {
+   case 1:
+      if (dim != 2)
+      {
+         MFEM_ABORT("Test case only implemented in 2D.");
+      }
 
-   return X.Norml2() <= 1 ? 3.5 * M_PI : 0.25 *
-          M_PI; // TODO this is just the initial condition.
+      // Map to test case specific domain [-2,2] x [-2.5,1.5].
+      X(0) = 2. * X(0);
+      X(1) = 2. * X(1) - 0.5;
+
+      return X.Norml2() <= 1 ? 3.5 * M_PI : 0.25 * M_PI;
+   default: { MFEM_ABORT("No such test case implemented."); }
+   }
 }
 
 double InitialConditionKPP(const Vector &x)

@@ -177,8 +177,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    for (int i = 0; i < dim; i++)
    {
       double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(
-                                        i));
+      X(i) = 2. * (x(i) - center)
+         / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
       s *= ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i);
    }
 
@@ -220,23 +220,23 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
    for (int i = 0; i < dim; i++)
    {
       double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
-      X(i) = 2. * (x(i) - center) / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(
-                                        i));
+      X(i) = 2. * (x(i) - center)
+         / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
    }
 
    switch (ConfigAdvection.ConfigNum)
    {
-      case 0: // Smooth solution used for grid convergence studies.
+      case 0:
       {
          Vector Y(dim); Y = 1.;
          X += Y;
-         X *= 0.5; // Map to test case specific domain [0,1] x [0,1].
+         X *= 0.5; // Map to test case specific domain [0,1].
 
          double r = X.Norml2();
          double a = 0.5, b = 0.03, c = 0.1;
          return 0.25 * (1. + tanh((r+c-a)/b)) * (1. - tanh((r-c-a)/b));
       }
-      case 1: // Solid body rotation.
+      case 1:
       {
          if (dim==1) { return abs(X(0) + 0.7) <= 0.15; }
 
