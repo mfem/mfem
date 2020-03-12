@@ -70,12 +70,12 @@ struct Opt
    int surface = 0;
    bool pa = true;
    bool vis = true;
-   bool amr = true;
+   bool amr = false;
    bool wait = false;
    bool radial = false;
    bool by_vdim = false;
    double lambda = 0.1;
-   double amr_threshold = 0.8;
+   double amr_threshold = 0.75;
    const char *keys = "gAmaaa";
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
@@ -379,7 +379,7 @@ public:
    // Surface solver 'by components'
    class ByVDim: public Solver<ByVDim>
    {
-   private:
+   public:
       using U = Solver<ByVDim>;
       void SetNodes(const GridFunction &Xi, const int c)
       {
@@ -397,7 +397,6 @@ public:
          MFEM_FORALL(i, ndof, d_Xi[i] = d_nodes[c*ndof + i]; );
       }
 
-   public:
       ByVDim(T &S, const Opt &opt): Solver<ByVDim>(S,opt)
       { U::a.AddDomainIntegrator(new DiffusionIntegrator(U::one)); }
 
