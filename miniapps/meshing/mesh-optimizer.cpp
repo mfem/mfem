@@ -389,8 +389,7 @@ int main (int argc, char *argv[])
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
    args.AddOption(&fdscheme, "-fd", "--fd_approximation",
-                  "finite difference based approximation if 1, "
-                  "otherwise exact");
+                  "Enable finite difference based derivative computations.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -575,7 +574,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   if (fdscheme!=0) { he_nlf_integ->EnableFiniteDifferences(x); }
+   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -632,7 +631,7 @@ int main (int argc, char *argv[])
       target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
-      if (fdscheme!=0) { he_nlf_integ2->EnableFiniteDifferences(x); }
+      if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);
