@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Print usage information
 case $1 in
@@ -64,11 +64,11 @@ EOF
 esac
 
 # Maximum number of acceptable commits in the branch
-branch_max_commits=100
+branch_max_commits=200
 # Maximum number of acceptable files changed in any commit in the branch
-commit_max_files_changed=100
+commit_max_files_changed=50
 # Maximum number of acceptable lines changed in any commit in the branch
-commit_max_lines_changed=3000
+commit_max_lines_changed=2000
 # Maximum acceptable size (in K) of any file changed in any commit in the branch
 file_max_size=200
 # Maximum number of acceptable lines added to any file changed in any commit in the branch
@@ -213,3 +213,26 @@ then
     git checkout -q ${current_branch}
 fi
 cd $cur_dir
+
+# Tell users what to do if the script fails
+test_name="$(basename "$0")"
+if [ -s "$test_name.err" ]; then
+    cat >  $test_name.msg <<EOF
+
+The failure of this script indicates that large files have been added or
+committed in the current branch history.
+
+This could be OK, in certain cases, but it could also be a sign that large files
+have accidentally been committed.
+
+To address this error, examine the listed files and commits to make sure all
+large changes were intentional. If there is a wrong commit that has to be
+deleted, please either:
+
+1) Recreate the branch without that commit.
+2) Indicate that the branch should be squash-merged
+
+or contact a member of the MFEM team for help if you have questions.
+
+EOF
+fi

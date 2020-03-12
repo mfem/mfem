@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BILINEARFORM_EXT
 #define MFEM_BILINEARFORM_EXT
@@ -34,7 +34,7 @@ public:
    BilinearFormExtension(BilinearForm *form);
 
    virtual MemoryClass GetMemoryClass() const
-   { return Device::GetMemoryClass(); }
+   { return Device::GetDeviceMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const;
@@ -43,10 +43,12 @@ public:
    virtual const Operator *GetRestriction() const;
 
    virtual void Assemble() = 0;
+
    virtual void AssembleDiagonal(Vector &diag) const
    {
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
+
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -102,11 +104,16 @@ class PABilinearFormExtension : public BilinearFormExtension
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   mutable Vector faceIntX, faceIntY;
+   mutable Vector faceBdrX, faceBdrY;
+   const Operator *elem_restrict; // Not owned
+   const Operator *int_face_restrict_lex; // Not owned
+   const Operator *bdr_face_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
 
+   void SetupRestrictionOperators();
    void Assemble();
    void AssembleDiagonal(Vector &diag) const;
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
@@ -140,7 +147,6 @@ public:
    void Update() {}
    ~MFBilinearFormExtension() {}
 };
-
 
 /** @brief Class extending the MixedBilinearForm class to support the different
     AssemblyLevel%s. */
@@ -179,6 +185,7 @@ public:
    virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double c=1.0) const = 0;
+
    virtual void Update() = 0;
 };
 
