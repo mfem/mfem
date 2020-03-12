@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
    }
    mesh->ReorientTetMesh();
 
-   // 5. Define a finite element space on the mesh. Here we use the Nedelec or
+   // 5. Define a finite element space on the mesh. Here we use Nedelec or
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *trial_fec = NULL;
    FiniteElementCollection *test_fec = NULL;
@@ -143,11 +143,8 @@ int main(int argc, char *argv[])
       cout << "Number of L2 finite element unknowns: " << test_size << endl;
    }
 
-   // 6. Define the solution vector x as a finite element grid function
-   //    corresponding to trial fespace. Initialize x by projecting the exact
-   //    solution. Note that only values from the boundary will be used
-   //    when eliminating the non-homogeneous boundary condition to modify the
-   //    r.h.s. vector b.
+   // 6. Define the solution vector as a finite element grid function
+   //    corresponding to the trial fespace.
    GridFunction gftest(test_fes);
    GridFunction gftrial(trial_fes);
    GridFunction x(test_fes);
