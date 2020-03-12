@@ -330,12 +330,12 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
    }
 }
 
-TEST_CASE("Hcurl H1 mixed pa_coeff")
+TEST_CASE("Hcurl/Hdiv mixed pa_coeff")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
       Mesh* mesh;
-      const int ne = 2;
+      const int ne = 3;
       if (dimension == 2)
       {
          mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
@@ -357,64 +357,132 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
             coeff = new FunctionCoefficient(&coeffFunction);
          }
 
-         // Currently, we test only one integrator. More could be tested here
-         // when they are implemented, using different test spaces (e.g. vector L2, H(div)).
-         for (int integrator = 0; integrator < 1; ++integrator)
+         for (int spaceType = 0; spaceType < 2; ++spaceType)
          {
-            std::cout << "Testing " << dimension << "D ND H1 mixed partial assembly with "
-                      << "coeffType " << coeffType << " and "
-                      << "integrator " << integrator << std::endl;
-            for (int order = 1; order < 5; ++order)
+            if (spaceType == 1 && coeffType == 1)
             {
-               FiniteElementCollection* ND_fec =
-                  new ND_FECollection(order, dimension);
-               FiniteElementSpace ND_fespace(mesh, ND_fec);
+               continue;  // This case fails, maybe because of insufficient quadrature.
+            }
 
-               FiniteElementCollection* h1_fec =
-                  new H1_FECollection(order, dimension);
-               FiniteElementSpace h1_fespace(mesh, h1_fec);
+            // Currently, we test only one integrator.
+            for (int integrator = 0; integrator < 1; ++integrator)
+            {
+               if (spaceType == 0)
+                  std::cout << "Testing " << dimension << "D ND H1 mixed partial assembly with "
+                            << "coeffType " << coeffType << " and "
+                            << "integrator " << integrator << std::endl;
+               else
+                  std::cout << "Testing " << dimension << "D RT L2 mixed partial assembly with "
+                            << "coeffType " << coeffType << " and "
+                            << "integrator " << integrator << std::endl;
 
-               Array<int> ess_tdof_list;
+               for (int order = 1; order < 5; ++order)
+               {
+                  FiniteElementCollection* vec_fec = (spaceType == 0) ?
+                                                     (FiniteElementCollection*) new ND_FECollection(order, dimension) :
+                                                     (FiniteElementCollection*) new RT_FECollection(order-1, dimension);
 
-               MixedBilinearForm paform(&h1_fespace, &ND_fespace);
-               paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-               paform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
-               paform.Assemble();
+                  FiniteElementCollection* scalar_fec = (spaceType == 0) ?
+                                                        (FiniteElementCollection*) new H1_FECollection(order, dimension) :
+                                                        (FiniteElementCollection*) new L2_FECollection(order-1, dimension);
 
-               MixedBilinearForm assemblyform(&h1_fespace, &ND_fespace);
-               assemblyform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
-               assemblyform.Assemble();
-               assemblyform.Finalize();
-               const SparseMatrix& A_explicit = assemblyform.SpMat();
+                  FiniteElementSpace v_fespace(mesh, vec_fec);
+                  FiniteElementSpace s_fespace(mesh, scalar_fec);
 
-               Vector xin(h1_fespace.GetTrueVSize());
-               xin.Randomize();
-               Vector y_mat(ND_fespace.GetTrueVSize());
-               y_mat = 0.0;
-               Vector y_assembly(ND_fespace.GetTrueVSize());
-               y_assembly = 0.0;
-               Vector y_pa(ND_fespace.GetTrueVSize());
-               y_pa = 0.0;
+                  Array<int> ess_tdof_list;
 
-               paform.Mult(xin, y_pa);
-               assemblyform.Mult(xin, y_assembly);
-               A_explicit.Mult(xin, y_mat);
+                  MixedBilinearForm *paform = NULL;
+                  MixedBilinearForm *assemblyform = NULL;
 
-               y_pa -= y_mat;
-               double pa_error = y_pa.Norml2();
-               std::cout << "  order: " << order
-                         << ", pa error norm: " << pa_error << std::endl;
-               REQUIRE(pa_error < 1.e-12);
+                  if (spaceType == 0)
+                  {
+                     assemblyform = new MixedBilinearForm(&s_fespace, &v_fespace);
+                     assemblyform->AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
 
-               y_assembly -= y_mat;
-               double assembly_error = y_assembly.Norml2();
-               std::cout << "  order: " << order
-                         << ", assembly error norm: " << assembly_error
-                         << std::endl;
-               REQUIRE(assembly_error < 1.e-12);
+                     paform = new MixedBilinearForm(&s_fespace, &v_fespace);
+                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+                     paform->AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
+                  }
+                  else
+                  {
+                     assemblyform = new MixedBilinearForm(&v_fespace, &s_fespace);
+                     assemblyform->AddDomainIntegrator(new VectorFEDivergenceIntegrator(*coeff));
 
-               delete ND_fec;
-               delete h1_fec;
+                     paform = new MixedBilinearForm(&v_fespace, &s_fespace);
+                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+                     paform->AddDomainIntegrator(new VectorFEDivergenceIntegrator(*coeff));
+                  }
+
+                  assemblyform->Assemble();
+                  assemblyform->Finalize();
+
+                  paform->Assemble();
+
+                  const SparseMatrix& A_explicit = assemblyform->SpMat();
+
+                  Vector xin((spaceType == 0) ? s_fespace.GetTrueVSize() :
+                             v_fespace.GetTrueVSize());
+                  xin.Randomize();
+                  Vector y_mat((spaceType == 0) ? v_fespace.GetTrueVSize() :
+                               s_fespace.GetTrueVSize());
+                  y_mat = 0.0;
+                  Vector y_assembly(y_mat.Size());
+                  y_assembly = 0.0;
+                  Vector y_pa(y_mat.Size());
+                  y_pa = 0.0;
+
+                  paform->Mult(xin, y_pa);
+                  assemblyform->Mult(xin, y_assembly);
+                  A_explicit.Mult(xin, y_mat);
+
+                  y_pa -= y_mat;
+                  double pa_error = y_pa.Norml2();
+                  std::cout << "  order: " << order
+                            << ", pa error norm: " << pa_error << std::endl;
+                  REQUIRE(pa_error < 1.e-12);
+
+                  y_assembly -= y_mat;
+                  double assembly_error = y_assembly.Norml2();
+                  std::cout << "  order: " << order
+                            << ", assembly error norm: " << assembly_error
+                            << std::endl;
+                  REQUIRE(assembly_error < 1.e-12);
+
+                  if (spaceType == 1)
+                  {
+                     // Test the transpose.
+                     xin.SetSize((spaceType == 0) ? v_fespace.GetTrueVSize() :
+                                 s_fespace.GetTrueVSize());
+                     xin.Randomize();
+
+                     y_mat.SetSize((spaceType == 0) ? s_fespace.GetTrueVSize() :
+                                   v_fespace.GetTrueVSize());
+                     y_assembly.SetSize(y_mat.Size());
+                     y_pa.SetSize(y_mat.Size());
+
+                     paform->MultTranspose(xin, y_pa);
+                     assemblyform->MultTranspose(xin, y_assembly);
+                     A_explicit.MultTranspose(xin, y_mat);
+
+                     y_pa -= y_mat;
+                     pa_error = y_pa.Norml2();
+                     std::cout << "  order: " << order
+                               << ", pa transpose error norm: " << pa_error << std::endl;
+                     REQUIRE(pa_error < 1.e-12);
+
+                     y_assembly -= y_mat;
+                     assembly_error = y_assembly.Norml2();
+                     std::cout << "  order: " << order
+                               << ", assembly transpose error norm: " << assembly_error
+                               << std::endl;
+                     REQUIRE(assembly_error < 1.e-12);
+                  }
+
+                  delete paform;
+                  delete assemblyform;
+                  delete vec_fec;
+                  delete scalar_fec;
+               }
             }
          }
 

@@ -1382,7 +1382,7 @@ static void PAHdivL2Apply2D(const int D1D,
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
-   auto L2Bot = Reshape(_L2Bot.Read(), D1D-1, Q1D);
+   auto L2Bot = Reshape(_L2Bot.Read(), L2D1D, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
    auto x = Reshape(_x.Read(), 2*(D1D-1)*D1D, NE);
    auto y = Reshape(_y.ReadWrite(), L2D1D, L2D1D, NE);
@@ -1473,8 +1473,9 @@ static void PAHdivL2Apply2D(const int D1D,
 
 static void PAHdivL2ApplyTranspose3D(const int D1D,
                                      const int Q1D,
+                                     const int L2D1D,
                                      const int NE,
-                                     const Array<double> &_Bo,
+                                     const Array<double> &_L2Bo,
                                      const Array<double> &_Gct,
                                      const Array<double> &_Bot,
                                      const Vector &_op,
@@ -1483,11 +1484,11 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
 {
    constexpr static int VDIM = 3;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gct = Reshape(_Gct.Read(), Q1D, D1D);
+   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, D1D, NE);
+   auto x = Reshape(_x.Read(), L2D1D, L2D1D, L2D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1505,7 +1506,7 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
          }
       }
 
-      for (int dz = 0; dz < D1D; ++dz)
+      for (int dz = 0; dz < L2D1D; ++dz)
       {
          double aXY[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
@@ -1516,7 +1517,7 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
             }
          }
 
-         for (int dy = 0; dy < D1D; ++dy)
+         for (int dy = 0; dy < L2D1D; ++dy)
          {
             double aX[HDIV_MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
@@ -1524,18 +1525,18 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
                aX[qx] = 0.0;
             }
 
-            for (int dx = 0; dx < D1D; ++dx)
+            for (int dx = 0; dx < L2D1D; ++dx)
             {
-               const double t = x(dx,dy,dz, e);
+               const double t = x(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  aX[qx] += t * Bo(qx,dx);
+                  aX[qx] += t * L2Bo(qx,dx);
                }
             }
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy = Bo(qy,dy);
+               const double wy = L2Bo(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aXY[qy][qx] += aX[qx] * wy;
@@ -1545,7 +1546,7 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            const double wz = Bo(qz,dz);
+            const double wz = L2Bo(qz,dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1579,9 +1580,9 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
             const int D1Dy = (c == 1) ? D1D : D1D - 1;
             const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-            for (int dy = 0; dy < D1D; ++dy)
+            for (int dy = 0; dy < D1Dy; ++dy)
             {
-               for (int dx = 0; dx < D1D; ++dx)
+               for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aXY[dy][dx] = 0;
                }
@@ -1589,33 +1590,33 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
             for (int qy = 0; qy < Q1D; ++qy)
             {
                double aX[HDIV_MAX_D1D];
-               for (int dx = 0; dx < D1D; ++dx)
+               for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aX[dx] = 0;
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  for (int dx = 0; dx < D1D; ++dx)
+                  for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
                   }
                }
-               for (int dy = 0; dy < D1D; ++dy)
+               for (int dy = 0; dy < D1Dy; ++dy)
                {
                   const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
-                  for (int dx = 0; dx < D1D; ++dx)
+                  for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      aXY[dy][dx] += aX[dx] * wy;
                   }
                }
             }
 
-            for (int dz = 0; dz < D1D; ++dz)
+            for (int dz = 0; dz < D1Dz; ++dz)
             {
                const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
-               for (int dy = 0; dy < D1D; ++dy)
+               for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  for (int dx = 0; dx < D1D; ++dx)
+                  for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += aXY[dy][dx] * wz;
                   }
@@ -1630,8 +1631,9 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
 
 static void PAHdivL2ApplyTranspose2D(const int D1D,
                                      const int Q1D,
+                                     const int L2D1D,
                                      const int NE,
-                                     const Array<double> &_Bo,
+                                     const Array<double> &_L2Bo,
                                      const Array<double> &_Gct,
                                      const Array<double> &_Bot,
                                      const Vector &_op,
@@ -1640,11 +1642,11 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
 {
    constexpr static int VDIM = 2;
 
-   auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
-   auto Gct = Reshape(_Gct.Read(), Q1D, D1D);
+   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
    auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(_x.Read(), D1D, D1D, NE);
+   auto x = Reshape(_x.Read(), L2D1D, L2D1D, NE);
    auto y = Reshape(_y.ReadWrite(), 2*(D1D-1)*D1D, NE);
 
    MFEM_FORALL(e, NE,
@@ -1659,7 +1661,7 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
          }
       }
 
-      for (int dy = 0; dy < D1D; ++dy)
+      for (int dy = 0; dy < L2D1D; ++dy)
       {
          double aX[MAX_Q1D];
          for (int qx = 0; qx < Q1D; ++qx)
@@ -1667,18 +1669,18 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
             aX[qx] = 0.0;
          }
 
-         for (int dx = 0; dx < D1D; ++dx)
+         for (int dx = 0; dx < L2D1D; ++dx)
          {
             const double t = x(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               aX[qx] += t * Bo(qx,dx);
+               aX[qx] += t * L2Bo(qx,dx);
             }
          }
 
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const double wy = Bo(qy,dy);
+            const double wy = L2Bo(qy,dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                div[qy][qx] += aX[qx] * wy;
@@ -1697,14 +1699,14 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         int osc = 0;
+         double aX[HDIV_MAX_D1D];
 
+         int osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y components
          {
             const int D1Dy = (c == 1) ? D1D : D1D - 1;
             const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-            double aX[MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
                aX[dx] = 0;
@@ -1719,7 +1721,7 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
             for (int dy = 0; dy < D1Dy; ++dy)
             {
                const double wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
-               for (int dx = 0; dx < D1D; ++dx)
+               for (int dx = 0; dx < D1Dx; ++dx)
                {
                   y(dx + (dy * D1Dx) + osc, e) += aX[dx] * wy;
                }
@@ -1749,10 +1751,10 @@ void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
                                                       Vector &y) const
 {
    if (dim == 3)
-      PAHdivL2ApplyTranspose3D(dofs1D, quad1D, ne, mapsO->B, mapsC->Gt,
+      PAHdivL2ApplyTranspose3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B, mapsC->Gt,
                                mapsO->Bt, pa_data, x, y);
    else if (dim == 2)
-      PAHdivL2ApplyTranspose2D(dofs1D, quad1D, ne, mapsO->B, mapsC->Gt,
+      PAHdivL2ApplyTranspose2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B, mapsC->Gt,
                                mapsO->Bt, pa_data, x, y);
    else
    {
