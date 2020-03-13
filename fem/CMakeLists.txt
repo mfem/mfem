@@ -1,21 +1,29 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_convection.cpp
+  bilininteg_dgtrace.cpp
   bilininteg_diffusion.cpp
+  bilininteg_divergence.cpp
+  bilininteg_gradient.cpp
   bilininteg_mass.cpp
+  bilininteg_vecdiffusion.cpp
+  bilininteg_vecmass.cpp
+  bilininteg_hcurl.cpp
   coefficient.cpp
+  complex_fem.cpp
   datacollection.cpp
   eltrans.cpp
   estimators.cpp
@@ -29,9 +37,16 @@ set(SRCS
   linearform.cpp
   lininteg.cpp
   nonlinearform.cpp
+  nonlinearform_ext.cpp
   nonlininteg.cpp
+  nonlininteg_vectorconvection.cpp
+  quadinterpolator.cpp
+  quadinterpolator_face.cpp
+  restriction.cpp
   staticcond.cpp
   tmop.cpp
+  tmop_tools.cpp
+  gslib.cpp
   )
 
 set(HDRS
@@ -39,6 +54,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   coefficient.hpp
+  complex_fem.hpp
   datacollection.hpp
   eltrans.hpp
   estimators.hpp
@@ -53,7 +69,11 @@ set(HDRS
   linearform.hpp
   lininteg.hpp
   nonlinearform.hpp
+  nonlinearform_ext.hpp
   nonlininteg.hpp
+  quadinterpolator.hpp
+  quadinterpolator_face.hpp
+  restriction.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
@@ -64,6 +84,8 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  tmop_tools.hpp
+  gslib.hpp
   )
 
 if (MFEM_USE_SIDRE)
@@ -82,7 +104,8 @@ if (MFEM_USE_MPI)
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
-    pnonlinearform.cpp)
+    pnonlinearform.cpp
+    prestriction.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
@@ -90,7 +113,19 @@ if (MFEM_USE_MPI)
     pfespace.hpp
     pgridfunc.hpp
     plinearform.hpp
-    pnonlinearform.hpp)
+    pnonlinearform.hpp
+    prestriction.hpp)
+endif()
+
+if (MFEM_USE_CEED)
+   list(APPEND SRCS
+     libceed/ceed.cpp
+     libceed/diffusion.cpp
+     libceed/mass.cpp)
+   list(APPEND HDRS
+     libceed/ceed.hpp
+     libceed/diffusion.hpp
+     libceed/mass.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

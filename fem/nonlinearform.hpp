@@ -1,19 +1,21 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NONLINEARFORM
 #define MFEM_NONLINEARFORM
 
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
+#include "nonlinearform_ext.hpp"
+#include "bilinearform.hpp"
 #include "gridfunc.hpp"
 
 namespace mfem
@@ -22,6 +24,13 @@ namespace mfem
 class NonlinearForm : public Operator
 {
 protected:
+   /// The assembly level.
+   AssemblyLevel assembly;
+
+   /** Extension for supporting Partial Assembly (PA) or
+       Matrix Free assembly (MF). */
+   NonlinearFormExtension *ext;
+
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
 
@@ -59,10 +68,15 @@ public:
    /** As an Operator, the NonlinearForm has input and output size equal to the
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
-      : Operator(f->GetTrueVSize()), fes(f), Grad(NULL), cGrad(NULL),
+      : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::NONE),
+        ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
+
+   /// Set the desired assembly level. The default is AssemblyLevel::NONE.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
@@ -70,6 +84,9 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
    { dnfi.Append(nlfi); }
+
+   /// Access all integrators added with AddDomainIntegrator().
+   Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
@@ -143,6 +160,9 @@ public:
    /** After calling this method, the essential boundary conditions need to be
        set again. */
    virtual void Update();
+
+   /// Setup the NonlinearForm
+   virtual void Setup();
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const { return P; }

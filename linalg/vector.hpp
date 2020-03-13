@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_VECTOR
 #define MFEM_VECTOR
@@ -140,6 +140,13 @@ public:
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
 
+   /// Reset the Vector to be a reference to a sub-vector of @a base.
+   inline void MakeRef(Vector &base, int offset, int size);
+
+   /** @brief Reset the Vector to be a reference to a sub-vector of @a base
+       without changing its current size. */
+   inline void MakeRef(Vector &base, int offset);
+
    /// Set the Vector data (host pointer) ownership flag.
    void MakeDataOwner() const { data.SetHostPtrOwner(true); }
 
@@ -218,7 +225,7 @@ public:
 
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    Vector &operator=(const Vector &v);
 
    /// Redefine '=' for vector = constant.
@@ -453,6 +460,19 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
    size = s;
    data = mem;
    if (!own_mem) { data.ClearOwnerFlags(); }
+}
+
+inline void Vector::MakeRef(Vector &base, int offset, int s)
+{
+   data.Delete();
+   size = s;
+   data.MakeAlias(base.GetMemory(), offset, s);
+}
+
+inline void Vector::MakeRef(Vector &base, int offset)
+{
+   data.Delete();
+   data.MakeAlias(base.GetMemory(), offset, size);
 }
 
 inline void Vector::Destroy()

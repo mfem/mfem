@@ -20,8 +20,8 @@
 //               polynomials (pressure p).
 //
 //               The example demonstrates the use of the BlockMatrix class, as
-//               well as the collective saving of several grid functions in a
-//               VisIt (visit.llnl.gov) visualization format.
+//               well as the collective saving of several grid functions in
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -239,7 +239,6 @@ int main(int argc, char *argv[])
 
    // 12. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
-
    int maxIter(500);
    double rtol(1.e-6);
    double atol(1.e-10);
@@ -326,7 +325,19 @@ int main(int argc, char *argv[])
                       DataCollection::PARALLEL_FORMAT);
    visit_dc.Save();
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 16. Save data in the ParaView format
+   ParaViewDataCollection paraview_dc("Example5P", pmesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetTime(0.0);
+   paraview_dc.RegisterField("velocity",u);
+   paraview_dc.RegisterField("pressure",p);
+   paraview_dc.Save();
+
+   // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -346,7 +357,7 @@ int main(int argc, char *argv[])
              << endl;
    }
 
-   // 17. Free the used memory.
+   // 18. Free the used memory.
    delete fform;
    delete gform;
    delete u;
