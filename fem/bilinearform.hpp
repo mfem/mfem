@@ -920,6 +920,8 @@ public:
    /// Access all interpolators added with AddDomainInterpolator().
    Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
    virtual void Assemble(int skip_zeros = 1);
