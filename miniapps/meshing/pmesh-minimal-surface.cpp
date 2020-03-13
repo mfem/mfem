@@ -14,21 +14,27 @@
 //               --------------------------------
 //
 // Description:  This example code
-//               s=0: Catenoid
-//               s=1: Helicoid
-//               s=2: Enneper
-//               s=3: Scherk
-//               s=4: Hold
-//               s=5: QPeach
-//               s=6: FPeach
-//               s=7: SlottedSphere
-//               s=8: Costa
-//               s=9: Shell
+//                s=0: Uses the given mesh from command line options
+//                s=1: Catenoid
+//                s=2: Helicoid
+//                s=3: Enneper
+//                s=4: Hold
+//                s=5: Costa
+//                s=6: Shell
+//                s=7: Scherk
+//                s=8: FullPeach
+//                s=9: QuarterPeach
+//               s=10: SlottedSphere
 //
 // Compile with: make pmesh-minimal-surface
 //
-// Sample runs:  pmesh-minimal-surface -vis
-//
+// Sample runs:  pmesh-minimal-surface
+//               pmesh-minimal-surface -a
+//               pmesh-minimal-surface -c
+//               pmesh-minimal-surface -c -a
+//               pmesh-minimal-surface -no-pa
+//               pmesh-minimal-surface -no-pa -a
+//               pmesh-minimal-surface -no-pa -a -c
 // Device sample runs:
 //               pmesh-minimal-surface -d cuda
 
@@ -64,18 +70,18 @@ struct Opt
 {
    int nx = 6;
    int ny = 6;
-   int order = 3;
+   int order = 2;
    int refine = 2;
    int niters = 8;
-   int surface = 0;
+   int surface = 5;
    bool pa = true;
    bool vis = true;
-   bool amr = false;
+   bool amr = true;
    bool wait = false;
    bool radial = false;
    bool by_vdim = false;
    double lambda = 0.1;
-   double amr_threshold = 0.8;
+   double amr_threshold = 0.5;
 #ifdef __APPLE__
    const char *keys = "Am";
 #else
@@ -125,7 +131,7 @@ public:
       BC();
 
       // Initialize GLVis server if 'visualization' is set
-      if (opt.vis) { glvis.open(vishost, visport); }
+      if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
 
       // Send to GLVis the first mesh
       if (opt.vis) { Visualize(opt, mesh, GLVIZ_W, GLVIZ_H); }
@@ -239,16 +245,15 @@ public:
          for (int i=0; i < opt.niters; ++i)
          {
             if (MyRank == 0) { mfem::out << "Iteration " << i << ": "; }
-            Amr();
+            if (opt.amr) { Amr(); }
             if (opt.vis) { S.Visualize(opt, S.mesh); }
             S.mesh->DeleteGeometricFactors();
-            a.Update();
             a.Assemble();
-            if (Loop()) { break; }
+            if (Step()) { break; }
          }
       }
 
-      virtual bool Loop() = 0;
+      virtual bool Step() = 0;
 
    protected:
       bool Converged(const double rnorm)
@@ -263,14 +268,14 @@ public:
 
       bool ParAXeqB()
       {
-         Vector X, B;
          b = 0.0;
-         a.FormLinearSystem(S.bc, x, b, A, X, B);
+         Vector X, B;
          CGSolver cg(MPI_COMM_WORLD);
-         cg.SetPrintLevel(print_iter);
-         cg.SetMaxIter(max_num_iter);
          cg.SetRelTol(RTOLERANCE);
          cg.SetAbsTol(ATOLERANCE);
+         cg.SetMaxIter(max_num_iter);
+         cg.SetPrintLevel(print_iter);
+         a.FormLinearSystem(S.bc, x, b, A, X, B);
          if (!opt.pa) { M = new HypreBoomerAMG; }
          if (M) { cg.SetPreconditioner(*M); }
          cg.SetOperator(*A);
@@ -321,29 +326,27 @@ public:
 
       void Amr()
       {
-         if (!opt.amr) { return; }
          MFEM_VERIFY(opt.amr_threshold >= 0.0 && opt.amr_threshold <= 1.0, "");
-         DenseMatrix JJt(SDIM, SDIM);
-         DenseMatrix Jadj(DIM, SDIM);
-         DenseMatrix Jadjt;
-         DenseMatrix JJadj(SDIM, SDIM);
-         Array<Refinement> refs;
-         const int NE = S.mesh->GetNE();
-         const IntegrationRule *ir = &IntRules.Get(Geometry::SQUARE, opt.order);
-         for (int i = 0; i < NE; i++)
+         Mesh *mesh = S.mesh;
+         Array<Refinement> amr;
+         const int NE = mesh->GetNE();
+         DenseMatrix Jadjt, Jadj(DIM, SDIM);
+         for (int e = 0; e < NE; e++)
          {
             double minW = +NL_DMAX;
             double maxW = -NL_DMAX;
-            ElementTransformation *transf = S.mesh->GetElementTransformation(i);
-            for (int j = 0; j < ir->GetNPoints(); j++)
+            ElementTransformation *eTr = mesh->GetElementTransformation(e);
+            const Geometry::Type &type = mesh->GetElement(e)->GetGeometryType();
+            const IntegrationRule *ir = &IntRules.Get(type, opt.order);
+            const int NQ = ir->GetNPoints();
+            for (int q = 0; q < NQ; q++)
             {
-               transf->SetIntPoint(&ir->IntPoint(j));
-               const DenseMatrix &J = transf->Jacobian();
+               eTr->SetIntPoint(&ir->IntPoint(q));
+               const DenseMatrix &J = eTr->Jacobian();
                CalcAdjugate(J, Jadj);
                Jadjt = Jadj;
                Jadjt.Transpose();
                const double w = Jadjt.Weight();
-
                minW = fmin(minW, w);
                maxW = fmax(maxW, w);
             }
@@ -351,24 +354,22 @@ public:
             {
                const double rho = minW / maxW;
                MFEM_VERIFY(rho <= 1.0, "");
-               if (rho < opt.amr_threshold) { refs.Append(Refinement(i, 3)); }
+               if (rho < opt.amr_threshold) { amr.Append(Refinement(e)); }
             }
          }
-         if (refs.Size()>0)
+         if (amr.Size()>0)
          {
-            const int nonconforming = -1;
-            const int nc_limit = 1;
-            S.mesh->GetNodes()->HostReadWrite();
-            S.mesh->GeneralRefinement(refs, nonconforming, nc_limit);
+            mesh->GetNodes()->HostReadWrite();
+            mesh->GeneralRefinement(amr);
             S.fes->Update();
             x.HostReadWrite();
             x.Update();
             a.Update();
             b.HostReadWrite();
             b.Update();
-            if (S.mesh->bdr_attributes.Size())
+            if (mesh->bdr_attributes.Size())
             {
-               Array<int> ess_bdr(S.mesh->bdr_attributes.Max());
+               Array<int> ess_bdr(mesh->bdr_attributes.Max());
                ess_bdr = 1;
                S.bc.HostReadWrite();
                S.fes->GetEssentialTrueDofs(ess_bdr, S.bc);
@@ -381,15 +382,14 @@ public:
    class ByNodes: public Solver
    {
    public:
-      using U = Solver;
       ByNodes(Surface &S, Opt &opt): Solver(S, opt)
-      { U::a.AddDomainIntegrator(new VectorDiffusionIntegrator(U::one)); }
+      { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
 
-      bool Loop()
+      bool Step()
       {
-         U::x = *U::S.fes->GetMesh()->GetNodes();
-         bool converge = this->ParAXeqB();
-         U::S.mesh->SetNodes(this->x);
+         x = *S.fes->GetMesh()->GetNodes();
+         bool converge = ParAXeqB();
+         S.mesh->SetNodes(x);
          return converge ? true : false;
       }
    };
@@ -397,7 +397,6 @@ public:
    // Surface solver 'by ByVDim'
    class ByVDim: public Solver
    {
-      Surface &S;
    public:
       void SetNodes(const GridFunction &Xi, const int c)
       {
@@ -415,18 +414,18 @@ public:
          MFEM_FORALL(i, ndof, d_Xi[i] = d_nodes[c*ndof + i]; );
       }
 
-      ByVDim(Surface &S, Opt &opt): Solver(S,opt), S(S)
+      ByVDim(Surface &S, Opt &opt): Solver(S, opt)
       { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
-      bool Loop()
+      bool Step()
       {
          bool cvg[SDIM] {false};
          for (int c=0; c < SDIM; ++c)
          {
-            this->GetNodes(x, c);
-            this->x0 = this->x;
-            cvg[c] = this->ParAXeqB();
-            this->SetNodes(x, c);
+            GetNodes(x, c);
+            x0 = x;
+            cvg[c] = ParAXeqB();
+            SetNodes(x, c);
          }
          const bool converged = cvg[0] && cvg[1] && cvg[2];
          return converged ? true : false;
@@ -1076,9 +1075,9 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.keys, "-k", "--keys", "GLVis configuration keys.");
    args.AddOption(&opt.vis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable visualization.");
-   args.AddOption(&opt.by_vdim, "-c", "--components",
-                  "-no-c", "--no-components",
-                  "Enable or disable the 'by component' solver");
+   args.AddOption(&opt.by_vdim, "-c", "--solve-byvdim",
+                  "-no-c", "--solve-bynodes",
+                  "Enable or disable the 'ByVdim' solver");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <=1.0,"");
@@ -1088,22 +1087,25 @@ int main(int argc, char *argv[])
    Device device(opt.device_config);
    if (MyRank == 0) { device.Print(); }
 
-   // Create our surface mesh from command line option
+   // Create our surface mesh from command line options
+   Surface *S = nullptr;
    switch (opt.surface)
    {
-      case 0: return MeshFromFile{opt} .Solve();
-      case 1: return Catenoid{opt} .Solve();
-      case 2: return Helicoid{opt} .Solve();
-      case 3: return Enneper{opt} .Solve();
-      case 4: return Hold{opt} .Solve();
-      case 5: return Costa{opt} .Solve();
-      case 6: return Shell{opt} .Solve();
-      case 7: return Scherk{opt} .Solve();
-      case 8: return FullPeach{opt} .Solve();
-      case 9: return QuarterPeach{opt} .Solve();
-      case 10: return SlottedSphere{opt} .Solve();
+      case 0: S = new MeshFromFile(opt); break;
+      case 1: S = new Catenoid(opt); break;
+      case 2: S = new Helicoid(opt); break;
+      case 3: S = new Enneper(opt); break;
+      case 4: S = new Hold(opt); break;
+      case 5: S = new Costa(opt); break;
+      case 6: S = new Shell(opt); break;
+      case 7: S = new Scherk(opt); break;
+      case 8: S = new FullPeach(opt); break;
+      case 9: S = new QuarterPeach(opt); break;
+      case 10: S = new SlottedSphere(opt); break;
       default: MFEM_ABORT("Unknown surface (surface <= 10)!");
    }
+   S->Solve();
+   delete S;
    MPI_Finalize();
    return 0;
 }
