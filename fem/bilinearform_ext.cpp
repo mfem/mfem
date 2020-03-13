@@ -493,6 +493,36 @@ PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(DiscreteLin
    // so far I just want to duplicate what PAMixedBilinearFormExtension does, so maybe I don't need this class?
 }
 
+/// this *copied* from PAMixedBilinearFormExtension,
+/// @todo
+/// @fixme
+void PADiscreteLinearOperatorExtension::Assemble()
+{
+   std::cout << "PADiscreteLinearOperatorExtension::Assemble" << std::endl;
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integratorCount = integrators.Size();
+   for (int i = 0; i < integratorCount; ++i)
+   {
+      std::cout << "  integrator " << i << std::endl;
+      DiscreteInterpolator * dinterp = dynamic_cast<DiscreteInterpolator*>(integrators[i]);
+      if (dinterp) std::cout << "  its a DiscreteInterpolator" << std::endl;
+      GradientInterpolator * ginterp = dynamic_cast<GradientInterpolator*>(integrators[i]);
+      if (ginterp) std::cout << "  its a GradientInterpolator" << std::endl;
+      if (ginterp)
+      {
+         // is it because the intermediate DiscreteInterpolator class
+         // doesn't implement AssemblePA?
+         std::cout << "    still a GradientInterpolator..." << std::endl;
+         // ginterp->AssemblePA2(*trialFes, *testFes); // ???
+         ginterp->AssemblePA(*trialFes, *testFes);
+      }
+      else
+      {
+         integrators[i]->AssemblePA(*trialFes, *testFes);
+      }
+   }
+}
+
 /// so this one I think needs to be different for LinearOperator
 void PADiscreteLinearOperatorExtension::AddMult(
    const Vector &x, Vector &y, const double c) const

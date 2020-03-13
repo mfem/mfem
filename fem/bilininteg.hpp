@@ -1712,8 +1712,10 @@ protected:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
-    scalar coefficient, and v is a vector with components v_i in the same space
-    as u. */
+    scalar coefficient, and v is a vector with components v_i in the same (H1) space
+    as u. 
+
+    See also MixedVectorGradientIntegrator when v is in H(curl). */
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2729,6 +2731,25 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
+   
+   /*
+   void AssemblePA2(const FiniteElementSpace &trial_fes,
+                    const FiniteElementSpace &test_fes);
+   */
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+   // { std::cout << "Blerg!" << std::endl; }
+
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D;
 };
 
 

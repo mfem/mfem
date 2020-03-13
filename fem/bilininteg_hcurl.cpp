@@ -2071,4 +2071,73 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+/**
+   This implementation COPIED from MixedVectorGradientIntegrator::AssemblePA
+   @fixme share the code
+   @todo share the code
+*/
+void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                      const FiniteElementSpace &test_fes)
+{
+   std::cout << "GradientInterpolator::AssemblePA" << std::endl;
+
+   // Assumes tensor-product elements, with a vector test space and H^1 trial space.
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *trial_fel = trial_fes.GetFE(0);
+   const FiniteElement *test_fel = test_fes.GetFE(0);
+
+   const NodalTensorFiniteElement *trial_el =
+      dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
+   MFEM_VERIFY(trial_el != NULL, "Only NodalTensorFiniteElement is supported!");
+
+   const VectorTensorFiniteElement *test_el =
+      dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
+   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+
+   const IntegrationRule *ir
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
+                                                     *mesh->GetElementTransformation(0));
+   const int dims = trial_el->GetDim();
+   MFEM_VERIFY(dims == 2 || dims == 3, "");
+
+   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+   const int nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+
+   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "");
+
+   ne = trial_fes.GetNE();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   dofs1D = mapsC->ndof;
+   quad1D = mapsC->nqpt;
+
+   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+
+   Vector coeff(ne * nq);
+   coeff = 1.0;
+   // no coefficient in this topological gradient, so if (Q) block removed
+
+   // Use the same setup functions as VectorFEMassIntegrator.
+   if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
+   {
+      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+                     coeff, pa_data);
+   }
+   else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
+   {
+      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+                     coeff, pa_data);
+   }
+   else
+   {
+      MFEM_ABORT("Unknown kernel.");
+   }
+}
+
+
 } // namespace mfem
