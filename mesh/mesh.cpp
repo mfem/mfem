@@ -3195,20 +3195,23 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    filter_dos(mesh_type);
 
    // MFEM's native mesh formats
-   bool mfem_v10 = (mesh_type == "MFEM mesh v1.0");
-   bool mfem_v11 = (mesh_type == "MFEM mesh v1.1");
-   bool mfem_v12 = (mesh_type == "MFEM mesh v1.2");
-   if (mfem_v10 || mfem_v11 || mfem_v12) // MFEM's own mesh formats
+   int mfem_version = 0;
+   if (mesh_type == "MFEM mesh v1.0") { mfem_version = 100; }
+   else if (mesh_type == "MFEM mesh v1.1") { mfem_version = 110; }
+   else if (mesh_type == "MFEM mesh v1.15") { mfem_version = 115; }
+   else if (mesh_type == "MFEM mesh v1.2") { mfem_version = 120; }
+
+   if (mfem_version > 0) // MFEM's own mesh formats
    {
       // Formats mfem_v12 and newer have a tag indicating the end of the mesh
       // section in the stream. A user provided parse tag can also be provided
       // via the arguments. For example, if this is called from parallel mesh
       // object, it can indicate to read until parallel mesh section begins.
-      if ( mfem_v12 && parse_tag.empty() )
+      if (mfem_version == 120 && parse_tag.empty())
       {
          parse_tag = "mfem_mesh_end";
       }
-      ReadMFEMMesh(input, mfem_v11, curved);
+      ReadMFEMMesh(input, mfem_version, curved);
    }
    else if (mesh_type == "linemesh") // 1D mesh
    {
@@ -3322,7 +3325,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    // If a parse tag was supplied, keep reading the stream until the tag is
    // encountered.
-   if (mfem_v12)
+   if (mfem_version == 120)
    {
       string line;
       do
@@ -8336,9 +8339,22 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       return;
    }
 
-   out << (ncmesh ? "MFEM mesh v1.1\n" :
-           section_delimiter.empty() ? "MFEM mesh v1.0\n" :
-           "MFEM mesh v1.2\n");
+#if MFEM_USE_MPI
+   ParNCMesh *pncmesh = ncmesh ? dynamic_cast<ParNCMesh*>(ncmesh) : NULL;
+#else
+   void *pncmesh = NULL;
+#endif
+
+   if (ncmesh)
+   {
+      out << (pncmesh ? "MFEM mesh v1.15\n"
+      /**/            : "MFEM mesh v1.1\n");
+   }
+   else
+   {
+      out << (section_delimiter.empty() ? "MFEM mesh v1.0\n"
+      /**/                              : "MFEM mesh v1.2\n")
+   }
 
    // optional
    out <<
@@ -8352,11 +8368,18 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
        "# PRISM       = 6\n"
        "#\n";
 
-   out << "\ndimension\n" << Dim
-       << "\n\nelements\n" << NumOfElements << '\n';
+   out << "\ndimension\n" << Dim;
+
+   out << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
       PrintElement(elements[i], out);
+   }
+
+   if (pncmesh)
+   {
+      out << "\nghost_elements\n";
+      ncmesh->PrintGhostElements(); // TODO: pncmesh?
    }
 
    out << "\nboundary\n" << NumOfBdrElements << '\n';
