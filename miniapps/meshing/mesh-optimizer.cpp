@@ -36,8 +36,8 @@
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Adapted analytic Hessian with size+orientation:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
-//   Adapted analytic Hessian with Shape+size+orientation
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 20 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//   Adapted analytic Hessian with shape+size+orientation
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //
@@ -75,48 +75,69 @@ void DiffuseField(GridFunction &field, int smooth_steps);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 5;
+   const int opt = 6;
    const double small = 0.001, big = 0.01;
+   double val = 0.;
 
    // Sine wave.
-   if (opt==1)
+   if (opt == 1)
    {
-     const double X = x(0), Y = x(1);
-     const double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                        std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-
-     return ind * small + (1.0 - ind) * big;
+      const double X = x(0), Y = x(1);
+      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
    }
-   if (opt==2)
+   else if (opt == 2)
    {
       // Circle in the middle.
-      double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.15; double r2 = 0.35; double sf=30.0;
       val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-
-      return val * small + (1.0 - val) * big;
    }
-
-   if (opt == 3)
+   else if (opt == 3)
    {
       // cross
       const double X = x(0), Y = x(1);
       const double r1 = 0.45, r2 = 0.55;
       const double sf = 40.0;
 
-      double val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
-                           std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
-      if (val > 1.) { val = 1.0; }
-
-      return val * small + (1.0 - val) * big;
+      val = 0.5 * (std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
+                   std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)));
    }
-   if (opt==4)
+   else if (opt == 4)
+   {
+      // Multiple circles
+      double r1,r2,val,rval;
+      double sf = 10;
+      val = 0.;
+      // circle 1
+      r1= 0.25; r2 = 0.25; rval = 0.1;
+      double xc = x(0) - r1, yc = x(1) - r2;
+      double r = sqrt(xc*xc+yc*yc);
+      val = 0.5*(1+std::tanh(sf*(r+rval))) -
+            0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
+      // circle 2
+      r1= 0.75; r2 = 0.75;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val += (0.5*(1+std::tanh(sf*(r+rval))) -
+              0.5*(1+std::tanh(sf*(r-rval)))); // std::exp(val1);
+      // circle 3
+      r1= 0.75; r2 = 0.25;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val += 0.5*(1+std::tanh(sf*(r+rval))) -
+             0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
+      // circle 4
+      r1= 0.25; r2 = 0.75;
+      xc = x(0) - r1, yc = x(1) - r2;
+      r = sqrt(xc*xc+yc*yc);
+      val += 0.5*(1+std::tanh(sf*(r+rval))) -
+             0.5*(1+std::tanh(sf*(r-rval)));
+   }
+   else if (opt == 5)
    {
       // cross
-      double val = 0.;
       double X = x(0)-0.5, Y = x(1)-0.5;
       double rval = std::sqrt(X*X + Y*Y);
       double thval = 60.*M_PI/180.;
@@ -125,28 +146,22 @@ double ind_values(const Vector &x)
       Ymod= -X*std::sin(thval) + Y*std::cos(thval);
       X = Xmod+0.5; Y = Ymod+0.5;
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
-              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
-      if (rval > 0.4) {val = 0.;}
-      if (val > 1.0) {val = 1.;}
-      if (val < 0.0) {val = 0.;}
-
-      return val * small + (1.0 - val) * big;
+      val = (0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2))) +
+             0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))));
+      if (rval > 0.4) { val = 0.; }
    }
-
-   if (opt==5)
+   else if (opt == 6)
    {
-      double val = 0.;
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-      if (val < 0.) {val = 0;}
-
-      return val * small + (1.0 - val) * big;
    }
-   return 0.0;
+
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+
+   return val * small + (1.0 - val) * big;
 }
 
 double discr_values(const Vector &x)
@@ -175,10 +190,9 @@ double discr_values(const Vector &x)
 double ori_values(const Vector &x)
 {
    const int opt = 2;
-   const double small = 0.001, big = 0.01;
 
    // circle
-   if (opt==1)
+   if (opt == 1)
    {
       double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
@@ -191,7 +205,7 @@ double ori_values(const Vector &x)
 
       return val;
    }
-   else if (opt==2)
+   else if (opt == 2)
    {
       const double xc = x(0), yc = x(1);
       double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
@@ -266,7 +280,6 @@ public:
 
          xc = pos(0), yc = pos(1);
          double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
-         double alpha_bar = 0.1;
 
          K(0, 0) =  cos(theta);
          K(1, 0) =  sin(theta);
@@ -288,7 +301,7 @@ IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
 
 
-int main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
    // 0. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
@@ -375,8 +388,7 @@ int main (int argc, char *argv[])
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
    args.AddOption(&fdscheme, "-fd", "--fd_approximation",
-                  "finite difference based approximation if 1, "
-                  "otherwise exact");
+                  "Enable finite difference based derivative computations.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -547,7 +559,7 @@ int main (int argc, char *argv[])
 #ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
-         if (fdscheme==0) {tc->SetAdaptivityEvaluator(new AdvectorCG);}
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
          tc->SetSerialDiscreteTargetSize(size);
          tc->FinalizeSerialDiscreteTargetSpec();
@@ -657,7 +669,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   if (fdscheme!=0) { he_nlf_integ->EnableFiniteDifferences(x); }
+   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -714,7 +726,7 @@ int main (int argc, char *argv[])
       target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
-      if (fdscheme!=0) { he_nlf_integ2->EnableFiniteDifferences(x); }
+      if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);

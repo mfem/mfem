@@ -771,11 +771,15 @@ public:
                                         const Vector &IntData,
                                         bool MixTerm);
 
-   void UpdateGradientTargetSpecification(const Vector &x, const double fdeps);
-
-   void UpdateHessianTargetSpecification(const Vector &x, const double fdeps);
-
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
+
+   /** Used for finite-difference based computations. Computes the target
+       specifications after a mesh perturbation in x or y direction. */
+   void UpdateGradientTargetSpecification(const Vector &x, const double dx);
+
+   /** Used for finite-difference based computations. Computes the target
+       specifications after two mesh perturbations in x and/or y direction. */
+   void UpdateHessianTargetSpecification(const Vector &x, const double dx);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -783,10 +787,9 @@ public:
       adapt_eval = ae;
    }
 
-   const Vector &GetTspecSav()     { return tspec_sav; }
-   const Vector &GetTspecPerth()   { return tspec_perth; }
-   const Vector &GetTspecPert2h()  { return tspec_pert2h; }
-   const Vector &GetTspecPertmix() { return tspec_pertmix; }
+   const Vector &GetTspecPert1H()   { return tspec_perth; }
+   const Vector &GetTspecPert2H()   { return tspec_pert2h; }
+   const Vector &GetTspecPertMixH() { return tspec_pertmix; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -801,6 +804,7 @@ public:
 
 class TMOPNewtonSolver;
 class TMOPDescentNewtonSolver;
+
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
 
@@ -833,11 +837,12 @@ protected:
    // Normalization factor for the limiting term.
    double lim_normal;
 
-   mutable DiscreteAdaptTC *discr_tc;
+   DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool   fdflag;
-   double fdeps;
+   double dx;
+   double dxscale;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -878,12 +883,12 @@ protected:
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
                           Vector &elfun, const int nodenum,const int idir,
-                          const double baseenergy, bool update);
+                          const double baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
 #ifdef MFEM_USE_MPI
-   void SetFDh(const Vector &x, const ParFiniteElementSpace &pfes);
+   void ComputeFDh(const Vector &x, const ParFiniteElementSpace &pfes);
 #endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
@@ -896,13 +901,13 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false)
+        fdflag(false), dxscale(1.0e3)
    { }
 
    ~TMOP_Integrator()
    {
       delete lim_func;
-      for (int i=0; i<ElemDer.Size(); i++)
+      for (int i = 0; i < ElemDer.Size(); i++)
       {
          delete ElemDer[i];
          delete ElemPertEnergy[i];
@@ -964,14 +969,15 @@ public:
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
 
-   /** @brief Enables FD-based approximation and computes fdeps. */
+   /** @brief Enables FD-based approximation and computes dx. */
    void EnableFiniteDifferences(const GridFunction &x);
 #ifdef MFEM_USE_MPI
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   bool   GetFDFlag() { return fdflag; }
-   double GetFDh()    { return fdeps; }
+   void   SetFDhScale(double _dxscale) { dxscale = _dxscale; }
+   bool   GetFDFlag() const { return fdflag; }
+   double GetFDh()    const { return dx; }
 };
 
 

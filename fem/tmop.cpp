@@ -963,7 +963,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
    tspec = tspec_;
    tspec_fes   = tspec_.FESpace();
 
-   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
+   if (!adapt_eval) { MFEM_ABORT("Set adaptivity evaluator\n"); }
 
    adapt_eval->SetParMetaInfo(*tspec_.ParFESpace()->GetParMesh(),
                               *tspec_.FESpace()->FEColl(),
@@ -1048,7 +1048,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
    tspec = tspec_;
    tspec_fes   = tspec_.FESpace();
 
-   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
+   if (!adapt_eval) { MFEM_ABORT("Set adaptivity evaluator\n"); }
 
    adapt_eval->SetSerialMetaInfo(*tspec_.FESpace()->GetMesh(),
                                  *tspec_.FESpace()->FEColl(),
@@ -1158,7 +1158,7 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 
    for (int i=0; i<ncomp; i++)
    {
-       tspec(dofs[dofidx]+i*cnt) = IntData(dofs[dofidx]+dir*cnt+i*cnt*dimmax);
+       tspec(dofs[dofidx]+i*cnt) = IntData(dofs[dofidx]+i*cnt+dir*cnt*dimmax);
    }
 }
 
@@ -1252,7 +1252,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 }
 
 void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
-                                                        const double fdeps)
+                                                        const double dx)
 {
    const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
@@ -1262,28 +1262,19 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
    Vector TSpecTemp;
    TSpecTemp.SetSize(ncomp*cnt);
    Vector xtemp = x;
-   for (int j=0; j<dim; j++)
+   for (int j = 0; j < dim; j++)
    {
-      for (int i=0; i<cnt; i++)
-      {
-         xtemp(j*cnt+i) += fdeps;
-      } //loop-i
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += dx; }
 
+      TSpecTemp.SetDataAndSize(tspec_perth.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
-      for (int i=0; i<cnt; i++)
-      {
-         for (int k=0; k<ncomp; k++)
-         {
-            tspec_perth(k*cnt*dim+j*cnt+i) = TSpecTemp(i+k*cnt);
-         } //loop-k
-         xtemp(j*cnt+i) -= fdeps;
-      } //loop-i
-   } // loop-j
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= dx; }
+   }
 }
 
 void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
-                                                       const double fdeps)
+                                                       const double dx)
 {
    const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
@@ -1296,48 +1287,37 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    Vector xtemp = x;
 
    // T(x+2h)
-   for (int j=0; j<dim; j++)
+   for (int j = 0; j < dim; j++)
    {
-      for (int i=0; i<cnt; i++)
-      {
-         xtemp(j*cnt+i) += 2*fdeps;
-      } //loop-i
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += 2*dx; }
 
+      TSpecTemp.SetDataAndSize(tspec_pert2h.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
-      for (int i=0; i<cnt; i++)
-      {
-         for (int k=0; k<ncomp; k++)
-         {
-            tspec_pert2h(k*cnt*dim+j*cnt+i) = TSpecTemp(k*cnt+i);
-         } //loop-k
-         xtemp(j*cnt+i) -= 2*fdeps;
-      } //loop-i
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= 2*dx; }
    }
 
    // T(x+h,y+h)
    int idx = 0;
-   for (int k1=0; k1<dim; k1++)
+   for (int k1 = 0; k1 < dim; k1++)
    {
-      for (int k2=0; k1!=k2 && k2<dim; k2++)
+      for (int k2 = 0; (k1 != k2) && (k2 < dim); k2++)
       {
-         for (int i=0; i<cnt; i++)
+         for (int i = 0; i < cnt; i++)
          {
-            xtemp(k1*cnt+i) += fdeps;
-            xtemp(k2*cnt+i) += fdeps;
+            xtemp(k1*cnt+i) += dx;
+            xtemp(k2*cnt+i) += dx;
          }
+
+         TSpecTemp.SetDataAndSize(tspec_pertmix.GetData() + idx*cnt*totidx, cnt*totidx);
          UpdateTargetSpecification(xtemp, TSpecTemp);
 
-         for (int i=0; i<cnt; i++)
+         for (int i = 0; i < cnt; i++)
          {
-            for (int k=0; k<ncomp; k++)
-            {
-               tspec_pertmix(k*cnt*totidx+idx*cnt+i) = TSpecTemp(k*cnt+i);
-            } //loop-k
-            xtemp(k1*cnt+i) -= fdeps;
-            xtemp(k2*cnt+i) -= fdeps;
-         } //loop-i
-         idx += 1;
+            xtemp(k1*cnt+i) -= dx;
+            xtemp(k2*cnt+i) -= dx;
+         }
+         idx++;
       }
    }
 }
@@ -1730,35 +1710,34 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    delete Tpr;
 }
 
-
-
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
                                         ElementTransformation &T,
                                         Vector &elfun, const int dofidx,
                                         const int dir, const double e_fx,
-                                        bool update)
+                                        bool update_stored)
 {
    int dof = el.GetDof();
    int idx = dir*dof+dofidx;
-   elfun[idx]    += fdeps;
+   elfun[idx]    += dx;
    double e_fxph  = GetElementEnergy(el, T, elfun);
-   elfun[idx]    -= fdeps;
-   double dfdx    = (e_fxph-e_fx)/fdeps;
+   elfun[idx]    -= dx;
+   double dfdx    = (e_fxph-e_fx)/dx;
 
-   if (!update) {return dfdx;}
-
-   (*(ElemPertEnergy[T.ElementNo]))(idx) = e_fxph;
-   (*(ElemDer[T.ElementNo]))(idx) = dfdx;
+   if (update_stored)
+   {
+      (*(ElemPertEnergy[T.ElementNo]))(idx) = e_fxph;
+      (*(ElemDer[T.ElementNo]))(idx) = dfdx;
+   }
 
    return dfdx;
 }
 
 void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
                                               ElementTransformation &T,
-                                              const Vector &elfun, Vector &elvect)
+                                              const Vector &elfun,
+                                              Vector &elvect)
 {
-   const int dof = el.GetDof(), dim = el.GetDim();
-   int elnum = T.ElementNo;
+   const int dof = el.GetDof(), dim = el.GetDim(), elnum = T.ElementNo;
    if (elnum>=ElemDer.Size())
    {
       ElemDer.Append(new Vector);
@@ -1768,21 +1747,19 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    }
 
    elvect.SetSize(dof*dim);
-   Vector elfunmod;
-   elfunmod.SetSize(dof*dim);
-   elfunmod.SetData(elfun.GetData());
+   Vector elfunmod(elfun);
 
    // Energy for unperturbed configuration
    double e_fx = GetElementEnergy(el, T, elfun);
 
-   for (int j=0; j<dim; j++)
+   for (int j = 0; j < dim; j++)
    {
-      for (int i=0; i<dof; i++)
+      for (int i = 0; i < dof; i++)
       {
          if (discr_tc)
          {
             discr_tc->UpdateTargetSpecificationAtNode(
-               el, T, i, j, discr_tc->GetTspecPerth(),false);
+               el, T, i, j, discr_tc->GetTspecPert1H(),false);
          }
          elvect(j*dof+i) = GetFDDerivative(el, T, elfunmod, i, j, e_fx, true);
          if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
@@ -1798,59 +1775,60 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    const int dof = el.GetDof(), dim = el.GetDim();
 
    elmat.SetSize(dof*dim);
-   Vector elfunmod;
-   elfunmod.SetSize(dof*dim);
-   elfunmod.SetData(elfun.GetData());
+   Vector elfunmod(elfun);
 
-   Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
-   Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
+   const Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
+   const Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
 
-   for (int i=0; i<dof; i++)
+   for (int i = 0; i < dof; i++)
    {
-      for (int j=0; j<i+1; j++)
+      for (int j = 0; j < i+1; j++)
       {
-         for (int k1=0; k1<dim; k1++)
+         for (int k1 = 0; k1 < dim; k1++)
          {
-            for (int k2=0; k2<dim; k2++)
+            for (int k2 = 0; k2 < dim; k2++)
             {
-               elfunmod(k2*dof+j) += fdeps;
+               elfunmod(k2*dof+j) += dx;
 
                if (discr_tc)
                {
                   discr_tc->UpdateTargetSpecificationAtNode(
-                     el, T, j, k2, discr_tc->GetTspecPerth(),false);
-                  if (j!=i)
+                     el, T, j, k2, discr_tc->GetTspecPert1H(),false);
+                  if (j != i)
                   {
                      discr_tc->UpdateTargetSpecificationAtNode(
-                        el, T, i, k1, discr_tc->GetTspecPerth(),false);
+                        el, T, i, k1, discr_tc->GetTspecPert1H(),false);
                   }
-                  else   // j==i
+                  else // j==i
                   {
-                     if (k1!=k2)
+                     if (k1 != k2)
                      {
                         int idx = k1+k2-1;
                         discr_tc->UpdateTargetSpecificationAtNode(
-                           el, T, i, idx, discr_tc->GetTspecPertmix(),true);
+                           el, T, i, idx, discr_tc->GetTspecPertMixH(),true);
                      }
-                     else   //j==i && k1==k2
+                     else // j==i && k1==k2
                      {
                         discr_tc->UpdateTargetSpecificationAtNode(
-                           el, T, i, k1, discr_tc->GetTspecPert2h(),false);
+                           el, T, i, k1, discr_tc->GetTspecPert2H(),false);
                      }
                   }
                }
 
-               double e_fx   = ElemPertLoc[k2*dof+j];
+               double e_fx   = ElemPertLoc(k2*dof+j);
                double e_fpxph = GetFDDerivative(el, T, elfunmod, i, k1, e_fx,
                                                 false);
-               elfunmod(k2*dof+j) -= fdeps;
-               double e_fpx = ElemDerLoc[k1*dof+i];
+               elfunmod(k2*dof+j) -= dx;
+               double e_fpx = ElemDerLoc(k1*dof+i);
 
-               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx)/(fdeps);
-               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx)/(fdeps);
+               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / dx;
+               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx) / dx;
 
-               if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
-               if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, j); }
+               if (discr_tc)
+               {
+                  discr_tc->RestoreTargetSpecificationAtNode(T, i);
+                  discr_tc->RestoreTargetSpecificationAtNode(T, j);
+               }
             }
          }
       }
@@ -1943,7 +1921,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
 
-   fdeps = std::numeric_limits<float>::max();
+   dx = std::numeric_limits<float>::max();
 
    double detv_sum;
    double detv_avg_min = std::numeric_limits<float>::max();
@@ -1959,26 +1937,26 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
          detv_sum += std::fabs(Jpr.Det());
       }
       double detv_avg = pow(detv_sum/nsp, 1./dim);
-      detv_avg_min = std::min(detv_avg,detv_avg_min);
+      detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
-   fdeps = detv_avg_min*pow(10., -5.);
+   dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
 {
    if (!fdflag) { return; }
    ComputeMinJac(x, fes);
 }
 
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::SetFDh(const Vector &x, const ParFiniteElementSpace &pfes)
+void TMOP_Integrator::ComputeFDh(const Vector &x,
+                                 const ParFiniteElementSpace &pfes)
 {
    if (!fdflag) { return; }
    ComputeMinJac(x, pfes);
-   double min_jac = fdeps;
    double min_jac_all;
-   MPI_Allreduce(&min_jac, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
-   fdeps = min_jac_all;
+   MPI_Allreduce(&dx, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
+   dx = min_jac_all;
 }
 #endif
 
@@ -1986,12 +1964,12 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
 {
    fdflag = true;
    const FiniteElementSpace *fes = x.FESpace();
-   SetFDh(x,*fes);
+   ComputeFDh(x,*fes);
    if (discr_tc)
    {
       discr_tc->UpdateTargetSpecification(x);
-      discr_tc->UpdateGradientTargetSpecification(x, fdeps);
-      discr_tc->UpdateHessianTargetSpecification(x, fdeps);
+      discr_tc->UpdateGradientTargetSpecification(x, dx);
+      discr_tc->UpdateHessianTargetSpecification(x, dx);
    }
 }
 
@@ -2000,12 +1978,12 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 {
    fdflag = true;
    const ParFiniteElementSpace *pfes = x.ParFESpace();
-   SetFDh(x,*pfes);
+   ComputeFDh(x,*pfes);
    if (discr_tc)
    {
       discr_tc->UpdateTargetSpecification(x);
-      discr_tc->UpdateGradientTargetSpecification(x, fdeps);
-      discr_tc->UpdateHessianTargetSpecification(x, fdeps);
+      discr_tc->UpdateGradientTargetSpecification(x, dx);
+      discr_tc->UpdateHessianTargetSpecification(x, dx);
    }
 }
 #endif
