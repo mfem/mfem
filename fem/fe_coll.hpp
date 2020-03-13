@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FE_COLLECTION
 #define MFEM_FE_COLLECTION
@@ -120,6 +120,15 @@ public:
       : H1_FECollection(p, dim, BasisType::Positive) { }
 };
 
+/** Arbitrary order H1-conforming (continuous) serendipity finite elements;
+    Current implementation works in 2D only; 3D version is in development. */
+class H1Ser_FECollection : public H1_FECollection
+{
+public:
+   explicit H1Ser_FECollection(const int p, const int dim = 2)
+      : H1_FECollection(p, dim, BasisType::Serendipity) { };
+};
+
 /** Arbitrary order "H^{1/2}-conforming" trace finite elements defined on the
     interface between mesh elements (faces,edges,vertices); these are the trace
     FEs of the H1-conforming FEs. */
@@ -149,7 +158,9 @@ public:
 
    virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const
-   { return L2_Elements[GeomType]; }
+   {
+      return L2_Elements[GeomType];
+   }
    virtual int DofForGeometry(Geometry::Type GeomType) const
    {
       if (L2_Elements[GeomType])

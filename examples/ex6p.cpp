@@ -19,6 +19,8 @@
 //               mpirun -np 4 ex6p -pa -d cuda
 //               mpirun -np 4 ex6p -pa -d occa-cuda
 //               mpirun -np 4 ex6p -pa -d raja-omp
+//               mpirun -np 4 ex6p -pa -d ceed-cpu
+//               mpirun -np 4 ex6p -pa -d ceed-cuda
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
