@@ -1423,6 +1423,54 @@ void MixedBilinearForm::Assemble (int skip_zeros)
    }
 }
 
+void MixedBilinearForm::AssembleDiagonal_ADAt(const Vector &D,
+                                              Vector &diag) const
+{
+   if (ext)
+   {
+      MFEM_ASSERT(diag.Size() == test_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      MFEM_ASSERT(D.Size() == trial_fes->GetTrueVSize(),
+                  "Vector for holding diagonal has wrong size!");
+      const Operator *P_trial = trial_fes->GetProlongationMatrix();
+      const Operator *P_test = test_fes->GetProlongationMatrix();
+      if (!IsIdentityProlongation(P_trial))
+      {
+         Vector local_D(P_trial->Height());
+         P_trial->Mult(D, local_D);
+
+         if (!IsIdentityProlongation(P_test))
+         {
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(local_D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
+         }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(local_D, diag);
+         }
+      }
+      else
+      {
+         if (!IsIdentityProlongation(P_test))
+         {
+            Vector local_diag(P_test->Height());
+            ext->AssembleDiagonal_ADAt(D, local_diag);
+            P_test->MultTranspose(local_diag, diag);
+         }
+         else
+         {
+            ext->AssembleDiagonal_ADAt(D, diag);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
+                 "matrix and use SparseMatrix functions?");
+   }
+}
+
 void MixedBilinearForm::ConformingAssemble()
 {
    if (assembly != AssemblyLevel::FULL)

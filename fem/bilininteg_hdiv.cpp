@@ -1173,6 +1173,14 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    L2dofs1D = L2mapsO->ndof;
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   if (dim == 2)
+   {
+      MFEM_VERIFY(nq == quad1D * quad1D, "");
+   }
+   else
+   {
+      MFEM_VERIFY(nq == quad1D * quad1D * quad1D, "");
+   }
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
@@ -1761,5 +1769,227 @@ void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
       MFEM_ABORT("Unsupported dimension!");
    }
 }
+
+static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
+                                             const int Q1D,
+                                             const int L2D1D,
+                                             const int NE,
+                                             const Array<double> &_L2Bo,
+                                             const Array<double> &_Gct,
+                                             const Array<double> &_Bot,
+                                             const Vector &_op,
+                                             const Vector &_D,
+                                             Vector &_diag)
+{
+   constexpr static int VDIM = 3;
+
+   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
+   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, Q1D, NE);
+   auto D = Reshape(_D.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto diag = Reshape(_diag.ReadWrite(), L2D1D, L2D1D, L2D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int rz = 0; rz < L2D1D; ++rz)
+      {
+         for (int ry = 0; ry < L2D1D; ++ry)
+         {
+            for (int rx = 0; rx < L2D1D; ++rx)
+            {
+               // Compute row (rx,ry,rz), assuming all contributions are from a single element.
+
+               double row[3*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)*(HDIV_MAX_D1D-1)];
+               double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+
+               for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
+               {
+                  row[i] = 0;
+               }
+
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     for (int qx = 0; qx < Q1D; ++qx)
+                     {
+                        div[qz][qy][qx] = op(qx,qy,qz,e) * L2Bo(qx,rx) * L2Bo(qy,ry) * L2Bo(qz,rz);
+                     }
+                  }
+               }
+
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  double aXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+
+                  int osc = 0;
+                  for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+                  {
+                     const int D1Dz = (c == 2) ? D1D : D1D - 1;
+                     const int D1Dy = (c == 1) ? D1D : D1D - 1;
+                     const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+                     for (int dy = 0; dy < D1Dy; ++dy)
+                     {
+                        for (int dx = 0; dx < D1Dx; ++dx)
+                        {
+                           aXY[dy][dx] = 0;
+                        }
+                     }
+                     for (int qy = 0; qy < Q1D; ++qy)
+                     {
+                        double aX[HDIV_MAX_D1D];
+                        for (int dx = 0; dx < D1Dx; ++dx)
+                        {
+                           aX[dx] = 0;
+                        }
+                        for (int qx = 0; qx < Q1D; ++qx)
+                        {
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                           }
+                        }
+                        for (int dy = 0; dy < D1Dy; ++dy)
+                        {
+                           const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              aXY[dy][dx] += aX[dx] * wy;
+                           }
+                        }
+                     }
+
+                     for (int dz = 0; dz < D1Dz; ++dz)
+                     {
+                        const double wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
+                        for (int dy = 0; dy < D1Dy; ++dy)
+                        {
+                           for (int dx = 0; dx < D1Dx; ++dx)
+                           {
+                              row[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] += aXY[dy][dx] * wz;
+                           }
+                        }
+                     }
+
+                     osc += D1Dx * D1Dy * D1Dz;
+                  }  // loop c
+               }  // loop qz
+
+               for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
+               {
+                  diag(rx,ry,rz,e) += row[i] * row[i] * D(i,e);
+               }
+            }  // loop rx
+         }  // loop ry
+      }  // loop rz
+   }); // end of element loop
+}
+
+static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
+                                             const int Q1D,
+                                             const int L2D1D,
+                                             const int NE,
+                                             const Array<double> &_L2Bo,
+                                             const Array<double> &_Gct,
+                                             const Array<double> &_Bot,
+                                             const Vector &_op,
+                                             const Vector &_D,
+                                             Vector &_diag)
+{
+   constexpr static int VDIM = 2;
+
+   auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
+   auto Gct = Reshape(_Gct.Read(), D1D, Q1D);
+   auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
+   auto op = Reshape(_op.Read(), Q1D, Q1D, NE);
+   auto D = Reshape(_D.Read(), 2*(D1D-1)*D1D, NE);
+   auto diag = Reshape(_diag.ReadWrite(), L2D1D, L2D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int ry = 0; ry < L2D1D; ++ry)
+      {
+         for (int rx = 0; rx < L2D1D; ++rx)
+         {
+            // Compute row (rx,ry), assuming all contributions are from a single element.
+
+            double row[2*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)];
+            double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
+
+            for (int i=0; i<2*D1D*(D1D - 1); ++i)
+            {
+               row[i] = 0;
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  div[qy][qx] = op(qx,qy,e) * L2Bo(qx,rx) * L2Bo(qy,ry);
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               int osc = 0;
+               for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+               {
+                  const int D1Dy = (c == 1) ? D1D : D1D - 1;
+                  const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+                  double aX[HDIV_MAX_D1D];
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     aX[dx] = 0;
+                  }
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     for (int dx = 0; dx < D1Dx; ++dx)
+                     {
+                        aX[dx] += div[qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                     }
+                  }
+
+                  for (int dy = 0; dy < D1Dy; ++dy)
+                  {
+                     const double wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+
+                     for (int dx = 0; dx < D1Dx; ++dx)
+                     {
+                        row[dx + (dy * D1Dx) + osc] += aX[dx] * wy;
+                     }
+                  }
+
+                  osc += D1Dx * D1Dy;
+               }  // loop c
+            }  // loop qy
+
+            for (int i=0; i<2*D1D*(D1D - 1); ++i)
+            {
+               diag(rx,ry,e) += row[i] * row[i] * D(i,e);
+            }
+         }  // loop rx
+      }  // loop ry
+   }); // end of element loop
+}
+
+void VectorFEDivergenceIntegrator::AssembleDiagonalPA_ADAt(const Vector &D,
+                                                           Vector &diag)
+{
+   if (dim == 3)
+      PAHdivL2AssembleDiagonal_ADAt_3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
+                                       mapsC->Gt, mapsO->Bt, pa_data, D, diag);
+   else if (dim == 2)
+      PAHdivL2AssembleDiagonal_ADAt_2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
+                                       mapsC->Gt, mapsO->Bt, pa_data, D, diag);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+
 
 } // namespace mfem

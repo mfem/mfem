@@ -487,4 +487,68 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
    }
 }
 
+void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
+                                                         Vector &diag) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+   const int iSz = integrators.Size();
+
+   if (elem_restrict_trial)
+   {
+      const ElementRestriction* H1elem_restrict_trial =
+         dynamic_cast<const ElementRestriction*>(elem_restrict_trial);
+      if (H1elem_restrict_trial)
+      {
+         H1elem_restrict_trial->MultUnsigned(D, localTrial);
+      }
+      else
+      {
+         elem_restrict_trial->Mult(D, localTrial);
+      }
+   }
+
+   if (elem_restrict_test)
+   {
+      localTest = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         if (elem_restrict_trial)
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(localTrial, localTest);
+         }
+         else
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(D, localTest);
+         }
+      }
+      const ElementRestriction* H1elem_restrict_test =
+         dynamic_cast<const ElementRestriction*>(elem_restrict_test);
+      if (H1elem_restrict_test)
+      {
+         H1elem_restrict_test->MultTransposeUnsigned(localTest, diag);
+      }
+      else
+      {
+         elem_restrict_test->MultTranspose(localTest, diag);
+      }
+   }
+   else
+   {
+      diag.UseDevice(true); // typically this is a large vector, so store on device
+      diag = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         if (elem_restrict_trial)
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(localTrial, diag);
+         }
+         else
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(D, diag);
+         }
+      }
+   }
+}
+
 } // namespace mfem

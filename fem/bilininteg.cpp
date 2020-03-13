@@ -51,6 +51,12 @@ void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleDiagonalPA_ADAt(const Vector &, Vector &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA_ADAt(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("BilinearFormIntegrator::MultAssembled(...)\n"

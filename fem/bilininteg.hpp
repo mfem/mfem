@@ -57,6 +57,9 @@ public:
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag);
 
+   /// Assemble diagonal of ADA^T and add it to Vector @a diag.
+   virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -2115,6 +2118,8 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
 };
 
 
