@@ -675,6 +675,7 @@ public:
                               SparseMatrix &a,
                               const char *storage_opt="none",
                               const double accuracy=1.e-1,
+                              const int max_block_size=32,
                               bool iter_mode=false)
       : GinkgoPreconditionerBase(exec, a, iter_mode)
    {
@@ -703,6 +704,7 @@ public:
                                 .with_storage_optimization(
                                    gko::precision_reduction::autodetect())
                                 .with_accuracy(accuracy)
+                                .with_max_block_size(max_block_size)
                                 .on(exec);
       }
       else
@@ -711,6 +713,7 @@ public:
                                 .with_storage_optimization(
                                    gko::precision_reduction(0, 0))
                                 .with_accuracy(accuracy)
+                                .with_max_block_size(max_block_size)
                                 .on(exec);
       }
 
