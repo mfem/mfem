@@ -103,9 +103,9 @@ Meshing improvements
 - The TMOP algorithms were also improved to support non-conforming AMR meshes.
 
 - The graph linear ordering library Gecko, previously an external dependency, is
-  now included directly in MFEM. As a result, the method
-  Mesh::GetGeckoElementOrdering is now always available. The interface has also
-  been improved, see the mesh-explorer miniapp for an example of use.
+  now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
+  always available. The interface has also been improved, see for example the
+  mesh-explorer miniapp.
 
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
