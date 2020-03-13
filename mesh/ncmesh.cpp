@@ -10,15 +10,12 @@
 // CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
-#include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../general/text.hpp"
 
 #include <string>
 #include <cmath>
-#include <climits> // INT_MAX
 #include <map>
-
-#include <fstream> // debug
 
 #include "ncmesh_tables.hpp"
 
@@ -68,16 +65,22 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
    initialized = true;
 }
 
+static void CheckSupportedGeom(Geometry::Type geom)
+{
+   MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
+               geom == Geometry::CUBE || geom == Geometry::PRISM ||
+               geom == Geometry::TETRAHEDRON,
+               "Element type " << geom << " is not supported by NCMesh.");
+}
 
-NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
+NCMesh::NCMesh(const Mesh *mesh)
    : shadow(1024, 2048)
 {
    Dim = mesh->Dimension();
    spaceDim = mesh->SpaceDimension();
+   Iso = true;
 
-   // assume the mesh is anisotropic if we're loading a file
-   Iso = vertex_parents ? false : true;
-
+   // TODO: not necessary anymore
    // examine elements and reserve the first node IDs for vertices
    // (note: 'mesh' may not have vertices defined yet, e.g., on load)
    int max_id = -1;
@@ -98,19 +101,11 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       MFEM_ASSERT(node == id, "");
    }
 
-   // if a mesh file is being read, load the vertex hierarchy now;
-   // 'vertex_parents' must be at the appropriate section in the mesh file
-   if (vertex_parents)
+   // copy vertices
+   top_vertex_pos.SetSize(3*mesh->GetNV());
+   for (int i = 0; i < mesh->GetNV(); i++)
    {
-      LoadVertexParents(*vertex_parents);
-   }
-   else
-   {
-      top_vertex_pos.SetSize(3*mesh->GetNV());
-      for (int i = 0; i < mesh->GetNV(); i++)
-      {
-         std::memcpy(&top_vertex_pos[3*i], mesh->GetVertex(i), 3*sizeof(double));
-      }
+      std::memcpy(&top_vertex_pos[3*i], mesh->GetVertex(i), 3*sizeof(double));
    }
 
    // create the NCMesh::Element struct for each Mesh element
@@ -119,15 +114,12 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       const mfem::Element *elem = mesh->GetElement(i);
 
       Geometry::Type geom = elem->GetGeometryType();
-      MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
-                  geom == Geometry::CUBE || geom == Geometry::PRISM ||
-                  geom == Geometry::TETRAHEDRON,
-                  "Element type " << geom << " not supported by NCMesh.");
+      CheckSupportedGeom(geom);
 
       // initialize edge/face tables for this type of element
-      GI[geom].Initialize(elem);
+      GI[geom].Initialize(elem); // FIXME
 
-      // create our Element struct for this element
+      // create NCMesh::Element for this mfem::Element
       int root_id = AddElement(Element(geom, elem->GetAttribute()));
       MFEM_ASSERT(root_id == i, "");
       Element &root_elem = elements[root_id];
@@ -176,30 +168,160 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       }
    }
 
-   if (!vertex_parents) // i.e., not loading mesh from a file
-   {
-      InitRootState(mesh->GetNE());
-   }
+   InitRootState(mesh->GetNE());
    InitGeomFlags();
 
    Update();
 }
 
-NCMesh::NCMesh(std::istream *input, int &curved)
-{
+NCMesh::NCMesh(std::istream &input, int version, int &curved)
+{   
+   std::string ident;
+   int count, rank, attr, geom;
+
    // load dimension
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
+   input >> Dim;
 
    // load elements
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "elements", "invalid mesh file");
 
-   // load ghost_elements
+   input >> count;
+   for (int i = 0; i < count; i++)
+   {
+      input >> attr >> geom;
+      CheckSupportedGeom(Geometry::Type(geom));
+
+      int id = AddElement(Element(Geometry::Type(geom), attr));
+      MFEM_ASSERT(id == i, "");
+
+      Element &el = elements[id];
+      for (int j = 0; j < GI[geom].nv; j++)
+      {
+         input >> el.node[j];
+      }
+   }
+
+   // load ghost elements, if present (this is for ParNCMesh but we want
+   // full support of the format at all times)
+   skip_comment_lines(input, '#');
+   input >> ident;
+   if (ident == "ghost_elements")
+   {
+      input >> count;
+      for (int i = 0; i < count; i++)
+      {
+         input >> rank >> attr >> geom;
+         CheckSupportedGeom(Geometry::Type(geom));
+
+         int id = AddElement(Element(Geometry::Type(geom), attr));
+         Element &el = elements[id];
+
+         el.rank = rank;
+         for (int j = 0; j < GI[geom].nv; j++)
+         {
+            input >> el.node[j];
+         }
+      }
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   // TODO: create top level vertices
+
+   // TODO: ReferenceElement, RegisterFaces
 
    // load boundary
+   MFEM_VERIFY(ident == "boundary", "invalid mesh file");
+   input >> count;
+   for (int i = 0; i < count; i++)
+   {
+      input >> attr >> geom;
 
-   // load vertex_parents
+      int v1, v2, v3, v4;
+      if (geom == Geometry::SQUARE)
+      {
+         input >> v1 >> v2 >> v3 >> v4;
+         Face* face = faces.Find(v1, v2, v3, v4);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = attr;
+      }
+      else if (geom == Geometry::TRIANGLE)
+      {
+         input >> v1 >> v2 >> v3;
+         Face* face = faces.Find(v1, v2, v3);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = attr;
+      }
+      else if (geom == Geometry::SEGMENT)
+      {
+         input >> v1 >> v2;
+         Face* face = faces.Find(v1, v1, v2, v2);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = attr;
+      }
+      else
+      {
+         MFEM_ABORT("unsupported boundary element geometry: " << geom);
+      }
+   }
 
-   // load coarse_elements
+   // load vertex hierarchy
+   skip_comment_lines(input, '#');
+   input >> ident;
+   if (ident == "vertex_parents")
+   {
+      LoadVertexParents(input);
 
-   //
+      skip_comment_lines(input, '#');
+      input >> ident;
+
+      // load element hierarchy
+      if (ident == "coarse_elements")
+      {
+         LoadCoarseElements(input);
+
+         skip_comment_lines(input, '#');
+         input >> ident;
+      }
+   }
+
+   // load vertices
+   MFEM_VERIFY(ident == "vertices", "invalid mesh file");
+   input >> count;
+   input >> std::ws >> ident;
+   if (ident != "nodes")
+   {
+      spaceDim = atoi(ident.c_str());
+
+      top_vertex_pos.SetSize(3*count);
+      top_vertex_pos = 0.0;
+
+      for (int i = 0; i < count; i++)
+      {
+         for (int j = 0; j < spaceDim; j++)
+         {
+            input >> top_vertex_pos[3*i + j];
+            MFEM_VERIFY(input.good(), "unexpected EOF");
+         }
+      }
+   }
+   else
+   {
+      // prepare to read the nodes
+      input >> std::ws;
+      curved = 1;
+   }
+
+   InitRootState(mesh->GetNE());
+   InitGeomFlags();
+
+   Update();
 }
 
 NCMesh::NCMesh(const NCMesh &other)
@@ -1695,7 +1817,7 @@ void NCMesh::DerefineElement(int elem)
    childFaces.SetSize(0);
 
    // delete children, determine rank
-   el.rank = INT_MAX;
+   el.rank = std::numeric_limits<int>::max();
    for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
       el.rank = std::min(el.rank, elements[child[i]].rank);
@@ -4918,7 +5040,7 @@ void NCMesh::LoadVertexParents(std::istream &input)
    }
 }
 
-void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
+/*void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
 {
    int num_top_level = 0;
    for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
@@ -4937,7 +5059,7 @@ void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
    {
       std::memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
    }
-}
+}*/
 
 int NCMesh::PrintElements(std::ostream &out, int elem, int &coarse_id) const
 {

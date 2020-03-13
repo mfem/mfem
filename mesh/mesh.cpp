@@ -3194,24 +3194,32 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    getline(input, mesh_type);
    filter_dos(mesh_type);
 
-   // MFEM's native mesh formats
+   // MFEM's conforming mesh formats
    int mfem_version = 0;
-   if (mesh_type == "MFEM mesh v1.0") { mfem_version = 100; }
-   else if (mesh_type == "MFEM mesh v1.1") { mfem_version = 110; }
-   else if (mesh_type == "MFEM mesh v1.15") { mfem_version = 115; }
-   else if (mesh_type == "MFEM mesh v1.2") { mfem_version = 120; }
+   if (mesh_type == "MFEM mesh v1.0") { mfem_version = 10; } // serial
+   else if (mesh_type == "MFEM mesh v1.2") { mfem_version = 12; } // parallel
 
-   if (mfem_version > 0) // MFEM's own mesh formats
+   // MFEM nonconforming mesh format
+   // (NOTE: previous v1.1 is now under this branch for backward compatibility)
+   int mfem_nc_version = 0;
+   if (mesh_type == "MFEM nonconforming mesh v1.0") { mfem_nc_version = 10; }
+   else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 10/*sic*/; }
+
+   if (mfem_version)
    {
       // Formats mfem_v12 and newer have a tag indicating the end of the mesh
       // section in the stream. A user provided parse tag can also be provided
       // via the arguments. For example, if this is called from parallel mesh
       // object, it can indicate to read until parallel mesh section begins.
-      if (mfem_version == 120 && parse_tag.empty())
+      if (mfem_version == 12 && parse_tag.empty())
       {
          parse_tag = "mfem_mesh_end";
       }
       ReadMFEMMesh(input, mfem_version, curved);
+   }
+   else if (mfem_nc_version)
+   {
+      ReadMFEMNCMesh(input, mfem_nc_version, curved);
    }
    else if (mesh_type == "linemesh") // 1D mesh
    {
@@ -3325,7 +3333,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    // If a parse tag was supplied, keep reading the stream until the tag is
    // encountered.
-   if (mfem_version == 120)
+   if (mfem_version == 12)
    {
       string line;
       do
@@ -8345,15 +8353,16 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
    void *pncmesh = NULL;
 #endif
 
-   if (ncmesh)
+   if (Conforming())
    {
-      out << (pncmesh ? "MFEM mesh v1.15\n"
-      /**/            : "MFEM mesh v1.1\n");
+      // serial/parallel conforming formats
+      out << (section_delimiter.empty()
+              ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
    }
    else
    {
-      out << (section_delimiter.empty() ? "MFEM mesh v1.0\n"
-      /**/                              : "MFEM mesh v1.2\n")
+      // nonconforming format (NOTE: includes the former v1.1, now deprecated)
+      out << "MFEM nonconforming mesh v1.0\n";
    }
 
    // optional
@@ -8379,7 +8388,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
    if (pncmesh)
    {
       out << "\nghost_elements\n";
-      ncmesh->PrintGhostElements(); // TODO: pncmesh?
+      //ncmesh->PrintGhostElements(); // TODO: pncmesh?
    }
 
    out << "\nboundary\n" << NumOfBdrElements << '\n';
