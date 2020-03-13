@@ -114,7 +114,7 @@ private:
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule)  { }
+      : NewtonSolver(comm), parallel(true), ir(irule) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule)
       : NewtonSolver(), parallel(false), ir(irule) { }

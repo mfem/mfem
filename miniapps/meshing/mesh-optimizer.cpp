@@ -79,13 +79,13 @@ double ind_values(const Vector &x)
    double val = 0.;
 
    // Sine wave.
-   if (opt==1)
+   if (opt == 1)
    {
       const double X = x(0), Y = x(1);
       val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
             std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
    }
-   else if (opt==2)
+   else if (opt == 2)
    {
       // Circle in the middle.
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
@@ -100,10 +100,10 @@ double ind_values(const Vector &x)
       const double r1 = 0.45, r2 = 0.55;
       const double sf = 40.0;
 
-      val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
-                    std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
+      val = 0.5 * (std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
+                   std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)));
    }
-   else if (opt==4)
+   else if (opt == 4)
    {
       // Multiple circles
       double r1,r2,val,rval;
@@ -113,28 +113,29 @@ double ind_values(const Vector &x)
       r1= 0.25; r2 = 0.25; rval = 0.1;
       double xc = x(0) - r1, yc = x(1) - r2;
       double r = sqrt(xc*xc+yc*yc);
-      val =  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                               (r-rval)));// std::exp(val1);
+      val = 0.5*(1+std::tanh(sf*(r+rval))) -
+            0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
       // circle 2
       r1= 0.75; r2 = 0.75;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  (0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                                 (r-rval))));// std::exp(val1);
+      val += (0.5*(1+std::tanh(sf*(r+rval))) -
+              0.5*(1+std::tanh(sf*(r-rval)))); // std::exp(val1);
       // circle 3
       r1= 0.75; r2 = 0.25;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                                (r-rval)));// std::exp(val1);
+      val += 0.5*(1+std::tanh(sf*(r+rval))) -
+             0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
       // circle 4
       r1= 0.25; r2 = 0.75;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));
+      val += 0.5*(1+std::tanh(sf*(r+rval))) -
+             0.5*(1+std::tanh(sf*(r-rval)));
    }
 
-   if (opt==5)
+   if (opt == 5)
    {
       // cross
       double X = x(0)-0.5, Y = x(1)-0.5;
@@ -145,12 +146,12 @@ double ind_values(const Vector &x)
       Ymod= -X*std::sin(thval) + Y*std::cos(thval);
       X = Xmod+0.5; Y = Ymod+0.5;
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
-              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
-      if (rval > 0.4) {val = 0.;}
+      val = (0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2))) +
+             0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))));
+      if (rval > 0.4) { val = 0.; }
    }
 
-   if (opt==6)
+   if (opt == 6)
    {
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
@@ -169,7 +170,7 @@ double ori_values(const Vector &x)
    const int opt = 2;
 
    // circle
-   if (opt==1)
+   if (opt == 1)
    {
       double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
@@ -182,7 +183,7 @@ double ori_values(const Vector &x)
 
       return val;
    }
-   else if (opt==2)
+   else if (opt == 2)
    {
       const double xc = x(0), yc = x(1);
       double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
@@ -278,7 +279,7 @@ IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
 
 
-int main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
    // 0. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
