@@ -185,6 +185,23 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    Update();
 }
 
+NCMesh::NCMesh(std::istream *input, int &curved)
+{
+   // load dimension
+
+   // load elements
+
+   // load ghost_elements
+
+   // load boundary
+
+   // load vertex_parents
+
+   // load coarse_elements
+
+   //
+}
+
 NCMesh::NCMesh(const NCMesh &other)
    : Dim(other.Dim)
    , spaceDim(other.spaceDim)

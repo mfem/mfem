@@ -27,7 +27,7 @@ namespace mfem
 
 bool Mesh::remove_unused_vertices = true;
 
-void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
+void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 {
    // Read MFEM mesh v1.0 format
    string ident;
@@ -51,7 +51,15 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
    }
 
    skip_comment_lines(input, '#');
-   input >> ident; // 'boundary'
+   input >> ident; // 'boundary' or 'ghost_elements'
+
+   if (version == 115 && ident == "ghost_elements")
+   {
+      ncmesh->LoadGhostElements(input);
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
 
    MFEM_VERIFY(ident == "boundary", "invalid mesh file");
    input >> NumOfBdrElements;
@@ -64,7 +72,8 @@ void Mesh::ReadMFEMMesh(std::istream &input, bool mfem_v11, int &curved)
    skip_comment_lines(input, '#');
    input >> ident;
 
-   if (mfem_v11 && ident == "vertex_parents")
+   if ((version == 110 || version == 115) &&
+       ident == "vertex_parents")
    {
       ncmesh = new NCMesh(this, &input);
       // NOTE: the constructor above will call LoadVertexParents

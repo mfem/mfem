@@ -447,7 +447,7 @@ protected: // implementation
          int node[8];  ///< element corners (if ref_type == 0)
          int child[8]; ///< 2-8 children (if ref_type != 0)
       };
-      int parent; ///< parent element, -1 if this is a root element, -2 if free
+      int parent; ///< parent element, -1 if this is a root element, -2 if free'd
 
       Element(Geometry::Type geom, int attr);
 
