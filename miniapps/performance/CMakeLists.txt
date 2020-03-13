@@ -1,19 +1,24 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64")
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=native" "-mtune=native")
+else()
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-march=native")
+endif()
 
 set(PERFORMANCE_CXX_OPTIONS)
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
   list(APPEND PERFORMANCE_CXX_OPTIONS
-    "-march=native"
-    "-std=c++11"
+    ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-Wpedantic"
     "-Wall"
     "-fcolor-diagnostics"
@@ -23,11 +28,12 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     "-ffp-contract=fast")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
-    "-march=native"
-    "-std=c++11"
-    "-pedantic"
+    ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-Wall"
     "--param" "max-completely-peel-times=3")
+  if (NOT MFEM_USE_CUDA)
+     list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
+  endif()
 endif()
 
 add_mfem_miniapp(performance_ex1
