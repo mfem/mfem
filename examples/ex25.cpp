@@ -11,14 +11,16 @@
 //               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
 
 // Description:  This example code solves a simple electromagnetic wave
-//               propagation problem corresponding to the second order indefinite
-//               Maxwell equation (1/mu) * curl curl E - \omega^2 * epsilon E = f
+//               propagation problem corresponding to the second order
+//               indefinite Maxwell equation
+//               (1/mu) * curl curl E - \omega^2 * epsilon E = f
 //               with a Perfectly Matched Layer (PML).
 //               We discretize with Nedelec finite elements in 2D or 3D.
 //
-//               The example also demonstrates the use of complex valued bilinear and linear forms.
-//               We recommend viewing example 22 before viewing this example.
-//               Four examples are probided with exact solutions (iprob = 0-4).
+//               The example also demonstrates the use of complex valued
+//               bilinear and linear forms. We recommend viewing example 22
+//               before viewing this example.
+//               Examples 0-3 (prob = 0-3) are provided with exact solutions
 
 #include "mfem.hpp"
 #include <fstream>
@@ -37,6 +39,7 @@ class CartesianPML
 {
 private:
    Mesh *mesh;
+
    int dim;
 
    // Length of the PML Region in each direction
@@ -65,16 +68,17 @@ public:
    // Return Domain Boundary
    Array2D<double> GetDomainBdr() {return dom_bdr;}
 
-   // Return Marker list for elements
+   // Return Markers list for elements
    Array<int> * GetMarkedPMLElements() {return &elems;}
 
-   // Mark element in the PML region
+   // Mark elements in the PML region
    void SetAttributes(Mesh *mesh_);
 
    // PML complex stretching function
    void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
 };
 
+// Class for returning the Pml coefficients of the bilinear form
 class PmlMatrixCoefficient : public MatrixCoefficient
 {
 private:
@@ -107,6 +111,8 @@ void E_exact_Im(const Vector &x, Vector &E);
 
 void source(const Vector &x, Vector & f);
 
+// Functions for computing the neccessary coefficients after PML stretching.
+// J is the Jacobian matrix of the stretching function
 void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M);
@@ -129,8 +135,8 @@ enum prob_type
    beam,     // PML on one end of the domain
    scatter,  // Scattering from a square or a cube
    lshape,   // Scattering from 1/4 of a square
-   fichera,   // Scattering from 1/8 of a cube
-   load_src // point source with PML all around
+   fichera,  // Scattering from 1/8 of a cube
+   load_src  // point source with PML all around
 };
 prob_type prob;
 
@@ -151,7 +157,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: General, 1: beam, 2: scatter, 3: lshape, 4: fichera");
+                  " 0: beam, 1: scatter, 2: lshape, 3: fichera, 4: General");
    args.AddOption(&ref_levels, "-ref", "--refinements",
                   "Number of refinements");
    args.AddOption(&mu, "-mu", "--permeability",
@@ -273,8 +279,8 @@ int main(int argc, char *argv[])
          {
             Vector center(dim);
             int bdrgeom = mesh->GetBdrElementBaseGeometry(j);
-            ElementTransformation * trans = mesh->GetBdrElementTransformation(j);
-            trans->Transform(Geometries.GetCenter(bdrgeom),center);
+            ElementTransformation * tr = mesh->GetBdrElementTransformation(j);
+            tr->Transform(Geometries.GetCenter(bdrgeom),center);
             int k = mesh->GetBdrAttribute(j);
             switch (prob)
             {
@@ -444,7 +450,8 @@ int main(int argc, char *argv[])
       GSSmoother gs00(*PCOpAh.As<SparseMatrix>());
       BlockDiagonalPreconditioner BlockGS(offsets);
 
-      ScaledOperator gs11(&gs00,(conv == ComplexOperator::HERMITIAN) ? -1.0:1.0);
+      ScaledOperator gs11(&gs00,(conv
+                                 == ComplexOperator::HERMITIAN) ? -1.0:1.0);
 
       BlockGS.SetDiagonalBlock(0,&gs00);
       BlockGS.SetDiagonalBlock(1,&gs11);
@@ -461,8 +468,8 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // 15. Recover the solution as a finite element grid function and compute the
-   //     errors if the exact solution is known.
+   // 15. Recover the solution as a finite element grid function and compute
+   //     the errors if the exact solution is known.
    a.RecoverFEMSolution(X, b, x);
 
    if (exact_known)
@@ -485,10 +492,11 @@ int main(int argc, char *argv[])
 
       ComplexGridFunction x_gf0(fespace);
       x_gf0 = 0.0;
-      double norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
-                                                     pml->GetMarkedPMLElements());
-      double norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
-                                                     pml->GetMarkedPMLElements());
+      double norm_E_Re, norm_E_Im;
+      norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
+                                              pml->GetMarkedPMLElements());
+      norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
+                                              pml->GetMarkedPMLElements());
 
       cout << " Rel Error - Real Part: || E_h - E || / ||E|| = " << L2Error_Re /
            norm_E_Re << '\n' << endl;
@@ -519,8 +527,8 @@ int main(int argc, char *argv[])
       // Define visualization keys for GLVis (see GLVis documentation)
       string keys;
       keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
-      if (prob == beam && dim == 3) { keys = "keys macFFiYYYYYYYYYYYYYYYYYY\n"; }
-      if (prob == beam && dim == 2) { keys = "keys amrRljcUUuuu\n"; }
+      if (prob == beam && dim == 3) {keys = "keys macFFiYYYYYYYYYYYYYYYYYY\n";}
+      if (prob == beam && dim == 2) {keys = "keys amrRljcUUuuu\n"; }
 
       char vishost[] = "localhost";
       int visport = 19916;
@@ -617,10 +625,12 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
             double beta = k * r;
 
             // Bessel functions
-            complex<double> Ho = jn(0, beta) + zi * yn(0, beta);
-            complex<double> Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-            complex<double> Ho_rr = -k * k * (1.0 / beta * (jn(1, beta)
-                                                            + zi * yn(1, beta)) - (jn(2, beta) + zi * yn(2, beta)));
+            complex<double> Ho, Ho_r, Ho_rr;
+            Ho = jn(0, beta) + zi * yn(0, beta);
+            Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
+            Ho_rr = -k * k * (1.0 / beta *
+                              (jn(1, beta) + zi * yn(1, beta)) -
+                              (jn(2, beta) + zi * yn(2, beta)));
 
             // First derivatives
             double r_x = x0 / r;
@@ -628,9 +638,10 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
             double r_xy = -(r_x / r) * r_y;
             double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
-            complex<double> val = 0.25 * zi * Ho;
-            complex<double> val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-            complex<double> val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+            complex<double> val, val_xx, val_xy;
+            val = 0.25 * zi * Ho;
+            val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+            val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
             E[0] = zi / k * (k * k * val + val_xx);
             E[1] = zi / k * val_xy;
          }
@@ -756,7 +767,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
 }
 
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml ,  DenseMatrix &M)
+void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -774,7 +785,7 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml ,  DenseMatrix &M)
    }
 }
 
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
+void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -792,7 +803,7 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
    }
 }
 
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
+void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -810,7 +821,7 @@ void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml,  DenseMatrix &M)
    }
 }
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml , DenseMatrix &M)
+void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -897,29 +908,12 @@ void CartesianPML::SetBoundaries()
 {
    comp_dom_bdr.SetSize(dim, 2);
    dom_bdr.SetSize(dim, 2);
-   // initialize with any vertex
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
    for (int i = 0; i < dim; i++)
    {
-      dom_bdr(i, 0) = mesh->GetVertex(0)[i];
-      dom_bdr(i, 1) = mesh->GetVertex(0)[i];
-   }
-
-   for (int i = 0; i < mesh->GetNBE(); i++)
-   {
-      Array<int> bdr_vertices;
-      mesh->GetBdrElementVertices(i, bdr_vertices);
-      for (int j = 0; j < bdr_vertices.Size(); j++)
-      {
-         for (int k = 0; k < dim; k++)
-         {
-            dom_bdr(k, 0) = min(dom_bdr(k, 0), mesh->GetVertex(bdr_vertices[j])[k]);
-            dom_bdr(k, 1) = max(dom_bdr(k, 1), mesh->GetVertex(bdr_vertices[j])[k]);
-         }
-      }
-   }
-
-   for (int i = 0; i < dim; i++)
-   {
+      dom_bdr(i, 0) = pmin(i);
+      dom_bdr(i, 1) = pmax(i);
       comp_dom_bdr(i, 0) = dom_bdr(i, 0) + length(i, 0);
       comp_dom_bdr(i, 1) = dom_bdr(i, 1) - length(i, 1);
    }
@@ -980,12 +974,14 @@ void CartesianPML::StretchFunction(const Vector &x,
       if (x(i) >= comp_domain_bdr(i, 1))
       {
          coeff = n * c / k / pow(length(i, 1), n);
-         dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_domain_bdr(i, 1), n - 1.0));
+         dxs[i] = 1.0 + zi * coeff *
+                  abs(pow(x(i) - comp_domain_bdr(i, 1), n - 1.0));
       }
       if (x(i) <= comp_domain_bdr(i, 0))
       {
          coeff = n * c / k / pow(length(i, 0), n);
-         dxs[i] = 1.0 + zi * coeff * abs(pow(x(i) - comp_domain_bdr(i, 0), n - 1.0));
+         dxs[i] = 1.0 + zi * coeff *
+                  abs(pow(x(i) - comp_domain_bdr(i, 0), n - 1.0));
       }
    }
 }
