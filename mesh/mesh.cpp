@@ -1,21 +1,23 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
+#include "../fem/quadinterpolator.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -777,6 +779,27 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    return gf;
 }
 
+const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
+   const IntegrationRule& ir,
+   const int flags, FaceType type)
+{
+   for (int i = 0; i < face_geom_factors.Size(); i++)
+   {
+      FaceGeometricFactors *gf = face_geom_factors[i];
+      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags &&
+          gf->type==type)
+      {
+         return gf;
+      }
+   }
+
+   this->EnsureNodes();
+
+   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type);
+   face_geom_factors.Append(gf);
+   return gf;
+}
+
 void Mesh::DeleteGeometricFactors()
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -784,6 +807,11 @@ void Mesh::DeleteGeometricFactors()
       delete geom_factors[i];
    }
    geom_factors.SetSize(0);
+   for (int i = 0; i < face_geom_factors.Size(); i++)
+   {
+      delete face_geom_factors[i];
+   }
+   face_geom_factors.SetSize(0);
 }
 
 void Mesh::GetLocalFaceTransformation(
@@ -972,6 +1000,8 @@ void Mesh::Init()
    NumOfVertices = -1;
    NumOfElements = NumOfBdrElements = 0;
    NumOfEdges = NumOfFaces = 0;
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
    meshgen = mesh_geoms = 0;
    sequence = 0;
    Nodes = NULL;
@@ -1064,12 +1094,14 @@ void Mesh::Destroy()
    bdr_attributes.DeleteAll();
 }
 
-void Mesh::DeleteLazyTables()
+void Mesh::ResetLazyData()
 {
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    DeleteGeometricFactors();
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
 }
 
 void Mesh::SetAttributes()
@@ -2825,6 +2857,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    NumOfBdrElements = mesh.NumOfBdrElements;
    NumOfEdges = mesh.NumOfEdges;
    NumOfFaces = mesh.NumOfFaces;
+   nbInteriorFaces = mesh.nbInteriorFaces;
+   nbBoundaryFaces = mesh.nbBoundaryFaces;
 
    meshgen = mesh.meshgen;
    mesh_geoms = mesh.mesh_geoms;
@@ -2859,10 +2893,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Copy the element-to-edge Table, el_to_edge
    el_to_edge = (mesh.el_to_edge) ? new Table(*mesh.el_to_edge) : NULL;
 
-   // Copy the boudary-to-edge Table, bel_to_edge (3D)
+   // Copy the boundary-to-edge Table, bel_to_edge (3D)
    bel_to_edge = (mesh.bel_to_edge) ? new Table(*mesh.bel_to_edge) : NULL;
 
-   // Copy the boudary-to-edge Array, be_to_edge (2D)
+   // Copy the boundary-to-edge Array, be_to_edge (2D)
    mesh.be_to_edge.Copy(be_to_edge);
 
    // Duplicate the faces and faces_info.
@@ -3224,7 +3258,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       if (mesh_input)
       {
 #ifdef MFEM_USE_NETCDF
-         ReadCubit(mesh_input->filename, curved, read_gf);
+         ReadCubit(mesh_input->filename.c_str(), curved, read_gf);
 #else
          MFEM_ABORT("NetCDF support requires configuration with"
                     " MFEM_USE_NETCDF=YES");
@@ -3689,6 +3723,8 @@ void Mesh::DegreeElevate(int rel_degree, int degree)
 
 void Mesh::UpdateNURBS()
 {
+   ResetLazyData();
+
    NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
@@ -3854,8 +3890,24 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void Mesh::EnsureNodes()
 {
-   if (Nodes) { return; }
-   SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (Nodes)
+   {
+      const FiniteElementCollection *fec = GetNodalFESpace()->FEColl();
+      if (dynamic_cast<const H1_FECollection*>(fec)
+          || dynamic_cast<const L2_FECollection*>(fec))
+      {
+         return;
+      }
+      else // Mesh using a legacy FE_Collection
+      {
+         const int order = GetNodalFESpace()->GetOrder(0);
+         SetCurvature(order, false, -1, Ordering::byVDIM);
+      }
+   }
+   else //First order H1 mesh
+   {
+      SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
@@ -3897,6 +3949,29 @@ int Mesh::GetNumFaces() const
       case 3: return GetNFaces();
    }
    return 0;
+}
+
+static int CountFacesByType(const Mesh &mesh, const FaceType type)
+{
+   int e1, e2;
+   int inf1, inf2;
+   int nf = 0;
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      mesh.GetFaceElements(f, &e1, &e2);
+      mesh.GetFaceInfos(f, &inf1, &inf2);
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
+   }
+   return nf;
+}
+
+int Mesh::GetNFbyType(FaceType type) const
+{
+   const bool isInt = type==FaceType::Interior;
+   int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
+   if (nf<0) { nf = CountFacesByType(*this, type); }
+   return nf;
 }
 
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
@@ -5179,7 +5254,7 @@ void Mesh::ReorientTetMesh()
       return;
    }
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -6205,7 +6280,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::UniformRefinement2D_base(bool update_nodes)
 {
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (el_to_edge == NULL)
    {
@@ -6365,7 +6440,7 @@ static inline double sqr(const double &x)
 void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                                     bool update_nodes)
 {
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (el_to_edge == NULL)
    {
@@ -6959,7 +7034,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    int i, j, ind, nedges;
    Array<int> v;
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (ncmesh)
    {
@@ -7202,7 +7277,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    MFEM_VERIFY(!NURBSext, "Nonconforming refinement of NURBS meshes is "
                "not supported. Project the NURBS to Nodes first.");
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (!ncmesh)
    {
@@ -7272,7 +7347,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    const Table &dt = ncmesh->GetDerefinementTable();
 
@@ -7349,7 +7424,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
-   ncmesh.GetMeshComponents(vertices, elements, boundary);
+   ncmesh.GetMeshComponents(*this);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
@@ -7358,6 +7433,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    SetMeshGen(); // set the mesh type: 'meshgen', ...
 
    NumOfEdges = NumOfFaces = 0;
+   nbInteriorFaces = nbBoundaryFaces = -1;
 
    if (Dim > 1)
    {
@@ -7419,6 +7495,10 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(bdr_attributes, other.bdr_attributes);
 
    mfem::Swap(geom_factors, other.geom_factors);
+
+#ifdef MFEM_USE_MEMALLOC
+   TetMemory.Swap(other.TetMemory);
+#endif
 
    if (non_geometry)
    {
@@ -8553,47 +8633,113 @@ void Mesh::PrintVTK(std::ostream &out)
    out.flush();
 }
 
-void Mesh::PrintVTU(std::string fname)
+void Mesh::PrintVTU(std::string fname,
+                    VTKFormat format,
+                    bool high_order_output,
+                    int compression_level)
 {
+   int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
    fname = fname + ".vtu";
    std::fstream out(fname.c_str(),std::ios::out);
-   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"
-       << std::endl;
-   out << "<UnstructuredGrid>" << std::endl;
-   PrintVTU(out,1);
-   out << "</Piece>" <<
-       std::endl; // needed to close the piece open in the PrintVTU method
-   out << "</UnstructuredGrid>" << std::endl;
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   if (compression_level != 0)
+   {
+      out << " compressor=\"vtkZLibDataCompressor\"";
+   }
+   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   out << "<UnstructuredGrid>\n";
+   PrintVTU(out, ref, format, high_order_output, compression_level);
+   out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>\n";
    out << "</VTKFile>" << std::endl;
 
    out.close();
 }
 
-void Mesh::PrintVTU(std::ostream &out, int ref)
+template <typename T>
+void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
+                        const char *suffix, VTKFormat format)
 {
-   int np, nc, size;
+   if (format == VTKFormat::ASCII) { out << val << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+// Ensure ASCII output of uint8_t to stream is integer rather than character
+template <>
+void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
+                                 const uint8_t &val, const char *suffix,
+                                 VTKFormat format)
+{
+   if (format == VTKFormat::ASCII) { out << static_cast<int>(val) << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+template <>
+void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
+                                const double &val, const char *suffix,
+                                VTKFormat format)
+{
+   if (format == VTKFormat::BINARY32)
+   {
+      bin_io::AppendBytes<float>(buf, float(val));
+   }
+   else if (format == VTKFormat::BINARY)
+   {
+      bin_io::AppendBytes(buf, val);
+   }
+   else
+   {
+      out << val << suffix;
+   }
+}
+
+template <>
+void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
+                               const float &val, const char *suffix,
+                               VTKFormat format)
+{
+   if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
+   else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
+   else { out << val << suffix; }
+}
+
+void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+                                 int compression_level)
+{
+   WriteVTKEncodedCompressed(out, buf.data(), buf.size(), compression_level);
+   out << '\n';
+   buf.clear();
+}
+
+void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
+                    bool high_order_output, int compression_level)
+{
    RefinedGeometry *RefG;
    DenseMatrix pmat;
 
+   const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+   const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
+   std::vector<char> buf;
+
    // count the points, cells, size
-   np = nc = size = 0;
+   int np = 0, nc_ref = 0, size = 0;
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
       int nv = Geometries.GetVertices(geom)->GetNPoints();
       RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       np += RefG->RefPts.GetNPoints();
-      nc += RefG->RefGeoms.Size() / nv;
+      nc_ref += RefG->RefGeoms.Size() / nv;
       size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
 
-   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\"" << nc << "\">"
-       << std::endl;
+   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
+       << (high_order_output ? GetNE() : nc_ref) << "\">\n";
 
    // print out the points
-   out << "<Points>" << std::endl;
-   out << "<DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">"
-       << std::endl;
+   out << "<Points>\n";
+   out << "<DataArray type=\"" << type_str
+       << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
    for (int i = 0; i < GetNE(); i++)
    {
       RefG = GlobGeometryRefiner.Refine(
@@ -8603,110 +8749,182 @@ void Mesh::PrintVTU(std::ostream &out, int ref)
 
       for (int j = 0; j < pmat.Width(); j++)
       {
-         out << pmat(0, j) << ' ';
+         WriteBinaryOrASCII(out, buf, pmat(0,j), " ", format);
          if (pmat.Height() > 1)
          {
-            out << pmat(1, j) << ' ';
-            if (pmat.Height() > 2)
-            {
-               out << pmat(2, j);
-            }
-            else
-            {
-               out << 0.0;
-            }
+            WriteBinaryOrASCII(out, buf, pmat(1,j), " ", format);
          }
          else
          {
-            out << 0.0 << ' ' << 0.0;
+            WriteBinaryOrASCII(out, buf, 0.0, " ", format);
          }
-         out << '\n';
+         if (pmat.Height() > 2)
+         {
+            WriteBinaryOrASCII(out, buf, pmat(2,j), "", format);
+         }
+         else
+         {
+            WriteBinaryOrASCII(out, buf, 0.0, "", format);
+         }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
       }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
    out << "</Points>" << std::endl;
 
    out << "<Cells>" << std::endl;
-   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">" <<
-       std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
+       << fmt_str << "\">" << std::endl;
    // connectivity
    std::vector<int> offset;
-   int coff = 0;
+
    np = 0;
-   for (int i = 0; i < GetNE(); i++)
+   if (high_order_output)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-      Array<int> &RG = RefG->RefGeoms;
-
-      for (int j = 0; j < RG.Size(); )
+      Array<int> local_connectivity;
+      for (int iel = 0; iel < GetNE(); iel++)
       {
-         // out << nv;
-         coff = coff+nv;
-         offset.push_back(coff);
-
-         for (int k = 0; k < nv; k++, j++)
+         Geometry::Type geom = GetElementBaseGeometry(iel);
+         CreateVTKElementConnectivity(local_connectivity, geom, ref);
+         int nnodes = local_connectivity.Size();
+         for (int i=0; i<nnodes; ++i)
          {
-            out << ' ' << np + RG[j];
+            WriteBinaryOrASCII(out, buf, np+local_connectivity[i], " ", format);
          }
-         out << '\n';
+         if (format == VTKFormat::ASCII) { out << '\n'; }
+         np += nnodes;
+         offset.push_back(np);
       }
-      np += RefG->RefPts.GetNPoints();
+   }
+   else
+   {
+      int coff = 0;
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Geometry::Type geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         Array<int> &RG = RefG->RefGeoms;
+         for (int j = 0; j < RG.Size(); )
+         {
+            // out << nv;
+            coff = coff+nv;
+            offset.push_back(coff);
+
+            for (int k = 0; k < nv; k++, j++)
+            {
+               WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
+            }
+            if (format == VTKFormat::ASCII) { out << '\n'; }
+         }
+         np += RefG->RefPts.GetNPoints();
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
 
-   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">" <<
-       std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
+       << fmt_str << "\">" << std::endl;
    // offsets
-   for (size_t ii=0; ii<offset.size(); ii++) { out<<offset[ii]<<std::endl;}
+   for (size_t ii=0; ii<offset.size(); ii++)
+   {
+      WriteBinaryOrASCII(out, buf, offset[ii], "\n", format);
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
    out << "</DataArray>" << std::endl;
-   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">" <<
-       std::endl;
+   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
+       << fmt_str << "\">" << std::endl;
    // cell types
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
-      Array<int> &RG = RefG->RefGeoms;
-      int vtk_cell_type = 5;
+      uint8_t vtk_cell_type = 5;
 
+      // VTK element types defined at: https://git.io/JvZLm
       switch (geom)
       {
-         case Geometry::POINT:        vtk_cell_type = 1;   break;
-         case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
-         case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
-         case Geometry::SQUARE:       vtk_cell_type = 9;   break;
-         case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-         case Geometry::CUBE:         vtk_cell_type = 12;  break;
-         case Geometry::PRISM:        vtk_cell_type = 13;  break;
+         case Geometry::POINT:
+            vtk_cell_type = 1;
+            break;
+         case Geometry::SEGMENT:
+            vtk_cell_type = high_order_output ? 68 : 3;
+            break;
+         case Geometry::TRIANGLE:
+            vtk_cell_type = high_order_output ? 69 : 5;
+            break;
+         case Geometry::SQUARE:
+            vtk_cell_type = high_order_output ? 70 : 9;
+            break;
+         case Geometry::TETRAHEDRON:
+            vtk_cell_type = high_order_output ? 71 : 10;
+            break;
+         case Geometry::CUBE:
+            vtk_cell_type = high_order_output ? 72 : 12;
+            break;
+         case Geometry::PRISM:
+            vtk_cell_type = high_order_output ? 73 : 13;
+            break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;
       }
 
-      for (int j = 0; j < RG.Size(); j += nv)
+      if (high_order_output)
       {
-         out << vtk_cell_type << '\n';
+         WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
       }
+      else
+      {
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         Array<int> &RG = RefG->RefGeoms;
+         for (int j = 0; j < RG.Size(); j += nv)
+         {
+            WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
+         }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
    out << "</Cells>" << std::endl;
 
    out << "<CellData Scalars=\"material\">" << std::endl;
-   out << "<DataArray type=\"Int32\" Name=\"material\" format=\"ascii\">" <<
-       std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"material\" format=\""
+       << fmt_str << "\">" << std::endl;
    for (int i = 0; i < GetNE(); i++)
    {
-      Geometry::Type geom = GetElementBaseGeometry(i);
-      int nv = Geometries.GetVertices(geom)->GetNPoints();
-      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
       int attr = GetAttribute(i);
-      for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+      if (high_order_output)
       {
-         out << attr << '\n';
+         WriteBinaryOrASCII(out, buf, attr, "\n", format);
       }
+      else
+      {
+         Geometry::Type geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+         {
+            WriteBinaryOrASCII(out, buf, attr, "\n", format);
+         }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
    }
    out << "</DataArray>" << std::endl;
    out << "</CellData>" << std::endl;
@@ -9992,7 +10210,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                }
             }
          }
-         // Try neighbours for non-conforming meshes
+         // Try neighbors for non-conforming meshes
          if (ncmesh)
          {
             Array<int> neigh;
@@ -10042,11 +10260,9 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
 
-   Vector Enodes(vdim*ND*NE);
    // For now, we are not using tensor product evaluation
    const Operator *elem_restr = fespace->GetElementRestriction(
                                    ElementDofOrdering::NATIVE);
-   elem_restr->Mult(*nodes, Enodes);
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
@@ -10068,9 +10284,67 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
-   qi->Mult(Enodes, eval_flags, X, J, detJ);
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   if (elem_restr)
+   {
+      Vector Enodes(vdim*ND*NE);
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
+   }
 }
 
+FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
+                                           const IntegrationRule &ir,
+                                           int flags, FaceType type)
+   : type(type)
+{
+   this->mesh = mesh;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const GridFunction *nodes = mesh->GetNodes();
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const int vdim = fespace->GetVDim();
+   const int NF   = fespace->GetNFbyType(type);
+   const int NQ   = ir.GetNPoints();
+
+   const Operator *face_restr = fespace->GetFaceRestriction(
+                                   ElementDofOrdering::LEXICOGRAPHIC,
+                                   type,
+                                   L2FaceValues::SingleValued );
+   Vector Fnodes(face_restr->Height());
+   face_restr->Mult(*nodes, Fnodes);
+
+   unsigned eval_flags = 0;
+   if (flags & FaceGeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::VALUES;
+   }
+   if (flags & FaceGeometricFactors::JACOBIANS)
+   {
+      J.SetSize(vdim*vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & FaceGeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
+   }
+   if (flags & FaceGeometricFactors::NORMALS)
+   {
+      normal.SetSize(vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::NORMALS;
+   }
+
+   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
+                                             ir, type);
+   qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
+}
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)

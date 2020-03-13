@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH
 #define MFEM_MESH
@@ -18,10 +18,11 @@
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
+#include "vtk.hpp"
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
-#include "../general/gzstream.hpp"
+#include "../general/zstr.hpp"
 #include <iostream>
 
 namespace mfem
@@ -30,17 +31,20 @@ namespace mfem
 // Data type mesh
 
 class GeometricFactors;
+class FaceGeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
 
+/** An enum type to specify if interior or boundary faces are desired. */
+enum class FaceType : bool {Interior, Boundary};
+
 #ifdef MFEM_USE_MPI
 class ParMesh;
 class ParNCMesh;
 #endif
-
 
 class Mesh
 {
@@ -48,6 +52,7 @@ class Mesh
    friend class ParMesh;
    friend class ParNCMesh;
 #endif
+   friend class NCMesh;
    friend class NURBSExtension;
 
 protected:
@@ -56,6 +61,11 @@ protected:
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
+   /** These variables store the number of Interior and Boundary faces. Calling
+       fes->GetMesh()->GetNBE() doesn't return the expected value in 3D because
+       periodic meshes in 3D have some of their faces marked as boundary for
+       visualization purpose in GLVis. */
+   mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
    int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
@@ -181,6 +191,8 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
+   Array<FaceGeometricFactors*>
+   face_geom_factors; ///< Optional face geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -197,7 +209,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
-   void DeleteLazyTables();
+   void ResetLazyData();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -650,7 +662,7 @@ public:
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
        (default) edges are not generated, if 1 edges are generated. */
-   /// \see mfem::igzstream() for on-the-fly decompression of compressed ascii
+   /// \see mfem::ifgzstream() for on-the-fly decompression of compressed ascii
    /// inputs.
    virtual void Load(std::istream &input, int generate_edges = 0,
                      int refine = 1, bool fix_orientation = true)
@@ -692,6 +704,14 @@ public:
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
+   /// Returns the number of faces according to the requested type.
+   /** If type==Boundary returns only the "true" number of boundary faces
+       contrary to GetNBE() that returns "fake" boundary faces associated to
+       visualization for GLVis.
+       Similarly, if type==Interior, the "fake" boundary faces associated to
+       visualization are counted as interior faces. */
+   int GetNFbyType(FaceType type) const;
+
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
 
@@ -702,6 +722,12 @@ public:
        integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags);
+
+   /** @brief Return the mesh geometric factors for the faces corresponding
+        to the given integration rule. */
+   const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
+                                                       const int flags,
+                                                       FaceType type);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
@@ -1063,8 +1089,8 @@ public:
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
        new space dimension, 'space_dim' (if != -1), and 'ordering'. */
-   void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1);
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
 
    /// Refine all mesh elements.
    /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure
@@ -1158,30 +1184,37 @@ public:
    virtual void PrintXG(std::ostream &out = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
    /// Print the mesh in VTK format (linear and quadratic meshes only).
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes). */
-   void PrintVTU(std::ostream &out, int ref=1);
+   void PrintVTU(std::ostream &out,
+                 int ref=1,
+                 VTKFormat format=VTKFormat::ASCII,
+                 bool high_order_output=false,
+                 int compression_level=0);
    /** Print the mesh in VTU format with file name fname. */
-   void PrintVTU(std::string fname);
+   void PrintVTU(std::string fname,
+                 VTKFormat format=VTKFormat::ASCII,
+                 bool high_order_output=false,
+                 int compression_level=0);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has boundary
        attribute i+1. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
                                std::ostream &out, int elem_attr = 0) const;
 
@@ -1336,6 +1369,59 @@ public:
    Vector detJ;
 };
 
+/** @brief Structure for storing face geometric factors: coordinates, Jacobians,
+    determinants of the Jacobians, and normal vectors. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetFaceGeometricFactors(). */
+class FaceGeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+   FaceType type;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+      NORMALS      = 1 << 3,
+   };
+
+   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                        FaceType type);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)
+       where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NF = number of faces in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NF) where
+       - NQ = number of quadrature points per face, and
+       - NF = number of faces in the mesh. */
+   Vector detJ;
+
+   /// Normals at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x DIM x NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector normal;
+};
 
 /// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient
@@ -1360,18 +1446,6 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy,
 
 /// Extrude a 2D mesh
 Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz);
-
-
-/// Input file stream that remembers the input file name (useful for example
-/// when reading NetCDF meshes) and supports optional gzstream decompression.
-class named_ifgzstream : public mfem::ifgzstream
-{
-public:
-   const char *filename;
-   named_ifgzstream(const char *mesh_name) :
-      mfem::ifgzstream(mesh_name), filename(mesh_name) {}
-};
-
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)

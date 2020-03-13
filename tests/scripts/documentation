@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Print usage information
 case $1 in
@@ -51,3 +51,20 @@ cd doc; make clean; make
 
 # Return to the original directory
 cd $cur_dir
+
+# Tell users what to do if the script fails
+test_name="$(basename "$0")"
+if [ -s "$test_name.err" ]; then
+    cat >  $test_name.msg <<EOF
+
+To correct this error, make sure that the Doxygen comments in the code use
+correct syntax.
+
+See the Doxygen documentation for specific syntax (e.g. @a, @brief, \f[, etc.),
+and the 'makefile' and 'CodeDocumentation.conf.in' files in the 'doc/' directory
+for additional details.
+
+Please contact a member of the MFEM team if you have questions.
+
+EOF
+fi

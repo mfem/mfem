@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_GRIDFUNC
 #define MFEM_GRIDFUNC
@@ -56,7 +56,7 @@ protected:
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Array<int>& counts,
-                        int wcoef,
+                        bool wcoef,
                         int subdomain);
 
    /** Project a discontinuous vector coefficient in a continuous space and
@@ -426,7 +426,7 @@ public:
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
-                            int wcoef = 1, int subdomain = -1);
+                            bool wcoef = true, int subdomain = -1);
 
    /// Redefine '=' for GridFunction = constant.
    GridFunction &operator=(double value);
@@ -654,7 +654,8 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Vector &error_estimates,
                         Array<int> *aniso_flags = NULL,
-                        int with_subdomains = 1);
+                        int with_subdomains = 1,
+                        bool with_coeff = false);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
