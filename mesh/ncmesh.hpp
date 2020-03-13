@@ -100,12 +100,14 @@ struct CoarseFineTransformations
 class NCMesh
 {
 public:
-   /** Initialize with elements from 'mesh'. If an already nonconforming mesh
-       is being loaded, 'vertex_parents' must point to a stream at the appropriate
-       section of the mesh file which contains the vertex hierarchy. */
+   //// Initialize with elements from an existing 'mesh'.
    explicit NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
 
-   NCMesh(const NCMesh &other); // deep copy
+   /// Load from a stream. The id header is assumed to have been read already.
+   NCMesh(std::istream &input, int version, int &curved);
+
+   /// Deep copy of another instance.
+   NCMesh(const NCMesh &other);
 
    virtual ~NCMesh();
 
@@ -341,16 +343,6 @@ public:
 
    /// I/O: Print the "coarse_elements" section of the mesh file (ver. >= 1.1).
    void PrintCoarseElements(std::ostream &out) const;
-
-   /** I/O: Load the vertex parent hierarchy from a mesh file. NOTE: called
-       indirectly through the constructor. */
-   void LoadVertexParents(std::istream &input);
-
-   /// I/O: Load the element refinement hierarchy from a mesh file.
-   void LoadCoarseElements(std::istream &input);
-
-   /// I/O: Set positions of all vertices (used by mesh loader).
-   void SetVertexPositions(const Array<mfem::Vertex> &vertices);
 
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
@@ -827,6 +819,16 @@ protected: // implementation
    int PrintElements(std::ostream &out, int elem, int &coarse_id) const;
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
+
+   /// I/O: Load the vertex parent hierarchy from a mesh file
+   void LoadVertexParents(std::istream &input);
+
+   /// I/O: Load the element refinement hierarchy from a mesh file.
+   void LoadCoarseElements(std::istream &input);
+
+   /// I/O: Set positions of all vertices (used by mesh loader).
+   //void SetVertexPositions(const Array<mfem::Vertex> &vertices);
+
 
    // geometry
 

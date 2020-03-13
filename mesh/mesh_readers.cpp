@@ -29,7 +29,10 @@ bool Mesh::remove_unused_vertices = true;
 
 void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 {
-   // Read MFEM mesh v1.0 format
+   // Read MFEM mesh v1.0 or v1.2 format
+   MFEM_VERIFY(version == 10 || version == 12,
+               "unknown MFEM mesh version");
+
    string ident;
 
    // read lines beginning with '#' (comments)
@@ -51,15 +54,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    }
 
    skip_comment_lines(input, '#');
-   input >> ident; // 'boundary' or 'ghost_elements'
-
-   if (version == 115 && ident == "ghost_elements")
-   {
-      ncmesh->LoadGhostElements(input);
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-   }
+   input >> ident; // 'boundary'
 
    MFEM_VERIFY(ident == "boundary", "invalid mesh file");
    input >> NumOfBdrElements;
@@ -70,25 +65,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    }
 
    skip_comment_lines(input, '#');
-   input >> ident;
-
-   if ((version == 110 || version == 115) &&
-       ident == "vertex_parents")
-   {
-      ncmesh = new NCMesh(this, &input);
-      // NOTE: the constructor above will call LoadVertexParents
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-
-      if (ident == "coarse_elements")
-      {
-         ncmesh->LoadCoarseElements(input);
-
-         skip_comment_lines(input, '#');
-         input >> ident;
-      }
-   }
+   input >> ident; // 'vertices'
 
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
    input >> NumOfVertices;
@@ -108,7 +85,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
       }
 
       // initialize vertex positions in NCMesh
-      if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
+      //if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
    }
    else
    {
@@ -120,6 +97,17 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    // When visualizing solutions on non-conforming grids, PETSc
    // may dump additional vertices
    if (remove_unused_vertices) { RemoveUnusedVertices(); }
+}
+
+void Mesh::ReadMFEMNCMesh(std::istream &input, int version, int &curved)
+{
+   MFEM_VERIFY(version == 10, "unknown MFEM nonconforming mesh version");
+   MFEM_ASSERT(ncmesh == NULL, "internal error");
+
+   ncmesh = new NCMesh(input, version, curved);
+   InitFromNCMesh(*ncmesh);
+
+   // TODO: something else?
 }
 
 void Mesh::ReadLineMesh(std::istream &input)
