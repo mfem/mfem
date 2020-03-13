@@ -746,11 +746,11 @@ public:
 
    /** Used for finite-difference based computations. Computes the target
        specifications after a mesh perturbation in x or y direction. */
-   void UpdateGradientTargetSpecification(const Vector &x, const double fdeps);
+   void UpdateGradientTargetSpecification(const Vector &x, const double dx);
 
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction. */
-   void UpdateHessianTargetSpecification(const Vector &x, const double fdeps);
+   void UpdateHessianTargetSpecification(const Vector &x, const double dx);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
@@ -812,7 +812,8 @@ protected:
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool   fdflag;
-   double fdeps;
+   double dx;
+   double dxscale;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -856,9 +857,9 @@ protected:
                           const double baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
 #ifdef MFEM_USE_MPI
-   void SetFDh(const Vector &x, const ParFiniteElementSpace &pfes);
+   void ComputeFDh(const Vector &x, const ParFiniteElementSpace &pfes);
 #endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
@@ -871,7 +872,7 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false)
+        fdflag(false), dxscale(1.0e3)
    { }
 
    ~TMOP_Integrator()
@@ -939,14 +940,15 @@ public:
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
 
-   /** @brief Enables FD-based approximation and computes fdeps. */
+   /** @brief Enables FD-based approximation and computes dx. */
    void EnableFiniteDifferences(const GridFunction &x);
 #ifdef MFEM_USE_MPI
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
+   void   SetFDhScale(double _dxscale) { dxscale = _dxscale; }
    bool   GetFDFlag() const { return fdflag; }
-   double GetFDh()    const { return fdeps; }
+   double GetFDh()    const { return dx; }
 };
 
 
