@@ -1,13 +1,13 @@
-// Copyright (c) 2019, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "catch.hpp"
 #include "mfem.hpp"
@@ -239,7 +239,7 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 
 double test_nl_convection_nd(int dim)
 {
-   Mesh *mesh;
+   Mesh *mesh = nullptr;
 
    if (dim == 2)
    {
@@ -291,15 +291,10 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
 template <typename INTEGRATOR>
 double test_vector_pa_integrator(int dim)
 {
-   Mesh *mesh;
-   if (dim == 2)
-   {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
-   }
+   Mesh *mesh =
+      (dim == 2) ?
+      new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
+      new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
 
    int order = 2;
    H1_FECollection fec(order, dim);
@@ -352,5 +347,114 @@ TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA]")
       REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3) == Approx(0.0));
    }
 }
+
+void velocity_function(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+   switch (dim)
+   {
+      case 1: v(0) = 1.0; break;
+      case 2: v(0) = x(1); v(1) = -x(0); break;
+      case 3: v(0) = x(1); v(1) = -x(0); v(2) = x(0); break;
+   }
+}
+
+void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity,
+                              bool dg)
+{
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+
+   if (dg)
+   {
+      k.AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      k.AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   }
+}
+
+void test_pa_convection(Mesh &&mesh, int order, bool dg)
+{
+   mesh.EnsureNodes();
+   mesh.SetCurvature(mesh.GetNodalFESpace()->GetOrder(0));
+   int dim = mesh.Dimension();
+
+   FiniteElementCollection *fec;
+   if (dg)
+   {
+      fec = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   else
+   {
+      fec = new H1_FECollection(order, dim);
+   }
+
+   FiniteElementSpace fespace(&mesh, fec);
+
+   BilinearForm k_pa(&fespace);
+   BilinearForm k_fa(&fespace);
+
+   VectorFunctionCoefficient vel_coeff(dim, velocity_function);
+
+   AddConvectionIntegrators(k_fa, vel_coeff, dg);
+   AddConvectionIntegrators(k_pa, vel_coeff, dg);
+
+   k_fa.Assemble();
+   k_fa.Finalize();
+
+   k_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   k_pa.Assemble();
+
+   GridFunction x(&fespace), y_fa(&fespace), y_pa(&fespace);
+
+   x.Randomize(1);
+
+   k_fa.Mult(x,y_fa);
+   k_pa.Mult(x,y_pa);
+
+   y_pa -= y_fa;
+
+   REQUIRE(y_pa.Norml2() < 1.e-12);
+
+   delete fec;
+}
+
+//Basic unit test for convection
+TEST_CASE("PA Convection", "[PartialAssembly]")
+{
+   for (bool dg : {true, false})
+   {
+      SECTION("2D")
+      {
+         for (int order : {2, 3, 4})
+         {
+            test_pa_convection(Mesh("../../data/periodic-square.mesh", 1, 1), order, dg);
+            test_pa_convection(Mesh("../../data/periodic-hexagon.mesh", 1, 1), order, dg);
+            test_pa_convection(Mesh("../../data/star-q3.mesh", 1, 1), order, dg);
+         }
+      }
+
+      SECTION("3D")
+      {
+         int order = 2;
+         test_pa_convection(Mesh("../../data/periodic-cube.mesh", 1, 1), order, dg);
+         test_pa_convection(Mesh("../../data/fichera-q3.mesh", 1, 1), order, dg);
+      }
+   }
+   // Test AMR cases (DG not implemented)
+   for (int order : {2, 3, 4})
+   {
+      SECTION("AMR 2D")
+      {
+         test_pa_convection(Mesh("../../data/amr-quad.mesh", 1, 1), order, false);
+      }
+   }
+
+   SECTION("AMR 3D")
+   {
+      int order = 2;
+      test_pa_convection(Mesh("../../data/fichera-amr.mesh", 1, 1), order, false);
+   }
+}//test case
 
 }// namespace pa_kernels

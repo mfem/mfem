@@ -9,6 +9,7 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
+//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 13 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
@@ -16,18 +17,23 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
 //
+// Device sample runs:
+//    mpirun -np 4 ex9p -pa
+//    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh
+//    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
+//
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) and ParaView (paraview.org) is also
-//               illustrated.
+//               bilinear forms in MFEM (face integrators), the use of implicit
+//               and explicit ODE time integrators, the definition of periodic
+//               boundary conditions through periodic meshes, as well as the use
+//               of GLVis for persistent visualization of a time-evolving
+//               solution. The saving of time-dependent data files for external
+//               visualization with VisIt (visit.llnl.gov) and ParaView
+//               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -52,6 +58,66 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+class DG_Solver : public Solver
+{
+private:
+   HypreParMatrix &M, &K;
+   SparseMatrix M_diag;
+   HypreParMatrix *A;
+   GMRESSolver linear_solver;
+   BlockILU prec;
+   double dt;
+public:
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes)
+      : M(M_),
+        K(K_),
+        A(NULL),
+        linear_solver(M.GetComm()),
+        prec(fes.GetFE(0)->GetDof(),
+             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
+        dt(-1.0)
+   {
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-9);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      linear_solver.SetPreconditioner(prec);
+
+      M.GetDiag(M_diag);
+   }
+
+   void SetTimeStep(double dt_)
+   {
+      if (dt_ != dt)
+      {
+         dt = dt_;
+         // Form operator A = M - dt*K
+         delete A;
+         A = Add(-dt, K, 0.0, K);
+         SparseMatrix A_diag;
+         A->GetDiag(A_diag);
+         A_diag.Add(1.0, M_diag);
+         // this will also call SetOperator on the preconditioner
+         linear_solver.SetOperator(*A);
+      }
+   }
+
+   void SetOperator(const Operator &op)
+   {
+      linear_solver.SetOperator(op);
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      linear_solver.Mult(x, y);
+   }
+
+   ~DG_Solver()
+   {
+      delete A;
+   }
+};
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -61,19 +127,21 @@ Vector bb_min, bb_max;
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   HypreParMatrix &M, &K;
+   OperatorHandle M, K;
    const Vector &b;
-   HypreSmoother M_prec;
+   Solver *M_prec;
    CGSolver M_solver;
+   DG_Solver *dg_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b);
+   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
-   virtual ~FE_Evolution() { }
+   virtual ~FE_Evolution();
 };
 
 
@@ -91,6 +159,8 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
+   bool pa = false;
+   const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -114,9 +184,17 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            11 - Backward Euler,\n\t"
+                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -150,6 +228,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -160,11 +241,20 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
+      // Explicit methods
       case 1: ode_solver = new ForwardEulerSolver; break;
       case 2: ode_solver = new RK2Solver(1.0); break;
       case 3: ode_solver = new RK3SSPSolver; break;
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
+      // Implicit (L-stable) methods
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new SDIRK23Solver(2); break;
+      case 13: ode_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
       default:
          if (myid == 0)
          {
@@ -201,7 +291,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
@@ -218,8 +308,13 @@ int main(int argc, char *argv[])
    FunctionCoefficient u0(u0_function);
 
    ParBilinearForm *m = new ParBilinearForm(fes);
-   m->AddDomainIntegrator(new MassIntegrator);
    ParBilinearForm *k = new ParBilinearForm(fes);
+   if (pa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
@@ -230,15 +325,14 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
-   m->Assemble();
-   m->Finalize();
    int skip_zeros = 0;
+   m->Assemble();
    k->Assemble(skip_zeros);
-   k->Finalize(skip_zeros);
    b->Assemble();
+   m->Finalize();
+   k->Finalize(skip_zeros);
 
-   HypreParMatrix *M = m->ParallelAssemble();
-   HypreParMatrix *K = k->ParallelAssemble();
+
    HypreParVector *B = b->ParallelAssemble();
 
    // 9. Define the initial conditions, save the corresponding grid function to
@@ -289,9 +383,12 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("PVExample9P", pmesh);
+      pd = new ParaViewDataCollection("Example9P", pmesh);
+      pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", u);
-      pd->SetLevelsOfDetail(2);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
       pd->SetTime(0.0);
       pd->Save();
@@ -330,7 +427,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B);
+   FE_Evolution adv(*m, *k, *B);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -394,9 +491,7 @@ int main(int argc, char *argv[])
    delete u;
    delete B;
    delete b;
-   delete K;
    delete k;
-   delete M;
    delete m;
    delete fes;
    delete pmesh;
@@ -410,15 +505,45 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
+FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
                            const Vector &_b)
    : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height())
+     b(_b),
+     M_solver(_M.ParFESpace()->GetComm()),
+     z(_M.Height())
 {
-   M_prec.SetType(HypreSmoother::Jacobi);
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
+   bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
 
+   if (pa)
+   {
+      M.Reset(&_M, false);
+      K.Reset(&_K, false);
+   }
+   else
+   {
+      M.Reset(_M.ParallelAssemble(), true);
+      K.Reset(_K.ParallelAssemble(), true);
+   }
+
+   M_solver.SetOperator(*M);
+
+   Array<int> ess_tdof_list;
+   if (pa)
+   {
+      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      dg_solver = NULL;
+   }
+   else
+   {
+      HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
+      HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
+      HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
+      M_prec = hypre_prec;
+
+      dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace());
+   }
+
+   M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -426,12 +551,26 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
    M_solver.SetPrintLevel(0);
 }
 
+void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
+{
+   K->Mult(x, z);
+   z += b;
+   dg_solver->SetTimeStep(dt);
+   dg_solver->Mult(z, k);
+}
+
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
-   K.Mult(x, z);
+   K->Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
+}
+
+FE_Evolution::~FE_Evolution()
+{
+   delete M_prec;
+   delete dg_solver;
 }
 
 
