@@ -836,7 +836,7 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
 
    Array<int> vdofs;
    fes->GetElementVDofs(T.ElementNo, vdofs);
-   
+
    Vector loc_data;
    GetSubVector(vdofs, loc_data);
    int nip = ir.GetNPoints();
