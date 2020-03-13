@@ -775,6 +775,7 @@ public:
 
 class TMOPNewtonSolver;
 class TMOPDescentNewtonSolver;
+
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
 
@@ -876,7 +877,7 @@ public:
    ~TMOP_Integrator()
    {
       delete lim_func;
-      for (int i=0; i<ElemDer.Size(); i++)
+      for (int i = 0; i < ElemDer.Size(); i++)
       {
          delete ElemDer[i];
          delete ElemPertEnergy[i];

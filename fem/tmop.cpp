@@ -963,7 +963,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
    tspec = tspec_;
    tspec_fes   = tspec_.FESpace();
 
-   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
+   if (!adapt_eval) { MFEM_ABORT("Set adaptivity evaluator\n"); }
 
    adapt_eval->SetParMetaInfo(*tspec_.ParFESpace()->GetParMesh(),
                               *tspec_.FESpace()->FEColl(),
@@ -982,7 +982,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
    tspec = tspec_;
    tspec_fes   = tspec_.FESpace();
 
-   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
+   if (!adapt_eval) { MFEM_ABORT("Set adaptivity evaluator\n"); }
 
    adapt_eval->SetSerialMetaInfo(*tspec_.FESpace()->GetMesh(),
                                  *tspec_.FESpace()->FEColl(),
@@ -1082,14 +1082,14 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
 
    Vector TSpecTemp;
    Vector xtemp = x;
-   for (int j=0; j<dim; j++)
+   for (int j = 0; j < dim; j++)
    {
-      for (int i=0; i<cnt; i++) { xtemp(j*cnt+i) += fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += fdeps; }
 
       TSpecTemp.SetDataAndSize(tspec_perth.GetData() + j*cnt, cnt);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
-      for (int i=0; i<cnt; i++) { xtemp(j*cnt+i) -= fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= fdeps; }
    }
 }
 
@@ -1109,23 +1109,23 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    Vector xtemp = x;
 
    // T(x+2h)
-   for (int j=0; j<dim; j++)
+   for (int j = 0; j < dim; j++)
    {
-      for (int i=0; i<cnt; i++) { xtemp(j*cnt+i) += 2*fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += 2*fdeps; }
 
       TSpecTemp.SetDataAndSize(tspec_pert2h.GetData() + j*cnt, cnt);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
-      for (int i=0; i<cnt; i++) { xtemp(j*cnt+i) -= 2*fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= 2*fdeps; }
    }
 
    // T(x+h,y+h)
    int idx = 0;
-   for (int k1=0; k1<dim; k1++)
+   for (int k1 = 0; k1 < dim; k1++)
    {
-      for (int k2=0; k1!=k2 && k2<dim; k2++)
+      for (int k2 = 0; (k1 != k2) && (k2 < dim); k2++)
       {
-         for (int i=0; i<cnt; i++)
+         for (int i = 0; i < cnt; i++)
          {
             xtemp(k1*cnt+i) += fdeps;
             xtemp(k2*cnt+i) += fdeps;
@@ -1134,7 +1134,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
          TSpecTemp.SetDataAndSize(tspec_pertmix.GetData() + idx*cnt, cnt);
          UpdateTargetSpecification(xtemp, TSpecTemp);
 
-         for (int i=0; i<cnt; i++)
+         for (int i = 0; i < cnt; i++)
          {
             xtemp(k1*cnt+i) -= fdeps;
             xtemp(k2*cnt+i) -= fdeps;
@@ -1574,9 +1574,9 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    // Energy for unperturbed configuration
    double e_fx = GetElementEnergy(el, T, elfun);
 
-   for (int j=0; j<dim; j++)
+   for (int j = 0; j < dim; j++)
    {
-      for (int i=0; i<dof; i++)
+      for (int i = 0; i < dof; i++)
       {
          if (discr_tc)
          {
@@ -1602,13 +1602,13 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    const Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
    const Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
 
-   for (int i=0; i<dof; i++)
+   for (int i = 0; i < dof; i++)
    {
-      for (int j=0; j<i+1; j++)
+      for (int j = 0; j < i+1; j++)
       {
-         for (int k1=0; k1<dim; k1++)
+         for (int k1 = 0; k1 < dim; k1++)
          {
-            for (int k2=0; k2<dim; k2++)
+            for (int k2 = 0; k2 < dim; k2++)
             {
                elfunmod(k2*dof+j) += fdeps;
 
@@ -1616,20 +1616,20 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                {
                   discr_tc->UpdateTargetSpecificationAtNode(
                      el, T, j, k2, discr_tc->GetTspecPert1H());
-                  if (j!=i)
+                  if (j != i)
                   {
                      discr_tc->UpdateTargetSpecificationAtNode(
                         el, T, i, k1, discr_tc->GetTspecPert1H());
                   }
-                  else   // j==i
+                  else // j==i
                   {
-                     if (k1!=k2)
+                     if (k1 != k2)
                      {
                         int idx = k1+k2-1;
                         discr_tc->UpdateTargetSpecificationAtNode(
                            el, T, i, idx, discr_tc->GetTspecPertMixH());
                      }
-                     else   //j==i && k1==k2
+                     else // j==i && k1==k2
                      {
                         discr_tc->UpdateTargetSpecificationAtNode(
                            el, T, i, k1, discr_tc->GetTspecPert2H());
