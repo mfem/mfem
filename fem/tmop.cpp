@@ -1765,7 +1765,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
       double detv_avg = pow(detv_sum/nsp, 1./dim);
       detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
-   fdeps = detv_avg_min*pow(10., -5.);
+   fdeps = detv_avg_min / 1.0e3;
 }
 
 void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
