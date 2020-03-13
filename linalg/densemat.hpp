@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_DENSEMAT
 #define MFEM_DENSEMAT
@@ -26,8 +26,7 @@ class DenseMatrix : public Matrix
    friend class DenseMatrixInverse;
 
 private:
-   double *data;
-   int capacity; // zero or negative capacity means we do not own the data.
+   Memory<double> data;
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
@@ -64,22 +63,25 @@ public:
        not delete the data array @a d. This method should not be used with
        DenseMatrix that owns its current data array. */
    void UseExternalData(double *d, int h, int w)
-   { data = d; height = h; width = w; capacity = -h*w; }
+   {
+      data.Wrap(d, h*w, false);
+      height = h; width = w;
+   }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
    void Reset(double *d, int h, int w)
-   { if (OwnsData()) { delete [] data; } UseExternalData(d, h, w); }
+   { if (OwnsData()) { data.Delete(); } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
-   void ClearExternalData() { data = NULL; height = width = 0; capacity = 0; }
+   void ClearExternalData() { data.Reset(); height = width = 0; }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { delete [] data; } ClearExternalData(); }
+   { if (OwnsData()) { data.Delete(); } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -91,11 +93,17 @@ public:
    void SetSize(int h, int w);
 
    /// Returns the matrix data array.
-   inline double *Data() const { return data; }
-   /// Returns the matrix data array.
-   inline double *GetData() const { return data; }
+   inline double *Data() const
+   { return const_cast<double*>((const double*)data);}
 
-   inline bool OwnsData() const { return (capacity > 0); }
+   /// Returns the matrix data array.
+   inline double *GetData() const { return Data(); }
+
+   Memory<double> &GetMemory() { return data; }
+   const Memory<double> &GetMemory() const { return data; }
+
+   /// Return the DenseMatrix data (host pointer) ownership flag.
+   inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Returns reference to a_{ij}.
    inline double &operator()(int i, int j);
@@ -356,7 +364,31 @@ public:
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
 
-   long MemoryUsage() const { return std::abs(capacity) * sizeof(double); }
+   long MemoryUsage() const { return data.Capacity() * sizeof(double); }
+
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const double *Read(bool on_dev = true) const
+   { return mfem::Read(data, Height()*Width(), on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const double *HostRead() const
+   { return mfem::Read(data, Height()*Width(), false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   double *Write(bool on_dev = true)
+   { return mfem::Write(data, Height()*Width(), on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   double *HostWrite()
+   { return mfem::Write(data, Height()*Width(), false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   double *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(data, Height()*Width(), on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   double *HostReadWrite()
+   { return mfem::ReadWrite(data, Height()*Width(), false); }
 
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
@@ -756,7 +788,7 @@ public:
    DenseMatrix &operator()(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = GetData(k);
+      Mk.data = Memory<double>(GetData(k), SizeI()*SizeJ(), false);
       return Mk;
    }
    const DenseMatrix &operator()(int k) const

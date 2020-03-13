@@ -34,6 +34,8 @@
 //               ex1 -pa -d ceed-cpu
 //               ex1 -pa -d ceed-cuda
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -198,8 +200,15 @@ int main(int argc, char *argv[])
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-      OperatorJacobiSmoother M(*a, ess_tdof_list);
-      PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+      if (UsesTensorBasis(*fespace))
+      {
+         OperatorJacobiSmoother M(*a, ess_tdof_list);
+         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+      }
+      else
+      {
+         CG(*A, B, X, 1, 400, 1e-12, 0.0);
+      }
    }
 
    // 12. Recover the solution as a finite element grid function.

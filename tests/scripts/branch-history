@@ -1,20 +1,32 @@
 #!/usr/bin/env perl
 
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
+# This script checks if the current branch history, defined as the commits that
+# will be merged in master (those shown in a GitHub PR), contains unusually
+# large files, unusually large number of changes in a commit, unusually large
+# number of commits, etc.
+#
+# Usage: branch-history
+
+# Maximum number of acceptable commits in the branch
 my $branch_max_commits = 200;
+# Maximum number of acceptable files changed in any commit in the branch
 my $commit_max_files_changed = 50;
+# Maximum acceptable size (in K) of any git blob in the branch
 my $max_blob_kb = 200;
+# Maximum acceptable size (in K) of any commit in the branch
 my $max_commit_kb = 400;
+# Maximum acceptable size (in K) of the sum of the commit sizes in the branch
 my $max_branch_kb = 1000;
 
 my $status = 0; # Return code
@@ -70,9 +82,12 @@ foreach my $sha (@commits) {
     my $fname = @blob_split[5];
 
     my $blob_size = 0;
+    # File was added
     if ($mode eq "A") { $blob_size += int(`git cat-file -s $dst`); }
+    # File was copied
     elsif ($mode =~ m/C\d*/) { $blob_size += int(`git cat-file -s $dst`); }
     elsif ($mode eq "D") { }
+    # File was modified, use the gzip'ed diff as a proxy of the required git storage
     elsif ($mode =~ m/M\d*/) { $blob_size += int(`git diff -U0 --binary $src $dst | gzip -c | wc -c`); }
     elsif ($mode =~ m/R\d*/) { }
     elsif ($mode eq "T") { }
@@ -102,10 +117,10 @@ if ($status) {
   open(my $f, '>', "$0.msg");
   print $f <<EOF
 
-The failure of this script indicate that large files or a large number of files
+The failure of this script indicates that large files or a large number of files
 have been added or committed in the current branch history.
 
-This could be OK in certain cases, but it could also be a sign that large files
+This could be OK, in certain cases, but it could also be a sign that large files
 have accidentally been committed.
 
 To address this error, examine the listed files and commits to make sure all
@@ -115,7 +130,7 @@ deleted, please either:
 1) Recreate the branch without that commit.
 2) Indicate that the branch should be squash-merged
 
-or contact a member of the MFEM team for help or if you have questions.
+or contact a member of the MFEM team for help if you have questions.
 
 EOF
 }
