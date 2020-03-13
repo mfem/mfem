@@ -1,6 +1,8 @@
-#include "complex_additive_schwarz.hpp"
+#include "LSweepsPrecond.hpp"
 
-ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & ess_tdofs, int part) : bf(bf_)
+PmlPatchAssembly::PmlPatchAssembly(SesquilinearForm * bf_, Array<int> & ess_tdofs, 
+                                   double omega_, int nrlayers_, int part) 
+                                   : bf(bf_), omega(omega_), nrlayers(nrlayers_)
 {
    fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
@@ -25,7 +27,7 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
    for (int i = 0; i<ess_tdofs.Size(); i++) global_tdofs[ess_tdofs[i]] = 0;
 
 
-   MeshPartition * p = new MeshPartition(mesh, part);
+   p = new MeshPartition(mesh, part);
    nx = p->nx;
    ny = p->ny;
    nz = p->nz;
@@ -41,65 +43,57 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
    patch_mat_inv.SetSize(nrpatch);
    patch_mat_inv_ext.SetSize(nrpatch);
    ess_tdof_list.resize(nrpatch);
+   ess_tdof_list_ext.resize(nrpatch);
 
    // construct extended meshes
+   // extend by the epsilon layer too (1 more layers that will not be a pml)
+
    int ip = -1;
-   int nrlayers = 0;
-   if (!part)
+   for (int kz = 0; kz<nz; kz++)
    {
-      for (int ip = 0; ip<nrpatch; ip++)
+      for (int ky = 0; ky<ny; ky++)
       {
-         patch_meshes_ext[ip] = new Mesh(*p->patch_mesh[ip]);
-      }
-   }
-   else
-   {   
-      for (int kz = 0; kz<nz; kz++)
-      {
-         for (int ky = 0; ky<ny; ky++)
+         for (int kx = 0; kx<nx; kx++)
          {
-            for (int kx = 0; kx<nx; kx++)
+            ip++;
+            Array<int> ext_directions;
+            for (int j=0; j<nrlayers; ++j)// one more layer of extension (epsilon layer)
             {
-               ip++;
-               Array<int> ext_directions;
-               for (int j=0; j<nrlayers; ++j)
+               for (int comp=0; comp<dim; ++comp)
                {
-                  for (int comp=0; comp<dim; ++comp)
+                  if (comp == 0 && kx != 0)
                   {
-                     if (comp == 0 && kx != 0)
-                     {
-                        ext_directions.Append(-comp-1);
-                     }
-                     if (comp == 0 && kx != nx-1)
-                     {
-                        ext_directions.Append(comp+1);
-                     }
-                     if (comp == 1 && ky != 0)
-                     {
-                        ext_directions.Append(-comp-1);
-                     }
-                     if (comp == 1 && ky != ny-1)
-                     {
-                        ext_directions.Append(comp+1);
-                     }
-                     if (comp == 2 && kz != 0)
-                     {
-                        ext_directions.Append(-comp-1);
-                     }
-                     if (comp == 2 && kz != ny-1)
-                     {
-                        ext_directions.Append(comp+1);
-                     }
+                     // ext_directions.Append(-comp-1);
+                  }
+                  if (comp == 0 && kx != nx-1)
+                  {
+                     ext_directions.Append(comp+1);
+                  }
+                  if (comp == 1 && ky != 0)
+                  {
+                     // ext_directions.Append(-comp-1);
+                  }
+                  if (comp == 1 && ky != ny-1)
+                  {
+                     // ext_directions.Append(comp+1);
+                  }
+                  if (comp == 2 && kz != 0)
+                  {
+                     // ext_directions.Append(-comp-1);
+                  }
+                  if (comp == 2 && kz != nz-1)
+                  {
+                     // ext_directions.Append(comp+1);
                   }
                }
-               patch_meshes_ext[ip] = ExtendMesh(p->patch_mesh[ip],ext_directions);
             }
+            patch_meshes_ext[ip] = ExtendMesh(p->patch_mesh[ip],ext_directions);
          }
       }
    }
-
-   
    // SaveMeshPartition(patch_meshes_ext, "output/ext_mesh.", "output/ext_sol.");
+   // cout << p->patch_mesh[0]->GetNE() << endl;
+
 
    for (int ip=0; ip<nrpatch; ++ip)
    {
@@ -114,7 +108,7 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
       dof2extdof_map[ip].SetSize(2*nrdof);
 
       // build dof maps between patch and extended patch
-      //loop through the patch elements and constract the dof map
+      // loop through the patch elements and constract the dof map
       // The same elements in the extended mesh have the same ordering (but not the dofs)
 
       // loop through the elements in the patch
@@ -163,9 +157,10 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
       if (patch_meshes_ext[ip]->bdr_attributes.Size())
       {
          Array<int> ess_bdr(patch_meshes_ext[ip]->bdr_attributes.Max());
-         ess_bdr = 0;
+         ess_bdr = 1;
          patch_fespaces_ext[ip]->GetEssentialTrueDofs(ess_bdr, ess_list_ext);
       }
+      ess_tdof_list_ext[ip] = ess_list_ext;
 
       // Adjust the essential tdof list for each patch
       for (int i=0; i<ess_temp_list.Size(); i++)
@@ -177,8 +172,51 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
       }
 
       SesquilinearForm a(patch_fespaces[ip], &bf->real(), &bf->imag());
-      SesquilinearForm a_ext(patch_fespaces_ext[ip], &bf->real(), &bf->imag());
       
+      //-----------------PML FORMULATION----------------------------
+      Array2D<double> length(dim,2);
+      double h = GetUniformMeshElementSize(patch_meshes_ext[ip]);
+      length = h*nrlayers;
+      if (ip != 0) 
+      {
+         length(0,0) = 0.0;
+      }
+      // length = h * nrlayers;
+      // if (ip != 0)
+      // {
+      //    length(0,0) = 0.0;
+      //    length(1,0) = 0.0;
+      // }
+      // length(0,1) = h * nrlayers;
+      // length(1,1) = h * nrlayers;
+      // if (ip == 1 || ip == 2 || ip == 3) length(1,0) = h * nrlayers;
+      // if (ip == 4 || ip == 8 || ip == 12) length(0,0) = h * nrlayers;
+
+
+      CartesianPML pml(patch_meshes_ext[ip], length);
+      pml.SetOmega(omega);
+
+      ConstantCoefficient one(1.0);
+      ConstantCoefficient sigma(-pow(omega, 2));
+
+      PmlMatrixCoefficient c1_re(dim,pml_detJ_JT_J_inv_Re,&pml);
+      PmlMatrixCoefficient c1_im(dim,pml_detJ_JT_J_inv_Im,&pml);
+
+      PmlCoefficient detJ_re(pml_detJ_Re,&pml);
+      PmlCoefficient detJ_im(pml_detJ_Im,&pml);
+
+      ProductCoefficient c2_re(sigma, detJ_re);
+      ProductCoefficient c2_im(sigma, detJ_im);
+
+      SesquilinearForm a_ext(patch_fespaces_ext[ip],ComplexOperator::HERMITIAN);
+
+      a_ext.AddDomainIntegrator(new DiffusionIntegrator(c1_re),
+                                new DiffusionIntegrator(c1_im));
+      a_ext.AddDomainIntegrator(new MassIntegrator(c2_re),
+                                new MassIntegrator(c2_im));
+
+      //------------------------------------------------------------
+
       a.Assemble();
       a_ext.Assemble();
       OperatorPtr Alocal;
@@ -200,17 +238,19 @@ ComplexPatchAssembly::ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & 
       patch_mat_inv_ext[ip]->SetOperator(*patch_mat_ext[ip]);
 
 
-      delete patch_fespaces[ip];
-      delete patch_fespaces_ext[ip];
+      // delete patch_fespaces[ip];
+      // delete patch_fespaces_ext[ip];
    }
-   delete p;
+   // delete p;
 }
 
-ComplexPatchAssembly::~ComplexPatchAssembly()
+PmlPatchAssembly::~PmlPatchAssembly()
 {
    for (int ip=0; ip<nrpatch; ++ip)
    {
       // delete patch_fespaces[ip]; patch_fespaces[ip]=nullptr;
+      delete patch_fespaces[ip];
+      delete patch_fespaces_ext[ip];
       delete patch_meshes_ext[ip];
       patch_meshes_ext[ip]=nullptr;
       delete patch_mat_inv[ip];
@@ -222,19 +262,20 @@ ComplexPatchAssembly::~ComplexPatchAssembly()
    patch_meshes_ext.DeleteAll();
    patch_mat.DeleteAll();
    patch_mat_inv.DeleteAll();
+   delete p;
 }
 
 
 
-ComplexAddSchwarz::ComplexAddSchwarz(SesquilinearForm * bf_, Array<int> & ess_tdofs, int i)
-   : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), bf(bf_),
+LSweepsPrecond::LSweepsPrecond(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrlayers_, int i)
+   : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), bf(bf_), omega(omega_), nrlayers(nrlayers_),
      part(i)
 {
-   p = new ComplexPatchAssembly(bf_, ess_tdofs, part);
+   p = new PmlPatchAssembly(bf_, ess_tdofs, omega, nrlayers, part);
    nrpatch = p->nrpatch;
 }
 
-void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
+void  LSweepsPrecond::Mult(const Vector &r, Vector &z) const
 {
    z = 0.0;
    Vector rnew(r);
@@ -242,11 +283,13 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
    Vector raux(znew.Size());
    Vector res_local, sol_local;
    Array<int> visit(znew.Size());
-   // char vishost[] = "localhost";
-   // int  visport   = 19916;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
 
-   // socketstream sol_sock(vishost, visport);
-   // sol_sock.precision(8);
+   socketstream sol_sock(vishost, visport);
+   sol_sock.precision(8);
+   socketstream res_sock(vishost, visport);
+   res_sock.precision(8);
    for (int iter = 0; iter < maxit; iter++)
    {
       znew = 0.0;
@@ -260,6 +303,9 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
 
          rnew.GetSubVector(*dof_map, res_local);
 
+         // zero out residual on the boundary
+         
+
          //-----------------------------------------------
          // Extend by zero to the extended mesh
          int nrdof_ext = p->patch_mat_ext[ip]->Height();
@@ -269,52 +315,35 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
 
          res_ext.SetSubVector(p->dof2extdof_map[ip],res_local.GetData());
 
+         // res_ext.SetSubVector(p->ess_tdof_list_ext[ip], 0.0);
+
          p->patch_mat_inv_ext[ip]->Mult(res_ext, sol_ext);
 
          sol_ext.GetSubVector(p->dof2extdof_map[ip],sol_local);
 
-
-         //-----------------------------------------------
-
-         // p->patch_mat_inv[ip]->Mult(res_local, sol_local);
-
-         // for the overlapping case
-         // zero out the entries corresponding to the ess_bdr
-         Array<int> ess_bdr_indices_re = p->ess_tdof_list[ip]; // real part
-         Array<int> ess_bdr_indices(2*ess_bdr_indices_re.Size()); //imag part
-
-         for (int i = 0; i< ess_bdr_indices_re.Size(); i++)
-         {
-            ess_bdr_indices[i] = ess_bdr_indices_re[i];
-            ess_bdr_indices[i+ess_bdr_indices_re.Size()] = ess_bdr_indices_re[i]+ndofs/2;
-         }
-         if (!part) 
-         { 
-            sol_local.SetSubVector(ess_bdr_indices,0.0); 
-         }
          if (type == 1) znew = 0.0;
-
          znew.AddElementVector(*dof_map,sol_local);
          // zero out the contributions to the dofs which are already updated
+         for (int i = 0; i<ndofs; i++)
+         {
+            int j = (*dof_map)[i];
+            if (visit[j])
+            {
+               znew(j) = 0.0;
+            }
+            else
+            {
+               visit[j] = 1;
+            }
+         }
          if (type == 1)
          {
-            for (int i = 0; i<ndofs; i++)
-            {
-               int j = (*dof_map)[i];
-               if (visit[j])
-               {
-                  znew(j) = 0.0;
-               }
-               else
-               {
-                  visit[j] = 1;
-               }
-            }
             z.Add(theta, znew);
             A->Mult(znew, raux);
             rnew -= raux;
          }
-         // PlotSolution(z, sol_sock, ip); cin.get();
+         PlotSolution(z, sol_sock, ip); cin.get();
+         // PlotSolution(rnew, res_sock, ip); cin.get();
       }
       if (type == 0)
       {
@@ -329,11 +358,11 @@ void  ComplexAddSchwarz::Mult(const Vector &r, Vector &z) const
          rnew -= raux;
       }
    }
-   // PlotSolution(z, sol_sock, 0); cin.get();
+   PlotSolution(rnew, sol_sock, 0); cin.get();
 }
 
 
-void ComplexAddSchwarz::PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const
+void LSweepsPrecond::PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const
 {
    FiniteElementSpace * fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
@@ -345,4 +374,4 @@ void ComplexAddSchwarz::PlotSolution(Vector & sol, socketstream & sol_sock, int 
    sol_sock << "solution\n" << *mesh << gf.real() << keys << flush;
 }
 
-ComplexAddSchwarz::~ComplexAddSchwarz(){ delete p;}
+LSweepsPrecond::~LSweepsPrecond(){ delete p;}

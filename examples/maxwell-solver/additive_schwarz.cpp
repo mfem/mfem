@@ -5,11 +5,12 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
    // int nx = sqrt(mesh->GetNE());
-   int nx = 4;
-   int ny = 4;
-   int nz = 1;
+   nx = 8;
+   ny = 1;
+   nz = 1;
    int nxyz[3] = {nx,ny,nz};
    nrpatch = nx*ny*nz;
+
    // double pmin[3] = { infinity(), infinity(), infinity() };
    // double pmax[3] = { -infinity(), -infinity(), -infinity() };
 
@@ -98,6 +99,9 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
       cout << "Non Overlapping Cartesian Partition " << endl;
       CartesianMeshPartition partition(mesh);
       element_map = partition.element_map;
+      nx = partition.nx;
+      ny = partition.ny;
+      nz = partition.nz;
    }
    else
    {
@@ -140,7 +144,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
          patch_mesh[ip]->AddVertex(mesh->GetVertex(vert_idx));
       }
 
-      // Add the elements (for now search through all the vertices in the patch is need)
+      // Add the elements (for now search through all the vertices in the patch is needed)
       for (int iel=0; iel<patch_nrelems; ++iel)
       {
          // get the vertices list for the element
@@ -197,16 +201,48 @@ void MeshPartition::PrintElementMap()
    }
 }
 
-void MeshPartition::SaveMeshPartition()
+void SaveMeshPartition(Array<Mesh *> meshes, string mfilename, string sfilename)
 {
-   for (int ip = 0; ip<nrpatch; ++ip)
+   int nrmeshes = meshes.Size();
+   int dim = meshes[0]->Dimension();
+   int n = (int)pow((double)nrmeshes, 1.0/(double)dim);
+
+   cout << " n = " << n << endl;
+
+   int nx = n;
+   int ny = n;
+   int nz = (dim == 3) ? n : 1;
+   int ip = -1;
+   for (int k=0; k<nz; k++)
    {
-      cout << "saving mesh no " << ip << endl;
-      ostringstream mesh_name;
-      mesh_name << "output/mesh." << setfill('0') << setw(6) << ip;
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      patch_mesh[ip]->Print(mesh_ofs);
+      for (int j=0; j<ny; j++)
+      {
+         for (int i = 0; i<nx; i++)
+         {
+            ip++;
+   // for (int ip = 0; ip<nrmeshes; ++ip)
+   // {
+            cout << "saving mesh no " << ip << endl;
+            ostringstream mesh_name;
+            mesh_name << mfilename << setfill('0') << setw(6) << ip;
+            ofstream mesh_ofs(mesh_name.str().c_str());
+            mesh_ofs.precision(8);
+            meshes[ip]->Print(mesh_ofs);
+            L2_FECollection L2fec(1,meshes[ip]->Dimension());
+            FiniteElementSpace L2fes(meshes[ip], &L2fec);
+            GridFunction x(&L2fes); 
+            // int v = ip % 2;   
+            int v = ((i+j) % 2 == 0) ? 0 : 1;
+
+            ConstantCoefficient alpha((double)v);
+            x.ProjectCoefficient(alpha);
+            ostringstream sol_name;
+            sol_name << sfilename << setfill('0') << setw(6) << ip;
+            ofstream sol_ofs(sol_name.str().c_str());
+            x.Save(sol_ofs);
+   // }
+         }
+      }
    }
 }
 MeshPartition::~MeshPartition()
@@ -244,7 +280,7 @@ PatchAssembly::PatchAssembly(BilinearForm *bf_, Array<int> & ess_tdofs, int part
    for (int i = 0; i<ess_tdofs.Size(); i++) global_tdofs[ess_tdofs[i]] = 0;
 
    MeshPartition * p = new MeshPartition(mesh, part);
-   p->SaveMeshPartition();
+   // SaveMeshPartition(p->patch_mesh);
    nrpatch = p->nrpatch;
    patch_fespaces.SetSize(nrpatch);
    patch_dof_map.resize(nrpatch);
@@ -391,6 +427,36 @@ AddSchwarz::~AddSchwarz()
    delete p;
 }
 
+
+
+double GetUniformMeshElementSize(Mesh * mesh)
+{
+   int dim = mesh->Dimension();
+   int nrelem = mesh->GetNE();
+   DenseMatrix J(dim);
+   double hmin, hmax;
+   hmin = infinity();
+   hmax = -infinity();
+   Vector attr(nrelem);
+
+   for (int iel=0; iel<nrelem; ++iel)
+   {
+      int geom = mesh->GetElementBaseGeometry(iel);
+      ElementTransformation *T = mesh->GetElementTransformation(iel);
+      T->SetIntPoint(&Geometries.GetCenter(geom));
+      Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+      attr(iel) = J.Det();
+      attr(iel) = pow(abs(attr(iel)), 1.0/double(dim));
+      hmin = min(hmin, attr(iel));
+      hmax = max(hmax, attr(iel));
+   }
+   MFEM_VERIFY(hmin==hmax, "Case not supported yet")
+
+   return hmax;
+}
+
+
+
 Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
 {
     // extrute on one dimension
@@ -408,33 +474,31 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
    {
       int d = directions[j];
       MFEM_VERIFY(abs(d)<= dim, "Cannot Extend in dimension " << d << ". Dim = " << dim << endl);
-      int nrelem = mesh_orig->GetNE();
-
 
       Vector pmin;
       Vector pmax;
       mesh_orig->GetBoundingBox(pmin,pmax);
 
-      DenseMatrix J(dim);
-      double hmin, hmax;
-      hmin = infinity();
-      hmax = -infinity();
-      Vector attr(nrelem);
-      // element size
+      // DenseMatrix J(dim);
+      // double hmin, hmax;
+      // hmin = infinity();
+      // hmax = -infinity();
+      // Vector attr(nrelem);
+      // // element size
 
-      for (int iel=0; iel<nrelem; ++iel)
-      {
-         int geom = mesh_orig->GetElementBaseGeometry(iel);
-         ElementTransformation *T = mesh_orig->GetElementTransformation(iel);
-         T->SetIntPoint(&Geometries.GetCenter(geom));
-         Geometries.JacToPerfJac(geom, T->Jacobian(), J);
-         attr(iel) = J.Det();
-         attr(iel) = pow(abs(attr(iel)), 1.0/double(dim));
-         hmin = min(hmin, attr(iel));
-         hmax = max(hmax, attr(iel));
-      }
-      MFEM_VERIFY(hmin==hmax, "Case not supported yet")
-
+      // for (int iel=0; iel<nrelem; ++iel)
+      // {
+      //    int geom = mesh_orig->GetElementBaseGeometry(iel);
+      //    ElementTransformation *T = mesh_orig->GetElementTransformation(iel);
+      //    T->SetIntPoint(&Geometries.GetCenter(geom));
+      //    Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+      //    attr(iel) = J.Det();
+      //    attr(iel) = pow(abs(attr(iel)), 1.0/double(dim));
+      //    hmin = min(hmin, attr(iel));
+      //    hmax = max(hmax, attr(iel));
+      // }
+      // MFEM_VERIFY(hmin==hmax, "Case not supported yet")
+      double h = GetUniformMeshElementSize(mesh);
       double val;
       // find the vertices on the specific boundary
       switch (d)
@@ -444,21 +508,21 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
          break;
       case -1:
          val = pmin[0];
-         hmax = -hmax;
+         h = -h;
          break;    
       case 2:
          val = pmax[1];
          break;
       case -2:
          val = pmin[1];
-         hmax = -hmax;
+         h = -h;
          break;   
       case 3:
          val = pmax[2];
          break;
       case -3:
          val = pmin[2];
-         hmax = -hmax;
+         h = -h;
          break;      
       }
       int k = 0;
@@ -540,7 +604,7 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
             if (vert[0] == val) 
             {
                double coords[dim];
-               coords[0] = vert[0] + hmax;
+               coords[0] = vert[0] + h;
                coords[1] = vert[1];
                if (dim == 3) coords[2] = vert[2];
                mesh_ext->AddVertex(coords);
@@ -551,7 +615,7 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
             {
                double coords[dim];
                coords[0] = vert[0];
-               coords[1] = vert[1] + hmax;
+               coords[1] = vert[1] + h;
                if (dim == 3) coords[2] = vert[2];
                mesh_ext->AddVertex(coords);
             }
@@ -562,7 +626,7 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
                double coords[dim];
                coords[0] = vert[0];
                coords[1] = vert[1];
-               coords[2] = vert[2] + hmax;
+               coords[2] = vert[2] + h;
                mesh_ext->AddVertex(coords);
             }
             break;      

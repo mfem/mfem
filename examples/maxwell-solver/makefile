@@ -33,7 +33,7 @@ endif
 
 COMMON_O= schwarz.o complex_additive_schwarz.o \
 		    complex_additive_schwarzp.o additive_schwarz.o \
-			 additive_schwarzp.o pml.o
+			 additive_schwarzp.o pml.o LSweepsPrecond.o
 
 # Remove built-in rules
 %: %.cpp

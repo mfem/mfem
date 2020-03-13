@@ -2,17 +2,19 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "additive_schwarz.hpp"
-#include "pml.hpp"
+#include "complex_additive_schwarz.hpp"
 using namespace std;
 using namespace mfem;
 
-class ComplexPatchAssembly
+class PmlPatchAssembly
 {
    FiniteElementSpace *fespace=nullptr;
    SesquilinearForm *bf=nullptr;
+   double omega = 0.5;
+   int nrlayers = 4;
 public:
    int nrpatch, nx, ny, nz;
+   MeshPartition * p;
    Array<FiniteElementSpace *> patch_fespaces;
    Array<FiniteElementSpace *> patch_fespaces_ext;
    Array<Mesh *> patch_meshes_ext;
@@ -24,35 +26,40 @@ public:
    Array<KLUSolver * > patch_mat_inv_ext;
    Array<KLUSolver * > patch_mat_inv;
    std::vector<Array<int>> ess_tdof_list;
+   std::vector<Array<int>> ess_tdof_list_ext;
 
    // constructor
-   ComplexPatchAssembly(SesquilinearForm * bf_, Array<int> & ess_tdofs, int part);
-   ~ComplexPatchAssembly();
+   PmlPatchAssembly(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrlayers_, int part);
+
+   ~PmlPatchAssembly();
 };
 
 
-class ComplexAddSchwarz : public Solver//
+class LSweepsPrecond : public Solver//
 {
 private:
    int nrpatch;
    int maxit = 1;
    SesquilinearForm *bf=nullptr;
-   int part;
    int type = 0;
    double theta = 0.5;
-   ComplexPatchAssembly * p;
+   double omega = 0.5;
+   int nrlayers;
+   int part;
+   PmlPatchAssembly * p;
    const Operator * A;
    Vector B;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
 
    
 public:
-   ComplexAddSchwarz(SesquilinearForm * bf_, Array<int> & ess_tdofs, int i = 0);
+   LSweepsPrecond(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrlayers_, int i = 0);
    void SetNumSmoothSteps(const int iter) { maxit = iter;}
    void SetLoadVector(Vector load) { B = load;}
    void SetSmoothType(int itype) { type = itype;}
-   void SetDumpingParam(const double dump_param) {theta = dump_param;}
+   void SetDumpingParam(const double & dump_param) {theta = dump_param;}
+   void SetOmega(const double & omega_) {omega = omega_;}
    virtual void SetOperator(const Operator &op) {A = &op;}
    virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~ComplexAddSchwarz();
+   virtual ~LSweepsPrecond();
 };

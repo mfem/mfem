@@ -1,3 +1,4 @@
+#pragma once
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -10,7 +11,6 @@ class CartesianPML
 {
 private:
    Mesh *mesh;
-   int dim;
 
    // Length of the PML Region in each direction
    Array2D<double> length;
@@ -32,6 +32,8 @@ public:
    // Constructor
    CartesianPML(Mesh *mesh_,Array2D<double> length_);
 
+   int dim;
+   double omega;
    // Return Computational Domain Boundary
    Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
 
@@ -43,6 +45,8 @@ public:
 
    // Mark element in the PML region
    void SetAttributes(Mesh *mesh_);
+
+   void SetOmega(double omega_) {omega = omega_;}
 
    // PML complex stretching function
    void StretchFunction(const Vector &x, vector<complex<double>> &dxs, double omega);
@@ -90,3 +94,8 @@ public:
       (*Function)(transip, pml, K);
    }
 };
+
+double pml_detJ_Re(const Vector & x, CartesianPML * pml);
+double pml_detJ_Im(const Vector & x, CartesianPML * pml);
+void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M);
+void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M);

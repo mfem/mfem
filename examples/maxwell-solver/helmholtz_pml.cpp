@@ -13,6 +13,7 @@
 #include <fstream>
 #include <iostream>
 #include "pml.hpp"
+#include "LSweepsPrecond.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -21,10 +22,6 @@ using namespace mfem;
 double f_exact_Re(const Vector &x);
 double f_exact_Im(const Vector &x);
 
-double pml_detJ_Re(const Vector & x, CartesianPML * pml);
-double pml_detJ_Im(const Vector & x, CartesianPML * pml);
-void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M);
-void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M);
 
 
 int dim;
@@ -34,6 +31,8 @@ bool pml = false;
 double length = 1.0;
 double pml_length = 0.25;
 bool scatter = false;
+Array2D<double>comp_bdr;
+
 
 #ifndef MFEM_USE_SUPERLU
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
@@ -115,10 +114,32 @@ int main(int argc, char *argv[])
    }
    dim = mesh->Dimension();
 
+   Array<int> directions;
+   int nrlayers = 4;
+   
+   for (int i = 0; i<nrlayers; i++)
+   {
+      for (int comp=0; comp<dim; ++comp)
+      {
+         directions.Append(comp+1);
+         directions.Append(-comp-1);
+      }
+   }
+   // Find uniform h size of the original mesh
+   double h = GetUniformMeshElementSize(mesh);
+   cout << "pml length = " << h*nrlayers << endl;
+   Mesh *mesh_ext = ExtendMesh(mesh,directions);
+
+   Array2D<double> lengths(dim,2);
+   lengths = h*nrlayers;
+   CartesianPML pml(mesh_ext,lengths);
+   pml.SetOmega(omega);
+   comp_bdr.SetSize(dim,2);
+   comp_bdr = pml.GetCompDomainBdr(); 
 
    // 6. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh_ext, fec);
 
    // 6. Set up the linear form (Real and Imaginary part)
    FunctionCoefficient f_Re(f_exact_Re);
@@ -136,9 +157,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient sigma(-pow(omega, 2));
 
-   Array2D<double> length(dim,2);
-   length = 0.25;
-   CartesianPML pml(mesh,length);
+
 
 
    PmlMatrixCoefficient c1_re(dim,pml_detJ_JT_J_inv_Re,&pml);
@@ -160,7 +179,7 @@ int main(int argc, char *argv[])
    a.Finalize();
 
    Array<int> ess_tdof_list;
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   Array<int> ess_bdr(mesh_ext->bdr_attributes.Max());
    ess_bdr = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -179,10 +198,81 @@ int main(int argc, char *argv[])
    cout << "Size of fine grid system: "
          << A->Height() << " x " << A->Width() << endl;
 
+
+   LSweepsPrecond S(&a,ess_tdof_list, omega,nrlayers, 1);
+	S.SetOperator(*A);
+   S.SetSmoothType(1);
+   S.SetLoadVector(B);
+   S.SetDumpingParam(1.0);
+   
+   // X = 0.0;
+	// GMRESSolver gmres;
+	// gmres.SetPreconditioner(S);
+	// gmres.SetOperator(*A);
+	// gmres.SetRelTol(1e-8);
+	// gmres.SetMaxIter(500);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
+
+
+
+
+
+   X = 0.0;
+   Vector z(X.Size()); z = 0.0;
+   Vector r(B);
+   // r = B;
+   Vector ztemp(r.Size());
+
+   int n= 1;
+
+   Vector Ax(X.Size());
+   for (int i = 0; i<n; i++)
+   {
+      A->Mult(X,Ax); Ax *=-1.0;
+      r = b; r+=Ax;
+      // A->AddMult(X,r,-1.0); //r = r-Ax
+      cout << "residual norm =" << r.Norml2() << endl;
+      // S.Mult(r,z); 
+      S.Mult(r,z); 
+      cout << "correction norm =" << z.Norml2() << endl;
+
+      X += z;
+
+      cout << "solution norm =" << X.Norml2() << endl;
+
+      p_gf = 0.0;
+      a.RecoverFEMSolution(X,B,p_gf);
+
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+                     "window_title 'Numerical Pressure (real part)' "
+                     << keys << flush;
+      cout << "Iteration " << i << endl;
+      cin.get();
+   }
+
+
+
    KLUSolver klu(*A);
    klu.Mult(B,X);
+   ComplexGridFunction p_gf1(fespace);
 
-   a.RecoverFEMSolution(X,B,p_gf);
+   a.RecoverFEMSolution(X,B,p_gf1);
+
+   p_gf1 -= p_gf;
 
    if (visualization)
    {
@@ -199,13 +289,14 @@ int main(int argc, char *argv[])
       }
       socketstream sol_sock_re(vishost, visport);
       sol_sock_re.precision(8);
-      sol_sock_re << "solution\n" << *mesh << p_gf.real() <<
+      sol_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
                   "window_title 'Numerical Pressure (real part from KLU)' "
                   << keys << flush;
    }
 
    delete fespace;
    delete fec;
+	delete mesh_ext;
 	delete mesh;
    return 0;
 }
@@ -218,8 +309,8 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.5;
-   x1 = 0.5;
+   x0 = 0.0;
+   x1 = 0.0;
    double alpha,beta;
    double n = 5.0 * omega/M_PI;
    double coeff = pow(n,2)/M_PI;
@@ -228,68 +319,25 @@ double f_exact_Re(const Vector &x)
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
+   bool in_pml = false;
+   for (int i = 0; i<dim; i++)
+   {
+      if (x(i)<=comp_bdr(i,0) || x(i)>=comp_bdr(i,1))
+      {
+         in_pml = true;
+         break;
+      }
+   }
+   if (in_pml) f_re = 0.0;
+
    return f_re;
+
 }
 double f_exact_Im(const Vector &x)
 {
    double f_im;
    f_im = 0.0;
    return f_im;
-}
-
-
-double pml_detJ_Re(const Vector & x, CartesianPML * pml)
-{
-   std::vector<std::complex<double>> dxs(dim);
-   complex<double> det(1.0,0.0);
-   pml->StretchFunction(x, dxs, omega);
-   for (int i=0; i<dim; ++i) det *= dxs[i];
-   return det.real();
-}
-
-double pml_detJ_Im(const Vector & x, CartesianPML * pml)
-{
-   std::vector<std::complex<double>> dxs(dim);
-   complex<double> det(1.0,0.0);
-   pml->StretchFunction(x, dxs, omega);
-   for (int i=0; i<dim; ++i) det *= dxs[i];
-   return det.imag();
-}
-
-void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M)
-{
-   std::vector<std::complex<double>> dxs(dim);
-   complex<double> det(1.0,0.0);
-   pml->StretchFunction(x, dxs, omega);
-
-   for (int i = 0; i<dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   M=0.0;
-   for (int i = 0; i<dim; ++i)
-   {
-      M(i,i) = (det / pow(dxs[i],2)).real();
-   }
-}
-
-void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M)
-{
-   std::vector<std::complex<double>> dxs(dim);
-   complex<double> det = 1.0;
-   pml->StretchFunction(x, dxs, omega);
-
-   for (int i = 0; i<dim; ++i)
-   {
-      det *= dxs[i];
-   }
-
-   M=0.0;
-   for (int i = 0; i<dim; ++i)
-   {
-      M(i,i) = (det / pow(dxs[i],2)).imag();
-   }
 }
 
 

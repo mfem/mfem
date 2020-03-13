@@ -87,7 +87,7 @@ void CartesianPML::StretchFunction(const Vector &x,
    double n = 2.0;
    double c = 5.0;
    double coeff;
-   // Stretch in each direction independenly
+   // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)
    {
       dxs[i] = 1.0;
@@ -103,3 +103,68 @@ void CartesianPML::StretchFunction(const Vector &x,
       }
    }
 }
+
+
+double pml_detJ_Re(const Vector & x, CartesianPML * pml)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det(1.0,0.0);
+   pml->StretchFunction(x, dxs, omega);
+   for (int i=0; i<dim; ++i) det *= dxs[i];
+   return det.real();
+}
+
+double pml_detJ_Im(const Vector & x, CartesianPML * pml)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det(1.0,0.0);
+   pml->StretchFunction(x, dxs, omega);
+   for (int i=0; i<dim; ++i) det *= dxs[i];
+   return det.imag();
+}
+
+void pml_detJ_JT_J_inv_Re(const Vector & x, CartesianPML * pml , DenseMatrix & M)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det(1.0,0.0);
+   pml->StretchFunction(x, dxs, omega);
+
+   for (int i = 0; i<dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   M=0.0;
+   for (int i = 0; i<dim; ++i)
+   {
+      M(i,i) = (det / pow(dxs[i],2)).real();
+   }
+}
+
+void pml_detJ_JT_J_inv_Im(const Vector & x, CartesianPML * pml , DenseMatrix & M)
+{
+   int dim = pml->dim;
+   double omega = pml->omega;
+
+   std::vector<std::complex<double>> dxs(dim);
+   complex<double> det = 1.0;
+   pml->StretchFunction(x, dxs, omega);
+
+   for (int i = 0; i<dim; ++i)
+   {
+      det *= dxs[i];
+   }
+
+   M=0.0;
+   for (int i = 0; i<dim; ++i)
+   {
+      M(i,i) = (det / pow(dxs[i],2)).imag();
+   }
+}
+

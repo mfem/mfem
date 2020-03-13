@@ -11,6 +11,7 @@ private:
    Mesh *mesh=nullptr;
 public:
    int nrpatch;
+   int nx, ny, nz;
    std::vector<Array<int>> element_map;
    // constructor
    CartesianMeshPartition(Mesh * mesh_);
@@ -39,15 +40,17 @@ private:
    void PrintElementMap();
 public:
    int nrpatch;
+   int nx, ny, nz;
    std::vector<Array<int>> element_map;
    Array<Mesh *> patch_mesh;
    // constructor
    MeshPartition(Mesh * mesh_, int part);
-   void SaveMeshPartition();
    ~MeshPartition();
 };
 
-
+void SaveMeshPartition(Array<Mesh * > meshes, 
+                       string mfilename="output/mesh.",
+                       string sfilename="output/sol.");
 
 
 class PatchAssembly // for now every vertex defines a patch
@@ -97,3 +100,5 @@ public:
 };
 
 Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions);
+
+double GetUniformMeshElementSize(Mesh * mesh);
