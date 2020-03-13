@@ -1569,9 +1569,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    }
 
    elvect.SetSize(dof*dim);
-   Vector elfunmod;
-   elfunmod.SetSize(dof*dim);
-   elfunmod.SetData(elfun.GetData());
+   Vector elfunmod(elfun);
 
    // Energy for unperturbed configuration
    double e_fx = GetElementEnergy(el, T, elfun);
@@ -1599,9 +1597,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    const int dof = el.GetDof(), dim = el.GetDim();
 
    elmat.SetSize(dof*dim);
-   Vector elfunmod;
-   elfunmod.SetSize(dof*dim);
-   elfunmod.SetData(elfun.GetData());
+   Vector elfunmod(elfun);
 
    const Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
    const Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
