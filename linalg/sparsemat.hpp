@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_SPARSEMAT_HPP
@@ -534,7 +534,7 @@ public:
    /// Prints a sparse matrix to stream out in CSR format.
    void PrintCSR2(std::ostream &out) const;
 
-   /// Print various sparse matrix staticstics.
+   /// Print various sparse matrix statistics.
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix

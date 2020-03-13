@@ -401,7 +401,7 @@ int main(int argc, char *argv[])
    //     diagonal preconditioner based on the appropriate multigrid
    //     preconditioner from hypre.
    {
-      Array<HYPRE_Int> blockTrueOffsets;
+      Array<int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
       blockTrueOffsets[0] = 0;
       blockTrueOffsets[1] = PCOp.Ptr()->Height();

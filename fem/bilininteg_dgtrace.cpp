@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
@@ -743,7 +743,7 @@ void PADGTraceApplyTranspose2D(const int NF,
    });
 }
 
-// PA DGTrace Apply Transpoe 3D kernel for Gauss-Lobatto/Bernstein
+// PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApplyTranspose3D(const int NF,
                                const Array<double> &b,

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -1529,7 +1529,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    else
    {
       /* A and B have different column mappings for their off-diagonal blocks so
-      we need to use the column maps to create full-width CSR matricies. */
+      we need to use the column maps to create full-width CSR matrices. */
 
       int  ierr = 0;
       hypre_CSRMatrix * csr_A;
