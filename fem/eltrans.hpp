@@ -49,7 +49,20 @@ protected:
    const DenseMatrix &EvalInverseJ();
 
 public:
-   enum IndexType
+
+   /** This enumeration declares the values stored in
+       ElementTransformation::ElementType and indicates which group of
+       objects the index stored in ElementTransformation::ElementNo
+       refers:
+
+       | ElementType | Range of ElementNo
+       +-------------+-------------------------
+       | ELEMENT     | [0, Mesh::GetNE()     )
+       | BDR_ELEMENT | [0, Mesh::GetNBE()    )
+       | EDGE        | [0, Mesh::GetNEdges() )
+       | FACE        | [0, Mesh::GetNFaces() )
+   */
+   enum
    {
       ELEMENT     = 1,
       BDR_ELEMENT = 2,
