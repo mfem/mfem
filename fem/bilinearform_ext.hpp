@@ -250,6 +250,9 @@ class PADiscreteLinearOperatorExtension : public PAMixedBilinearFormExtension
 public:
    PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop);
 
+   /// Partial assembly of all internal integrators
+   void Assemble();
+
    void AddMult(const Vector &x, Vector &y, const double c) const;
 };
 
