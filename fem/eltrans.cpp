@@ -581,7 +581,7 @@ int FaceElementTransformations::SetActiveSide(int s)
 ElementTransformation *
 FaceElementTransformations::GetActiveElementTransformation()
 {
-   while(1)
+   while (1)
    {
       if (side == 0)
       {
@@ -600,7 +600,7 @@ FaceElementTransformations::GetActiveElementTransformation()
 IntegrationPointTransformation *
 FaceElementTransformations::GetActivePointTransformation()
 {
-   while(1)
+   while (1)
    {
       if (side == 0)
       {
