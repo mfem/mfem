@@ -129,10 +129,10 @@ double ind_values(const Vector &x)
       r1= 0.25; r2 = 0.75;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val += 0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));
+      val += 0.5*(1+std::tanh(sf*(r+rval))) -
+             0.5*(1+std::tanh(sf*(r-rval)));
    }
-
-   if (opt == 5)
+   else if (opt == 5)
    {
       // cross
       double X = x(0)-0.5, Y = x(1)-0.5;
@@ -145,10 +145,9 @@ double ind_values(const Vector &x)
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = (0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2))) +
              0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))));
-      if (rval > 0.4) {val = 0.;}
+      if (rval > 0.4) { val = 0.; }
    }
-
-   if (opt == 6)
+   else if (opt == 6)
    {
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
