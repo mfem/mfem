@@ -167,7 +167,6 @@ double ind_values(const Vector &x)
 double ori_values(const Vector &x)
 {
    const int opt = 2;
-   const double small = 0.001, big = 0.01;
 
    // circle
    if (opt==1)
@@ -258,7 +257,6 @@ public:
 
          xc = pos(0), yc = pos(1);
          double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
-         double alpha_bar = 0.1;
 
          K(0, 0) =  cos(theta);
          K(1, 0) =  sin(theta);
