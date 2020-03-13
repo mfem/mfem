@@ -423,15 +423,15 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc, *pfesc);
+         tmopi->ComputeFDh(x_loc, *pfesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x_loc);
-            double fdeps = tmopi->GetFDh();
+            double dx = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
-               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, dx);
+               discrtc->UpdateHessianTargetSpecification(x_loc, dx);
             }
          }
       }
@@ -458,15 +458,15 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc, *fesc);
+         tmopi->ComputeFDh(x_loc, *fesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x);
-            double fdeps = tmopi->GetFDh();
+            double dx = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
-               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, dx);
+               discrtc->UpdateHessianTargetSpecification(x_loc, dx);
             }
          }
       }
@@ -587,15 +587,15 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc, *pfesc);
+         tmopi->ComputeFDh(x_loc, *pfesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x_loc);
-            double fdeps = tmopi->GetFDh();
+            double dx = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
-               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, dx);
+               discrtc->UpdateHessianTargetSpecification(x_loc, dx);
             }
          }
       }
@@ -622,15 +622,15 @@ void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
       {
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
-         tmopi->SetFDh(x_loc, *fesc);
+         tmopi->ComputeFDh(x_loc, *fesc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x);
-            double fdeps = tmopi->GetFDh();
+            double dx = tmopi->GetFDh();
             if (tmopi->GetFDFlag())
             {
-               discrtc->UpdateGradientTargetSpecification(x_loc, fdeps);
-               discrtc->UpdateHessianTargetSpecification(x_loc, fdeps);
+               discrtc->UpdateGradientTargetSpecification(x_loc, dx);
+               discrtc->UpdateHessianTargetSpecification(x_loc, dx);
             }
          }
       }

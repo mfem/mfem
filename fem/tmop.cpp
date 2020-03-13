@@ -1070,7 +1070,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 }
 
 void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
-                                                        const double fdeps)
+                                                        const double dx)
 {
    const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
@@ -1084,17 +1084,17 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
    Vector xtemp = x;
    for (int j = 0; j < dim; j++)
    {
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += dx; }
 
       TSpecTemp.SetDataAndSize(tspec_perth.GetData() + j*cnt, cnt);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= dx; }
    }
 }
 
 void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
-                                                       const double fdeps)
+                                                       const double dx)
 {
    const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
@@ -1111,12 +1111,12 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    // T(x+2h)
    for (int j = 0; j < dim; j++)
    {
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += 2*fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += 2*dx; }
 
       TSpecTemp.SetDataAndSize(tspec_pert2h.GetData() + j*cnt, cnt);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
-      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= 2*fdeps; }
+      for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= 2*dx; }
    }
 
    // T(x+h,y+h)
@@ -1127,8 +1127,8 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
       {
          for (int i = 0; i < cnt; i++)
          {
-            xtemp(k1*cnt+i) += fdeps;
-            xtemp(k2*cnt+i) += fdeps;
+            xtemp(k1*cnt+i) += dx;
+            xtemp(k2*cnt+i) += dx;
          }
 
          TSpecTemp.SetDataAndSize(tspec_pertmix.GetData() + idx*cnt, cnt);
@@ -1136,8 +1136,8 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
 
          for (int i = 0; i < cnt; i++)
          {
-            xtemp(k1*cnt+i) -= fdeps;
-            xtemp(k2*cnt+i) -= fdeps;
+            xtemp(k1*cnt+i) -= dx;
+            xtemp(k2*cnt+i) -= dx;
          }
          idx++;
       }
@@ -1540,10 +1540,10 @@ double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
 {
    int dof = el.GetDof();
    int idx = dir*dof+dofidx;
-   elfun[idx]    += fdeps;
+   elfun[idx]    += dx;
    double e_fxph  = GetElementEnergy(el, T, elfun);
-   elfun[idx]    -= fdeps;
-   double dfdx    = (e_fxph-e_fx)/fdeps;
+   elfun[idx]    -= dx;
+   double dfdx    = (e_fxph-e_fx)/dx;
 
    if (update_stored)
    {
@@ -1610,7 +1610,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          {
             for (int k2 = 0; k2 < dim; k2++)
             {
-               elfunmod(k2*dof+j) += fdeps;
+               elfunmod(k2*dof+j) += dx;
 
                if (discr_tc)
                {
@@ -1640,11 +1640,11 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                double e_fx   = ElemPertLoc(k2*dof+j);
                double e_fpxph = GetFDDerivative(el, T, elfunmod, i, k1, e_fx,
                                                 false);
-               elfunmod(k2*dof+j) -= fdeps;
+               elfunmod(k2*dof+j) -= dx;
                double e_fpx = ElemDerLoc(k1*dof+i);
 
-               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / fdeps;
-               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx) / fdeps;
+               elmat(k1*dof+i, k2*dof+j) = (e_fpxph - e_fpx) / dx;
+               elmat(k2*dof+j, k1*dof+i) = (e_fpxph - e_fpx) / dx;
 
                if (discr_tc)
                {
@@ -1743,7 +1743,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
 
-   fdeps = std::numeric_limits<float>::max();
+   dx = std::numeric_limits<float>::max();
 
    double detv_sum;
    double detv_avg_min = std::numeric_limits<float>::max();
@@ -1761,23 +1761,24 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
       double detv_avg = pow(detv_sum/nsp, 1./dim);
       detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
-   fdeps = detv_avg_min / 1.0e3;
+   dx = detv_avg_min / dxscale;
 }
 
-void TMOP_Integrator::SetFDh(const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
 {
    if (!fdflag) { return; }
    ComputeMinJac(x, fes);
 }
 
 #ifdef MFEM_USE_MPI
-void TMOP_Integrator::SetFDh(const Vector &x, const ParFiniteElementSpace &pfes)
+void TMOP_Integrator::ComputeFDh(const Vector &x,
+                                 const ParFiniteElementSpace &pfes)
 {
    if (!fdflag) { return; }
    ComputeMinJac(x, pfes);
    double min_jac_all;
-   MPI_Allreduce(&fdeps, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
-   fdeps = min_jac_all;
+   MPI_Allreduce(&dx, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes.GetComm());
+   dx = min_jac_all;
 }
 #endif
 
@@ -1785,12 +1786,12 @@ void TMOP_Integrator::EnableFiniteDifferences(const GridFunction &x)
 {
    fdflag = true;
    const FiniteElementSpace *fes = x.FESpace();
-   SetFDh(x,*fes);
+   ComputeFDh(x,*fes);
    if (discr_tc)
    {
       discr_tc->UpdateTargetSpecification(x);
-      discr_tc->UpdateGradientTargetSpecification(x, fdeps);
-      discr_tc->UpdateHessianTargetSpecification(x, fdeps);
+      discr_tc->UpdateGradientTargetSpecification(x, dx);
+      discr_tc->UpdateHessianTargetSpecification(x, dx);
    }
 }
 
@@ -1799,12 +1800,12 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 {
    fdflag = true;
    const ParFiniteElementSpace *pfes = x.ParFESpace();
-   SetFDh(x,*pfes);
+   ComputeFDh(x,*pfes);
    if (discr_tc)
    {
       discr_tc->UpdateTargetSpecification(x);
-      discr_tc->UpdateGradientTargetSpecification(x, fdeps);
-      discr_tc->UpdateHessianTargetSpecification(x, fdeps);
+      discr_tc->UpdateGradientTargetSpecification(x, dx);
+      discr_tc->UpdateHessianTargetSpecification(x, dx);
    }
 }
 #endif
