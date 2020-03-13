@@ -72,7 +72,7 @@ struct Opt
 {
    int nx = 6;
    int ny = 6;
-   int order = 2;
+   int order = 3;
    int refine = 2;
    int niters = 8;
    int surface = 5;
@@ -84,7 +84,7 @@ struct Opt
    bool by_vdim = false;
    bool vis_mesh = false;
    double lambda = 0.1;
-   double amr_threshold = 0.5;
+   double amr_threshold = 0.6;
 #ifdef __APPLE__
    const char *keys = "Am";
 #else
@@ -200,6 +200,7 @@ public:
       {
          Array<int> ess_bdr(bdr_attributes.Max());
          ess_bdr = 1;
+         bc.HostReadWrite();
          fes->GetEssentialTrueDofs(ess_bdr, bc);
       }
    }
@@ -208,18 +209,14 @@ public:
    static void Visualize(const Opt &opt, const Mesh *mesh,
                          const int w, const int h)
    {
-      dbg("");
       if (opt.vis_mesh)
       {
-         //mesh->Print(glvis);
          glvis << "mesh\n" << *mesh;
       }
       else
       {
          glvis << "parallel " << NRanks << " " << MyRank << "\n";
          const GridFunction *x = mesh->GetNodes();
-         //mesh->Print(glvis);
-         //x->Save(glvis);
          glvis << "solution\n" << *mesh << *x;
       }
       glvis.precision(8);
@@ -227,13 +224,11 @@ public:
       glvis << "keys " << opt.keys << "\n";
       if (opt.wait) { glvis << "pause\n"; }
       glvis << flush;
-      fflush(0);
    }
 
    // Visualize some solution on the given mesh
    static void Visualize(const Opt &opt, const Mesh *mesh)
    {
-      dbg("");
       if (opt.vis_mesh)
       {
          glvis << "mesh\n" << *mesh;
@@ -246,7 +241,6 @@ public:
       }
       if (opt.wait) { glvis << "pause\n"; }
       glvis << flush;
-      fflush(0);
    }
 
    // Surface Solver class
@@ -894,14 +888,13 @@ struct FullPeach: public Surface
       MFEM_VERIFY(fes->GetVSize() >= fes->GetTrueVSize(),"");
       ess_vdofs = 0;
       DenseMatrix PointMat;
+      mesh->GetNodes()->HostRead();
       for (int e = 0; e < fes->GetNE(); e++)
       {
          fes->GetElementDofs(e, dofs);
-         //dbg("\t\033[35m[FullPeach] e #%d, dofs:", e); dofs.Print();
          const IntegrationRule &ir = fes->GetFE(e)->GetNodes();
          ElementTransformation *eTr = mesh->GetElementTransformation(e);
          eTr->Transform(ir, PointMat);
-         //dbg("\t\033[35m[FullPeach] e #%d, PointMat:", e); PointMat.Print();
          Vector one(dofs.Size());
          for (int dof = 0; dof < dofs.Size(); dof++)
          {
@@ -909,19 +902,14 @@ struct FullPeach: public Surface
             one[dof] = 1.0;
             const int k = dofs[dof];
             MFEM_ASSERT(k >= 0, "");
-            //dbg("\t\t\033[35m[FullPeach] k #%d", k);
             PointMat.Mult(one, X);
             const bool halfX = fabs(X[0]) < EPS && X[1] <= 0.0;
             const bool halfY = fabs(X[2]) < EPS && X[1] >= 0.0;
             const bool is_on_bc = halfX || halfY;
-            //dbg("\t\t\033[35m[FullPeach] X (%f,%f,%f)", X[0],X[1],X[2]);
-            /*dbg("\t\033[%dm[FullPeach] X(%f,%f,%f)",
-                is_on_bc ? 31: 37, X[0],X[1],X[2]);*/
             for (int c = 0; c < SDIM; c++)
             { ess_vdofs[fes->DofToVDof(k, c)] = is_on_bc; }
          }
       }
-      int here;
       const SparseMatrix *R = fes->GetRestrictionMatrix();
       if (!R)
       {
@@ -931,6 +919,7 @@ struct FullPeach: public Surface
       {
          R->BooleanMult(ess_vdofs, ess_tdofs);
       }
+      bc.HostReadWrite();
       ParFiniteElementSpace::MarkerToList(ess_tdofs, bc);
    }
 };
