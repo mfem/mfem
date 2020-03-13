@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            --------------------------------------------------
 //            Mesh Optimizer Miniapp: Optimize high-order meshes
@@ -75,17 +75,17 @@ void DiffuseField(GridFunction &field, int smooth_steps);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 6;
+   const int opt = 5;
    const double small = 0.001, big = 0.01;
 
    // Sine wave.
    if (opt==1)
    {
-      const double X = x(0), Y = x(1);
-      const double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                         std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+     const double X = x(0), Y = x(1);
+     const double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+                        std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
 
-      return ind * small + (1.0 - ind) * big;
+     return ind * small + (1.0 - ind) * big;
    }
    if (opt==2)
    {
@@ -146,31 +146,30 @@ double ind_values(const Vector &x)
 
       return val * small + (1.0 - val) * big;
    }
-
-   if (opt==6) //rotated sine wave
-   {
-      double val = 0.;
-      const double X = x(0);
-      const double Y = x(1);
-
-      double xc = x(0)-0.5, yc = x(1)-0.5;
-      double th = 22.5*M_PI/180.;
-      double xn =  cos(th)*xc + sin(th)*yc;
-      double yn = -sin(th)*xc + cos(th)*yc;
-      double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-      double stretch = 1/cos(th2);
-      xc = xn/stretch; yc = yn/stretch;
-      double tfac = 20;
-      double s1 = 3;
-      double s2 = 3;
-      double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
-      if (wgt > 1) { wgt = 1; }
-      if (wgt < 0) { wgt = 0; }
-      val = wgt;
-      return val;
-   }
-
    return 0.0;
+}
+
+double discr_values(const Vector &x)
+{
+    double val = 0.;
+    const double X = x(0);
+    const double Y = x(1);
+
+    double xc = x(0)-0.5, yc = x(1)-0.5;
+    double th = 22.5*M_PI/180.;
+    double xn =  cos(th)*xc + sin(th)*yc;
+    double yn = -sin(th)*xc + cos(th)*yc;
+    double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+    double stretch = 1/cos(th2);
+    xc = xn/stretch; yc = yn/stretch;
+    double tfac = 20;
+    double s1 = 3;
+    double s2 = 3;
+    double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
+    if (wgt > 1) { wgt = 1; }
+    if (wgt < 0) { wgt = 0; }
+    val = wgt;
+    return val;
 }
 
 double ori_values(const Vector &x)
@@ -198,7 +197,6 @@ double ori_values(const Vector &x)
       double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
       return theta;
    }
-
 
    return 0.0;
 }
@@ -303,7 +301,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-08;
+   double newton_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -567,7 +565,7 @@ int main (int argc, char *argv[])
 
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         FunctionCoefficient ind_coeff(ind_values);
+         FunctionCoefficient ind_coeff(discr_values);
          disc.ProjectCoefficient(ind_coeff);
 #ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
@@ -659,7 +657,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   he_nlf_integ->SetFDPar(fdscheme, mesh->GetNE());
+   if (fdscheme!=0) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -716,7 +714,7 @@ int main (int argc, char *argv[])
       target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
-      he_nlf_integ2->SetFDPar(fdscheme, mesh->GetNE());
+      if (fdscheme!=0) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);
@@ -850,7 +848,6 @@ int main (int argc, char *argv[])
       newton = new TMOPDescentNewtonSolver(*ir);
       cout << "The TMOPDescentNewtonSolver is used (as some det(J) < 0).\n";
    }
-
    newton->SetPreconditioner(*S);
    newton->SetMaxIter(newton_iter);
    newton->SetRelTol(newton_rtol);

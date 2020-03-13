@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TMOP_HPP
 #define MFEM_TMOP_HPP
@@ -708,12 +708,17 @@ protected:
    // Data is owned, updated by UpdateTargetSpecification.
    int   ncomp;
    int   sizeidx,  skewidx,  aspectratioidx,  orientationidx;
-   Vector tspec;         //eta(x)
+   Vector tspec;              //eta(x)
+   Vector tspec_sav;
+   Vector tspec_perth;       //eta(x+h)
+   Vector tspec_pert2h;      //eta(x+2*h)
+   Vector tspec_pertmix;     //eta(x+h,y+h)
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *ptspec_fes;
+   ParFiniteElementSpace *ptspec_fesv;
 #endif
    const FiniteElementSpace *tspec_fes;
    const FiniteElementSpace *tspec_fesv;
@@ -727,13 +732,7 @@ protected:
    void SetParDiscreteTargetBase(ParGridFunction &tspec_);
 #endif
 
-
 public:
-   Vector tspec_sav;
-   Vector tspec_perth;       //eta(x+h)
-   Vector tspec_pert2h;      //eta(x+2*h)
-   Vector tspec_pertmix;     //eta(x+h,y+h)
-
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
         ncomp(0),
@@ -764,31 +763,30 @@ public:
        new mesh positions are given by new_x. */
    void UpdateTargetSpecification(const Vector &new_x);
 
-   void UpdateTargetSpecification(Vector &new_x,
-                                  Vector &IntData);
+   void UpdateTargetSpecification(Vector &new_x, Vector &IntData);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
                                         int nodenum, int idir,
-                                        Vector &IntData);
+                                        const Vector &IntData,
+                                        bool MixTerm);
+
+   void UpdateGradientTargetSpecification(const Vector &x, const double fdeps);
+
+   void UpdateHessianTargetSpecification(const Vector &x, const double fdeps);
 
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
-
-   void BackupTargetSpecification();
-
-   void RestoreTargetSpecification();
-
-   void SetupElementVectorTSpec(const Vector &x,const FiniteElementSpace &fes,
-                                const double fdeps);
-
-   void SetupElementGradTSpec(const Vector &x,const FiniteElementSpace &fes,
-                              const double fdeps);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
       if (adapt_eval) { delete adapt_eval; }
       adapt_eval = ae;
    }
+
+   const Vector &GetTspecSav()     { return tspec_sav; }
+   const Vector &GetTspecPerth()   { return tspec_perth; }
+   const Vector &GetTspecPert2h()  { return tspec_pert2h; }
+   const Vector &GetTspecPertmix() { return tspec_pertmix; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -801,6 +799,8 @@ public:
                                       DenseTensor &Jtr) const;
 };
 
+class TMOPNewtonSolver;
+class TMOPDescentNewtonSolver;
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
 
@@ -811,6 +811,8 @@ public:
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
 protected:
+   friend class TMOPNewtonSolver;
+   friend class TMOPDescentNewtonSolver;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
 
@@ -833,10 +835,9 @@ protected:
 
    mutable DiscreteAdaptTC *discr_tc;
 
-   // Parameters for Gradient & Hessian calculation
-   int    fdflag;
+   // Parameters for FD-based Gradient & Hessian calculation.
+   bool   fdflag;
    double fdeps;
-   double elemenergy;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
@@ -869,17 +870,22 @@ protected:
                                 ElementTransformation &T,
                                 const Vector &elfun, Vector &elvect);
 
+   /** Assumes that AssembleElementVectorFD has been called. */
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
 
-
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
-                          Vector &elfun,
-                          const int nodenum,const int idir);
+                          Vector &elfun, const int nodenum,const int idir,
+                          const double baseenergy, bool update);
 
-   double ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
+   /** @brief Determines the perturbation, h, for FD-based approximation. */
+   void SetFDh(const Vector &x, const FiniteElementSpace &fes);
+#ifdef MFEM_USE_MPI
+   void SetFDh(const Vector &x, const ParFiniteElementSpace &pfes);
+#endif
+   void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
@@ -890,7 +896,7 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(0), fdeps(0.0)
+        fdflag(false)
    { }
 
    ~TMOP_Integrator()
@@ -949,15 +955,7 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   void SetFDPar(int fdflag_, int sz);
-   int GetFDFlag() {return fdflag;}
-
-   double SetFDh(const Vector &x, const FiniteElementSpace &fes);
-#ifdef MFEM_USE_MPI
-   double SetFDh(const Vector &x, const FiniteElementSpace &fes, MPI_Comm &comm);
-#endif
-
-   DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc;}
+   DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc; }
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */
@@ -965,6 +963,15 @@ public:
 #ifdef MFEM_USE_MPI
    void ParEnableNormalization(const ParGridFunction &x);
 #endif
+
+   /** @brief Enables FD-based approximation and computes fdeps. */
+   void EnableFiniteDifferences(const GridFunction &x);
+#ifdef MFEM_USE_MPI
+   void EnableFiniteDifferences(const ParGridFunction &x);
+#endif
+
+   bool   GetFDFlag() { return fdflag; }
+   double GetFDh()    { return fdeps; }
 };
 
 
