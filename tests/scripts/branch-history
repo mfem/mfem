@@ -23,6 +23,8 @@ number of commits, etc.
 Usage: $0
 EOF
     exit 0;
+  } elsif ($flag eq "../..") {
+    ;
   } else {
     printf STDERR "Unknown command line argument $flag\n";
     exit 1;
