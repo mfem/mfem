@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "complex_fem.hpp"
 
@@ -65,9 +65,8 @@ ComplexGridFunction::Update()
       gfr->NewDataAndSize(data, vsize);
       gfi->NewDataAndSize((data) ? &data[vsize] : data, vsize);
 
-      // These updates will only set the proper 'sequence' value within
-      // the individual GridFunction objects because their sizes are
-      // already correct
+      // These updates will only set the proper 'sequence' value within the
+      // individual GridFunction objects because their sizes are already correct
       gfr->Update();
       gfi->Update();
    }
@@ -523,8 +522,8 @@ ParComplexGridFunction::Update()
       pgfr->Update();
       pgfi->Update();
 
-      // Our data array now contains old data as well as being the wrong size
-      // so reallocate it.
+      // Our data array now contains old data as well as being the wrong size so
+      // reallocate it.
       this->SetSize(2 * vsize);
 
       // Create temporary vectors which point to the new data array
@@ -1044,9 +1043,9 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
    }
 
-   // Modify offdiagonal blocks (Imaginary parts of the matrix) to
-   // conform with standard essential BC treatment i.e. zero out rows and
-   // columns and place ones on the diagonal.
+   // Modify offdiagonal blocks (Imaginary parts of the matrix) to conform with
+   // standard essential BC treatment i.e. zero out rows and columns and place
+   // ones on the diagonal.
    if (RealInteg() && ImagInteg())
    {
       if ( A_i.Type() == Operator::Hypre_ParCSR )

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -1712,6 +1712,26 @@ void ParMesh::DeleteFaceNbrData()
    send_face_nbr_vertices.Clear();
 }
 
+void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+{
+   space_dim = (space_dim == -1) ? spaceDim : space_dim;
+   FiniteElementCollection* nfec;
+   if (discont)
+   {
+      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto);
+   }
+   else
+   {
+      nfec = new H1_FECollection(order, Dim);
+   }
+   ParFiniteElementSpace* nfes = new ParFiniteElementSpace(this, nfec, space_dim,
+                                                           ordering);
+   auto pnodes = new ParGridFunction(nfes);
+   GetNodes(*pnodes);
+   NewNodes(*pnodes, true);
+   Nodes->MakeOwner(nfec);
+}
+
 void ParMesh::ExchangeFaceNbrData()
 {
    if (have_face_nbr_data)
@@ -2492,7 +2512,7 @@ void ParMesh::ReorientTetMesh()
       return;
    }
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -2878,7 +2898,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                     " (NumOfBdrElements != boundary.Size())");
       }
 
-      DeleteLazyTables();
+      ResetLazyData();
 
       const int old_nv = NumOfVertices;
       NumOfVertices = vertices.Size();
@@ -3121,7 +3141,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       NumOfBdrElements = boundary.Size();
 
-      DeleteLazyTables();
+      ResetLazyData();
 
       // 5a. Update the groups after refinement.
       RefineGroups(v_to_v, middle);
@@ -3364,16 +3384,16 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = new int[GetNGroups()+1];
-   I_group_sedge = new int[GetNGroups()+1];
+   I_group_svert = Memory<int>(GetNGroups()+1);
+   I_group_sedge = Memory<int>(GetNGroups()+1);
 
    I_group_svert[0] = I_group_svert[1] = 0;
    I_group_sedge[0] = I_group_sedge[1] = 0;
 
    // overestimate the size of the J arrays
-   J_group_svert = new int[group_svert.Size_of_connections()
-                           + group_sedge.Size_of_connections()];
-   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
+   J_group_svert = Memory<int>(group_svert.Size_of_connections() +
+                               group_sedge.Size_of_connections());
+   J_group_sedge = Memory<int>(2*group_sedge.Size_of_connections());
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -3611,16 +3631,16 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
 
-   I_group_svert = new int[GetNGroups()];
-   I_group_sedge = new int[GetNGroups()];
+   I_group_svert = Memory<int>(GetNGroups());
+   I_group_sedge = Memory<int>(GetNGroups());
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = new int[group_svert.Size_of_connections()
-                           + group_sedge.Size_of_connections()];
-   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
+   J_group_svert = Memory<int>(group_svert.Size_of_connections() +
+                               group_sedge.Size_of_connections());
+   J_group_sedge = Memory<int>(2*group_sedge.Size_of_connections());
 
    for (int group = 0; group < GetNGroups()-1; group++)
    {
@@ -3669,10 +3689,10 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    int *I_group_stria, *J_group_stria;
    int *I_group_squad, *J_group_squad;
 
-   I_group_svert = new int[GetNGroups()];
-   I_group_sedge = new int[GetNGroups()];
-   I_group_stria = new int[GetNGroups()];
-   I_group_squad = new int[GetNGroups()];
+   I_group_svert = Memory<int>(GetNGroups());
+   I_group_sedge = Memory<int>(GetNGroups());
+   I_group_stria = Memory<int>(GetNGroups());
+   I_group_squad = Memory<int>(GetNGroups());
 
    I_group_svert[0] = 0;
    I_group_sedge[0] = 0;
@@ -3680,14 +3700,14 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    I_group_squad[0] = 0;
 
    // compute the size of the J arrays
-   J_group_svert = new int[group_svert.Size_of_connections()
-                           + group_sedge.Size_of_connections()
-                           + group_squad.Size_of_connections()];
-   J_group_sedge = new int[2*group_sedge.Size_of_connections()
-                           + 3*group_stria.Size_of_connections()
-                           + 4*group_squad.Size_of_connections()];
-   J_group_stria = new int[4*group_stria.Size_of_connections()];
-   J_group_squad = new int[4*group_squad.Size_of_connections()];
+   J_group_svert = Memory<int>(group_svert.Size_of_connections() +
+                               group_sedge.Size_of_connections() +
+                               group_squad.Size_of_connections());
+   J_group_sedge = Memory<int>(2*group_sedge.Size_of_connections() +
+                               3*group_stria.Size_of_connections() +
+                               4*group_squad.Size_of_connections());
+   J_group_stria = Memory<int>(4*group_stria.Size_of_connections());
+   J_group_squad = Memory<int>(4*group_squad.Size_of_connections());
 
    const int oface = old_nv + old_nedges;
 
