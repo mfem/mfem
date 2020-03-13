@@ -88,7 +88,7 @@ struct Opt
 #ifdef __APPLE__
    const char *keys = "Am";
 #else
-   const char *keys = "gAmaaa";
+   const char *keys = "gAm";
 #endif
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
@@ -209,16 +209,10 @@ public:
    static void Visualize(const Opt &opt, const Mesh *mesh,
                          const int w, const int h)
    {
-      if (opt.vis_mesh)
-      {
-         glvis << "mesh\n" << *mesh;
-      }
-      else
-      {
-         glvis << "parallel " << NRanks << " " << MyRank << "\n";
-         const GridFunction *x = mesh->GetNodes();
-         glvis << "solution\n" << *mesh << *x;
-      }
+      // Mesh visualization is not supported in parallel by GLVis
+      MFEM_VERIFY(!opt.vis_mesh, "Option not available in parallel!");
+      glvis << "parallel " << NRanks << " " << MyRank << "\n";
+      glvis << "solution\n" << *mesh << *mesh->GetNodes();
       glvis.precision(8);
       glvis << "window_size " << w << " " << h << "\n";
       glvis << "keys " << opt.keys << "\n";
@@ -229,16 +223,8 @@ public:
    // Visualize some solution on the given mesh
    static void Visualize(const Opt &opt, const Mesh *mesh)
    {
-      if (opt.vis_mesh)
-      {
-         glvis << "mesh\n" << *mesh;
-      }
-      else
-      {
-         glvis << "parallel " << NRanks << " " << MyRank << "\n";
-         const GridFunction *x = mesh->GetNodes();
-         glvis << "solution\n" << *mesh << *x;
-      }
+      glvis << "parallel " << NRanks << " " << MyRank << "\n";
+      glvis << "solution\n" << *mesh << *mesh->GetNodes();
       if (opt.wait) { glvis << "pause\n"; }
       glvis << flush;
    }

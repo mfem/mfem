@@ -61,7 +61,6 @@ constexpr Element::Type QUAD = Element::QUADRILATERAL;
 constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
 // Static variables for GLVis
-static int NRanks, MyRank;
 static socketstream glvis;
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
@@ -89,7 +88,7 @@ struct Opt
 #ifdef __APPLE__
    const char *keys = "Am";
 #else
-   const char *keys = "gAmaaa";
+   const char *keys = "gAm";
 #endif
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
@@ -210,16 +209,8 @@ public:
    static void Visualize(const Opt &opt, const Mesh *mesh,
                          const int w, const int h)
    {
-      if (opt.vis_mesh)
-      {
-         glvis << "mesh\n" << *mesh;
-      }
-      else
-      {
-         glvis << "parallel " << NRanks << " " << MyRank << "\n";
-         const GridFunction *x = mesh->GetNodes();
-         glvis << "solution\n" << *mesh << *x;
-      }
+      if (opt.vis_mesh) { glvis << "mesh\n" << *mesh; }
+      else { glvis << "solution\n" << *mesh << *mesh->GetNodes(); }
       glvis.precision(8);
       glvis << "window_size " << w << " " << h << "\n";
       glvis << "keys " << opt.keys << "\n";
@@ -230,16 +221,8 @@ public:
    // Visualize some solution on the given mesh
    static void Visualize(const Opt &opt, const Mesh *mesh)
    {
-      if (opt.vis_mesh)
-      {
-         glvis << "mesh\n" << *mesh;
-      }
-      else
-      {
-         glvis << "parallel " << NRanks << " " << MyRank << "\n";
-         const GridFunction *x = mesh->GetNodes();
-         glvis << "solution\n" << *mesh << *x;
-      }
+      if (opt.vis_mesh) { glvis << "mesh\n" << *mesh; }
+      else { glvis << "solution\n" << *mesh << *mesh->GetNodes(); }
       if (opt.wait) { glvis << "pause\n"; }
       glvis << flush;
    }
@@ -276,7 +259,7 @@ public:
          if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
          for (int i=0; i < opt.niters; ++i)
          {
-            if (MyRank == 0) { mfem::out << "Iteration " << i << ": "; }
+            mfem::out << "Iteration " << i << ": ";
             if (opt.amr) { Amr(); }
             if (opt.vis) { S.Visualize(opt, S.mesh); }
             S.mesh->DeleteGeometricFactors();
@@ -293,7 +276,7 @@ public:
       {
          if (rnorm < NRM)
          {
-            if (MyRank==0) { mfem::out << "Converged!" << endl; }
+            mfem::out << "Converged!" << endl;
             return true;
          }
          return false;
@@ -1080,7 +1063,6 @@ struct SlottedSphere: public Surface
 
 int main(int argc, char *argv[])
 {
-   NRanks = 1; MyRank = 0;
    // Parse command-line options.
    Opt opt;
    OptionsParser args(argc, argv);
@@ -1115,11 +1097,11 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <=1.0,"");
-   if (MyRank == 0) { args.PrintOptions(cout); }
+   args.PrintOptions(cout);
 
    // Initialize hardware devices
    Device device(opt.device_config);
-   if (MyRank == 0) { device.Print(); }
+   device.Print();
 
    // Create our surface mesh from command line options
    Surface *S = nullptr;
