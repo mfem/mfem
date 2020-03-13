@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
    double nbc_val = 1.0;
    double rbc_a_val = 1.0; // du/dn + a * u = b
    double rbc_b_val = 1.0;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial,"
@@ -78,17 +78,17 @@ int main(int argc, char *argv[])
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&mat_val, "-mat", "--material-value",
                   "Constant value for material coefficient "
-		  "in the Laplace operator.");
+                  "in the Laplace operator.");
    args.AddOption(&dbc_val, "-dbc", "--dirichlet-value",
                   "Constant value for Dirichlet Boundary Condition.");
    args.AddOption(&nbc_val, "-nbc", "--neumann-value",
                   "Constant value for Neumann Boundary Condition.");
    args.AddOption(&rbc_a_val, "-rbc-a", "--robin-a-value",
                   "Constant 'a' value for Robin Boundary Condition: "
-		  "du/dn + a * u = b.");
+                  "du/dn + a * u = b.");
    args.AddOption(&rbc_b_val, "-rbc-b", "--robin-b-value",
                   "Constant 'b' value for Robin Boundary Condition: "
-		  "du/dn + a * u = b.");
+                  "du/dn + a * u = b.");
    args.AddOption(&a_, "-a", "--radius",
                   "Radius of holes in the mesh.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-     args.PrintUsage(mfem::out);
+      args.PrintUsage(mfem::out);
       return 1;
    }
    if (kappa < 0)
@@ -107,16 +107,16 @@ int main(int argc, char *argv[])
    args.PrintOptions(mfem::out);
 
    if (a_ < 0.01)
-     {
-       mfem::out << "Hole radius too small, resetting to 0.01.\n";
-       a_ = 0.01;
-     }
+   {
+      mfem::out << "Hole radius too small, resetting to 0.01.\n";
+      a_ = 0.01;
+   }
    if (a_ > 0.49)
-     {
-       mfem::out << "Hole radius too large, resetting to 0.49.\n";
-       a_ = 0.49;
-     }
-   
+   {
+      mfem::out << "Hole radius too large, resetting to 0.49.\n";
+      a_ = 0.49;
+   }
+
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code. NURBS meshes are projected to second order meshes.
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(max(order, 1));
    }
    */
-   
+
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    Array<int> nbc_bdr(pmesh.bdr_attributes.Max());
    Array<int> rbc_bdr(pmesh.bdr_attributes.Max());
    Array<int> dbc_bdr(pmesh.bdr_attributes.Max());
-   
+
    nbc_bdr = 0; nbc_bdr[0] = 1;
    rbc_bdr = 0; rbc_bdr[1] = 1;
    dbc_bdr = 0; dbc_bdr[2] = 1;
@@ -185,12 +185,12 @@ int main(int argc, char *argv[])
    //    right-hand side of the FEM linear system.
    ParLinearForm b(&fespace);
    b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(dbcCoef, matCoef,
-						       sigma, kappa),
-			   dbc_bdr);
+                                                      sigma, kappa),
+                          dbc_bdr);
    b.AddBdrFaceIntegrator(new BoundaryLFIntegrator(m_nbcCoef),
-			   nbc_bdr);
+                          nbc_bdr);
    b.AddBdrFaceIntegrator(new BoundaryLFIntegrator(m_rbcBCoef),
-			   rbc_bdr);
+                          rbc_bdr);
    b.Assemble();
 
    // 8. Define the solution vector x as a parallel finite element grid function
@@ -207,11 +207,11 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(matCoef));
    a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(matCoef,
-							  sigma, kappa));
+                                                         sigma, kappa));
    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(matCoef, sigma, kappa),
-			   dbc_bdr);
+                          dbc_bdr);
    a.AddBdrFaceIntegrator(new BoundaryMassIntegrator(m_rbcACoef),
-			   rbc_bdr);
+                          rbc_bdr);
    a.Assemble();
    a.Finalize();
 
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   
+
    // 11. Depending on the symmetry of A, define and apply a parallel PCG or
    //     GMRES solver for AX=B using the BoomerAMG preconditioner from hypre.
    HypreSolver *amg = new HypreBoomerAMG;
@@ -264,71 +264,71 @@ int main(int argc, char *argv[])
    ParBilinearForm *m = new ParBilinearForm(&fespace);
    m->AddDomainIntegrator(new MassIntegrator);
    m->Assemble();
-   
+
    ParBilinearForm *n = new ParBilinearForm(&fespace);
    {
-     Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
-     VectorConstantCoefficient nCoef(nVec);
-     n->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
-     n->Assemble();
+      Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
+      VectorConstantCoefficient nCoef(nVec);
+      n->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
+      n->Assemble();
    }
-   
+
    ParBilinearForm *n0 = new ParBilinearForm(&fespace);
    {
-     VectorFunctionCoefficient n0Coef(2, n4Vec);
-     n0->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(n0Coef));
-     n0->Assemble();
+      VectorFunctionCoefficient n0Coef(2, n4Vec);
+      n0->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(n0Coef));
+      n0->Assemble();
    }
-   
+
    ParBilinearForm *r = new ParBilinearForm(&fespace);
    {
-     Vector rVec(2); rVec[0] = 0.0; rVec[1] = 1.0;
-     VectorConstantCoefficient rCoef(rVec);
-     r->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(rCoef));
-     r->Assemble();
+      Vector rVec(2); rVec[0] = 0.0; rVec[1] = 1.0;
+      VectorConstantCoefficient rCoef(rVec);
+      r->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(rCoef));
+      r->Assemble();
    }
-   
+
    ParGridFunction dx(&fespace);
    ParGridFunction nx(&fespace);
    ParGridFunction n0x(&fespace);
    ParGridFunction rx(&fespace);
    {
-     ParLinearForm nb(&fespace);
+      ParLinearForm nb(&fespace);
 
-     Array<int> ess_tdof_list(0);
-     ess_tdof_list.SetSize(0);
-     
-     OperatorPtr M;
+      Array<int> ess_tdof_list(0);
+      ess_tdof_list.SetSize(0);
 
-     n->Mult(x, nb);
-     m->FormLinearSystem(ess_tdof_list, nx, nb, M, X, B);
+      OperatorPtr M;
 
-     CGSolver mcg(MPI_COMM_WORLD);
-     mcg.SetRelTol(1e-12);
-     mcg.SetMaxIter(2000);
-     mcg.SetPrintLevel(0);
-     mcg.SetOperator(*M);
-     mcg.Mult(B, X);
+      n->Mult(x, nb);
+      m->FormLinearSystem(ess_tdof_list, nx, nb, M, X, B);
 
-     m->RecoverFEMSolution(X, nb, nx);
+      CGSolver mcg(MPI_COMM_WORLD);
+      mcg.SetRelTol(1e-12);
+      mcg.SetMaxIter(2000);
+      mcg.SetPrintLevel(0);
+      mcg.SetOperator(*M);
+      mcg.Mult(B, X);
 
-     // nx -= nbc_val;
-     ConstantCoefficient one(1.0);
-     ParBilinearForm m_nbc(&fespace);
-     m_nbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), nbc_bdr);
-     m_nbc.Assemble();
+      m->RecoverFEMSolution(X, nb, nx);
 
-     ParLinearForm m3x(&fespace);
-     m_nbc.Mult(nx, m3x);
+      // nx -= nbc_val;
+      ConstantCoefficient one(1.0);
+      ParBilinearForm m_nbc(&fespace);
+      m_nbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), nbc_bdr);
+      m_nbc.Assemble();
 
-     double nbc_int = sqrt(m3x(nx) * 0.5);
-     double nbc_err = fabs(nbc_int - nbc_val);
+      ParLinearForm m3x(&fespace);
+      m_nbc.Mult(nx, m3x);
 
-     bool hom_nbc = (nbc_val == 0.0);
-     nbc_err /=  hom_nbc ? 1.0 : nbc_val;
-     mfem::out << "nbc " << nbc_int << ", "
-	       << (hom_nbc ? "absolute" : "relative")
-	       << " error " << nbc_err << endl;
+      double nbc_int = copysign(sqrt(m3x(nx) * 0.5), nbc_val);
+      double nbc_err = fabs(nbc_int - nbc_val);
+
+      bool hom_nbc = (nbc_val == 0.0);
+      nbc_err /=  hom_nbc ? 1.0 : fabs(nbc_val);
+      mfem::out << "nbc " << nbc_int << ", "
+                << (hom_nbc ? "absolute" : "relative")
+                << " error " << nbc_err << endl;
    }
 
    // 13. Save the refined mesh and the solution in parallel. This output can
@@ -354,10 +354,10 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << mpi.WorldSize()
-	       << " " << mpi.WorldRank() << "\n";
+               << " " << mpi.WorldRank() << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x
-	       << "window_title 'DG Solution'" << " keys 'mmc'" << flush;
+               << "window_title 'DG Solution'" << " keys 'mmc'" << flush;
    }
 
    // 15. Free the used memory.
@@ -368,201 +368,201 @@ int main(int argc, char *argv[])
 
 void quad_trans(double u, double v, double &x, double &y, bool log = false)
 {
-  double a = a_; // Radius of disc
+   double a = a_; // Radius of disc
 
-  double d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
+   double d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
 
-  double v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
-    ((4.0 - 3 * M_SQRT2) * a + (8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
-  
-  double r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
-		    2.0 * (1.0 + M_SQRT2 *
-			   (1.0 + 2.0 * (2.0 * a - M_SQRT2 - 1.0) * a)) * v * v
-		    ) / d;
+   double v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
+               ((4.0 - 3 * M_SQRT2) * a + (8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
 
-  double t = asin(v / r) * u / v;
-  if (log) mfem::out << "u, v, r, v0, t " << u << " " << v << " " << r << " " << v0 << " " << t << endl; 
-  x = r * sin(t);
-  y = r * cos(t) - v0;
+   double r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
+                     2.0 * (1.0 + M_SQRT2 *
+                            (1.0 + 2.0 * (2.0 * a - M_SQRT2 - 1.0) * a)) * v * v
+                    ) / d;
+
+   double t = asin(v / r) * u / v;
+   if (log) { mfem::out << "u, v, r, v0, t " << u << " " << v << " " << r << " " << v0 << " " << t << endl; }
+   x = r * sin(t);
+   y = r * cos(t) - v0;
 }
 
 void trans(const Vector &u, Vector &x)
 {
-  double tol = 1e-4;
-  
-  if (u[1] > 0.5 - tol || u[1] < -0.5 + tol)
-  {
-    x = u;
-    return;
-  }
-  if (u[0] > 1.0 - tol || u[0] < -1.0 + tol || fabs(u[0]) < tol)
-  {
-    x = u;
-    return;
-  }
-  
-  if (u[0] > 0.0)
-  {
-    if (u[1] > fabs(u[0] - 0.5))
-    {
-      quad_trans(u[0] - 0.5, u[1], x[0], x[1]);
-      x[0] += 0.5;
+   double tol = 1e-4;
+
+   if (u[1] > 0.5 - tol || u[1] < -0.5 + tol)
+   {
+      x = u;
       return;
-    }
-    if (u[1] < -fabs(u[0] - 0.5))
-    {
-      quad_trans(u[0] - 0.5, -u[1], x[0], x[1]);
-      x[0] += 0.5;
-      x[1] *= -1.0;
+   }
+   if (u[0] > 1.0 - tol || u[0] < -1.0 + tol || fabs(u[0]) < tol)
+   {
+      x = u;
       return;
-    }
-    if (u[0] - 0.5 > fabs(u[1]))
-    {
-      quad_trans(u[1], u[0] - 0.5, x[1], x[0]);
-      x[0] += 0.5;
-      return;
-    }
-    if (u[0] - 0.5 < -fabs(u[1]))
-    {
-      quad_trans(u[1], 0.5 - u[0], x[1], x[0]);
-      x[0] *= -1.0;
-      x[0] += 0.5;
-      return;
-    }
-  }
-  else
-  {
-    if (u[1] > fabs(u[0] + 0.5))
-    {
-      quad_trans(u[0] + 0.5, u[1], x[0], x[1]);
-      x[0] -= 0.5;
-      return;
-    }
-    if (u[1] < -fabs(u[0] + 0.5))
-    {
-      quad_trans(u[0] + 0.5, -u[1], x[0], x[1]);
-      x[0] -= 0.5;
-      x[1] *= -1.0;
-      return;
-    }
-    if (u[0] + 0.5 > fabs(u[1]))
-    {
-      quad_trans(u[1], u[0] + 0.5, x[1], x[0]);
-      x[0] -= 0.5;
-      return;
-    }
-    if (u[0] + 0.5 < -fabs(u[1]))
-    {
-      quad_trans(u[1], -0.5 - u[0], x[1], x[0]);
-      x[0] *= -1.0;
-      x[0] -= 0.5;
-      return;
-    }
-  }
-  x = u;
+   }
+
+   if (u[0] > 0.0)
+   {
+      if (u[1] > fabs(u[0] - 0.5))
+      {
+         quad_trans(u[0] - 0.5, u[1], x[0], x[1]);
+         x[0] += 0.5;
+         return;
+      }
+      if (u[1] < -fabs(u[0] - 0.5))
+      {
+         quad_trans(u[0] - 0.5, -u[1], x[0], x[1]);
+         x[0] += 0.5;
+         x[1] *= -1.0;
+         return;
+      }
+      if (u[0] - 0.5 > fabs(u[1]))
+      {
+         quad_trans(u[1], u[0] - 0.5, x[1], x[0]);
+         x[0] += 0.5;
+         return;
+      }
+      if (u[0] - 0.5 < -fabs(u[1]))
+      {
+         quad_trans(u[1], 0.5 - u[0], x[1], x[0]);
+         x[0] *= -1.0;
+         x[0] += 0.5;
+         return;
+      }
+   }
+   else
+   {
+      if (u[1] > fabs(u[0] + 0.5))
+      {
+         quad_trans(u[0] + 0.5, u[1], x[0], x[1]);
+         x[0] -= 0.5;
+         return;
+      }
+      if (u[1] < -fabs(u[0] + 0.5))
+      {
+         quad_trans(u[0] + 0.5, -u[1], x[0], x[1]);
+         x[0] -= 0.5;
+         x[1] *= -1.0;
+         return;
+      }
+      if (u[0] + 0.5 > fabs(u[1]))
+      {
+         quad_trans(u[1], u[0] + 0.5, x[1], x[0]);
+         x[0] -= 0.5;
+         return;
+      }
+      if (u[0] + 0.5 < -fabs(u[1]))
+      {
+         quad_trans(u[1], -0.5 - u[0], x[1], x[0]);
+         x[0] *= -1.0;
+         x[0] -= 0.5;
+         return;
+      }
+   }
+   x = u;
 }
 
 Mesh * GenerateSerialMesh(int ref)
 {
-  Mesh * mesh = new Mesh(2, 29, 16, 24, 2);
+   Mesh * mesh = new Mesh(2, 29, 16, 24, 2);
 
-  int vi[4];
-  
-  for (int i=0; i<2; i++)
-  {
-    int o = 13 * i;
-    vi[0] = o + 0; vi[1] = o + 3; vi[2] = o + 4; vi[3] = o + 1;
-    mesh->AddQuad(vi);
+   int vi[4];
 
-    vi[0] = o + 1; vi[1] = o + 4; vi[2] = o + 5; vi[3] = o + 2;
-    mesh->AddQuad(vi);
+   for (int i=0; i<2; i++)
+   {
+      int o = 13 * i;
+      vi[0] = o + 0; vi[1] = o + 3; vi[2] = o + 4; vi[3] = o + 1;
+      mesh->AddQuad(vi);
 
-    vi[0] = o + 5; vi[1] = o + 8; vi[2] = o + 9; vi[3] = o + 2;
-    mesh->AddQuad(vi);
+      vi[0] = o + 1; vi[1] = o + 4; vi[2] = o + 5; vi[3] = o + 2;
+      mesh->AddQuad(vi);
 
-    vi[0] = o + 8; vi[1] = o + 12; vi[2] = o + 15; vi[3] = o + 9;
-    mesh->AddQuad(vi);
+      vi[0] = o + 5; vi[1] = o + 8; vi[2] = o + 9; vi[3] = o + 2;
+      mesh->AddQuad(vi);
 
-    vi[0] = o + 11; vi[1] = o + 14; vi[2] = o + 15; vi[3] = o + 12;
-    mesh->AddQuad(vi);
+      vi[0] = o + 8; vi[1] = o + 12; vi[2] = o + 15; vi[3] = o + 9;
+      mesh->AddQuad(vi);
 
-    vi[0] = o + 10; vi[1] = o + 13; vi[2] = o + 14; vi[3] = o + 11;
-    mesh->AddQuad(vi);
+      vi[0] = o + 11; vi[1] = o + 14; vi[2] = o + 15; vi[3] = o + 12;
+      mesh->AddQuad(vi);
 
-    vi[0] = o + 6; vi[1] = o + 13; vi[2] = o + 10; vi[3] = o + 7;
-    mesh->AddQuad(vi);
+      vi[0] = o + 10; vi[1] = o + 13; vi[2] = o + 14; vi[3] = o + 11;
+      mesh->AddQuad(vi);
 
-    vi[0] = o + 0; vi[1] = o + 6; vi[2] = o + 7; vi[3] = o + 3;
-    mesh->AddQuad(vi);
-  }
+      vi[0] = o + 6; vi[1] = o + 13; vi[2] = o + 10; vi[3] = o + 7;
+      mesh->AddQuad(vi);
 
-  vi[0] =  0; vi[1] =  6; mesh->AddBdrSegment(vi, 1);
-  vi[0] =  6; vi[1] = 13; mesh->AddBdrSegment(vi, 1);
-  vi[0] = 13; vi[1] = 19; mesh->AddBdrSegment(vi, 1);
-  vi[0] = 19; vi[1] = 26; mesh->AddBdrSegment(vi, 1);
-  
-  vi[0] = 28; vi[1] = 22; mesh->AddBdrSegment(vi, 2);
-  vi[0] = 22; vi[1] = 15; mesh->AddBdrSegment(vi, 2);
-  vi[0] = 15; vi[1] =  9; mesh->AddBdrSegment(vi, 2);
-  vi[0] =  9; vi[1] =  2; mesh->AddBdrSegment(vi, 2);
+      vi[0] = o + 0; vi[1] = o + 6; vi[2] = o + 7; vi[3] = o + 3;
+      mesh->AddQuad(vi);
+   }
 
-  for (int i=0; i<2; i++)
-  {
-    int o = 13 * i;
-    vi[0] = o +  3; vi[1] = o +  7; mesh->AddBdrSegment(vi, 3 + i);
-    vi[0] = o +  7; vi[1] = o + 10; mesh->AddBdrSegment(vi, 3 + i);
-    vi[0] = o + 10; vi[1] = o + 11; mesh->AddBdrSegment(vi, 3 + i);
-    vi[0] = o + 11; vi[1] = o + 12; mesh->AddBdrSegment(vi, 3 + i);
-    vi[0] = o + 12; vi[1] = o +  8; mesh->AddBdrSegment(vi, 3 + i);
-    vi[0] = o +  8; vi[1] = o +  5; mesh->AddBdrSegment(vi, 3 + i);
-    vi[0] = o +  5; vi[1] = o +  4; mesh->AddBdrSegment(vi, 3 + i);
-    vi[0] = o +  4; vi[1] = o +  3; mesh->AddBdrSegment(vi, 3 + i);
-  }
+   vi[0] =  0; vi[1] =  6; mesh->AddBdrSegment(vi, 1);
+   vi[0] =  6; vi[1] = 13; mesh->AddBdrSegment(vi, 1);
+   vi[0] = 13; vi[1] = 19; mesh->AddBdrSegment(vi, 1);
+   vi[0] = 19; vi[1] = 26; mesh->AddBdrSegment(vi, 1);
 
-  double d[2];
-  double a = a_ / M_SQRT2;
+   vi[0] = 28; vi[1] = 22; mesh->AddBdrSegment(vi, 2);
+   vi[0] = 22; vi[1] = 15; mesh->AddBdrSegment(vi, 2);
+   vi[0] = 15; vi[1] =  9; mesh->AddBdrSegment(vi, 2);
+   vi[0] =  9; vi[1] =  2; mesh->AddBdrSegment(vi, 2);
 
-  d[0] = -1.0; d[1] = -0.5; mesh->AddVertex(d);
-  d[0] = -1.0; d[1] =  0.0; mesh->AddVertex(d);
-  d[0] = -1.0; d[1] =  0.5; mesh->AddVertex(d);
+   for (int i=0; i<2; i++)
+   {
+      int o = 13 * i;
+      vi[0] = o +  3; vi[1] = o +  7; mesh->AddBdrSegment(vi, 3 + i);
+      vi[0] = o +  7; vi[1] = o + 10; mesh->AddBdrSegment(vi, 3 + i);
+      vi[0] = o + 10; vi[1] = o + 11; mesh->AddBdrSegment(vi, 3 + i);
+      vi[0] = o + 11; vi[1] = o + 12; mesh->AddBdrSegment(vi, 3 + i);
+      vi[0] = o + 12; vi[1] = o +  8; mesh->AddBdrSegment(vi, 3 + i);
+      vi[0] = o +  8; vi[1] = o +  5; mesh->AddBdrSegment(vi, 3 + i);
+      vi[0] = o +  5; vi[1] = o +  4; mesh->AddBdrSegment(vi, 3 + i);
+      vi[0] = o +  4; vi[1] = o +  3; mesh->AddBdrSegment(vi, 3 + i);
+   }
 
-  d[0] = -0.5 - a; d[1] =   -a; mesh->AddVertex(d);
-  d[0] = -0.5 - a; d[1] =  0.0; mesh->AddVertex(d);
-  d[0] = -0.5 - a; d[1] =    a; mesh->AddVertex(d);
+   double d[2];
+   double a = a_ / M_SQRT2;
 
-  d[0] = -0.5; d[1] = -0.5; mesh->AddVertex(d);
-  d[0] = -0.5; d[1] =   -a; mesh->AddVertex(d);
-  d[0] = -0.5; d[1] =    a; mesh->AddVertex(d);
-  d[0] = -0.5; d[1] =  0.5; mesh->AddVertex(d);
+   d[0] = -1.0; d[1] = -0.5; mesh->AddVertex(d);
+   d[0] = -1.0; d[1] =  0.0; mesh->AddVertex(d);
+   d[0] = -1.0; d[1] =  0.5; mesh->AddVertex(d);
 
-  d[0] = -0.5 + a; d[1] =   -a; mesh->AddVertex(d);
-  d[0] = -0.5 + a; d[1] =  0.0; mesh->AddVertex(d);
-  d[0] = -0.5 + a; d[1] =    a; mesh->AddVertex(d);
+   d[0] = -0.5 - a; d[1] =   -a; mesh->AddVertex(d);
+   d[0] = -0.5 - a; d[1] =  0.0; mesh->AddVertex(d);
+   d[0] = -0.5 - a; d[1] =    a; mesh->AddVertex(d);
 
-  d[0] =  0.0; d[1] = -0.5; mesh->AddVertex(d);
-  d[0] =  0.0; d[1] =  0.0; mesh->AddVertex(d);
-  d[0] =  0.0; d[1] =  0.5; mesh->AddVertex(d);
+   d[0] = -0.5; d[1] = -0.5; mesh->AddVertex(d);
+   d[0] = -0.5; d[1] =   -a; mesh->AddVertex(d);
+   d[0] = -0.5; d[1] =    a; mesh->AddVertex(d);
+   d[0] = -0.5; d[1] =  0.5; mesh->AddVertex(d);
 
-  d[0] =  0.5 - a; d[1] =   -a; mesh->AddVertex(d);
-  d[0] =  0.5 - a; d[1] =  0.0; mesh->AddVertex(d);
-  d[0] =  0.5 - a; d[1] =    a; mesh->AddVertex(d);
+   d[0] = -0.5 + a; d[1] =   -a; mesh->AddVertex(d);
+   d[0] = -0.5 + a; d[1] =  0.0; mesh->AddVertex(d);
+   d[0] = -0.5 + a; d[1] =    a; mesh->AddVertex(d);
 
-  d[0] =  0.5; d[1] = -0.5; mesh->AddVertex(d);
-  d[0] =  0.5; d[1] =   -a; mesh->AddVertex(d);
-  d[0] =  0.5; d[1] =    a; mesh->AddVertex(d);
-  d[0] =  0.5; d[1] =  0.5; mesh->AddVertex(d);
+   d[0] =  0.0; d[1] = -0.5; mesh->AddVertex(d);
+   d[0] =  0.0; d[1] =  0.0; mesh->AddVertex(d);
+   d[0] =  0.0; d[1] =  0.5; mesh->AddVertex(d);
 
-  d[0] =  0.5 + a; d[1] =   -a; mesh->AddVertex(d);
-  d[0] =  0.5 + a; d[1] =  0.0; mesh->AddVertex(d);
-  d[0] =  0.5 + a; d[1] =    a; mesh->AddVertex(d);
+   d[0] =  0.5 - a; d[1] =   -a; mesh->AddVertex(d);
+   d[0] =  0.5 - a; d[1] =  0.0; mesh->AddVertex(d);
+   d[0] =  0.5 - a; d[1] =    a; mesh->AddVertex(d);
 
-  d[0] =  1.0; d[1] = -0.5; mesh->AddVertex(d);
-  d[0] =  1.0; d[1] =  0.0; mesh->AddVertex(d);
-  d[0] =  1.0; d[1] =  0.5; mesh->AddVertex(d);
+   d[0] =  0.5; d[1] = -0.5; mesh->AddVertex(d);
+   d[0] =  0.5; d[1] =   -a; mesh->AddVertex(d);
+   d[0] =  0.5; d[1] =    a; mesh->AddVertex(d);
+   d[0] =  0.5; d[1] =  0.5; mesh->AddVertex(d);
 
-  mesh->FinalizeTopology();
+   d[0] =  0.5 + a; d[1] =   -a; mesh->AddVertex(d);
+   d[0] =  0.5 + a; d[1] =  0.0; mesh->AddVertex(d);
+   d[0] =  0.5 + a; d[1] =    a; mesh->AddVertex(d);
 
-  mesh->SetCurvature(1, true);
+   d[0] =  1.0; d[1] = -0.5; mesh->AddVertex(d);
+   d[0] =  1.0; d[1] =  0.0; mesh->AddVertex(d);
+   d[0] =  1.0; d[1] =  0.5; mesh->AddVertex(d);
+
+   mesh->FinalizeTopology();
+
+   mesh->SetCurvature(1, true);
 
    // Stitch the ends of the stack together
    {
@@ -603,23 +603,23 @@ Mesh * GenerateSerialMesh(int ref)
    }
    mesh->SetCurvature(3, true);
 
-  for (int l = 0; l < ref; l++)
-  {
-    mesh->UniformRefinement();
-  }
+   for (int l = 0; l < ref; l++)
+   {
+      mesh->UniformRefinement();
+   }
 
-  {
-    ofstream ofs("rect-sqr.mesh");
-    mesh->Print(ofs);
-    ofs.close();
-  }
-  
-  mesh->Transform(trans);
-  {
-    
-  ofstream ofs("rect-disk.mesh");
-  mesh->Print(ofs);
-  ofs.close();
-  }
-  return mesh;
+   {
+      ofstream ofs("rect-sqr.mesh");
+      mesh->Print(ofs);
+      ofs.close();
+   }
+
+   mesh->Transform(trans);
+   {
+
+      ofstream ofs("rect-disk.mesh");
+      mesh->Print(ofs);
+      ofs.close();
+   }
+   return mesh;
 }
