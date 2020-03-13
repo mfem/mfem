@@ -11,12 +11,23 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# This script checks if the current branch history, defined as the commits that
-# will be merged in master (those shown in a GitHub PR), contains unusually
-# large files, unusually large number of changes in a commit, unusually large
-# number of commits, etc.
-#
-# Usage: branch-history
+$flag = shift;
+if ($flag) {
+  if ($flag eq "-h" || $flag eq "--help") {
+    printf STDOUT <<EOF;
+This script checks if the current branch history, defined as the commits that
+will be merged in master (those shown in a GitHub PR), contains unusually
+large files, unusually large number of changes in a commit, unusually large
+number of commits, etc.
+
+Usage: $0
+EOF
+    exit 0;
+  } else {
+    printf STDERR "Unknown command line argument $flag\n";
+    exit 1;
+  }
+}
 
 # Maximum number of acceptable commits in the branch
 my $branch_max_commits = 200;
@@ -115,7 +126,7 @@ if ($total_size > $max_branch_kb*1024) {
 
 if ($status) {
   open(my $f, '>', "$0.msg");
-  print $f <<EOF
+  print $f <<EOF;
 
 The failure of this script indicates that large files or a large number of files
 have been added or committed in the current branch history.
