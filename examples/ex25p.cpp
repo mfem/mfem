@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   //    more than 1,000 elements.
    {
       int ref_levels =
          (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
