@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_FORALL_HPP
@@ -34,6 +34,16 @@ namespace mfem
 // Maximum size of dofs and quads in 1D.
 const int MAX_D1D = 14;
 const int MAX_Q1D = 14;
+
+// MFEM pragma macros that can be used inside MFEM_FORALL macros.
+#define MFEM_PRAGMA(X) _Pragma(#X)
+
+// MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#else
+#define MFEM_UNROLL(N)
+#endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
