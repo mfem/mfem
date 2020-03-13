@@ -89,7 +89,7 @@ struct Opt
 #ifdef __APPLE__
    const char *keys = "Am";
 #else
-   const char *keys = "gAa"; // aam
+   const char *keys = "gAmaaa";
 #endif
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
@@ -120,7 +120,6 @@ public:
 
    int Solve()
    {
-      dbg("\033[33m[Surface] Solve");
       if (opt.surface > 0)
       {
          Prefix();
@@ -287,7 +286,7 @@ public:
             if (opt.amr) { Amr(); }
             if (opt.vis) { S.Visualize(opt, S.mesh); }
             S.mesh->DeleteGeometricFactors();
-            a.Update();
+            //a.Update();
             a.Assemble();
             if (Step() == converged) { break; }
          }
@@ -858,7 +857,6 @@ struct FullPeach: public Surface
 
    void Prefix()
    {
-      dbg("\033[35m[FullPeach] Prefix");
       const double quad_v[NV][SDIM] =
       {
          {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
@@ -879,10 +877,7 @@ struct FullPeach: public Surface
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
-   void Snap()
-   {
-      SnapNodesToUnitSphere();
-   }
+   void Snap() { SnapNodesToUnitSphere(); }
 
    void BC()
    {
