@@ -21,6 +21,7 @@ namespace mfem
 
 class BilinearForm;
 class MixedBilinearForm;
+class DiscreteLinearOperator;
 
 
 /** @brief Class extending the BilinearForm class to support the different
@@ -197,7 +198,7 @@ protected:
    mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
-private:
+
    /// Helper function to set up inputs/outputs for Mult or MultTranspose
    void SetupMultInputs(const Operator *elem_restrict_x,
                         const Vector &x, Vector &localX,
@@ -238,6 +239,18 @@ public:
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
    /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
+};
+
+
+/**
+   Can we just use PAMixedBilinearFormExtension or do we need this?
+*/
+class PADiscreteLinearOperatorExtension : public PAMixedBilinearFormExtension
+{
+public:
+   PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop);
+
+   void AddMult(const Vector &x, Vector &y, const double c) const;
 };
 
 }

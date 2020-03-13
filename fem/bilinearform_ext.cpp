@@ -487,4 +487,43 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
    }
 }
 
+PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(DiscreteLinearOperator *linop) :
+   PAMixedBilinearFormExtension(linop)
+{
+   // so far I just want to duplicate what PAMixedBilinearFormExtension does, so maybe I don't need this class?
+}
+
+/// so this one I think needs to be different for LinearOperator
+void PADiscreteLinearOperatorExtension::AddMult(
+   const Vector &x, Vector &y, const double c) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int iSz = integrators.Size();
+
+   // * G operation
+   SetupMultInputs(elem_restrict_trial, x, localTrial,
+                   elem_restrict_test, y, localTest, c);
+
+   // * B^TDB operation
+   for (int i = 0; i < iSz; ++i)
+   {
+      integrators[i]->AddMultPA(localTrial, localTest);
+   }
+
+   /// need to do a kind of "set" rather than "add" in the below
+   /// operation as compared to the BilinearForm case
+
+   /// which, given that elem_restrict_test is just an mfem::Operator,
+   /// may be tricky
+
+   // * G^T operation
+   if (elem_restrict_test)
+   {
+      tempY.SetSize(y.Size());
+      elem_restrict_test->MultTranspose(localTest, tempY);
+      y += tempY;
+   }
+}
+
+
 } // namespace mfem

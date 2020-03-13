@@ -1687,8 +1687,40 @@ MixedBilinearForm::~MixedBilinearForm()
 }
 
 
+void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // Use the original BilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Element assembly not supported yet... stay tuned!");
+         break;
+      case AssemblyLevel::PARTIAL:
+         ext = new PADiscreteLinearOperatorExtension(this);
+         break;
+      case AssemblyLevel::NONE:
+         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
 void DiscreteLinearOperator::Assemble(int skip_zeros)
 {
+   if (ext)
+   {
+      ext->Assemble();
+      return;
+   }
+
    Array<int> dom_vdofs, ran_vdofs;
    ElementTransformation *T;
    const FiniteElement *dom_fe, *ran_fe;
