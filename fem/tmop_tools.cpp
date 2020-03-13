@@ -326,8 +326,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
-         if (!cP) {x_out_loc.SetData(x_out.GetData());}
-         else {cP->Mult(x_out, x_out_loc);}
+         if (!cP) { x_out_loc = x_out; }
+         else     { cP->Mult(x_out, x_out_loc); }
       }
 #ifdef MFEM_USE_MPI
       else
@@ -507,6 +507,8 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    for (int i = 0; i < NE; i++)
    {
       fes->GetElementVDofs(i, xdofs);
+      // TODO x_loc doesn't have valid values here!
+      MFEM_ABORT("This function has to be fixed!");
       x_loc.GetSubVector(xdofs, posV);
 
       for (int j = 0; j < nsp; j++)
@@ -539,8 +541,8 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
-         if (!cP) {x_loc.SetData(x_out.GetData());}
-         else {cP->Mult(x_out,x_loc);}
+         if (!cP) { x_loc = x_out; }
+         else     { cP->Mult(x_out,x_loc); }
          energy_out = nlf->GetGridFunctionEnergy(x_loc);
       }
 #ifdef MFEM_USE_MPI
