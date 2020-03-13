@@ -35,6 +35,7 @@
 //               pmesh-minimal-surface -no-pa
 //               pmesh-minimal-surface -no-pa -a
 //               pmesh-minimal-surface -no-pa -a -c
+//               pmesh-minimal-surface -s 8 -a -rad
 // Device sample runs:
 //               pmesh-minimal-surface -d cuda
 
@@ -42,6 +43,7 @@
 #include <fstream>
 #include <iostream>
 
+#include "../../../dbg.hpp"
 #include "linalg/densemat.hpp"
 #include "../../general/forall.hpp"
 
@@ -76,10 +78,11 @@ struct Opt
    int surface = 5;
    bool pa = true;
    bool vis = true;
-   bool amr = true;
+   bool amr = false;
    bool wait = false;
    bool radial = false;
    bool by_vdim = false;
+   bool vis_mesh = false;
    double lambda = 0.1;
    double amr_threshold = 0.5;
 #ifdef __APPLE__
@@ -149,7 +152,11 @@ public:
       return 0;
    }
 
-   ~Surface() { delete mesh; delete fec; delete fes; }
+   ~Surface()
+   {
+      if (opt.vis) { glvis.close(); }
+      delete mesh; delete fec; delete fes;
+   }
 
    virtual void Prefix()
    {
@@ -201,23 +208,45 @@ public:
    static void Visualize(const Opt &opt, const Mesh *mesh,
                          const int w, const int h)
    {
-      glvis << "parallel " << NRanks << " " << MyRank << "\n";
-      const GridFunction *x = mesh->GetNodes();
-      glvis << "solution\n" << *mesh << *x;
-      glvis << "window_size " << w << " " << h <<"\n";
-      glvis << "keys " << opt.keys << "\n";
+      dbg("");
+      if (opt.vis_mesh)
+      {
+         //mesh->Print(glvis);
+         glvis << "mesh\n" << *mesh;
+      }
+      else
+      {
+         glvis << "parallel " << NRanks << " " << MyRank << "\n";
+         const GridFunction *x = mesh->GetNodes();
+         //mesh->Print(glvis);
+         //x->Save(glvis);
+         glvis << "solution\n" << *mesh << *x;
+      }
       glvis.precision(8);
+      glvis << "window_size " << w << " " << h << "\n";
+      glvis << "keys " << opt.keys << "\n";
+      if (opt.wait) { glvis << "pause\n"; }
       glvis << flush;
+      fflush(0);
    }
 
    // Visualize some solution on the given mesh
    static void Visualize(const Opt &opt, const Mesh *mesh)
    {
-      glvis << "parallel " << NRanks << " " << MyRank << "\n";
-      const GridFunction *x = mesh->GetNodes();
-      glvis << "solution\n" << *mesh << *x;
+      dbg("");
+      if (opt.vis_mesh)
+      {
+         glvis << "mesh\n" << *mesh;
+      }
+      else
+      {
+         glvis << "parallel " << NRanks << " " << MyRank << "\n";
+         const GridFunction *x = mesh->GetNodes();
+         glvis << "solution\n" << *mesh << *x;
+      }
       if (opt.wait) { glvis << "pause\n"; }
       glvis << flush;
+      fflush(0);
    }
 
    // Surface Solver class
@@ -226,6 +255,7 @@ public:
    protected:
       Opt &opt;
       Surface &S;
+      CGSolver cg;
       OperatorPtr A;
       ParBilinearForm a;
       ParGridFunction x, x0, b;
@@ -234,13 +264,20 @@ public:
       const int print_iter = -1, max_num_iter = 2000;
       const double RTOLERANCE = EPS, ATOLERANCE = EPS*EPS;
    public:
-      Solver(Surface &S, Opt &opt): opt(opt), S(S),
-         a(S.fes), x(S.fes), x0(S.fes), b(S.fes), one(1.0) { }
+      Solver(Surface &S, Opt &opt): opt(opt), S(S), cg(MPI_COMM_WORLD),
+         a(S.fes), x(S.fes), x0(S.fes), b(S.fes), one(1.0)
+      {
+         cg.SetRelTol(RTOLERANCE);
+         cg.SetAbsTol(ATOLERANCE);
+         cg.SetMaxIter(max_num_iter);
+         cg.SetPrintLevel(print_iter);
+      }
 
       ~Solver() { delete M; }
 
       void Solve()
       {
+         constexpr bool converged = true;
          if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
          for (int i=0; i < opt.niters; ++i)
          {
@@ -248,8 +285,9 @@ public:
             if (opt.amr) { Amr(); }
             if (opt.vis) { S.Visualize(opt, S.mesh); }
             S.mesh->DeleteGeometricFactors();
+            //a.Update();
             a.Assemble();
-            if (Step()) { break; }
+            if (Step() == converged) { break; }
          }
       }
 
@@ -270,11 +308,6 @@ public:
       {
          b = 0.0;
          Vector X, B;
-         CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(RTOLERANCE);
-         cg.SetAbsTol(ATOLERANCE);
-         cg.SetMaxIter(max_num_iter);
-         cg.SetPrintLevel(print_iter);
          a.FormLinearSystem(S.bc, x, b, A, X, B);
          if (!opt.pa) { M = new HypreBoomerAMG; }
          if (M) { cg.SetPreconditioner(*M); }
@@ -367,13 +400,7 @@ public:
             a.Update();
             b.HostReadWrite();
             b.Update();
-            if (mesh->bdr_attributes.Size())
-            {
-               Array<int> ess_bdr(mesh->bdr_attributes.Max());
-               ess_bdr = 1;
-               S.bc.HostReadWrite();
-               S.fes->GetEssentialTrueDofs(ess_bdr, S.bc);
-            }
+            S.BC();
          }
       }
    };
@@ -826,9 +853,9 @@ struct FullPeach: public Surface
 {
    static constexpr int NV = 8;
    static constexpr int NE = 6;
-   static constexpr int NBE = 6;
 
-   FullPeach(Opt &opt): Surface((opt.niters = 4, opt), NV, NE, NBE) { }
+   FullPeach(Opt &opt):
+      Surface((opt.niters = min(4, opt.niters), opt), NV, NE, 0) { }
 
    void Prefix()
    {
@@ -845,42 +872,65 @@ struct FullPeach: public Surface
       };
       for (int j = 0; j < NV; j++)  { AddVertex(quad_v[j]); }
       for (int j = 0; j < NE; j++)  { AddQuad(quad_e[j], j+1); }
-      for (int j = 0; j < NBE; j++) { AddBdrQuad(quad_e[j], j+1); }
 
-      RemoveUnusedVertices();
       FinalizeQuadMesh(false, 0, true);
-      FinalizeTopology();
+      FinalizeTopology(false);
       UniformRefinement();
+      SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
    void Snap() { SnapNodesToUnitSphere(); }
 
    void BC()
    {
-      double X[SDIM];
+      dbg("\033[35m[FullPeach] BC: NE=%d, NV=%d & BE=%d",
+          mesh->GetNE(), mesh->GetNV(), mesh->GetNBE());
+      Vector X(SDIM);
       Array<int> dofs;
-      Array<int> ess_cdofs, ess_tdofs;
-      ess_cdofs.SetSize(fes->GetVSize());
-      ess_cdofs = 0;
-      fes->GetMesh()->GetNodes()->HostRead();
+      Array<int> ess_vdofs, ess_tdofs;
+      ess_vdofs.SetSize(fes->GetVSize());
+      dbg("\033[35m[FullPeach] GetVSize():%d, GetTrueVSize:%d",
+          fes->GetVSize(), fes->GetTrueVSize());
+      MFEM_VERIFY(fes->GetVSize() >= fes->GetTrueVSize(),"");
+      ess_vdofs = 0;
+      DenseMatrix PointMat;
       for (int e = 0; e < fes->GetNE(); e++)
       {
          fes->GetElementDofs(e, dofs);
-         for (int c = 0; c < dofs.Size(); c++)
+         //dbg("\t\033[35m[FullPeach] e #%d, dofs:", e); dofs.Print();
+         const IntegrationRule &ir = fes->GetFE(e)->GetNodes();
+         ElementTransformation *eTr = mesh->GetElementTransformation(e);
+         eTr->Transform(ir, PointMat);
+         //dbg("\t\033[35m[FullPeach] e #%d, PointMat:", e); PointMat.Print();
+         Vector one(dofs.Size());
+         for (int dof = 0; dof < dofs.Size(); dof++)
          {
-            int k = dofs[c];
-            if (k < 0) { k = -1 - k; }
-            fes->GetMesh()->GetNode(k, X);
+            one = 0.0;
+            one[dof] = 1.0;
+            const int k = dofs[dof];
+            MFEM_ASSERT(k >= 0, "");
+            //dbg("\t\t\033[35m[FullPeach] k #%d", k);
+            PointMat.Mult(one, X);
             const bool halfX = fabs(X[0]) < EPS && X[1] <= 0.0;
             const bool halfY = fabs(X[2]) < EPS && X[1] >= 0.0;
             const bool is_on_bc = halfX || halfY;
-            for (int d = 0; d < 3; d++)
-            { ess_cdofs[fes->DofToVDof(k, d)] = is_on_bc; }
+            //dbg("\t\t\033[35m[FullPeach] X (%f,%f,%f)", X[0],X[1],X[2]);
+            /*dbg("\t\033[%dm[FullPeach] X(%f,%f,%f)",
+                is_on_bc ? 31: 37, X[0],X[1],X[2]);*/
+            for (int c = 0; c < SDIM; c++)
+            { ess_vdofs[fes->DofToVDof(k, c)] = is_on_bc; }
          }
       }
+      int here;
       const SparseMatrix *R = fes->GetRestrictionMatrix();
-      if (!R) { ess_tdofs.MakeRef(ess_cdofs); }
-      else { R->BooleanMult(ess_cdofs, ess_tdofs); }
+      if (!R)
+      {
+         ess_tdofs.MakeRef(ess_vdofs);
+      }
+      else
+      {
+         R->BooleanMult(ess_vdofs, ess_tdofs);
+      }
       ParFiniteElementSpace::MarkerToList(ess_tdofs, bc);
    }
 };
@@ -1075,6 +1125,8 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.keys, "-k", "--keys", "GLVis configuration keys.");
    args.AddOption(&opt.vis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable visualization.");
+   args.AddOption(&opt.vis_mesh, "-vm", "--vis-mesh", "-no-vm",
+                  "--no-vis-mesh", "Enable or disable mesh visualization.");
    args.AddOption(&opt.by_vdim, "-c", "--solve-byvdim",
                   "-no-c", "--solve-bynodes",
                   "Enable or disable the 'ByVdim' solver");
