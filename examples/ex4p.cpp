@@ -20,6 +20,12 @@
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
 //
+// Device sample runs:
+//               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d cuda
+//               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d raja-cuda
+//               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d raja-omp
+//               mpirun -np 4 ex4p -m ../data/beam-hex.mesh -pa -d cuda
+//
 // Description:  This example code solves a simple 2D/3D H(div) diffusion
 //               problem corresponding to the second order definite equation
 //               -grad(alpha div F) + beta F = f with boundary condition F dot n

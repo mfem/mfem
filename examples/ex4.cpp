@@ -21,6 +21,12 @@
 //               ex4 -m ../data/fichera-amr.mesh -o 2 -sc
 //               ex4 -m ../data/star-surf.mesh -o 1
 //
+// Device sample runs:
+//               ex4 -m ../data/star.mesh -pa -d cuda
+//               ex4 -m ../data/star.mesh -pa -d raja-cuda
+//               ex4 -m ../data/star.mesh -pa -d raja-omp
+//               ex4 -m ../data/beam-hex.mesh -pa -d cuda
+//
 // Description:  This example code solves a simple 2D/3D H(div) diffusion
 //               problem corresponding to the second order definite equation
 //               -grad(alpha div F) + beta F = f with boundary condition F dot n

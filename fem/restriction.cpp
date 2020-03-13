@@ -174,6 +174,33 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
+void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, ne);
+
+   MFEM_FORALL(i, ndofs,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i+1];
+      for (int c = 0; c < vd; ++c)
+      {
+         const double dofValue = d_x(t?c:i,t?i:c);
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
+            d_y(idx_j % nd, c, idx_j / nd) = dofValue;
+         }
+      }
+   });
+}
+
 void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
