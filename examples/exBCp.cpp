@@ -516,7 +516,8 @@ int main(int argc, char *argv[])
                << " " << mpi.WorldRank() << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x
-               << "window_title '" << h1_str << " Solution'" << " keys 'mmc'" << flush;
+               << "window_title '" << h1_str << " Solution'"
+	       << " keys 'mmc'" << flush;
 
       socketstream n_sol_sock(vishost, visport);
       n_sol_sock << "parallel " << mpi.WorldSize()
