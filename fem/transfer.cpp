@@ -519,9 +519,9 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
 {
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
-   opr = new RAPOperator(*hFESpace_.GetProlongationMatrix(),
-                         *localTransferOperator,
-                         *lFESpace_.GetProlongationMatrix());
+   opr = new TripleProductOperator(hFESpace_.GetRestrictionMatrix(),
+                                   localTransferOperator,
+                                   lFESpace_.GetProlongationMatrix(), false, false, false);
 }
 
 TrueTransferOperator::~TrueTransferOperator()
