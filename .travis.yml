@@ -183,7 +183,8 @@ jobs:
         - make -j3 mfem examples unit_tests
         - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
         - make -j3
-        - ctest --output-on-failure
+        # - ctest --output-on-failure
+        - ctest -V
       cache:
         directories:
           - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
