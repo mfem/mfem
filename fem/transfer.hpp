@@ -125,7 +125,7 @@ class TrueTransferOperator : public Operator
 {
 private:
    TransferOperator* localTransferOperator;
-   RAPOperator* opr;
+   TripleProductOperator* opr;
 
 public:
    /// Constructs a transfer operator working on true degrees of freedom from \p
