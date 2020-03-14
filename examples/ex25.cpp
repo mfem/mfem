@@ -44,29 +44,7 @@ public:
                               Array<int>& ess_bdr, int chebyshevOrder = 2)
       : one(1.0)
    {
-      BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
-      form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      AddIntegrators(form);
-      form->Assemble();
-      bfs.Append(form);
-
-      essentialTrueDofs.Append(new Array<int>());
-      spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
-         ess_bdr, *essentialTrueDofs.Last());
-
-      OperatorPtr opr;
-      opr.SetType(Operator::ANY_TYPE);
-      form->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
-      opr.SetOperatorOwner(false);
-
-      CGSolver* pcg = new CGSolver();
-      pcg->SetPrintLevel(0);
-      pcg->SetMaxIter(200);
-      pcg->SetRelTol(sqrt(1e-4));
-      pcg->SetAbsTol(0.0);
-      pcg->SetOperator(*opr.Ptr());
-
-      AddCoarsestLevel(opr.Ptr(), pcg, true, true);
+      ConstructCoarseOperatorAndSolver(spaceHierarchy, ess_bdr);
 
       for (int level = 1; level < spaceHierarchy.GetNumLevels(); ++level)
       {
@@ -128,6 +106,34 @@ private:
    void AddIntegrators(BilinearForm* form)
    {
       form->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+
+   void ConstructCoarseOperatorAndSolver(SpaceHierarchy& spaceHierarchy,
+                                         Array<int>& ess_bdr)
+   {
+      BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
+      form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      AddIntegrators(form);
+      form->Assemble();
+      bfs.Append(form);
+
+      essentialTrueDofs.Append(new Array<int>());
+      spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
+         ess_bdr, *essentialTrueDofs.Last());
+
+      OperatorPtr opr;
+      opr.SetType(Operator::ANY_TYPE);
+      form->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      opr.SetOperatorOwner(false);
+
+      CGSolver* pcg = new CGSolver();
+      pcg->SetPrintLevel(0);
+      pcg->SetMaxIter(200);
+      pcg->SetRelTol(sqrt(1e-4));
+      pcg->SetAbsTol(0.0);
+      pcg->SetOperator(*opr.Ptr());
+
+      AddCoarsestLevel(opr.Ptr(), pcg, true, true);
    }
 };
 

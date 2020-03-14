@@ -31,9 +31,6 @@ using namespace mfem;
 class MultigridDiffusionOperator : public MultigridOperator
 {
 private:
-   ParMesh* pmesh_lor;
-   H1_FECollection* fec_lor;
-   ParFiniteElementSpace* fespace_lor;
    Array<BilinearForm*> bfs;
    Array<Array<int>*> essentialTrueDofs;
    ConstantCoefficient one;
@@ -44,33 +41,13 @@ public:
                               Array<int>& ess_bdr, int chebyshevOrder = 2)
       : one(1.0)
    {
-      ParMesh* pmesh = spaceHierarchy.GetFESpaceAtLevel(0).GetParMesh();
-      pmesh_lor = new ParMesh(pmesh, 1, BasisType::GaussLobatto);
-      fec_lor =
-         new H1_FECollection(1, pmesh->Dimension(), BasisType::GaussLobatto);
-      fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
-      ParBilinearForm* a_lor = new ParBilinearForm(fespace_lor);
-      AddIntegrators(a_lor);
-      a_lor->UsePrecomputedSparsity();
-      a_lor->Assemble();
-      bfs.Append(a_lor);
-
-      essentialTrueDofs.Append(new Array<int>());
-      spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
-         ess_bdr, *essentialTrueDofs.Last());
-
-      HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
-      a_lor->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
-
-      HypreBoomerAMG* amg = new HypreBoomerAMG(*hypreCoarseMat);
-      amg->SetPrintLevel(-1);
-
-      AddCoarsestLevel(hypreCoarseMat, amg, true, true);
+      ConstructCoarseOperatorAndSolver(spaceHierarchy, ess_bdr);
 
       for (int level = 1; level < spaceHierarchy.GetNumLevels(); ++level)
       {
-         ParBilinearForm* form = new ParBilinearForm(&spaceHierarchy.GetFESpaceAtLevel(
-                                                        level));
+         ParFiniteElementSpace& fespace = spaceHierarchy.GetFESpaceAtLevel(
+                                             level);
+         ParBilinearForm* form = new ParBilinearForm(&fespace);
          form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
          AddIntegrators(form);
          form->Assemble();
@@ -89,7 +66,8 @@ public:
          form->AssembleDiagonal(diag);
 
          Solver* smoother = new OperatorChebyshevSmoother(
-            opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder, pmesh->GetComm());
+            opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
+            fespace.GetParMesh()->GetComm());
 
          Operator* P =
             new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
@@ -110,10 +88,6 @@ public:
       {
          delete essentialTrueDofs[i];
       }
-
-      delete fespace_lor;
-      delete fec_lor;
-      delete pmesh_lor;
    }
 
    void EliminateBCs(Vector& x, Vector& b, Vector& X, Vector& B)
@@ -132,6 +106,28 @@ private:
    void AddIntegrators(BilinearForm* form)
    {
       form->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+
+   void ConstructCoarseOperatorAndSolver(ParSpaceHierarchy& spaceHierarchy,
+                                         Array<int>& ess_bdr)
+   {
+      ParFiniteElementSpace& fespace = spaceHierarchy.GetFESpaceAtLevel(0);
+      ParBilinearForm* a = new ParBilinearForm(&fespace);
+      AddIntegrators(a);
+      a->UsePrecomputedSparsity();
+      a->Assemble();
+      bfs.Append(a);
+
+      essentialTrueDofs.Append(new Array<int>());
+      fespace.GetEssentialTrueDofs(ess_bdr, *essentialTrueDofs.Last());
+
+      HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
+      a->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
+
+      HypreBoomerAMG* amg = new HypreBoomerAMG(*hypreCoarseMat);
+      amg->SetPrintLevel(-1);
+
+      AddCoarsestLevel(hypreCoarseMat, amg, true, true);
    }
 };
 
