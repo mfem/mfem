@@ -13,7 +13,6 @@ Version 4.1.1 (development)
 
 Meshing improvements
 --------------------
-
 - The graph linear ordering library Gecko, previously an external dependency, is
   now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
   always available. The interface has also been improved, see for example the
