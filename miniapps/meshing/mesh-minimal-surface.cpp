@@ -44,6 +44,7 @@
 #include <fstream>
 #include <iostream>
 
+#define DBG_COLOR 169
 #include "../../../dbg.hpp"
 #include "linalg/densemat.hpp"
 #include "../../general/forall.hpp"
@@ -70,6 +71,7 @@ constexpr char vishost[] = "localhost";
 // Options for the solver
 struct Opt
 {
+   int problem = 0;
    int nx = 6;
    int ny = 6;
    int order = 3;
@@ -97,7 +99,7 @@ struct Opt
 
 class Surface: public Mesh
 {
-protected:
+public:
    Opt &opt;
    Mesh *mesh;
    Array<int> bc;
@@ -117,12 +119,12 @@ public:
    Surface(Opt &opt, int nv, int ne, int nbe):
       Mesh(DIM, nv, ne, nbe, SDIM), opt(opt) { }
 
-   int Solve()
+   void Create()
    {
       if (opt.surface > 0)
       {
          Prefix();
-         Create();
+         Transform();
       }
       Postfix();
       Refine();
@@ -132,13 +134,14 @@ public:
       mesh = new Mesh(*this, true);
       fes = new FiniteElementSpace(mesh, fec, opt.by_vdim ? 1 : SDIM);
       BC();
+   }
 
+   int Solve()
+   {
       // Initialize GLVis server if 'visualization' is set
       if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
-
       // Send to GLVis the first mesh
       if (opt.vis) { Visualize(opt, mesh, GLVIZ_W, GLVIZ_H); }
-
       // Create and launch the surface solver
       if (opt.by_vdim)
       {
@@ -148,7 +151,6 @@ public:
       {
          ByNodes(*this, opt).Solve();
       }
-
       return 0;
    }
 
@@ -163,7 +165,7 @@ public:
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
-   void Create() { if (opt.Tptr) { Transform(opt.Tptr); } }
+   virtual void Transform() { if (opt.Tptr) { Mesh::Transform(opt.Tptr); } }
 
    virtual void Postfix()
    {
@@ -263,7 +265,7 @@ public:
             if (opt.amr) { Amr(); }
             if (opt.vis) { S.Visualize(opt, S.mesh); }
             S.mesh->DeleteGeometricFactors();
-            //a.Update();
+            a.Update();
             a.Assemble();
             if (Step() == converged) { break; }
          }
@@ -1066,6 +1068,7 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    Opt opt;
    OptionsParser args(argc, argv);
+   args.AddOption(&opt.problem, "-p", "--problem", "Problem to solve.");
    args.AddOption(&opt.mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&opt.wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Enable or disable a GLVis pause.");
@@ -1103,24 +1106,167 @@ int main(int argc, char *argv[])
    Device device(opt.device_config);
    device.Print();
 
-   // Create our surface mesh from command line options
-   Surface *S = nullptr;
-   switch (opt.surface)
+   if (opt.problem == 0)
    {
-      case 0: S = new MeshFromFile(opt); break;
-      case 1: S = new Catenoid(opt); break;
-      case 2: S = new Helicoid(opt); break;
-      case 3: S = new Enneper(opt); break;
-      case 4: S = new Hold(opt); break;
-      case 5: S = new Costa(opt); break;
-      case 6: S = new Shell(opt); break;
-      case 7: S = new Scherk(opt); break;
-      case 8: S = new FullPeach(opt); break;
-      case 9: S = new QuarterPeach(opt); break;
-      case 10: S = new SlottedSphere(opt); break;
-      default: MFEM_ABORT("Unknown surface (surface <= 10)!");
+      // Create our surface mesh from command line options
+      Surface *S = nullptr;
+      switch (opt.surface)
+      {
+         case 0: S = new MeshFromFile(opt); break;
+         case 1: S = new Catenoid(opt); break;
+         case 2: S = new Helicoid(opt); break;
+         case 3: S = new Enneper(opt); break;
+         case 4: S = new Hold(opt); break;
+         case 5: S = new Costa(opt); break;
+         case 6: S = new Shell(opt); break;
+         case 7: S = new Scherk(opt); break;
+         case 8: S = new FullPeach(opt); break;
+         case 9: S = new QuarterPeach(opt); break;
+         case 10: S = new SlottedSphere(opt); break;
+         default: MFEM_ABORT("Unknown surface (surface <= 10)!");
+      }
+      S->Create();
+      S->Solve();
+      delete S;
    }
-   S->Solve();
-   delete S;
+
+   // Solve the Dirichlet problem for the minimal surface equation
+   // of the form z=f(x,y), using Picard iterations
+   if (opt.problem == 1)
+   {
+      const int order = opt.order;
+      Mesh mesh(opt.nx, opt.ny, QUAD);
+      const H1_FECollection fec(order, DIM);
+      FiniteElementSpace fes(&mesh, &fec);
+      Array<int> ess_tdof_list;
+      if (mesh.bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      GridFunction uold(&fes), u(&fes), b(&fes);
+      double u0(Vector &x); // forward u0 function declaration
+      FunctionCoefficient u0_fc(u0);
+      u.ProjectCoefficient(u0_fc);
+      if (opt.vis)
+      {
+         opt.vis = glvis.open(vishost, visport) == 0;
+         glvis << "solution\n" << mesh << u;
+         glvis.precision(8);
+         glvis << "window_size " << GLVIZ_W << " " << GLVIZ_H << "\n";
+         glvis << "keys " << opt.keys << "\n";
+         if (opt.wait) { glvis << "pause\n"; }
+         glvis << flush;
+      }
+      // forward declaration of the coefficient function
+      double q(const int, int, Mesh&, FiniteElementSpace&, GridFunction &);
+      const double initial_surface_area = q(order, 1, mesh, fes, u);
+      dbg("initial_surface_area: %f", initial_surface_area);
+      Vector B, X;
+      OperatorPtr A;
+      for (int i = 0; i < opt.niters; i++)
+      {
+         b = 0.0;
+         uold = u;
+         BilinearForm a(&fes);
+         if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+         const double q_uold = q(order, 1, mesh, fes, uold);
+         MFEM_VERIFY(fabs(q_uold)>EPS,"");
+         ConstantCoefficient q_uold_cc(1.0/sqrt(q_uold));
+         a.AddDomainIntegrator(new DiffusionIntegrator(q_uold_cc));
+         a.Assemble();
+         a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+         cout << "Size of linear system: " << A->Height() << endl;
+         CG(*A, B, X, 1, 400, EPS, 0.0);
+         a.RecoverFEMSolution(X, b, u);
+         GridFunction eps(&fes);
+         subtract(u, uold, eps);
+         const double norm = sqrt(fabs(q(order, 0, mesh, fes, eps)));
+         const double area = q(order, 1, mesh, fes, u);
+         mfem::out << "\033[1;33mIteration " << i
+                   << ", norm:" << norm
+                   << ", area:" << area << "\033[m" << endl;
+         if (opt.vis)
+         {
+            glvis << "solution\n" << mesh << u;
+            if (opt.wait) { glvis << "pause\n"; }
+            glvis << flush;
+         }
+         if (norm < NRM) { break; }
+      }
+   }
    return 0;
+}
+
+double u0(Vector &x) { return sin(3.0*M_PI*(x[1]+x[0])); }
+//double u0(Vector &x) { return sin(2.5*M_PI*x[1])*x[0]; }
+/*double u0(Vector &p)
+{
+   const double x = 2.0*(p[0]-0.5);
+   const double y = 2.0*(p[1]-0.5);
+   return sqrt(x*x + y*y);
+}*/
+
+// the coefficient function
+double q(const int o, const int k,
+         Mesh &m, FiniteElementSpace &f, GridFunction &u)
+{
+   const Geometry::Type type = m.GetElementBaseGeometry(0);
+   const IntegrationRule &ir(IntRules.Get(type, o));
+   const QuadratureInterpolator *qi(f.GetQuadratureInterpolator(ir));
+
+   const int NE(m.GetNE());
+   const int ND(f.GetFE(0)->GetDof());
+   const int NQ(ir.GetNPoints());
+   const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
+   const GeometricFactors *geom = m.GetGeometricFactors(ir, flags);
+
+   const int D1D = f.GetFE(0)->GetOrder() + 1;
+   const int Q1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
+   MFEM_VERIFY(ND == D1D*D1D,"");
+   MFEM_VERIFY(NQ == Q1D*Q1D,"");
+
+   Vector Eu(ND*NE);
+   qi->SetOutputLayout(QVectorLayout::byVDIM);
+   const ElementDofOrdering e_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *G(f.GetElementRestriction(e_ordering));
+
+   G->Mult(u, Eu);
+   Vector grad_u(DIM*NQ*NE);
+   qi->Derivatives(Eu, grad_u);
+
+   Vector sum(NE*NQ), one(NE*NQ);
+
+   auto W = Reshape(ir.GetWeights().Read(), Q1D, Q1D);
+   auto J = Reshape(geom->J.Read(), Q1D,Q1D, DIM, DIM, NE);
+   auto detJ = Reshape(geom->detJ.Read(), Q1D, Q1D, NE);
+   auto gradU = Reshape(grad_u.Read(), DIM, Q1D, Q1D, NE);
+   auto S = Reshape(sum.Write(), Q1D, Q1D, NE);
+
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            const double w = W(qx,qy);
+            const double J11 = J(qx,qy,0,0,e);
+            const double J12 = J(qx,qy,1,0,e);
+            const double J21 = J(qx,qy,0,1,e);
+            const double J22 = J(qx,qy,1,1,e);
+            const double det = detJ(qx,qy,e);
+            const double area = w * det;
+            const double gu0 = gradU(0,qx,qy,e);
+            const double gu1 = gradU(1,qx,qy,e);
+            const double tgu0 = (J22*gu0 - J12*gu1)/det;
+            const double tgu1 = (J11*gu1 - J21*gu0)/det;
+            const double ngu = tgu0*tgu0 + tgu1*tgu1;
+            const double s = (k==1) ? sqrt(1.0 + ngu) : ngu;
+            S(qx, qy, e) = area * s;
+         }
+      }
+   });
+   one = 1.0;
+   return sum * one;
 }
