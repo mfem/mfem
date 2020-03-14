@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_DEVICE_HPP
@@ -57,9 +57,9 @@ struct Backend
       /** @brief [host] CEED CPU backend. GPU backends can still be used, but
           with expensive memory transfers. Enabled when MFEM_USE_CEED = YES. */
       CEED_CPU  = 1 << 10,
-      /** @brief [device] CEED CUDA backend working in collaboration with the
-          CUDA backend. Enabled when MFEM_USE_CEED = YES and
-          MFEM_USE_CUDA = YES. */
+      /** @brief [device] CEED CUDA backend working together with the CUDA
+          backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_CUDA = YES.
+          NOTE: The current default libCEED GPU backend is non-deterministic! */
       CEED_CUDA = 1 << 11,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path

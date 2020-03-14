@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "forall.hpp"
@@ -496,6 +496,7 @@ void Device::Setup(const int device)
    {
       if (!device_option)
       {
+         // NOTE: libCEED's /gpu/cuda/gen backend is non-deterministic!
          CeedDeviceSetup("/gpu/cuda/gen");
       }
       else
