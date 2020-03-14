@@ -20,7 +20,7 @@ sub usage {
   printf STDOUT <<EOF;
 
    $0 [-h|--help]
-   $0 {mfem_dif}
+   $0 {mfem_dir}
 
    where: {mfem_dir}  is the MFEM source directory [default value: ../..]
           -h|--help   prints this usage information and exits
