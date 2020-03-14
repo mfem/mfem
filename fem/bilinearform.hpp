@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_BILINEARFORM
@@ -96,11 +96,9 @@ protected:
    StaticCondensation *static_cond; ///< Owned.
    Hybridization *hybridization; ///< Owned.
 
-   /**
-    * This member allows one to specify what should be done
-    * to the diagonal matrix entries and corresponding RHS
-    * values upon elimination of the constrained DoFs.
-    */
+   /** This data member allows one to specify what should be done to the
+       diagonal matrix entries and corresponding RHS values upon elimination of
+       the constrained DoFs. */
    DiagonalPolicy diag_policy;
 
    int precompute_sparsity;
