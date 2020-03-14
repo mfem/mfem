@@ -12,9 +12,8 @@
 # CONTRIBUTING.md for details.
 
 $flag = shift;
-if ($flag) {
-  if ($flag eq "-h" || $flag eq "--help") {
-    printf STDOUT <<EOF;
+if ($flag and ($flag eq "-h" || $flag eq "--help")) {
+  printf STDOUT <<EOF;
 This script checks if the current branch history, defined as the commits that
 will be merged in master (those shown in a GitHub PR), contains unusually
 large files, unusually large number of changes in a commit, unusually large
@@ -22,11 +21,7 @@ number of commits, etc.
 
 Usage: $0
 EOF
-    exit 0;
-  } else {
-    printf STDERR "Unknown command line argument $flag\n";
-    exit 1;
-  }
+  exit 0;
 }
 
 # Maximum number of acceptable commits in the branch
