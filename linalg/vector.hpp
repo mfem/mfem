@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_VECTOR
@@ -225,7 +225,7 @@ public:
 
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    Vector &operator=(const Vector &v);
 
    /// Redefine '=' for vector = constant.

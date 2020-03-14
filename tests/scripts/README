@@ -63,7 +63,7 @@ including the runtest script itself
 
    This script runs a sequence of tests using the code in mfem_dir (note that
    specifying the directory is optional). For each test, the standard output and
-   standard error are saved in files test.out and test.err respectivelly in the
+   standard error are saved in files test.out and test.err respectively in the
    current directory [1]. The output file interleaves stdout and stderr, while
    the error file is filtered by removing test-specific patterns specified in an
    optional test.filters file in the test directory [2]. After filtering, empty

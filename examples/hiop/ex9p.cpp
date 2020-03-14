@@ -1,9 +1,9 @@
-//  MFEM Example 9 with Nonlinear Constrained Optimization - Parallel Version
+//                       MFEM Example 9 - Parallel Version
+//               Nonlinear Constrained Optimization Modification
 //
 // Compile with: make ex9p
 //
 // Sample runs:
-//
 //    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 1
 //    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 2
 //

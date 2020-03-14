@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH
@@ -64,7 +64,7 @@ protected:
    /** These variables store the number of Interior and Boundary faces. Calling
        fes->GetMesh()->GetNBE() doesn't return the expected value in 3D because
        periodic meshes in 3D have some of their faces marked as boundary for
-       vizualization purpose in GLVis. */
+       visualization purpose in GLVis. */
    mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
