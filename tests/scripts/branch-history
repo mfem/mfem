@@ -11,22 +11,52 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-$flag = shift;
-if ($flag) {
-  if ($flag eq "-h" || $flag eq "--help") {
-    printf STDOUT <<EOF;
-This script checks if the current branch history, defined as the commits that
-will be merged in master (those shown in a GitHub PR), contains unusually
-large files, unusually large number of changes in a commit, unusually large
-number of commits, etc.
+use strict;
+use File::Basename;
+use Cwd;
 
-Usage: $0
+# Print usage information and exit with status code passed as argument
+sub usage {
+  printf STDOUT <<EOF;
+
+   $0 [-h|--help]
+   $0 {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../..]
+          -h|--help   prints this usage information and exits
+
+   This script checks if the current branch history, defined as the commits that
+   will be merged in master (those shown in a GitHub PR), contains unusually
+   large files, unusually large number of changes in a commit, unusually large
+   number of commits, etc.
+
+   Example usage: $0
+
 EOF
-    exit 0;
-  } else {
-    printf STDERR "Unknown command line argument $flag\n";
-    exit 1;
+  exit $_[0];
+}
+
+my $mfem_dir = "../..";
+
+if (scalar @ARGV > 2) {
+  printf STDERR "Error: too many command line arguments\n";
+  usage 1;
+}
+
+while (my $opt = shift) {
+  if ($opt) {
+    if ($opt eq "-h" || $opt eq "--help") {
+      usage 0;
+    } else {
+      $mfem_dir = $opt;
+    }
   }
+}
+
+my $cur_dir = getcwd;
+if (!chdir $mfem_dir) {
+  printf STDERR "Error: invalid value for mfem_dir: $mfem_dir\n";
+  usage 1;
 }
 
 # Maximum number of acceptable commits in the branch
@@ -125,7 +155,9 @@ if ($total_size > $max_branch_kb*1024) {
 }
 
 if ($status) {
-  open(my $f, '>', "$0.msg");
+  chdir $cur_dir;
+  my $testname = basename $0;
+  open(my $f, '>', "$testname.msg");
   print $f <<EOF;
 
 The failure of this script indicates that large files or a large number of files
