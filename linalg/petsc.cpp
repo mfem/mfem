@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Author: Stefano Zampini <stefano.zampini@gmail.com>
 
@@ -84,6 +84,7 @@ static PetscErrorCode __mfem_pc_shell_view(PC,PetscViewer);
 static PetscErrorCode __mfem_mat_shell_apply(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat,Vec,Vec);
 static PetscErrorCode __mfem_mat_shell_destroy(Mat);
+static PetscErrorCode __mfem_mat_shell_copy(Mat,Mat,MatStructure);
 static PetscErrorCode __mfem_array_container_destroy(void*);
 static PetscErrorCode __mfem_matarray_container_destroy(void*);
 static PetscErrorCode __mfem_monitor_ctx_destroy(void**);
@@ -108,11 +109,6 @@ static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix*,Mat*);
 // structs used by PETSc code
 typedef struct
 {
-   mfem::Operator *op;
-} __mfem_mat_shell_ctx;
-
-typedef struct
-{
    mfem::Solver                     *op;
    mfem::PetscPreconditionerFactory *factory;
    bool                             ownsop;
@@ -127,7 +123,7 @@ typedef struct
    mfem::Operator::Type  jacType;    // OperatorType for the Jacobian
    // Objective for line search
    void (*objective)(mfem::Operator *op, const mfem::Vector&, double*);
-   // PostCheck function (to be called after successfull line search)
+   // PostCheck function (to be called after successful line search)
    void (*postcheck)(mfem::Operator *op, const mfem::Vector&, mfem::Vector&,
                      mfem::Vector&, bool&, bool&);
    // General purpose update function (to be called at the beginning of
@@ -839,23 +835,24 @@ MPI_Comm PetscParMatrix::GetComm() const
 // TODO This should take a reference on op but how?
 void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
 {
-   __mfem_mat_shell_ctx *ctx = new __mfem_mat_shell_ctx;
    ierr = MatCreate(comm,A); CCHKERRQ(comm,ierr);
    ierr = MatSetSizes(*A,op->Height(),op->Width(),
                       PETSC_DECIDE,PETSC_DECIDE); PCHKERRQ(A,ierr);
    ierr = MatSetType(*A,MATSHELL); PCHKERRQ(A,ierr);
-   ierr = MatShellSetContext(*A,(void *)ctx); PCHKERRQ(A,ierr);
+   ierr = MatShellSetContext(*A,(void *)op); PCHKERRQ(A,ierr);
    ierr = MatShellSetOperation(*A,MATOP_MULT,
                                (void (*)())__mfem_mat_shell_apply);
    PCHKERRQ(A,ierr);
    ierr = MatShellSetOperation(*A,MATOP_MULT_TRANSPOSE,
                                (void (*)())__mfem_mat_shell_apply_transpose);
    PCHKERRQ(A,ierr);
+   ierr = MatShellSetOperation(*A,MATOP_COPY,
+                               (void (*)())__mfem_mat_shell_copy);
+   PCHKERRQ(A,ierr);
    ierr = MatShellSetOperation(*A,MATOP_DESTROY,
                                (void (*)())__mfem_mat_shell_destroy);
    PCHKERRQ(A,ierr);
    ierr = MatSetUp(*A); PCHKERRQ(*A,ierr);
-   ctx->op = const_cast<Operator *>(op);
 }
 
 void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
@@ -3846,6 +3843,14 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    // Jacobian reusage
    ierr = PetscObjectStateGet((PetscObject)P,&ts_ctx->cached_ijacstate);
    CHKERRQ(ierr);
+
+   // Fool DM
+   DM dm;
+   MatType mtype;
+   ierr = MatGetType(P,&mtype); CHKERRQ(ierr);
+   ierr = TSGetDM(ts,&dm); CHKERRQ(ierr);
+   ierr = DMSetMatType(dm,mtype); CHKERRQ(ierr);
+   ierr = DMShellSetMatrix(dm,P); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
@@ -3872,7 +3877,6 @@ static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
    ierr = PetscObjectStateGet((PetscObject)Jxp,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
        state == ts_ctx->cached_splits_xdotstate) { rxp = PETSC_FALSE; }
-
    if (!rx && !rxp) { PetscFunctionReturn(0); }
 
    // update time
@@ -4124,6 +4128,14 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    }
    ierr = PetscObjectStateGet((PetscObject)A,&ts_ctx->cached_rhsjacstate);
    CHKERRQ(ierr);
+
+   // Fool DM
+   DM dm;
+   MatType mtype;
+   ierr = MatGetType(P,&mtype); CHKERRQ(ierr);
+   ierr = TSGetDM(ts,&dm); CHKERRQ(ierr);
+   ierr = DMSetMatType(dm,mtype); CHKERRQ(ierr);
+   ierr = DMShellSetMatrix(dm,P); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
@@ -4243,6 +4255,14 @@ static PetscErrorCode __mfem_snes_jacobian(SNES snes, Vec x, Mat A, Mat P,
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
       ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
    }
+
+   // Fool DM
+   DM dm;
+   MatType mtype;
+   ierr = MatGetType(P,&mtype); CHKERRQ(ierr);
+   ierr = SNESGetDM(snes,&dm); CHKERRQ(ierr);
+   ierr = DMSetMatType(dm,mtype); CHKERRQ(ierr);
+   ierr = DMShellSetMatrix(dm,P); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
@@ -4376,14 +4396,15 @@ static PetscErrorCode __mfem_ksp_monitor(KSP ksp, PetscInt it, PetscReal res,
 
 static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
 {
-   __mfem_mat_shell_ctx *ctx;
-   PetscErrorCode       ierr;
+   mfem::Operator *op;
+   PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
-   ierr = MatShellGetContext(A,(void **)&ctx); CHKERRQ(ierr);
+   ierr = MatShellGetContext(A,(void **)&op); CHKERRQ(ierr);
+   if (!op) { SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator"); }
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
-   ctx->op->Mult(xx,yy);
+   op->Mult(xx,yy);
    // need to tell PETSc the Vec has been updated
    ierr = PetscObjectStateIncrease((PetscObject)y); CHKERRQ(ierr);
    PetscFunctionReturn(0);
@@ -4391,27 +4412,35 @@ static PetscErrorCode __mfem_mat_shell_apply(Mat A, Vec x, Vec y)
 
 static PetscErrorCode __mfem_mat_shell_apply_transpose(Mat A, Vec x, Vec y)
 {
-   __mfem_mat_shell_ctx *ctx;
-   PetscErrorCode       ierr;
+   mfem::Operator *op;
+   PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
-   ierr = MatShellGetContext(A,(void **)&ctx); CHKERRQ(ierr);
+   ierr = MatShellGetContext(A,(void **)&op); CHKERRQ(ierr);
+   if (!op) { SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator"); }
    mfem::PetscParVector xx(x,true);
    mfem::PetscParVector yy(y,true);
-   ctx->op->MultTranspose(xx,yy);
+   op->MultTranspose(xx,yy);
    // need to tell PETSc the Vec has been updated
    ierr = PetscObjectStateIncrease((PetscObject)y); CHKERRQ(ierr);
    PetscFunctionReturn(0);
 }
 
-static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
+static PetscErrorCode __mfem_mat_shell_copy(Mat A, Mat B, MatStructure str)
 {
-   __mfem_mat_shell_ctx *ctx;
-   PetscErrorCode       ierr;
+   mfem::Operator *op;
+   PetscErrorCode ierr;
 
    PetscFunctionBeginUser;
-   ierr = MatShellGetContext(A,(void **)&ctx); CHKERRQ(ierr);
-   delete ctx;
+   ierr = MatShellGetContext(A,(void **)&op); CHKERRQ(ierr);
+   if (!op) { SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_LIB,"Missing operator"); }
+   ierr = MatShellSetContext(B,(void *)op); CHKERRQ(ierr);
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_mat_shell_destroy(Mat A)
+{
+   PetscFunctionBeginUser;
    PetscFunctionReturn(0);
 }
 
