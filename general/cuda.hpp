@@ -53,6 +53,7 @@
 #define MFEM_REGISTER(v,n) v
 #define MFEM_REGISTER_2D(v,n,m) v
 #define MFEM_REGISTER_3D(v,n,m,p) v
+#endif
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_DEVICE

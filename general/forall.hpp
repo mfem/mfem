@@ -31,10 +31,6 @@
 namespace mfem
 {
 
-// Embedding a #pragma directive within the MFEM_FORALL macro is not supported.
-// The unrolling information given by this macro could still be useful.
-#define MFEM_UNROLL(...)
-
 // Maximum size of dofs and quads in 1D.
 const int MAX_D1D = 14;
 const int MAX_Q1D = 14;
