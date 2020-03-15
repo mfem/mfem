@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of GridFunction
 
@@ -326,7 +326,7 @@ void GridFunction::GetTrueDofs(Vector &tv) const
    if (!R)
    {
       // R is identity -> make tv a reference to *this
-      tv.NewDataAndSize(const_cast<double*>((const double*)data), size);
+      tv.MakeRef(const_cast<GridFunction &>(*this), 0, size);
    }
    else
    {
@@ -341,10 +341,7 @@ void GridFunction::SetFromTrueDofs(const Vector &tv)
    const SparseMatrix *cP = fes->GetConformingProlongation();
    if (!cP)
    {
-      if (tv.GetData() != data)
-      {
-         *this = tv;
-      }
+      *this = tv; // no real copy if 'tv' and '*this' use the same data
    }
    else
    {
@@ -1319,6 +1316,9 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
    Array<int> vdofs;
    Vector vals;
    *this = 0.0;
+
+   HostReadWrite();
+
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -1357,6 +1357,9 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
    Array<int> vdofs;
    Vector vals;
    *this = 0.0;
+
+   HostReadWrite();
+
    for (int i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -1413,6 +1416,9 @@ void GridFunction::AccumulateAndCountBdrValues(
    values_counter = 0;
 
    vdim = fes->GetVDim();
+
+   HostReadWrite();
+
    for (i = 0; i < fes->GetNBE(); i++)
    {
       if (attr[fes->GetBdrAttribute(i) - 1] == 0) { continue; }
@@ -1548,6 +1554,8 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
 
    values_counter.SetSize(Size());
    values_counter = 0;
+
+   HostReadWrite();
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {
@@ -1883,7 +1891,7 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 {
    Array<int> values_counter;
-   this->HostReadWrite();
+   // this->HostReadWrite(); // done inside the next call
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
 #ifdef MFEM_DEBUG
