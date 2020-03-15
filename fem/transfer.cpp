@@ -514,30 +514,62 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
    elem_restrict_lex_l->MultTranspose(localL, y);
 }
 
-TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
-                                           const FiniteElementSpace& hFESpace_)
+#ifdef MFEM_USE_MPI
+TrueTransferOperator::TrueTransferOperator(const ParFiniteElementSpace&
+                                           lFESpace_,
+                                           const ParFiniteElementSpace& hFESpace_)
+   : lFESpace(lFESpace_), hFESpace(hFESpace_)
 {
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
-   opr = new TripleProductOperator(hFESpace_.GetRestrictionMatrix(),
-                                   localTransferOperator,
-                                   lFESpace_.GetProlongationMatrix(), false, false, false);
+   tmpL.SetSize(lFESpace_.GetVSize());
+   tmpH.SetSize(hFESpace_.GetVSize());
 }
 
 TrueTransferOperator::~TrueTransferOperator()
 {
-   delete opr;
    delete localTransferOperator;
 }
 
 void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
-   opr->Mult(x, y);
+   lFESpace.GetProlongationMatrix()->Mult(x, tmpL);
+   localTransferOperator->Mult(tmpL, tmpH);
+
+   int ldofSize  = hFESpace.GetVSize();
+
+   const double *tmpHdata = tmpH.HostRead();
+   double *ydata = y.HostWrite();
+
+   for (int i = 0; i < ldofSize; ++i)
+   {
+      int ltdof = hFESpace.GetLocalTDofNumber(i);
+      if (ltdof >= 0)
+      {
+         ydata[ltdof] = tmpHdata[i];
+      }
+   }
 }
 
 void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
-   opr->MultTranspose(x, y);
+   hFESpace.GetProlongationMatrix()->Mult(x, tmpH);
+   localTransferOperator->MultTranspose(tmpH, tmpL);
+
+   int ldofSize  = lFESpace.GetVSize();
+
+   const double *tmpLdata = tmpL.HostRead();
+   double *ydata = y.HostWrite();
+
+   for (int i = 0; i < ldofSize; ++i)
+   {
+      int ltdof = lFESpace.GetLocalTDofNumber(i);
+      if (ltdof >= 0)
+      {
+         ydata[ltdof] = tmpLdata[i];
+      }
+   }
 }
+#endif
 
 } // namespace mfem

@@ -15,6 +15,10 @@
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
 
+#ifdef MFEM_USE_MPI
+#include "pfespace.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -119,19 +123,23 @@ public:
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
+#ifdef MFEM_USE_MPI
 /// Matrix-free transfer operator between finite element spaces working on true
 /// degrees of freedom
 class TrueTransferOperator : public Operator
 {
 private:
+   const ParFiniteElementSpace& lFESpace;
+   const ParFiniteElementSpace& hFESpace;
    TransferOperator* localTransferOperator;
-   TripleProductOperator* opr;
+   mutable Vector tmpL;
+   mutable Vector tmpH;
 
 public:
    /// Constructs a transfer operator working on true degrees of freedom from \p
    /// lFESpace to \p hFESpace
-   TrueTransferOperator(const FiniteElementSpace& lFESpace_,
-                        const FiniteElementSpace& hFESpace_);
+   TrueTransferOperator(const ParFiniteElementSpace& lFESpace_,
+                        const ParFiniteElementSpace& hFESpace_);
 
    /// Destructor
    ~TrueTransferOperator();
@@ -146,6 +154,7 @@ public:
    /// vector \p y corresponding to the coarse space.
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
+#endif
 
 } // namespace mfem
 #endif
