@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -1426,7 +1426,10 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
 {
    if (rows.Size() > 0)
    {
-      internal::hypre_ParCSRMatrixEliminateRows(A, rows.Size(), rows.GetData());
+      Array<HYPRE_Int> r_sorted;
+      get_sorted_rows_cols(rows, r_sorted);
+      internal::hypre_ParCSRMatrixEliminateRows(A, r_sorted.Size(),
+                                                r_sorted.GetData());
    }
 }
 
@@ -1604,15 +1607,21 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
    return C;
 }
 
-HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
+                         bool own_matrix)
 {
    hypre_ParCSRMatrix * ab;
    ab = hypre_ParMatmul(*A,*B);
    hypre_ParCSRMatrixSetNumNonzeros(ab);
 
    hypre_MatvecCommPkgCreate(ab);
-
-   return new HypreParMatrix(ab);
+   HypreParMatrix *C = new HypreParMatrix(ab);
+   if (own_matrix)
+   {
+      C->CopyRowStarts();
+      C->CopyColStarts();
+   }
+   return C;
 }
 
 HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
@@ -2740,7 +2749,7 @@ void HypreEuclid::SetOperator(const Operator &op)
    if (A)
    {
       MPI_Comm comm;
-      HYPRE_ParCSRMatrixGetComm(*A, &comm);
+      HYPRE_ParCSRMatrixGetComm(*new_A, &comm);
       ResetEuclidPrecond(comm);
    }
 

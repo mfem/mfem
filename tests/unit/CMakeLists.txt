@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Include the top mfem source directory - needed by some tests, e.g. to
 # #include "general/text.hpp".
@@ -18,26 +18,33 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(UNIT_TESTS_SRCS
-  unit_test_main.cpp
   general/test_mem.cpp
   general/test_text.cpp
-  linalg/test_blockMatrix.cpp
+  general/test_zlib.cpp
   linalg/test_complex_operator.cpp
-  linalg/test_densematrix.cpp
   linalg/test_ilu.cpp
+  linalg/test_matrix_block.cpp
+  linalg/test_matrix_dense.cpp
+  linalg/test_matrix_rectangular.cpp
+  linalg/test_matrix_square.cpp
   linalg/test_ode.cpp
+  linalg/test_ode2.cpp
+  linalg/test_operator.cpp
   mesh/test_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
+  fem/test_assemblediagonalpa.cpp
   fem/test_calcshape.cpp
   fem/test_datacollection.cpp
+  fem/test_face_permutation.cpp
   fem/test_fe.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
   fem/test_quadraturefunc.cpp
@@ -48,13 +55,12 @@ if (MFEM_USE_CUDA)
    set_property(SOURCE ${UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
 
-# All non-device unit tests are built into a single executable 'unit_tests'.
-add_executable(unit_tests ${UNIT_TESTS_SRCS})
+# All serial non-device unit tests are built into a single executable 'unit_tests'.
+add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests mfem)
 
-
-# All device unit tests are built in another executable,
-# to be able to change the device.
+# All device unit tests are built into another executable, in order to be able
+# to change the device.
 set(SEDOV_TESTS_SRCS
     unit_test_main.cpp
     miniapps/test_sedov.cpp
@@ -114,8 +120,49 @@ endif()
 
 # Additional MPI unit tests
 if (MFEM_USE_MPI)
+   add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
+   target_link_libraries(punit_tests mfem)
+   add_test(NAME punit_tests COMMAND punit_tests)   
+
+   set(PAR_SEDOV_TESTS_SRCS punit_test_main.cpp miniapps/test_sedov.cpp)
+   if (MFEM_USE_CUDA)
+      set_property(SOURCE ${PAR_SEDOV_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+   endif()
+
+   add_executable(psedov_tests_cpu ${PAR_SEDOV_TESTS_SRCS})
+   target_compile_definitions(psedov_tests_cpu PUBLIC MFEM_SEDOV_MPI=1)
+   target_compile_definitions(psedov_tests_cpu PUBLIC MFEM_SEDOV_TESTS=1)
+   target_compile_definitions(psedov_tests_cpu PUBLIC MFEM_SEDOV_DEVICE="cpu")
+   target_link_libraries(psedov_tests_cpu mfem)
+
+   add_executable(psedov_tests_debug ${PAR_SEDOV_TESTS_SRCS})
+   target_compile_definitions(psedov_tests_debug PUBLIC MFEM_SEDOV_MPI=1)
+   target_compile_definitions(psedov_tests_debug PUBLIC MFEM_SEDOV_TESTS=1)
+   target_compile_definitions(psedov_tests_debug PUBLIC MFEM_SEDOV_DEVICE="debug")
+   target_link_libraries(psedov_tests_debug mfem)
+
+   if (MFEM_USE_CUDA)
+      add_executable(psedov_tests_cuda ${PAR_SEDOV_TESTS_SRCS})
+      target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_MPI=1)
+      target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_TESTS=1)
+      target_compile_definitions(psedov_tests_cuda PUBLIC MFEM_SEDOV_DEVICE="cuda")
+      target_link_libraries(psedov_tests_cuda mfem)
+
+      add_executable(psedov_tests_cuda_uvm ${PAR_SEDOV_TESTS_SRCS})
+      target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_MPI=1)
+      target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_TESTS=1)
+      target_compile_definitions(psedov_tests_cuda_uvm PUBLIC MFEM_SEDOV_DEVICE="cuda:uvm")
+      target_link_libraries(psedov_tests_cuda_uvm mfem)
+   endif()
+
+   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests psedov_tests_cpu psedov_tests_debug)
+   if (MFEM_USE_CUDA)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} psedov_tests_cuda)
+      add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} psedov_tests_cuda_uvm)
+   endif()
+
    function(add_mpi_unit_test NAME NP)
-      set(test_name sedov_tests_${NAME})
+      set(test_name psedov_tests_${NAME})
       add_test(NAME ${test_name}_np=${NP}
                COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
                ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -1712,6 +1712,26 @@ void ParMesh::DeleteFaceNbrData()
    send_face_nbr_vertices.Clear();
 }
 
+void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+{
+   space_dim = (space_dim == -1) ? spaceDim : space_dim;
+   FiniteElementCollection* nfec;
+   if (discont)
+   {
+      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto);
+   }
+   else
+   {
+      nfec = new H1_FECollection(order, Dim);
+   }
+   ParFiniteElementSpace* nfes = new ParFiniteElementSpace(this, nfec, space_dim,
+                                                           ordering);
+   auto pnodes = new ParGridFunction(nfes);
+   GetNodes(*pnodes);
+   NewNodes(*pnodes, true);
+   Nodes->MakeOwner(nfec);
+}
+
 void ParMesh::ExchangeFaceNbrData()
 {
    if (have_face_nbr_data)
@@ -2492,7 +2512,7 @@ void ParMesh::ReorientTetMesh()
       return;
    }
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -2878,7 +2898,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                     " (NumOfBdrElements != boundary.Size())");
       }
 
-      DeleteLazyTables();
+      ResetLazyData();
 
       const int old_nv = NumOfVertices;
       NumOfVertices = vertices.Size();
@@ -3121,7 +3141,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       NumOfBdrElements = boundary.Size();
 
-      DeleteLazyTables();
+      ResetLazyData();
 
       // 5a. Update the groups after refinement.
       RefineGroups(v_to_v, middle);
