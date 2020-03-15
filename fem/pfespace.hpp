@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PFESPACE
 #define MFEM_PFESPACE
@@ -263,6 +263,15 @@ public:
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+
+   /** Returns an Operator that converts L-vectors to E-vectors on each face.
+       The parallel version is different from the serial one because of the
+       presence of shared faces. Shared faces are treated as interior faces,
+       the returned operator handles the communication needed to get the
+       shared face values from other MPI ranks */
+   virtual const Operator *GetFaceRestriction(
+      ElementDofOrdering e_ordering, FaceType type,
+      L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;

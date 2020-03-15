@@ -1,16 +1,17 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of data type vector
 
+#include "kernels.hpp"
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
@@ -717,31 +718,12 @@ double Vector::Norml2() const
       return 0.0;
    } // end if 0 == size
 
+   data.Read(MemoryClass::HOST, size);
    if (1 == size)
    {
       return std::abs(data[0]);
    } // end if 1 == size
-
-   double scale = 0.0;
-   double sum = 0.0;
-
-   for (int i = 0; i < size; i++)
-   {
-      if (data[i] != 0.0)
-      {
-         const double absdata = std::abs(data[i]);
-         if (scale <= absdata)
-         {
-            const double sqr_arg = scale / absdata;
-            sum = 1.0 + sum * (sqr_arg * sqr_arg);
-            scale = absdata;
-            continue;
-         } // end if scale <= absdata
-         const double sqr_arg = absdata / scale;
-         sum += (sqr_arg * sqr_arg); // else scale > absdata
-      } // end if data[i] != 0
-   }
-   return scale * std::sqrt(sum);
+   return kernels::Norml2(size, (const double*) data);
 }
 
 double Vector::Normlinf() const
