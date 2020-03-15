@@ -31,15 +31,11 @@ elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
     ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-Wall"
     "--param" "max-completely-peel-times=3")
-<<<<<<< HEAD
-elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
-  list(APPEND PERFORMANCE_CXX_OPTIONS
-    "-xHost")
-=======
   if (NOT MFEM_USE_CUDA)
      list(APPEND PERFORMANCE_CXX_OPTIONS "-pedantic")
   endif()
->>>>>>> master
+elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
+  list(APPEND PERFORMANCE_CXX_OPTIONS "-xHost")
 endif()
 
 add_mfem_miniapp(performance_ex1
