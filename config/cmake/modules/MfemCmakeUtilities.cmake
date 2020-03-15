@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Function that converts a version string of the form 'major[.minor[.patch]]' to
 # the integer ((major * 100) + minor) * 100 + patch.
@@ -70,6 +70,11 @@ function(add_mfem_examples EXE_SRCS)
     endif()
   endif()
   foreach(SRC_FILE IN LISTS ${EXE_SRCS})
+    # If CUDA is enabled, tag source files to be compiled with nvcc.
+    if (MFEM_USE_CUDA)
+      set_property(SOURCE ${SRC_FILE} PROPERTY LANGUAGE CUDA)
+    endif()
+
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
@@ -118,6 +123,13 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
       list(APPEND ${CURRENT_ARG}_LIST ${arg})
     endif()
   endforeach()
+
+  # If CUDA is enabled, tag source files to be compiled with nvcc.
+  if (MFEM_USE_CUDA)
+    set_property(SOURCE ${MAIN_LIST} ${EXTRA_SOURCES_LIST}
+      PROPERTY LANGUAGE CUDA)
+    list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+  endif()
 
   # Actually add the executable
   add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
@@ -715,12 +727,13 @@ function(mfem_export_mk_files)
 
   # Convert Boolean vars to YES/NO without writting the values to cache
   set(CONFIG_MK_BOOL_VARS MFEM_USE_MPI MFEM_USE_METIS MFEM_USE_METIS_5
-      MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND
+      MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB MFEM_USE_LIBUNWIND
       MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP
       MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
       MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GECKO MFEM_USE_GNUTLS
-      MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
-      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA)
+      MFEM_USE_GSLIB MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA
+      MFEM_USE_UMPIRE)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)

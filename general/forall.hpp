@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FORALL_HPP
 #define MFEM_FORALL_HPP
@@ -34,6 +34,16 @@ namespace mfem
 // Maximum size of dofs and quads in 1D.
 const int MAX_D1D = 14;
 const int MAX_Q1D = 14;
+
+// MFEM pragma macros that can be used inside MFEM_FORALL macros.
+#define MFEM_PRAGMA(X) _Pragma(#X)
+
+// MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#else
+#define MFEM_UNROLL(N)
+#endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
@@ -78,6 +88,8 @@ void OmpWrap(const int N, HBODY &&h_body)
       h_body(k);
    }
 #else
+   MFEM_CONTRACT_VAR(N);
+   MFEM_CONTRACT_VAR(h_body);
    MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
 #endif
 }
@@ -162,6 +174,8 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 #ifdef MFEM_USE_RAJA
    RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
 #else
+   MFEM_CONTRACT_VAR(N);
+   MFEM_CONTRACT_VAR(h_body);
    MFEM_ABORT("RAJA requested but RAJA is not enabled!");
 #endif
 }
@@ -296,6 +310,10 @@ inline void ForallWrap(const bool use_dev, const int N,
                        DBODY &&d_body, HBODY &&h_body,
                        const int X=0, const int Y=0, const int Z=0)
 {
+   MFEM_CONTRACT_VAR(X);
+   MFEM_CONTRACT_VAR(Y);
+   MFEM_CONTRACT_VAR(Z);
+   MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
@@ -333,6 +351,8 @@ inline void ForallWrap(const bool use_dev, const int N,
    if (DIM == 3 && Device::Allows(Backend::HIP_MASK))
    { return HipWrap3D(N, d_body, X, Y, Z); }
 #endif
+
+   if (Device::Allows(Backend::DEBUG)) { goto backend_cpu; }
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // Handle all allowed OpenMP backends except Backend::OMP
