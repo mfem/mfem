@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "fem.hpp"
 #include <cstdlib>
@@ -1886,8 +1886,15 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       }
       L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
       L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
-      // All trace elements use the default Gauss-Legendre points
-      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      // Trace element use the default Gauss-Legendre nodal points for positive basis
+      if (b_type == BasisType::Positive)
+      {
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      }
+      else
+      {
+         Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
+      }
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
       TriDofOrd[0] = new int[6*TriDof];
@@ -1935,9 +1942,17 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
-      // All trace element use the default Gauss-Legendre nodal points
-      Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
-      Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      // Trace element use the default Gauss-Legendre nodal points for positive basis
+      if (b_type == BasisType::Positive)
+      {
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      }
+      else
+      {
+         Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
+         Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
+      }
 
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
