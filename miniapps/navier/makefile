@@ -40,7 +40,7 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(NAVIER_COMMON_OBJ)
+%: %.cpp $(NAVIER_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) $(NAVIER_COMMON_OBJ)
 
 %.o: %.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
