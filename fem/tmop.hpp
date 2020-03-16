@@ -699,7 +699,9 @@ public:
                                       DenseTensor &Jtr) const;
 };
 
+#ifdef MFEM_USE_MPI
 class ParGridFunction;
+#endif
 
 class DiscreteAdaptTC : public TargetConstructor
 {
