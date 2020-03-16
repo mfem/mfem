@@ -115,10 +115,10 @@ int main(int argc, char *argv[])
 
       if (step % 10 == 0)
       {
-        flowsolver.ComputeCurl2D(*u_gf, w_gf);
-        pvdc.SetCycle(step);
-        pvdc.SetTime(t);
-        pvdc.Save();
+         flowsolver.ComputeCurl2D(*u_gf, w_gf);
+         pvdc.SetCycle(step);
+         pvdc.SetTime(t);
+         pvdc.Save();
       }
 
       if (mpi.Root())

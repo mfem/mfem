@@ -17,12 +17,14 @@ using namespace navier;
 
 struct s_NavierContext
 {
+   int ser_ref_levels = 1;
    int order = 4;
-   double kin_vis = 1.0 / 1600.0;
+   double kinvis = 1.0 / 1600.0;
    double t_final = 10.0;
    double dt = 1e-3;
    bool pa = true;
    bool ni = false;
+   bool checkres = false;
 } ctx;
 
 void vel_tgv(const Vector &x, double t, Vector &u)
@@ -106,7 +108,11 @@ private:
    double volume;
 };
 
-template <typename T> T sq(T x) { return x*x; }
+template<typename T>
+T sq(T x)
+{
+   return x * x;
+}
 
 void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 {
@@ -159,8 +165,9 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
          grad.SetSize(grad_hat.Height(), Jinv.Width());
          Mult(grad_hat, Jinv, grad);
 
-         double q_val = 0.5*(sq(grad(0,0)) + sq(grad(1,1)) + sq(grad(2,2)))
-            + grad(0,1)*grad(1,0) + grad(0,2)*grad(2,0) + grad(1,2)*grad(2,1);
+         double q_val = 0.5 * (sq(grad(0, 0)) + sq(grad(1, 1)) + sq(grad(2, 2)))
+                        + grad(0, 1) * grad(1, 0) + grad(0, 2) * grad(2, 0)
+                        + grad(1, 2) * grad(2, 1);
 
          vals(dof) = q_val;
       }
@@ -200,10 +207,8 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int ser_ref_levels = 1;
-
    OptionsParser args(argc, argv);
-   args.AddOption(&ser_ref_levels,
+   args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
                   "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
@@ -225,23 +230,32 @@ int main(int argc, char *argv[])
                   "-no-ni",
                   "--disable-ni",
                   "Enable numerical integration rules.");
+   args.AddOption(
+      &ctx.checkres,
+      "-cr",
+      "--checkresult",
+      "-no-cr",
+      "--no-checkresult",
+      "Enable or disable checking of the result. Returns -1 on failure.");
    args.Parse();
    if (!args.Good())
    {
       if (mpi.Root())
       {
-         args.PrintUsage(std::cout);
+         args.PrintUsage(mfem::out);
       }
       MPI_Finalize();
       return 1;
    }
    if (mpi.Root())
    {
-      args.PrintOptions(std::cout);
+      args.PrintOptions(mfem::out);
    }
 
-   Mesh *orig_mesh = new Mesh("../data/periodic-cube.mesh");
-   Mesh *mesh = new Mesh(orig_mesh, ser_ref_levels, BasisType::ClosedUniform);
+   Mesh *orig_mesh = new Mesh("../../data/periodic-cube.mesh");
+   Mesh *mesh = new Mesh(orig_mesh,
+                         ctx.ser_ref_levels,
+                         BasisType::ClosedUniform);
    delete orig_mesh;
 
    mesh->EnsureNodes();
@@ -251,14 +265,14 @@ int main(int argc, char *argv[])
    int nel = mesh->GetNE();
    if (mpi.Root())
    {
-      std::cout << "Number of elements: " << nel << std::endl;
+      mfem::out << "Number of elements: " << nel << std::endl;
    }
 
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
    // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
    flowsolver.EnablePA(ctx.pa);
    flowsolver.EnableNI(ctx.ni);
 
@@ -308,7 +322,7 @@ int main(int argc, char *argv[])
 
    if (mpi.Root())
    {
-      int nel1d = std::round(pow(nel, 1.0/3.0));
+      int nel1d = std::round(pow(nel, 1.0 / 3.0));
       int ngridpts = p_gf->ParFESpace()->GlobalVSize();
       printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
 
