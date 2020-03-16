@@ -371,7 +371,7 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   error messages and the `tests/scripts` directory.
 
 - If triggered, track the status of the LLNL GitLab tests. If failing, ask
-  an _LLNL developer_ for details.
+  one of the _LLNL developer_ for details.
 
 ### Pull Request Checklist
 
