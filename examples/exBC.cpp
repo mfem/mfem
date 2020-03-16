@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   #ifndef MFEM_USE_SUITESPARSE
+#ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
@@ -459,12 +459,12 @@ int main(int argc, char *argv[])
    // 16. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-     ofstream mesh_ofs("refined.mesh");
-     mesh_ofs.precision(8);
-     mesh->Print(mesh_ofs);
-     ofstream sol_ofs("sol.gf");
-     sol_ofs.precision(8);
-     x.Save(sol_ofs);
+      ofstream mesh_ofs("refined.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+      ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
    }
 
    // 17. Send the solution by socket to a GLVis server.
@@ -477,7 +477,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x
                << "window_title '" << h1_str << " Solution'"
-	       << " keys 'mmc'" << flush;
+               << " keys 'mmc'" << flush;
 
       socketstream n_sol_sock(vishost, visport);
       n_sol_sock.precision(8);
@@ -509,7 +509,7 @@ void quad_trans(double u, double v, double &x, double &y, bool log = false)
 
    double v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
                ((4.0 - 3 * M_SQRT2) * a +
-		(8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
+                (8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
 
    double r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
                      2.0 * (1.0 + M_SQRT2 *
@@ -520,8 +520,8 @@ void quad_trans(double u, double v, double &x, double &y, bool log = false)
    if (log)
    {
       mfem::out << "u, v, r, v0, t "
-		<< u << " " << v << " " << r << " " << v0 << " " << t
-		<< endl;
+                << u << " " << v << " " << r << " " << v0 << " " << t
+                << endl;
    }
    x = r * sin(t);
    y = r * cos(t) - v0;
