@@ -10,10 +10,10 @@
 
 Version 4.1.1 (development)
 ===========================
-- Added a Gitlab pipeline that automates PR testing on supercomputing systems
+- Added a GitLab pipeline that automates PR testing on supercomputing systems
   and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
   triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
-  and the updated CONTRIBUTING.md.
+  and the updated CONTRIBUTING.md file.
 
 
 Version 4.1, released on March 10, 2020
