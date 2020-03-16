@@ -29,6 +29,11 @@
 #include <fstream>
 #include <iostream>
 
+#ifdef _WIN32
+#define jn(n, x) _jn(n, x)
+#define yn(n, x) _yn(n, x)
+#endif
+
 using namespace std;
 using namespace mfem;
 
