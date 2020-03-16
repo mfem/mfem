@@ -369,9 +369,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 - Other tests, such as the `code-style`, `documentation` and `gitignore`
   checks in Travis enforce MFEM-specific rules which are explained in the
   error messages and the `tests/scripts` directory.
-  
-- If triggered, track the status of LLNL Gitlab tests. If failing, ask
-  an _LLNL contributor_ for details.
+
+- If triggered, track the status of the LLNL GitLab tests. If failing, ask
+  an _LLNL developer_ for details.
 
 ### Pull Request Checklist
 
@@ -541,10 +541,12 @@ MFEM uses a `master`/`next`-branch workflow as described below:
 
 ### Mirroring on GitLab
 
-- MFEM repository is also mirrored on the LLNL Gitlab instance, in a semi-automated manner.
+- MFEM repository is also mirrored on the LLNL GitLab instance, in a
+  semi-automated manner.
 
-- This instance is meant to complete CI testing with tests on Livermore Computing systems.
-  Gitlab pipeline status is reported in the corresponding GitHub pull request.
+- This instance is meant to complete CI testing with tests on Livermore
+  Computing systems. Gitlab pipeline status is reported in the corresponding
+  GitHub pull request.
 
 - No change can be made on this instance.
 
@@ -575,14 +577,14 @@ and debug build is performed with a simple run of `ex1` to verify the executable
 
 ### Tests at LLNL
 
-- We mirror the `master` and `next` branches internally (to `gh-master`
-  and `gh-next`) and run longer nightly tests via cron. On the weekends, a more
-  extensive test is run which extracts and executes all the different sample runs
-  from each example.
+- We mirror the `master` and `next` branches internally (to `gh-master` and
+  `gh-next`) and run longer nightly tests via cron. On the weekends, a more
+  extensive test is run which extracts and executes all the different sample
+  runs from each example.
 
-- We also mirror PRs on LLNL Gitlab instance. PR mirroring can only be triggered
-  by _LLNL contributors_, but test status is publicly available.
-  Only _LLNL contributors_ can access the detailed test report.
+- We also mirror PRs on the LLNL GitLab instance. PR mirroring can only be
+  triggered by _LLNL developers_, but test status is publicly available. Only
+  _LLNL developers_ can access the detailed test report.
 
 ## Contact Information
 

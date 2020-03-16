@@ -1,20 +1,17 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-# the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-# reserved. See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
-###############################################################################
 # General GitLab pipelines configurations for supercomputers and Linux clusters
-# at Lawrence Livermore National Laboratory (LLNL).
-#
-# This entire pipeline is LLNL-specific
-# #############################################################################
+# at Lawrence Livermore National Laboratory (LLNL). This entire pipeline is
+# LLNL-specific!
 
 # We define the following GitLab pipeline variables:
 #
@@ -55,7 +52,7 @@ variables:
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
   ARTIFACTS_DIR: artifacts
 
-# The pipeline is divided into stages. Usually, these are also synchronisation
+# The pipeline is divided into stages. Usually, these are also synchronization
 # points, however, we use "needs" keyword to express the DAG of jobs for more
 # efficiency.
 # - We use setup phase to download content outside of mfem directory.
@@ -79,8 +76,8 @@ stages:
 
 # The setup job in setup stage don’t rely on MFEM git repo. It prepares a
 # pipeline-wide working directory downloading/updating external repos.
-# TODO: update isn’t necessary anymore, repo are never shared with another
-# pipeline. May be simplified if we don’t want to optimise this.
+# TODO: update is not necessary anymore, repo are never shared with another
+# pipeline. May be simplified if we don’t want to optimize this.
 .setup:
   stage: setup
   variables:
@@ -286,7 +283,7 @@ stages:
           exit 1
       fi
     - git add baseline-${SYS_TYPE}.saved
-    - git commit -m "${SYS_TYPE} rebaselined in Gitlab pipeline ${CI_PIPELINE_ID}"
+    - git commit -m "${SYS_TYPE} rebaselined in Gitab pipeline ${CI_PIPELINE_ID}"
     - git push origin master
 
 # The list on jobs is defined in machine-specific files.
