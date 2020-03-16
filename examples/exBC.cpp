@@ -61,13 +61,8 @@ Mesh * GenerateSerialMesh(int ref);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
-
-   // 2. Parse command-line options.
+   // 1. Parse command-line options.
    int ser_ref_levels = 2;
-   int par_ref_levels = 1;
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
@@ -94,8 +89,6 @@ int main(int argc, char *argv[])
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&mat_val, "-mat", "--material-value",
                   "Constant value for material coefficient "
                   "in the Laplace operator.");
@@ -143,49 +136,30 @@ int main(int argc, char *argv[])
    Mesh *mesh = GenerateSerialMesh(ser_ref_levels);
    int dim = mesh->Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
-   //   for (int l = 0; l < ser_ref_levels; l++)
-   //{
-   // mesh->UniformRefinement();
-   //}
-
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-   for (int l = 0; l < par_ref_levels; l++)
-   {
-      pmesh.UniformRefinement();
-   }
-
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec = h1 ?
                                   (FiniteElementCollection*)new H1_FECollection(order, dim) :
                                   (FiniteElementCollection*)new DG_FECollection(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
+   FiniteElementSpace fespace(mesh, fec);
+   int size = fespace.GetTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
-   Array<int> nbc_bdr(pmesh.bdr_attributes.Max());
-   Array<int> rbc_bdr(pmesh.bdr_attributes.Max());
-   Array<int> dbc_bdr(pmesh.bdr_attributes.Max());
+   Array<int> nbc_bdr(mesh->bdr_attributes.Max());
+   Array<int> rbc_bdr(mesh->bdr_attributes.Max());
+   Array<int> dbc_bdr(mesh->bdr_attributes.Max());
 
    nbc_bdr = 0; nbc_bdr[0] = 1;
    rbc_bdr = 0; rbc_bdr[1] = 1;
    dbc_bdr = 0; dbc_bdr[2] = 1;
 
    Array<int> ess_tdof_list(0);
-   if (h1 && pmesh.bdr_attributes.Size())
+   if (h1 && mesh->bdr_attributes.Size())
    {
       fespace.GetEssentialTrueDofs(dbc_bdr, ess_tdof_list);
    }
@@ -206,13 +180,13 @@ int main(int argc, char *argv[])
    // 10. Define the solution vector x as a parallel finite element grid function
    //     corresponding to fespace. Initialize x with initial guess of zero,
    //     which satisfies the boundary conditions.
-   ParGridFunction x(&fespace);
+   GridFunction x(&fespace);
    x = 0.0;
 
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
-   ParBilinearForm a(&fespace);
+   BilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(matCoef));
    if (h1)
    {
@@ -234,7 +208,7 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, static condensation, etc.
    a.Assemble();
 
-   ParLinearForm b(&fespace);
+   LinearForm b(&fespace);
 
    if (h1)
    {
@@ -259,43 +233,36 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   // 13. Solve the linear system A X = B.
-   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use no preconditioner, for now.
-   HypreSolver *amg = new HypreBoomerAMG;
-   if (h1 || sigma == -1.0)
+   #ifndef MFEM_USE_SUITESPARSE
+   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   //    non-symmetric one.
+   GSSmoother M((SparseMatrix&)(*A));
+   if (sigma == -1.0)
    {
-      HyprePCG pcg(MPI_COMM_WORLD);
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(200);
-      pcg.SetPrintLevel(2);
-      pcg.SetPreconditioner(*amg);
-      pcg.SetOperator(*A);
-      pcg.Mult(B, X);
+      PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
    }
    else
    {
-      GMRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetAbsTol(0.0);
-      gmres.SetRelTol(1e-12);
-      gmres.SetMaxIter(200);
-      gmres.SetKDim(10);
-      gmres.SetPrintLevel(1);
-      gmres.SetPreconditioner(*amg);
-      gmres.SetOperator(*A);
-      gmres.Mult(B, X);
+      GMRES(*A, M, B, X, 1, 500, 10, 1e-12, 0.0);
    }
-   delete amg;
+#else
+   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(*A);
+   umf_solver.Mult(B, X);
+#endif
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
 
-   ParBilinearForm *m = new ParBilinearForm(&fespace);
+   BilinearForm *m = new BilinearForm(&fespace);
    m->AddDomainIntegrator(new MassIntegrator);
    m->Assemble();
 
-   ParBilinearForm *n = new ParBilinearForm(&fespace);
+   BilinearForm *n = new BilinearForm(&fespace);
    {
       Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
       VectorConstantCoefficient nCoef(nVec);
@@ -303,14 +270,14 @@ int main(int argc, char *argv[])
       n->Assemble();
    }
 
-   ParBilinearForm *n0 = new ParBilinearForm(&fespace);
+   BilinearForm *n0 = new BilinearForm(&fespace);
    {
       VectorFunctionCoefficient n0Coef(2, n4Vec);
       n0->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(n0Coef));
       n0->Assemble();
    }
 
-   ParBilinearForm *r = new ParBilinearForm(&fespace);
+   BilinearForm *r = new BilinearForm(&fespace);
    {
       Vector rVec(2); rVec[0] = 0.0; rVec[1] = 1.0;
       VectorConstantCoefficient rCoef(rVec);
@@ -318,12 +285,12 @@ int main(int argc, char *argv[])
       r->Assemble();
    }
 
-   ParGridFunction dx(&fespace);
-   ParGridFunction nx(&fespace);
-   ParGridFunction n0x(&fespace);
-   ParGridFunction rx(&fespace);
+   GridFunction dx(&fespace);
+   GridFunction nx(&fespace);
+   GridFunction n0x(&fespace);
+   GridFunction rx(&fespace);
    {
-      ParLinearForm db(&fespace);
+      LinearForm db(&fespace);
 
       ess_tdof_list.SetSize(0);
 
@@ -332,7 +299,7 @@ int main(int argc, char *argv[])
       dx = x;
 
       ConstantCoefficient one(1.0);
-      ParBilinearForm m_dbc(&fespace);
+      BilinearForm m_dbc(&fespace);
       if (h1)
       {
          m_dbc.AddBoundaryIntegrator(new MassIntegrator, dbc_bdr);
@@ -343,7 +310,7 @@ int main(int argc, char *argv[])
       }
       m_dbc.Assemble();
 
-      ParLinearForm m1x(&fespace);
+      LinearForm m1x(&fespace);
       m_dbc.Mult(dx, m1x);
 
       double dbc_int = copysign(sqrt(m1x(dx) / (2.0 * M_PI * a_)), dbc_val);
@@ -356,7 +323,7 @@ int main(int argc, char *argv[])
                 << " error " << dbc_err << endl;
    }
    {
-      ParLinearForm nb(&fespace);
+      LinearForm nb(&fespace);
 
       ess_tdof_list.SetSize(0);
 
@@ -365,7 +332,7 @@ int main(int argc, char *argv[])
       n->Mult(x, nb);
       m->FormLinearSystem(ess_tdof_list, nx, nb, M, X, B);
 
-      CGSolver mcg(MPI_COMM_WORLD);
+      CGSolver mcg;
       mcg.SetRelTol(1e-12);
       mcg.SetMaxIter(2000);
       mcg.SetPrintLevel(0);
@@ -377,7 +344,7 @@ int main(int argc, char *argv[])
       // nx -= nbc_val;
 
       ConstantCoefficient one(1.0);
-      ParBilinearForm m_nbc(&fespace);
+      BilinearForm m_nbc(&fespace);
       if (h1)
       {
          m_nbc.AddBoundaryIntegrator(new MassIntegrator, nbc_bdr);
@@ -388,7 +355,7 @@ int main(int argc, char *argv[])
       }
       m_nbc.Assemble();
 
-      ParLinearForm m3x(&fespace);
+      LinearForm m3x(&fespace);
       m_nbc.Mult(nx, m3x);
 
       double nbc_int = copysign(sqrt(m3x(nx) * 0.5), nbc_val);
@@ -401,7 +368,7 @@ int main(int argc, char *argv[])
                 << " error " << nbc_err << endl;
    }
    {
-      ParLinearForm nb(&fespace);
+      LinearForm nb(&fespace);
 
       ess_tdof_list.SetSize(0);
 
@@ -410,7 +377,7 @@ int main(int argc, char *argv[])
       n0->Mult(x, nb);
       m->FormLinearSystem(ess_tdof_list, n0x, nb, M, X, B);
 
-      CGSolver mcg(MPI_COMM_WORLD);
+      CGSolver mcg;
       mcg.SetRelTol(1e-12);
       mcg.SetMaxIter(2000);
       mcg.SetPrintLevel(0);
@@ -420,12 +387,12 @@ int main(int argc, char *argv[])
       m->RecoverFEMSolution(X, nb, n0x);
 
       // nx -= nbc_val;
-      Array<int> nbc0_bdr(pmesh.bdr_attributes.Max());
+      Array<int> nbc0_bdr(mesh->bdr_attributes.Max());
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
       ConstantCoefficient one(1.0);
-      ParBilinearForm m_nbc(&fespace);
+      BilinearForm m_nbc(&fespace);
       if (h1)
       {
          m_nbc.AddBoundaryIntegrator(new MassIntegrator, nbc0_bdr);
@@ -436,7 +403,7 @@ int main(int argc, char *argv[])
       }
       m_nbc.Assemble();
 
-      ParLinearForm m4x(&fespace);
+      LinearForm m4x(&fespace);
       m_nbc.Mult(n0x, m4x);
 
       double nbc_int = sqrt(m4x(n0x));
@@ -450,11 +417,11 @@ int main(int argc, char *argv[])
    {
       OperatorPtr M;
 
-      ParLinearForm rb(&fespace);
+      LinearForm rb(&fespace);
       r->Mult(x, rb);
       m->FormLinearSystem(ess_tdof_list, rx, rb, M, X, B);
 
-      CGSolver mcg(MPI_COMM_WORLD);
+      CGSolver mcg;
       mcg.SetRelTol(1e-12);
       mcg.SetMaxIter(2000);
       mcg.SetPrintLevel(0);
@@ -465,7 +432,7 @@ int main(int argc, char *argv[])
       rx.Add(rbc_a_val, x);
 
       ConstantCoefficient one(1.0);
-      ParBilinearForm m_rbc(&fespace);
+      BilinearForm m_rbc(&fespace);
       if (h1)
       {
          m_rbc.AddBoundaryIntegrator(new MassIntegrator, rbc_bdr);
@@ -476,7 +443,7 @@ int main(int argc, char *argv[])
       }
       m_rbc.Assemble();
 
-      ParLinearForm m2x(&fespace);
+      LinearForm m2x(&fespace);
       m_rbc.Mult(rx, m2x);
 
       double rbc_int = copysign(sqrt(m2x(rx) * 0.5), rbc_b_val);
@@ -492,17 +459,12 @@ int main(int argc, char *argv[])
    // 16. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
-      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
+     ofstream mesh_ofs("refined.mesh");
+     mesh_ofs.precision(8);
+     mesh->Print(mesh_ofs);
+     ofstream sol_ofs("sol.gf");
+     sol_ofs.precision(8);
+     x.Save(sol_ofs);
    }
 
    // 17. Send the solution by socket to a GLVis server.
@@ -512,32 +474,24 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << mpi.WorldSize()
-               << " " << mpi.WorldRank() << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x
+      sol_sock << "solution\n" << *mesh << x
                << "window_title '" << h1_str << " Solution'"
 	       << " keys 'mmc'" << flush;
 
       socketstream n_sol_sock(vishost, visport);
-      n_sol_sock << "parallel " << mpi.WorldSize()
-                 << " " << mpi.WorldRank() << "\n";
       n_sol_sock.precision(8);
-      n_sol_sock << "solution\n" << pmesh << nx
+      n_sol_sock << "solution\n" << *mesh << nx
                  << "window_title 'Neumann'" << flush;
 
       socketstream n0_sol_sock(vishost, visport);
-      n0_sol_sock << "parallel " << mpi.WorldSize()
-                  << " " << mpi.WorldRank() << "\n";
       n0_sol_sock.precision(8);
-      n0_sol_sock << "solution\n" << pmesh << n0x
+      n0_sol_sock << "solution\n" << *mesh << n0x
                   << "window_title 'Homogeneous Neumann'" << flush;
 
       socketstream r_sol_sock(vishost, visport);
-      r_sol_sock << "parallel " << mpi.WorldSize()
-                 << " " << mpi.WorldRank() << "\n";
       r_sol_sock.precision(8);
-      r_sol_sock << "solution\n" << pmesh << rx
+      r_sol_sock << "solution\n" << *mesh << rx
                  << "window_title 'Robin'" << flush;
    }
 
