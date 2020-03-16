@@ -24,7 +24,7 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       SolutionKnown = false;
       SteadyState = false;
-      TimeDepBC = false; // TODO make consistent
+      TimeDepBC = false;
       ProjType = 1;
       u0.ProjectCoefficient(ic);
       ProblemName = "KPP Equation - Riemann Problem";
@@ -58,6 +58,11 @@ void KPP::ComputeErrors(Array<double> &errors, const GridFunction &u,
 
 double AnalyticalSolutionKPP(const Vector &x, double t)
 {
+   MFEM_ABORT("Analytical solution unknown.");
+}
+
+double InitialConditionKPP(const Vector &x)
+{
    const int dim = x.Size();
 
    // Map to the reference domain [-1,1].
@@ -70,27 +75,28 @@ double AnalyticalSolutionKPP(const Vector &x, double t)
 
    switch (ConfigKPP.ConfigNum)
    {
-   case 1:
-      if (dim != 2)
-      {
-         MFEM_ABORT("Test case only implemented in 2D.");
-      }
+      case 1:
+         if (dim != 2)
+         {
+            MFEM_ABORT("Test case only implemented in 2D.");
+         }
 
-      // Map to test case specific domain [-2,2] x [-2.5,1.5].
-      X(0) = 2. * X(0);
-      X(1) = 2. * X(1) - 0.5;
+         // Map to test case specific domain [-2,2] x [-2.5,1.5].
+         X(0) = 2. * X(0);
+         X(1) = 2. * X(1) - 0.5;
 
-      return X.Norml2() <= 1 ? 3.5 * M_PI : 0.25 * M_PI;
-   default: { MFEM_ABORT("No such test case implemented."); }
+         return X.Norml2() <= 1. ? 3.5 * M_PI : 0.25 * M_PI;
+      default: { MFEM_ABORT("No such test case implemented."); }
    }
-}
-
-double InitialConditionKPP(const Vector &x)
-{
-   return AnalyticalSolutionKPP(x, 0.);
 }
 
 void InflowFunctionKPP(const Vector &x, double t, Vector &u)
 {
-   u(0) = AnalyticalSolutionKPP(x, t);
+   switch (ConfigKPP.ConfigNum)
+   {
+      case 1:
+         u(0) = 0.25 * M_PI;
+         break;
+      default: { MFEM_ABORT("No such test case implemented."); }
+   }
 }

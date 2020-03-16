@@ -41,13 +41,13 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                                 int e, int k, int i) const
 {
    const int dim = u.Size() - 1;
-   double H0 = 0.001;
+   double HMin = 0.001;
 
    if (u.Size() != NumEq)
    {
       MFEM_ABORT("Invalid solution vector.");
    }
-   if (u(0) < H0)
+   if (u(0) < HMin)
    {
       MFEM_ABORT("Water height too small.");
    }
@@ -176,9 +176,7 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
          break;
       }
       default:
-      {
          MFEM_ABORT("No such test case implemented.");
-      }
    }
 }
 

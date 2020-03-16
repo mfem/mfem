@@ -71,10 +71,7 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
    {
       case 1:
       {
-         if (dim != 2)
-         {
-            MFEM_ABORT("Test case only implemented in 2D.");
-         }
+         if (dim != 2) { MFEM_ABORT("Test case only implemented in 2D."); }
 
          X(0) += 1.;
          X(1) += 1.;

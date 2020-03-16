@@ -58,15 +58,15 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                          int e, int k, int i) const
 {
    const int dim = u.Size() - 2;
-   double H0 = 0.001;
+   double RhoMin = 0.001;
 
    if (u.Size() != NumEq)
    {
       MFEM_ABORT("Invalid solution vector.");
    }
-   if (u(0) < H0)
+   if (u(0) < RhoMin)
    {
-      MFEM_ABORT("Water height too small.");
+      MFEM_ABORT("Density too small.");
    }
 
    double pressure = EvaluatePressure(u);
@@ -187,8 +187,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          u(0) = pow(T0, 1. / (SpHeatRatio - 1.));
          u(1) = (1. - beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(1)) * u(0);
          u(2) = (1. + beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(0)) * u(0);
-         u(3) = u(0) * T0 / (SpHeatRatio - 1.) + 0.5 * (u(1) * u(1) + u(2) * u(2)) / u(
-                   0);
+         u(3) = u(0) * T0/(SpHeatRatio-1.) + 0.5 * (u(1) * u(1) + u(2) * u(2)) / u(0);
          break;
       }
       case 1:
@@ -199,9 +198,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          break;
       }
       default:
-      {
          MFEM_ABORT("No such test case implemented.");
-      }
    }
 }
 

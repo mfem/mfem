@@ -3,10 +3,10 @@
 FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                            DofInfo &dofs_, EvolutionScheme scheme_,
                            const Vector &LumpedMassMat_)
-   : TimeDependentOperator(fes_->GetVSize()),
-     fes(fes_), hyp(hyp_), dofs(dofs_),
-     scheme(scheme_), LumpedMassMat(LumpedMassMat_),
-     z(fes_->GetVSize()), inflow(fes_)
+    : TimeDependentOperator(fes_->GetVSize()),
+      fes(fes_), hyp(hyp_), dofs(dofs_),
+      scheme(scheme_), LumpedMassMat(LumpedMassMat_),
+      z(fes_->GetVSize()), inflow(fes_), xSizeMPI(dofs_.fes->GetVSize())
 {
    const char* fecol = fes->FEColl()->Name();
    if (strncmp(fecol, "L2", 2))
@@ -191,22 +191,21 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
+   Vector xMPI = x; // xMPI is unused in serial code.
    switch (scheme)
    {
       case 0: // Standard Finite Element Approximation.
       {
-         EvolveStandard(x, y);
+         EvolveStandard(x, xMPI, y);
          break;
       }
       case 1: // Monolithic Convex Limiting.
       {
-         EvolveMCL(x, y);
+         EvolveMCL(x, xMPI, y);
          break;
       }
       default:
-      {
          MFEM_ABORT("Unknown Evolution Scheme.");
-      }
    }
 }
 
@@ -223,7 +222,7 @@ void FE_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
 }
 
 void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
-                            int e, int i, int k) const
+                            const Vector &xMPI, int e, int i, int k) const
 {
    y1 = y2 = 0.;
    for (int n = 0; n < hyp->NumEq; n++)
@@ -231,7 +230,7 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
       for (int j = 0; j < dofs.NumFaceDofs; j++)
       {
          nbr = dofs.NbrDofs(i,j,e);
-         DofInd = n*ne*nd + e*nd+dofs.BdrDofs(j,i);
+         DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j,i);
 
          if (nbr < 0)
          {
@@ -240,7 +239,9 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          }
          else
          {
-            uNbr = x(n*ne*nd + nbr);
+            // nbr in different MPI task?
+            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) :
+               xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
          }
 
          y1(n) += x(DofInd) * ShapeEvalFace(i,j,k);
@@ -292,7 +293,7 @@ double FE_Evolution::ConvergenceCheck(double dt, double tol,
    return res;
 }
 
-void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
+void FE_Evolution::EvolveStandard(const Vector &x, const Vector &xMPI, Vector &y) const
 {
    if (hyp->TimeDepBC)
    {
@@ -318,7 +319,7 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       {
          ElemEval(uElem, uEval, k);
          hyp->EvaluateFlux(uEval, Flux, e, k);
-         MultABt(ElemInt(e*nqe+k), Flux, mat1);
+         MultABt(ElemInt(e * nqe + k), Flux, mat1);
          AddMult(DShapeEval(k), mat1, mat2);
       }
 
@@ -330,16 +331,17 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
       {
          for (int k = 0; k < nqf; k++)
          {
-            OuterUnitNormals(e*dofs.NumBdrs+i).GetColumn(k, normal);
-            FaceEval(x, uEval, uNbrEval, e, i, k);
+            OuterUnitNormals(e * dofs.NumBdrs + i).GetColumn(k, normal);
+            FaceEval(x, uEval, uNbrEval, xMPI, e, i, k);
+
             LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
-            NumFlux *= BdrInt(i,k,e);
+            NumFlux *= BdrInt(i, k, e);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
                for (int j = 0; j < dofs.NumFaceDofs; j++)
                {
-                  z(vdofs[n*nd+dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
+                  z(vdofs[n * nd + dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
                                                       * NumFlux(n);
                }
             }
@@ -350,7 +352,7 @@ void FE_Evolution::EvolveStandard(const Vector &x, Vector &y) const
    InvMassMat->Mult(z, y);
 }
 
-void FE_Evolution::EvolveMCL(const Vector &x, Vector &y) const
+void FE_Evolution::EvolveMCL(const Vector &x, const Vector &xMPI, Vector &y) const
 {
    MFEM_ABORT("TODO.");
 }

@@ -1,7 +1,6 @@
 HypSyS NOTES
 
 TODO:
--minor: consistent: return values in (scalar) hyperbolic sytsems, check switch statements, make these consistent
 -make sure the appropriate bdr conditions are used (Priority 1)
    For systems of equations use physical bdr conditions and Riemann solver - distinction between types of bdr conditions?
 -figure out a good way to avoid ifs/switches within the evolution - if possible let each scheme inherit from (p)fe_evol classes (Priority 2)

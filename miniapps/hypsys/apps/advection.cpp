@@ -207,7 +207,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          }
          break;
       }
-      default: { MFEM_ABORT("No such test case implemented."); }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
 }
 
@@ -251,7 +252,8 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
                 + .25 * (1. + cos(M_PI*hump))
                 * ((pow(X(0)+.5, 2.) + pow(X(1), 2.)) <= 4.*s);
       }
-      default: { MFEM_ABORT("No such test case implemented."); }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
    return 0.;
 }

@@ -8,7 +8,7 @@ class KPP : public HyperbolicSystem
 public:
    explicit KPP(FiniteElementSpace *fes_, BlockVector &u_block,
                 Configuration &config_);
-   ~KPP() {};
+   ~KPP() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const;
