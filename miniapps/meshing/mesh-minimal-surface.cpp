@@ -62,7 +62,7 @@ constexpr Element::Type QUAD = Element::QUADRILATERAL;
 constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
 // Static variables for GLVis
-static socketstream glvis;
+static socketstream glvis {};
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
 constexpr int  visport = 19916;
@@ -71,7 +71,7 @@ constexpr char vishost[] = "localhost";
 // Options for the solver
 struct Opt
 {
-   int problem = 0;
+   int pb = 0;
    int nx = 6;
    int ny = 6;
    int order = 3;
@@ -263,7 +263,7 @@ public:
          {
             mfem::out << "Iteration " << i << ": ";
             if (opt.amr) { Amr(); }
-            if (opt.vis) { S.Visualize(opt, S.mesh); }
+            if (opt.vis) { Surface::Visualize(opt, S.mesh); }
             S.mesh->DeleteGeometricFactors();
             a.Update();
             a.Assemble();
@@ -448,7 +448,7 @@ struct Catenoid: public Surface
 {
    Catenoid(Opt &opt): Surface((opt.Tptr = Parametrization, opt)) { }
 
-   void Prefix()
+   void Prefix() override
    {
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
       Array<int> v2v(GetNV());
@@ -505,9 +505,9 @@ struct Helicoid: public Surface
       // u in [0,2π] and v in [-2π/3,2π/3]
       const double u = 2.0*PI*x[0];
       const double v = 2.0*PI*(2.0*x[1]-1.0)/3.0;
-      p[0] = sin(u)*v;
-      p[1] = cos(u)*v;
-      p[2] = u;
+      p(0) = sin(u)*v;
+      p(1) = cos(u)*v;
+      p(2) = u;
    }
 };
 
@@ -1068,7 +1068,7 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    Opt opt;
    OptionsParser args(argc, argv);
-   args.AddOption(&opt.problem, "-p", "--problem", "Problem to solve.");
+   args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
    args.AddOption(&opt.mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&opt.wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Enable or disable a GLVis pause.");
@@ -1106,7 +1106,7 @@ int main(int argc, char *argv[])
    Device device(opt.device_config);
    device.Print();
 
-   if (opt.problem == 0)
+   if (opt.pb == 0)
    {
       // Create our surface mesh from command line options
       Surface *S = nullptr;
@@ -1132,7 +1132,7 @@ int main(int argc, char *argv[])
 
    // Solve the Dirichlet problem for the minimal surface equation
    // of the form z=f(x,y), using Picard iterations
-   if (opt.problem == 1)
+   if (opt.pb == 1)
    {
       const int order = opt.order;
       Mesh mesh(opt.nx, opt.ny, QUAD);
