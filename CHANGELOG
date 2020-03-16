@@ -23,6 +23,10 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
 
+- Added a new example, Example 25/25p, to demonstrate the use a Perfectly Matched
+  Layer (PML) for the simulation of electromagnetic wave propagation. The example
+  defines and solves several cases of the indefinite Maxwell equations.
+
 
 Version 4.1, released on March 10, 2020
 =======================================
