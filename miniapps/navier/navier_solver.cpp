@@ -110,7 +110,6 @@ void NavierSolver::Setup(double dt)
    pmesh_lor = new ParMesh(pmesh, order, BasisType::GaussLobatto);
    pfec_lor = new H1_FECollection(1);
    pfes_lor = new ParFiniteElementSpace(pmesh_lor, pfec_lor);
-   // pgt = new InterpolationGridTransfer(*pfes, *pfes_lor);
 
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
@@ -988,7 +987,6 @@ NavierSolver::~NavierSolver()
    }
    delete pfes_lor;
    delete pfec_lor;
-   delete pgt;
    delete pmesh_lor;
    delete MvInv;
    delete vfec;

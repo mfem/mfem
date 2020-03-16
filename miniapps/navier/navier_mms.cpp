@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "navier_solver.hpp"
 #include <fstream>
 
@@ -6,10 +17,15 @@ using namespace navier;
 
 struct s_NavierContext
 {
+   int ser_ref_levels = 1;
    int order = 5;
    double kinvis = 1.0;
-   double t_final = 0.5;
+   double t_final = 10 * 0.25e-3;
    double dt = 0.25e-3;
+   bool pa = true;
+   bool ni = false;
+   bool visualization = false;
+   bool checkres = false;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -58,15 +74,64 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 1;
+   OptionsParser args(argc, argv);
+   args.AddOption(&ctx.ser_ref_levels,
+                  "-rs",
+                  "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&ctx.order,
+                  "-o",
+                  "--order",
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
+   args.AddOption(&ctx.pa,
+                  "-pa",
+                  "--enable-pa",
+                  "-no-pi",
+                  "--disable-pi",
+                  "Enable partial assembly.");
+   args.AddOption(&ctx.ni,
+                  "-ni",
+                  "--enable-ni",
+                  "-no-ni",
+                  "--disable-ni",
+                  "Enable numerical integration rules.");
+   args.AddOption(&ctx.visualization,
+                  "-vis",
+                  "--visualization",
+                  "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(
+      &ctx.checkres,
+      "-cr",
+      "--checkresult",
+      "-no-cr",
+      "--no-checkresult",
+      "Enable or disable checking of the result. Returns -1 on failure.");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (mpi.Root())
+      {
+         args.PrintUsage(mfem::out);
+      }
+      MPI_Finalize();
+      return 1;
+   }
+   if (mpi.Root())
+   {
+      args.PrintOptions(mfem::out);
+   }
 
-   Mesh *mesh = new Mesh("../data/inline-quad.mesh");
+   Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
    *nodes *= 2.0;
    *nodes -= 1.0;
 
-   for (int i = 0; i < serial_refinements; ++i)
+   for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
    }
@@ -81,7 +146,7 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis);
-   naviersolver.EnablePA(false);
+   naviersolver.EnablePA(true);
    naviersolver.EnableNI(false);
 
    // Set the initial condition.
@@ -97,9 +162,10 @@ int main(int argc, char *argv[])
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 1;
    naviersolver.AddVelDirichletBC(vel, attr);
+   naviersolver.AddPresDirichletBC(p, attr);
 
    Array<int> domain_attr(pmesh->attributes.Max());
-   domain_attr = 1.0;
+   domain_attr = 1;
    naviersolver.AddAccelTerm(accel, domain_attr);
 
    double t = 0.0;
@@ -115,17 +181,6 @@ int main(int argc, char *argv[])
    ParGridFunction *p_gf = nullptr;
    u_gf = naviersolver.GetCurrentVelocity();
    p_gf = naviersolver.GetCurrentPressure();
-
-   char vishost[] = "localhost";
-   int visport = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
-   sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
-   sol_sock << "solution\n" << *pmesh << *u_ic << "keys rRlj\n" << std::flush;
-
-   double cfl = 0.0;
-   double cfl_max = 0.8;
-   double cfl_atol = 1e-4;
 
    for (int step = 0; !last_step; ++step)
    {
@@ -144,15 +199,37 @@ int main(int argc, char *argv[])
 
       if (mpi.Root())
       {
-        printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
-        fflush(stdout);
+         printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
+         fflush(stdout);
       }
    }
 
-   sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
-   sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
+   if (ctx.visualization)
+   {
+      char vishost[] = "localhost";
+      int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
+               << "\n";
+      sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
+   }
 
    naviersolver.PrintTimingData();
+
+   // Test if the result for the test run is as expected.
+   if (ctx.checkres)
+   {
+      double tol = 1e-3;
+      if (err_u > tol || err_p > tol)
+      {
+         if (mpi.Root())
+         {
+            mfem::out << "Result has a higher error than expected."
+                      << std::endl;
+         }
+         return -1;
+      }
+   }
 
    delete pmesh;
 

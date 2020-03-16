@@ -241,11 +241,9 @@ protected:
    // Residuals
    double res_mvsolve = 0.0, res_spsolve = 0.0, res_hsolve = 0.0;
 
-   // LOR PC related
+   // LOR related
    ParMesh *pmesh_lor = nullptr;
-   FiniteElementCollection *vfec_lor = nullptr;
    FiniteElementCollection *pfec_lor = nullptr;
-   ParFiniteElementSpace *vfes_lor = nullptr;
    ParFiniteElementSpace *pfes_lor = nullptr;
    InterpolationGridTransfer *vgt = nullptr, *pgt = nullptr;
 
