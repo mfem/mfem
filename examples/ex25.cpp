@@ -21,7 +21,7 @@
 //               bilinear and linear forms. We recommend viewing example 22
 //               before viewing this example.
 //               Examples 0-3 (prob = 0-3) are provided with exact solutions
-//               (See "Vaziri Astaneh, A., Keith, B. & Demkowicz, L. 
+//               (See "Vaziri Astaneh, A., Keith, B. & Demkowicz, L.
 //               On perfectly matched layers for discontinuous Petrov–Galerkin methods,
 //               Comput Mech 63, 1131–1145 (2019)" )
 
