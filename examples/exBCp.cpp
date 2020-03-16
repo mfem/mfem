@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x
                << "window_title '" << h1_str << " Solution'"
-	       << " keys 'mmc'" << flush;
+               << " keys 'mmc'" << flush;
 
       socketstream n_sol_sock(vishost, visport);
       n_sol_sock << "parallel " << mpi.WorldSize()
@@ -555,7 +555,7 @@ void quad_trans(double u, double v, double &x, double &y, bool log = false)
 
    double v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
                ((4.0 - 3 * M_SQRT2) * a +
-		(8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
+                (8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
 
    double r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
                      2.0 * (1.0 + M_SQRT2 *
@@ -566,8 +566,8 @@ void quad_trans(double u, double v, double &x, double &y, bool log = false)
    if (log)
    {
       mfem::out << "u, v, r, v0, t "
-		<< u << " " << v << " " << r << " " << v0 << " " << t
-		<< endl;
+                << u << " " << v << " " << r << " " << v0 << " " << t
+                << endl;
    }
    x = r * sin(t);
    y = r * cos(t) - v0;
