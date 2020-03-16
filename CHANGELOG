@@ -11,6 +11,11 @@
 Version 4.1.1 (development)
 ===========================
 
+- Added support for finite difference-based gradient and Hessian approximation
+  in the TMOP mesh optimization algorithms. This improves the accuracy of the
+  Hessian for r-adaptivity using discrete fields, and allows use of skewness
+  and orientation based metrics.
+
 
 Version 4.1, released on March 10, 2020
 =======================================
@@ -105,13 +110,6 @@ Meshing improvements
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
-  
-- The TMOP mesh optimization algorithms were improved to support AMR meshes.
-
-- Added support for finite difference based gradient and Hessian approximation
-  in the TMOP mesh optimization algorithms. This improves the accuracy of the
-  Hessian for r-adaptivity using discrete fields, and allows use of skewness
-  and orientation based metrics.
 
 Discretization improvements
 ---------------------------
