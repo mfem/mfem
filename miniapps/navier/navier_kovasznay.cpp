@@ -4,7 +4,7 @@
 using namespace mfem;
 using namespace navier;
 
-struct s_FlowContext
+struct s_NavierContext
 {
    int order = 9;
    double kin_vis = 1.0 / 40.0;
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 
       if (mpi.Root())
       {
-         printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
+         printf("%.2E %.2E %.5E %.5E err\n", t, dt, err_u, err_p);
          fflush(stdout);
       }
    }
