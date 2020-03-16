@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MFEM_NAVIER_SOLVER_HPP
+#define MFEM_NAVIER_SOLVER_HPP
 
 #include "mfem.hpp"
 #include "ortho_solver.hpp"
@@ -105,7 +106,7 @@ public:
 
 protected:
    void PrintInfo();
-   
+
    void SetTimeIntegrationCoefficients(int step);
 
    void Orthogonalize(Vector &v);
@@ -247,3 +248,4 @@ protected:
 };
 } // namespace navier
 } // namespace mfem
+#endif
