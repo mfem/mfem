@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "navier_solver.hpp"
 #include <fstream>
 
@@ -19,13 +30,11 @@ void vel(const Vector &x, double t, Vector &u)
    double zi = x(2);
 
    double U = 2.25;
-   // double U = 0.45;
 
    if (xi <= 1e-8)
    {
       u(0) = 16.0 * U * yi * zi * sin(M_PI * t / 8.0) * (0.41 - yi)
              * (0.41 - zi) / pow(0.41, 4.0);
-      // u(0) = 16.0 * U * yi * zi * (0.41 - yi) * (0.41 - zi) / pow(0.41, 4.0);
    }
    else
    {
@@ -69,9 +78,9 @@ int main(int argc, char *argv[])
    // Add Dirichlet boundary conditions to velocity space restricted to
    // selected attributes on the mesh.
    Array<int> attr(pmesh->bdr_attributes.Max());
-   // Inlet is attribute 1
+   // Inlet is attribute 1.
    attr[0] = 1;
-   // Walls is attribute 3
+   // Walls is attribute 3.
    attr[2] = 1;
    flowsolver.AddVelDirichletBC(vel, attr);
 
@@ -85,8 +94,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
-   ParaViewDataCollection pvdc("ins", pmesh);
-   // pvdc.SetPrefixPath("./tgv_output_vis");
+   ParaViewDataCollection pvdc("3dfoc", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);

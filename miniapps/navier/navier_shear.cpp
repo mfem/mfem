@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "navier_solver.hpp"
 #include <fstream>
 
@@ -82,15 +93,6 @@ int main(int argc, char *argv[])
    ParGridFunction w_gf(*u_gf);
    flowsolver.ComputeCurl2D(*u_gf, w_gf);
 
-   // VisItDataCollection vdc("shear_visit", pmesh);
-   // vdc.SetLevelsOfDetail(ctx.order);
-   // vdc.SetCycle(0);
-   // vdc.SetTime(0);
-   // vdc.RegisterField("velocity", u_gf);
-   // vdc.RegisterField("pressure", p_gf);
-   // vdc.RegisterField("vorticity", &w_gf);
-   // vdc.Save();
-
    ParaViewDataCollection pvdc("shear", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
@@ -117,9 +119,6 @@ int main(int argc, char *argv[])
         pvdc.SetCycle(step);
         pvdc.SetTime(t);
         pvdc.Save();
-      //   vdc.SetCycle(step);
-      //   vdc.SetTime(t);
-      //   vdc.Save();
       }
 
       if (mpi.Root())
