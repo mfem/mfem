@@ -10,6 +10,10 @@
 
 Version 4.1.1 (development)
 ===========================
+- Added a Gitlab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
+  and the updated CONTRIBUTING.md.
 
 
 Version 4.1, released on March 10, 2020
@@ -247,11 +251,6 @@ API changes
 - In the enum classes MemoryType and MemoryClass, "CUDA" was renamed to "DEVICE"
   which now denotes either "CUDA" or "HIP" depending on the build configuration.
   In the same enum classes, "CUDA_UVM" was renamed to "MANAGED".
-
-- Added a Gitlab pipeline that automates PR testing on supercomputing systems
-  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
-  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
-  and the updated CONTRIBUTING.md.
 
 
 Version 4.0, released on May 24, 2019
