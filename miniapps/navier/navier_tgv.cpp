@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
 
    QOI kin_energy(pmesh);
 
-   ParaViewDataCollection pvdc("tgv", pmesh);
+   ParaViewDataCollection pvdc("shear_output", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);
