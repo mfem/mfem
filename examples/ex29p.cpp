@@ -148,9 +148,7 @@ int main(int argc, char *argv[])
       a_ = 0.49;
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   // 3. Construct the (serial) mesh and refine it if requested.
    Mesh *mesh = GenerateSerialMesh(ser_ref_levels);
    int dim = mesh->Dimension();
 
@@ -174,10 +172,11 @@ int main(int argc, char *argv[])
    HYPRE_Int size = fespace.GlobalTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;
 
-   // 6. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking different portions of the boundary according to their
-   //    attributes.
+   // 6. Create "marker arrays" to define the portions of the boundary
+   //    associated with each type of boundary condition.  These arrays
+   //    have an entry corresponding to each boundary attribute.
+   //    Placing a '1' in an entry marks that attribute as being
+   //    active, '0' is inactive.
    Array<int> nbc_bdr(pmesh.bdr_attributes.Max());
    Array<int> rbc_bdr(pmesh.bdr_attributes.Max());
    Array<int> dbc_bdr(pmesh.bdr_attributes.Max());
