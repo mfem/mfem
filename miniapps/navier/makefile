@@ -74,4 +74,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf tgv_out*.txt shear_output tgv_output
+	@rm -rf tgv_out*.txt *_output
