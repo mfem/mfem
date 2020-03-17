@@ -352,19 +352,19 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data);
    }
 
-   // Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   // const int intFaceIntegratorCount = intFaceIntegrators.Size();
-   // for (int i = 0; i < intFaceIntegratorCount; ++i)
-   // {
-   //    intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace());
-   // }
+   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+   const int intFaceIntegratorCount = intFaceIntegrators.Size();
+   for (int i = 0; i < intFaceIntegratorCount; ++i)
+   {
+      intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),ea_data_int,ea_data_ext);
+   }
 
-   // Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   // const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
-   // for (int i = 0; i < boundFaceIntegratorCount; ++i)
-   // {
-   //    bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace());
-   // }
+   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
+   const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
+   for (int i = 0; i < boundFaceIntegratorCount; ++i)
+   {
+      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_int_bdr,ea_data_ext_bdr);
+   }
 }
 
 void EABilinearFormExtension::AssembleDiagonal(Vector &y) const

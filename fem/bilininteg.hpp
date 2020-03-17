@@ -84,9 +84,13 @@ public:
    //                         const FiniteElementSpace &test_fes,
    //                         Vector &emat);
 
-   // virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes);
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
 
-   // virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes);
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -2542,11 +2546,23 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
+
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
+   void SetupEA(const FiniteElementSpace &fes,
+                Vector &ea_data_int,
+                Vector &ea_data_ext,
+                FaceType type);
 };
 
 /** Integrator for the DG form:
