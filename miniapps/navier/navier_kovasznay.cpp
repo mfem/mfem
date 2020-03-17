@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
       {
          if (mpi.Root())
          {
-            mfem::out << "Result has a higher error than expected."
+            mfem::out << "Result has a larger error than expected."
                       << std::endl;
          }
          return -1;

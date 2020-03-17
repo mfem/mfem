@@ -20,10 +20,11 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 4;
    double kinvis = 1.0 / 1600.0;
-   double t_final = 10.0;
+   double t_final = 10 * 1e-3;
    double dt = 1e-3;
    bool pa = true;
    bool ni = false;
+   bool visualization = false;
    bool checkres = false;
 } ctx;
 
@@ -70,7 +71,7 @@ public:
          fe = fes->GetFE(i);
          double intorder = 2 * fe->GetOrder();
          const IntegrationRule *ir = &(
-                                        IntRules.Get(fe->GetGeomType(), intorder));
+            IntRules.Get(fe->GetGeomType(), intorder));
 
          v.GetValues(i, *ir, velx, 1);
          v.GetValues(i, *ir, vely, 2);
@@ -230,6 +231,12 @@ int main(int argc, char *argv[])
                   "-no-ni",
                   "--disable-ni",
                   "Enable numerical integration rules.");
+   args.AddOption(&ctx.visualization,
+                  "-vis",
+                  "--visualization",
+                  "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(
       &ctx.checkres,
       "-cr",
@@ -371,6 +378,22 @@ int main(int argc, char *argv[])
    }
 
    flowsolver.PrintTimingData();
+
+   // Test if the result for the test run is as expected.
+   if (ctx.checkres)
+   {
+      double tol = 1e-5;
+      double ke_expected = 1.25e-1;
+      if (fabs(ke - ke_expected) > tol)
+      {
+         if (mpi.Root())
+         {
+            mfem::out << "Result has a larger error than expected."
+                      << std::endl;
+         }
+         return -1;
+      }
+   }
 
    delete pmesh;
 
