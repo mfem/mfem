@@ -119,11 +119,23 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
       }
    }
 
+   // // Array<int> bdr_elem_vtx, bdr_attr;
+   // // fes->GetMesh()->GetBdrElementData(1, bdr_elem_vtx, bdr_attr);
+   // // bdr_attr.Print();
+
+   // Array<Element *> list(1);
+   // // list[0] = fes->GetMesh()->GetBdrElement(0);
+   // Array<int> bdr_elem_vtx, attr;
+   // fes->GetMesh()->GetBdrElementData(1, bdr_elem_vtx, attr);
+   // // bdr_elem_vtx.Print();
+
    // Compute element and boundary contributions (without shape functions).
    for (int e = 0; e < ne; e++)
    {
       const FiniteElement *el = fes->GetFE(e);
       ElementTransformation *eltrans = fes->GetElementTransformation(e);
+
+      // cout << fes->GetMesh()->GetBdrAttribute(e) << endl;
 
       for (int k = 0; k < nqe; k++)
       {
@@ -222,7 +234,8 @@ void FE_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
 }
 
 void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
-                            const Vector &xMPI, int e, int i, int k) const
+                            const Vector &xMPI, const Vector &normal,
+                            int e, int i, int k) const
 {
    y1 = y2 = 0.;
    for (int n = 0; n < hyp->NumEq; n++)
@@ -235,7 +248,8 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          if (nbr < 0)
          {
             // TODO more general boundary conditions, Riemann problem
-            uNbr = inflow(DofInd);
+            uNbr = hyp->EvaluateBdrCond(inflow, x, normal,
+                                        n, e, i, dofs.ElBdrAttr(e, i), DofInd);
          }
          else
          {
@@ -247,6 +261,16 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          y1(n) += x(DofInd) * ShapeEvalFace(i,j,k);
          y2(n) += uNbr * ShapeEvalFace(i,j,k);
       }
+   }
+   if (nbr < 0)
+   {
+      // y2 = y1;
+      y2(0) = y1(0);
+      y2(1) = -y1(1);
+      y2(2) = y1(2);
+
+      // y2(1) = y1(1) - 2. * (y1(1) * normal(0) + y1(2) * normal(1)) * normal(0);
+      // y2(2) = y1(2) - 2. * (y1(1) * normal(0) + y1(2) * normal(1)) * normal(1);
    }
 }
 
@@ -262,9 +286,9 @@ void FE_Evolution::LaxFriedrichs(const Vector &x1, const Vector &x2,
 
    Flux.Mult(normal, y);
 
-   Vector x(y.Size());
-   subtract(ws, x1, x2, x);
-   y += x;
+   Vector diff(y.Size());
+   subtract(ws, x1, x2, diff);
+   y += diff;
    y *= 0.5;
 }
 
@@ -332,7 +356,7 @@ void FE_Evolution::EvolveStandard(const Vector &x, const Vector &xMPI, Vector &y
          for (int k = 0; k < nqf; k++)
          {
             OuterUnitNormals(e * dofs.NumBdrs + i).GetColumn(k, normal);
-            FaceEval(x, uEval, uNbrEval, xMPI, e, i, k);
+            FaceEval(x, uEval, uNbrEval, xMPI, normal, e, i, k);
 
             LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
             NumFlux *= BdrInt(i, k, e);

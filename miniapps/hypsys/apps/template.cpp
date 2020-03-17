@@ -41,10 +41,17 @@ void TEMPLATE::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    // TODO
 }
 
-double TEMPLATE::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                              int i) const
+double TEMPLATE::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
    //TODO
+   return 0.;
+}
+
+double TEMPLATE::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
+                                 int n, int e, int i, int attr, int DofInd) const
+{
+   //TODO
+   return 0.;
 }
 
 void TEMPLATE::ComputeErrors(Array<double> &errors, const GridFunction &u,

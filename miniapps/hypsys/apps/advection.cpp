@@ -148,11 +148,16 @@ void Advection::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 }
 
-double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                               int i) const
+double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
    VelocityVector = VelFace(e*nqf+k).GetColumn(i);
    return abs(VelocityVector * n);
+}
+
+double Advection::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
+                                  int n, int e, int i, int attr, int DofInd) const
+{
+   return inflow(DofInd);
 }
 
 void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,

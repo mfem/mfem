@@ -75,54 +75,24 @@ int main(int argc, char *argv[])
 
    mesh.GetBoundingBox(config.bbMin, config.bbMax, max(config.order, 1));
 
-   int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
-   int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
-
-   Array<bool> VectorOutput;
+   int NumEq;
    switch (config.ProblemNum)
    {
       case 0:
       case 1:
-      case 2:
-      {
-         NumEq = 1;
-         NumUnknowns = 1;
-         VectorOutput.SetSize(NumUnknowns);
-         VectorOutput[0] = false;
-         break;
-      }
-      case 3:
-      {
-         NumEq = 1 + dim;
-         NumUnknowns = 2;
-         VectorOutput.SetSize(NumUnknowns);
-         VectorOutput[0] = false;
-         VectorOutput[1] = true;
-         break;
-      }
-      case 4:
-      {
-         NumEq = 2 + dim;
-         NumUnknowns = 3;
-         VectorOutput.SetSize(NumUnknowns);
-         VectorOutput[0] = false;
-         VectorOutput[1] = true;
-         VectorOutput[2] = false;
-         break;
-      }
+      case 2: NumEq = 1; break;
+      case 3: NumEq = 1 + dim; break;
+      case 4: NumEq = 2 + dim; break;
       default:
-      {
-         cout << "Unknown hyperbolic system: " << config.ProblemNum << '\n';
+         cout << "Unknown hyperbolic system: " << config.ProblemNum << endl;
          delete odeSolver;
          return -1;
-      }
    }
 
    // Create Bernstein Finite Element Space.
    const int btype = BasisType::Positive;
    L2_FECollection fec(config.order, dim, btype);
    FiniteElementSpace fes(&mesh, &fec);
-
    FiniteElementSpace vfes(&mesh, &fec, NumEq, Ordering::byNODES);
 
    Array<int> offsets(NumEq + 1);
@@ -130,7 +100,7 @@ int main(int argc, char *argv[])
    BlockVector u_block(offsets);
 
    const int ProblemSize = vfes.GetVSize();
-   cout << "Number of unknowns: " << ProblemSize << ".\n";
+   cout << "Number of unknowns: " << ProblemSize << endl;
 
    // The min/max bounds are represented as H1 functions of the same order
    // as the solution, thus having 1:1 dof correspondence inside each element.
@@ -161,7 +131,7 @@ int main(int argc, char *argv[])
 
    if (config.odeSolverType != 1 && hyp->SteadyState)
    {
-      MFEM_WARNING("Better use forward Euler for pseudo time stepping.");
+      MFEM_WARNING("Better use forward Euler pseudo time stepping for steady state simulations.");
    }
 
    GridFunction u(&vfes, u_block);
@@ -185,7 +155,7 @@ int main(int argc, char *argv[])
    socketstream sout;
    char vishost[] = "localhost";
    int visport = 19916;
-   VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, VectorOutput[0]);
+   VisualizeField(sout, vishost, visport, hyp->ProblemName, uk);
 
    FE_Evolution evol(&vfes, hyp, dofs, scheme, LumpedMassMat);
 
@@ -232,20 +202,19 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, VectorOutput[0]);
+         VisualizeField(sout, vishost, visport, hyp->ProblemName, uk);
       }
    }
 
    tic_toc.Stop();
-   cout << "Time stepping loop done in " << tic_toc.RealTime() <<
-        " seconds.\n\n";
+   cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
 
    double DomainSize = LumpedMassMat.Sum();
    if (hyp->SolutionKnown)
    {
       Array<double> errors;
       hyp->ComputeErrors(errors, u, DomainSize, t);
-      cout << "L1 error:                    " << errors[0] << ".\n";
+      cout << "L1 error:                    " << errors[0] << endl;
       if (hyp->FileOutput)
       {
          hyp->WriteErrors(errors);
@@ -253,7 +222,7 @@ int main(int argc, char *argv[])
    }
 
    cout << "Difference in solution mass: "
-        << abs(InitialMass - LumpedMassMat * uk) / DomainSize << ".\n\n";
+        << abs(InitialMass - LumpedMassMat * uk) / DomainSize << "\n\n";
 
    if (hyp->FileOutput)
    {

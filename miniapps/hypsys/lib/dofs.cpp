@@ -312,6 +312,8 @@ void DofInfo::FillNeighborDofs()
    Table *face_to_el = mesh->GetFaceToElementTable();
 
    NbrDofs.SetSize(NumBdrs, NumFaceDofs, ne);
+   ElBdrAttr.SetSize(ne, NumBdrs);
+   ElBdrAttr = 0.;
 
    // Permutations of BdrDofs, taking into account all possible orientations.
    // Assumes BdrDofs are ordered in xyz order, which is true for 3D hexes,
@@ -348,6 +350,7 @@ void DofInfo::FillNeighborDofs()
             {
                // No neighbor element.
                NbrDofs(i,0,e) = -1;
+               ElBdrAttr(e,i) = 1; // for now
                continue;
             }
 
@@ -373,6 +376,7 @@ void DofInfo::FillNeighborDofs()
             {
                // No neighbor element.
                for (j = 0; j < NumFaceDofs; j++) { NbrDofs(i,j,e) = -1; }
+               ElBdrAttr(e,i) = 1;
                continue;
             }
 
@@ -409,6 +413,7 @@ void DofInfo::FillNeighborDofs()
             {
                // No neighbor element.
                for (j = 0; j < NumFaceDofs; j++) { NbrDofs(f,j,e) = -1; }
+               ElBdrAttr(e,i) = 1;
                continue;
             }
 

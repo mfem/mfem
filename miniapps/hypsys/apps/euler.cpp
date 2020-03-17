@@ -44,7 +44,7 @@ double Euler::EvaluatePressure(const Vector &u) const
    double aux = 0.;
    for (int i = 0; i < dim; i++)
    {
-      aux += u(1 + i) * u(1 + i);
+      aux += u(1+i) * u(1+i);
    }
    double pressure = (SpHeatRatio - 1.) * (u(dim + 1) - 0.5 * aux / u(0));
    if (pressure < 0.)
@@ -123,8 +123,7 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 }
 
-double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                           int i) const
+double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
    switch (u.Size())
    {
@@ -141,6 +140,13 @@ double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    }
 }
 
+double Euler::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
+                              int n, int e, int i, int attr, int DofInd) const
+{
+   //TODO
+   return 0.;
+}
+
 void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
                           double DomainSize, double t) const
 {
@@ -153,6 +159,17 @@ void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
+// TODO use this everywhere.
+void EvaluateEnergy(Vector &u, const double &pressure)
+{
+   const int dim = u.Size() - 2;
+   double aux = 0.;
+   for (int i = 0; i < dim; i++)
+   {
+      aux += u(1 + i) * u(1 + i);
+   }
+   u(dim + 1) = pressure / (SpHeatRatio - 1.) + 0.5 * aux / u(0);
+}
 
 void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 {
@@ -195,6 +212,31 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          u = 0.;
          u(0) = X.Norml2() < 0.5 ? 1. : .125;
          u(dim + 1) = X.Norml2() < 0.5 ? 1. : .1;
+         break;
+      }
+      case 2: // Woodward Colella
+      {
+         if (dim != 1)
+         {
+            MFEM_ABORT("Test case only implemented in 1D.");
+         }
+
+         X(0) = 0.5 * (X(0) + 1.);
+
+         u = 0.;
+         u(0) = 1.;
+         if (X(0) < 0.1)
+         {
+            EvaluateEnergy(u, 1000.);
+         }
+         else if (X(0) < 0.9)
+         {
+            EvaluateEnergy(u, 0.01);
+         }
+         else
+         {
+            EvaluateEnergy(u, 100.);
+         }
          break;
       }
       default:

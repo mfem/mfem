@@ -30,6 +30,9 @@ public:
                              VectorFunctionCoefficient BdrCond_) : fes(fes_), u0(fes_, u_block),
                              NumEq(NumEq_), BdrCond(BdrCond_)
    {
+      ne = fes->GetNE();
+      nd = fes->GetFE(0)->GetDof();
+
       l2_fec = new L2_FECollection(fes->GetFE(0)->GetOrder(),
                                    fes->GetMesh()->Dimension());
       l2_fes = new FiniteElementSpace(fes->GetMesh(), l2_fec, NumEq,
@@ -46,8 +49,9 @@ public:
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const = 0;
-   virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                               int i) const = 0;
+   virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const = 0;
+   virtual double EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
+                                  int n, int e, int i, int attr, int DofInd) const = 0;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const = 0;
    virtual void WriteErrors(const Array<double> &errors) const
@@ -82,9 +86,16 @@ public:
       proj.ProjectGridFunction(*l2_proj);
    }
 
+   int ne, nd;
+
    // 0: L2 projection, 1: Nodal values as dofs (second order accurate for Bernstein)
    int ProjType;
    const int NumEq;
+
+   // TODO: Visualization
+   // const int NumUnknowns; // number of physical unknowns, e.g. 2 for SWE: height and momentum
+   // const Array<bool> VectorOutput;
+   // VectorOutput.SetSize(NumUnknowns);
 
    FiniteElementSpace *fes;
    GridFunction u0;

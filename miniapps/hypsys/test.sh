@@ -29,9 +29,9 @@ mpirun -np 4 ./phypsys -m data/inline-4quad.mesh -r 5 -o 0 -p 2 -tf 0.25 -dt 0.0
 ./phypsys -p 3 -c 0 -tf 0.2828427124746190 -m data/periodic-tri.mesh -r 3
 mpirun -np 4 ./phypsys -p 3 -c 0 -tf 0.2828427124746190 -m data/periodic-tri.mesh -r 3
 
-## Euler
+# ## Euler
 
-# Shock Tube
-./hypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh -r 4 -o 1
-./phypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh  -r 4 -o 1
-mpirun -np 4 ./phypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh  -r 4 -o 1
+# # Shock Tube
+# ./hypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh -r 4 -o 1
+# ./phypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh  -r 4 -o 1
+# mpirun -np 4 ./phypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh  -r 4 -o 1

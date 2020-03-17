@@ -14,6 +14,6 @@ const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes);
 const IntegrationRule* GetFaceIntegrationRule(FiniteElementSpace *fes);
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    string ProblemName, GridFunction &gf, bool vec);
+                    string ProblemName, GridFunction &gf, bool vec = false);
 
 #endif

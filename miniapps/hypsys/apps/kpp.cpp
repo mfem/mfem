@@ -38,10 +38,15 @@ void KPP::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    FluxEval(0,1) = cos(u(0));
 }
 
-double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                         int i) const
+double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
    return 1.;
+}
+
+double KPP::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
+                            int n, int e, int i, int attr, int DofInd) const
+{
+   return inflow(DofInd);
 }
 
 void KPP::ComputeErrors(Array<double> &errors, const GridFunction &u,

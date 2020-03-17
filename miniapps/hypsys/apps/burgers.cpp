@@ -37,10 +37,15 @@ void Burgers::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    FluxEval = 0.5 * u(0) * u(0);
 }
 
-double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                             int i) const
+double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
    return abs(u(0) * n.Sum());
+}
+
+double Burgers::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
+                                int n, int e, int i, int attr, int DofInd) const
+{
+   return inflow(DofInd);
 }
 
 void Burgers::ComputeErrors(Array<double> &errors, const GridFunction &u,

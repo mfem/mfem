@@ -72,7 +72,8 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
          FluxEval(2,1) = u(2)*u(2)/u(0) + 0.5 * GravConst * u(0)*u(0);
          break;
       }
-      default: MFEM_ABORT("Invalid space dimension.");
+      default:
+         MFEM_ABORT("Invalid space dimension.");
    }
 }
 
@@ -99,8 +100,7 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 } */
 
-double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
-                                  int i) const
+double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
 {
    switch (u.Size())
    {
@@ -110,6 +110,38 @@ double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
          return abs(u(1)*n(0) + u(2)*n(1)) / u(0) + sqrt(GravConst * u(0));
       default: MFEM_ABORT("Invalid solution vector.");
    }
+}
+
+double ShallowWater::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
+                                     int n, int e, int i, int attr, int DofInd) const
+{
+   switch (attr)
+   {
+      case 1: // Land boundary
+         if (n == 0) { return x(DofInd); }
+         else
+         {
+            switch (normal.Size())
+            {
+            case 1:
+               return x(DofInd) - 2. * (x(DofInd) * normal(0)) * normal(0);
+            case 2:
+               if (n == 1)
+               {
+                  return x(DofInd) - 2. * (x(DofInd) * normal(0) + x(DofInd + ne * nd) * normal(1)) * normal(0);
+               }
+               else
+               {
+                  return x(DofInd) - 2. * (x(DofInd - ne * nd) * normal(0) + x(DofInd) * normal(1)) * normal(1);
+               }
+            default:
+               MFEM_ABORT("Invalid space dimension.");
+            }
+         }
+      default:
+         MFEM_ABORT("Invalid boundary attribute.");
+      }
+      return 0.;
 }
 
 void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,

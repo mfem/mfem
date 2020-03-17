@@ -71,7 +71,8 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
    virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
-                         const Vector &xMPI, int e, int i, int k) const;
+                         const Vector &xMPI, const Vector &normal,
+                         int e, int i, int k) const;
    void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
                       Vector &y, int e, int k, int i) const;
    virtual void EvolveStandard(const Vector &x, const Vector &xMPI, Vector &y) const;
