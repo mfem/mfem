@@ -690,6 +690,7 @@ double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
    // Solve for n.Grad(u)
    Vector X;
    X.SetSize(fespace->GetTrueVSize());
+   X = 0.0;
 
    CGSolver mcg;
    mcg.SetRelTol(1e-12);
