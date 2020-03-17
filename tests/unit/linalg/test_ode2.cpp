@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
@@ -28,20 +28,23 @@ TEST_CASE("Second order ODE methods",
    class ODE2 : public SecondOrderTimeDependentOperator
    {
    protected:
-      double a,b;
+      double a, b;
 
    public:
-      ODE2(double a_, double b_) :  SecondOrderTimeDependentOperator(1, 0.0),  a(a_),
-         b(b_) {};
+      ODE2(double a, double b) :
+         SecondOrderTimeDependentOperator(1, 0.0), a(a), b(b) {};
 
+      using SecondOrderTimeDependentOperator::Mult;
       virtual void Mult(const Vector &u, const Vector &dudt,
-                        Vector &d2udt2)  const
+                        Vector &d2udt2) const
       {
          d2udt2[0] = -a*u[0] - b*dudt[0];
       }
 
+      using SecondOrderTimeDependentOperator::ImplicitSolve;
       virtual void ImplicitSolve(const double fac0, const double fac1,
-                                 const Vector &u, const Vector &dudt, Vector &d2udt2)
+                                 const Vector &u, const Vector &dudt,
+                                 Vector &d2udt2)
       {
          double T = 1.0 + a*fac0 + fac1*b;
          d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
@@ -227,5 +230,3 @@ TEST_CASE("Second order ODE methods",
       REQUIRE(check.order(new WBZAlphaSolver(1.0)) + tol > 2.0 );
    }
 }
-
-

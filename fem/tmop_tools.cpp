@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "tmop_tools.hpp"
@@ -251,7 +251,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size()), x_out_loc(fes->GetVSize());
    bool x_out_ok = false;
-   double scale = 1.0, energy_out;
+   double scale = 1.0, energy_out = 0.0;
    double norm0 = Norm(r);
 
    // Decreases the scaling of the update until the new mesh is valid.
@@ -410,7 +410,7 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
-   double scale = 1.0, energy_out;
+   double scale = 1.0, energy_out = 0.0;
 
    for (int i = 0; i < 7; i++)
    {

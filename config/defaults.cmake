@@ -34,9 +34,9 @@ option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
-option(MFEM_USE_GECKO "Enable GECKO usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
+option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
@@ -48,6 +48,7 @@ option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
+option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -137,11 +138,11 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 # set(ScaLAPACK_TARGET_FORCE)
 # set(ScaLAPACK_IMPORT_CONFIG DEBUG)
 
-set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
-
 set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
 
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
+
+set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
 
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
 # May need to add "HDF5" as requirement.
@@ -173,6 +174,7 @@ set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
+set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

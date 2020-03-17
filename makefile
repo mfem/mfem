@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40001
+MFEM_VERSION = 40101
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -120,7 +120,7 @@ EXAMPLE_TEST_DIRS := examples
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
-MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
+MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools toys)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -259,8 +259,8 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA
+ SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
+ OCCA CEED RAJA UMPIRE
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -319,10 +319,11 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_ZLIB MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
  MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
  MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO\
- MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
+ MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
  MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_SOURCE_DIR\
+ MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -624,7 +625,6 @@ status info:
 	$(info MFEM_USE_SUITESPARSE   = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
-	$(info MFEM_USE_GECKO         = $(MFEM_USE_GECKO))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
@@ -640,6 +640,7 @@ status info:
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))
 	$(info MFEM_USE_OCCA          = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
+	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS          = $(value MFEM_CXXFLAGS))
@@ -662,44 +663,62 @@ status info:
 	$(info MFEM_MPI_NP            = $(MFEM_MPI_NP))
 	@true
 
-ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
+ASTYLE_BIN = astyle
+ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
+ASTYLE_VER = "Artistic Style Version 2.05.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
+
+COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
 "Please open an issue at github.com/mfem/mfem/issues if you depend on it."
 deprecation-warnings:
-	@if [ -t 1 ]; then red="\033[0;31m"; yellow="\033[0;33m"; end="\033[0m"; fi;\
+	@if [ -t 1 ]; then\
+	   red="\033[0;31m"; yellow="\033[0;33m"; end="\033[0m";\
+	 fi;\
 	if [ $(MFEM_USE_LEGACY_OPENMP) = YES ]; then\
 	  printf $$red"[MFEM_USE_LEGACY_OPENMP]"$$end": "$$yellow"%s"$$end"\n"\
 	  $(DEPRECATION_WARNING);\
 	fi
 
-# $(call mfem-check, command-to-execute, success_msg, failed_msg)
-mfem-check-command = \
-  @if [ -t 1 ]; then red="\033[0;31m"; green="\033[0;32m"; end="\033[0m"; fi;\
+# $(call mfem_check_command, command-to-execute, success_msg, failed_msg)
+mfem_check_command = \
+  if [ -t 1 ]; then red="\033[0;31m"; green="\033[0;32m"; end="\033[0m"; fi;\
   if ! $(1); then\
-    printf $$green"[OK] "; printf $(2); printf $$end"\n";\
+    printf $$green"%s"$$end"\n" "[  OK  ] "$(strip $(2));\
   else\
-    printf $$red"[FAILED] "; printf $(3); printf $$end"\n";\
+    printf $$red"%s"$$end"\n"   "[FAILED] "$(strip $(3)); err_code=1;\
   fi
 
+# Verify the C++ code styling in MFEM and check that std::cout and std::cerr are
+# not used in the library (use mfem::out and mfem::err instead).
 style:
 	@echo "Applying C++ code style..."
-	$(call mfem-check-command,\
-            $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
-            "No source files were changed",\
-            "Make sure the code is formatted with Artistic Style 2.05.1")
-	@echo "Checking for use of std::cout..."
-	$(call mfem-check-command,\
-           grep cout */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno,\
-           "No use of std::cout found", "Use mfem::out instead of std::cout")
-	@echo "Checking for use of std::cerr..."
-	$(call mfem-check-command,\
-           grep cerr */*.?pp | grep -v examples/ | grep -v general/globals | grep -v cerrno,\
-           "No use of std::cerr found", "Use mfem::err instead of std::cerr")
+	@astyle_version="$$($(ASTYLE_BIN) --version)";\
+	 if [ "$$astyle_version" != $(ASTYLE_VER) ]; then\
+	    printf "%s\n" "Invalid astyle version: '$$astyle_version'"\
+	           "Please use: '"$(ASTYLE_VER)"'";\
+	    exit 1;\
+	 fi
+	@err_code=0;\
+	$(call mfem_check_command,\
+	    $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
+	    "No source files were changed",\
+	    "Please make sure the changes are committed");\
+	echo "Checking for use of std::cout...";\
+	$(call mfem_check_command,\
+	   grep cout $(COUT_CERR_FILES) | grep -v $(COUT_CERR_EXCLUDE:%=-e %),\
+	   "No use of std::cout found", "Use mfem::out instead of std::cout");\
+	echo "Checking for use of std::cerr...";\
+	$(call mfem_check_command,\
+	   grep cerr $(COUT_CERR_FILES) |\
+	      grep -v $(COUT_CERR_EXCLUDE:%=-e %) -e cerrno,\
+	   "No use of std::cerr found", "Use mfem::err instead of std::cerr");\
+	exit $$err_code
 
 # Print the contents of a makefile variable, e.g.: 'make print-MFEM_LIBS'.
 print-%:

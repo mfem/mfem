@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -33,13 +33,15 @@ void ParLinearForm::Update(ParFiniteElementSpace *pf, Vector &v, int v_offset)
 
 void ParLinearForm::ParallelAssemble(Vector &tv)
 {
-   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
+   const Operator* prolong = pfes->GetProlongationMatrix();
+   prolong->MultTranspose(*this, tv);
 }
 
 HypreParVector *ParLinearForm::ParallelAssemble()
 {
    HypreParVector *tv = pfes->NewTrueDofVector();
-   pfes->GetProlongationMatrix()->MultTranspose(*this, *tv);
+   const Operator* prolong = pfes->GetProlongationMatrix();
+   prolong->MultTranspose(*this, *tv);
    return tv;
 }
 

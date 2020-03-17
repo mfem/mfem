@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Finite Element classes
@@ -7285,7 +7285,7 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
 
    if (points_container.find(btype) == points_container.end())
    {
-      points_container[btype] = new Array<double*>;
+      points_container[btype] = new Array<double*>(h_mt);
    }
    Array<double*> &pts = *points_container[btype];
    if (pts.Size() <= p)
@@ -7307,7 +7307,7 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
    if ( bases_container.find(btype) == bases_container.end() )
    {
       // we haven't been asked for basis or points of this type yet
-      bases_container[btype] = new Array<Basis*>;
+      bases_container[btype] = new Array<Basis*>(h_mt);
    }
    Array<Basis*> &bases = *bases_container[btype];
    if (bases.Size() <= p)

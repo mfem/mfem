@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Implementation of class BilinearForm
@@ -55,7 +55,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = new double[I[height]];
+   double *data = Memory<double>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -224,10 +224,13 @@ MatrixInverse * BilinearForm::Inverse() const
 
 void BilinearForm::Finalize (int skip_zeros)
 {
-   if (!static_cond) { mat->Finalize(skip_zeros); }
-   if (mat_e) { mat_e->Finalize(skip_zeros); }
-   if (static_cond) { static_cond->Finalize(); }
-   if (hybridization) { hybridization->Finalize(); }
+   if (assembly == AssemblyLevel::FULL)
+   {
+      if (!static_cond) { mat->Finalize(skip_zeros); }
+      if (mat_e) { mat_e->Finalize(skip_zeros); }
+      if (static_cond) { static_cond->Finalize(); }
+      if (hybridization) { hybridization->Finalize(); }
+   }
 }
 
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
