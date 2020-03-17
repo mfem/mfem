@@ -132,7 +132,7 @@ public:
 
    /// Add an accelaration term to the RHS of the equation.
    /**
-    * The VecFuncT \p @f is evaluated at the current time t and extrapolated
+    * The VecFuncT @a f is evaluated at the current time t and extrapolated
     * together with the nonlinear parts of the Navier Stokes equation.
     */
    void AddAccelTerm(VecFuncT *f, Array<int> &attr);
@@ -165,12 +165,12 @@ public:
 
    ~NavierSolver();
 
-   /// Compute $\nabla times \nabla times u$ for $u \in (H^1)^2$.
+   /// Compute \f$\nabla times \nabla times u\f$ for \f$u \in (H^1)^2\f$.
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
 
-   /// Compute $\nabla times \nabla times u$ for $u \in (H^1)^3$.
+   /// Compute \f$\nabla times \nabla times u\f$ for \f$u \in (H^1)^3\f$.
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
 protected:
