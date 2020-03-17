@@ -18,8 +18,8 @@ using namespace navier;
 struct s_NavierContext
 {
    int order = 6;
-   double kin_vis = 1.0 / 100000.0;
-   double t_final = 1.0;
+   double kinvis = 1.0 / 100000.0;
+   double t_final = 10 * 1e-3;
    double dt = 1e-3;
 } ctx;
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 2;
 
-   Mesh *mesh = new Mesh("../data/periodic-square.mesh");
+   Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
    nodes->Neg();
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Create the flow solver.
-   NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
+   NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
    flowsolver.EnablePA(true);
 
    // Set the initial condition.
