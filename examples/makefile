@@ -103,6 +103,10 @@ ex15-test-seq: ex15
 	@$(call mfem-test,$<,, Serial example,-e 1)
 ex15p-test-par: ex15p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-e 1)
+ex29-test-seq: ex29
+	@$(call mfem-test,$<,, Serial example,-dg)
+ex29p-test-par: ex29p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-dg)
 # Testing: optional tests
 ifeq ($(MFEM_USE_STRUMPACK),YES)
 ex11p-test-strumpack: ex11p
