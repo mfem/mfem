@@ -70,6 +70,11 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 
 Mesh * GenerateSerialMesh(int ref);
 
+double IntegrateBC(GridFunction & x, Array<int> &bdr, bool h1);
+double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
+                        Array<int> &bdr, bool h1,
+                        OperatorHandle &M, double a = 0.0);
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -190,10 +195,10 @@ int main(int argc, char *argv[])
    ProductCoefficient m_rbcACoef(matCoef, rbcACoef);
    ProductCoefficient m_rbcBCoef(matCoef, rbcBCoef);
 
-   // 6. Define the solution vector x as a parallel finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero.
-   GridFunction x(&fespace);
-   x = 0.0;
+   // 6. Define the solution vector u as a finite element grid function
+   //    corresponding to fespace. Initialize u with initial guess of zero.
+   GridFunction u(&fespace);
+   u = 0.0;
 
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -227,7 +232,7 @@ int main(int argc, char *argv[])
    if (h1)
    {
       // Set the Dirchlet values in the solution vector
-      x.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
+      u.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
 
       // Add the desired value for n.Grad(u) on the Neumann boundary
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(m_nbcCoef), nbc_bdr);
@@ -255,20 +260,22 @@ int main(int argc, char *argv[])
    // 9. Construct the linear system.
    OperatorPtr A;
    Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   //     solve the system AX=B with PCG in the symmetric case, and GMRES in the
    //     non-symmetric one.
-   GSSmoother M((SparseMatrix&)(*A));
-   if (sigma == -1.0)
    {
-      PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
-   }
-   else
-   {
-      GMRES(*A, M, B, X, 1, 500, 10, 1e-12, 0.0);
+      GSSmoother M((SparseMatrix&)(*A));
+      if (sigma == -1.0)
+      {
+         PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
+      }
+      else
+      {
+         GMRES(*A, M, B, X, 1, 500, 10, 1e-12, 0.0);
+      }
    }
 #else
    // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
@@ -279,66 +286,27 @@ int main(int argc, char *argv[])
    umf_solver.Mult(B, X);
 #endif
 
-   // 12. Recover the grid function corresponding to X. This is the
+   // 12. Recover the grid function corresponding to U. This is the
    //     local finite element solution.
-   a.RecoverFEMSolution(X, b, x);
+   a.RecoverFEMSolution(X, b, u);
 
-   BilinearForm *m = new BilinearForm(&fespace);
-   m->AddDomainIntegrator(new MassIntegrator);
-   m->Assemble();
+   // 13. Build a mass matrix to help solve for n.Grad(u) where 'n' is
+   //     a surface normal.
+   BilinearForm m(&fespace);
+   m.AddDomainIntegrator(new MassIntegrator);
+   m.Assemble();
 
-   BilinearForm *n = new BilinearForm(&fespace);
+   ess_tdof_list.SetSize(0);
+   OperatorPtr M;
+   m.FormSystemMatrix(ess_tdof_list, M);
+
+   // 14. Compute the various boundary integrals.
+   mfem::out << endl << "Verifying boundary conditions:" << endl;
    {
-      Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
-      VectorConstantCoefficient nCoef(nVec);
-      n->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
-      n->Assemble();
-   }
-
-   BilinearForm *n0 = new BilinearForm(&fespace);
-   {
-      VectorFunctionCoefficient n0Coef(2, n4Vec);
-      n0->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(n0Coef));
-      n0->Assemble();
-   }
-
-   BilinearForm *r = new BilinearForm(&fespace);
-   {
-      Vector rVec(2); rVec[0] = 0.0; rVec[1] = 1.0;
-      VectorConstantCoefficient rCoef(rVec);
-      r->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(rCoef));
-      r->Assemble();
-   }
-
-   GridFunction dx(&fespace);
-   GridFunction nx(&fespace);
-   GridFunction n0x(&fespace);
-   GridFunction rx(&fespace);
-   {
-      LinearForm db(&fespace);
-
-      ess_tdof_list.SetSize(0);
-
-      OperatorPtr M;
-
-      dx = x;
-
-      ConstantCoefficient one(1.0);
-      BilinearForm m_dbc(&fespace);
-      if (h1)
-      {
-         m_dbc.AddBoundaryIntegrator(new MassIntegrator, dbc_bdr);
-      }
-      else
-      {
-         m_dbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), dbc_bdr);
-      }
-      m_dbc.Assemble();
-
-      LinearForm m1x(&fespace);
-      m_dbc.Mult(dx, m1x);
-
-      double dbc_int = copysign(sqrt(m1x(dx) / (2.0 * M_PI * a_)), dbc_val);
+      // Integrate the solution on the Dirichlet boundary and compare
+      // to the expected value. The factor of (2 pi a) divides by the
+      // circumference of the hole.
+      double dbc_int = IntegrateBC(u, dbc_bdr, h1) / (2.0 * M_PI * a_);
       double dbc_err = fabs(dbc_int - dbc_val);
 
       bool hom_dbc = (dbc_val == 0.0);
@@ -348,42 +316,13 @@ int main(int argc, char *argv[])
                 << " error " << dbc_err << endl;
    }
    {
-      LinearForm nb(&fespace);
+      // Integrate n.Grad(u) with n = (0, -1) on the inhomogeneous
+      // Neumann boundary and compare to the expected value.
+      Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
+      VectorConstantCoefficient nCoef(nVec);
 
-      ess_tdof_list.SetSize(0);
-
-      OperatorPtr M;
-
-      n->Mult(x, nb);
-      m->FormLinearSystem(ess_tdof_list, nx, nb, M, X, B);
-
-      CGSolver mcg;
-      mcg.SetRelTol(1e-12);
-      mcg.SetMaxIter(2000);
-      mcg.SetPrintLevel(0);
-      mcg.SetOperator(*M);
-      mcg.Mult(B, X);
-
-      m->RecoverFEMSolution(X, nb, nx);
-
-      // nx -= nbc_val;
-
-      ConstantCoefficient one(1.0);
-      BilinearForm m_nbc(&fespace);
-      if (h1)
-      {
-         m_nbc.AddBoundaryIntegrator(new MassIntegrator, nbc_bdr);
-      }
-      else
-      {
-         m_nbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), nbc_bdr);
-      }
-      m_nbc.Assemble();
-
-      LinearForm m3x(&fespace);
-      m_nbc.Mult(nx, m3x);
-
-      double nbc_int = copysign(sqrt(m3x(nx) * 0.5), nbc_val);
+      // The factor of 0.5 divides by the length of the boundary.
+      double nbc_int = IntegrateNGradBC(u, nCoef, nbc_bdr, h1, M) * 0.5;
       double nbc_err = fabs(nbc_int - nbc_val);
 
       bool hom_nbc = (nbc_val == 0.0);
@@ -393,45 +332,17 @@ int main(int argc, char *argv[])
                 << " error " << nbc_err << endl;
    }
    {
-      LinearForm nb(&fespace);
-
-      ess_tdof_list.SetSize(0);
-
-      OperatorPtr M;
-
-      n0->Mult(x, nb);
-      m->FormLinearSystem(ess_tdof_list, n0x, nb, M, X, B);
-
-      CGSolver mcg;
-      mcg.SetRelTol(1e-12);
-      mcg.SetMaxIter(2000);
-      mcg.SetPrintLevel(0);
-      mcg.SetOperator(*M);
-      mcg.Mult(B, X);
-
-      m->RecoverFEMSolution(X, nb, n0x);
-
-      // nx -= nbc_val;
+      // Integrate n.Grad(u) with n given by the function n4Vec on the
+      // homogeneous Neumann boundary and compare to the expected
+      // value of zero.
       Array<int> nbc0_bdr(mesh->bdr_attributes.Max());
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      ConstantCoefficient one(1.0);
-      BilinearForm m_nbc(&fespace);
-      if (h1)
-      {
-         m_nbc.AddBoundaryIntegrator(new MassIntegrator, nbc0_bdr);
-      }
-      else
-      {
-         m_nbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), nbc0_bdr);
-      }
-      m_nbc.Assemble();
-
-      LinearForm m4x(&fespace);
-      m_nbc.Mult(n0x, m4x);
-
-      double nbc_int = sqrt(m4x(n0x));
+      // The factor of (2 pi a) divides by the circumference of the hole.
+      VectorFunctionCoefficient n0Coef(2, n4Vec);
+      double nbc_int = IntegrateNGradBC(u, n0Coef, nbc0_bdr, h1, M) /
+                       (2.0 * M_PI * a_);
       double nbc_err = fabs(nbc_int);
 
       bool hom_nbc = true;
@@ -440,38 +351,14 @@ int main(int argc, char *argv[])
                 << " error " << nbc_err << endl;
    }
    {
-      OperatorPtr M;
+      // Integrate n.Grad(u) + a * u with n = (0, 1) on the Robin
+      // boundary and compare to the expected value.
+      Vector nVec(2); nVec[0] = 0.0; nVec[1] = 1.0;
+      VectorConstantCoefficient nCoef(nVec);
 
-      LinearForm rb(&fespace);
-      r->Mult(x, rb);
-      m->FormLinearSystem(ess_tdof_list, rx, rb, M, X, B);
-
-      CGSolver mcg;
-      mcg.SetRelTol(1e-12);
-      mcg.SetMaxIter(2000);
-      mcg.SetPrintLevel(0);
-      mcg.SetOperator(*M);
-      mcg.Mult(B, X);
-
-      m->RecoverFEMSolution(X, rb, rx);
-      rx.Add(rbc_a_val, x);
-
-      ConstantCoefficient one(1.0);
-      BilinearForm m_rbc(&fespace);
-      if (h1)
-      {
-         m_rbc.AddBoundaryIntegrator(new MassIntegrator, rbc_bdr);
-      }
-      else
-      {
-         m_rbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), rbc_bdr);
-      }
-      m_rbc.Assemble();
-
-      LinearForm m2x(&fespace);
-      m_rbc.Mult(rx, m2x);
-
-      double rbc_int = copysign(sqrt(m2x(rx) * 0.5), rbc_b_val);
+      // The factor of 0.5 divides by the length of the boundary.
+      double rbc_int = IntegrateNGradBC(u, nCoef, rbc_bdr, h1, M, rbc_a_val)
+                       * 0.5;
       double rbc_err = fabs(rbc_int - rbc_b_val);
 
       bool hom_rbc = (rbc_b_val == 0.0);
@@ -481,7 +368,7 @@ int main(int argc, char *argv[])
                 << " error " << rbc_err << endl;
    }
 
-   // 16. Save the refined mesh and the solution in parallel. This output can
+   // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ofstream mesh_ofs("refined.mesh");
@@ -489,38 +376,23 @@ int main(int argc, char *argv[])
       mesh->Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      u.Save(sol_ofs);
    }
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      string h1_str = h1 ? "H1" : "DG";
+      string title_str = h1 ? "H1" : "DG";
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x
-               << "window_title '" << h1_str << " Solution'"
+      sol_sock << "solution\n" << *mesh << u
+               << "window_title '" << title_str << " Solution'"
                << " keys 'mmc'" << flush;
-
-      socketstream n_sol_sock(vishost, visport);
-      n_sol_sock.precision(8);
-      n_sol_sock << "solution\n" << *mesh << nx
-                 << "window_title 'Neumann'" << flush;
-
-      socketstream n0_sol_sock(vishost, visport);
-      n0_sol_sock.precision(8);
-      n0_sol_sock << "solution\n" << *mesh << n0x
-                  << "window_title 'Homogeneous Neumann'" << flush;
-
-      socketstream r_sol_sock(vishost, visport);
-      r_sol_sock.precision(8);
-      r_sol_sock << "solution\n" << *mesh << rx
-                 << "window_title 'Robin'" << flush;
    }
 
-   // 18. Free the used memory.
+   // 17. Free the used memory.
    delete fec;
 
    return 0;
@@ -777,4 +649,64 @@ Mesh * GenerateSerialMesh(int ref)
    mesh->Transform(trans);
 
    return mesh;
+}
+
+double IntegrateBC(GridFunction & x, Array<int> &bdr, bool h1)
+{
+   FiniteElementSpace * fespace = x.FESpace();
+   ConstantCoefficient one(1.0);
+
+   // Integrate the basis functions along the given boundary
+   LinearForm lf(fespace);
+   if (h1)
+   {
+      lf.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), bdr);
+   }
+   else
+   {
+      lf.AddBdrFaceIntegrator(new BoundaryLFIntegrator(one), bdr);
+   }
+   lf.Assemble();
+
+   // Compute the integral of x along the given boundary
+   return lf(x);
+}
+
+double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
+                        Array<int> &bdr, bool h1,
+                        OperatorHandle &M, double a)
+{
+   FiniteElementSpace * fespace = u.FESpace();
+
+   // Compute the operator n.Grad
+   BilinearForm nd(fespace);
+   nd.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
+   nd.Assemble();
+
+   // Apply the operator to the solution vector
+   LinearForm b(fespace);
+   nd.Mult(u, b);
+
+   // Solve for n.Grad(u)
+   Vector X;
+   X.SetSize(fespace->GetTrueVSize());
+
+   CGSolver mcg;
+   mcg.SetRelTol(1e-12);
+   mcg.SetMaxIter(2000);
+   mcg.SetPrintLevel(0);
+   mcg.SetOperator(*M);
+   mcg.Mult(b, X);
+
+   GridFunction ndu(fespace);
+   ndu.SetFromTrueDofs(X);
+
+   // For Robin BCs we add a * u
+   if (a != 0.0)
+   {
+      ndu.Add(a, u);
+   }
+
+   // Integrate n.Grad(u) + a * u along the given boundary
+   return IntegrateBC(ndu, bdr, h1);
 }
