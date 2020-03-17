@@ -220,7 +220,6 @@ protected:
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
    void ReadMFEMMesh(std::istream &input, int version, int &curved);
-   void ReadMFEMNCMesh(std::istream &input, int version, int &curved);
    void ReadLineMesh(std::istream &input);
    void ReadNetgen2DMesh(std::istream &input, int &curved);
    void ReadNetgen3DMesh(std::istream &input);

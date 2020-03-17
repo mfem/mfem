@@ -99,17 +99,6 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    if (remove_unused_vertices) { RemoveUnusedVertices(); }
 }
 
-void Mesh::ReadMFEMNCMesh(std::istream &input, int version, int &curved)
-{
-   MFEM_VERIFY(version == 10, "unknown MFEM nonconforming mesh version");
-   MFEM_ASSERT(ncmesh == NULL, "internal error");
-
-   ncmesh = new NCMesh(input, version, curved);
-   InitFromNCMesh(*ncmesh);
-
-   // TODO: something else?
-}
-
 void Mesh::ReadLineMesh(std::istream &input)
 {
    int j,p1,p2,a;

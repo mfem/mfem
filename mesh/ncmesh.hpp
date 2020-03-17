@@ -101,7 +101,7 @@ class NCMesh
 {
 public:
    //// Initialize with elements from an existing 'mesh'.
-   explicit NCMesh(const Mesh *mesh, std::istream *vertex_parents = NULL);
+   explicit NCMesh(const Mesh *mesh);
 
    /// Load from a stream. The id header is assumed to have been read already.
    NCMesh(std::istream &input, int version, int &curved);
@@ -820,11 +820,12 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
 
-   /// I/O: Load the vertex parent hierarchy from a mesh file
+   /// Load the vertex parent hierarchy from a legacy mesh file.
    void LoadVertexParents(std::istream &input);
-
-   /// I/O: Load the element refinement hierarchy from a mesh file.
+   /// Load the element refinement hierarchy from a legacy mesh file.
    void LoadCoarseElements(std::istream &input);
+   /// Load the deprecated MFEM mesh v1.1 format for backward comapatiblity.
+   void LoadLegacyFormat(std::istream &input, int &curved);
 
    /// I/O: Set positions of all vertices (used by mesh loader).
    //void SetVertexPositions(const Array<mfem::Vertex> &vertices);
@@ -843,7 +844,7 @@ protected: // implementation
 
       bool initialized;
       GeomInfo() : initialized(false) {}
-      void Initialize(const mfem::Element* elem);
+      void InitGeom(Geometry::Type geom);
    };
 
    static GeomInfo GI[Geometry::NumGeom];

@@ -24,9 +24,20 @@ namespace mfem
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
-void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
+void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
 {
    if (initialized) { return; }
+
+   mfem::Element *elem = NULL;
+   switch (geom)
+   {
+      case Geometry::CUBE: elem = new Hexahedron; break;
+      case Geometry::PRISM: elem = new Wedge; break;
+      case Geometry::SQUARE: elem = new Quadrilateral; break;
+      case Geometry::TRIANGLE: elem = new Triangle; break;
+      case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;
+      default: MFEM_ABORT("unsupported geometry " << geom);
+   }
 
    nv = elem->GetNVertices();
    ne = elem->GetNEdges();
@@ -62,6 +73,7 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
       nf = ne;
    }
 
+   delete elem;
    initialized = true;
 }
 
@@ -80,9 +92,7 @@ NCMesh::NCMesh(const Mesh *mesh)
    spaceDim = mesh->SpaceDimension();
    Iso = true;
 
-   // TODO: not necessary anymore
    // examine elements and reserve the first node IDs for vertices
-   // (note: 'mesh' may not have vertices defined yet, e.g., on load)
    int max_id = -1;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -115,9 +125,7 @@ NCMesh::NCMesh(const Mesh *mesh)
 
       Geometry::Type geom = elem->GetGeometryType();
       CheckSupportedGeom(geom);
-
-      // initialize edge/face tables for this type of element
-      GI[geom].Initialize(elem); // FIXME
+      GI[geom].InitGeom(geom);
 
       // create NCMesh::Element for this mfem::Element
       int root_id = AddElement(Element(geom, elem->GetAttribute()));
@@ -176,152 +184,13 @@ NCMesh::NCMesh(const Mesh *mesh)
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved)
 {   
-   std::string ident;
-   int count, rank, attr, geom;
-
-   // load dimension
-   skip_comment_lines(input, '#');
-   input >> ident;
-   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
-   input >> Dim;
-
-   // load elements
-   skip_comment_lines(input, '#');
-   input >> ident;
-   MFEM_VERIFY(ident == "elements", "invalid mesh file");
-
-   input >> count;
-   for (int i = 0; i < count; i++)
+   if (version == 1) // old MFEM mesh v1.1 format
    {
-      input >> attr >> geom;
-      CheckSupportedGeom(Geometry::Type(geom));
-
-      int id = AddElement(Element(Geometry::Type(geom), attr));
-      MFEM_ASSERT(id == i, "");
-
-      Element &el = elements[id];
-      for (int j = 0; j < GI[geom].nv; j++)
-      {
-         input >> el.node[j];
-      }
+      LoadLegacyFormat(input, curved);
+      return;
    }
 
-   // load ghost elements, if present (this is for ParNCMesh but we want
-   // full support of the format at all times)
-   skip_comment_lines(input, '#');
-   input >> ident;
-   if (ident == "ghost_elements")
-   {
-      input >> count;
-      for (int i = 0; i < count; i++)
-      {
-         input >> rank >> attr >> geom;
-         CheckSupportedGeom(Geometry::Type(geom));
-
-         int id = AddElement(Element(Geometry::Type(geom), attr));
-         Element &el = elements[id];
-
-         el.rank = rank;
-         for (int j = 0; j < GI[geom].nv; j++)
-         {
-            input >> el.node[j];
-         }
-      }
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-   }
-
-   // TODO: create top level vertices
-
-   // TODO: ReferenceElement, RegisterFaces
-
-   // load boundary
-   MFEM_VERIFY(ident == "boundary", "invalid mesh file");
-   input >> count;
-   for (int i = 0; i < count; i++)
-   {
-      input >> attr >> geom;
-
-      int v1, v2, v3, v4;
-      if (geom == Geometry::SQUARE)
-      {
-         input >> v1 >> v2 >> v3 >> v4;
-         Face* face = faces.Find(v1, v2, v3, v4);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = attr;
-      }
-      else if (geom == Geometry::TRIANGLE)
-      {
-         input >> v1 >> v2 >> v3;
-         Face* face = faces.Find(v1, v2, v3);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = attr;
-      }
-      else if (geom == Geometry::SEGMENT)
-      {
-         input >> v1 >> v2;
-         Face* face = faces.Find(v1, v1, v2, v2);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = attr;
-      }
-      else
-      {
-         MFEM_ABORT("unsupported boundary element geometry: " << geom);
-      }
-   }
-
-   // load vertex hierarchy
-   skip_comment_lines(input, '#');
-   input >> ident;
-   if (ident == "vertex_parents")
-   {
-      LoadVertexParents(input);
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-
-      // load element hierarchy
-      if (ident == "coarse_elements")
-      {
-         LoadCoarseElements(input);
-
-         skip_comment_lines(input, '#');
-         input >> ident;
-      }
-   }
-
-   // load vertices
-   MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-   input >> count;
-   input >> std::ws >> ident;
-   if (ident != "nodes")
-   {
-      spaceDim = atoi(ident.c_str());
-
-      top_vertex_pos.SetSize(3*count);
-      top_vertex_pos = 0.0;
-
-      for (int i = 0; i < count; i++)
-      {
-         for (int j = 0; j < spaceDim; j++)
-         {
-            input >> top_vertex_pos[3*i + j];
-            MFEM_VERIFY(input.good(), "unexpected EOF");
-         }
-      }
-   }
-   else
-   {
-      // prepare to read the nodes
-      input >> std::ws;
-      curved = 1;
-   }
-
-   InitRootState(mesh->GetNE());
-   InitGeomFlags();
-
-   Update();
+   MFEM_ABORT("TODO");
 }
 
 NCMesh::NCMesh(const NCMesh &other)
@@ -5209,6 +5078,153 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    Iso = iso;
 
    InitRootState(root_count);
+   InitGeomFlags();
+
+   Update();
+}
+
+void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
+{
+   MFEM_ASSERT(elements.Size() == 0, "");
+   MFEM_ASSERT(nodes.Size() == 0, "");
+
+   std::string ident;
+   int attr, geom;
+   int num_elem, num_bnd, num_vert;
+
+   // load dimension
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
+   input >> Dim;
+
+   // load elements
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "elements", "invalid mesh file");
+
+   input >> num_elem;
+   int max_id = -1;
+   for (int i = 0; i < num_elem; i++)
+   {
+      input >> attr >> geom;
+
+      Geometry::Type type = Geometry::Type(geom);
+      CheckSupportedGeom(type);
+      GI[geom].InitGeom(type);
+
+      int id = AddElement(Element(type, attr));
+      MFEM_ASSERT(id == i, "");
+
+      Element &el = elements[id];
+      for (int j = 0; j < GI[geom].nv; j++)
+      {
+         input >> el.node[j];
+         max_id = std::max(max_id, el.node[j]);
+      }
+   }
+
+   // create top level nodes
+   for (int id = 0; id <= max_id; id++)
+   {
+      // top-level nodes are special: id == p1 == p2 == orig. vertex id
+      int node = nodes.GetId(id, id);
+      MFEM_CONTRACT_VAR(node);
+      MFEM_ASSERT(node == id, "");
+   }
+
+   // create edge nodes and faces
+   for (int i = 0; i < num_elem; i++)
+   {
+      ReferenceElement(i);
+      RegisterFaces(i);
+   }
+
+   // load boundary
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "boundary", "invalid mesh file");
+   input >> num_bnd;
+   for (int i = 0; i < num_bnd; i++)
+   {
+      input >> attr >> geom;
+
+      int v1, v2, v3, v4;
+      if (geom == Geometry::SQUARE)
+      {
+         input >> v1 >> v2 >> v3 >> v4;
+         Face* face = faces.Find(v1, v2, v3, v4);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = attr;
+      }
+      else if (geom == Geometry::TRIANGLE)
+      {
+         input >> v1 >> v2 >> v3;
+         Face* face = faces.Find(v1, v2, v3);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = attr;
+      }
+      else if (geom == Geometry::SEGMENT)
+      {
+         input >> v1 >> v2;
+         Face* face = faces.Find(v1, v1, v2, v2);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = attr;
+      }
+      else
+      {
+         MFEM_ABORT("unsupported boundary element geometry: " << geom);
+      }
+   }
+
+   // load vertex hierarchy
+   skip_comment_lines(input, '#');
+   input >> ident;
+   if (ident == "vertex_parents")
+   {
+      LoadVertexParents(input);
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+
+      // load element hierarchy
+      if (ident == "coarse_elements")
+      {
+         LoadCoarseElements(input);
+
+         skip_comment_lines(input, '#');
+         input >> ident;
+      }
+   }
+
+   // load vertices
+   MFEM_VERIFY(ident == "vertices", "invalid mesh file");
+   input >> num_vert;
+   input >> std::ws >> ident;
+   if (ident != "nodes")
+   {
+      spaceDim = atoi(ident.c_str());
+
+      top_vertex_pos.SetSize(3*num_vert);
+      top_vertex_pos = 0.0;
+
+      for (int i = 0; i < num_vert; i++)
+      {
+         for (int j = 0; j < spaceDim; j++)
+         {
+            input >> top_vertex_pos[3*i + j];
+            MFEM_VERIFY(input.good(), "unexpected EOF");
+         }
+      }
+   }
+   else
+   {
+      // prepare to read the nodes
+      input >> std::ws;
+      curved = 1;
+   }
+
+   InitRootState(num_elem);
    InitGeomFlags();
 
    Update();

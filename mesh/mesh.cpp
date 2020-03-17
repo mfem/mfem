@@ -3203,7 +3203,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // (NOTE: previous v1.1 is now under this branch for backward compatibility)
    int mfem_nc_version = 0;
    if (mesh_type == "MFEM nonconforming mesh v1.0") { mfem_nc_version = 10; }
-   else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 10/*sic*/; }
+   else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
 
    if (mfem_version)
    {
@@ -3219,7 +3219,9 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
    else if (mfem_nc_version)
    {
-      ReadMFEMNCMesh(input, mfem_nc_version, curved);
+      MFEM_ASSERT(ncmesh == NULL, "internal error");
+      ncmesh = new NCMesh(input, mfem_nc_version, curved);
+      InitFromNCMesh(*ncmesh);
    }
    else if (mesh_type == "linemesh") // 1D mesh
    {
@@ -8347,7 +8349,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       return;
    }
 
-#if MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
    ParNCMesh *pncmesh = ncmesh ? dynamic_cast<ParNCMesh*>(ncmesh) : NULL;
 #else
    void *pncmesh = NULL;
