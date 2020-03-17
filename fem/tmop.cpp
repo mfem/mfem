@@ -1782,9 +1782,6 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    Vector elfunmod(elfun);
 
    // Energy for unperturbed configuration
-
-   //discr_tc->GetTspecPert1H().Print();
-   //std::cout << dx << " " << discr_tc->GetTspecPert1H().Size() << " K10assembleelementvector\n";
    double e_fx = GetElementEnergy(el, T, elfun);
 
    for (int j = 0; j < dim; j++)
