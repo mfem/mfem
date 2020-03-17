@@ -529,8 +529,8 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      // If numerical integration is active, there is no solve (thus no iterations),
-      // on the inverse velocity mass application.
+      // If numerical integration is active, there is no solve (thus no
+      // iterations), on the inverse velocity mass application.
       if (!numerical_integ)
       {
          mfem::out << std::setw(5) << "MVIN " << std::setw(3) << std::fixed
@@ -553,8 +553,8 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
 void NavierSolver::MeanZero(ParGridFunction &v)
 {
-   // Make sure not to recompute the inner product
-   // linear form every application.
+   // Make sure not to recompute the inner product linear form every
+   // application.
    if (mass_lf == nullptr)
    {
       onecoeff.constant = 1.0;

@@ -63,9 +63,48 @@ public:
    VectorFunctionCoefficient coeff;
 };
 
-/// Navier Stokes solver.
+/// Transient incompressible Navier Stokes solver in a split scheme formulation.
 /**
- * Transient Navier Stokes solver in a split scheme formulation.
+ * This implementation of a transient incompressible Navier Stokes solver uses
+ * the non-dimensionalized formulation. The coupled momentum and
+ * incompressibilty equations are decoupled using the split scheme described in
+ * [1]. This leads to three solving steps.
+ *
+ * 1. An extrapolation step for all nonlinear terms which are treated
+ *    explicitly. This step avoids a fully coupled nonlinear solve and only
+ *    requires a solve of the mass matrix in velocity space \f$M_v^{-1}\f$. On
+ *    the other hand this introduces a CFL stability condition on the maximum
+ *    timestep.
+ *
+ * 2. A Poisson solve \f$S_p^{-1}\f$.
+ *
+ * 3. A Helmholtz like solve \f$(M_v - \partial t K_v)^{-1}\f$.
+ *
+ * The numerical solver setup for each step are as follows.
+ *
+ * \f$M_v^{-1}\f$ is solved using CG with Jacobi as preconditioner.
+ *
+ * \f$S_p^{-1}\f$ is solved using CG with AMG applied to the low order refined
+ * (LOR) assembled pressure poisson matrix. To avoid assembling a matrix for
+ * preconditioning, one can use p-MG as an alternative (NYI).
+ *
+ * \f$(M_v - \partial t K_v)^{-1}\f$ due to the CFL condition we expect the time
+ * step to be small. Therefore this is solved using CG with Jacobi as
+ * preconditioner. For large time steps a preconditioner like AMG or p-MG should
+ * be used (NYI).
+ *
+ * Statements marked with NYI mean this feature is planned but Not Yet
+ * Implemented.
+ *
+ * A detailed description is available in [1] in section 4.2. The algorithm is
+ * originated from [2].
+ *
+ * [1] Michael Franco, Jean-Sylvain Camier, Julian Andrej, Will Pazner (2020)
+ * High-order matrix-free incompressible flow solvers with GPU acceleration and
+ * low-order refined preconditioners (https://arxiv.org/abs/1910.03032)
+ *
+ * [2] A. G. Tomboulides, J. C. Y. Lee & S. A. Orszag (1997) Numerical
+ * Simulation of Low Mach Number Reactive Flows
  */
 class NavierSolver
 {
@@ -91,9 +130,8 @@ public:
 
    /// Add an accelaration term to the RHS of the equation.
    /**
-    * The VecFuncT \p @f is evaluated at the current time t
-    * and extrapolated with the nonlinear parts of the Navier Stokes
-    * equation.
+    * The VecFuncT \p @f is evaluated at the current time t and extrapolated
+    * together with the nonlinear parts of the Navier Stokes equation.
     */
    void AddAccelTerm(VecFuncT *f, Array<int> &attr);
 
@@ -107,12 +145,12 @@ public:
 
    ~NavierSolver();
 
-   /// Compute $\nabla times \nabla times u$ for $u \in (H^1)^2$
+   /// Compute $\nabla times \nabla times u$ for $u \in (H^1)^2$.
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
 
-   /// Compute $\nabla times \nabla times u$ for $u \in (H^1)^3$
+   /// Compute $\nabla times \nabla times u$ for $u \in (H^1)^3$.
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
 protected:
