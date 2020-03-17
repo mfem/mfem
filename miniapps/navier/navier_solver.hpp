@@ -109,8 +109,10 @@ public:
 class NavierSolver
 {
 public:
+   /// Initialize data structures, set FE space order and kinematic viscosity.
    NavierSolver(ParMesh *mesh, int order, double kin_vis);
 
+   /// Initialize forms, solvers and preconditioners.
    void Setup(double dt);
 
    /// Compute solution at the next time step t+dt.
@@ -141,6 +143,24 @@ public:
    /// Enable numerical integration rules.
    void EnableNI(bool ni) { numerical_integ = ni; }
 
+   /// Print timing summary of the solving routine.
+   /**
+    * The summary shows the timing in seconds in the first row of
+    *
+    * 1. SETUP: Time spent for the setup of all forms, solvers and
+    *    preconditioners.
+    * 2. STEP: Time spent computing a full time step. It includes allthree
+    *    solves.
+    * 3. EXTRAP: Time spent for extrapolation of all forcing and nonlinear
+    *    terms.
+    * 4. CURLCURL: Time spent for computing the curl curl term in the pressure
+    *    Poisson equation (see references for detailed explanation).
+    * 5. PSOLVE: Time spent in the pressure Poisson solve.
+    * 6. HSOLVE: Time spent in the Helmholtz solve.
+    *
+    * The second row shows a proportion of a column relative to the whole
+    * time step.
+    */
    void PrintTimingData();
 
    ~NavierSolver();
@@ -154,14 +174,33 @@ public:
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
 protected:
+   /// Print informations about the Navier version.
    void PrintInfo();
 
+   /// Update the EXTk/BDF time integration coefficient.
+   /**
+    * Depending on which time step the computation is in, the EXTk/BDF time
+    * integration coefficients have to be set accordingly. This allows
+    * bootstrapping with a BDF scheme of order 1 and increasing the order each
+    * following time step, up to order 3.
+    */
    void SetTimeIntegrationCoefficients(int step);
 
+   /// Remove mean from a Vector.
+   /**
+    * Modify the Vector @a v by subtracting its mean using
+    * \f$v = v - \frac{\sum_i^N v_i}{N} \f$
+    */
    void Orthogonalize(Vector &v);
 
+   /// Remove the mean from a ParGridFunction.
+   /**
+    * Modify the ParGridFunction @a v by subtracting its mean using
+    * \f$ v = v - \int_\Omega \frac{v}{vol(\Omega)} dx \f$.
+    */
    void MeanZero(ParGridFunction &v);
 
+   /// Eliminate essential BCs in an Operator and apply to RHS.
    void EliminateRHS(Operator &A,
                      ConstrainedOperator &constrainedA,
                      const Array<int> &ess_tdof_list,
