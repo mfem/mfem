@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of sparse matrix
 
@@ -80,13 +80,16 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 {
    I.Wrap(i, height+1, ownij);
    J.Wrap(j, I[height], ownij);
-   A.Wrap(data, I[height], owna);
 
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
 
-   if ( A == NULL )
+   if (data)
+   {
+      A.Wrap(data, I[height], owna);
+   }
+   else
    {
       const int nnz = I[height];
       A.New(nnz);
@@ -558,8 +561,8 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (!Finalized())
    {
-      const double *xp = x.GetData();
-      double *yp = y.GetData();
+      const double *xp = x.HostRead();
+      double *yp = y.HostReadWrite();
 
       //  The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
@@ -729,7 +732,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << Width() << ")");
 
-   y.SetSize(Height(), Device::GetMemoryType());
+   y.SetSize(Height(), Device::GetDeviceMemoryType());
 
    const int height = Height();
    const int nnz = J.Capacity();
@@ -876,7 +879,7 @@ void SparseMatrix::Threshold(double tol, bool fix_empty_rows)
    int *newI, *newJ;
    int i, j, nz;
 
-   newI = new int[height+1];
+   newI = Memory<int>(height+1);
    newI[0] = 0;
    for (i = 0, nz = 0; i < height; i++)
    {
@@ -891,8 +894,8 @@ void SparseMatrix::Threshold(double tol, bool fix_empty_rows)
       newI[i+1] = nz;
    }
 
-   newJ = new int[nz];
-   newA = new double[nz];
+   newJ = Memory<int>(nz);
+   newA = Memory<double>(nz);
    // Assume we're sorted until we find out otherwise
    isSorted = true;
    for (i = 0, nz = 0; i < height; i++)
@@ -1014,7 +1017,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
    {
       for (int i = 0; i < br; i++)
       {
-         int *bI = new int[nr + 1];
+         int *bI = Memory<int>(nr + 1);
          for (int k = 0; k <= nr; k++)
          {
             bI[k] = 0;
@@ -2993,9 +2996,9 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    A_j    = A.GetJ();
    A_data = A.GetData();
 
-   At_i = new int[n+1];
-   At_j = new int[nnz];
-   At_data = new double[nnz];
+   At_i = Memory<int>(n+1);
+   At_j = Memory<int>(nnz);
+   At_data = Memory<double>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -3064,9 +3067,9 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
    nnz = A.NumNonZeroElems();
 
-   At_i = new int[n+1];
-   At_j = new int[nnz];
-   At_data = new double[nnz];
+   At_i = Memory<int>(n+1);
+   At_j = Memory<int>(nnz);
+   At_data = Memory<double>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -3145,7 +3148,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 
    if (OAB == NULL)
    {
-      C_i = new int[nrowsA+1];
+      C_i = Memory<int>(nrowsA+1);
 
       C_i[0] = num_nonzeros = 0;
       for (ic = 0; ic < nrowsA; ic++)
@@ -3166,8 +3169,8 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
          C_i[ic+1] = num_nonzeros;
       }
 
-      C_j    = new int[num_nonzeros];
-      C_data = new double[num_nonzeros];
+      C_j    = Memory<int>(num_nonzeros);
+      C_data = Memory<double>(num_nonzeros);
 
       C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
 
@@ -3270,7 +3273,7 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       B_marker[ib] = -1;
    }
 
-   C_i = new int[nrowsA+1];
+   C_i = Memory<int>(nrowsA+1);
 
    C_i[0] = num_nonzeros = 0;
 
@@ -3296,8 +3299,8 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j    = new int[num_nonzeros];
-   C_data = new double[num_nonzeros];
+   C_j    = Memory<int>(num_nonzeros);
+   C_data = Memory<double>(num_nonzeros);
 
    C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
 
@@ -3423,7 +3426,7 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    int nrows = A.Height();
    int ncols = A.Width();
 
-   int * C_i = new int[nrows+1];
+   int * C_i = Memory<int>(nrows+1);
    int * C_j;
    double * C_data;
 
@@ -3460,8 +3463,8 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
       C_i[ic+1] = num_nonzeros;
    }
 
-   C_j = new int[num_nonzeros];
-   C_data = new double[num_nonzeros];
+   C_j = Memory<int>(num_nonzeros);
+   C_data = Memory<double>(num_nonzeros);
 
    for (int ia = 0; ia < ncols; ia++)
    {

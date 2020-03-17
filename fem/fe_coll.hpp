@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FE_COLLECTION
 #define MFEM_FE_COLLECTION
@@ -158,7 +158,9 @@ public:
 
    virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const
-   { return L2_Elements[GeomType]; }
+   {
+      return L2_Elements[GeomType];
+   }
    virtual int DofForGeometry(Geometry::Type GeomType) const
    {
       if (L2_Elements[GeomType])
