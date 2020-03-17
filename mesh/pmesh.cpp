@@ -1066,6 +1066,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      have_face_nbr_data(false),
      pncmesh(NULL)
 {
+   SetCurvature(1, true, spaceDim);
+
    // Need to initialize:
    // - shared_edges, shared_{trias,quads}
    // - group_svert, group_sedge, group_{stria,squad}
