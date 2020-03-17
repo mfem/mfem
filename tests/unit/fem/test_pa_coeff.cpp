@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
@@ -57,7 +57,7 @@ TEST_CASE("H1 pa_coeff")
             std::cout << "Testing " << dimension << "D partial assembly with "
                       << "coeffType " << coeffType << " and "
                       << "integrator " << integrator << std::endl;
-            for (int order = 1; order < 5; ++order)
+            for (int order = 1; order < 4; ++order)
             {
                Mesh* mesh;
                if (dimension == 2)
@@ -191,7 +191,7 @@ TEST_CASE("Hcurl pa_coeff")
             std::cout << "Testing " << dimension << "D ND partial assembly with "
                       << "coeffType " << coeffType << " and "
                       << "integrator " << integrator << std::endl;
-            for (int order = 1; order < 5; ++order)
+            for (int order = 1; order < 4; ++order)
             {
                FiniteElementCollection* ND_fec =
                   new ND_FECollection(order, dimension);
@@ -337,7 +337,7 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
             std::cout << "Testing " << dimension << "D ND H1 mixed partial assembly with "
                       << "coeffType " << coeffType << " and "
                       << "integrator " << integrator << std::endl;
-            for (int order = 1; order < 5; ++order)
+            for (int order = 1; order < 4; ++order)
             {
                FiniteElementCollection* ND_fec =
                   new ND_FECollection(order, dimension);

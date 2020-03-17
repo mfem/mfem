@@ -10,10 +10,10 @@
 # CONTRIBUTING.md for details.
 
 # Defines the following variables:
-#   - GECKO_FOUND
-#   - GECKO_LIBRARIES
-#   - GECKO_INCLUDE_DIRS
+#   - GSLIB_FOUND
+#   - GSLIB_LIBRARIES
+#   - GSLIB_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-mfem_find_package(Gecko GECKO GECKO_DIR "include;inc" graph.h "lib" gecko
-  "Paths to headers required by Gecko." "Libraries required by Gecko.")
+mfem_find_package(gslib GSLIB GSLIB_DIR "include" gslib.h "lib" gs
+  "Paths to headers required by GSLIB." "Libraries required by GSLIB.")

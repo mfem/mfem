@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_ERROR_HPP
@@ -110,7 +110,7 @@ void mfem_warning(const char *msg = NULL);
 //   MFEM_CONTRACT_VAR(err);
 //   MFEM_ASSERT( err == 0, "MPI_Reduce gave an error with length "
 //                       << ldata );
-#define MFEM_CONTRACT_VAR(x) if (0 && &x == &x){}
+#define MFEM_CONTRACT_VAR(x) if (false && (&x)+1){}
 
 // Now set up some optional checks, but only if the right flags are on
 #ifdef MFEM_DEBUG

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "cuda.hpp"
@@ -39,6 +39,21 @@ void* CuMemAlloc(void** dptr, size_t bytes)
              << std::flush;
 #endif
    MFEM_GPU_CHECK(cudaMalloc(dptr, bytes));
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "done: " << *dptr << std::endl;
+#endif
+#endif
+   return *dptr;
+}
+
+void* CuMallocManaged(void** dptr, size_t bytes)
+{
+#ifdef MFEM_USE_CUDA
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "CuMallocManaged(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(cudaMallocManaged(dptr, bytes));
 #ifdef MFEM_TRACK_CUDA_MEM
    mfem::out << "done: " << *dptr << std::endl;
 #endif
@@ -128,6 +143,13 @@ void* CuMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
    MFEM_GPU_CHECK(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToHost));
 #endif
    return dst;
+}
+
+void CuCheckLastError()
+{
+#ifdef MFEM_USE_CUDA
+   MFEM_GPU_CHECK(cudaGetLastError());
+#endif
 }
 
 int CuGetDeviceCount()

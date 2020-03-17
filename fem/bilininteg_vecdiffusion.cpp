@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
@@ -139,7 +139,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
    double coeff = 1.0;
    if (Q)
    {

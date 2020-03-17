@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Implementation of Bilinear Form Integrators
@@ -33,21 +33,33 @@ void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
                "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::AssemblePAInteriorFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::AssemblePABoundaryFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 {
-   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA (...)\n"
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
+   mfem_error ("BilinearFormIntegrator::MultAssembled(...)\n"
                "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
+   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -55,7 +67,7 @@ void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )
 {
-   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -63,7 +75,7 @@ void BilinearFormIntegrator::AssembleElementMatrix2 (
    const FiniteElement &el1, const FiniteElement &el2,
    ElementTransformation &Trans, DenseMatrix &elmat )
 {
-   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2 (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -71,7 +83,7 @@ void BilinearFormIntegrator::AssembleFaceMatrix (
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -899,17 +911,6 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    }
 }
 
-
-const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
-                                                     &trial_fe,
-                                                     const FiniteElement &test_fe,
-                                                     ElementTransformation &Trans)
-{
-   int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
-
-   return IntRules.Get(trial_fe.GetGeomType(), order);
-}
-
 void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
@@ -1010,6 +1011,21 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    }
 }
 
+const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
+                                                     &trial_fe,
+                                                     const FiniteElement &test_fe,
+                                                     ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
+
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+const IntegrationRule &ConvectionIntegrator::GetRule(
+   const FiniteElement &el, ElementTransformation &Trans)
+{
+   return GetRule(el,el,Trans);
+}
 
 void VectorMassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
@@ -2200,7 +2216,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // integrant is rational function if det(J) is not constant
+      // integrand is rational function if det(J) is not constant
       int order = 2 * Tr.OrderGrad(&el); // order of the numerator
       ir = (el.Space() == FunctionSpace::rQk) ?
            &RefinedIntRules.Get(el.GetGeomType(), order) :
@@ -2614,6 +2630,14 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          }
       }
    }
+}
+
+
+const IntegrationRule &DGTraceIntegrator::GetRule(
+   Geometry::Type geom, int order, FaceElementTransformations &T)
+{
+   int int_order = T.Elem1->OrderW() + 2*order;
+   return IntRules.Get(geom, int_order);
 }
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(
