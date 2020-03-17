@@ -134,7 +134,8 @@ jobs:
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     - os: linux
       compiler: gcc
@@ -164,7 +165,40 @@ jobs:
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
+
+    - os: linux
+      compiler: gcc
+      name: "Linux: Parallel (cmake)"
+      addons:
+        apt:
+          packages:
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+           NPROCS=2
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - mkdir ${TRAVIS_BUILD_DIR}/build
+        - cd ${TRAVIS_BUILD_DIR}/build
+        - cmake ..
+             -DMFEM_USE_MPI=ON
+             -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre
+             -DMFEM_MPI_NP=$NPROCS
+        - make -j3 mfem examples
+        - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
+        - make -j3
+        - ctest --output-on-failure
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     # ========================
     #      Mac OS X tests
@@ -210,7 +244,8 @@ jobs:
           - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     - os: osx
       # osx_image: xcode7.3
@@ -230,8 +265,8 @@ jobs:
           - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
 before_install:
    # No addon for brew yet, have to install OSX packages this way.
