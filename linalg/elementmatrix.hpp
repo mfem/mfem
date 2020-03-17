@@ -92,6 +92,90 @@ public:
 
 using ElementMatrix = EMat<double>;
 
+class FaceMatrixInt
+{
+private:
+   const int nf;
+   const int ndofs;// on the face
+   Vector &data;
+
+public:
+   FaceMatrixInt(const int nf_int, const int ndofs, Vector &vec_int)
+   : nf(nf_int), ndofs(ndofs), data(vec_int)
+   {
+   }
+
+   void AddMult(const Vector &x, Vector &y) const
+   {
+      auto X = Reshape(x.Read(), ndofs, 2, nf);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nf);
+      auto A = Reshape(data.Read(), ndofs, ndofs, 2, nf);
+      const int NDOFS = ndofs;
+      MFEM_FORALL(glob_j, nf*ndofs,
+      {
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         Scalar res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(i, j, 0, f)*X(i, 0, f);
+         }
+         Y(j, 1, f) += res;
+         res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(i, j, 1, f)*X(i, 1, f);
+         }
+         Y(j, 0, f) += res;
+      });
+   }
+};
+
+class FaceMatrixBdr
+{
+private:
+   const int ndofs;// on the face
+   const int nf_int;
+   const int nf_bdr;
+   Array<int> e0;
+   Array<int> e1;
+   Vector &data_int;
+   Vector &data_bdr;
+
+public:
+   FaceMatrixBdr(Array<int> e0_, Array<int> e1_,
+                 Vector &vec_int, Vector &vec_bdr,
+                 const int nf_int, const int nf_bdr)
+   : e0(e0_), e1(e1_), data_int(vec_int), data_bdr(vec_bdr)
+   {
+   }
+
+   void AddMult(const Vector &x, Vector &y) const
+   {
+      auto X = Reshape(x.Read(), ndofs, 2, nf_int);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nf_int);
+      auto A = Reshape(data_int.Read(), ndofs, ndofs, 2, nf_int);
+      const int NDOFS = ndofs;
+      MFEM_FORALL(glob_j, nf_int*ndofs,
+      {
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         Scalar res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(i, j, 0, f)*X(i, 0, f);
+         }
+         Y(j, 1, f) += res;
+         res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(i, j, 1, f)*X(i, 1, f);
+         }
+         Y(j, 0, f) += res;
+      });
+   }
+};
+
 // template <typename Scalar>
 // void L1Smoother(EMat<Scalar> &A, Vector &s)
 // {
