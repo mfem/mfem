@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
    if (h1)
    {
       // Set the Dirchlet values in the solution vector
-      x.ProjectCoefficient(dbcCoef);
+      x.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
 
       // Add the desired value for n.Grad(u) on the Neumann boundary
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(m_nbcCoef), nbc_bdr);

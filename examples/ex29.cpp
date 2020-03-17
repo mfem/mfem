@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
 
    if (h1)
    {
-      x.ProjectCoefficient(dbcCoef);
+      x.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
 
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(m_nbcCoef), nbc_bdr);
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(m_rbcBCoef), rbc_bdr);
