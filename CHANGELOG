@@ -11,6 +11,11 @@
 Version 4.1.1 (development)
 ===========================
 
+Miscellaneous
+-------------
+- In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
+  solver can work with non-SPD preconditioner B.
+
 
 Version 4.1, released on March 10, 2020
 =======================================
