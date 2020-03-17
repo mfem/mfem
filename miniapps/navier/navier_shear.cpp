@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
    ParGridFunction w_gf(*u_gf);
    flowsolver.ComputeCurl2D(*u_gf, w_gf);
 
-   ParaViewDataCollection pvdc("shear", pmesh);
+   ParaViewDataCollection pvdc("shear_output", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);
