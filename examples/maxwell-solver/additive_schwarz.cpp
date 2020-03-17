@@ -1,5 +1,98 @@
 #include "additive_schwarz.hpp"
 
+
+// constructor
+OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
+{
+   int dim = mesh->Dimension();
+   // int nx = sqrt(mesh->GetNE());
+   nx = 4;
+   ny = 1;
+   nz = 1;
+   int nxyz[3] = {nx,ny,nz};
+   nrpatch = nx*ny*nz;
+
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
+
+   double h = GetUniformMeshElementSize(mesh);
+
+   cout << "h = " << h << endl;  
+
+   int nrelem = mesh->GetNE();
+   vector<Array<int>>partitioning(nrelem);
+   // int partitioning[nrelem];
+
+   // determine the partitioning using the centers of the elements
+   double ppt[dim];
+   Vector pt(ppt, dim);
+
+   for (int el = 0; el < nrelem; el++)
+   {
+      mesh->GetElementTransformation(el)->Transform(
+         Geometries.GetCenter(mesh->GetElementBaseGeometry(el)), pt);
+      int part = 0;
+      int part_ext1 = 0;
+      int part_ext2 = 0;
+      for (int i = dim-1; i >= 0; i--)
+      {
+         int idx = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         int idx_ext1 = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])+h));
+         int idx_ext2 = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])-h));
+
+         // cout << "idx, idx_ext =  " << idx << ", " << idx_ext << endl;
+         if (idx < 0)
+         {
+            idx = 0;
+         }
+         if (idx >= nxyz[i])
+         {
+            idx = nxyz[i]-1;
+         }
+         part = part * nxyz[i] + idx;
+         if (idx_ext1 < 0)
+         {
+            idx_ext1 = 0;
+         }
+         if (idx_ext1 >= nxyz[i])
+         {
+            idx_ext1 = nxyz[i]-1;
+         }
+         part_ext1 = part_ext1 * nxyz[i] + idx_ext1;
+         if (idx_ext2 < 0)
+         {
+            idx_ext2 = 0;
+         }
+         if (idx_ext2 >= nxyz[i])
+         {
+            idx_ext2 = nxyz[i]-1;
+         }
+         part_ext2 = part_ext2 * nxyz[i] + idx_ext2;
+      }
+      partitioning[el].Append(part);
+      if (part_ext1 != part) partitioning[el].Append(part_ext1);
+      if (part_ext2 != part && part_ext2 != part_ext1 ) partitioning[el].Append(part_ext2);
+
+   }
+
+   element_map.resize(nrpatch);
+   for (int iel = 0; iel < nrelem; iel++)
+   {
+      cout << " iel, size = " <<iel << ", " << partitioning[iel].Size() << endl; 
+      for (int i = 0; i<partitioning[iel].Size(); i++)
+      {
+         int ip = partitioning[iel][i]; 
+         element_map[ip].Append(iel);
+      }   
+   }
+
+   for (int ip = 0; ip<nrpatch; ip++)
+   {
+      cout<< "Patch: " << ip << ", elements: " ; element_map[ip].Print(cout, 20);
+   }
+}
+
+
 // constructor
 CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
@@ -11,25 +104,6 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
    int nxyz[3] = {nx,ny,nz};
    nrpatch = nx*ny*nz;
 
-   // double pmin[3] = { infinity(), infinity(), infinity() };
-   // double pmax[3] = { -infinity(), -infinity(), -infinity() };
-
-   // // find a bounding box using the vertices
-   // for (int vi = 0; vi < mesh->GetNV(); vi++)
-   // {
-   //    const double *p = mesh->GetVertex(vi);
-   //    for (int i = 0; i < dim; i++)
-   //    {
-   //       if (p[i] < pmin[i])
-   //       {
-   //          pmin[i] = p[i];
-   //       }
-   //       if (p[i] > pmax[i])
-   //       {
-   //          pmax[i] = p[i];
-   //       }
-   //    }
-   // }
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
 

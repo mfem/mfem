@@ -5,6 +5,22 @@
 using namespace std;
 using namespace mfem;
 
+
+class OverlappingCartesianMeshPartition // for now every vertex defines a patch
+{
+private:
+   Mesh *mesh=nullptr;
+public:
+   int nrpatch;
+   int nx, ny, nz;
+   std::vector<Array<int>> element_map;
+   // constructor
+   OverlappingCartesianMeshPartition(Mesh * mesh_);
+   ~OverlappingCartesianMeshPartition() {};
+};
+
+
+
 class CartesianMeshPartition // for now every vertex defines a patch
 {
 private:
