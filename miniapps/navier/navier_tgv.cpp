@@ -71,7 +71,7 @@ public:
          fe = fes->GetFE(i);
          double intorder = 2 * fe->GetOrder();
          const IntegrationRule *ir = &(
-            IntRules.Get(fe->GetGeomType(), intorder));
+                                        IntRules.Get(fe->GetGeomType(), intorder));
 
          v.GetValues(i, *ir, velx, 1);
          v.GetValues(i, *ir, vely, 2);
