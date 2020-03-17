@@ -716,6 +716,8 @@ double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
    // Solve for n.Grad(u)
    Vector B, X;
    X.SetSize(fespace->TrueVSize());
+   X = 0.0;
+
    B.SetSize(X.Size());
    b.ParallelAssemble(B);
 
