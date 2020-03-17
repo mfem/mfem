@@ -16,11 +16,11 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "../general/globals.hpp"
-#include "pfespace.hpp"
-#include "gridfunc.hpp"
 #include <iostream>
 #include <limits>
+#include "../general/globals.hpp"
+#include "gridfunc.hpp"
+#include "pfespace.hpp"
 
 namespace mfem
 {
@@ -32,7 +32,7 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
 class ParGridFunction : public GridFunction
 {
 protected:
-   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
+   ParFiniteElementSpace *pfes;  ///< Points to the same object as #fes
 
    /** @brief Vector used to store data from face-neighbor processors,
        initialized by ExchangeFaceNbrData(). */
@@ -46,9 +46,9 @@ public:
 
    /// Copy constructor. The internal vector #face_nbr_data is not copied.
    ParGridFunction(const ParGridFunction &orig)
-      : GridFunction(orig), pfes(orig.pfes) { }
+      : GridFunction(orig), pfes(orig.pfes) {}
 
-   ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
+   ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) {}
 
    /// Construct a ParGridFunction using previously allocated array @a data.
    /** The ParGridFunction does not assume ownership of @a data which is assumed
@@ -57,8 +57,8 @@ public:
        can be NULL. The data array can be replaced later using the method
        SetData().
     */
-   ParGridFunction(ParFiniteElementSpace *pf, double *data) :
-      GridFunction(pf, data), pfes(pf) { }
+   ParGridFunction(ParFiniteElementSpace *pf, double *data)
+      : GridFunction(pf, data), pfes(pf) {}
 
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
@@ -90,15 +90,23 @@ public:
        @note Defining this method overwrites the implicitly defined copy
        assignment operator. */
    ParGridFunction &operator=(const ParGridFunction &rhs)
-   { return operator=((const Vector &)rhs); }
+   {
+      return operator=((const Vector &)rhs);
+   }
 
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
-   { GridFunction::operator=(value); return *this; }
+   {
+      GridFunction::operator=(value);
+      return *this;
+   }
 
    /// Copy the data from a Vector to the ParGridFunction data.
    ParGridFunction &operator=(const Vector &v)
-   { GridFunction::operator=(v); return *this; }
+   {
+      GridFunction::operator=(v);
+      return *this;
+   }
 
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
@@ -160,7 +168,10 @@ public:
 
    /// Short semantic for Distribute()
    ParGridFunction &operator=(const HypreParVector &tv)
-   { Distribute(&tv); return (*this); }
+   {
+      Distribute(&tv);
+      return (*this);
+   }
 
    using GridFunction::GetTrueDofs;
 
@@ -202,7 +213,9 @@ public:
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
    double GetValue(ElementTransformation &T)
-   { return GetValue(T.ElementNo, T.GetIntPoint()); }
+   {
+      return GetValue(T.ElementNo, T.GetIntPoint());
+   }
 
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
@@ -222,11 +235,15 @@ public:
    // Only the values in the master are guaranteed to be correct!
    virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                                       Array<int> &attr)
-   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+   {
+      ProjectBdrCoefficient(NULL, &vcoeff, attr);
+   }
 
    // Only the values in the master are guaranteed to be correct!
    virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
-   { ProjectBdrCoefficient(coeff, NULL, attr); }
+   {
+      ProjectBdrCoefficient(coeff, NULL, attr);
+   }
 
    // Only the values in the master are guaranteed to be correct!
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
@@ -235,17 +252,22 @@ public:
    virtual double ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(1.0, GridFunction::ComputeW11Error(
-                             *exsol, NULL, 1, NULL, irs), pfes->GetComm());
+      return GlobalLpNorm(
+                1.0, GridFunction::ComputeW11Error(*exsol, NULL, 1, NULL, irs),
+                pfes->GetComm());
    }
 
    virtual double ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpError(1.0, exsol, NULL, irs); }
+   {
+      return ComputeLpError(1.0, exsol, NULL, irs);
+   }
 
    virtual double ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
+   {
+      return ComputeLpError(1.0, exsol, NULL, NULL, irs);
+   }
 
    virtual double ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
@@ -256,7 +278,9 @@ public:
 
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpError(2.0, exsol, NULL, irs); }
+   {
+      return ComputeLpError(2.0, exsol, NULL, irs);
+   }
 
    virtual double ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
@@ -269,8 +293,7 @@ public:
    virtual double ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(infinity(),
-                          GridFunction::ComputeMaxError(exsol, irs),
+      return GlobalLpNorm(infinity(), GridFunction::ComputeMaxError(exsol, irs),
                           pfes->GetComm());
    }
 
@@ -290,8 +313,8 @@ public:
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(p, GridFunction::ComputeLpError(
-                             p, exsol, weight, irs), pfes->GetComm());
+      return GlobalLpNorm(p, GridFunction::ComputeLpError(p, exsol, weight, irs),
+                          pfes->GetComm());
    }
 
    /** When given a vector weight, compute the pointwise (scalar) error as the
@@ -302,12 +325,12 @@ public:
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(p, GridFunction::ComputeLpError(
-                             p, exsol, weight, v_weight, irs), pfes->GetComm());
+      return GlobalLpNorm(
+                p, GridFunction::ComputeLpError(p, exsol, weight, v_weight, irs),
+                pfes->GetComm());
    }
 
-   virtual void ComputeFlux(BilinearFormIntegrator &blfi,
-                            GridFunction &flux,
+   virtual void ComputeFlux(BilinearFormIntegrator &blfi, GridFunction &flux,
                             bool wcoef = true, int subdomain = -1);
 
    /** Save the local portion of the ParGridFunction. It differs from the
@@ -319,30 +342,32 @@ public:
    /** Save the local portion of the ParGridFunction. It differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */
-   virtual void Save(adios2stream &out, const std::string &variable_name) const;
+   virtual void Save(
+      adios2stream &out, const std::string &variable_name,
+      const adios2stream::data_type type = adios2stream::data_type::point_data) const;
 #endif
 
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out);
 
-   virtual ~ParGridFunction() { }
+   virtual ~ParGridFunction() {}
 };
-
 
 /** Performs a global L2 projection (through a HypreBoomerAMG solve) of flux
     from supplied discontinuous space into supplied smooth (continuous, or at
     least conforming) space, and computes the Lp norms of the differences
     between them on each element. This is one approach to handling conforming
-    and non-conforming elements in parallel. Returns the total error estimate. */
+    and non-conforming elements in parallel. Returns the total error estimate.
+ */
 double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
                           ParFiniteElementSpace &smooth_flux_fes,
-                          ParFiniteElementSpace &flux_fes,
-                          Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
+                          ParFiniteElementSpace &flux_fes, Vector &errors,
+                          int norm_p = 2, double solver_tol = 1e-12,
                           int solver_max_it = 200);
 
-}
+}  // namespace mfem
 
-#endif // MFEM_USE_MPI
+#endif  // MFEM_USE_MPI
 
 #endif

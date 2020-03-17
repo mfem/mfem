@@ -69,7 +69,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
-   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -87,9 +86,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
-                  "--no-adios2-streams",
-                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX reader visualization.");
 
    args.Parse();
    if (!args.Good())
@@ -270,21 +266,6 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
-
-#ifdef MFEM_USE_ADIOS2
-      if (myid == 0)
-      {
-         std::cout << "Using ADIOS2 BP output\n";
-      }
-      std::string postfix(mesh_file);
-      postfix.erase(0, std::string("../data/").size() );
-      postfix += "_o" + std::to_string(order);
-
-      adios2stream adios2output("ex3p_" + postfix + ".bp",
-                                adios2stream::openmode::out, MPI_COMM_WORLD);
-      pmesh->Print(adios2output);
-      x.Save(adios2output, "sol");
-#endif
    }
 
    // 17. Send the solution by socket to a GLVis server.
@@ -298,32 +279,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 18. Optionally output a BP (binary pack file) ADIOS2DataCollection
-   //     ADIOS2: https://adios2.readthedocs.io
-#ifdef MFEM_USE_ADIOS2
-   if (adios2)
-   {
-      std::string postfix(mesh_file);
-      postfix.erase(0, std::string("../data/").size() );
-      postfix += "_o" + std::to_string(order);
-      // use extension .bp as it's recognized by ParaView
-      // output is a bp directory by default
-      const std::string collection_name = "ex3-p_" + postfix + ".bp";
-
-      // Create adios2 data collection, requires the communicator
-      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, pmesh);
-      // for other parameters of interest:
-      // https://adios2.readthedocs.io/en/latest/engines/engines.html#bp4
-      // For example:
-      // sets number of data streams inside BP directory, appropriate for running at scale
-      adios2_dc.SetParameter("SubStreams", std::to_string(num_procs/2) );
-      //adios2_dc.SetLevelsOfDetail(2);
-      adios2_dc.RegisterField("sol", &x);
-      adios2_dc.Save();
-   }
-#endif
-
-   // 19. Free the used memory.
+   // 18. Free the used memory.
    delete a;
    delete sigma;
    delete muinv;

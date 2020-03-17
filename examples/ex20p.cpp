@@ -105,7 +105,6 @@ int main(int argc, char *argv[])
    double dt  = 0.1;
    bool visualization = true;
    bool gnuplot = false;
-   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -130,10 +129,6 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp", "--no-gnuplot",
                   "Enable or disable GnuPlot visualization.");
-   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
-                  "--no-adios2-streams",
-                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX visualization.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -292,7 +287,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Finalize the GLVis output or optionally add ADIOS2 output
+   // 10. Finalize the GLVis output
    if (visualization)
    {
       mesh.FinalizeQuadMesh(1);
@@ -317,21 +312,6 @@ int main(int argc, char *argv[])
            << "solution\n" << pmesh << energy
            << "window_title 'Energy in Phase Space'\n"
            << "keys\n maac\n" << "axis_labels 'q' 'p' 't'\n"<< flush;
-
-#ifdef MFEM_USE_ADIOS2
-      if (adios2)
-      {
-         const std::string postfix = "o" + std::to_string(order);
-         const std::string collection_name = "ex20-p-" + postfix + ".bp";
-
-         ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, &pmesh);
-         adios2_dc.SetParameter("SubStreams", std::to_string(num_procs/2) );
-         adios2_dc.SetParameter("FullData", "On");
-         adios2_dc.SetParameter("RefinedData", "Off");
-         adios2_dc.RegisterField("energy", &energy);
-         adios2_dc.Save();
-      }
-#endif
    }
 
    MPI_Finalize();
