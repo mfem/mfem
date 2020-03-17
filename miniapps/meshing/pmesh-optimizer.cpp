@@ -712,24 +712,24 @@ int main (int argc, char *argv[])
          target_c = tc;
          break;
       }
-       case 7:
-       {
-          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
-          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+      case 7:
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
 #ifdef MFEM_USE_GSLIB
-          tc->SetAdaptivityEvaluator(new InterpolatorFP);
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
-          tc->SetAdaptivityEvaluator(new AdvectorCG);
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
-          VectorFunctionCoefficient fd_aspr3d(dim, aspr_ratio_values_3d);
-          aspr3d.SetSpace(&ind_fesv);
-          aspr3d.ProjectCoefficient(fd_aspr3d);
+         VectorFunctionCoefficient fd_aspr3d(dim, aspr_ratio_values_3d);
+         aspr3d.SetSpace(&ind_fesv);
+         aspr3d.ProjectCoefficient(fd_aspr3d);
 
-          tc->SetParDiscreteTargetAspectRatio(aspr3d);
-          tc->FinalizeParDiscreteTargetSpec();
-          target_c = tc;
-          break;
-       }
+         tc->SetParDiscreteTargetAspectRatio(aspr3d);
+         tc->FinalizeParDiscreteTargetSpec();
+         target_c = tc;
+         break;
+      }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
