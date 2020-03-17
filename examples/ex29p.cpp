@@ -70,6 +70,11 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 
 Mesh * GenerateSerialMesh(int ref);
 
+double IntegrateBC(ParGridFunction & x, Array<int> &bdr, bool h1);
+double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
+                        Array<int> &bdr, bool h1,
+                        OperatorHandle &M, double a = 0.0);
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -207,10 +212,10 @@ int main(int argc, char *argv[])
    ProductCoefficient m_rbcACoef(matCoef, rbcACoef);
    ProductCoefficient m_rbcBCoef(matCoef, rbcBCoef);
 
-   // 8. Define the solution vector x as a parallel finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero.
-   ParGridFunction x(&fespace);
-   x = 0.0;
+   // 8. Define the solution vector u as a parallel finite element grid function
+   //    corresponding to fespace. Initialize u with initial guess of zero.
+   ParGridFunction u(&fespace);
+   u = 0.0;
 
    // 9. Set up the parallel bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -244,7 +249,7 @@ int main(int argc, char *argv[])
    if (h1)
    {
       // Set the Dirchlet values in the solution vector
-      x.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
+      u.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
 
       // Add the desired value for n.Grad(u) on the Neumann boundary
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(m_nbcCoef), nbc_bdr);
@@ -272,7 +277,7 @@ int main(int argc, char *argv[])
    // 11. Construct the linear system.
    OperatorPtr A;
    Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
 
    // 12. Solve the linear system A X = B.
    HypreSolver *amg = new HypreBoomerAMG;
@@ -300,66 +305,27 @@ int main(int argc, char *argv[])
    }
    delete amg;
 
-   // 13. Recover the parallel grid function corresponding to X. This is the
+   // 13. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
-   a.RecoverFEMSolution(X, b, x);
+   a.RecoverFEMSolution(X, b, u);
 
-   ParBilinearForm *m = new ParBilinearForm(&fespace);
-   m->AddDomainIntegrator(new MassIntegrator);
-   m->Assemble();
+   // 14. Build a mass matrix to help solve for n.Grad(u) where 'n' is
+   //     a surface normal.
+   ParBilinearForm m(&fespace);
+   m.AddDomainIntegrator(new MassIntegrator);
+   m.Assemble();
 
-   ParBilinearForm *n = new ParBilinearForm(&fespace);
+   ess_tdof_list.SetSize(0);
+   OperatorPtr M;
+   m.FormSystemMatrix(ess_tdof_list, M);
+
+   // 15. Compute the various boundary integrals.
+   mfem::out << endl << "Verifying boundary conditions:" << endl;
    {
-      Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
-      VectorConstantCoefficient nCoef(nVec);
-      n->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
-      n->Assemble();
-   }
-
-   ParBilinearForm *n0 = new ParBilinearForm(&fespace);
-   {
-      VectorFunctionCoefficient n0Coef(2, n4Vec);
-      n0->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(n0Coef));
-      n0->Assemble();
-   }
-
-   ParBilinearForm *r = new ParBilinearForm(&fespace);
-   {
-      Vector rVec(2); rVec[0] = 0.0; rVec[1] = 1.0;
-      VectorConstantCoefficient rCoef(rVec);
-      r->AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(rCoef));
-      r->Assemble();
-   }
-
-   ParGridFunction dx(&fespace);
-   ParGridFunction nx(&fespace);
-   ParGridFunction n0x(&fespace);
-   ParGridFunction rx(&fespace);
-   {
-      ParLinearForm db(&fespace);
-
-      ess_tdof_list.SetSize(0);
-
-      OperatorPtr M;
-
-      dx = x;
-
-      ConstantCoefficient one(1.0);
-      ParBilinearForm m_dbc(&fespace);
-      if (h1)
-      {
-         m_dbc.AddBoundaryIntegrator(new MassIntegrator, dbc_bdr);
-      }
-      else
-      {
-         m_dbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), dbc_bdr);
-      }
-      m_dbc.Assemble();
-
-      ParLinearForm m1x(&fespace);
-      m_dbc.Mult(dx, m1x);
-
-      double dbc_int = copysign(sqrt(m1x(dx) / (2.0 * M_PI * a_)), dbc_val);
+      // Integrate the solution on the Dirichlet boundary and compare
+      // to the expected value. The factor of (2 pi a) divides by the
+      // circumference of the hole.
+      double dbc_int = IntegrateBC(u, dbc_bdr, h1) / (2.0 * M_PI * a_);
       double dbc_err = fabs(dbc_int - dbc_val);
 
       bool hom_dbc = (dbc_val == 0.0);
@@ -369,42 +335,13 @@ int main(int argc, char *argv[])
                 << " error " << dbc_err << endl;
    }
    {
-      ParLinearForm nb(&fespace);
+      // Integrate n.Grad(u) with n = (0, -1) on the inhomogeneous
+      // Neumann boundary and compare to the expected value.
+      Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
+      VectorConstantCoefficient nCoef(nVec);
 
-      ess_tdof_list.SetSize(0);
-
-      OperatorPtr M;
-
-      n->Mult(x, nb);
-      m->FormLinearSystem(ess_tdof_list, nx, nb, M, X, B);
-
-      CGSolver mcg(MPI_COMM_WORLD);
-      mcg.SetRelTol(1e-12);
-      mcg.SetMaxIter(2000);
-      mcg.SetPrintLevel(0);
-      mcg.SetOperator(*M);
-      mcg.Mult(B, X);
-
-      m->RecoverFEMSolution(X, nb, nx);
-
-      // nx -= nbc_val;
-
-      ConstantCoefficient one(1.0);
-      ParBilinearForm m_nbc(&fespace);
-      if (h1)
-      {
-         m_nbc.AddBoundaryIntegrator(new MassIntegrator, nbc_bdr);
-      }
-      else
-      {
-         m_nbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), nbc_bdr);
-      }
-      m_nbc.Assemble();
-
-      ParLinearForm m3x(&fespace);
-      m_nbc.Mult(nx, m3x);
-
-      double nbc_int = copysign(sqrt(m3x(nx) * 0.5), nbc_val);
+      // The factor of 0.5 divides by the length of the boundary.
+      double nbc_int = IntegrateNGradBC(u, nCoef, nbc_bdr, h1, M) * 0.5;
       double nbc_err = fabs(nbc_int - nbc_val);
 
       bool hom_nbc = (nbc_val == 0.0);
@@ -414,45 +351,17 @@ int main(int argc, char *argv[])
                 << " error " << nbc_err << endl;
    }
    {
-      ParLinearForm nb(&fespace);
-
-      ess_tdof_list.SetSize(0);
-
-      OperatorPtr M;
-
-      n0->Mult(x, nb);
-      m->FormLinearSystem(ess_tdof_list, n0x, nb, M, X, B);
-
-      CGSolver mcg(MPI_COMM_WORLD);
-      mcg.SetRelTol(1e-12);
-      mcg.SetMaxIter(2000);
-      mcg.SetPrintLevel(0);
-      mcg.SetOperator(*M);
-      mcg.Mult(B, X);
-
-      m->RecoverFEMSolution(X, nb, n0x);
-
-      // nx -= nbc_val;
+      // Integrate n.Grad(u) with n given by the function n4Vec on the
+      // homogeneous Neumann boundary and compare to the expected
+      // value of zero.
       Array<int> nbc0_bdr(pmesh.bdr_attributes.Max());
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      ConstantCoefficient one(1.0);
-      ParBilinearForm m_nbc(&fespace);
-      if (h1)
-      {
-         m_nbc.AddBoundaryIntegrator(new MassIntegrator, nbc0_bdr);
-      }
-      else
-      {
-         m_nbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), nbc0_bdr);
-      }
-      m_nbc.Assemble();
-
-      ParLinearForm m4x(&fespace);
-      m_nbc.Mult(n0x, m4x);
-
-      double nbc_int = sqrt(m4x(n0x));
+      // The factor of (2 pi a) divides by the circumference of the hole.
+      VectorFunctionCoefficient n0Coef(2, n4Vec);
+      double nbc_int = IntegrateNGradBC(u, n0Coef, nbc0_bdr, h1, M) /
+                       (2.0 * M_PI * a_);
       double nbc_err = fabs(nbc_int);
 
       bool hom_nbc = true;
@@ -461,38 +370,14 @@ int main(int argc, char *argv[])
                 << " error " << nbc_err << endl;
    }
    {
-      OperatorPtr M;
+      // Integrate n.Grad(u) + a * u with n = (0, 1) on the Robin
+      // boundary and compare to the expected value.
+      Vector nVec(2); nVec[0] = 0.0; nVec[1] = 1.0;
+      VectorConstantCoefficient nCoef(nVec);
 
-      ParLinearForm rb(&fespace);
-      r->Mult(x, rb);
-      m->FormLinearSystem(ess_tdof_list, rx, rb, M, X, B);
-
-      CGSolver mcg(MPI_COMM_WORLD);
-      mcg.SetRelTol(1e-12);
-      mcg.SetMaxIter(2000);
-      mcg.SetPrintLevel(0);
-      mcg.SetOperator(*M);
-      mcg.Mult(B, X);
-
-      m->RecoverFEMSolution(X, rb, rx);
-      rx.Add(rbc_a_val, x);
-
-      ConstantCoefficient one(1.0);
-      ParBilinearForm m_rbc(&fespace);
-      if (h1)
-      {
-         m_rbc.AddBoundaryIntegrator(new MassIntegrator, rbc_bdr);
-      }
-      else
-      {
-         m_rbc.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), rbc_bdr);
-      }
-      m_rbc.Assemble();
-
-      ParLinearForm m2x(&fespace);
-      m_rbc.Mult(rx, m2x);
-
-      double rbc_int = copysign(sqrt(m2x(rx) * 0.5), rbc_b_val);
+      // The factor of 0.5 divides by the length of the boundary.
+      double rbc_int = IntegrateNGradBC(u, nCoef, rbc_bdr, h1, M, rbc_a_val)
+                       * 0.5;
       double rbc_err = fabs(rbc_int - rbc_b_val);
 
       bool hom_rbc = (rbc_b_val == 0.0);
@@ -515,43 +400,22 @@ int main(int argc, char *argv[])
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      u.Save(sol_ofs);
    }
 
    // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      string h1_str = h1 ? "H1" : "DG";
+      string title_str = h1 ? "H1" : "DG";
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << mpi.WorldSize()
                << " " << mpi.WorldRank() << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x
-               << "window_title '" << h1_str << " Solution'"
+      sol_sock << "solution\n" << pmesh << u
+               << "window_title '" << title_str << " Solution'"
                << " keys 'mmc'" << flush;
-
-      socketstream n_sol_sock(vishost, visport);
-      n_sol_sock << "parallel " << mpi.WorldSize()
-                 << " " << mpi.WorldRank() << "\n";
-      n_sol_sock.precision(8);
-      n_sol_sock << "solution\n" << pmesh << nx
-                 << "window_title 'Neumann'" << flush;
-
-      socketstream n0_sol_sock(vishost, visport);
-      n0_sol_sock << "parallel " << mpi.WorldSize()
-                  << " " << mpi.WorldRank() << "\n";
-      n0_sol_sock.precision(8);
-      n0_sol_sock << "solution\n" << pmesh << n0x
-                  << "window_title 'Homogeneous Neumann'" << flush;
-
-      socketstream r_sol_sock(vishost, visport);
-      r_sol_sock << "parallel " << mpi.WorldSize()
-                 << " " << mpi.WorldRank() << "\n";
-      r_sol_sock.precision(8);
-      r_sol_sock << "solution\n" << pmesh << rx
-                 << "window_title 'Robin'" << flush;
    }
 
    // 18. Free the used memory.
@@ -811,4 +675,66 @@ Mesh * GenerateSerialMesh(int ref)
    mesh->Transform(trans);
 
    return mesh;
+}
+
+double IntegrateBC(ParGridFunction & x, Array<int> &bdr, bool h1)
+{
+   ParFiniteElementSpace * fespace = x.ParFESpace();
+   ConstantCoefficient one(1.0);
+
+   // Integrate the basis functions along the given boundary
+   ParLinearForm lf(fespace);
+   if (h1)
+   {
+      lf.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), bdr);
+   }
+   else
+   {
+      lf.AddBdrFaceIntegrator(new BoundaryLFIntegrator(one), bdr);
+   }
+   lf.Assemble();
+
+   // Compute the integral of x along the given boundary
+   return lf(x);
+}
+
+double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
+                        Array<int> &bdr, bool h1,
+                        OperatorHandle &M, double a)
+{
+   ParFiniteElementSpace * fespace = u.ParFESpace();
+
+   // Compute the operator n.Grad
+   ParBilinearForm nd(fespace);
+   nd.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
+   nd.Assemble();
+
+   // Apply the operator to the solution vector
+   ParLinearForm b(fespace);
+   nd.Mult(u, b);
+
+   // Solve for n.Grad(u)
+   Vector B, X;
+   X.SetSize(fespace->TrueVSize());
+   B.SetSize(X.Size());
+   b.ParallelAssemble(B);
+
+   CGSolver mcg(MPI_COMM_WORLD);
+   mcg.SetRelTol(1e-12);
+   mcg.SetMaxIter(2000);
+   mcg.SetPrintLevel(0);
+   mcg.SetOperator(*M);
+   mcg.Mult(B, X);
+
+   ParGridFunction ndu(fespace);
+   ndu.Distribute(X);
+
+   // For Robin BCs we add a * u
+   if (a != 0.0)
+   {
+      ndu.Add(a, u);
+   }
+
+   // Integrate n.Grad(u) + a * u along the given boundary
+   return IntegrateBC(ndu, bdr, h1);
 }
