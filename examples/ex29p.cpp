@@ -35,7 +35,7 @@
 //                     |    / \    |    / \    |
 //                  <--+---+---+---+---+---+---+--> x
 //                     |    \_/    |    \_/    |
-//                     |           |      \    |      
+//                     |           |      \    |
 //                     +-----------+-----------+       (hole radii are
 //                          /      |        \            adjustable)
 //                  Attribute 1    v    Attribute 4
@@ -168,8 +168,8 @@ int main(int argc, char *argv[])
    //    use either continuous Lagrange finite elements or discontinuous
    //    Galerkin finite elements of the specified order.
    FiniteElementCollection *fec =
-     h1 ? (FiniteElementCollection*)new H1_FECollection(order, dim) :
-     (FiniteElementCollection*)new DG_FECollection(order, dim);
+      h1 ? (FiniteElementCollection*)new H1_FECollection(order, dim) :
+      (FiniteElementCollection*)new DG_FECollection(order, dim);
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_Int size = fespace.GlobalTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;
