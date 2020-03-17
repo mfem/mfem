@@ -1,49 +1,60 @@
-//                       MFEM Example 1 - Parallel Version
+//                       MFEM Example 29 - Serial Version
 //
-// Compile with: make ex1p
+// Compile with: make ex29
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex1p -m ../data/star.mesh
-//               mpirun -np 4 ex1p -m ../data/star-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/escher.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
-//               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/star-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/star-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/square-disc-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
-//
-// Device sample runs:
-//             > mpirun -np 4 ex1p -pa -d cuda
-//             > mpirun -np 4 ex1p -pa -d occa-cuda
-//             > mpirun -np 4 ex1p -pa -d raja-omp
+// Sample runs:  ex29
+//               ex29 -dg
+//               ex29 -dg -dbc 8 -nbc -2
+//               ex29 -rbc-a 1 -rbc-b 8
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
+//               -Delta u = 0 with a variety of boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               order using a continuous or discontinuous space.  We then
+//               apply Dirichlet, Neumann (both homogeneous and inhomogeneous),
+//               Robin, and Periodic boundary conditions on different portions
+//               of a predefined mesh.
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+//               The predefined mesh consists of a rectangle with two
+//               holes removed (see below).  The narrow ends of the
+//               mesh are connected to form a Periodic boundary
+//               condition.  The lower edge (tagged with attribute 1)
+//               receives an inhomogeneous Neumann boundary condition.
+//               A Robin boundary condition is applied to upper edge
+//               (attribute 2).  The circular hole on the left
+//               (attribute 3) enforces a Dirichlet boundary
+//               condition.  Finally, a natural boundary condition, or
+//               homogeneous Neumann BC, is applied to the circular
+//               hole on the right (attribute 4).
+//
+//                  Attribute 3    ^ y  Attribute 2
+//                        \        |      /
+//                     +-----------+-----------+
+//                     |    \_     |     _     |
+//                     |    / \    |    / \    |
+//                  <--+---+---+---+---+---+---+--> x
+//                     |    \_/    |    \_/    |
+//                     |           |      \    |
+//                     +-----------+-----------+       (hole radii are
+//                          /      |        \            adjustable)
+//                  Attribute 1    v    Attribute 4
+//
+//               The boundary conditions are defined as (where u is
+//               the solution field):
+//                  Dirichlet: u = d
+//                  Neumann:   n.Grad(u) = g
+//                  Robin:     n.Grad(u) + a u = b
+//
+//               The user can adjust the values of 'd', 'g', 'a', and
+//               'b' with command line options.
+//
+//               This example highlights the differing implementations of
+//               boundary conditions with continuous and discontinuous Galerkin
+//               formulations of the Laplace problem.
+//
+//               We recommend viewing examples 1 and 14 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -130,26 +141,25 @@ int main(int argc, char *argv[])
       a_ = 0.49;
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   // 2. Construct the (serial) mesh and refine it if requested.
    Mesh *mesh = GenerateSerialMesh(ser_ref_levels);
    int dim = mesh->Dimension();
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec = h1 ?
-                                  (FiniteElementCollection*)new H1_FECollection(order, dim) :
-                                  (FiniteElementCollection*)new DG_FECollection(order, dim);
+   // 3. Define a finite element space on the serial mesh.  Here we
+   //    use either continuous Lagrange finite elements or discontinuous
+   //    Galerkin finite elements of the specified order.
+   FiniteElementCollection *fec =
+      h1 ? (FiniteElementCollection*)new H1_FECollection(order, dim) :
+      (FiniteElementCollection*)new DG_FECollection(order, dim);
    FiniteElementSpace fespace(mesh, fec);
    int size = fespace.GetTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
+   // 4. Create "marker arrays" to define the portions of the boundary
+   //    associated with each type of boundary condition.  These arrays
+   //    have an entry corresponding to each boundary attribute.
+   //    Placing a '1' in an entry marks that attribute as being
+   //    active, '0' is inactive.
    Array<int> nbc_bdr(mesh->bdr_attributes.Max());
    Array<int> rbc_bdr(mesh->bdr_attributes.Max());
    Array<int> dbc_bdr(mesh->bdr_attributes.Max());
@@ -161,12 +171,15 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list(0);
    if (h1 && mesh->bdr_attributes.Size())
    {
+      // For a continuous basis the linear system must be modifed to enforce
+      // an essential (Dirichlet) boundary condition.  In the DG case this is
+      // not necessary as the boundary condition will only be enforced weakly.
       fespace.GetEssentialTrueDofs(dbc_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system, which in this case is
-   //    (1,phi_i) where phi_i are the basis functions in fespace.
+   // 5. Setup the various coefficients needed for the Laplace operator and
+   //    the various boundary conditions.  In general these coefficients could
+   //    be functions of position but here we use only constants.
    ConstantCoefficient matCoef(mat_val);
    ConstantCoefficient dbcCoef(dbc_val);
    ConstantCoefficient nbcCoef(nbc_val);
@@ -177,66 +190,77 @@ int main(int argc, char *argv[])
    ProductCoefficient m_rbcACoef(matCoef, rbcACoef);
    ProductCoefficient m_rbcBCoef(matCoef, rbcBCoef);
 
-   // 10. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace. Initialize x with initial guess of zero,
-   //     which satisfies the boundary conditions.
+   // 6. Define the solution vector x as a parallel finite element grid function
+   //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(&fespace);
    x = 0.0;
 
-   // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
+   // 7. Set up the bilinear form a(.,.) on the finite element space
+   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
+   //    domain integrator.
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(matCoef));
    if (h1)
    {
+      // Add a Mass integrator on the Robin boundary
       a.AddBoundaryIntegrator(new MassIntegrator(m_rbcACoef), rbc_bdr);
    }
    else
    {
+      // Add the interfacial portion of the Lapalce operator
       a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(matCoef,
                                                             sigma, kappa));
+
+      // Counteract the n.Grad(u) term on the Dirichlet portion of the boundary
       a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(matCoef, sigma, kappa),
                              dbc_bdr);
+
+      // Augment the n.Grad(u) term with a*u on the Robin portion of boundary
       a.AddBdrFaceIntegrator(new BoundaryMassIntegrator(m_rbcACoef),
                              rbc_bdr);
    }
-
-   // 12. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, static condensation, etc.
    a.Assemble();
 
+   // 8. Assemble the linear form for the right hand side vector.
    LinearForm b(&fespace);
 
    if (h1)
    {
+      // Set the Dirchlet values in the solution vector
       x.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
 
+      // Add the desired value for n.Grad(u) on the Neumann boundary
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(m_nbcCoef), nbc_bdr);
+
+      // Add the desired value for n.Grad(u) + a*u on the Robin boundary
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(m_rbcBCoef), rbc_bdr);
    }
    else
    {
+      // Add the desired value for the Dirchlet boundary
       b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(dbcCoef, matCoef,
                                                          sigma, kappa),
                              dbc_bdr);
+
+      // Add the desired value for n.Grad(u) on the Neumann boundary
       b.AddBdrFaceIntegrator(new BoundaryLFIntegrator(m_nbcCoef),
                              nbc_bdr);
+
+      // Add the desired value for n.Grad(u) + a*u on the Robin boundary
       b.AddBdrFaceIntegrator(new BoundaryLFIntegrator(m_rbcBCoef),
                              rbc_bdr);
    }
    b.Assemble();
 
+   // 9. Construct the linear system.
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    non-symmetric one.
+   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //     solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   //     non-symmetric one.
    GSSmoother M((SparseMatrix&)(*A));
    if (sigma == -1.0)
    {
@@ -247,15 +271,16 @@ int main(int argc, char *argv[])
       GMRES(*A, M, B, X, 1, 500, 10, 1e-12, 0.0);
    }
 #else
-   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
+   //     system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(*A);
    umf_solver.Mult(B, X);
 #endif
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
+   // 12. Recover the grid function corresponding to X. This is the
+   //     local finite element solution.
    a.RecoverFEMSolution(X, b, x);
 
    BilinearForm *m = new BilinearForm(&fespace);
