@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
    double cfl = 0.3;
    bool visualization = true;
    int vis_steps = 50;
-   bool adios2 = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -107,9 +106,6 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
-                  "--no-adios2-streams",
-                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX visualization.");
 
    args.Parse();
    if (!args.Good())
@@ -214,22 +210,6 @@ int main(int argc, char *argv[])
          sol_ofs << uk;
       }
    }
-
-#ifdef MFEM_USE_ADIOS2
-   ADIOS2DataCollection* adios2_dc = NULL;
-   if (adios2)
-   {
-      std::string postfix(mesh_file);
-      postfix.erase(0, std::string("../data/").size() );
-      postfix += "_p" + std::to_string(problem);
-      postfix += "_o" + std::to_string(order);
-      const std::string collection_name = "ex18-p-" + postfix + ".bp";
-
-      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, &pmesh);
-      adios2_dc->RegisterField("momentum", &mom);
-   }
-#endif
-
 
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
@@ -351,24 +331,8 @@ int main(int argc, char *argv[])
             sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
             sout << "solution\n" << pmesh << mom << flush;
          }
-
-#ifdef MFEM_USE_ADIOS2
-         if (adios2)
-         {
-            adios2_dc->SetTime(t);
-            adios2_dc->Save();
-         }
-#endif
-
       }
    }
-
-#ifdef MFEM_USE_ADIOS2
-   if (adios2)
-   {
-      delete adios2_dc;
-   }
-#endif
 
    tic_toc.Stop();
    if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }

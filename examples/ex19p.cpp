@@ -159,7 +159,6 @@ int main(int argc, char *argv[])
    double newton_abs_tol = 1e-6;
    int newton_iter = 500;
    double mu = 1.0;
-   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -181,9 +180,6 @@ int main(int argc, char *argv[])
                   "Maximum iterations for the Newton solve.");
    args.AddOption(&mu, "-mu", "--shear-modulus",
                   "Shear modulus for the neo-Hookean material.");
-   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
-                  "--no-adios2-streams",
-                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -348,25 +344,7 @@ int main(int argc, char *argv[])
       x_def.Save(deformation_ofs);
    }
 
-   // 19. Optionally output a BP (binary pack file) ADIOS2DataCollection
-   //     ADIOS2: https://adios2.readthedocs.io
-#ifdef MFEM_USE_ADIOS2
-   if (adios2)
-   {
-      std::string postfix(mesh_file);
-      postfix.erase(0, std::string("../data/").size() );
-      postfix += "_o" + std::to_string(order);
-      const std::string collection_name = "ex19-p-" + postfix + ".bp";
-
-      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, pmesh);
-      adios2_dc.SetParameter("SubStreams", std::to_string(num_procs/2) );
-      adios2_dc.RegisterField("pressure", &p_gf);
-      adios2_dc.RegisterField("deformation", &x_def);
-      adios2_dc.Save();
-   }
-#endif
-
-   // 20. Free the used memory
+   // 19. Free the used memory
    delete pmesh;
 
    MPI_Finalize();

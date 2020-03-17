@@ -492,7 +492,7 @@ public:
 #ifdef MFEM_USE_ADIOS2
    /// Save the GridFunction to a binary output stream using adios2 bp format.
    virtual void Save(adios2stream &out, const std::string& variable_name,
-                     adios2stream::data_type type = adios2stream::data_type::point_data) const;
+                     const adios2stream::data_type type = adios2stream::data_type::point_data) const;
 #endif
 
    /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
