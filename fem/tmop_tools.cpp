@@ -44,17 +44,84 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    // This will be used to move the positions.
    GridFunction *mesh_nodes = m->GetNodes();
    *mesh_nodes = nodes0;
+   int dim, ncomp;
+   if (fes)
+   {
+      dim     = fes->GetFE(0)->GetDim();
+      ncomp   = fes->GetVDim();
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      if (pfes)
+      {
+         dim     = pfes->GetFE(0)->GetDim();
+         ncomp   = pfes->GetVDim();
+      }
+#endif
+   }
+   const int pnt_cnt = new_nodes.Size()/dim;
+
    new_field = field0;
+
+   for (int i = 0; i < ncomp; i++)
+   {
+      Vector new_field_temp(new_field.GetData()+i*pnt_cnt, pnt_cnt);
+      ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+   }
+
+   // This function will not work for AMR meshes in the current state.
+   // The two lines below are optional.
+   field0 = new_field;
+   nodes0 = new_nodes;
+}
+
+void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
+                                            Vector &new_field)
+{
+#if defined(MFEM_DEBUG) || defined(MFEM_USE_MPI)
+   int myid = 0;
+#endif
+   Mesh *m = mesh;
+
+#ifdef MFEM_USE_MPI
+   if (pfes) { MPI_Comm_rank(pfes->GetComm(), &myid); }
+   if (pmesh) { m = pmesh; }
+#endif
+
+   MFEM_VERIFY(m != NULL, "No mesh has been given to the AdaptivityEvaluator.");
+
+   // This will be used to move the positions.
+   GridFunction *mesh_nodes = m->GetNodes();
+   *mesh_nodes = nodes0;
+   double minv = new_field.Min(), maxv = new_field.Max();
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
    subtract(new_nodes, nodes0, u);
 
    TimeDependentOperator *oper = NULL;
-   // This must be the fes of the ind, associated with the object's mesh.
-   if (fes)  { oper = new SerialAdvectorCGOper(nodes0, u, *fes); }
+   FiniteElementSpace *fess = NULL;
 #ifdef MFEM_USE_MPI
-   else if (pfes) { oper = new ParAdvectorCGOper(nodes0, u, *pfes); }
+   ParFiniteElementSpace *pfess = NULL;
+#endif
+   // This must be the fes of the ind, associated with the object's mesh.
+
+   if (fes)
+   {
+      fess = new FiniteElementSpace(fes->GetMesh(),
+                                    fes->FEColl(),
+                                    1);
+      oper = new SerialAdvectorCGOper(nodes0, u, *fess);
+   }
+#ifdef MFEM_USE_MPI
+   else if (pfes)
+   {
+      pfess = new ParFiniteElementSpace(pfes->GetParMesh(),
+                                        pfes->FEColl(),
+                                        1);
+      oper = new ParAdvectorCGOper(nodes0, u, *pfess);
+   }
 #endif
    MFEM_VERIFY(oper != NULL,
                "No FE space has been given to the AdaptivityEvaluator.");
@@ -75,6 +142,9 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
    if (v_max == 0.0)
    {
+      delete oper;
+      delete fess;
+      delete pfess;
       // No need to change the field.
       return;
    }
@@ -106,18 +176,28 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       ode_solver.Step(new_field, t, glob_dt);
    }
 
+   double glob_minv = minv;
+   double glob_maxv = maxv;
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(&minv, &glob_minv, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      MPI_Allreduce(&maxv, &glob_maxv, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+   }
+#endif
+   minv = glob_minv;
+   maxv = glob_maxv;
+
    // Trim the overshoots and undershoots.
-   const double minv = field0.Min(), maxv = field0.Max();
    for (int i = 0; i < new_field.Size(); i++)
    {
       if (new_field(i) < minv) { new_field(i) = minv; }
       if (new_field(i) > maxv) { new_field(i) = maxv; }
    }
 
-   nodes0 = new_nodes;
-   field0 = new_field;
-
    delete oper;
+   delete fess;
+   delete pfess;
 }
 
 SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,

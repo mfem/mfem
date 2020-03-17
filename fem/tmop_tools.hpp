@@ -36,6 +36,9 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
+
+   virtual void ComputeAtNewPositionScalar(const Vector &new_nodes,
+                                           Vector &new_field);
 };
 
 #ifdef MFEM_USE_GSLIB

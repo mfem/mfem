@@ -713,12 +713,14 @@ protected:
    Vector tspec_perth;       //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
    Vector tspec_pertmix;     //eta(x+h,y+h)
+   // The new order for these vectors is
+   // eta1(x+h),eta2(x+h)...etan(x+h),eta1(y+h),eta2(y+h)...etan(y+h).
+   // same for tspec_pert2h and tspec_pertmix.
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *ptspec_fes;
-   ParFiniteElementSpace *ptspec_fesv;
 #endif
    const FiniteElementSpace *tspec_fes;
    const FiniteElementSpace *tspec_fesv;
@@ -739,12 +741,11 @@ public:
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_fes(NULL), adapt_eval(NULL) { }
 
-   virtual ~DiscreteAdaptTC() { delete adapt_eval;      delete tspec_fesv; }
-
-   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec_);
-#ifdef MFEM_USE_MPI
-   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec_);
-#endif
+   virtual ~DiscreteAdaptTC()
+   {
+      delete adapt_eval;
+      delete tspec_fesv;
+   }
 
    virtual void SetSerialDiscreteTargetSize(GridFunction &tspec_);
    virtual void SetSerialDiscreteTargetSkew(GridFunction &tspec_);

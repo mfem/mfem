@@ -166,25 +166,25 @@ double ind_values(const Vector &x)
 
 double discr_values(const Vector &x)
 {
-    double val = 0.;
-    const double X = x(0);
-    const double Y = x(1);
+   double val = 0.;
+   const double X = x(0);
+   const double Y = x(1);
 
-    double xc = x(0)-0.5, yc = x(1)-0.5;
-    double th = 22.5*M_PI/180.;
-    double xn =  cos(th)*xc + sin(th)*yc;
-    double yn = -sin(th)*xc + cos(th)*yc;
-    double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-    double stretch = 1/cos(th2);
-    xc = xn/stretch; yc = yn/stretch;
-    double tfac = 20;
-    double s1 = 3;
-    double s2 = 3;
-    double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
-    if (wgt > 1) { wgt = 1; }
-    if (wgt < 0) { wgt = 0; }
-    val = wgt;
-    return val;
+   double xc = x(0)-0.5, yc = x(1)-0.5;
+   double th = 22.5*M_PI/180.;
+   double xn =  cos(th)*xc + sin(th)*yc;
+   double yn = -sin(th)*xc + cos(th)*yc;
+   double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+   double stretch = 1/cos(th2);
+   xc = xn/stretch; yc = yn/stretch;
+   double tfac = 20;
+   double s1 = 3;
+   double s2 = 3;
+   double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
+   if (wgt > 1) { wgt = 1; }
+   if (wgt < 0) { wgt = 0; }
+   val = wgt;
+   return val;
 }
 
 double ori_values(const Vector &x)
@@ -213,6 +213,19 @@ double ori_values(const Vector &x)
    }
 
    return 0.0;
+}
+
+void aspr_ratio_values_3d(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+   v.SetSize(dim);
+   double l1, l2, l3;
+   l1 = 1.;
+   l2 = 1. + 5*x(1);
+   l3 = 1. + 10*x(2);
+   v[0] = l1/pow(l2*l3,0.5);
+   v[1] = l2/pow(l1*l3,0.5);
+   v[2] = l3/pow(l2*l1,0.5);
 }
 
 class HessianCoefficient : public MatrixCoefficient
@@ -534,7 +547,9 @@ int main(int argc, char *argv[])
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
+   FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size, aspr, disc;
+   GridFunction aspr3d;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -553,14 +568,14 @@ int main(int argc, char *argv[])
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         size.SetSpace(&ind_fes);
-         FunctionCoefficient ind_coeff(ind_values);
-         size.ProjectCoefficient(ind_coeff);
 #ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
          tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
+         size.SetSpace(&ind_fes);
+         FunctionCoefficient ind_coeff(ind_values);
+         size.ProjectCoefficient(ind_coeff);
          tc->SetSerialDiscreteTargetSize(size);
          tc->FinalizeSerialDiscreteTargetSpec();
          target_c = tc;
@@ -582,7 +597,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_GSLIB
          tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
-         if (fdscheme==0) {tc->SetAdaptivityEvaluator(new AdvectorCG);}
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
 
          //Diffuse the interface
@@ -657,6 +672,24 @@ int main(int argc, char *argv[])
 
          tc->SetSerialDiscreteTargetSize(size);
          tc->SetSerialDiscreteTargetAspectRatio(aspr);
+         tc->FinalizeSerialDiscreteTargetSpec();
+         target_c = tc;
+         break;
+      }
+      case 7:
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+#ifdef MFEM_USE_GSLIB
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
+#endif
+         VectorFunctionCoefficient fd_aspr3d(dim, aspr_ratio_values_3d);
+         aspr3d.SetSpace(&ind_fesv);
+         aspr3d.ProjectCoefficient(fd_aspr3d);
+
+         tc->SetSerialDiscreteTargetAspectRatio(aspr3d);
          tc->FinalizeSerialDiscreteTargetSpec();
          target_c = tc;
          break;
