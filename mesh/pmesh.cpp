@@ -1066,12 +1066,6 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      have_face_nbr_data(false),
      pncmesh(NULL)
 {
-   if (Nodes != NULL)
-   {
-      // This call will turn the Nodes into a ParGridFunction
-      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim);
-   }
-
    // Need to initialize:
    // - shared_edges, shared_{trias,quads}
    // - group_svert, group_sedge, group_{stria,squad}
@@ -1282,6 +1276,12 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    group_squad.ShiftUpI();
 
    FinalizeParTopo();
+
+   if (Nodes != NULL)
+   {
+      // This call will turn the Nodes into a ParGridFunction
+      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim);
+   }
 }
 
 void ParMesh::Finalize(bool refine, bool fix_orientation)
