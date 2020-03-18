@@ -645,14 +645,14 @@ int32_t adios2stream::GLVISToVTKType(
          vtkType = 5;
          break;
       case Geometry::Type::SQUARE:
-         //vtkType = 8;
+         // vtkType = 8;
          vtkType = 9;
          break;
       case Geometry::Type::TETRAHEDRON:
          vtkType = 10;
          break;
       case Geometry::Type::CUBE:
-         //vtkType = 11;
+         // vtkType = 11;
          vtkType = 12;
          break;
       case Geometry::Type::PRISM:
