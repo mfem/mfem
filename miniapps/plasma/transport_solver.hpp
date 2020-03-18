@@ -1869,7 +1869,8 @@ private:
    private:
       StateVariableGridFunctionCoef dummyCoef_;
       Array<StateVariableCoef*> coefs_;
-      Array<ProductCoefficient*> dtSCoefs_;
+      Array<ProductCoefficient*>             dtSCoefs_;
+      Array<ScalarVectorProductCoefficient*> dtVCoefs_;
       Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
@@ -1965,14 +1966,21 @@ private:
       */
       void SetTimeDerivativeTerm(StateVariableCoef &MCoef);
 
-      /** Sets the diffusion term on the right hand side of the equaqtion
+      /** Sets the diffusion term on the right hand side of the equation
           to be:
-        Div(DCoef Grad y[index])
+             Div(DCoef Grad y[index])
           where index is the index of the equation.
        */
       void SetDiffusionTerm(StateVariableCoef &DCoef, bool bc = false);
       void SetDiffusionTerm(StateVariableMatCoef &DCoef, bool bc = false);
 
+      /** Sets the advection term on the right hand side of the
+	  equation to be:
+             Div(VCoef y[index])
+          where index is the index of the equation.
+       */
+      void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
+     
    public:
 
       virtual ~NLOperator();

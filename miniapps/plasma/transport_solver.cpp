@@ -1397,6 +1397,18 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete coefs_[i];
    }
+   for (int i=0; i<dtSCoefs_.Size(); i++)
+     {
+       delete dtSCoefs_[i];
+     }
+   for (int i=0; i<dtVCoefs_.Size(); i++)
+     {
+       delete dtVCoefs_[i];
+     }
+   for (int i=0; i<dtMCoefs_.Size(); i++)
+     {
+       delete dtMCoefs_[i];
+     }
    for (unsigned int i=0; i<sout_.size(); i++)
    {
       delete sout_[i];
@@ -1426,6 +1438,8 @@ void DGTransportTDO::NLOperator::SetTimeDerivativeTerm(StateVariableCoef &MCoef)
 void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableCoef &DCoef,
                                                   bool bc)
 {
+   ProductCoefficient * dtDCoef = new ProductCoefficient(dt_, DCoef);
+   dtSCoefs_.Append(dtDCoef);
 
    dbfi_.Append(new DiffusionIntegrator(DCoef));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef,
@@ -1443,9 +1457,6 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableCoef &DCoef,
    {
       blf_[index_] = new ParBilinearForm(&fes_);
    }
-
-   ProductCoefficient * dtDCoef = new ProductCoefficient(dt_, DCoef);
-   dtSCoefs_.Append(dtDCoef);
 
    blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
    blf_[index_]->AddInteriorFaceIntegrator(
@@ -1463,6 +1474,9 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableCoef &DCoef,
 void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableMatCoef &DCoef,
                                                   bool bc)
 {
+   ScalarMatrixProductCoefficient * dtDCoef =
+      new ScalarMatrixProductCoefficient(dt_, DCoef);
+   dtMCoefs_.Append(dtDCoef);
 
    dbfi_.Append(new DiffusionIntegrator(DCoef));
    fbfi_.Append(new DGDiffusionIntegrator(DCoef,
@@ -1481,10 +1495,6 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableMatCoef &DCoef,
       blf_[index_] = new ParBilinearForm(&fes_);
    }
 
-   ScalarMatrixProductCoefficient * dtDCoef =
-      new ScalarMatrixProductCoefficient(dt_, DCoef);
-   dtMCoefs_.Append(dtDCoef);
-
    blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
    blf_[index_]->AddInteriorFaceIntegrator(
       new DGDiffusionIntegrator(*dtDCoef,
@@ -1495,6 +1505,39 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableMatCoef &DCoef,
       blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
                                                                    dg_.sigma,
                                                                    dg_.kappa));
+   }
+}
+
+void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
+                                                  bool bc)
+{
+   ScalarVectorProductCoefficient * dtVCoef =
+      new ScalarVectorProductCoefficient(dt_, VCoef);
+   dtVCoefs_.Append(dtVCoef);
+
+   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(VCoef));
+   fbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
+
+   if (bc)
+   {
+     bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
+     bfbfi_marker_.Append(NULL);
+   }
+   
+   if (blf_[index_] == NULL)
+   {
+      blf_[index_] = new ParBilinearForm(&fes_);
+   }
+
+   blf_[index_]->AddDomainIntegrator(
+      new MixedScalarWeakDivergenceIntegrator(*dtVCoef));
+   blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+								 1.0, -0.5));
+
+   if (bc)
+   {
+     blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+								   1.0, -0.5));
    }
 }
 
@@ -2652,8 +2695,9 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    bfbfi_marker_.Append(NULL);
    */
    // Advection term: Div(v_i n_i)
-   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
-   fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
+   SetAdvectionTerm(ViCoef_);
+   // dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(ViCoef_));
+   // fbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
    // bfbfi_.Append(new DGTraceIntegrator(ViCoef_, 1.0, -0.5));
 
    // Source terms (moved to LHS): S_{rc}-S_{iz}
@@ -2680,10 +2724,12 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                         dg_.sigma,
                         dg_.kappa));
    */
+   /*
    blf_[1]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtViCoef_));
    blf_[1]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtViCoef_,
                                                             1.0, -0.5));
+   */
    blf_[1]->AddDomainIntegrator(new MassIntegrator(negdtdSizdniCoef_));
 
    if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
@@ -2851,6 +2897,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    // Time derivative term: m_i n_i dv_i/dt
    dbfi_m_[2].Append(new MassIntegrator(mini1Coef_));
    */
+   // Time derivative term: d(m_i n_i v_i)/dt
    SetTimeDerivativeTerm(momCoef_);
 
    // Diffusion term: -Div(eta Grad v_i)
@@ -2867,11 +2914,13 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    */
 
    // Advection term: Div(m_i n_i V_i v_i)
+   SetAdvectionTerm(miniViCoef_, true);
+   /*
    dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(miniViCoef_));
    fbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
    bfbfi_.Append(new DGTraceIntegrator(miniViCoef_, 1.0, -0.5));
    bfbfi_marker_.Append(NULL);
-
+   */
    // Source term: b . Grad(p_i + p_e)
    dlfi_.Append(new DomainLFIntegrator(gradPCoef_));
 
@@ -2893,13 +2942,14 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                                            dg_.sigma,
                                                            dg_.kappa));
    */
+   /*
    blf_[2]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
    blf_[2]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
                                                             1.0, -0.5));
    blf_[2]->AddBdrFaceIntegrator(new DGTraceIntegrator(dtminiViCoef_,
                                                        1.0, -0.5));
-
+   */
    // ToDo: add d(gradPCoef)/dT_i
    // ToDo: add d(gradPCoef)/dT_e
 
