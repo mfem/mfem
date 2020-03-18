@@ -3598,11 +3598,15 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-   SetCurvature(1, true, spaceDim);
-   Vector node_coordinates_vec(
-      node_coordinates.Data(),
-      node_coordinates.Width()*node_coordinates.Height());
-   SetNodes(node_coordinates_vec);
+   if (orig_mesh->GetNodes())
+   {
+      L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
+      FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
+      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
+      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
+      SetCurvature(1, discont, spaceDim);
+      Nodes->ProjectGridFunction(nodes_dg);
+   }
 
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
