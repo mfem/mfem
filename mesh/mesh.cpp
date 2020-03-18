@@ -8475,6 +8475,13 @@ void Mesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
    out << "\nvertices\n" << NumOfVertices << '\n';
 }
 
+#ifdef MFEM_USE_ADIOS2
+void Mesh::Print(adios2stream &out) const
+{
+   out.Print(*this);
+}
+#endif
+
 void Mesh::PrintVTK(std::ostream &out)
 {
    out <<

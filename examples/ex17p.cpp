@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
    double kappa = -1.0;
    bool amg_elast = false;
    bool visualization = 1;
+   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -136,6 +137,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX visualization.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -319,7 +324,23 @@ int main(int argc, char *argv[])
       sol_ofs << x;
    }
 
-   // 15. Visualization: send data by socket to a GLVis server.
+   // 15. Optionally output a BP (binary pack file) ADIOS2DataCollection
+   //     ADIOS2: https://adios2.readthedocs.io
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      const std::string collection_name = "ex17-p-" + postfix + ".bp";
+
+      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, &pmesh);
+      adios2_dc.RegisterField("sol", &x);
+      adios2_dc.Save();
+   }
+#endif
+
+   // 16. Visualization: send data by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";

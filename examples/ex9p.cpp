@@ -167,6 +167,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
+   bool adios2 = false;
    bool binary = false;
    int vis_steps = 5;
 
@@ -208,6 +209,9 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX visualization.");
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
@@ -394,6 +398,28 @@ int main(int argc, char *argv[])
       pd->Save();
    }
 
+   // Optionally output a BP (binary pack file) ADIOS2DataCollection
+   // ADIOS2: https://adios2.readthedocs.io
+#ifdef MFEM_USE_ADIOS2
+   ADIOS2DataCollection *adios2_dc = NULL;
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      const std::string collection_name = "ex9-p-" + postfix + ".bp";
+
+      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      // output data substreams are half the number of mpi processes
+      adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
+      //adios2_dc->SetLevelsOfDetail(2);
+      adios2_dc->RegisterField("solution", u);
+      adios2_dc->SetCycle(0);
+      adios2_dc->SetTime(0.0);
+      adios2_dc->Save();
+   }
+#endif
+
    socketstream sout;
    if (visualization)
    {
@@ -472,6 +498,16 @@ int main(int argc, char *argv[])
             pd->SetTime(t);
             pd->Save();
          }
+
+#ifdef MFEM_USE_ADIOS2
+         // transient solutions can be visualized with ParaView
+         if (adios2)
+         {
+            adios2_dc->SetCycle(ti);
+            adios2_dc->SetTime(t);
+            adios2_dc->Save();
+         }
+#endif
       }
    }
 
@@ -497,6 +533,12 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete ode_solver;
    delete pd;
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      delete adios2_dc;
+   }
+#endif
    delete dc;
 
    MPI_Finalize();
