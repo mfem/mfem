@@ -96,7 +96,7 @@ public:
  * Statements marked with NYI mean this feature is planned but Not Yet
  * Implemented.
  *
- * A detailed description is available in [1] in section 4.2. The algorithm is
+ * A detailed description is available in [1] section 4.2. The algorithm is
  * originated from [2].
  *
  * [1] Michael Franco, Jean-Sylvain Camier, Julian Andrej, Will Pazner (2020)
@@ -176,12 +176,12 @@ public:
 
    ~NavierSolver();
 
-   /// Compute \f$\nabla times \nabla times u\f$ for \f$u \in (H^1)^2\f$.
+   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^2\f$.
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
 
-   /// Compute \f$\nabla times \nabla times u\f$ for \f$u \in (H^1)^3\f$.
+   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^3\f$.
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
 protected:
