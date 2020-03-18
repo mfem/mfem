@@ -110,6 +110,17 @@ class NavierSolver
 {
 public:
    /// Initialize data structures, set FE space order and kinematic viscosity.
+   /**
+    * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
+    * of the finite element spaces is this algorithm is of equal order
+    * \f$(P_N)^D P_N\f$ for velocity and pressure respectively. This means the
+    * pressure is in discretized in the same space (just scalar instead of a
+    * vector space) as the velocity.
+    *
+    * Kinematic viscosity (dimensionless) is set using @a kin_vis and
+    * automatically converted to the Reynolds number. If you want to set the
+    * Reynolds number directly, you can provide the inverse.
+    */
    NavierSolver(ParMesh *mesh, int order, double kin_vis);
 
    /// Initialize forms, solvers and preconditioners.
@@ -210,33 +221,60 @@ protected:
                      Vector &B,
                      int copy_interior = 0);
 
-   bool debug = true;
+   /// Enable/disable debug output.
+   bool debug = false;
+
+   /// Enable/disable verbose output.
    bool verbose = true;
+
+   /// Enable/disable partial assembly of forms.
    bool partial_assembly = false;
+
+   /// Enable/disable numerical integration rules of forms.
    bool numerical_integ = false;
 
+   /// The parallel mesh.
    ParMesh *pmesh = nullptr;
 
+   /// The order of the velocity and pressure space.
    int order;
+
+   /// Kinematic viscosity (dimensionless).
    double kin_vis;
 
+   /// Velocity \f$H^1\f$ finite element collection.
    FiniteElementCollection *vfec = nullptr;
+
+   /// Pressure \f$H^1\f$ finite element collection.
    FiniteElementCollection *pfec = nullptr;
+
+   /// Velocity \f$(H^1)^D\f$ finite element space.
    ParFiniteElementSpace *vfes = nullptr;
+
+   /// Pressure \f$H^1\f$ finite element space.
    ParFiniteElementSpace *pfes = nullptr;
 
    ParNonlinearForm *N = nullptr;
+
    ParBilinearForm *Mv_form = nullptr;
+
    ParBilinearForm *Sp_form = nullptr;
+
    ParMixedBilinearForm *D_form = nullptr;
+
    ParMixedBilinearForm *G_form = nullptr;
+
    ParBilinearForm *H_form = nullptr;
 
    VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
+
    ParLinearForm *FText_bdr_form = nullptr;
+
    ParLinearForm *f_form = nullptr;
+
    ParLinearForm *g_bdr_form = nullptr;
 
+   /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
    ConstantCoefficient onecoeff;
    double volume = 0.0;
@@ -290,7 +328,7 @@ protected:
 
    int cur_step = 0;
 
-   // BDFk/EXTk coefficients
+   // BDFk/EXTk coefficients.
    double bd0 = 0.0;
    double bd1 = 0.0;
    double bd2 = 0.0;
@@ -299,26 +337,26 @@ protected:
    double ab2 = 0.0;
    double ab3 = 0.0;
 
-   // Timers
+   // Timers.
    StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
 
-   // Printlevels
+   // Print levels.
    int pl_mvsolve = 0;
    int pl_spsolve = 0;
    int pl_hsolve = 0;
    int pl_amg = 0;
 
-   // Tolerances
+   // Relative tolerances.
    double rtol_spsolve = 1e-6;
    double rtol_hsolve = 1e-8;
 
-   // Iteration counts
+   // Iteration counts.
    int iter_mvsolve = 0, iter_spsolve = 0, iter_hsolve = 0;
 
-   // Residuals
+   // Residuals.
    double res_mvsolve = 0.0, res_spsolve = 0.0, res_hsolve = 0.0;
 
-   // LOR related
+   // LOR related.
    ParMesh *pmesh_lor = nullptr;
    FiniteElementCollection *pfec_lor = nullptr;
    ParFiniteElementSpace *pfes_lor = nullptr;

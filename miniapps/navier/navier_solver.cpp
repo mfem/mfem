@@ -206,7 +206,7 @@ void NavierSolver::Setup(double dt)
    for (auto &accel_term : accel_terms)
    {
       auto *vdlfi = new VectorDomainLFIntegrator(accel_term.coeff);
-      // TODO this order should always be the same as the nonlinear forms one!
+      // @TODO: This order should always be the same as the nonlinear forms one!
       // const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
       //                                          4 * order);
       // vdlfi->SetIntRule(&ir);
@@ -215,12 +215,6 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      // Mv_form_lor = new ParBilinearForm(vfes_lor);
-      // CopyDBFIntegrators(Mv_form, Mv_form_lor);
-      // Mv_form_lor->Assemble();
-      // Mv_form_lor->FormSystemMatrix(empty, Mv_lor);
-      // MvInvPC = new HypreSmoother(*Mv_lor.As<HypreParMatrix>());
-      // static_cast<HypreSmoother *>(MvInvPC)->SetType(HypreSmoother::Jacobi, 1);
       Vector diag_pa(vfes->GetTrueVSize());
       Mv_form->AssembleDiagonal(diag_pa);
       MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
@@ -246,9 +240,6 @@ void NavierSolver::Setup(double dt)
       Sp_form_lor->Assemble();
       Sp_form_lor->FormSystemMatrix(pres_ess_tdof, Sp_lor);
       SpInvPC = new HypreBoomerAMG(*Sp_lor.As<HypreParMatrix>());
-      // HYPRE_Solver amg_precond = static_cast<HYPRE_Solver>(*SpInvPC);
-      // HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-      // HYPRE_BoomerAMGSetRelaxType(amg_precond, 3);
       SpInvPC->SetPrintLevel(pl_amg);
       SpInvPC->Mult(resp, pn);
       SpInvOrthoPC = new OrthoSolver();
@@ -278,12 +269,6 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      // H_form_lor = new ParBilinearForm(vfes_lor);
-      // CopyDBFIntegrators(H_form, H_form_lor);
-      // H_form_lor->Assemble();
-      // H_form_lor->FormSystemMatrix(empty, H_lor);
-      // HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
-      // static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
       Vector diag_pa(vfes->GetTrueVSize());
       H_form->AssembleDiagonal(diag_pa);
       HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
@@ -339,15 +324,11 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
       if (partial_assembly)
       {
-         // H_form_lor->Update();
-         // H_form_lor->Assemble();
-         // H_form_lor->FormSystemMatrix(vel_ess_tdof, H_lor);
-         // TODO
+         // @TODO: Do I need to clear the old preconditioner? Because
+         // SetOperator does not do that.
          // HInv->ClearPreconditioner();
          HInv->SetOperator(*H);
          delete HInvPC;
-         // HInvPC = new HypreSmoother(*H_lor.As<HypreParMatrix>());
-         // static_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
          Vector diag_pa(vfes->GetTrueVSize());
          H_form->AssembleDiagonal(diag_pa);
          HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
@@ -369,9 +350,8 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    f_form->ParallelAssemble(fn);
 
    //
-   // Nonlinear extrapolated terms
+   // Nonlinear extrapolated terms.
    //
-
    sw_extrap.Start();
 
    N->Mult(un, Nun);
@@ -391,7 +371,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    res_mvsolve = MvInv->GetFinalNorm();
    Fext.Set(1.0, tmp1);
 
-   // BDF terms
+   // Compute BDF terms.
    double bd1idt = -bd1 / dt;
    double bd2idt = -bd2 / dt;
    double bd3idt = -bd3 / dt;
@@ -402,9 +382,8 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    sw_extrap.Stop();
 
    //
-   // Pressure poisson
+   // Pressure poisson.
    //
-
    sw_curlcurl.Start();
 
    MFEM_FORALL(i,
@@ -487,9 +466,8 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    pn_gf.GetTrueDofs(pn);
 
    //
-   // Project velocity
+   // Project velocity.
    //
-
    G->Mult(pn, resu);
    resu.Neg();
    Mv->Mult(Fext, tmp1);
@@ -610,14 +588,14 @@ void NavierSolver::ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu)
 {
    FiniteElementSpace *fes = u.FESpace();
 
-   // AccumulateAndCountZones
+   // AccumulateAndCountZones.
    Array<int> zones_per_vdof;
    zones_per_vdof.SetSize(fes->GetVSize());
    zones_per_vdof = 0;
 
    cu = 0.0;
 
-   // Local interpolation
+   // Local interpolation.
    int elndofs;
    Array<int> vdofs;
    Vector vals;
@@ -641,12 +619,11 @@ void NavierSolver::ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu)
 
       for (int dof = 0; dof < elndofs; ++dof)
       {
-         // Project
+         // Project.
          const IntegrationPoint &ip = el->GetNodes().IntPoint(dof);
          tr->SetIntPoint(&ip);
 
-         // Eval
-         // GetVectorGradientHat
+         // Eval and GetVectorGradientHat.
          el->CalcDShape(tr->GetIntPoint(), dshape);
          grad_hat.SetSize(vdim, dim);
          DenseMatrix loc_data_mat(loc_data.GetData(), elndofs, vdim);
@@ -687,7 +664,7 @@ void NavierSolver::ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu)
    gcomm.Reduce<double>(cu.GetData(), GroupCommunicator::Sum);
    gcomm.Bcast<double>(cu.GetData());
 
-   // Compute means
+   // Compute means.
    for (int i = 0; i < cu.Size(); i++)
    {
       const int nz = zones_per_vdof[i];
@@ -704,14 +681,14 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
 {
    FiniteElementSpace *fes = u.FESpace();
 
-   // AccumulateAndCountZones
+   // AccumulateAndCountZones.
    Array<int> zones_per_vdof;
    zones_per_vdof.SetSize(fes->GetVSize());
    zones_per_vdof = 0;
 
    cu = 0.0;
 
-   // Local interpolation
+   // Local interpolation.
    int elndofs;
    Array<int> vdofs;
    Vector vals;
@@ -735,12 +712,11 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
 
       for (int dof = 0; dof < elndofs; ++dof)
       {
-         // Project
+         // Project.
          const IntegrationPoint &ip = el->GetNodes().IntPoint(dof);
          tr->SetIntPoint(&ip);
 
-         // Eval
-         // GetVectorGradientHat
+         // Eval and GetVectorGradientHat.
          el->CalcDShape(tr->GetIntPoint(), dshape);
          grad_hat.SetSize(vdim, dim);
          DenseMatrix loc_data_mat(loc_data.GetData(), elndofs, vdim);
@@ -778,7 +754,7 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
       }
    }
 
-   // Communication
+   // Communication.
 
    // Count the zones globally.
    GroupCommunicator &gcomm = u.ParFESpace()->GroupComm();
@@ -789,7 +765,7 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
    gcomm.Reduce<double>(cu.GetData(), GroupCommunicator::Sum);
    gcomm.Bcast<double>(cu.GetData());
 
-   // Compute means
+   // Compute means.
    for (int i = 0; i < cu.Size(); i++)
    {
       const int nz = zones_per_vdof[i];
