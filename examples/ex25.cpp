@@ -127,7 +127,7 @@ private:
       opr.SetOperatorOwner(false);
 
       CGSolver* pcg = new CGSolver();
-      pcg->SetPrintLevel(0);
+      pcg->SetPrintLevel(-1);
       pcg->SetMaxIter(200);
       pcg->SetRelTol(sqrt(1e-4));
       pcg->SetAbsTol(0.0);
