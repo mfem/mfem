@@ -18,7 +18,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = example1 helmholtz helmholtz_pml
+SEQ_EXAMPLES = example1 helmholtz helmholtz_pml helmholtz_pml_ST mesh_partition
 PAR_EXAMPLES = example1p helmholtzp
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -33,7 +33,8 @@ endif
 
 COMMON_O= schwarz.o complex_additive_schwarz.o \
 		    complex_additive_schwarzp.o additive_schwarz.o \
-			 additive_schwarzp.o pml.o LSweepsPrecond.o
+			 additive_schwarzp.o pml.o LSweepsPrecond.o \
+			 SourceTransfer.o
 
 # Remove built-in rules
 %: %.cpp

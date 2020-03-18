@@ -3,92 +3,86 @@
 
 // constructor
 OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
-{
+{  // default overlap size is 2 elements 
    int dim = mesh->Dimension();
-   // int nx = sqrt(mesh->GetNE());
-   nx = 4;
+   int n = pow(mesh->GetNE(), 1.0/(double)dim);
+   nx = 10;
    ny = 1;
    nz = 1;
+   if (nx > n) 
+   {
+      nx = n;
+      MFEM_WARNING("Changed partition in the x direction to nx = " << n << endl);
+   }
+   if (ny > n) 
+   {
+      ny = n;
+      MFEM_WARNING("Changed partition in the y direction to ny = " << n << endl);
+   }
+   if (nz > n) 
+   {
+      nz = n;
+      MFEM_WARNING("Changed partition in the z direction to nz = " << n << endl);
+   } 
+   if (dim == 2) nz = 1;
    int nxyz[3] = {nx,ny,nz};
    nrpatch = nx*ny*nz;
-
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
-
    double h = GetUniformMeshElementSize(mesh);
 
-   cout << "h = " << h << endl;  
+   element_map.resize(nrpatch);
 
-   int nrelem = mesh->GetNE();
-   vector<Array<int>>partitioning(nrelem);
-   // int partitioning[nrelem];
-
-   // determine the partitioning using the centers of the elements
    double ppt[dim];
    Vector pt(ppt, dim);
+   int nrelem = mesh->GetNE();
 
    for (int el = 0; el < nrelem; el++)
    {
       mesh->GetElementTransformation(el)->Transform(
          Geometries.GetCenter(mesh->GetElementBaseGeometry(el)), pt);
-      int part = 0;
-      int part_ext1 = 0;
-      int part_ext2 = 0;
-      for (int i = dim-1; i >= 0; i--)
-      {
-         int idx = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
-         int idx_ext1 = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])+h));
-         int idx_ext2 = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])-h));
+      // Given the center coordinates determine the patches that this element contributes to
+      Array<int> idx0(dim);
+      Array<int> idx1(dim);
+      Array<int> idx2(dim);
+      vector<Array<int>> idx(3);
+      if (dim == 2) idx[2].Append(0);
 
-         // cout << "idx, idx_ext =  " << idx << ", " << idx_ext << endl;
-         if (idx < 0)
-         {
-            idx = 0;
-         }
-         if (idx >= nxyz[i])
-         {
-            idx = nxyz[i]-1;
-         }
-         part = part * nxyz[i] + idx;
-         if (idx_ext1 < 0)
-         {
-            idx_ext1 = 0;
-         }
-         if (idx_ext1 >= nxyz[i])
-         {
-            idx_ext1 = nxyz[i]-1;
-         }
-         part_ext1 = part_ext1 * nxyz[i] + idx_ext1;
-         if (idx_ext2 < 0)
-         {
-            idx_ext2 = 0;
-         }
-         if (idx_ext2 >= nxyz[i])
-         {
-            idx_ext2 = nxyz[i]-1;
-         }
-         part_ext2 = part_ext2 * nxyz[i] + idx_ext2;
+      for (int i = 0; i<dim; i++)
+      {
+         idx0[i]  = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         idx1[i] = (int)floor(nxyz[i]*((pt(i)+h - pmin[i])/(pmax[i] - pmin[i])));
+         idx2[i] = (int)floor(nxyz[i]*((pt(i)-h - pmin[i])/(pmax[i] - pmin[i])));
+
+         if (idx0[i] < 0) idx0[i] = 0;
+         if (idx0[i] >= nxyz[i]) idx0[i] = nxyz[i]-1;
+         
+         if (idx1[i] < 0) idx1[i] = 0;
+         if (idx1[i] >= nxyz[i]) idx1[i] = nxyz[i]-1;
+
+         if (idx2[i] < 0) idx2[i] = 0;
+         if (idx2[i] >= nxyz[i]) idx2[i] = nxyz[i]-1;
+         // convenient to put in one list
+         idx[i].Append(idx0[i]);
+         if (idx1[i] != idx0[i]) idx[i].Append(idx1[i]);
+         if (idx2[i] != idx0[i] && idx2[i] != idx1[i]) idx[i].Append(idx2[i]);
       }
-      partitioning[el].Append(part);
-      if (part_ext1 != part) partitioning[el].Append(part_ext1);
-      if (part_ext2 != part && part_ext2 != part_ext1 ) partitioning[el].Append(part_ext2);
-
-   }
-
-   element_map.resize(nrpatch);
-   for (int iel = 0; iel < nrelem; iel++)
-   {
-      cout << " iel, size = " <<iel << ", " << partitioning[iel].Size() << endl; 
-      for (int i = 0; i<partitioning[iel].Size(); i++)
+      // Now loop through all the combinations according to the idx above
+      // in case of dim = 2 then kk = 0
+      for (int k=0; k<idx[2].Size(); k++)
       {
-         int ip = partitioning[iel][i]; 
-         element_map[ip].Append(iel);
-      }   
-   }
-
-   for (int ip = 0; ip<nrpatch; ip++)
-   {
-      cout<< "Patch: " << ip << ", elements: " ; element_map[ip].Print(cout, 20);
+         int kk = idx[2][k];
+         for (int j=0; j<idx[1].Size(); j++)
+         {
+            int jj = idx[1][j];
+            for (int i=0; i<idx[0].Size(); i++)
+            {
+               int ii = idx[0][i];
+               int ip = kk*nxyz[0]*nxyz[1] + jj*nxyz[0]+ii;
+               element_map[ip].Append(el);
+            }
+         }
+      }
    }
 }
 
@@ -97,8 +91,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
 CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
-   // int nx = sqrt(mesh->GetNE());
-   nx = 8;
+   nx = 4;
    ny = 1;
    nz = 1;
    int nxyz[3] = {nx,ny,nz};
@@ -168,10 +161,19 @@ VertexMeshPartition::VertexMeshPartition(Mesh *mesh_) : mesh(mesh_)
 
 MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
 {
-   if (part)
+   if (part == 1)
    {
       cout << "Non Overlapping Cartesian Partition " << endl;
       CartesianMeshPartition partition(mesh);
+      element_map = partition.element_map;
+      nx = partition.nx;
+      ny = partition.ny;
+      nz = partition.nz;
+   }
+   else if (part == 2)
+   {
+      cout << "Overlapping Cartesian Partition " << endl;
+      OverlappingCartesianMeshPartition partition(mesh);
       element_map = partition.element_map;
       nx = partition.nx;
       ny = partition.ny;
@@ -278,45 +280,24 @@ void MeshPartition::PrintElementMap()
 void SaveMeshPartition(Array<Mesh *> meshes, string mfilename, string sfilename)
 {
    int nrmeshes = meshes.Size();
-   int dim = meshes[0]->Dimension();
-   int n = (int)pow((double)nrmeshes, 1.0/(double)dim);
-
-   cout << " n = " << n << endl;
-
-   int nx = n;
-   int ny = n;
-   int nz = (dim == 3) ? n : 1;
-   int ip = -1;
-   for (int k=0; k<nz; k++)
+   for (int ip = 0; ip<nrmeshes; ++ip)
    {
-      for (int j=0; j<ny; j++)
-      {
-         for (int i = 0; i<nx; i++)
-         {
-            ip++;
-   // for (int ip = 0; ip<nrmeshes; ++ip)
-   // {
-            cout << "saving mesh no " << ip << endl;
-            ostringstream mesh_name;
-            mesh_name << mfilename << setfill('0') << setw(6) << ip;
-            ofstream mesh_ofs(mesh_name.str().c_str());
-            mesh_ofs.precision(8);
-            meshes[ip]->Print(mesh_ofs);
-            L2_FECollection L2fec(1,meshes[ip]->Dimension());
-            FiniteElementSpace L2fes(meshes[ip], &L2fec);
-            GridFunction x(&L2fes); 
-            // int v = ip % 2;   
-            int v = ((i+j) % 2 == 0) ? 0 : 1;
-
-            ConstantCoefficient alpha((double)v);
-            x.ProjectCoefficient(alpha);
-            ostringstream sol_name;
-            sol_name << sfilename << setfill('0') << setw(6) << ip;
-            ofstream sol_ofs(sol_name.str().c_str());
-            x.Save(sol_ofs);
-   // }
-         }
-      }
+      cout << "saving mesh no " << ip << endl;
+      ostringstream mesh_name;
+      mesh_name << mfilename << setfill('0') << setw(6) << ip;
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      meshes[ip]->Print(mesh_ofs);
+      L2_FECollection L2fec(1,meshes[ip]->Dimension());
+      FiniteElementSpace L2fes(meshes[ip], &L2fec);
+      GridFunction x(&L2fes); 
+      
+      ConstantCoefficient alpha((double)ip);
+      x.ProjectCoefficient(alpha);
+      ostringstream sol_name;
+      sol_name << sfilename << setfill('0') << setw(6) << ip;
+      ofstream sol_ofs(sol_name.str().c_str());
+      x.Save(sol_ofs);
    }
 }
 MeshPartition::~MeshPartition()
@@ -507,6 +488,8 @@ double GetUniformMeshElementSize(Mesh * mesh)
 {
    int dim = mesh->Dimension();
    int nrelem = mesh->GetNE();
+
+   // cout << "nrelem = " << nrelem << endl; 
    DenseMatrix J(dim);
    double hmin, hmax;
    hmin = infinity();
@@ -524,7 +507,8 @@ double GetUniformMeshElementSize(Mesh * mesh)
       hmin = min(hmin, attr(iel));
       hmax = max(hmax, attr(iel));
    }
-   MFEM_VERIFY(hmin==hmax, "Case not supported yet")
+
+   MFEM_VERIFY(abs(hmin-hmax) < 1e-12, "Case not supported yet")
 
    return hmax;
 }
@@ -572,7 +556,7 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
       //    hmax = max(hmax, attr(iel));
       // }
       // MFEM_VERIFY(hmin==hmax, "Case not supported yet")
-      double h = GetUniformMeshElementSize(mesh);
+      double h = GetUniformMeshElementSize(mesh_orig);
       double val;
       // find the vertices on the specific boundary
       switch (d)
