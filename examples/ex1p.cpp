@@ -31,6 +31,7 @@
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
 //               mpirun -np 4 ex1p -pa -d ceed-cuda
+//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -214,7 +215,10 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    if (pa)
    {
-      prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
+      if (UsesTensorBasis(*fespace))
+      {
+         prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
+      }
    }
    else
    {
