@@ -190,6 +190,51 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       return;
    }
 
+/*
+
+dimension
+2
+
+# rank attr geom ref_type {node/child}
+# - geom can be zero
+# - number of roots is implied: number of elements without parent
+elements
+N
+rank attr geom ref_type n1 n2 n3 n4
+rank attr geom 0 ch1 ch2 ch3 ch4
+rank attr 0 # unused element
+
+# attr geom {node}
+boundary
+N
+attr geom n1 n2
+attr geom n1 n2
+
+# vertex hierarchy - vertex nodes only
+# id p1 p2
+# if node has no parents (missing in this section), it is a top-level node
+vertex_parents
+N # number of records that follow, not the total number of nodes
+id p1 p2
+id p1 p2
+
+# root states - optional
+# N is the number of records, not the number of root elements
+# if a root element doesn't have state set here, it is assumed to be 0
+root_state
+N
+s
+s
+
+# top vertex coords - optional
+#
+vertices
+N
+spaceDim/"nodes"
+x y z
+x y z
+
+*/
    MFEM_ABORT("TODO");
 }
 
