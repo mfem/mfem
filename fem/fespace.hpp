@@ -657,7 +657,10 @@ public:
    long GetSequence() const { return sequence; }
 
    /// Return whether or not the space is discontinuous (L2)
-   bool IsDGSpace() const { return dynamic_cast<const L2_FECollection*>(fec); }
+   bool IsDGSpace() const
+   {
+      return dynamic_cast<const L2_FECollection*>(fec) != NULL;
+   }
 
    void Save(std::ostream &out) const;
 
