@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool visualization = 1;
+   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -60,6 +61,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX reader visualization.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -321,7 +326,23 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << *x0 << flush;
    }
 
-   // 15. Free the used memory.
+   // 15. Optionally output a BP (binary pack file) ADIOS2DataCollection
+   //     ADIOS2: https://adios2.readthedocs.io
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      const std::string collection_name = "ex8-p_" + postfix + ".bp";
+
+      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, pmesh);
+      adios2_dc.RegisterField("sol",x0);
+      adios2_dc.Save();
+   }
+#endif
+
+   // 16. Free the used memory.
    delete trueF;
    delete Shatinv;
    delete S0inv;

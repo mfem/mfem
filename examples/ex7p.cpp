@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool always_snap = false;
    bool visualization = 1;
+   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&elem_type, "-e", "--elem",
@@ -65,6 +66,10 @@ int main(int argc, char *argv[])
                   "--snap-at-the-end",
                   "If true, snap nodes to the sphere initially and after each refinement "
                   "otherwise, snap only after the last refinement");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX reader visualization.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -307,7 +312,27 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 14. Free the used memory.
+   // 14. Optionally output a BP (binary pack file) ADIOS2DataCollection
+   //     ADIOS2: https://adios2.readthedocs.io
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      std::string postfix = std::to_string(elem_type) + "_"+
+                            std::to_string(order) + "_" +
+                            std::to_string(ref_levels);
+      if (amr > 0) { postfix += "_amr" + std::to_string(amr);}
+      const std::string collection_name = "ex7-p_" + postfix + ".bp";
+
+      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, pmesh);
+      //NOTE: only FullData works, Refinement element id blows up
+      adios2_dc.SetParameter("FullData", "On");
+      adios2_dc.SetParameter("RefinedData", "Off");
+      adios2_dc.RegisterField("sol",&x);
+      adios2_dc.Save();
+   }
+#endif
+
+   // 15. Free the used memory.
    delete pcg;
    delete amg;
    delete fespace;
