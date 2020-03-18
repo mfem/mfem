@@ -451,6 +451,39 @@ void DofInfo::FillNeighborDofs()
          }
       }
    }
+   for (e = 0; e < fes->GetNBE(); e++)
+   {
+      const int bdr_attr = mesh->GetBdrAttribute(e);
+      FaceElementTransformations *tr = mesh->GetBdrFaceTransformations(e);
+
+      if (tr != NULL)
+      {
+         const int el = tr->Elem1No;
+         if (dim == 1)
+         {
+            mesh->GetElementVertices(el, bdrs);
+
+            for (i = 0; i < NumBdrs; i++)
+            {
+               if (bdrs[i] == mesh->GetBdrElementEdgeIndex(e))
+               {
+                  for (j = 0; j < NumFaceDofs; j++)
+                  {
+                     NbrDofs(i, j, el) = -bdr_attr;
+                  }
+               }
+            }
+         }
+         // TODO else
+      }
+      else
+      {
+         MFEM_ABORT("Something went wrong.");
+      }
+   }
+   for (e = 0; e < ne; e++)
+      NbrDofs(e).Print();
+
    delete face_to_el;
 }
 
