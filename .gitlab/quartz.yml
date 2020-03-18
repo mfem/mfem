@@ -144,10 +144,6 @@ baselinecheck_mfem_intel_quartz:
   extends: [.baselinecheck_mfem, .on_quartz]
   needs: [allocate_quartz]
 
-  #samplebaselinecheck_mfem_gcc_6_1_0_quartz:
-  #  extends: [.samplebaselinecheck_mfem, .with_gcc_6_1_0, .on_quartz]
-  #  needs: [allocate_quartz]
-
 baselinepublish_mfem_quartz:
   extends: [.rebaseline_mfem, .on_quartz]
   needs: [baselinecheck_mfem_intel_quartz]
