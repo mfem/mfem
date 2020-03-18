@@ -184,7 +184,7 @@ double discr_values(const Vector &x)
 
 double ori_values_2d(const Vector &x)
 {
-   return M_PI * yc * (1.0 - x(1)) * cos(2 * M_PI * x(0));
+   return M_PI * x(1) * (1.0 - x(1)) * cos(2 * M_PI * x(0));
 }
 
 double aspr_values_2d(const Vector &x)
