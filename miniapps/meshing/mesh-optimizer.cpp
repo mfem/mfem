@@ -63,7 +63,7 @@
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -166,10 +166,6 @@ double ind_values(const Vector &x)
 
 double discr_values(const Vector &x)
 {
-   double val = 0.;
-   const double X = x(0);
-   const double Y = x(1);
-
    double xc = x(0)-0.5, yc = x(1)-0.5;
    double th = 22.5*M_PI/180.;
    double xn =  cos(th)*xc + sin(th)*yc;
@@ -188,8 +184,7 @@ double discr_values(const Vector &x)
 
 double ori_values_2d(const Vector &x)
 {
-   const double xc = x(0), yc = x(1);
-   return M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+   return M_PI * yc * (1.0 - x(1)) * cos(2 * M_PI * x(0));
 }
 
 double aspr_values_2d(const Vector &x)
@@ -200,7 +195,7 @@ double aspr_values_2d(const Vector &x)
    double yn = -sin(th)*xc + cos(th)*yc;
    double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
    double stretch = 1/cos(th2);
-   xc /= stretch; yc /= stretch;
+   xc = xn/stretch; yc = yn/stretch;
 
    double tfac = 20;
    double s1 = 3;

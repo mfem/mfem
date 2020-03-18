@@ -977,7 +977,8 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec()
 
 void DiscreteAdaptTC::SetParDiscreteTargetBase(ParGridFunction &tspec_)
 {
-   const int vdim = tspec_.FESpace()->GetVDim();
+   const int vdim = tspec_.FESpace()->GetVDim(),
+             cnt = tspec_.Size()/vdim;
    if (ncomp==0)
    {
       tspec_fes   = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
@@ -994,7 +995,6 @@ void DiscreteAdaptTC::SetParDiscreteTargetBase(ParGridFunction &tspec_)
    }
 
    ncomp += vdim;
-   int cnt = tspec_.Size()/vdim;
    //need to append data to tspec
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
@@ -1047,7 +1047,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetOrientation(ParGridFunction &tspec_)
 void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
-             cnt   = tspec_.Size()/vdim;
+             cnt  = tspec_.Size()/vdim;
 
    if (ncomp == 0)
    {
@@ -1149,23 +1149,18 @@ void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
 void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                                       ElementTransformation &T,
                                                       int dofidx, int dir,
-                                                      const Vector &IntData,
-                                                      bool MixTerm)
+                                                      const Vector &IntData)
 {
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   int cnt    = tspec.Size()/ncomp;             //dofs per scalar-field
-   int dim    = tspec_fes->GetFE(0)->GetDim();  //dim
-   int dimmax;                                  //maximum number of components in tspec_perth/2h/mix
-   (!MixTerm) ? dimmax = ncomp : dimmax = 1+2*(dim-2);
+   const int cnt    = tspec.Size()/ncomp;            //dofs per scalar-field
 
    for (int i = 0; i < ncomp; i++)
    {
-      tspec(dofs[dofidx]+i*cnt) = IntData(dofs[dofidx]+i*cnt+dir*cnt*dimmax);
+      tspec(dofs[dofidx]+i*cnt) = IntData(dofs[dofidx] + i*cnt + dir*cnt*ncomp);
    }
-
 }
 
 void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
@@ -1175,10 +1170,10 @@ void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   int cnt = tspec.Size()/ncomp;
-   for (int i=0; i<ncomp; i++)
+   const int cnt = tspec.Size()/ncomp;
+   for (int i = 0; i < ncomp; i++)
    {
-      tspec(dofs[dofidx]+i*cnt) = tspec_sav(dofs[dofidx]+i*cnt);
+      tspec(dofs[dofidx] + i*cnt) = tspec_sav(dofs[dofidx] + i*cnt);
    }
 }
 
@@ -1887,7 +1882,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
          if (discr_tc)
          {
             discr_tc->UpdateTargetSpecificationAtNode(
-               el, T, i, j, discr_tc->GetTspecPert1H(), false);
+               el, T, i, j, discr_tc->GetTspecPert1H());
          }
          elvect(j*dof+i) = GetFDDerivative(el, T, elfunmod, i, j, e_fx, true);
          if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
@@ -1921,11 +1916,11 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                if (discr_tc)
                {
                   discr_tc->UpdateTargetSpecificationAtNode(
-                     el, T, j, k2, discr_tc->GetTspecPert1H(),false);
+                     el, T, j, k2, discr_tc->GetTspecPert1H());
                   if (j != i)
                   {
                      discr_tc->UpdateTargetSpecificationAtNode(
-                        el, T, i, k1, discr_tc->GetTspecPert1H(),false);
+                        el, T, i, k1, discr_tc->GetTspecPert1H());
                   }
                   else // j==i
                   {
@@ -1933,12 +1928,12 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
                      {
                         int idx = k1+k2-1;
                         discr_tc->UpdateTargetSpecificationAtNode(
-                           el, T, i, idx, discr_tc->GetTspecPertMixH(),true);
+                           el, T, i, idx, discr_tc->GetTspecPertMixH());
                      }
                      else // j==i && k1==k2
                      {
                         discr_tc->UpdateTargetSpecificationAtNode(
-                           el, T, i, k1, discr_tc->GetTspecPert2H(),false);
+                           el, T, i, k1, discr_tc->GetTspecPert2H());
                      }
                   }
                }
