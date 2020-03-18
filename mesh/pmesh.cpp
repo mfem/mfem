@@ -1066,7 +1066,11 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      have_face_nbr_data(false),
      pncmesh(NULL)
 {
-   SetCurvature(1, true, spaceDim);
+   if (Nodes != NULL)
+   {
+      // This call will turn the Nodes into a ParGridFunction
+      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim);
+   }
 
    // Need to initialize:
    // - shared_edges, shared_{trias,quads}
