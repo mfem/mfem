@@ -3597,14 +3597,9 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    if (orig_mesh->GetNodes())
    {
-      Vector node_coordinates_vec(
-         node_coordinates.Data(),
-         node_coordinates.Width()*node_coordinates.Height());
       L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
       FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
-      GridFunction nodes_dg(&fes_dg);
-      nodes_dg = node_coordinates_vec;
-
+      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
       bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
       SetCurvature(1, discont, spaceDim);
       Nodes->ProjectGridFunction(nodes_dg);
