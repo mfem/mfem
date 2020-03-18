@@ -553,22 +553,12 @@ void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 
 void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
-   hFESpace.GetProlongationMatrix()->Mult(x, tmpH);
+   // TODO: The following call to GetRestrictionMatrix still requires a
+   //       matrix and should be implemented in a matrix-free way similar
+   //       to the GetProlongationMatrix method.
+   hFESpace.GetRestrictionMatrix()->MultTranspose(x, tmpH);
    localTransferOperator->MultTranspose(tmpH, tmpL);
-
-   int ldofSize  = lFESpace.GetVSize();
-
-   const double *tmpLdata = tmpL.HostRead();
-   double *ydata = y.HostWrite();
-
-   for (int i = 0; i < ldofSize; ++i)
-   {
-      int ltdof = lFESpace.GetLocalTDofNumber(i);
-      if (ltdof >= 0)
-      {
-         ydata[ltdof] = tmpLdata[i];
-      }
-   }
+   lFESpace.GetProlongationMatrix()->MultTranspose(tmpL, y);
 }
 #endif
 
