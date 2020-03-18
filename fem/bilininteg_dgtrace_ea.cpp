@@ -231,10 +231,10 @@ void DGTraceIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
 }
 
 void DGTraceIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
-                                                Vector &ea_data_int,
-                                                Vector &ea_data_ext)
+                                                Vector &ea_data_bdr)
 {
-   SetupEA(fes, ea_data_int, ea_data_ext, FaceType::Boundary);
+   //TODO this is wrong
+   SetupEA(fes, ea_data_bdr, ea_data_bdr, FaceType::Boundary);
 }
 
 }

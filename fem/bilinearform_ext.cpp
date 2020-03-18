@@ -337,11 +337,10 @@ void EABilinearFormExtension::Assemble()
 {
    SetupRestrictionOperators();
 
-   const int ne = trialFes->GetMesh()->GetNE();
-   const int trialDofs = trialFes->GetFE(0)->GetDof();
-   const int testDofs = testFes->GetFE(0)->GetDof();
+   ne = trialFes->GetMesh()->GetNE();
+   elemDofs = trialFes->GetFE(0)->GetDof();
 
-   ea_data.SetSize(ne*trialDofs*testDofs, Device::GetMemoryType());
+   ea_data.SetSize(ne*elemDofs*elemDofs, Device::GetMemoryType());
    ea_data.UseDevice(true);
    ea_data = 0.0;
 
@@ -352,18 +351,31 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data);
    }
 
+   faceDofs = trialFes->GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+
+   nf_int = trialFes->GetNFbyType(FaceType::Interior);
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
+   if (intFaceIntegratorCount>0)
+   {
+      ea_data_int.SetSize(nf_int*faceDofs*faceDofs, Device::GetMemoryType());
+      ea_data_ext.SetSize(nf_int*faceDofs*faceDofs, Device::GetMemoryType());
+   }
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
       intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),ea_data_int,ea_data_ext);
    }
 
+   nf_bdr = trialFes->GetNFbyType(FaceType::Boundary);
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
+   if (boundFaceIntegratorCount>0)
+   {
+      ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
+   }
    for (int i = 0; i < boundFaceIntegratorCount; ++i)
    {
-      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_int_bdr,ea_data_ext_bdr);
+      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr);
    }
 }
 
@@ -434,11 +446,8 @@ void EABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   ElementMatrix Ae(ea_data, testFes->GetNE(), testFes->GetFE(0)->GetDof());
+   ElementMatrix Ae(ea_data, ne, elemDofs);
 
-   // Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-
-   // const int iSz = integrators.Size();
    if (DeviceCanUseCeed() || !elem_restrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
@@ -453,37 +462,35 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       elem_restrict->MultTranspose(localY, y);
    }
 
-   // Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   // const int iFISz = intFaceIntegrators.Size();
-   // if (int_face_restrict_lex && iFISz>0)
-   // {
-   //    int_face_restrict_lex->Mult(x, faceIntX);
-   //    if (faceIntX.Size()>0)
-   //    {
-   //       faceIntY = 0.0;
-   //       for (int i = 0; i < iFISz; ++i)
-   //       {
-   //          intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
-   //       }
-   //       int_face_restrict_lex->MultTranspose(faceIntY, y);
-   //    }
-   // }
+   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+   const int iFISz = intFaceIntegrators.Size();
+   if (int_face_restrict_lex && iFISz>0)
+   {
+      int_face_restrict_lex->Mult(x, faceIntX);
+      if (faceIntX.Size()>0)
+      {
+         faceIntY = 0.0;
+         FaceMatrixInt fmat_int(ea_data_int, nf_int, faceDofs);
+         FaceMatrixExt fmat_ext(ea_data_ext, nf_int, faceDofs);
+         fmat_int.AddMult(faceIntX, faceIntY);
+         fmat_ext.AddMult(faceIntX, faceIntY);
+         int_face_restrict_lex->MultTranspose(faceIntY, y);
+      }
+   }
 
-   // Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   // const int bFISz = bdrFaceIntegrators.Size();
-   // if (bdr_face_restrict_lex && bFISz>0)
-   // {
-   //    bdr_face_restrict_lex->Mult(x, faceBdrX);
-   //    if (faceBdrX.Size()>0)
-   //    {
-   //       faceBdrY = 0.0;
-   //       for (int i = 0; i < bFISz; ++i)
-   //       {
-   //          bdrFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
-   //       }
-   //       bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
-   //    }
-   // }
+   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
+   const int bFISz = bdrFaceIntegrators.Size();
+   if (bdr_face_restrict_lex && bFISz>0)
+   {
+      bdr_face_restrict_lex->Mult(x, faceBdrX);
+      if (faceBdrX.Size()>0)
+      {
+         faceBdrY = 0.0;
+         FaceMatrixInt fmat_bdr(ea_data_bdr, nf_bdr, faceDofs);
+         fmat_bdr.AddMult(faceBdrX, faceBdrY);
+         bdr_face_restrict_lex->MultTranspose(faceBdrY, y);
+      }
+   }
 }
 
 void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
