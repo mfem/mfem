@@ -17,11 +17,11 @@ set(SRCS
   bilininteg_dgtrace.cpp
   bilininteg_diffusion.cpp
   bilininteg_divergence.cpp
+  bilininteg_hcurl.cpp
   bilininteg_gradient.cpp
   bilininteg_mass.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
-  bilininteg_hcurl.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
