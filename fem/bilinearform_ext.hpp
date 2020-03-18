@@ -82,8 +82,12 @@ public:
 class EABilinearFormExtension : public BilinearFormExtension
 {
 protected:
+   int ne;
+   int elemDofs;
    Vector ea_data;
-   Vector ea_data_int, ea_data_ext, ea_data_int_bdr, ea_data_ext_bdr;
+   int nf_int, nf_bdr;
+   int faceDofs;
+   Vector ea_data_int, ea_data_ext, ea_data_bdr;
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;

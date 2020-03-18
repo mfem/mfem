@@ -89,8 +89,7 @@ public:
                                         Vector &ea_data_ext);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
-                                        Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_bdr);
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -2551,8 +2550,7 @@ public:
                                         Vector &ea_data_ext);
 
    virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
-                                        Vector &ea_data_int,
-                                        Vector &ea_data_ext);
+                                        Vector &ea_data_bdr);
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);

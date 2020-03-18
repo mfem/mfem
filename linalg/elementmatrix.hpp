@@ -97,11 +97,11 @@ class FaceMatrixInt
 private:
    const int nf;
    const int ndofs;// on the face
-   Vector &data;
+   const Vector &data;
 
 public:
-   FaceMatrixInt(const int nf_int, const int ndofs, Vector &vec_int)
-   : nf(nf_int), ndofs(ndofs), data(vec_int)
+   FaceMatrixInt(const Vector &vec, const int nf, const int ndofs)
+   : nf(nf), ndofs(ndofs), data(vec)
    {
    }
 
@@ -131,16 +131,16 @@ public:
    }
 };
 
-class FaceMatrixBdr
+class FaceMatrixExt
 {
 private:
    const int nf;
    const int ndofs;// on the face
-   Vector &data;
+   const Vector &data;
 
 public:
-   FaceMatrixBdr(const int nf_bdr, const int ndofs, Vector &vec_bdr)
-   : nf(nf_bdr), ndofs(ndofs), data(vec_bdr)
+   FaceMatrixExt(const Vector &vec, const int nf, const int ndofs)
+   : nf(nf), ndofs(ndofs), data(vec)
    {
    }
 
