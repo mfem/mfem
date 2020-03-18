@@ -5079,8 +5079,6 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
    InitRootState(root_count);
    InitGeomFlags();
-
-   Update();
 }
 
 void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
@@ -5089,8 +5087,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    MFEM_ASSERT(nodes.Size() == 0, "");
 
    std::string ident;
-   int attr, geom;
-   int num_elem, num_bnd, num_vert;
+   int count, attr, geom;
 
    // load dimension
    skip_comment_lines(input, '#');
@@ -5103,9 +5100,9 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    input >> ident;
    MFEM_VERIFY(ident == "elements", "invalid mesh file");
 
-   input >> num_elem;
+   input >> count;
    int max_id = -1;
-   for (int i = 0; i < num_elem; i++)
+   for (int i = 0; i < count; i++)
    {
       input >> attr >> geom;
 
@@ -5124,28 +5121,12 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
       }
    }
 
-   // create top level nodes
-   for (int id = 0; id <= max_id; id++)
-   {
-      // top-level nodes are special: id == p1 == p2 == orig. vertex id
-      int node = nodes.GetId(id, id);
-      MFEM_CONTRACT_VAR(node);
-      MFEM_ASSERT(node == id, "");
-   }
-
-   // create edge nodes and faces
-   for (int i = 0; i < num_elem; i++)
-   {
-      ReferenceElement(i);
-      RegisterFaces(i);
-   }
-
    // load boundary
    skip_comment_lines(input, '#');
    input >> ident;
    MFEM_VERIFY(ident == "boundary", "invalid mesh file");
-   input >> num_bnd;
-   for (int i = 0; i < num_bnd; i++)
+   input >> count;
+   for (int i = 0; i < count; i++)
    {
       input >> attr >> geom;
 
@@ -5153,28 +5134,37 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
       if (geom == Geometry::SQUARE)
       {
          input >> v1 >> v2 >> v3 >> v4;
-         Face* face = faces.Find(v1, v2, v3, v4);
-         MFEM_VERIFY(face, "boundary face not found.");
+         Face* face = faces.Get(v1, v2, v3, v4);
+         //MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = attr;
       }
       else if (geom == Geometry::TRIANGLE)
       {
          input >> v1 >> v2 >> v3;
-         Face* face = faces.Find(v1, v2, v3);
-         MFEM_VERIFY(face, "boundary face not found.");
+         Face* face = faces.Get(v1, v2, v3);
+         //MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = attr;
       }
       else if (geom == Geometry::SEGMENT)
       {
          input >> v1 >> v2;
-         Face* face = faces.Find(v1, v1, v2, v2);
-         MFEM_VERIFY(face, "boundary face not found.");
+         Face* face = faces.Get(v1, v1, v2, v2);
+         //MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = attr;
       }
       else
       {
          MFEM_ABORT("unsupported boundary element geometry: " << geom);
       }
+   }
+
+   // create top level nodes
+   for (int id = 0; id <= max_id; id++)
+   {
+      // top-level nodes are special: id == p1 == p2 == orig. vertex id
+      int node = nodes.GetId(id, id);
+      MFEM_CONTRACT_VAR(node);
+      MFEM_ASSERT(node == id, "");
    }
 
    // load vertex hierarchy
@@ -5199,16 +5189,16 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // load vertices
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-   input >> num_vert;
+   input >> count;
    input >> std::ws >> ident;
    if (ident != "nodes")
    {
       spaceDim = atoi(ident.c_str());
 
-      top_vertex_pos.SetSize(3*num_vert);
+      top_vertex_pos.SetSize(3*count);
       top_vertex_pos = 0.0;
 
-      for (int i = 0; i < num_vert; i++)
+      for (int i = 0; i < count; i++)
       {
          for (int j = 0; j < spaceDim; j++)
          {
@@ -5224,9 +5214,16 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
       curved = 1;
    }
 
-   InitRootState(num_elem);
-   InitGeomFlags();
+   // create edge nodes and faces
+   UpdateLeafElements();
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      int elem = leaf_elements[i];
+      ReferenceElement(elem);
+      RegisterFaces(elem);
+   }
 
+   // NOTE: InitRootState and InitGeomFlags already called in LoadCoarseElements
    Update();
 }
 

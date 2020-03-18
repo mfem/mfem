@@ -8364,7 +8364,8 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
    else
    {
       // nonconforming format (NOTE: includes the former v1.1, now deprecated)
-      out << "MFEM nonconforming mesh v1.0\n";
+      //out << "MFEM nonconforming mesh v1.0\n";
+      out << "MFEM mesh v1.1\n";
    }
 
    // optional
