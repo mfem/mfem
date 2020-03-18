@@ -29,38 +29,9 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
-#if defined(MFEM_DEBUG) || defined(MFEM_USE_MPI)
-   int myid = 0;
-#endif
-   Mesh *m = mesh;
-
-#ifdef MFEM_USE_MPI
-   if (pfes) { MPI_Comm_rank(pfes->GetComm(), &myid); }
-   if (pmesh) { m = pmesh; }
-#endif
-
-   MFEM_VERIFY(m != NULL, "No mesh has been given to the AdaptivityEvaluator.");
-
-   // This will be used to move the positions.
-   GridFunction *mesh_nodes = m->GetNodes();
-   *mesh_nodes = nodes0;
-   int dim, ncomp;
-   if (fes)
-   {
-      dim     = fes->GetFE(0)->GetDim();
-      ncomp   = fes->GetVDim();
-   }
-   else
-   {
-#ifdef MFEM_USE_MPI
-      if (pfes)
-      {
-         dim     = pfes->GetFE(0)->GetDim();
-         ncomp   = pfes->GetVDim();
-      }
-#endif
-   }
-   const int pnt_cnt = new_nodes.Size()/dim;
+   const int dim     = fes->GetFE(0)->GetDim(),
+             ncomp   = fes->GetVDim(),
+             pnt_cnt = new_nodes.Size()/dim;
 
    new_field = field0;
 
@@ -79,12 +50,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
 void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                                             Vector &new_field)
 {
-#if defined(MFEM_DEBUG) || defined(MFEM_USE_MPI)
-   int myid = 0;
-#endif
    Mesh *m = mesh;
 
 #ifdef MFEM_USE_MPI
+   int myid = 0;
    if (pfes) { MPI_Comm_rank(pfes->GetComm(), &myid); }
    if (pmesh) { m = pmesh; }
 #endif
@@ -133,21 +102,39 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    {
       min_h = std::min(min_h, m->GetElementSize(i));
    }
-   double v_max = 0.0;
-   const int s = u.FESpace()->GetVSize() / 2;
+   double v_max = 0.0, v_max_glob = 0.0;
+   const int dim = fes->GetFE(0)->GetDim(),
+             s = new_field.Size() ;
+
    for (int i = 0; i < s; i++)
    {
-      const double vel = u(i) * u(i) + u(i+s) * u(i+s);
+      double vel = 0.;
+      for (int j = 0; j < dim; j++)
+      {
+         vel += u(i+j*s)*u(i+j*s);
+      }
       v_max = std::max(v_max, vel);
    }
-   if (v_max == 0.0)
+
+   v_max_glob = v_max;
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(&v_max, &v_max_glob, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+   }
+#endif
+   v_max = v_max_glob;
+
+   if (v_max == 0.0) // No need to change the field.
    {
       delete oper;
       delete fess;
+#ifdef MFEM_USE_MPI
       delete pfess;
-      // No need to change the field.
+#endif
       return;
    }
+
    v_max = std::sqrt(v_max);
    double dt = 0.5 * min_h / v_max;
    double glob_dt = dt;
@@ -164,12 +151,6 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    {
       if (t + glob_dt >= 1.0)
       {
-#ifdef MFEM_DEBUG
-         if (myid == 0)
-         {
-            mfem::out << "Remap took " << ti << " steps." << std::endl;
-         }
-#endif
          glob_dt = 1.0 - t;
          last_step = true;
       }
@@ -182,22 +163,22 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    if (pfes)
    {
       MPI_Allreduce(&minv, &glob_minv, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
-      MPI_Allreduce(&maxv, &glob_maxv, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      MPI_Allreduce(&maxv, &glob_maxv, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
    }
 #endif
-   minv = glob_minv;
-   maxv = glob_maxv;
 
    // Trim the overshoots and undershoots.
-   for (int i = 0; i < new_field.Size(); i++)
+   for (int i = 0; i < s; i++)
    {
-      if (new_field(i) < minv) { new_field(i) = minv; }
-      if (new_field(i) > maxv) { new_field(i) = maxv; }
+      if (new_field(i) < glob_minv) { new_field(i) = glob_minv; }
+      if (new_field(i) > glob_maxv) { new_field(i) = glob_maxv; }
    }
 
    delete oper;
    delete fess;
+#ifdef MFEM_USE_MPI
    delete pfess;
+#endif
 }
 
 SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,

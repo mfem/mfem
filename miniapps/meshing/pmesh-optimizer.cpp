@@ -181,8 +181,7 @@ double disc_values(const Vector &x)
    double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
    if (wgt > 1) { wgt = 1; }
    if (wgt < 0) { wgt = 0; }
-   val = wgt;
-   return val;
+   return wgt;
 }
 
 double ori_values(const Vector &x)
@@ -213,7 +212,33 @@ double ori_values(const Vector &x)
    return 0.0;
 }
 
-void aspr_ratio_values_3d(const Vector &x, Vector &v)
+double ori_values_2d(const Vector &x)
+{
+   const double xc = x(0), yc = x(1);
+   return M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+}
+
+double aspr_values_2d(const Vector &x)
+{
+   double xc = x(0)-0.5, yc = x(1)-0.5;
+   double th = 22.5*M_PI/180.;
+   double xn =  cos(th)*xc + sin(th)*yc;
+   double yn = -sin(th)*xc + cos(th)*yc;
+   double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+   double stretch = 1/cos(th2);
+   xc /= stretch; yc /= stretch;
+
+   double tfac = 20;
+   double s1 = 3;
+   double s2 = 2;
+   double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
+                - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+   if (wgt > 1) { wgt = 1; }
+   if (wgt < 0) { wgt = 0; }
+   return 0.1 + 1*(1-wgt)*(1-wgt);
+}
+
+void aspr_values_3d(const Vector &x, Vector &v)
 {
    int dim = x.Size();
    v.SetSize(dim);
@@ -287,7 +312,6 @@ public:
                       - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
-         double  val = wgt;
 
          xc = pos(0), yc = pos(1);
          double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
@@ -297,7 +321,7 @@ public:
          K(0, 1) = -sin(theta);
          K(1, 1) =  cos(theta);
 
-         double asp_ratio_tar = 0.1 + 1*(1-val)*(1-val);
+         double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
 
          K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
          K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
@@ -575,7 +599,7 @@ int main (int argc, char *argv[])
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
-   ParGridFunction size, aspr, disc;
+   ParGridFunction size, aspr, disc, ori;
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction aspr3d;
 
@@ -606,6 +630,41 @@ int main (int argc, char *argv[])
          tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
          tc->SetParDiscreteTargetSize(size);
+         tc->FinalizeParDiscreteTargetSpec();
+         target_c = tc;
+         break;
+      }
+      case 60:
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+#ifdef MFEM_USE_GSLIB
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
+#endif
+
+         ori.SetSpace(&ind_fes);
+         FunctionCoefficient ori_coeff(ori_values_2d);
+         ori.ProjectCoefficient(ori_coeff);
+
+         if (metric_id == 14)
+         {
+            size.SetSpace(&ind_fes);
+            ConstantCoefficient ind_coeff(0.1*0.1);
+            size.ProjectCoefficient(ind_coeff);
+            tc->SetParDiscreteTargetSize(size);
+         }
+
+         if (metric_id == 87)
+         {
+            aspr.SetSpace(&ind_fes);
+            FunctionCoefficient aspr_coeff(aspr_values_2d);
+            aspr.ProjectCoefficient(aspr_coeff);
+            tc->SetParDiscreteTargetAspectRatio(aspr);
+         }
+
+         tc->SetParDiscreteTargetOrientation(ori);
          tc->FinalizeParDiscreteTargetSpec();
          target_c = tc;
          break;
@@ -721,7 +780,7 @@ int main (int argc, char *argv[])
 #else
          tc->SetAdaptivityEvaluator(new AdvectorCG);
 #endif
-         VectorFunctionCoefficient fd_aspr3d(dim, aspr_ratio_values_3d);
+         VectorFunctionCoefficient fd_aspr3d(dim, aspr_values_3d);
          aspr3d.SetSpace(&ind_fesv);
          aspr3d.ProjectCoefficient(fd_aspr3d);
 
