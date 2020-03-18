@@ -154,10 +154,9 @@ double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, in
    return abs(VelocityVector * n);
 }
 
-double Advection::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
-                                  int n, int e, int i, int attr, int DofInd) const
+void Advection::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
 {
-   return inflow(DofInd);
+   return;
 }
 
 void Advection::ComputeErrors(Array<double> &errors, const GridFunction &u,

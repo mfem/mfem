@@ -112,36 +112,45 @@ double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    }
 }
 
-double ShallowWater::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
-                                     int n, int e, int i, int attr, int DofInd) const
+void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
 {
    switch (attr)
    {
-      case 1: // Land boundary
-         if (n == 0) { return x(DofInd); }
+      case -1: // land boundary
+      {
+         if (normal.Size() == 1)
+         {
+            y2(0) = y1(0);
+            y2(1) = -y1(1);
+         }
          else
          {
-            switch (normal.Size())
-            {
-            case 1:
-               return x(DofInd) - 2. * (x(DofInd) * normal(0)) * normal(0);
-            case 2:
-               if (n == 1)
-               {
-                  return x(DofInd) - 2. * (x(DofInd) * normal(0) + x(DofInd + ne * nd) * normal(1)) * normal(0);
-               }
-               else
-               {
-                  return x(DofInd) - 2. * (x(DofInd - ne * nd) * normal(0) + x(DofInd) * normal(1)) * normal(1);
-               }
-            default:
-               MFEM_ABORT("Invalid space dimension.");
-            }
+            double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1);
+            y2(0) = y1(0);
+            y2(1) = y1(1) - 2. * NormalComponent * normal(0);
+            y2(2) = y1(2) - 2. * NormalComponent * normal(1);
          }
+         return;
+      }
+      case -2: // radiation boundary
+      {
+         y2 = y1;
+         return;
+      }
+      case -3: // river boundary
+      {
+         return;
+      }
+      case -4: // open sea boundary
+      {
+         double tmp = y2(0);
+         y2 = y1;
+         y2(0) = tmp;
+         return;
+      }
       default:
          MFEM_ABORT("Invalid boundary attribute.");
-      }
-      return 0.;
+   }
 }
 
 void ShallowWater::ComputeErrors(Array<double> &errors, const GridFunction &u,

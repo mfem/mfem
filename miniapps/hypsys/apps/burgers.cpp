@@ -42,10 +42,9 @@ double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int 
    return abs(u(0) * n.Sum());
 }
 
-double Burgers::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
-                                int n, int e, int i, int attr, int DofInd) const
+void Burgers::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
 {
-   return inflow(DofInd);
+   return;
 }
 
 void Burgers::ComputeErrors(Array<double> &errors, const GridFunction &u,

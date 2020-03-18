@@ -47,11 +47,9 @@ double TEMPLATE::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int
    return 0.;
 }
 
-double TEMPLATE::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
-                                 int n, int e, int i, int attr, int DofInd) const
+void TEMPLATE::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
 {
    //TODO
-   return 0.;
 }
 
 void TEMPLATE::ComputeErrors(Array<double> &errors, const GridFunction &u,

@@ -50,8 +50,7 @@ public:
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const = 0;
    virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const = 0;
-   virtual double EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
-                                  int n, int e, int i, int attr, int DofInd) const = 0;
+   virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const = 0;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const = 0;
    virtual void WriteErrors(const Array<double> &errors) const

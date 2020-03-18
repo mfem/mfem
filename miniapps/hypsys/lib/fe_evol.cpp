@@ -247,9 +247,7 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
 
          if (nbr < 0)
          {
-            // TODO more general boundary conditions, Riemann problem
-            uNbr = hyp->EvaluateBdrCond(inflow, x, normal,
-                                        n, e, i, dofs.ElBdrAttr(e, i), DofInd);
+            uNbr = inflow(DofInd);
          }
          else
          {
@@ -262,15 +260,9 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          y2(n) += uNbr * ShapeEvalFace(i,j,k);
       }
    }
-   if (nbr < 0)
+   if (nbr < 0) // TODO better distinction
    {
-      // y2 = y1;
-      y2(0) = y1(0);
-      y2(1) = -y1(1);
-      y2(2) = y1(2);
-
-      // y2(1) = y1(1) - 2. * (y1(1) * normal(0) + y1(2) * normal(1)) * normal(0);
-      // y2(2) = y1(2) - 2. * (y1(1) * normal(0) + y1(2) * normal(1)) * normal(1);
+      hyp->SetBdrCond(y1, y2, normal, nbr);
    }
 }
 

@@ -130,8 +130,8 @@ double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i)
       case 3:
          return abs(u(1)*n(0)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 4:
-         return abs(u(1)*n(0) + u(2)*n(1)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(
-                                                            u) / u(0));
+         return abs(u(1)*n(0) + u(2)*n(1)) / u(0)
+                  + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 5:
          return abs(u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0) + sqrt(
                    SpHeatRatio * EvaluatePressure(u) / u(0));
@@ -140,11 +140,51 @@ double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i)
    }
 }
 
-double Euler::EvaluateBdrCond(const Vector &inflow, const Vector &x, const Vector &normal,
-                              int n, int e, int i, int attr, int DofInd) const
+void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
 {
-   //TODO
-   return 0.;
+   switch (attr)
+   {
+   case -1: // wall boundary
+   {
+      int dim = normal.Size();
+      if (dim == 1)
+      {
+         y2(0) = y1(0);
+         y2(1) = -y1(1);
+         y2(2) = y1(2);
+      }
+      else if (dim == 2)
+      {
+         double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1);
+         y2(0) = y1(0);
+         y2(1) = y1(1) - 2. * NormalComponent * normal(0);
+         y2(2) = y1(2) - 2. * NormalComponent * normal(1);
+         y2(3) = y1(3);
+      }
+      else
+      {
+         double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1) + y1(3) * normal(2);
+         y2(0) = y1(0);
+         y2(1) = y1(1) - 2. * NormalComponent * normal(0);
+         y2(2) = y1(2) - 2. * NormalComponent * normal(1);
+         y2(3) = y1(3) - 2. * NormalComponent * normal(2);
+         y2(4) = y1(4);
+      }
+      return;
+   }
+   case -2: // supersonic outlet
+   {
+      y2 = y1;
+      return;
+   }
+   case -3: // supersonic inlet
+   {
+      return;
+   }
+   // TODO subsonic in- and outlet
+   default:
+      MFEM_ABORT("Invalid boundary attribute.");
+   }
 }
 
 void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
