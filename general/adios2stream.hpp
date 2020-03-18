@@ -213,9 +213,9 @@ private:
    std::string VTKSchema() const noexcept;
 
    /**
-    * Checks if array of elements contains onlu contant types
+    * Checks if array of elements contains only constant types
     * @param elements array input to check
-    * @return true: types are constance, false: mixed types
+    * @return true: types are constant, false: mixed types
     */
    bool IsConstantElementType(const Array<Element*>& elements ) const noexcept;
 

@@ -310,13 +310,13 @@ public:
                             GridFunction &flux,
                             bool wcoef = true, int subdomain = -1);
 
-   /** Save the local portion of the ParGridFunction. It differs from the
+   /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */
    virtual void Save(std::ostream &out) const;
 
 #ifdef MFEM_USE_ADIOS2
-   /** Save the local portion of the ParGridFunction. It differs from the
+   /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */
    virtual void Save(

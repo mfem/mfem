@@ -310,7 +310,8 @@ public:
    virtual void Print(std::ostream &out = mfem::out) const;
 
 #ifdef MFEM_USE_ADIOS2
-   /** Print the part of the mesh in the calling processor using adios2 bp format. */
+   /** Print the part of the mesh in the calling processor using adios2 bp
+       format. */
    virtual void Print(adios2stream &out) const;
 #endif
 
