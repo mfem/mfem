@@ -571,6 +571,7 @@ FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
          for (int j = 0; j < master_dofs.Size(); j++)
          {
             double coef = I(i, j);
+            cout << "i = " << sdof << " j = " << master_dofs[j] << " coef = " << coef << endl;
             if (std::abs(coef) > 1e-12)
             {
                int mdof = master_dofs[j];
@@ -733,17 +734,17 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          {
             int q = GetEdgeDofs(edge, slave_dofs, var);
             if (q < 0) { break; }
-
+            cout << "order = " << q << endl;
             const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
-            master_fe->GetTransferMatrix(*slave_fe, T, I);
-
+            slave_fe->GetTransferMatrix(*master_fe, T, I);
+            I.Print();
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
       }
    }
 
    deps.Finalize();
-
+   deps.Print();
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;
    for (int i = 0; i < ndofs; i++)
@@ -835,7 +836,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
    cP->Finalize();
-
+   cP->Print();
    if (vdim > 1)
    {
       MakeVDimMatrix(*cP);
@@ -1900,7 +1901,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
 
    dofs.SetSize(0);
    dofs.Reserve(2*nv + ne);
-
+   cout << base << endl;
    for (int i = 0; i < 2; i++)
    {
       for (int j = 0; j < nv; j++)
@@ -1910,7 +1911,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
    }
    for (int j = 0; j < ne; j++)
    {
-      dofs.Append(base + j);
+      dofs.Append(nvdofs + base + j);
    }
 
    return p;

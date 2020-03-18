@@ -60,8 +60,8 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   int order = 1;
+   const char *mesh_file = "../data/quad-pFEM.mesh";
+   int order = 2;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -153,7 +153,6 @@ int main(int argc, char *argv[])
       }
       mfem::out << std::endl;
    }
-
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
