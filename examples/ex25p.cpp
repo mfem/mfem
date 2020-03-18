@@ -34,6 +34,7 @@ private:
    Array<BilinearForm*> bfs;
    Array<Array<int>*> essentialTrueDofs;
    ConstantCoefficient one;
+   HypreBoomerAMG* amg;
 
 public:
    /// Constructor for a multigrid diffusion operator for a given SpaceHierarchy. Uses Chebyshev accelerated smoothing.
@@ -79,6 +80,8 @@ public:
 
    virtual ~MultigridDiffusionOperator()
    {
+      delete amg;
+
       for (int i = 0; i < bfs.Size(); ++i)
       {
          delete bfs[i];
@@ -124,10 +127,18 @@ private:
       HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
       a->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
 
-      HypreBoomerAMG* amg = new HypreBoomerAMG(*hypreCoarseMat);
+      amg = new HypreBoomerAMG(*hypreCoarseMat);
       amg->SetPrintLevel(-1);
 
-      AddCoarsestLevel(hypreCoarseMat, amg, true, true);
+      CGSolver* pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg->SetPrintLevel(-1);
+      pcg->SetMaxIter(10);
+      pcg->SetRelTol(sqrt(1e-4));
+      pcg->SetAbsTol(0.0);
+      pcg->SetOperator(*hypreCoarseMat);
+      pcg->SetPreconditioner(*amg);
+
+      AddCoarsestLevel(hypreCoarseMat, pcg, true, true);
    }
 };
 
