@@ -3604,7 +3604,8 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
       GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
       bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
-      SetCurvature(1, discont, spaceDim);
+      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      SetCurvature(1, discont, spaceDim, dof_ordering);
       Nodes->ProjectGridFunction(nodes_dg);
    }
 
