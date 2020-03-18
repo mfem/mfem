@@ -1,25 +1,14 @@
 //                          MFEM Example 1 - NURBS Version
 //
-// Compile with: make ex1
+// Compile with: make nurbs_ex1
 //
-// Sample runs:  ex1 -m ../../data/square-disc.mesh
-//               ex1 -m ../../data/star.mesh
-//               ex1 -m ../../data/escher.mesh
-//               ex1 -m ../../data/fichera.mesh
-//               ex1 -m ../../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../../data/star-surf.mesh
-//               ex1 -m ../../data/square-disc-surf.mesh
-//               ex1 -m ../../data/inline-segment.mesh
-//               ex1 -m ../../data/amr-quad.mesh
-//               ex1 -m ../../data/amr-hex.mesh
-//               ex1 -m ../../data/fichera-amr.mesh
-//               ex1 -m ../../data/mobius-strip.mesh
-//               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
-//               ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+// Sample runs:  nurbs_ex1 -m square-nurbs.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m cube-nurbs.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
+//               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
+//               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
+//               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -43,6 +32,93 @@
 using namespace std;
 using namespace mfem;
 
+
+/** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
+    can be a scalar coefficient. */
+class Diffusion2Integrator: public BilinearFormIntegrator
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   Vector shape,laplace;
+#endif
+   Coefficient *Q;
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   Diffusion2Integrator() { Q = NULL; }
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   Diffusion2Integrator (Coefficient &q) : Q(&q) { }
+
+   /** Given a particular Finite Element
+       computes the element stiffness matrix elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      double w;
+
+#ifdef MFEM_THREAD_SAFE
+      Vector shape[nd];
+      Vector laplace(nd);
+#else
+      shape.SetSize(nd);
+      laplace.SetSize(nd);
+#endif
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order;
+         if (el.Space() == FunctionSpace::Pk)
+         {
+            order = 2*el.GetOrder() - 2;
+         }
+         else
+         {
+            order = 2*el.GetOrder() + dim - 1;
+         }
+
+         if (el.Space() == FunctionSpace::rQk)
+         {
+            ir = &RefinedIntRules.Get(el.GetGeomType(),order);
+         }
+         else
+         {
+            ir = &IntRules.Get(el.GetGeomType(),order);
+         }
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint(&ip);
+         w = -ip.weight * Trans.Weight();
+
+         el.CalcShape(ip, shape);
+         el.CalcPhysLaplacian(Trans, laplace);
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         for (int j = 0; j < nd; j++)
+         {
+            for (int i = 0; i < nd; i++)
+            {
+               elmat(i, j) += w*shape(i)*laplace(j);
+            }
+         }
+      }
+   }
+
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -52,6 +128,7 @@ int main(int argc, char *argv[])
    Array<int> slave(0);
    bool static_cond = false;
    bool visualization = 1;
+   bool ibp = 1;
    Array<int> order(1);
    order[0] = 1;
 
@@ -67,6 +144,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
+                  "--no-ibp",
+                  "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -92,7 +172,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -160,9 +240,35 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }
+
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
+
+   if (!ibp)
+   {
+      if (!mesh->NURBSext)
+      {
+         cout << "No integration by parts requires a NURBS mesh."<< endl;
+         return 2;
+      }
+      if (mesh->NURBSext->GetNP()>1)
+      {
+         cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
+              endl;
+         cout << "A C_1 discretisation is required."<< endl;
+         cout << "Currently only C_0 multipatch coupling implemented."<< endl;
+         return 3;
+      }
+      if (order[0]<2)
+      {
+         cout << "No integration by parts requires at least quadratic NURBS."<< endl;
+         cout << "A C_1 discretisation is required."<< endl;
+         return 4;
+      }
+   }
+
+
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -200,7 +306,14 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (ibp)
+   {
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+   else
+   {
+      a->AddDomainIntegrator(new Diffusion2Integrator(one));
+   }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -216,7 +329,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 10. Define a simple Jacobi preconditioner and use it to
    //     solve the system A X = B with PCG.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);

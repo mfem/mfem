@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 #include "catch.hpp"
@@ -510,50 +510,291 @@ TEST_CASE("3D Bilinear Mass Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
    FunctionCoefficient f3_coef(f3);
    FunctionCoefficient q3_coef(q3);
    FunctionCoefficient qf3_coef(qf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   SECTION("Operators on H1")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      H1_FECollection    fec_h1(order, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
-      SECTION("Operators on H1 for element type " + std::to_string(type))
+      GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+
+      SECTION("Mapping H1 to L2")
+      {
+         L2_FECollection    fec_l2(order - 1, dim);
+         FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+         BilinearForm m_l2(&fespace_l2);
+         m_l2.AddDomainIntegrator(new MassIntegrator());
+         m_l2.Assemble();
+         m_l2.Finalize();
+
+         GridFunction g_l2(&fespace_l2);
+
+         Vector tmp_l2(fespace_l2.GetNDofs());
+
+         SECTION("Without Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_l2);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+            CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_l2.ComputeL2Error(f3_coef) < tol );
+
+            MixedBilinearForm blfw(&fespace_l2, &fespace_h1);
+            blfw.AddDomainIntegrator(new MixedScalarMassIntegrator());
+            blfw.Assemble();
+            blfw.Finalize();
+
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+            REQUIRE( diff->MaxNorm() < tol );
+
+            delete blfT;
+            delete diff;
+         }
+         SECTION("With Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_l2);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
+            CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_l2.ComputeL2Error(qf3_coef) < tol );
+
+            MixedBilinearForm blfw(&fespace_l2, &fespace_h1);
+            blfw.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
+
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+            REQUIRE( diff->MaxNorm() < tol );
+
+            delete blfT;
+            delete diff;
+         }
+      }
+      SECTION("Mapping H1 to H1")
+      {
+         BilinearForm m_h1(&fespace_h1);
+         m_h1.AddDomainIntegrator(new MassIntegrator());
+         m_h1.Assemble();
+         m_h1.Finalize();
+
+         GridFunction g_h1(&fespace_h1);
+
+         Vector tmp_h1(fespace_h1.GetNDofs());
+
+         SECTION("Without Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_h1);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_h1.ComputeL2Error(f3_coef) < tol );
+         }
+         SECTION("With Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_h1);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
+            CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_h1.ComputeL2Error(qf3_coef) < tol );
+         }
+      }
+   }
+   SECTION("Operators on L2")
+   {
+      L2_FECollection    fec_l2(order, dim);
+      FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+      GridFunction f_l2(&fespace_l2); f_l2.ProjectCoefficient(f3_coef);
+
+      SECTION("Mapping L2 to L2")
+      {
+         BilinearForm m_l2(&fespace_l2);
+         m_l2.AddDomainIntegrator(new MassIntegrator());
+         m_l2.Assemble();
+         m_l2.Finalize();
+
+         GridFunction g_l2(&fespace_l2);
+
+         Vector tmp_l2(fespace_l2.GetNDofs());
+
+         SECTION("Without Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_l2, &fespace_l2);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
+            CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_l2.ComputeL2Error(f3_coef) < tol );
+         }
+         SECTION("With Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_l2, &fespace_l2);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
+            CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_l2.ComputeL2Error(qf3_coef) < tol );
+         }
+      }
+      SECTION("Mapping L2 to H1")
       {
          H1_FECollection    fec_h1(order, dim);
          FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
-         GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+         BilinearForm m_h1(&fespace_h1);
+         m_h1.AddDomainIntegrator(new MassIntegrator());
+         m_h1.Assemble();
+         m_h1.Finalize();
 
-         SECTION("Mapping H1 to L2")
+         GridFunction g_h1(&fespace_h1);
+
+         Vector tmp_h1(fespace_h1.GetNDofs());
+
+         SECTION("Without Coefficient")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+            MixedBilinearForm blf(&fespace_l2, &fespace_h1);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_l2(&fespace_l2);
-            m_l2.AddDomainIntegrator(new MassIntegrator());
-            m_l2.Assemble();
-            m_l2.Finalize();
+            blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
+            CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_l2(&fespace_l2);
+            REQUIRE( g_h1.ComputeL2Error(f3_coef) < tol );
 
-            Vector tmp_l2(fespace_l2.GetNDofs());
+            MixedBilinearForm blfw(&fespace_h1, &fespace_l2);
+            blfw.AddDomainIntegrator(new MixedScalarMassIntegrator());
+            blfw.Assemble();
+            blfw.Finalize();
+
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+            REQUIRE( diff->MaxNorm() < tol );
+
+            delete blfT;
+            delete diff;
+         }
+         SECTION("With Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_l2, &fespace_h1);
+            blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
+            CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_h1.ComputeL2Error(qf3_coef) < tol );
+
+            MixedBilinearForm blfw(&fespace_h1, &fespace_l2);
+            blfw.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
+
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+            REQUIRE( diff->MaxNorm() < tol );
+
+            delete blfT;
+            delete diff;
+         }
+      }
+   }
+}
+
+TEST_CASE("3D Bilinear Vector Mass Integrators",
+          "[MixedVectorMassIntegrator]"
+          "[MixedVectorIntegrator]"
+          "[BilinearFormIntegrator]"
+          "[NonlinearFormIntegrator]")
+{
+   int order = 2, n = 1, dim = 3;
+   double cg_rtol = 1e-14;
+   double tol = 1e-9;
+
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
+   VectorFunctionCoefficient  F3_coef(dim, F3);
+   FunctionCoefficient        q3_coef(q3);
+   VectorFunctionCoefficient  D3_coef(dim, V3);
+   MatrixFunctionCoefficient  M3_coef(dim, M3);
+   MatrixFunctionCoefficient MT3_coef(dim, MT3);
+   VectorFunctionCoefficient qF3_coef(dim, qF3);
+   VectorFunctionCoefficient DF3_coef(dim, DF3);
+   VectorFunctionCoefficient MF3_coef(dim, MF3);
+
+   SECTION("Operators on ND")
+   {
+      ND_FECollection    fec_nd(order, dim);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+      GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
+
+      SECTION("Mapping ND to RT")
+      {
+         {
+            // Tests requiring an RT space with same order of
+            // convergence as the ND space
+            RT_FECollection    fec_rt(order - 1, dim);
+            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+
+            BilinearForm m_rt(&fespace_rt);
+            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_rt.Assemble();
+            m_rt.Finalize();
+
+            GridFunction g_rt(&fespace_rt);
+
+            Vector tmp_rt(fespace_rt.GetNDofs());
 
             SECTION("Without Coefficient")
             {
-               MixedBilinearForm blf(&fespace_h1, &fespace_l2);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
-               CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_l2.ComputeL2Error(f3_coef) < tol );
+               REQUIRE( g_rt.ComputeL2Error(F3_coef) < tol );
 
-               MixedBilinearForm blfw(&fespace_l2, &fespace_h1);
-               blfw.AddDomainIntegrator(new MixedScalarMassIntegrator());
+               MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
                blfw.Assemble();
                blfw.Finalize();
 
@@ -564,141 +805,192 @@ TEST_CASE("3D Bilinear Mass Integrators",
 
                delete blfT;
                delete diff;
-            }
-            SECTION("With Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_l2);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
 
-               blf.Mult(f_h1,tmp_l2); g_l2 = 0.0;
-               CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+               MixedBilinearForm blfv(&fespace_nd, &fespace_rt);
+               blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
+               blfv.Assemble();
+               blfv.Finalize();
 
-               REQUIRE( g_l2.ComputeL2Error(qf3_coef) < tol );
+               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
 
-               MixedBilinearForm blfw(&fespace_l2, &fespace_h1);
-               blfw.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
+               REQUIRE( diffv->MaxNorm() < tol );
 
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-               REQUIRE( diff->MaxNorm() < tol );
-
-               delete blfT;
-               delete diff;
+               delete diffv;
             }
          }
-         SECTION("Mapping H1 to H1")
          {
-            BilinearForm m_h1(&fespace_h1);
-            m_h1.AddDomainIntegrator(new MassIntegrator());
-            m_h1.Assemble();
-            m_h1.Finalize();
+            // Tests requiring a higher order RT space
+            RT_FECollection    fec_rt(order, dim);
+            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-            GridFunction g_h1(&fespace_h1);
+            BilinearForm m_rt(&fespace_rt);
+            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_rt.Assemble();
+            m_rt.Finalize();
 
-            Vector tmp_h1(fespace_h1.GetNDofs());
+            GridFunction g_rt(&fespace_rt);
 
-            SECTION("Without Coefficient")
+            Vector tmp_rt(fespace_rt.GetNDofs());
+
+            SECTION("With Scalar Coefficient")
             {
-               MixedBilinearForm blf(&fespace_h1, &fespace_h1);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
-               CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_h1.ComputeL2Error(f3_coef) < tol );
+               REQUIRE( g_rt.ComputeL2Error(qF3_coef) < tol );
+
+               MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
+
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+               REQUIRE( diff->MaxNorm() < tol );
+
+               delete blfT;
+               delete diff;
             }
-            SECTION("With Coefficient")
+            SECTION("With Diagonal Matrix Coefficient")
             {
-               MixedBilinearForm blf(&fespace_h1, &fespace_h1);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_h1,tmp_h1); g_h1 = 0.0;
-               CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_h1.ComputeL2Error(qf3_coef) < tol );
+               REQUIRE( g_rt.ComputeL2Error(DF3_coef) < tol );
+
+               MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(D3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
+
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+               REQUIRE( diff->MaxNorm() < tol );
+
+               delete blfT;
+               delete diff;
+            }
+            SECTION("With Matrix Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+               blf.Assemble();
+               blf.Finalize();
+
+               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+               REQUIRE( g_rt.ComputeL2Error(MF3_coef) < tol );
+
+               MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(MT3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
+
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+               REQUIRE( diff->MaxNorm() < tol );
+
+               delete blfT;
+               delete diff;
             }
          }
       }
-      SECTION("Operators on L2 for element type " + std::to_string(type))
+      SECTION("Mapping ND to ND")
       {
-         L2_FECollection    fec_l2(order, dim);
-         FiniteElementSpace fespace_l2(&mesh, &fec_l2);
-
-         GridFunction f_l2(&fespace_l2); f_l2.ProjectCoefficient(f3_coef);
-
-         SECTION("Mapping L2 to L2")
          {
-            BilinearForm m_l2(&fespace_l2);
-            m_l2.AddDomainIntegrator(new MassIntegrator());
-            m_l2.Assemble();
-            m_l2.Finalize();
+            // Tests requiring an ND test space with same order of
+            // convergence as the ND trial space
 
-            GridFunction g_l2(&fespace_l2);
+            BilinearForm m_nd(&fespace_nd);
+            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_nd.Assemble();
+            m_nd.Finalize();
 
-            Vector tmp_l2(fespace_l2.GetNDofs());
+            GridFunction g_nd(&fespace_nd);
+
+            Vector tmp_nd(fespace_nd.GetNDofs());
 
             SECTION("Without Coefficient")
             {
-               MixedBilinearForm blf(&fespace_l2, &fespace_l2);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+               MixedBilinearForm blf(&fespace_nd, &fespace_nd);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
-               CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+               blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_l2.ComputeL2Error(f3_coef) < tol );
-            }
-            SECTION("With Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_l2, &fespace_l2);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
+               REQUIRE( g_nd.ComputeL2Error(F3_coef) < tol );
 
-               blf.Mult(f_l2,tmp_l2); g_l2 = 0.0;
-               CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+               MixedBilinearForm blfw(&fespace_nd, &fespace_nd);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
+               blfw.Assemble();
+               blfw.Finalize();
 
-               REQUIRE( g_l2.ComputeL2Error(qf3_coef) < tol );
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+               REQUIRE( diff->MaxNorm() < tol );
+
+               delete blfT;
+               delete diff;
+
+               MixedBilinearForm blfv(&fespace_nd, &fespace_nd);
+               blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
+               blfv.Assemble();
+               blfv.Finalize();
+
+               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
+
+               REQUIRE( diffv->MaxNorm() < tol );
+
+               delete diffv;
             }
          }
-         SECTION("Mapping L2 to H1")
          {
-            H1_FECollection    fec_h1(order, dim);
-            FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+            // Tests requiring a higher order ND space
+            ND_FECollection    fec_ndp(order+1, dim);
+            FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
 
-            BilinearForm m_h1(&fespace_h1);
-            m_h1.AddDomainIntegrator(new MassIntegrator());
-            m_h1.Assemble();
-            m_h1.Finalize();
+            BilinearForm m_ndp(&fespace_ndp);
+            m_ndp.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_ndp.Assemble();
+            m_ndp.Finalize();
 
-            GridFunction g_h1(&fespace_h1);
+            GridFunction g_ndp(&fespace_ndp);
 
-            Vector tmp_h1(fespace_h1.GetNDofs());
+            Vector tmp_ndp(fespace_ndp.GetNDofs());
 
-            SECTION("Without Coefficient")
+            SECTION("With Scalar Coefficient")
             {
-               MixedBilinearForm blf(&fespace_l2, &fespace_h1);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator());
+               MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
-               CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+               blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+               CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_h1.ComputeL2Error(f3_coef) < tol );
+               REQUIRE( g_ndp.ComputeL2Error(qF3_coef) < tol );
 
-               MixedBilinearForm blfw(&fespace_h1, &fespace_l2);
-               blfw.AddDomainIntegrator(new MixedScalarMassIntegrator());
+               MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
                blfw.Assemble();
                blfw.Finalize();
 
@@ -710,20 +1002,47 @@ TEST_CASE("3D Bilinear Mass Integrators",
                delete blfT;
                delete diff;
             }
-            SECTION("With Coefficient")
+            SECTION("With Diagonal Matrix Coefficient")
             {
-               MixedBilinearForm blf(&fespace_l2, &fespace_h1);
-               blf.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+               MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
                blf.Assemble();
                blf.Finalize();
 
-               blf.Mult(f_l2,tmp_h1); g_h1 = 0.0;
-               CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+               blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+               CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_h1.ComputeL2Error(qf3_coef) < tol );
+               REQUIRE( g_ndp.ComputeL2Error(DF3_coef) < tol );
 
-               MixedBilinearForm blfw(&fespace_h1, &fespace_l2);
-               blfw.AddDomainIntegrator(new MixedScalarMassIntegrator(q3_coef));
+               MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(D3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
+
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+               REQUIRE( diff->MaxNorm() < tol );
+
+               delete blfT;
+               delete diff;
+            }
+            SECTION("With Matrix Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+               blf.Assemble();
+               blf.Finalize();
+
+               blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+               CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+               REQUIRE( g_ndp.ComputeL2Error(MF3_coef) < tol );
+
+               MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(MT3_coef));
                blfw.Assemble();
                blfw.Finalize();
 
@@ -738,651 +1057,301 @@ TEST_CASE("3D Bilinear Mass Integrators",
          }
       }
    }
-}
-
-TEST_CASE("3D Bilinear Vector Mass Integrators",
-          "[MixedVectorMassIntegrator]"
-          "[MixedVectorIntegrator]"
-          "[BilinearFormIntegrator]"
-          "[NonlinearFormIntegrator]")
-{
-   int order = 2, n = 1, dim = 3;
-   double cg_rtol = 1e-14;
-   double tol = 1e-5;
-
-   VectorFunctionCoefficient  F3_coef(dim, F3);
-   FunctionCoefficient        q3_coef(q3);
-   VectorFunctionCoefficient  D3_coef(dim, V3);
-   MatrixFunctionCoefficient  M3_coef(dim, M3);
-   MatrixFunctionCoefficient MT3_coef(dim, MT3);
-   VectorFunctionCoefficient qF3_coef(dim, qF3);
-   VectorFunctionCoefficient DF3_coef(dim, DF3);
-   VectorFunctionCoefficient MF3_coef(dim, MF3);
-
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   SECTION("Operators on RT")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      RT_FECollection    fec_rt(order - 1, dim);
+      FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-      SECTION("Operators on ND for element type " + std::to_string(type))
+      GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
+
+      SECTION("Mapping RT to ND")
       {
-         ND_FECollection    fec_nd(order, dim);
-         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
-
-         GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
-
-         SECTION("Mapping ND to RT")
          {
+            // Tests requiring an ND test space with same order of
+            // convergence as the RT trial space
+            ND_FECollection    fec_nd(order, dim);
+            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+            BilinearForm m_nd(&fespace_nd);
+            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_nd.Assemble();
+            m_nd.Finalize();
+
+            GridFunction g_nd(&fespace_nd);
+
+            Vector tmp_nd(fespace_nd.GetNDofs());
+
+            SECTION("Without Coefficient")
             {
-               // Tests requiring an RT space with same order of
-               // convergence as the ND space
-               RT_FECollection    fec_rt(order - 1, dim);
-               FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+               MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
+               blf.Assemble();
+               blf.Finalize();
 
-               BilinearForm m_rt(&fespace_rt);
-               m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_rt.Assemble();
-               m_rt.Finalize();
+               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               GSSmoother s_rt(m_rt.SpMat());
+               REQUIRE( g_nd.ComputeL2Error(F3_coef) < tol );
 
-               GridFunction g_rt(&fespace_rt);
+               MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
+               blfw.Assemble();
+               blfw.Finalize();
 
-               Vector tmp_rt(fespace_rt.GetNDofs());
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-               SECTION("Without Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+               delete blfT;
+               delete diff;
 
-                  REQUIRE( g_rt.ComputeL2Error(F3_coef) < tol );
+               MixedBilinearForm blfv(&fespace_rt, &fespace_nd);
+               blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
+               blfv.Assemble();
+               blfv.Finalize();
 
-                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blfw.Assemble();
-                  blfw.Finalize();
+               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
 
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               REQUIRE( diffv->MaxNorm() < tol );
 
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-
-                  MixedBilinearForm blfv(&fespace_nd, &fespace_rt);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
-               }
-            }
-            {
-               // Tests requiring a higher order RT space
-               RT_FECollection    fec_rt(order, dim);
-               FiniteElementSpace fespace_rt(&mesh, &fec_rt);
-
-               BilinearForm m_rt(&fespace_rt);
-               m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_rt.Assemble();
-               m_rt.Finalize();
-
-               GSSmoother s_rt(m_rt.SpMat());
-
-               GridFunction g_rt(&fespace_rt);
-
-               Vector tmp_rt(fespace_rt.GetNDofs());
-
-               SECTION("With Scalar Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_rt.ComputeL2Error(qF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Diagonal Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_rt.ComputeL2Error(DF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(D3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_rt.ComputeL2Error(MF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(MT3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
+               delete diffv;
             }
          }
-         SECTION("Mapping ND to ND")
          {
+            // Tests requiring a higher order ND space
+            ND_FECollection    fec_nd(order + 1, dim);
+            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+            BilinearForm m_nd(&fespace_nd);
+            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_nd.Assemble();
+            m_nd.Finalize();
+
+            GridFunction g_nd(&fespace_nd);
+
+            Vector tmp_nd(fespace_nd.GetNDofs());
+
+            SECTION("With Scalar Coefficient")
             {
-               // Tests requiring an ND test space with same order of
-               // convergence as the ND trial space
+               MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+               blf.Assemble();
+               blf.Finalize();
 
-               BilinearForm m_nd(&fespace_nd);
-               m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_nd.Assemble();
-               m_nd.Finalize();
+               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               GSSmoother s_nd(m_nd.SpMat());
+               REQUIRE( g_nd.ComputeL2Error(qF3_coef) < tol );
 
-               GridFunction g_nd(&fespace_nd);
+               MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
 
-               Vector tmp_nd(fespace_nd.GetNDofs());
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-               SECTION("Without Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
-                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_nd.ComputeL2Error(F3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_nd, &fespace_nd);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-
-                  MixedBilinearForm blfv(&fespace_nd, &fespace_nd);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
-               }
+               delete blfT;
+               delete diff;
             }
+            SECTION("With Diagonal Matrix Coefficient")
             {
-               // Tests requiring a higher order ND space
-               ND_FECollection    fec_ndp(order+1, dim);
-               FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
+               MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
+               blf.Assemble();
+               blf.Finalize();
 
-               BilinearForm m_ndp(&fespace_ndp);
-               m_ndp.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_ndp.Assemble();
-               m_ndp.Finalize();
+               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               GSSmoother s_ndp(m_ndp.SpMat());
+               REQUIRE( g_nd.ComputeL2Error(DF3_coef) < tol );
 
-               GridFunction g_ndp(&fespace_ndp);
+               MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(D3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
 
-               Vector tmp_ndp(fespace_ndp.GetNDofs());
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-               SECTION("With Scalar Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
-                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
-                      cg_rtol * cg_rtol, 0.0);
+               delete blfT;
+               delete diff;
+            }
+            SECTION("With Matrix Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+               blf.Assemble();
+               blf.Finalize();
 
-                  REQUIRE( g_ndp.ComputeL2Error(qF3_coef) < tol );
+               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-                  MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
+               REQUIRE( g_nd.ComputeL2Error(MF3_coef) < tol );
 
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(MT3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
 
-                  REQUIRE( diff->MaxNorm() < tol );
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Diagonal Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
-                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
-                      cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_ndp.ComputeL2Error(DF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(D3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
-                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
-                      cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_ndp.ComputeL2Error(MF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(MT3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
+               delete blfT;
+               delete diff;
             }
          }
       }
-      SECTION("Operators on RT for element type " + std::to_string(type))
+      SECTION("Mapping RT to RT")
       {
-         RT_FECollection    fec_rt(order - 1, dim);
-         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
-
-         GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
-
-         SECTION("Mapping RT to ND")
          {
+            // Tests requiring an RT test space with same order of
+            // convergence as the RT trial space
+            BilinearForm m_rt(&fespace_rt);
+            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_rt.Assemble();
+            m_rt.Finalize();
+
+            GridFunction g_rt(&fespace_rt);
+
+            Vector tmp_rt(fespace_rt.GetNDofs());
+
+            SECTION("Without Coefficient")
             {
-               // Tests requiring an ND test space with same order of
-               // convergence as the RT trial space
-               ND_FECollection    fec_nd(order, dim);
-               FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+               MixedBilinearForm blf(&fespace_rt, &fespace_rt);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
+               blf.Assemble();
+               blf.Finalize();
 
-               BilinearForm m_nd(&fespace_nd);
-               m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_nd.Assemble();
-               m_nd.Finalize();
+               blf.Mult(f_rt,tmp_rt); g_rt = 0.0;
+               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               GSSmoother s_nd(m_nd.SpMat());
+               REQUIRE( g_rt.ComputeL2Error(F3_coef) < tol );
 
-               GridFunction g_nd(&fespace_nd);
+               MixedBilinearForm blfw(&fespace_rt, &fespace_rt);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
+               blfw.Assemble();
+               blfw.Finalize();
 
-               Vector tmp_nd(fespace_nd.GetNDofs());
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-               SECTION("Without Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
-                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+               delete blfT;
+               delete diff;
 
-                  REQUIRE( g_nd.ComputeL2Error(F3_coef) < tol );
+               MixedBilinearForm blfv(&fespace_rt, &fespace_rt);
+               blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
+               blfv.Assemble();
+               blfv.Finalize();
 
-                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blfw.Assemble();
-                  blfw.Finalize();
+               SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
 
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               REQUIRE( diffv->MaxNorm() < tol );
 
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-
-                  MixedBilinearForm blfv(&fespace_rt, &fespace_nd);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
-               }
-            }
-            {
-               // Tests requiring a higher order ND space
-               ND_FECollection    fec_nd(order + 1, dim);
-               FiniteElementSpace fespace_nd(&mesh, &fec_nd);
-
-               BilinearForm m_nd(&fespace_nd);
-               m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_nd.Assemble();
-               m_nd.Finalize();
-
-               GSSmoother s_nd(m_nd.SpMat());
-
-               GridFunction g_nd(&fespace_nd);
-
-               Vector tmp_nd(fespace_nd.GetNDofs());
-
-               SECTION("With Scalar Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
-                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_nd.ComputeL2Error(qF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Diagonal Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
-                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_nd.ComputeL2Error(DF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(D3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
-                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_nd.ComputeL2Error(MF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(MT3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
+               delete diffv;
             }
          }
-         SECTION("Mapping RT to RT")
          {
+            // Tests requiring a higher order RT space
+            RT_FECollection    fec_rtp(order, dim);
+            FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
+
+            BilinearForm m_rtp(&fespace_rtp);
+            m_rtp.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_rtp.Assemble();
+            m_rtp.Finalize();
+
+            GridFunction g_rtp(&fespace_rtp);
+
+            Vector tmp_rtp(fespace_rtp.GetNDofs());
+
+            SECTION("With Scalar Coefficient")
             {
-               // Tests requiring an RT test space with same order of
-               // convergence as the RT trial space
+               MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+               blf.Assemble();
+               blf.Finalize();
 
-               BilinearForm m_rt(&fespace_rt);
-               m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_rt.Assemble();
-               m_rt.Finalize();
+               blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+               CG(m_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               GSSmoother s_rt(m_rt.SpMat());
+               REQUIRE( g_rtp.ComputeL2Error(qF3_coef) < tol );
 
-               GridFunction g_rt(&fespace_rt);
+               MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
+               blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
 
-               Vector tmp_rt(fespace_rt.GetNDofs());
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-               SECTION("Without Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_rt);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_rt,tmp_rt); g_rt = 0.0;
-                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_rt.ComputeL2Error(F3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_rt, &fespace_rt);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator());
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-
-                  MixedBilinearForm blfv(&fespace_rt, &fespace_rt);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
-               }
+               delete blfT;
+               delete diff;
             }
+            SECTION("With Diagonal Matrix Coefficient")
             {
-               // Tests requiring a higher order RT space
-               RT_FECollection    fec_rtp(order, dim);
-               FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
+               MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
+               blf.Assemble();
+               blf.Finalize();
 
-               BilinearForm m_rtp(&fespace_rtp);
-               m_rtp.AddDomainIntegrator(new VectorFEMassIntegrator());
-               m_rtp.Assemble();
-               m_rtp.Finalize();
+               blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+               CG(m_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               GSSmoother s_rtp(m_rtp.SpMat());
+               REQUIRE( g_rtp.ComputeL2Error(DF3_coef) < tol );
 
-               GridFunction g_rtp(&fespace_rtp);
+               MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(D3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
 
-               Vector tmp_rtp(fespace_rtp.GetNDofs());
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-               SECTION("With Scalar Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
-                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
-                      cg_rtol * cg_rtol, 0.0);
+               delete blfT;
+               delete diff;
+            }
+            SECTION("With Matrix Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
+               blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
+               blf.Assemble();
+               blf.Finalize();
 
-                  REQUIRE( g_rtp.ComputeL2Error(qF3_coef) < tol );
+               blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+               CG(m_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-                  MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
-                  blfw.AddDomainIntegrator(new MixedVectorMassIntegrator(q3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
+               REQUIRE( g_rtp.ComputeL2Error(MF3_coef) < tol );
 
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+               MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
+               blfw.AddDomainIntegrator(
+                  new MixedVectorMassIntegrator(MT3_coef));
+               blfw.Assemble();
+               blfw.Finalize();
 
-                  REQUIRE( diff->MaxNorm() < tol );
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Diagonal Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(D3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-                  blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
-                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
-                      cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_rtp.ComputeL2Error(DF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(D3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
-               SECTION("With Matrix Coefficient")
-               {
-                  MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
-                  blf.AddDomainIntegrator(new MixedVectorMassIntegrator(M3_coef));
-                  blf.Assemble();
-                  blf.Finalize();
-
-                  blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
-                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
-                      cg_rtol * cg_rtol, 0.0);
-
-                  REQUIRE( g_rtp.ComputeL2Error(MF3_coef) < tol );
-
-                  MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
-                  blfw.AddDomainIntegrator(
-                     new MixedVectorMassIntegrator(MT3_coef));
-                  blfw.Assemble();
-                  blfw.Finalize();
-
-                  SparseMatrix * blfT = Transpose(blfw.SpMat());
-                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-                  REQUIRE( diff->MaxNorm() < tol );
-
-                  delete blfT;
-                  delete diff;
-               }
+               delete blfT;
+               delete diff;
             }
          }
       }
@@ -1399,6 +1368,9 @@ TEST_CASE("3D Bilinear Gradient Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+   // Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+
    FunctionCoefficient         f3_coef(f3);
    FunctionCoefficient         q3_coef(q3);
    VectorFunctionCoefficient   D3_coef(dim, V3);
@@ -1408,149 +1380,143 @@ TEST_CASE("3D Bilinear Gradient Integrator",
    VectorFunctionCoefficient Ddf3_coef(dim, DGrad_f3);
    VectorFunctionCoefficient Mdf3_coef(dim, MGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   SECTION("Operators on H1")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      H1_FECollection    fec_h1(order, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
-      SECTION("Operators on H1 for element type " + std::to_string(type))
+      GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+
+      SECTION("Mapping H1 to ND")
       {
-         H1_FECollection    fec_h1(order, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+         ND_FECollection    fec_nd(order, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
-         GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
 
-         SECTION("Mapping H1 to ND")
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("Without Coefficient")
          {
-            ND_FECollection    fec_nd(order, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_nd(&fespace_nd);
-
-            Vector tmp_nd(fespace_nd.GetNDofs());
-
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(df3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(qdf3_coef) < tol );
-            }
-            SECTION("With Diagonal Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(D3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(Ddf3_coef) < tol );
-            }
-            SECTION("With Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(M3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(Mdf3_coef) < tol );
-            }
+            REQUIRE( g_nd.ComputeL2Error(df3_coef) < tol );
          }
-         SECTION("Mapping H1 to RT")
+         SECTION("With Scalar Coefficient")
          {
-            RT_FECollection    fec_rt(order - 1, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
+            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_rt(&fespace_rt);
+            REQUIRE( g_nd.ComputeL2Error(qdf3_coef) < tol );
+         }
+         SECTION("With Diagonal Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(D3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            Vector tmp_rt(fespace_rt.GetNDofs());
+            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( g_nd.ComputeL2Error(Ddf3_coef) < tol );
+         }
+         SECTION("With Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(M3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-               blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_rt.ComputeL2Error(df3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( g_nd.ComputeL2Error(Mdf3_coef) < tol );
+         }
+      }
+      SECTION("Mapping H1 to RT")
+      {
+         RT_FECollection    fec_rt(order - 1, dim);
+         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-               blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-               REQUIRE( g_rt.ComputeL2Error(qdf3_coef) < tol );
-            }
-            SECTION("With Diagonal Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(D3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         GridFunction g_rt(&fespace_rt);
 
-               blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+         Vector tmp_rt(fespace_rt.GetNDofs());
 
-               REQUIRE( g_rt.ComputeL2Error(Ddf3_coef) < tol );
-            }
-            SECTION("With Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(M3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         SECTION("Without Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-               blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_rt.ComputeL2Error(Mdf3_coef) < tol );
-            }
+            REQUIRE( g_rt.ComputeL2Error(df3_coef) < tol );
+         }
+         SECTION("With Scalar Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rt.ComputeL2Error(qdf3_coef) < tol );
+         }
+         SECTION("With Diagonal Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(D3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rt.ComputeL2Error(Ddf3_coef) < tol );
+         }
+         SECTION("With Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(M3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rt.ComputeL2Error(Mdf3_coef) < tol );
          }
       }
    }
@@ -1566,155 +1532,151 @@ TEST_CASE("3D Bilinear Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
+   VectorFunctionCoefficient   F3_coef(dim, F3);
+   FunctionCoefficient         q3_coef(q3);
+   VectorFunctionCoefficient   D3_coef(dim, V3);
+   MatrixFunctionCoefficient   M3_coef(dim, M3);
+   VectorFunctionCoefficient  dF3_coef(dim, CurlF3);
+   VectorFunctionCoefficient qdF3_coef(dim, qCurlF3);
+   VectorFunctionCoefficient DdF3_coef(dim, DCurlF3);
+   VectorFunctionCoefficient MdF3_coef(dim, MCurlF3);
+
+   SECTION("Operators on ND")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      ND_FECollection    fec_nd(order, dim);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
-      VectorFunctionCoefficient   F3_coef(dim, F3);
-      FunctionCoefficient         q3_coef(q3);
-      VectorFunctionCoefficient   D3_coef(dim, V3);
-      MatrixFunctionCoefficient   M3_coef(dim, M3);
-      VectorFunctionCoefficient  dF3_coef(dim, CurlF3);
-      VectorFunctionCoefficient qdF3_coef(dim, qCurlF3);
-      VectorFunctionCoefficient DdF3_coef(dim, DCurlF3);
-      VectorFunctionCoefficient MdF3_coef(dim, MCurlF3);
+      GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
 
-      SECTION("Operators on ND for element type " + std::to_string(type))
+      SECTION("Mapping ND to RT")
       {
-         ND_FECollection    fec_nd(order, dim);
-         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+         RT_FECollection    fec_rt(order - 1, dim);
+         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-         GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-         SECTION("Mapping ND to RT")
+         GridFunction g_rt(&fespace_rt);
+
+         Vector tmp_rt(fespace_rt.GetNDofs());
+
+         SECTION("Without Coefficient")
          {
-            RT_FECollection    fec_rt(order - 1, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+            MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+            blf.AddDomainIntegrator(new MixedVectorCurlIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
+            blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_rt(&fespace_rt);
-
-            Vector tmp_rt(fespace_rt.GetNDofs());
-
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-               blf.AddDomainIntegrator(new MixedVectorCurlIntegrator());
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(dF3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorCurlIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(qdF3_coef) < tol );
-            }
-            SECTION("With Diagonal Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorCurlIntegrator(D3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(DdF3_coef) < tol );
-            }
-            SECTION("With Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorCurlIntegrator(M3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(MdF3_coef) < tol );
-            }
+            REQUIRE( g_rt.ComputeL2Error(dF3_coef) < tol );
          }
-         SECTION("Mapping ND to ND")
+         SECTION("With Scalar Coefficient")
          {
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorCurlIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            GridFunction g_nd(&fespace_nd);
+            blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            Vector tmp_nd(fespace_nd.GetNDofs());
+            REQUIRE( g_rt.ComputeL2Error(qdF3_coef) < tol );
+         }
+         SECTION("With Diagonal Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorCurlIntegrator(D3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_nd);
-               blf.AddDomainIntegrator(new MixedVectorCurlIntegrator());
-               blf.Assemble();
-               blf.Finalize();
+            blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+            REQUIRE( g_rt.ComputeL2Error(DdF3_coef) < tol );
+         }
+         SECTION("With Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorCurlIntegrator(M3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-               REQUIRE( g_nd.ComputeL2Error(dF3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorCurlIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+            REQUIRE( g_rt.ComputeL2Error(MdF3_coef) < tol );
+         }
+      }
+      SECTION("Mapping ND to ND")
+      {
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
 
-               REQUIRE( g_nd.ComputeL2Error(qdF3_coef) < tol );
-            }
-            SECTION("With Diagonal Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorCurlIntegrator(D3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         GridFunction g_nd(&fespace_nd);
 
-               blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+         Vector tmp_nd(fespace_nd.GetNDofs());
 
-               REQUIRE( g_nd.ComputeL2Error(DdF3_coef) < tol );
-            }
-            SECTION("With Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorCurlIntegrator(M3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         SECTION("Without Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_nd, &fespace_nd);
+            blf.AddDomainIntegrator(new MixedVectorCurlIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-               blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+            blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_nd.ComputeL2Error(MdF3_coef) < tol );
-            }
+            REQUIRE( g_nd.ComputeL2Error(dF3_coef) < tol );
+         }
+         SECTION("With Scalar Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_nd, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorCurlIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_nd.ComputeL2Error(qdF3_coef) < tol );
+         }
+         SECTION("With Diagonal Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_nd, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorCurlIntegrator(D3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_nd.ComputeL2Error(DdF3_coef) < tol );
+         }
+         SECTION("With Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_nd, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorCurlIntegrator(M3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_nd.ComputeL2Error(MdF3_coef) < tol );
          }
       }
    }
@@ -1730,77 +1692,73 @@ TEST_CASE("3D Bilinear Cross Product Gradient Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
+   FunctionCoefficient          f3_coef(f3);
+   VectorFunctionCoefficient    V3_coef(dim, V3);
+   VectorFunctionCoefficient Vxdf3_coef(dim, VcrossGrad_f3);
+
+   SECTION("Operators on H1")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      H1_FECollection    fec_h1(order, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
-      FunctionCoefficient          f3_coef(f3);
-      VectorFunctionCoefficient    V3_coef(dim, V3);
-      VectorFunctionCoefficient Vxdf3_coef(dim, VcrossGrad_f3);
+      GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
 
-      SECTION("Operators on H1 for element type " + std::to_string(type))
+      SECTION("Mapping H1 to RT")
       {
-         H1_FECollection    fec_h1(order, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+         RT_FECollection    fec_rt(order - 1, dim);
+         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-         GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-         SECTION("Mapping H1 to RT")
+         GridFunction g_rt(&fespace_rt);
+
+         Vector tmp_rt(fespace_rt.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            RT_FECollection    fec_rt(order - 1, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedCrossGradIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
+            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_rt(&fespace_rt);
-
-            Vector tmp_rt(fespace_rt.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedCrossGradIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(Vxdf3_coef) < tol );
-            }
+            REQUIRE( g_rt.ComputeL2Error(Vxdf3_coef) < tol );
          }
-         SECTION("Mapping H1 to ND")
+      }
+      SECTION("Mapping H1 to ND")
+      {
+         ND_FECollection    fec_nd(order, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
+
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            ND_FECollection    fec_nd(order, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedCrossGradIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_nd(&fespace_nd);
-
-            Vector tmp_nd(fespace_nd.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedCrossGradIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(Vxdf3_coef) < tol );
-            }
+            REQUIRE( g_nd.ComputeL2Error(Vxdf3_coef) < tol );
          }
       }
    }
@@ -1816,74 +1774,70 @@ TEST_CASE("3D Bilinear Cross Product Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
+   VectorFunctionCoefficient    F3_coef(dim, F3);
+   VectorFunctionCoefficient    V3_coef(dim, V3);
+   VectorFunctionCoefficient VxdF3_coef(dim, VcrossCurlF3);
+
+   SECTION("Operators on ND")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      ND_FECollection    fec_nd(order, dim);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
-      VectorFunctionCoefficient    F3_coef(dim, F3);
-      VectorFunctionCoefficient    V3_coef(dim, V3);
-      VectorFunctionCoefficient VxdF3_coef(dim, VcrossCurlF3);
+      GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
 
-      SECTION("Operators on ND for element type " + std::to_string(type))
+      SECTION("Mapping ND to RT")
       {
-         ND_FECollection    fec_nd(order, dim);
-         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+         RT_FECollection    fec_rt(order - 1, dim);
+         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-         GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-         SECTION("Mapping ND to RT")
+         GridFunction g_rt(&fespace_rt);
+
+         Vector tmp_rt(fespace_rt.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            RT_FECollection    fec_rt(order - 1, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+            MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedCrossCurlIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
+            blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_rt(&fespace_rt);
-
-            Vector tmp_rt(fespace_rt.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedCrossCurlIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(VxdF3_coef) < tol );
-            }
+            REQUIRE( g_rt.ComputeL2Error(VxdF3_coef) < tol );
          }
-         SECTION("Mapping ND to ND")
+      }
+      SECTION("Mapping ND to ND")
+      {
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
+
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            MixedBilinearForm blf(&fespace_nd, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedCrossCurlIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            GridFunction g_nd(&fespace_nd);
+            blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            Vector tmp_nd(fespace_nd.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedCrossCurlIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(VxdF3_coef) < tol );
-            }
+            REQUIRE( g_nd.ComputeL2Error(VxdF3_coef) < tol );
          }
       }
    }
@@ -1899,102 +1853,98 @@ TEST_CASE("3D Bilinear Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
+   VectorFunctionCoefficient F3_coef(dim, F3);
+   FunctionCoefficient       q3_coef(q3);
+   FunctionCoefficient      dF3_coef(DivF3);
+   FunctionCoefficient     qdF3_coef(qDivF3);
+
+   SECTION("Operators on RT")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      RT_FECollection    fec_rt(order - 1, dim);
+      FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-      VectorFunctionCoefficient F3_coef(dim, F3);
-      FunctionCoefficient       q3_coef(q3);
-      FunctionCoefficient      dF3_coef(DivF3);
-      FunctionCoefficient     qdF3_coef(qDivF3);
+      GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
 
-      SECTION("Operators on RT for element type " + std::to_string(type))
+      SECTION("Mapping RT to L2")
       {
-         RT_FECollection    fec_rt(order - 1, dim);
-         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+         L2_FECollection    fec_l2(order - 1, dim);
+         FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
-         GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
+         BilinearForm m_l2(&fespace_l2);
+         m_l2.AddDomainIntegrator(new MassIntegrator());
+         m_l2.Assemble();
+         m_l2.Finalize();
 
-         SECTION("Mapping RT to L2")
+         GridFunction g_l2(&fespace_l2);
+
+         Vector tmp_l2(fespace_l2.GetNDofs());
+
+         SECTION("Without Coefficient")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
-            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+            MixedBilinearForm blf(&fespace_rt, &fespace_l2);
+            blf.AddDomainIntegrator(new MixedScalarDivergenceIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_l2(&fespace_l2);
-            m_l2.AddDomainIntegrator(new MassIntegrator());
-            m_l2.Assemble();
-            m_l2.Finalize();
+            blf.Mult(f_rt,tmp_l2); g_l2 = 0.0;
+            CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_l2(&fespace_l2);
-
-            Vector tmp_l2(fespace_l2.GetNDofs());
-
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_l2);
-               blf.AddDomainIntegrator(new MixedScalarDivergenceIntegrator());
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_rt,tmp_l2); g_l2 = 0.0;
-               CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_l2.ComputeL2Error(dF3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_l2);
-               blf.AddDomainIntegrator(
-                  new MixedScalarDivergenceIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_rt,tmp_l2); g_l2 = 0.0;
-               CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_l2.ComputeL2Error(qdF3_coef) < tol );
-            }
+            REQUIRE( g_l2.ComputeL2Error(dF3_coef) < tol );
          }
-         SECTION("Mapping RT to H1")
+         SECTION("With Scalar Coefficient")
          {
-            H1_FECollection    fec_h1(order, dim);
-            FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+            MixedBilinearForm blf(&fespace_rt, &fespace_l2);
+            blf.AddDomainIntegrator(
+               new MixedScalarDivergenceIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_h1(&fespace_h1);
-            m_h1.AddDomainIntegrator(new MassIntegrator());
-            m_h1.Assemble();
-            m_h1.Finalize();
+            blf.Mult(f_rt,tmp_l2); g_l2 = 0.0;
+            CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_h1(&fespace_h1);
+            REQUIRE( g_l2.ComputeL2Error(qdF3_coef) < tol );
+         }
+      }
+      SECTION("Mapping RT to H1")
+      {
+         H1_FECollection    fec_h1(order, dim);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
-            Vector tmp_h1(fespace_h1.GetNDofs());
+         BilinearForm m_h1(&fespace_h1);
+         m_h1.AddDomainIntegrator(new MassIntegrator());
+         m_h1.Assemble();
+         m_h1.Finalize();
 
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_h1);
-               blf.AddDomainIntegrator(new MixedScalarDivergenceIntegrator());
-               blf.Assemble();
-               blf.Finalize();
+         GridFunction g_h1(&fespace_h1);
 
-               blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
-               CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+         Vector tmp_h1(fespace_h1.GetNDofs());
 
-               REQUIRE( g_h1.ComputeL2Error(dF3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_h1);
-               blf.AddDomainIntegrator(
-                  new MixedScalarDivergenceIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         SECTION("Without Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_rt, &fespace_h1);
+            blf.AddDomainIntegrator(new MixedScalarDivergenceIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-               blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
-               CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+            blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
+            CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_h1.ComputeL2Error(qdF3_coef) < tol );
-            }
+            REQUIRE( g_h1.ComputeL2Error(dF3_coef) < tol );
+         }
+         SECTION("With Scalar Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_rt, &fespace_h1);
+            blf.AddDomainIntegrator(
+               new MixedScalarDivergenceIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_rt,tmp_h1); g_h1 = 0.0;
+            CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_h1.ComputeL2Error(qdF3_coef) < tol );
          }
       }
    }
@@ -2010,74 +1960,70 @@ TEST_CASE("3D Bilinear Vector Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
+   VectorFunctionCoefficient   F3_coef(dim, F3);
+   VectorFunctionCoefficient   V3_coef(dim, V3);
+   VectorFunctionCoefficient VdF3_coef(dim, VDivF3);
+
+   SECTION("Operators on RT")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      RT_FECollection    fec_rt(order - 1, dim);
+      FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-      VectorFunctionCoefficient   F3_coef(dim, F3);
-      VectorFunctionCoefficient   V3_coef(dim, V3);
-      VectorFunctionCoefficient VdF3_coef(dim, VDivF3);
+      GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
 
-      SECTION("Operators on RT for element type " + std::to_string(type))
+      SECTION("Mapping RT to RT")
       {
-         RT_FECollection    fec_rt(order - 1, dim);
-         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-         GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
+         GridFunction g_rt(&fespace_rt);
 
-         SECTION("Mapping RT to RT")
+         Vector tmp_rt(fespace_rt.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
+            MixedBilinearForm blf(&fespace_rt, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorDivergenceIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            GridFunction g_rt(&fespace_rt);
+            blf.Mult(f_rt,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            Vector tmp_rt(fespace_rt.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorDivergenceIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_rt,tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(VdF3_coef) < tol );
-            }
+            REQUIRE( g_rt.ComputeL2Error(VdF3_coef) < tol );
          }
-         SECTION("Mapping RT to ND")
+      }
+      SECTION("Mapping RT to ND")
+      {
+         ND_FECollection    fec_nd(order, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
+
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            ND_FECollection    fec_nd(order, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorDivergenceIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_nd(&fespace_nd);
-
-            Vector tmp_nd(fespace_nd.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorDivergenceIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(VdF3_coef) < tol );
-            }
+            REQUIRE( g_nd.ComputeL2Error(VdF3_coef) < tol );
          }
       }
    }
@@ -2093,201 +2039,189 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
    FunctionCoefficient        f3_coef(f3);
    VectorFunctionCoefficient  V3_coef(dim, V3);
    VectorFunctionCoefficient Vf3_coef(dim, Vf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   SECTION("Operators on H1")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      H1_FECollection    fec_h1(order, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
-      SECTION("Operators on H1 for element type " + std::to_string(type))
+      GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+
+      SECTION("Mapping H1 to ND")
       {
-         H1_FECollection    fec_h1(order, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+         ND_FECollection    fec_nd(order + 1, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
-         GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
 
-         SECTION("Mapping H1 to ND")
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            ND_FECollection    fec_nd(order + 1, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GSSmoother s_nd(m_nd.SpMat());
+            REQUIRE( g_nd.ComputeL2Error(Vf3_coef) < tol );
 
-            GridFunction g_nd(&fespace_nd);
+            MixedBilinearForm blfw(&fespace_nd, &fespace_h1);
+            blfw.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
 
-            Vector tmp_nd(fespace_nd.GetNDofs());
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( diff->MaxNorm() < tol );
 
-               blf.Mult(f_h1,tmp_nd); g_nd = 0.0;
-               PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(Vf3_coef) < tol );
-
-               MixedBilinearForm blfw(&fespace_nd, &fespace_h1);
-               blfw.AddDomainIntegrator(
-                  new MixedDotProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
-
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-               REQUIRE( diff->MaxNorm() < tol );
-
-               delete blfT;
-               delete diff;
-            }
-         }
-         SECTION("Mapping H1 to RT")
-         {
-            RT_FECollection    fec_rt(order, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
-
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
-
-            GSSmoother s_rt(m_rt.SpMat());
-
-            GridFunction g_rt(&fespace_rt);
-
-            Vector tmp_rt(fespace_rt.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
-               PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(Vf3_coef) < tol );
-
-               MixedBilinearForm blfw(&fespace_rt, &fespace_h1);
-               blfw.AddDomainIntegrator(
-                  new MixedDotProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
-
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-               REQUIRE( diff->MaxNorm() < tol );
-
-               delete blfT;
-               delete diff;
-            }
+            delete blfT;
+            delete diff;
          }
       }
-      SECTION("Operators on L2 for element type " + std::to_string(type))
+      SECTION("Mapping H1 to RT")
       {
-         L2_FECollection    fec_l2(order, dim);
-         FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+         RT_FECollection    fec_rt(order, dim);
+         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-         GridFunction f_l2(&fespace_l2); f_l2.ProjectCoefficient(f3_coef);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-         SECTION("Mapping L2 to ND")
+         GridFunction g_rt(&fespace_rt);
+
+         Vector tmp_rt(fespace_rt.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            ND_FECollection    fec_nd(order + 1, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            blf.Mult(f_h1,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GSSmoother s_nd(m_nd.SpMat());
+            REQUIRE( g_rt.ComputeL2Error(Vf3_coef) < tol );
 
-            GridFunction g_nd(&fespace_nd);
+            MixedBilinearForm blfw(&fespace_rt, &fespace_h1);
+            blfw.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
 
-            Vector tmp_nd(fespace_nd.GetNDofs());
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_l2, &fespace_nd);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( diff->MaxNorm() < tol );
 
-               blf.Mult(f_l2,tmp_nd); g_nd = 0.0;
-               PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(Vf3_coef) < tol );
-
-               MixedBilinearForm blfw(&fespace_nd, &fespace_l2);
-               blfw.AddDomainIntegrator(
-                  new MixedDotProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
-
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
-
-               REQUIRE( diff->MaxNorm() < tol );
-
-               delete blfT;
-               delete diff;
-            }
+            delete blfT;
+            delete diff;
          }
-         SECTION("Mapping L2 to RT")
+      }
+   }
+   SECTION("Operators on L2")
+   {
+      L2_FECollection    fec_l2(order, dim);
+      FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+      GridFunction f_l2(&fespace_l2); f_l2.ProjectCoefficient(f3_coef);
+
+      SECTION("Mapping L2 to ND")
+      {
+         ND_FECollection    fec_nd(order + 1, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
+
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            RT_FECollection    fec_rt(order, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+            MixedBilinearForm blf(&fespace_l2, &fespace_nd);
+            blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
+            blf.Mult(f_l2,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GSSmoother s_rt(m_rt.SpMat());
+            REQUIRE( g_nd.ComputeL2Error(Vf3_coef) < tol );
 
-            GridFunction g_rt(&fespace_rt);
+            MixedBilinearForm blfw(&fespace_nd, &fespace_l2);
+            blfw.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
 
-            Vector tmp_rt(fespace_rt.GetNDofs());
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
 
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_l2, &fespace_rt);
-               blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( diff->MaxNorm() < tol );
 
-               blf.Mult(f_l2,tmp_rt); g_rt = 0.0;
-               PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+            delete blfT;
+            delete diff;
+         }
+      }
+      SECTION("Mapping L2 to RT")
+      {
+         RT_FECollection    fec_rt(order, dim);
+         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-               REQUIRE( g_rt.ComputeL2Error(Vf3_coef) < tol );
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-               MixedBilinearForm blfw(&fespace_rt, &fespace_l2);
-               blfw.AddDomainIntegrator(
-                  new MixedDotProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
+         GridFunction g_rt(&fespace_rt);
 
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+         Vector tmp_rt(fespace_rt.GetNDofs());
 
-               REQUIRE( diff->MaxNorm() < tol );
+         SECTION("With Vector Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_l2, &fespace_rt);
+            blf.AddDomainIntegrator(new MixedVectorProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-               delete blfT;
-               delete diff;
-            }
+            blf.Mult(f_l2,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rt.ComputeL2Error(Vf3_coef) < tol );
+
+            MixedBilinearForm blfw(&fespace_rt, &fespace_l2);
+            blfw.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
+
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+            REQUIRE( diff->MaxNorm() < tol );
+
+            delete blfT;
+            delete diff;
          }
       }
    }
@@ -2303,205 +2237,193 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
+   Mesh mesh(n, n, n, Element::HEXAHEDRON, 1, 2.0, 3.0, 5.0);
+
    VectorFunctionCoefficient   F3_coef(dim, F3);
    VectorFunctionCoefficient   V3_coef(dim, V3);
    VectorFunctionCoefficient VxF3_coef(dim, VcrossF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+   SECTION("Operators on ND")
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      ND_FECollection    fec_nd(order, dim);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
-      SECTION("Operators on ND for element type " + std::to_string(type))
+      GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
+
+      SECTION("Mapping ND to ND")
       {
-         ND_FECollection    fec_nd(order, dim);
-         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+         ND_FECollection    fec_ndp(order + 1, dim);
+         FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
 
-         GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
+         BilinearForm m_ndp(&fespace_ndp);
+         m_ndp.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_ndp.Assemble();
+         m_ndp.Finalize();
 
-         SECTION("Mapping ND to ND")
+         GridFunction g_ndp(&fespace_ndp);
+
+         Vector tmp_ndp(fespace_ndp.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            ND_FECollection    fec_ndp(order + 1, dim);
-            FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
+            MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
+            blf.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_ndp(&fespace_ndp);
-            m_ndp.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_ndp.Assemble();
-            m_ndp.Finalize();
+            blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+            CG(m_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GSSmoother s_ndp(m_ndp.SpMat());
+            REQUIRE( g_ndp.ComputeL2Error(VxF3_coef) < tol );
 
-            GridFunction g_ndp(&fespace_ndp);
+            MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
+            blfw.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
 
-            Vector tmp_ndp(fespace_ndp.GetNDofs());
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
 
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
-               blf.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( diff->MaxNorm() < tol );
 
-               blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
-               PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_ndp.ComputeL2Error(VxF3_coef) < tol );
-
-               MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
-               blfw.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
-
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
-
-               REQUIRE( diff->MaxNorm() < tol );
-
-               delete blfT;
-               delete diff;
-            }
-         }
-         SECTION("Mapping ND to RT")
-         {
-            RT_FECollection    fec_rt(order, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
-
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
-
-            GSSmoother s_rt(m_rt.SpMat());
-
-            GridFunction g_rt(&fespace_rt);
-
-            Vector tmp_rt(fespace_rt.GetNDofs());
-
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_nd, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
-               PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_rt.ComputeL2Error(VxF3_coef) < tol );
-
-               MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
-               blfw.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
-
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
-
-               REQUIRE( diff->MaxNorm() < tol );
-
-               delete blfT;
-               delete diff;
-            }
+            delete blfT;
+            delete diff;
          }
       }
-      SECTION("Operators on RT for element type " + std::to_string(type))
+      SECTION("Mapping ND to RT")
       {
-         RT_FECollection    fec_rt(order - 1, dim);
+         RT_FECollection    fec_rt(order, dim);
          FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-         GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-         SECTION("Mapping RT to ND")
+         GridFunction g_rt(&fespace_rt);
+
+         Vector tmp_rt(fespace_rt.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            ND_FECollection    fec_nd(order + 1, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GSSmoother s_nd(m_nd.SpMat());
+            REQUIRE( g_rt.ComputeL2Error(VxF3_coef) < tol );
 
-            GridFunction g_nd(&fespace_nd);
+            MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+            blfw.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
 
-            Vector tmp_nd(fespace_nd.GetNDofs());
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
 
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( diff->MaxNorm() < tol );
 
-               blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
-               PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(VxF3_coef) < tol );
-
-               MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
-               blfw.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
-
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
-
-               REQUIRE( diff->MaxNorm() < tol );
-
-               delete blfT;
-               delete diff;
-            }
+            delete blfT;
+            delete diff;
          }
-         SECTION("Mapping RT to RT")
+      }
+   }
+   SECTION("Operators on RT")
+   {
+      RT_FECollection    fec_rt(order - 1, dim);
+      FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+
+      GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
+
+      SECTION("Mapping RT to ND")
+      {
+         ND_FECollection    fec_nd(order + 1, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
+
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("With Vector Coefficient")
          {
-            RT_FECollection    fec_rtp(order, dim);
-            FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
+            MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_rtp(&fespace_rtp);
-            m_rtp.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rtp.Assemble();
-            m_rtp.Finalize();
+            blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GSSmoother s_rtp(m_rtp.SpMat());
+            REQUIRE( g_nd.ComputeL2Error(VxF3_coef) < tol );
 
-            GridFunction g_rtp(&fespace_rtp);
+            MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+            blfw.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
 
-            Vector tmp_rtp(fespace_rtp.GetNDofs());
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
 
-            SECTION("With Vector Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
-               blf.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blf.Assemble();
-               blf.Finalize();
+            REQUIRE( diff->MaxNorm() < tol );
 
-               blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
-               PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
+            delete blfT;
+            delete diff;
+         }
+      }
+      SECTION("Mapping RT to RT")
+      {
+         RT_FECollection    fec_rtp(order, dim);
+         FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
 
-               REQUIRE( g_rtp.ComputeL2Error(VxF3_coef) < tol );
+         BilinearForm m_rtp(&fespace_rtp);
+         m_rtp.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rtp.Assemble();
+         m_rtp.Finalize();
 
-               MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
-               blfw.AddDomainIntegrator(
-                  new MixedCrossProductIntegrator(V3_coef));
-               blfw.Assemble();
-               blfw.Finalize();
+         GridFunction g_rtp(&fespace_rtp);
 
-               SparseMatrix * blfT = Transpose(blfw.SpMat());
-               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+         Vector tmp_rtp(fespace_rtp.GetNDofs());
 
-               REQUIRE( diff->MaxNorm() < tol );
+         SECTION("With Vector Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
+            blf.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-               delete blfT;
-               delete diff;
-            }
+            blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+            CG(m_rtp, tmp_rtp, g_rtp, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rtp.ComputeL2Error(VxF3_coef) < tol );
+
+            MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
+            blfw.AddDomainIntegrator(
+               new MixedCrossProductIntegrator(V3_coef));
+            blfw.Assemble();
+            blfw.Finalize();
+
+            SparseMatrix * blfT = Transpose(blfw.SpMat());
+            SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+
+            REQUIRE( diff->MaxNorm() < tol );
+
+            delete blfT;
+            delete diff;
          }
       }
    }
