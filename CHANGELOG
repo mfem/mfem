@@ -10,6 +10,10 @@
 
 Version 4.1.1 (development)
 ===========================
+- Added a GitLab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
+  and the updated CONTRIBUTING.md file.
 
 - Added support for finite difference-based gradient and Hessian approximation
   in the TMOP mesh optimization algorithms. This improves the accuracy of the
