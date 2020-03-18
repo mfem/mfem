@@ -1280,7 +1280,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    if (Nodes != NULL)
    {
       // This call will turn the Nodes into a ParGridFunction
-      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim);
+      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
+                   GetNodalFESpace()->GetOrdering());
    }
 }
 
