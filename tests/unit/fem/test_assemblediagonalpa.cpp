@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 #include "catch.hpp"
@@ -111,6 +111,89 @@ TEST_CASE("diffusiondiag")
             delete h1_fec;
          }
       }
+   }
+}
+
+template <typename INTEGRATOR>
+double test_vdiagpa(int dim, int order)
+{
+   Mesh *mesh = nullptr;
+   if (dim == 2)
+   {
+      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+   }
+   else if (dim == 3)
+   {
+      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+   }
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(mesh, &fec, dim);
+
+   BilinearForm form(&fes);
+   form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   form.AddDomainIntegrator(new INTEGRATOR);
+   form.Assemble();
+
+   Vector diag(fes.GetVSize());
+   form.AssembleDiagonal(diag);
+
+   BilinearForm form_full(&fes);
+   form_full.AddDomainIntegrator(new INTEGRATOR);
+   form_full.Assemble();
+   form_full.Finalize();
+
+   Vector diag_full(fes.GetVSize());
+   form_full.SpMat().GetDiag(diag_full);
+
+   diag_full -= diag;
+
+   delete mesh;
+
+   return diag_full.Norml2();
+}
+
+TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly], [AssembleDiagonal]")
+{
+   SECTION("2D")
+   {
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
+                                                 2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(2,
+                                                 3) == Approx(0.0));
+   }
+
+   SECTION("3D")
+   {
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
+                                                 2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorMassIntegrator>(3,
+                                                 3) == Approx(0.0));
+   }
+}
+
+TEST_CASE("Vector Diffusion Diagonal PA",
+          "[PartialAssembly], [AssembleDiagonal]")
+{
+   SECTION("2D")
+   {
+      REQUIRE(
+         test_vdiagpa<VectorDiffusionIntegrator>(2,
+                                                 2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(2,
+                                                      3) == Approx(0.0));
+   }
+
+   SECTION("3D")
+   {
+      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
+                                                      2) == Approx(0.0));
+
+      REQUIRE(test_vdiagpa<VectorDiffusionIntegrator>(3,
+                                                      3) == Approx(0.0));
    }
 }
 
