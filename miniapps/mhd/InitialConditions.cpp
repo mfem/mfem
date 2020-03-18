@@ -1,5 +1,9 @@
 #include "InitialConditions.hpp"
 
+double vari_coeff=5.;
+double visc_bdy=5e-4;
+double tau=200.;
+
 double InitialPhi(const Vector &x)
 {
     return 0.0;
@@ -62,6 +66,20 @@ double InitialPsi3(const Vector &x)
           +beta*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
 }
 
+double InitialJ6(const Vector &x)
+{
+   double tmp=beta*exp(-vari_coeff*x(1)*x(1))*cos(.5*M_PI*x(1))*cos(M_PI*x(0));
+   return (ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2)
+        -M_PI*M_PI*1.25*tmp + (4.*vari_coeff*vari_coeff*x(1)*x(1)-2.*vari_coeff)*tmp
+        +beta*exp(-vari_coeff*x(1)*x(1))*sin(.5*M_PI*x(1))*cos(M_PI*x(0))*2.*M_PI*x(1)*vari_coeff;
+}
+
+double InitialPsi6(const Vector &x)
+{
+   return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) )
+          +beta*exp(-vari_coeff*x(1)*x(1))*cos(M_PI*.5*x(1))*cos(M_PI*x(0));
+}
+
 double BackPsi3(const Vector &x)
 {
    return -lambda*log( cosh(x(1)/lambda) +ep*cos(x(0)/lambda) );
@@ -72,8 +90,6 @@ double E0rhs3(const Vector &x)
    return resiG*(ep*ep-1.)/lambda/pow(cosh(x(1)/lambda) +ep*cos(x(0)/lambda), 2);
 }
 
-double vari_coeff=10.;
-double visc_bdy=5e-4;
 double resiVari(const Vector &x)
 {
    return resiG+exp(-vari_coeff*(1.-x(1)*x(1)))*(visc_bdy-resiG);

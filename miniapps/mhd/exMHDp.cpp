@@ -25,7 +25,6 @@ double Lx;
 double lambda;
 double resiG;
 double ep=.2;
-double tau=200.;
 int icase = 1;
 
 int main(int argc, char *argv[])
@@ -102,7 +101,7 @@ int main(int argc, char *argv[])
    {
       resiG=resi;
    }
-   else if (icase==3 || icase==5)
+   else if (icase==3 || icase==5 || icase==6)
    {
       lambda=.5/M_PI;
       resiG=resi;
@@ -195,6 +194,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit3(InitialPsi3);
         psi.ProjectCoefficient(psiInit3);
    }
+   else if (icase==6)
+   {
+        FunctionCoefficient psiInit6(InitialPsi6);
+        psi.ProjectCoefficient(psiInit6);
+   }
    psi.SetTrueVector();
 
    FunctionCoefficient wInit(InitialW);
@@ -216,6 +220,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient jInit3(InitialJ3);
         j.ProjectCoefficient(jInit3);
    }
+   else if (icase==6)
+   {
+        FunctionCoefficient jInit6(InitialJ6);
+        j.ProjectCoefficient(jInit6);
+   }
    j.SetTrueVector();
 
    //Set the background psi
@@ -229,7 +238,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient psi02(BackPsi2);
         psiBack.ProjectCoefficient(psi02);
    }
-   else if (icase==3 || icase==5)
+   else if (icase==3 || icase==5 || icase==6)
    {
         FunctionCoefficient psi03(BackPsi3);
         psiBack.ProjectCoefficient(psi03);
@@ -257,7 +266,7 @@ int main(int argc, char *argv[])
        FunctionCoefficient e0(E0rhs);
        oper.SetRHSEfield(e0);
    }
-   else if (icase==3)     
+   else if (icase==3 || icase==6)     
    {
        FunctionCoefficient e0(E0rhs3);
        oper.SetRHSEfield(e0);
@@ -377,7 +386,7 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            if(icase!=3 && icase!=5)
+            if(icase!=3 && icase!=5 && icase!=6)
             {
                 subtract(psi,psiBack,psiPer);
                 vis_phi << "parallel " << num_procs << " " << myid << "\n";

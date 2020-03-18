@@ -8,7 +8,6 @@ extern double Lx;  //size of x domain
 extern double lambda;
 extern double resiG;
 extern double ep;
-extern double tau;
 
 //initial condition
 double InitialPhi(const Vector &x);
@@ -28,6 +27,9 @@ double E0rhs5(const Vector &x);
 double InitialJ3(const Vector &x);
 double InitialPsi3(const Vector &x);
 double BackPsi3(const Vector &x);
+
+double InitialJ6(const Vector &x);
+double InitialPsi6(const Vector &x);
 
 double resiVari(const Vector &x);
 

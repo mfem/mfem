@@ -28,7 +28,6 @@ double Lx;
 double lambda;
 double resiG;
 double ep=.2;
-double tau=200.;
 double yrefine=0.2;
 int icase = 1;
 
@@ -153,7 +152,7 @@ int main(int argc, char *argv[])
    {
       resiG=resi;
    }
-   else if (icase==3 || icase==4 || icase==5)
+   else if (icase==3 || icase==4 || icase==5 || icase==6)
    {
       lambda=.5/M_PI;
       resiG=resi;
@@ -316,6 +315,11 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit4(InitialPsi4);
         psi.ProjectCoefficient(psiInit4);
    }
+   else if (icase==6)
+   {
+        FunctionCoefficient psiInit6(InitialPsi6);
+        psi.ProjectCoefficient(psiInit6);
+   }
    psi.SetTrueVector();
 
    FunctionCoefficient wInit(InitialW);
@@ -336,7 +340,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient psi02(BackPsi2);
         psiBack.ProjectCoefficient(psi02);
    }
-   else if (icase==3 || icase==4 || icase==5)
+   else if (icase==3 || icase==4 || icase==5 || icase==6)
    {
         FunctionCoefficient psi03(BackPsi3);
         psiBack.ProjectCoefficient(psi03);
@@ -364,7 +368,7 @@ int main(int argc, char *argv[])
    {
        oper.SetRHSEfield(E0rhs);
    }
-   else if (icase==3 || icase==4)     
+   else if (icase==3 || icase==4 || icase==6)     
    {
        oper.SetRHSEfield(E0rhs3);
    }
@@ -396,6 +400,12 @@ int main(int argc, char *argv[])
         FunctionCoefficient jInit4(InitialJ4);
         oper.SetInitialJ(jInit4);
         j.ProjectCoefficient(jInit4);
+   }
+   else if (icase==6)
+   {
+        FunctionCoefficient jInit6(InitialJ6);
+        oper.SetInitialJ(jInit6);
+        j.ProjectCoefficient(jInit6);
    }
    j.SetTrueVector();
 
