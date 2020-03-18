@@ -23,7 +23,15 @@
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
 #endif
 
+double beta;
+double Lx;  
+double lambda;
+double resiG;
+double ep=.2;
+double tau=200.;
 double yrefine=0.2;
+int icase = 1;
+
 bool region(const Vector &p, const int lev)
 {
    const double region_eps = 1e-8;
@@ -62,7 +70,6 @@ int main(int argc, char *argv[])
    bool local_refine = false;
    int local_refine_levels = 2;
    const char *petscrc_file = "";
-   int icase = 1;
    int part_method=1;   //part_method 0 or 1 gives good results for a static adaptive mesh
    beta = 0.001; 
    Lx=3.0;
@@ -146,7 +153,7 @@ int main(int argc, char *argv[])
    {
       resiG=resi;
    }
-   else if (icase==3 || icase==4)
+   else if (icase==3 || icase==4 || icase==5)
    {
       lambda=.5/M_PI;
       resiG=resi;
@@ -299,7 +306,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit2(InitialPsi2);
         psi.ProjectCoefficient(psiInit2);
    }
-   else if (icase==3)
+   else if (icase==3 || icase==5)
    {
         FunctionCoefficient psiInit3(InitialPsi3);
         psi.ProjectCoefficient(psiInit3);
@@ -329,7 +336,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient psi02(BackPsi2);
         psiBack.ProjectCoefficient(psi02);
    }
-   else if (icase==3 || icase==4)
+   else if (icase==3 || icase==4 || icase==5)
    {
         FunctionCoefficient psi03(BackPsi3);
         psiBack.ProjectCoefficient(psi03);
@@ -361,6 +368,8 @@ int main(int argc, char *argv[])
    {
        oper.SetRHSEfield(E0rhs3);
    }
+   else if (icase==5)
+       oper.SetRHSEfield(E0rhs5);
 
    ParGridFunction j(&fespace);
    //set initial J
@@ -376,7 +385,7 @@ int main(int argc, char *argv[])
         oper.SetInitialJ(jInit2);
         j.ProjectCoefficient(jInit2);
    }
-   else if (icase==3)
+   else if (icase==3 || icase==5)
    {
         FunctionCoefficient jInit3(InitialJ3);
         oper.SetInitialJ(jInit3);
@@ -484,7 +493,7 @@ int main(int argc, char *argv[])
    //++++Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
-   bool useStab = true; //use a stabilized formulation
+   bool useStab = false; //use a stabilized formulation
    if(!useStab) isupg=0;
    for (int ti = 1; !last_step; ti++)
    {

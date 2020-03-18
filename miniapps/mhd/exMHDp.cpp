@@ -20,6 +20,14 @@
 #include <iostream>
 #include <fstream>
 
+double beta;
+double Lx;  
+double lambda;
+double resiG;
+double ep=.2;
+double tau=200.;
+int icase = 1;
+
 int main(int argc, char *argv[])
 {
    int num_procs, myid;
@@ -38,7 +46,6 @@ int main(int argc, char *argv[])
    double visc = 0.0;
    double resi = 0.0;
    bool visit = false;
-   int icase = 1;
    beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
@@ -95,7 +102,7 @@ int main(int argc, char *argv[])
    {
       resiG=resi;
    }
-   else if (icase==3)
+   else if (icase==3 || icase==5)
    {
       lambda=.5/M_PI;
       resiG=resi;
@@ -183,7 +190,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient psiInit2(InitialPsi2);
         psi.ProjectCoefficient(psiInit2);
    }
-   else if (icase==3)
+   else if (icase==3 || icase==5)
    {
         FunctionCoefficient psiInit3(InitialPsi3);
         psi.ProjectCoefficient(psiInit3);
@@ -204,7 +211,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient jInit2(InitialJ2);
         j.ProjectCoefficient(jInit2);
    }
-   else if (icase==3)
+   else if (icase==3 || icase==5)
    {
         FunctionCoefficient jInit3(InitialJ3);
         j.ProjectCoefficient(jInit3);
@@ -222,7 +229,7 @@ int main(int argc, char *argv[])
         FunctionCoefficient psi02(BackPsi2);
         psiBack.ProjectCoefficient(psi02);
    }
-   else if (icase==3)
+   else if (icase==3 || icase==5)
    {
         FunctionCoefficient psi03(BackPsi3);
         psiBack.ProjectCoefficient(psi03);
@@ -253,6 +260,11 @@ int main(int argc, char *argv[])
    else if (icase==3)     
    {
        FunctionCoefficient e0(E0rhs3);
+       oper.SetRHSEfield(e0);
+   }
+   else if (icase==5)     
+   {
+       FunctionCoefficient e0(E0rhs5);
        oper.SetRHSEfield(e0);
    }
 
@@ -362,19 +374,19 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
          if (myid==0) cout << "step " << ti << ", t = " << t <<endl;
-         subtract(psi,psiBack,psiPer);
 
          if (visualization)
          {
-            if(icase!=3)
+            if(icase!=3 && icase!=5)
             {
+                subtract(psi,psiBack,psiPer);
                 vis_phi << "parallel " << num_procs << " " << myid << "\n";
                 vis_phi << "solution\n" << *pmesh << psiPer;
             }
             else
             {
                 vis_phi << "parallel " << num_procs << " " << myid << "\n";
-                vis_phi << "solution\n" << *pmesh << phi;
+                vis_phi << "solution\n" << *pmesh << w;
             }
 
             vis_j << "parallel " << num_procs << " " << myid << "\n";

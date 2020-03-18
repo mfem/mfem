@@ -8,12 +8,14 @@
 # MFEM is free software; you can redistribute it and/or modify it under the
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
+#
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/mhd/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+OBJ = InitialConditions.o
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
@@ -31,14 +33,17 @@ endif
 
 # Remove built-in rule
 %: %.cpp
+%.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+%: $(SRC)%.cpp $(OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(OBJ) $(MFEM_LIBS)
 
-# Replace the default implicit rule for *.cpp files
-imMHDp: imMHDp.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+
+imMHDp: imMHDp.cpp $(OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@  $(OBJ) $(MFEM_LIBS)
 
 
 

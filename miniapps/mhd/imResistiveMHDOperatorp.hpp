@@ -1,5 +1,6 @@
 #include "mfem.hpp"
 #include "PetscPreconditioner.hpp"
+#include "InitialConditions.hpp"
 #include <iostream>
 #include <fstream>
 
@@ -20,6 +21,8 @@ int iUpdateJ=1; //control how J is computed (whether or not Dirichelt boundary c
                 
 int iSc=0;      //the parameter to control precondtioner
 bool lumpedMass = false;
+
+extern int icase;
 
 // reduced system 
 class ReducedSystemOperator : public Operator
@@ -250,6 +253,7 @@ protected:
    double viscosity, resistivity;
    bool useAMG, use_petsc, use_factory;
    ConstantCoefficient visc_coeff, resi_coeff;
+   FunctionCoefficient visc_vari, resi_vari;
 
    //for implicit stepping
    ReducedSystemOperator *reduced_oper;
@@ -340,7 +344,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
      Nv(NULL), Nb(NULL), StabMass(NULL), StabNb(NULL), StabNv(NULL),  
      E0(NULL), StabE0(NULL), zLF(&fespace), MfullMat(NULL), E0Vec(NULL), E0rhs(NULL),
      viscosity(visc),  resistivity(resi), useAMG(false), use_petsc(use_petsc_), use_factory(use_factory_),
-     visc_coeff(visc),  resi_coeff(resi),  
+     visc_coeff(visc),  resi_coeff(resi),  visc_vari(resiVari),  resi_vari(resiVari),  
      reduced_oper(NULL), pnewton_solver(NULL), bchandler(NULL), J_factory(NULL),
      M_solver(f.GetComm()), M_prec(NULL), M_solver2(f.GetComm()), M_prec2(NULL),
      K_solver(f.GetComm()),  K_prec(NULL),
@@ -435,10 +439,21 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
    KB->Finalize();
    KBMat=KB->ParallelAssemble();
 
-   DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+   Coefficient *visc_ptr, *resi_ptr;
+   if (icase==5)
+   {
+       visc_ptr = &visc_vari;
+       resi_ptr = &resi_vari;
+   }
+   else
+   {
+       visc_ptr = &visc_coeff;
+       resi_ptr = &resi_coeff;
+   }
+   DRe.AddDomainIntegrator(new DiffusionIntegrator(*visc_ptr));    
    DRe.Assemble();
 
-   DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
+   DSl.AddDomainIntegrator(new DiffusionIntegrator(*resi_ptr));    
    DSl.Assemble();
 
    if (use_petsc)
@@ -449,7 +464,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       {   
           //assemble diffusion matrices (cannot delete DRetmp if ParAdd is used later)
           DRetmp = new ParBilinearForm(&fespace);
-          DRetmp->AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+          DRetmp->AddDomainIntegrator(new DiffusionIntegrator(*visc_ptr));    
           DRetmp->Assemble();
           DRetmp->FormSystemMatrix(ess_tdof_list, DRemat);
 
@@ -460,7 +475,7 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
       if (resistivity != 0.0)
       {
           DSltmp = new ParBilinearForm(&fespace);
-          DSltmp->AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
+          DSltmp->AddDomainIntegrator(new DiffusionIntegrator(*resi_ptr));    
           DSltmp->Assemble();
           DSltmp->FormSystemMatrix(ess_tdof_list, DSlmat);
 
@@ -618,7 +633,7 @@ void ResistiveMHDOperator::UpdateProblem(Array<int> &ess_bdr)
 
       delete reduced_oper;
       int useFull = 1;
-      //if needed, we can replace new with another update function
+      //if needed, we can replace new with another update function for AMR
       reduced_oper  = new ReducedSystemOperator(fespace, M, Mmat, K, Kmat,
                          KB, *KBMat, DRepr, DRematpr, DSlpr, DSlmatpr, &M_solver, &M_solver2,
                          viscosity, resistivity, ess_tdof_list, ess_bdr, useFull);

@@ -33,13 +33,34 @@ glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 36 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+3/16
+mpirun -n 12 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf .2 -dt .1 -usepetsc --petscopts petscrc/rc_full -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -updatej 0
+
+for icase=5 supg and fd need some work, but it does not work very well
+Also tried Neumann boundary condition for omega, it does not gives better solutions.
+
+3/12
+This produces the same result with the smoother perturbation (icase=4):
+srun -n 72 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 6 -rp 0 -o 3 -i 4 -no-vis -tf 4 -dt .1 -usepetsc --petscopts petscrc/rc_full -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -updatej 0
+
+srun -n 72 ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 8 -rp 0 -o 3 -i 4 -no-vis -tf .2 -dt .1 -usepetsc --petscopts rc_full -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -updatej 0
+
+
 3/11
 Compare two solvers (coarse mesh they are comparable):
 srun -n 36 imMHDp-old -m ./Meshes/xperiodic-new.mesh -rs 7 -rp 0 -o 2 -i 3 -vs 2 -tf .2 -dt .1 -usepetsc --petscopts ./petscrc/rc_full -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd
 
 After the boundary is fixed (Dirichlet), rs=9 o=2 works fine for res=1e-4 and visc=1e-4!!
 
-rs=9 o=3 struggles, maybe reduce the time step??
+rs=9 o=3 struggles, maybe reduce the time step, or change mffd?
+What if I reduce rs??
+
+>>>res=1e-4
+rs=7 o=3 mffd=5e-2 works
+rs=8 o=3 mffd=? I tried 1e-1 to 1e-3, not working so far... dt=0.01 working but that is terrible!! What if I change the problem to remove the "boundary layer"? Yes, it passed the first dt=0.2
+
+rs=9 o=3 mffd=?
+
 
 3/9
 

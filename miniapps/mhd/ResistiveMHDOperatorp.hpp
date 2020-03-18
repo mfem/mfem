@@ -1,9 +1,12 @@
 #include "mfem.hpp"
+#include "InitialConditions.hpp"
 #include <iostream>
 #include <fstream>
 
 using namespace std;
 using namespace mfem;
+
+extern int icase;
 
 /** After spatial discretization, the resistive MHD model can be written as a
  *  system of ODEs:
@@ -26,6 +29,7 @@ protected:
    ParBilinearForm *Mrhs;
    ParBilinearForm *Nv, *Nb;
    ParLinearForm *E0, *Sw; //two source terms
+   mutable ParLinearForm zLF;
    HypreParMatrix Kmat, Mmat, *MrhsMat, *NbMat;
    double viscosity, resistivity;
    bool useAMG;
@@ -42,7 +46,7 @@ protected:
    HypreSolver *K_amg; //BoomerAMG for stiffness matrix
    HyprePCG *K_pcg;
 
-   mutable Vector z; // auxiliary vector 
+   mutable Vector z, zTrue; // auxiliary vector 
 
 public:
    ResistiveMHDOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr, 
@@ -67,10 +71,10 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
                                          Array<int> &ess_bdr, double visc, double resi)
    : TimeDependentOperator(4*f.GetVSize(), 0.0), fespace(f),
      M(NULL), K(NULL), KB(NULL), DSl(&fespace), DRe(&fespace), Mrhs(NULL),
-     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL),
+     Nv(NULL), Nb(NULL), E0(NULL), Sw(NULL), zLF(&fespace),
      viscosity(visc),  resistivity(resi), MrhsMat(NULL), NbMat(NULL), useAMG(false), 
      M_solver(f.GetComm()), M_solver2(f.GetComm()), K_solver(f.GetComm()), 
-     K_amg(NULL), K_pcg(NULL), z(height/4)
+     K_amg(NULL), K_pcg(NULL), z(height/4), zTrue(f.GetTrueVSize())
 {
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -150,14 +154,25 @@ ResistiveMHDOperator::ResistiveMHDOperator(ParFiniteElementSpace &f,
         ofstream myfile2 ("Mmat.m");
    }
 
-   ConstantCoefficient visc_coeff(viscosity);
-   DRe.AddDomainIntegrator(new DiffusionIntegrator(visc_coeff));    
+   Coefficient *visc_coeff, *resi_coeff;
+   if (icase==5)
+   {
+      visc_coeff= new FunctionCoefficient(resiVari);
+   }
+   else
+      visc_coeff= new ConstantCoefficient(viscosity);
+   DRe.AddDomainIntegrator(new DiffusionIntegrator(*visc_coeff));    
    DRe.Assemble();
 
-   ConstantCoefficient resi_coeff(resistivity);
-   DSl.AddDomainIntegrator(new DiffusionIntegrator(resi_coeff));    
+   if (icase==5)
+      resi_coeff= new FunctionCoefficient(resiVari);
+   else
+      resi_coeff= new ConstantCoefficient(resistivity);
+   DSl.AddDomainIntegrator(new DiffusionIntegrator(*resi_coeff));    
    DSl.Assemble();
 
+   delete visc_coeff;
+   delete resi_coeff;
 }
 
 void ResistiveMHDOperator::SetRHSEfield(FunctionCoefficient Efield) 
@@ -202,23 +217,31 @@ void ResistiveMHDOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    M_solver.Mult(Z, Y);
    M->RecoverFEMSolution(Y, z, dpsi_dt);
 
-   Nv->Mult(w, z);
+   Nv->Mult(w, zLF);
    if (viscosity != 0.0)
    {
-      DRe.AddMult(w, z);
+      DRe.AddMult(w, zLF);
    }
-   z.Neg(); // z = -z
-   Nb->AddMult(j, z);
+   zLF.Neg(); // z = -z
+   Nb->AddMult(j, zLF);
    //Vector tmp;
    //NbMat->Mult(j, tmp);
    //z+=tmp;
 
-   //z.SetSubVector(ess_tdof_list, 0.0);
-   //M_solver.Mult(z, dw_dt);
-   
-   M->FormLinearSystem(ess_tdof_list, dw_dt, z, A, Y, Z); 
-   M_solver.Mult(Z, Y);
-   M->RecoverFEMSolution(Y, z, dw_dt);
+   if(true) //we enforce Dirichlet on w
+   {
+      M->FormLinearSystem(ess_tdof_list, dw_dt, zLF, A, Y, Z); 
+      M_solver.Mult(Z, Y);
+      M->RecoverFEMSolution(Y, zLF, dw_dt);
+   }
+   else
+   {   
+      //here we try to force a Neumann boundary condition
+      zLF.ParallelAssemble(zTrue);
+      M_solver2.Mult(zTrue, Y);
+      const Operator *P= fespace.GetProlongationMatrix();
+      P->Mult(Y, dw_dt);
+   }
 }
 
 void ResistiveMHDOperator::assembleNv(ParGridFunction *gf) 
@@ -250,17 +273,14 @@ void ResistiveMHDOperator::UpdateJ(Vector &vx, ParGridFunction *j)
    int sc = height/4;
    Vector psi(vx.GetData() +  sc, sc);
 
-   ParLinearForm zLF(&fespace);
    KB->Mult(psi, zLF);
    zLF.Neg(); // z = -z
 
-   int trueSize=fespace.GetTrueVSize();
-
    //no boundary condition is applied here
-   Vector zTmp(trueSize), jTmp(trueSize);
+   Vector jTmp(fespace.GetTrueVSize());
 
-   zLF.ParallelAssemble(zTmp);
-   M_solver2.Mult(zTmp, jTmp);
+   zLF.ParallelAssemble(zTrue);
+   M_solver2.Mult(zTrue, jTmp);
    j->SetFromTrueDofs(jTmp);
 
    //another equivalent way
