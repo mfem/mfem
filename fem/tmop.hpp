@@ -769,8 +769,7 @@ public:
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
                                         int nodenum, int idir,
-                                        const Vector &IntData,
-                                        bool MixTerm);
+                                        const Vector &IntData);
 
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
