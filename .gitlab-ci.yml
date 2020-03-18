@@ -76,8 +76,9 @@ stages:
 
 # The setup job in setup stage don’t rely on MFEM git repo. It prepares a
 # pipeline-wide working directory downloading/updating external repos.
-# TODO: update is not necessary anymore, repo are never shared with another
-# pipeline. May be simplified if we don’t want to optimize this.
+# TODO: updating tests and tpls is not necessary anymore since pipelines are
+# now using unique directories so repo are never shared with another pipeline.
+# This is not memory efficient (we keep a lot of data), hence this reminder.
 .setup:
   stage: setup
   variables:
