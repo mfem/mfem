@@ -21,10 +21,11 @@ or product endorsement purposes.
 
 Inclusion of external software:
 
-This project distributes the sources of 3 external software products with
+This project distributes the sources of several external software products with
 their own respective licenses which can be found in their code and attached
-license files. These libraries and their licenses are as follows:
+license files. These software products and their licenses are as follows:
 
+* Gecko (general/gecko.{cpp,hpp}) -- BSD 3-clause license
 * Picojson (fem/picojson.h) -- Custom 2-clause license
 * Catch++  (tests/unit/catch.hpp) -- Boost 1.0 license
 * Zstr (general/zstr.hpp) -- MIT license

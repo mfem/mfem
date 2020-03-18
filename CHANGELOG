@@ -11,6 +11,13 @@
 Version 4.1.1 (development)
 ===========================
 
+Meshing improvements
+--------------------
+- The graph linear ordering library Gecko, previously an external dependency, is
+  now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
+  always available. The interface has also been improved, see for example the
+  mesh-explorer miniapp.
+
 Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
@@ -34,6 +41,12 @@ New and updated examples and miniapps
 - Added a new example 25/25p to demonstrate the construction of a matrix-free
   geometric and p-multigrid preconditioner for the iterative solution of the
   Laplace problem.
+
+Miscellaneous
+-------------
+- In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
+  solver can work with non-SPD preconditioner B.
+
 
 Version 4.1, released on March 10, 2020
 =======================================
