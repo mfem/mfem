@@ -498,8 +498,8 @@ void FaceQuadratureInterpolator::Mult(
 void FaceQuadratureInterpolator::Values(
    const Vector &e_vec, Vector &q_val) const
 {
-  Vector q_der, q_det, q_nor;
-  Mult(e_vec, 0x1, q_val, q_der, q_det, q_nor);
+   Vector q_der, q_det, q_nor;
+   Mult(e_vec, 0x1, q_val, q_der, q_det, q_nor);
 }
 
 } // namespace mfem
