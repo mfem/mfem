@@ -55,6 +55,7 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       sock << "window_title '" << ProblemName << "'\n"
            << "window_geometry "
            << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n"
+           << "valuerange 0 1\n" << "autoscale off\n"
            << "keys mcjlppppppppppppppppppppppppppp66666666666666666666666"
            << "66666666666666666666666666666666666666666666666662222222222";
       if ( vec ) { sock << "vvv"; }
