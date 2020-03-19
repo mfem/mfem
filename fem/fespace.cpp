@@ -122,7 +122,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
 
 int FiniteElementSpace::GetElementOrder(int i) const
 {
-   MFEM_VERIFY(sequence != mesh->GetSequence(), "space has not been Updated()");
+   MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
 
@@ -571,7 +571,6 @@ FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
          for (int j = 0; j < master_dofs.Size(); j++)
          {
             double coef = I(i, j);
-            cout << "i = " << sdof << " j = " << master_dofs[j] << " coef = " << coef << endl;
             if (std::abs(coef) > 1e-12)
             {
                int mdof = master_dofs[j];
@@ -716,11 +715,12 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    {
       MFEM_ASSERT(edge_dof.Size() == mesh->GetNEdges()+1, "");
 
-      T.SetFE(&SegmentFE);
+      /*T.SetFE(&SegmentFE);
       T.GetPointMat().SetSize(1, 2);
       T.GetPointMat()(0, 0) = 0.0;
       T.GetPointMat()(0, 1) = 1.0;
-      T.FinalizeTransformation();
+      T.FinalizeTransformation();*/
+      T.SetIdentityTransformation(Geometry::SEGMENT);
 
       for (int edge = 0; edge < mesh->GetNEdges(); edge++)
       {
@@ -737,14 +737,14 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             cout << "order = " << q << endl;
             const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
             slave_fe->GetTransferMatrix(*master_fe, T, I);
-            I.Print();
+
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
       }
    }
 
    deps.Finalize();
-   deps.Print();
+
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;
    for (int i = 0; i < ndofs; i++)
