@@ -143,9 +143,9 @@ static void EADGTraceAssemble3D(const int NF,
          }
       }
       MFEM_SHARED double s_D[MQ1][MQ1][2][2];
-      for (int i; i < 2; i++)
+      for (int i=0; i < 2; i++)
       {
-         for (int j; j < 2; j++)
+         for (int j=0; j < 2; j++)
          {
             MFEM_FOREACH_THREAD(k1,x,Q1D)
             {
