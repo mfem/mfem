@@ -2069,20 +2069,19 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 0, "Neutral Density", yGF, kGF, vis_flag,
                  logging, log_prefix),
-     nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
-     ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
-     Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
-     ne1Coef_(z_i_, ni1Coef_),
+     // nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
+     // ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
+     // Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
+     // ne1Coef_(z_i_, ni1Coef_),
      vnCoef_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
      izCoef_(Te0Coef_),
      rcCoef_(Te0Coef_),
      DCoef_(ne0Coef_, vnCoef_, izCoef_),
-     // dtDCoef_(0.0, DCoef_),
-     SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
-     SrcCoef_(ne1Coef_, ni1Coef_, rcCoef_),
+     SizCoef_(ne0Coef_, nn0Coef_, izCoef_),
+     SrcCoef_(ne0Coef_, ni0Coef_, rcCoef_),
      negSrcCoef_(-1.0, SrcCoef_),
-     dSizdnnCoef_(ne1Coef_, nn1Coef_, izCoef_),
-     dSizdniCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     dSizdnnCoef_(ne0Coef_, nn0Coef_, izCoef_),
+     dSizdniCoef_(ne0Coef_, nn0Coef_, izCoef_),
      dtdSizdnnCoef_(0.0, dSizdnnCoef_),
      dtdSizdniCoef_(0.0, dSizdniCoef_),
      DGF_(NULL),
@@ -2225,26 +2224,27 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    : TransportOp(mpi, dg, plasma, 1, "Ion Density", yGF, kGF, vis_flag,
                  logging, log_prefix),
      DPerpConst_(DPerp),
-     nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
-     ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
-     Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
-     ne1Coef_(z_i_, ni1Coef_),
-     izCoef_(Te1Coef_),
-     rcCoef_(Te1Coef_),
+     // nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
+     // ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
+     // Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
+     // ne1Coef_(z_i_, ni1Coef_),
+     izCoef_(Te0Coef_),
+     rcCoef_(Te0Coef_),
      DPerpCoef_(DPerp),
      DCoef_(DPerpCoef_, B3Coef),
-     dtDCoef_(0.0, DCoef_),
-     ViCoef_(yGF, kGF, B3Coef),
-     dtViCoef_(0.0, ViCoef_),
-     SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
-     SrcCoef_(ne1Coef_, ni1Coef_, rcCoef_),
+     // dtDCoef_(0.0, DCoef_),
+     // ViCoef_(yGF, kGF, B3Coef),
+     ViCoef_(vi0Coef_, B3Coef),
+     // dtViCoef_(0.0, ViCoef_),
+     SizCoef_(ne0Coef_, nn0Coef_, izCoef_),
+     SrcCoef_(ne0Coef_, ni0Coef_, rcCoef_),
      negSizCoef_(-1.0, SizCoef_),
-     dSizdnnCoef_(ne1Coef_, nn1Coef_, izCoef_),
-     dSizdniCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     dSizdnnCoef_(ne0Coef_, nn0Coef_, izCoef_),
+     dSizdniCoef_(ne0Coef_, nn0Coef_, izCoef_),
      negdtdSizdnnCoef_(0.0, dSizdnnCoef_),
      negdtdSizdniCoef_(0.0, dSizdniCoef_),
-     nnizCoef_(nn1Coef_, izCoef_),
-     niizCoef_(ni1Coef_, izCoef_),
+     nnizCoef_(nn0Coef_, izCoef_),
+     niizCoef_(ni0Coef_, izCoef_),
      DPerpGF_(NULL),
      AGF_(NULL),
      SGF_(NULL)
@@ -2341,10 +2341,10 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
    }
    NLOperator::SetTimeStep(dt);
 
-   dtDCoef_.SetAConst(dt);
+   // dtDCoef_.SetAConst(dt);
 
-   ViCoef_.SetTimeStep(dt);
-   dtViCoef_.SetAConst(dt);
+   // ViCoef_.SetTimeStep(dt);
+   // dtViCoef_.SetAConst(dt);
    // dtdSndnnCoef_.SetAConst(-dt);
    // dtdSndniCoef_.SetAConst(-dt * z_i_);
    negdtdSizdnnCoef_.SetAConst(-dt);
@@ -2422,24 +2422,24 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                  vis_flag, logging, log_prefix),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
-     nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
-     ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
-     Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
-     ne1Coef_(z_i_, ni1Coef_),
+     // nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
+     // ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
+     // Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
+     // ne1Coef_(z_i_, ni1Coef_),
      B3Coef_(&B3Coef),
      momCoef_(m_i_, ni0Coef_, vi0Coef_),
      EtaParaCoef_(z_i_, m_i_, Ti0Coef_),
      EtaPerpCoef_(DPerpConst_, m_i_, ni0Coef_),
      EtaCoef_(EtaParaCoef_, EtaPerpCoef_, *B3Coef_),
-     dtEtaCoef_(0.0, EtaCoef_),
-     miniViCoef_(yGF, kGF, m_i_, DPerpCoef_, B3Coef),
-     dtminiViCoef_(0.0, miniViCoef_),
+     // dtEtaCoef_(0.0, EtaCoef_),
+     miniViCoef_(ni0Coef_, vi0Coef_, m_i_, DPerpCoef_, B3Coef),
+     // dtminiViCoef_(0.0, miniViCoef_),
      gradPCoef_(yGF, kGF, z_i_, B3Coef),
-     izCoef_(Te1Coef_),
-     SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
+     izCoef_(Te0Coef_),
+     SizCoef_(ne0Coef_, nn0Coef_, izCoef_),
      negSizCoef_(-1.0, SizCoef_),
-     nnizCoef_(nn1Coef_, izCoef_),
-     niizCoef_(ni1Coef_, izCoef_),
+     nnizCoef_(nn0Coef_, izCoef_),
+     niizCoef_(ni0Coef_, izCoef_),
      EtaParaGF_(NULL),
      EtaPerpGF_(NULL),
      MomParaGF_(NULL),
@@ -2573,9 +2573,9 @@ void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
    }
    NLOperator::SetTimeStep(dt);
 
-   dtEtaCoef_.SetAConst(dt);
-   miniViCoef_.SetTimeStep(dt);
-   dtminiViCoef_.SetAConst(dt);
+   // dtEtaCoef_.SetAConst(dt);
+   // miniViCoef_.SetTimeStep(dt);
+   // dtminiViCoef_.SetAConst(dt);
 }
 
 void DGTransportTDO::
