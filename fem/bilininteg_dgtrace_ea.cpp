@@ -211,6 +211,7 @@ void DGTraceIntegrator::SetupEA(const FiniteElementSpace &fes,
 {
    SetupPA(fes, type);
    nf = fes.GetNFbyType(type);
+   if (nf==0) { return; }
    const Array<double> &B = maps->B;
    if (dim == 1)
    {
