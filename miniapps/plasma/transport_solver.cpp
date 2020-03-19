@@ -1097,7 +1097,6 @@ void DGTransportTDO::Update()
 
 DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
                                        const DGParams & dg,
-                                       const PlasmaParams & plasma,
                                        int index,
                                        const string & field_name,
                                        ParGridFunctionArray & yGF,
@@ -1108,12 +1107,8 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
               5*(yGF[0]->ParFESpace()->GetVSize())),
      dummyCoef_(NULL, INVALID),
      coefGF_(yGF[0]->ParFESpace()),
-     mpi_(mpi), dg_(dg), plasma_(plasma),
+     mpi_(mpi), dg_(dg),
      logging_(logging), log_prefix_(log_prefix),
-     m_n_(plasma.m_n),
-     T_n_(plasma.T_n),
-     m_i_(plasma.m_i),
-     z_i_(plasma.z_i),
      index_(index),
      field_name_(field_name),
      dt_(0.0),
@@ -2082,7 +2077,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      izCoef_(Te0Coef_),
      rcCoef_(Te0Coef_),
      DCoef_(ne0Coef_, vnCoef_, izCoef_),
-     dtDCoef_(0.0, DCoef_),
+     // dtDCoef_(0.0, DCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      SrcCoef_(ne1Coef_, ni1Coef_, rcCoef_),
      negSrcCoef_(-1.0, SrcCoef_),
@@ -2139,7 +2134,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    // blf_[0]->AddDomainIntegrator(new MassIntegrator(dtdSndnnCoef_));
 
    // dOp / dn_i
-   blf_[1] = new ParBilinearForm(&fes_);
+   // blf_[1] = new ParBilinearForm(&fes_);
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSizdniCoef_));
    // blf_[1]->AddDomainIntegrator(new MassIntegrator(dtdSndniCoef_));
 
@@ -2172,7 +2167,7 @@ void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
    }
    NLOperator::SetTimeStep(dt);
 
-   dtDCoef_.SetAConst(dt);
+   // dtDCoef_.SetAConst(dt);
    dtdSizdnnCoef_.SetAConst(dt);
    dtdSizdniCoef_.SetAConst(dt);
 }
@@ -2940,8 +2935,8 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
                                  int index, const string & field_name,
                                  int vis_flag, int logging,
                                  const string & log_prefix)
-   : NLOperator(mpi, dg, plasma, index, field_name, yGF, kGF, vis_flag,
-                logging, log_prefix)
+   : TransportOp(mpi, dg, plasma, index, field_name, yGF, kGF, vis_flag,
+                 logging, log_prefix)
 {
    if ( mpi_.Root() && logging_ > 1)
    {

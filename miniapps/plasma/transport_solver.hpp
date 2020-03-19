@@ -1879,15 +1879,9 @@ private:
    protected:
       const MPI_Session &mpi_;
       const DGParams &dg_;
-      const PlasmaParams &plasma_;
 
       int logging_;
       std::string log_prefix_;
-
-      double m_n_;
-      double T_n_;
-      double m_i_;
-      int    z_i_;
 
       int index_;
       std::string field_name_;
@@ -1901,19 +1895,12 @@ private:
       Array<StateVariableGridFunctionCoef*> kCoefPtrs_;
       mutable Array<SumCoefficient*> y1CoefPtrs_;
       /*
-       StateVariableGridFunctionCoef *nn0CoefPtr_;
-       StateVariableGridFunctionCoef *ni0CoefPtr_;
-       StateVariableGridFunctionCoef *vi0CoefPtr_;
-       StateVariableGridFunctionCoef *Ti0CoefPtr_;
-       StateVariableGridFunctionCoef *Te0CoefPtr_;
-
        Coefficient *nn1CoefPtr_;
        Coefficient *ni1CoefPtr_;
        Coefficient *vi1CoefPtr_;
        Coefficient *Ti1CoefPtr_;
        Coefficient *Te1CoefPtr_;
 
-       ProductCoefficient  ne0Coef_;
        ProductCoefficient  ne1Coef_;
       */
       // mutable Vector shape_;
@@ -1954,7 +1941,7 @@ private:
       std::map<std::string, socketstream*> socks_;
 
       NLOperator(const MPI_Session & mpi, const DGParams & dg,
-                 const PlasmaParams & plasma, int index,
+                 int index,
                  const std::string &field_name,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
@@ -2011,6 +1998,13 @@ private:
    class TransportOp : public NLOperator
    {
    protected:
+      const PlasmaParams &plasma_;
+
+      double m_n_;
+      double T_n_;
+      double m_i_;
+      int    z_i_;
+
       StateVariableGridFunctionCoef &nn0Coef_;
       StateVariableGridFunctionCoef &ni0Coef_;
       StateVariableGridFunctionCoef &vi0Coef_;
@@ -2026,8 +2020,13 @@ private:
                   ParGridFunctionArray & kGF,
                   int vis_flag, int logging = 0,
                   const std::string & log_prefix = "")
-         : NLOperator(mpi, dg, plasma, index, field_name,
+         : NLOperator(mpi, dg, index, field_name,
                       yGF, kGF, vis_flag, logging, log_prefix),
+           plasma_(plasma),
+           m_n_(plasma.m_n),
+           T_n_(plasma.T_n),
+           m_i_(plasma.m_i),
+           z_i_(plasma.z_i),
            nn0Coef_(*yCoefPtrs_[NEUTRAL_DENSITY]),
            ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
            vi0Coef_(*yCoefPtrs_[ION_PARA_VELOCITY]),
@@ -2116,7 +2115,7 @@ private:
       ApproxRecombinationRate  rcCoef_;
 
       NeutralDiffusionCoef      DCoef_;
-      ProductCoefficient      dtDCoef_;
+      // ProductCoefficient      dtDCoef_;
 
       IonSourceCoef           SizCoef_;
       IonSinkCoef             SrcCoef_;
@@ -2641,7 +2640,7 @@ private:
       void Update();
    };
 
-   class DummyOp : public NLOperator
+   class DummyOp : public TransportOp
    {
    public:
       DummyOp(const MPI_Session & mpi, const DGParams & dg,
