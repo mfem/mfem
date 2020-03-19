@@ -39,6 +39,14 @@ Mesh *
 MakePeriodicMesh(Mesh * mesh, const Array<int> & v2v,
                  int logging = 0);
 
+/// Convert a set of attribute numbers to a marker array
+/** The marker array will be of size max_attr and it will contain only
+    zeroes and ones.  Ones indicate which attribute numbers are
+    present in the attrs array.  In the special case when attrs has a
+    single entry equal to -1 the marker array will contain all ones.
+*/
+void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker);
+
 } // namespace common
 
 } // namespace mfem

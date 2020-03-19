@@ -3163,20 +3163,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
                                                dg_.sigma,
                                                dg_.kappa));
       flfi_marker_.Append(new Array<int>);
-      flfi_marker_[i]->SetSize(pmesh_.bdr_attributes.Max());
-
-      if (dbc_[i].attr.Size() == 1 && dbc_[i].attr[0] == -1)
-      {
-         (*flfi_marker_[i]) = 1;
-      }
-      else
-      {
-         (*flfi_marker_[i]) = 0;
-         for (int j=0; j<dbc_[i].attr.Size(); j++)
-         {
-            (*flfi_marker_[i])[dbc_[i].attr[j]-1] = 1;
-         }
-      }
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc_[i].attr, *flfi_marker_[i]);
    }
 
    /*
@@ -3350,21 +3337,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                                                dg_.sigma,
                                                dg_.kappa));
       flfi_marker_.Append(new Array<int>);
-      flfi_marker_[i]->SetSize(yGF[0]->ParFESpace()->
-                               GetParMesh()->bdr_attributes.Max());
-
-      if (dbc_[i].attr.Size() == 1 && dbc_[i].attr[0] == -1)
-      {
-         (*flfi_marker_[i]) = 1;
-      }
-      else
-      {
-         (*flfi_marker_[i]) = 0;
-         for (int j=0; j<dbc_[i].attr.Size(); j++)
-         {
-            (*flfi_marker_[i])[dbc_[i].attr[j]-1] = 1;
-         }
-      }
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc_[i].attr, *flfi_marker_[i]);
    }
 
    /*
