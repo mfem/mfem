@@ -69,6 +69,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
          // make a degenerate face
          faces[i][0] = faces[i][1] = edges[i][0];
          faces[i][2] = faces[i][3] = edges[i][1];
+         nfv[i] = 2;
       }
       nf = ne;
    }
@@ -4905,6 +4906,9 @@ void NCMesh::LimitNCLevel(int max_nc_level)
    }
 }
 
+
+//// I/O ////////////////////////////////////////////////////////////////////////
+
 void NCMesh::PrintVertexParents(std::ostream &out) const
 {
    // count vertices with parents
@@ -4946,6 +4950,10 @@ void NCMesh::LoadVertexParents(std::istream &input)
       MFEM_VERIFY(nodes.IdExists(p1), "parent " << p1 << " not found.");
       MFEM_VERIFY(nodes.IdExists(p2), "parent " << p2 << " not found.");
 
+      int check = nodes.FindId(p1, p2);
+      MFEM_VERIFY(check < 0, "parents (" << p1 << ", " << p2 << ") already "
+                  "assigned to node " << check);
+
       // assign new parents for the node
       nodes.Reparent(id, p1, p2);
 
@@ -4954,64 +4962,102 @@ void NCMesh::LoadVertexParents(std::istream &input)
    }
 }
 
-/*void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
+int NCMesh::PrintBoundary(std::ostream *out) const
 {
-   int num_top_level = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   static const int nfv2geom[5] =
    {
-      if (node->p1 == node->p2) // see NCMesh::NCMesh
+      Geometry::INVALID, Geometry::POINT, Geometry::SEGMENT,
+      Geometry::TRIANGLE, Geometry::SQUARE
+   };
+   int deg = (Dim == 2) ? 2 : 1; // for degenerate faces in 2D
+
+   int count = 0;
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      const Element &el = elements[leaf_elements[i]];
+      GeomInfo& gi = GI[el.Geom()];
+
+      for (int k = 0; k < gi.nf; k++)
       {
-         MFEM_VERIFY(node.index() == node->p1, "invalid top-level vertex.");
-         MFEM_VERIFY(node->HasVertex(), "top-level vertex not found.");
-         MFEM_VERIFY(node->vert_index == node->p1, "bad top-level vertex index");
-         num_top_level = std::max(num_top_level, node->p1 + 1);
+         const int* fv = gi.faces[k];
+         const int nfv = gi.nfv[k];
+         const Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                       el.node[fv[2]], el.node[fv[3]]);
+         if (face->Boundary())
+         {
+            if (!out) { count++; continue; }
+
+            (*out) << face->attribute << " " << nfv2geom[nfv];
+            for (int j = 0; j < nfv; j++)
+            {
+               (*out) << " " << el.node[fv[j*deg]];
+            }
+            (*out) << "\n";
+         }
       }
    }
-
-   top_vertex_pos.SetSize(3*num_top_level);
-   for (int i = 0; i < num_top_level; i++)
-   {
-      std::memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
-   }
-}*/
-
-int NCMesh::PrintElements(std::ostream &out, int elem, int &coarse_id) const
-{
-   const Element &el = elements[elem];
-   if (el.ref_type)
-   {
-      int child_id[8], nch = 0;
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
-      {
-         child_id[nch++] = PrintElements(out, el.child[i], coarse_id);
-      }
-      MFEM_ASSERT(nch == ref_type_num_children[(int) el.ref_type], "");
-
-      out << (int) el.ref_type;
-      for (int i = 0; i < nch; i++)
-      {
-         out << " " << child_id[i];
-      }
-      out << "\n";
-      return coarse_id++; // return new id for this coarse element
-   }
-   else
-   {
-      return el.index;
-   }
+   return count;
 }
 
-void NCMesh::PrintCoarseElements(std::ostream &out) const
+void NCMesh::Print(std::ostream &out) const
 {
-   // print the number of non-leaf elements
-   out << (elements.Size() - free_element_ids.Size() - leaf_elements.Size())
-       << "\n";
+   out << "MFEM nonconforming mesh v1.0\n\n"
+          "# NCMesh supported geometry types:\n"
+          "# TRIANGLE    = 2\n"
+          "# SQUARE      = 3\n"
+          "# TETRAHEDRON = 4\n"
+          "# CUBE        = 5\n"
+          "# PRISM       = 6\n";
 
-   // print the hierarchy recursively
-   int coarse_id = leaf_elements.Size();
+   out << "\ndimension\n" << Dim << "\n";
+
+   out << "\n# rank attr geom ref_type nodes/children";
+   out << "\nelements\n" << elements.Size() << "\n";
+
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      const Element &el = elements[i];
+      out << el.rank << " " << el.attribute << " ";
+      if (el.parent == -2) { out << "-1\n"; continue; } // unused element
+
+      out << int(el.geom) << " " << int(el.ref_type);
+      for (int j = 0; j < 8 && el.node[j] >= 0; j++)
+      {
+         out << " " << el.node[j];
+      }
+      out << "\n";
+   }
+
+   out << "\n# attr geom node_list";
+   out << "\nboundary\n" << PrintBoundary(NULL) << "\n";
+
+   PrintBoundary(&out);
+
+   out << "\n# vert_id p1 p2";
+   out << "\nvertex_parents\n";
+
+   PrintVertexParents(out);
+
+   out << "\nroot_state\n" << root_state.Size() << "\n";
    for (int i = 0; i < root_state.Size(); i++)
    {
-      PrintElements(out, i, coarse_id);
+      out << root_state[i] << "\n";
+   }
+
+   int nvert = top_vertex_pos.Size()/3;
+   out << "\nvertices\n" << nvert << "\n";
+   if (nvert)
+   {
+      out << spaceDim << "\n";
+      for (int i = 0; i < nvert; i++)
+      {
+         out << top_vertex_pos[3*i];
+         for (int j = 1; j < spaceDim; j++)
+         {
+            out << " " << top_vertex_pos[3*i + j];
+         }
+         out << "\n";
+      }
    }
 }
 
@@ -5180,21 +5226,18 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
       {
          input >> v1 >> v2 >> v3 >> v4;
          Face* face = faces.Get(v1, v2, v3, v4);
-         //MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = attr;
       }
       else if (geom == Geometry::TRIANGLE)
       {
          input >> v1 >> v2 >> v3;
          Face* face = faces.Get(v1, v2, v3);
-         //MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = attr;
       }
       else if (geom == Geometry::SEGMENT)
       {
          input >> v1 >> v2;
          Face* face = faces.Get(v1, v1, v2, v2);
-         //MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = attr;
       }
       else

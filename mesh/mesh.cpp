@@ -8349,24 +8349,16 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       return;
    }
 
-#ifdef MFEM_USE_MPI
-   ParNCMesh *pncmesh = ncmesh ? dynamic_cast<ParNCMesh*>(ncmesh) : NULL;
-#else
-   void *pncmesh = NULL;
-#endif
+   if (Nonconforming())
+   {
+      // nonconforming mesh format
+      ncmesh->Print(out);
+      return;
+   }
 
-   if (Conforming())
-   {
-      // serial/parallel conforming formats
-      out << (section_delimiter.empty()
-              ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
-   }
-   else
-   {
-      // nonconforming format (NOTE: includes the former v1.1, now deprecated)
-      //out << "MFEM nonconforming mesh v1.0\n";
-      out << "MFEM mesh v1.1\n";
-   }
+   // serial/parallel conforming mesh format
+   out << (section_delimiter.empty()
+           ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
 
    // optional
    out <<
@@ -8388,25 +8380,10 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       PrintElement(elements[i], out);
    }
 
-   if (pncmesh)
-   {
-      out << "\nghost_elements\n";
-      //ncmesh->PrintGhostElements(); // TODO: pncmesh?
-   }
-
    out << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
       PrintElement(boundary[i], out);
-   }
-
-   if (ncmesh)
-   {
-      out << "\nvertex_parents\n";
-      ncmesh->PrintVertexParents(out);
-
-      out << "\ncoarse_elements\n";
-      ncmesh->PrintCoarseElements(out);
    }
 
    out << "\nvertices\n" << NumOfVertices << '\n';
@@ -8430,7 +8407,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
       Nodes->Save(out);
    }
 
-   if (!ncmesh && !section_delimiter.empty())
+   if (!section_delimiter.empty())
    {
       out << section_delimiter << endl; // only with format v1.2
    }

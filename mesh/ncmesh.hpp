@@ -338,11 +338,8 @@ public:
                                   Array<int> &fattr) const;
 
 
-   /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
-   void PrintVertexParents(std::ostream &out) const;
-
-   /// I/O: Print the "coarse_elements" section of the mesh file (ver. >= 1.1).
-   void PrintCoarseElements(std::ostream &out) const;
+   /// I/O: Print the mesh in "MFEM nonconforming mesh v1.0" format.
+   void Print(std::ostream &out) const;
 
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
@@ -816,19 +813,24 @@ protected: // implementation
    void CountSplits(int elem, int splits[3]) const;
    void GetLimitRefinements(Array<Refinement> &refinements, int max_level);
 
-   int PrintElements(std::ostream &out, int elem, int &coarse_id) const;
-   void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
-                     Array<int> &index_map);
 
-   /// Load the vertex parent hierarchy from a legacy mesh file.
+   // I/O
+
+   /// Print the "vertex_parents" section of the mesh file.
+   void PrintVertexParents(std::ostream &out) const;
+   /// Load the vertex parent hierarchy from a mesh file.
    void LoadVertexParents(std::istream &input);
+
+   /** Print the "boundary" section of the mesh file.
+       If out == NULL, only return the number of boundary elements. */
+   int PrintBoundary(std::ostream *out) const;
+
    /// Load the element refinement hierarchy from a legacy mesh file.
    void LoadCoarseElements(std::istream &input);
+   void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
+                     Array<int> &index_map);
    /// Load the deprecated MFEM mesh v1.1 format for backward comapatiblity.
    void LoadLegacyFormat(std::istream &input, int &curved);
-
-   /// I/O: Set positions of all vertices (used by mesh loader).
-   //void SetVertexPositions(const Array<mfem::Vertex> &vertices);
 
 
    // geometry
