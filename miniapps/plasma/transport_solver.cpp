@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "transport_solver.hpp"
-//#include "braginskii_coefs.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -900,12 +899,6 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                Array<int> &offsets,
                                ParGridFunctionArray &yGF,
                                ParGridFunctionArray &kGF,
-                               /*
-                                              int ion_charge,
-                                              double ion_mass,
-                                              double neutral_mass,
-                                              double neutral_temp,
-                                              */
                                double Di_perp, double Xi_perp, double Xe_perp,
                                VectorCoefficient &B3Coef,
                                vector<CoefficientByAttr> &Ti_dbc,
@@ -925,7 +918,6 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
      op_(mpi, dg, plasma, vfes, yGF, kGF, offsets_,
-         // ion_charge, ion_mass, neutral_mass, neutral_temp,
          Di_perp, Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc,
          vis_flags, op_flag, logging),
      BxyCoef_(B3Coef),
@@ -982,12 +974,6 @@ void DGTransportTDO::SetTime(const double _t)
    }
    this->TimeDependentOperator::SetTime(_t);
 
-   // n_n_oper_.SetTime(_t);
-   // n_i_oper_.SetTime(_t);
-   // v_i_oper_.SetTime(_t);
-   // T_i_oper_.SetTime(_t);
-   // T_e_oper_.SetTime(_t);
-
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::SetTime" << endl;
@@ -997,11 +983,6 @@ void DGTransportTDO::SetTime(const double _t)
 void DGTransportTDO::SetLogging(int logging)
 {
    op_.SetLogging(logging);
-   // n_n_oper_.SetLogging(logging, "Neutral Density:       ");
-   // n_i_oper_.SetLogging(logging, "Ion Density:           ");
-   // v_i_oper_.SetLogging(logging, "Ion Parallel Velocity: ");
-   // T_i_oper_.SetLogging(logging, "Ion Temp:              ");
-   // T_e_oper_.SetLogging(logging, "Electron Temp:         ");
 }
 
 void
@@ -1037,195 +1018,12 @@ DGTransportTDO::DisplayToGLVis()
 {
    if ( mpi_.Root() && logging_ > 1 )
    { cout << "Sending data to GLVis ..." << flush; }
-   /*
-   char vishost[] = "localhost";
-   int  visport   = 19916;
 
-   int Wx = 0, Wy = 0; // window position
-   int Ww = 350, Wh = 350; // window size
-   int offx = Ww+10, offy = Wh+45; // window offsets
-   */
    op_.DisplayToGLVis();
 
    if ( mpi_.Root() && logging_ > 1 ) { cout << " " << flush; }
 }
-/*
-void DGTransportTDO::SetNnDiffusionCoefficient(Coefficient &dCoef)
-{
- n_n_oper_.SetDiffusionCoefficient(dCoef);
-}
 
-void DGTransportTDO::SetNnDiffusionCoefficient(MatrixCoefficient &DCoef)
-{
- n_n_oper_.SetDiffusionCoefficient(DCoef);
-}
-
-void DGTransportTDO::SetNnSourceCoefficient(Coefficient &SCoef)
-{
- n_n_oper_.SetSourceCoefficient(SCoef);
-}
-
-void DGTransportTDO::SetNnDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
-{
- n_n_oper_.SetDirichletBC(dbc_attr, dbc);
-}
-
-void DGTransportTDO::SetNnNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
-{
- n_n_oper_.SetNeumannBC(nbc_attr, nbc);
-}
-
-void DGTransportTDO::SetNiAdvectionCoefficient(VectorCoefficient &VCoef)
-{
- n_i_oper_.SetAdvectionCoefficient(VCoef);
-}
-
-void DGTransportTDO::SetNiDiffusionCoefficient(Coefficient &dCoef)
-{
- n_i_oper_.SetDiffusionCoefficient(dCoef);
-}
-
-void DGTransportTDO::SetNiDiffusionCoefficient(MatrixCoefficient &DCoef)
-{
- n_i_oper_.SetDiffusionCoefficient(DCoef);
-}
-
-void DGTransportTDO::SetNiSourceCoefficient(Coefficient &SCoef)
-{
- n_i_oper_.SetSourceCoefficient(SCoef);
-}
-
-void DGTransportTDO::SetNiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
-{
- n_i_oper_.SetDirichletBC(dbc_attr, dbc);
-}
-
-void DGTransportTDO::SetNiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
-{
- n_i_oper_.SetNeumannBC(nbc_attr, nbc);
-}
-*/
-/*
-void DGTransportTDO::SetViAdvectionCoefficient(VectorCoefficient &VCoef)
-{
- v_i_oper_.SetAdvectionCoefficient(VCoef);
-}
-
-void DGTransportTDO::SetViDiffusionCoefficient(Coefficient &dCoef)
-{
- v_i_oper_.SetDiffusionCoefficient(dCoef);
-}
-
-void DGTransportTDO::SetViDiffusionCoefficient(MatrixCoefficient &DCoef)
-{
- v_i_oper_.SetDiffusionCoefficient(DCoef);
-}
-
-void DGTransportTDO::SetViSourceCoefficient(Coefficient &SCoef)
-{
- v_i_oper_.SetSourceCoefficient(SCoef);
-}
-
-void DGTransportTDO::SetViDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
-{
- v_i_oper_.SetDirichletBC(dbc_attr, dbc);
-}
-
-void DGTransportTDO::SetViNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
-{
- v_i_oper_.SetNeumannBC(nbc_attr, nbc);
-}
-
-void DGTransportTDO::SetTiAdvectionCoefficient(VectorCoefficient &VCoef)
-{
- T_i_oper_.SetAdvectionCoefficient(VCoef);
-}
-
-void DGTransportTDO::SetTiDiffusionCoefficient(Coefficient &dCoef)
-{
- T_i_oper_.SetDiffusionCoefficient(dCoef);
-}
-
-void DGTransportTDO::SetTiDiffusionCoefficient(MatrixCoefficient &DCoef)
-{
- T_i_oper_.SetDiffusionCoefficient(DCoef);
-}
-
-void DGTransportTDO::SetTiSourceCoefficient(Coefficient &SCoef)
-{
- T_i_oper_.SetSourceCoefficient(SCoef);
-}
-
-void DGTransportTDO::SetTiDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
-{
- T_i_oper_.SetDirichletBC(dbc_attr, dbc);
-}
-
-void DGTransportTDO::SetTiNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
-{
- T_i_oper_.SetNeumannBC(nbc_attr, nbc);
-}
-
-void DGTransportTDO::SetTeAdvectionCoefficient(VectorCoefficient &VCoef)
-{
- T_e_oper_.SetAdvectionCoefficient(VCoef);
-}
-
-void DGTransportTDO::SetTeDiffusionCoefficient(Coefficient &dCoef)
-{
- T_e_oper_.SetDiffusionCoefficient(dCoef);
-}
-
-void DGTransportTDO::SetTeDiffusionCoefficient(MatrixCoefficient &DCoef)
-{
- T_e_oper_.SetDiffusionCoefficient(DCoef);
-}
-
-void DGTransportTDO::SetTeSourceCoefficient(Coefficient &SCoef)
-{
- T_e_oper_.SetSourceCoefficient(SCoef);
-}
-
-void DGTransportTDO::SetTeDirichletBC(Array<int> &dbc_attr, Coefficient &dbc)
-{
- T_e_oper_.SetDirichletBC(dbc_attr, dbc);
-}
-
-void DGTransportTDO::SetTeNeumannBC(Array<int> &nbc_attr, Coefficient &nbc)
-{
- T_e_oper_.SetNeumannBC(nbc_attr, nbc);
-}
-*/
-/*
-void DGTransportTDO::ExplicitMult(const Vector &x, Vector &y) const
-{
- y = 0.0;
-
- // pgf_->ExchangeFaceNbrData();
-
- int size = fes_->GetVSize();
-
- x_.SetDataAndSize(const_cast<double*>(&x[0*size]), size);
- y_.SetDataAndSize(&y[0*size], size);
- n_n_oper_.ExplicitMult(x_, y_);
-
- x_.SetDataAndSize(const_cast<double*>(&x[1*size]), size);
- y_.SetDataAndSize(&y[1*size], size);
- n_i_oper_.ExplicitMult(x_, y_);
-
- x_.SetDataAndSize(const_cast<double*>(&x[2*size]), size);
- y_.SetDataAndSize(&y[2*size], size);
- v_i_oper_.ExplicitMult(x_, y_);
-
- x_.SetDataAndSize(const_cast<double*>(&x[3*size]), size);
- y_.SetDataAndSize(&y[3*size], size);
- T_i_oper_.ExplicitMult(x_, y_);
-
- x_.SetDataAndSize(const_cast<double*>(&x[4*size]), size);
- y_.SetDataAndSize(&y[4*size], size);
- T_e_oper_.ExplicitMult(x_, y_);
-}
-*/
 void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
                                    Vector &k)
 {
@@ -1321,22 +1119,11 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      dt_(0.0),
      fes_(*yGF[0]->ParFESpace()),
      pmesh_(*fes_.GetParMesh()),
-     yGF_(yGF), kGF_(kGF),
-     yCoefPtrs_(yGF_.Size()), kCoefPtrs_(kGF_.Size()), y1CoefPtrs_(yGF_.Size()),
-     /*
-     nn0CoefPtr_(NULL),
-     ni0CoefPtr_(NULL),
-     vi0CoefPtr_(NULL),
-     Ti0CoefPtr_(NULL),
-     Te0CoefPtr_(NULL),
-     nn1CoefPtr_(NULL),
-     ni1CoefPtr_(NULL),
-     vi1CoefPtr_(NULL),
-     Ti1CoefPtr_(NULL),
-     Te1CoefPtr_(NULL),
-     ne0Coef_(z_i_, dummyCoef_),
-     ne1Coef_(z_i_, dummyCoef_),
-     */
+     yGF_(yGF),
+     kGF_(kGF),
+     yCoefPtrs_(yGF_.Size()),
+     kCoefPtrs_(kGF_.Size()),
+     y1CoefPtrs_(yGF_.Size()),
      dbfi_m_(5),
      blf_(5),
      vis_flag_(vis_flag),
@@ -1355,22 +1142,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
       kCoefPtrs_[i] = new StateVariableGridFunctionCoef(kGF_[i], (FieldType)i);
       y1CoefPtrs_[i] = new SumCoefficient(*yCoefPtrs_[i], *kCoefPtrs_[i]);
    }
-   /*
-   nn0CoefPtr_ = yCoefPtrs_[0];
-   ni0CoefPtr_ = yCoefPtrs_[1];
-   vi0CoefPtr_ = yCoefPtrs_[2];
-   Ti0CoefPtr_ = yCoefPtrs_[3];
-   Te0CoefPtr_ = yCoefPtrs_[4];
 
-   nn1CoefPtr_ = y1CoefPtrs_[0];
-   ni1CoefPtr_ = y1CoefPtrs_[1];
-   vi1CoefPtr_ = y1CoefPtrs_[2];
-   Ti1CoefPtr_ = y1CoefPtrs_[3];
-   Te1CoefPtr_ = y1CoefPtrs_[4];
-
-   ne0Coef_.SetBCoef(*ni0CoefPtr_);
-   ne1Coef_.SetBCoef(*ni1CoefPtr_);
-   */
    blf_ = NULL;
 
    if (vis_flag_ < 0) { vis_flag_ = this->GetDefaultVisFlag(); }
@@ -1995,8 +1767,6 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        ParGridFunctionArray & yGF,
                                        ParGridFunctionArray & kGF,
                                        Array<int> & offsets,
-                                       // int ion_charge, double ion_mass,
-                                       // double neutral_mass, double neutral_temp,
                                        double DiPerp,
                                        double XiPerp,
                                        double XePerp,
@@ -2023,8 +1793,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 0) & 1)
    {
-      op_[0] = new NeutralDensityOp(mpi, dg, plasma, yGF, kGF,// ion_charge,
-                                    // neutral_mass, neutral_temp,
+      op_[0] = new NeutralDensityOp(mpi, dg, plasma, yGF, kGF,
                                     vis_flags[0], logging, "n_n: ");
    }
    else
@@ -2036,7 +1805,6 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 1) & 1)
    {
       op_[1] = new IonDensityOp(mpi, dg, plasma, vfes, yGF, kGF,
-                                //ion_charge,
                                 DiPerp,
                                 B3Coef, vis_flags[1], logging, "n_i: ");
    }
@@ -2049,7 +1817,6 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 2) & 1)
    {
       op_[2] = new IonMomentumOp(mpi, dg, plasma, vfes, yGF, kGF,
-                                 // ion_charge, ion_mass,
                                  DiPerp, B3Coef, vis_flags[2],
                                  logging, "v_i: ");
    }
@@ -2063,7 +1830,6 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 3) & 1)
    {
       op_[3] = new IonStaticPressureOp(mpi, dg, plasma, yGF, kGF,
-                                       // ion_charge, ion_mass,
                                        XiPerp, B3Coef, Ti_dbc, vis_flags[3],
                                        logging, "T_i: ");
    }
@@ -2076,7 +1842,6 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    if ((op_flag >> 4) & 1)
    {
       op_[4] = new ElectronStaticPressureOp(mpi, dg, plasma, yGF, kGF,
-                                            // ion_charge, ion_mass,
                                             XePerp, B3Coef, Te_dbc,
                                             vis_flags[4],
                                             logging, "T_e: ");
@@ -2304,27 +2069,14 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    const PlasmaParams & plasma,
                                                    ParGridFunctionArray & yGF,
                                                    ParGridFunctionArray & kGF,
-                                                   // double neutral_mass,
-                                                   // double neutral_temp,
                                                    int vis_flag,
                                                    int logging,
                                                    const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 0, "Neutral Density", yGF, kGF, vis_flag,
                  logging, log_prefix),
-     // z_i_(ion_charge), m_n_(neutral_mass), T_n_(neutral_temp),
-     // nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), Te0Coef_(pgf[4]),
-     // dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dTeCoef_(dpgf[4]),
-     // nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-     // Te1Coef_(Te0Coef_, dTeCoef_),
-     // ne0Coef_(z_i_, ni0Coef_),
-     // ne1Coef_(z_i_, ni1Coef_),
-     // nn0Coef_(*yCoefPtrs_[NEUTRAL_DENSITY]),
-     // ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
-     // Te0Coef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
      ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
      Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
-     // ne0Coef_(z_i_, ni0Coef_),
      ne1Coef_(z_i_, ni1Coef_),
      vnCoef_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
      izCoef_(Te0Coef_),
@@ -2340,12 +2092,6 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      dtdSizdniCoef_(0.0, dSizdniCoef_),
      DGF_(NULL),
      SGF_(NULL)
-     // nnizCoef_(nn1Coef_, izCoef_),
-     // neizCoef_(ne1Coef_, izCoef_),
-     // dtdSndnnCoef_(0.0, neizCoef_),
-     // dtdSndniCoef_(0.0, nnizCoef_),
-     // diff_(DCoef_),
-     // dg_diff_(DCoef_, dg_.sigma, dg_.kappa)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -2426,14 +2172,7 @@ void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
    }
    NLOperator::SetTimeStep(dt);
 
-   /*
-   nn1Coef_.SetBeta(dt);
-   ni1Coef_.SetBeta(dt);
-   Te1Coef_.SetBeta(dt);
-   */
    dtDCoef_.SetAConst(dt);
-   // dtdSndnnCoef_.SetAConst(dt);
-   // dtdSndniCoef_.SetAConst(dt * z_i_);
    dtdSizdnnCoef_.SetAConst(dt);
    dtdSizdniCoef_.SetAConst(dt);
 }
@@ -2476,160 +2215,13 @@ void DGTransportTDO::NeutralDensityOp::Update()
    if (DGF_ != NULL) { DGF_->Update(); }
    if (SGF_ != NULL) { SGF_->Update(); }
 }
-/*
-void DGTransportTDO::NeutralDensityOp::Mult(const Vector &k, Vector &y) const
-{
- cout << "DGTransportTDO::NeutralDensityOp::Mult" << endl;
- ParFiniteElementSpace *fespace = (*pgf_)[0]->ParFESpace();
- ParMesh *pmesh = fespace->GetParMesh();
 
- y = 0.0;
-
- {
-    Array<int> vdofs;
-
-    for (int e=0; e<fespace->GetNE(); e++)
-    {
-       const FiniteElement *fe = fespace->GetFE(e);
-       ElementTransformation *eltrans = fespace->GetElementTransformation(e);
-
-       int ndof = fe->GetDof();
-       int dim  = fe->GetDim();
-       int bord = fe->GetOrder();
-
-       shape_.SetSize(ndof);
-       dshape_.SetSize(ndof, dim);
-       dshapedxt_.SetSize(ndof, dim);
-       elvec_.SetSize(ndof);
-       locvec_.SetSize(ndof);
-       locdvec_.SetSize(ndof);
-       vec_.SetSize(dim);
-
-       elvec_ = 0.0;
-
-       fespace->GetElementVDofs (e, vdofs);
-       (*pgf_)[0]->GetSubVector(vdofs, locvec_);
-       (*dpgf_)[0]->GetSubVector(vdofs, locdvec_);
-
-       locvec_.Add(dt_, locdvec_);
-
-       Geometry::Type geom = fe->GetGeomType();
-
-       // int iord = 2 * bord + eltrans->OrderW();
-       int iord = 7;
-
-       const IntegrationRule *ir = &IntRules.Get(geom, iord);
-       // std::cout << "IR Order: " << ir->GetOrder() << std::endl;
-
-       for (int i=0; i<ir->GetNPoints(); i++)
-       {
-          const IntegrationPoint &ip = ir->IntPoint(i);
-          eltrans->SetIntPoint(&ip);
-
-          double detJ = eltrans->Weight();
-
-          fe->CalcShape(ip, shape_);
-          fe->CalcDShape(ip, dshape_);
-
-          mfem::Mult(dshape_, eltrans->AdjugateJacobian(), dshapedxt_);
-
-          // double nn = nn1Coef_.Eval(*eltrans, ip);
-          // double ni = ni1Coef_.Eval(*eltrans, ip);
-          // double Te = Te1Coef_.Eval(*eltrans, ip);
-          double nn = nn0Coef_.Eval(*eltrans, ip);
-          double ni = ni0Coef_.Eval(*eltrans, ip);
-          double Te = Te0Coef_.Eval(*eltrans, ip);
-
-          double ne = ni * z_i_;
-
-          const double vn2 = 8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_);
-          double sv_iz = 3.0e-16 * Te * Te / (3.0 + 0.01 * Te * Te);
-
-          double Dn = vn2 / (3.0 * ne * sv_iz);
-          double Sn = ne * nn * sv_iz;
-
-          // add(elvec_, detJ * ip.weight * (locdvec_ * shape_), shape_, elvec_);
-
-          dshapedxt_.MultTranspose(locvec_, vec_);
-          dshapedxt_.AddMult_a(Dn * ip.weight / detJ, vec_, elvec_);
-
-          // add(elvec_, detJ * ip.weight * Sn, shape_, elvec_);
-       }
-
-       y.AddElementVector(vdofs, elvec_);
-    }
- }
- cout << "DGTransportTDO::NeutralDensityOp::Mult element loop done" << endl;
- {
-    FaceElementTransformations *ftrans = NULL;
-    Array<int> vdofs;
-    Array<int> vdofs2;
-
-    for (int f = 0; f < pmesh->GetNumFaces(); f++)
-    {
-       ftrans = pmesh->GetInteriorFaceTransformations(f);
-       if (ftrans != NULL)
-       {
-          fespace->GetElementVDofs(ftrans->Elem1No, vdofs);
-          fespace->GetElementVDofs(ftrans->Elem2No, vdofs2);
-          vdofs.Append(vdofs2);
-
-          const FiniteElement *fe1 = fespace->GetFE(ftrans->Elem1No);
-          const FiniteElement *fe2 = fespace->GetFE(ftrans->Elem2No);
-
-          dg_diff_.AssembleFaceMatrix(*fe1, *fe2, *ftrans, elmat_);
-
-          (*pgf_)[0]->GetSubVector(vdofs, locvec_);
-          (*dpgf_)[0]->GetSubVector(vdofs, locdvec_);
-
-          locvec_.Add(dt_, locdvec_);
-
-          elvec_.SetSize(elmat_.Height());
-          elmat_.Mult(locvec_, elvec_);
-          // elvec_ *= -1.0;
-          // y.AddElementVector(vdofs, elvec_);
-       }
-    }
- }
- cout << "DGTransportTDO::NeutralDensityOp::Mult done" << endl;
- {
-    ParBilinearForm m((*pgf_)[0]->ParFESpace());
-    m.AddDomainIntegrator(new MassIntegrator);
-    m.Assemble();
-    m.Finalize();
-    HypreParMatrix *M = m.ParallelAssemble();
-
-    ParGridFunction ygf((*pgf_)[0]->ParFESpace());
-
-    CG(*M, y, ygf);
-
-    socketstream sock;
-    char vishost[] = "localhost";
-    int  visport   = 19916;
-
-    VisualizeField(sock, vishost, visport, ygf, "y n_n", 0,0,200,200);
-
-    delete M;
- }
-}
-*/
-/*
-Operator *DGTransportTDO::NeutralDensityOp::GetGradientBlock(int i)
-{
- switch (i)
- {
-    default:
-       return NULL;
- }
-}
-*/
 DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            const DGParams & dg,
                                            const PlasmaParams & plasma,
                                            ParFiniteElementSpace & vfes,
                                            ParGridFunctionArray & yGF,
                                            ParGridFunctionArray & kGF,
-                                           //int ion_charge,
                                            double DPerp,
                                            VectorCoefficient & B3Coef,
                                            int vis_flag,
@@ -2638,13 +2230,6 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    : TransportOp(mpi, dg, plasma, 1, "Ion Density", yGF, kGF, vis_flag,
                  logging, log_prefix),
      DPerpConst_(DPerp),
-     // nn0Coef_(pgf[0]), ni0Coef_(pgf[1]), vi0Coef_(pgf[2]), Te0Coef_(pgf[4]),
-     // dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]), dTeCoef_(dpgf[4]),
-     // nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-     // vi1Coef_(vi0Coef_, dviCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
-     // ne0Coef_(z_i_, ni0Coef_),
-     // ne1Coef_(z_i_, ni1Coef_),
-     // ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
      nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
      ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
      Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
@@ -2654,7 +2239,8 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      DPerpCoef_(DPerp),
      DCoef_(DPerpCoef_, B3Coef),
      dtDCoef_(0.0, DCoef_),
-     ViCoef_(yGF, kGF, B3Coef), dtViCoef_(0.0, ViCoef_),
+     ViCoef_(yGF, kGF, B3Coef),
+     dtViCoef_(0.0, ViCoef_),
      SizCoef_(ne1Coef_, nn1Coef_, izCoef_),
      SrcCoef_(ne1Coef_, ni1Coef_, rcCoef_),
      negSizCoef_(-1.0, SizCoef_),
@@ -2760,12 +2346,6 @@ void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
    }
    NLOperator::SetTimeStep(dt);
 
-   /*
-   nn1Coef_.SetBeta(dt);
-   ni1Coef_.SetBeta(dt);
-   vi1Coef_.SetBeta(dt);
-   Te1Coef_.SetBeta(dt);
-   */
    dtDCoef_.SetAConst(dt);
 
    ViCoef_.SetTimeStep(dt);
@@ -2838,8 +2418,6 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              ParFiniteElementSpace & vfes,
                                              ParGridFunctionArray & yGF,
                                              ParGridFunctionArray & kGF,
-                                             // int ion_charge,
-                                             // double ion_mass,
                                              double DPerp,
                                              VectorCoefficient & B3Coef,
                                              int vis_flag,
@@ -2847,26 +2425,12 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 2, "Ion Parallel Velocity", yGF, kGF,
                  vis_flag, logging, log_prefix),
-     // z_i_(ion_charge), m_i_(ion_mass),
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
-     // nn0Coef_(pgf[0]),
-     // ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
-     // vi0Coef_(*yCoefPtrs_[ION_PARA_VELOCITY]),
-     // Ti0Coef_(*yCoefPtrs_[ION_TEMPERATURE]),
      nn1Coef_(*y1CoefPtrs_[NEUTRAL_DENSITY]),
      ni1Coef_(*y1CoefPtrs_[ION_DENSITY]),
      Te1Coef_(*y1CoefPtrs_[ELECTRON_TEMPERATURE]),
-     // Ti0Coef_(pgf[3]), Te0Coef_(pgf[4]),
-     // dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]),
-     // dTiCoef_(dpgf[3]), dTeCoef_(dpgf[4]),
-     // nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-     // vi1Coef_(vi0Coef_, dviCoef_),
-     // Ti1Coef_(Ti0Coef_, dTiCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
-     // ne0Coef_(z_i_, ni0Coef_),
      ne1Coef_(z_i_, ni1Coef_),
-     // mini1Coef_(m_i_, ni1Coef_),
-     // mivi1Coef_(m_i_, vi1Coef_),
      B3Coef_(&B3Coef),
      momCoef_(m_i_, ni0Coef_, vi0Coef_),
      EtaParaCoef_(z_i_, m_i_, Ti0Coef_),
@@ -3014,13 +2578,6 @@ void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
    }
    NLOperator::SetTimeStep(dt);
 
-   /*
-   nn1Coef_.SetBeta(dt);
-   ni1Coef_.SetBeta(dt);
-   vi1Coef_.SetBeta(dt);
-   Ti1Coef_.SetBeta(dt);
-   Te1Coef_.SetBeta(dt);
-   */
    dtEtaCoef_.SetAConst(dt);
    miniViCoef_.SetTimeStep(dt);
    dtminiViCoef_.SetAConst(dt);
@@ -3094,8 +2651,6 @@ IonStaticPressureOp(const MPI_Session & mpi,
                     const PlasmaParams & plasma,
                     ParGridFunctionArray & yGF,
                     ParGridFunctionArray & kGF,
-                    // int ion_charge,
-                    // double ion_mass,
                     double ChiPerp,
                     VectorCoefficient & B3Coef,
                     vector<CoefficientByAttr> & dbc,
@@ -3104,22 +2659,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
                     const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 3, "Ion Temperature", yGF, kGF,
                  vis_flag, logging, log_prefix),
-     // z_i_(ion_charge), m_i_(ion_mass),
      ChiPerpConst_(ChiPerp),
-     // nn0Coef_(pgf[0]),
-     // ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
-     // Ti0Coef_(*yCoefPtrs_[ION_TEMPERATURE]),
-     // vi0Coef_(pgf[2]),
-     // Ti0Coef_(pgf[3]), Te0Coef_(pgf[4]),
-     // dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]),
-     // dTiCoef_(dpgf[3]), dTeCoef_(dpgf[4]),
-     // nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-     // vi1Coef_(vi0Coef_, dviCoef_),
-     // Ti1Coef_(Ti0Coef_, dTiCoef_), Te1Coef_(Te0Coef_, dTeCoef_),
-     // ne0Coef_(z_i_, *yCoef_[ION_DENSITY]),
-     // ne1Coef_(z_i_, *y1Coef_[ION_DENSITY]),
-     // thTiCoef_(1.5, *y1Coef_[ION_TEMPERATURE]),
-     // thniCoef_(1.5, *y1Coef_[ION_DENSITY]),
      izCoef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      B3Coef_(&B3Coef),
      presCoef_(ni0Coef_, Ti0Coef_),
@@ -3127,7 +2667,6 @@ IonStaticPressureOp(const MPI_Session & mpi,
                   *yCoefPtrs_[ION_DENSITY], *yCoefPtrs_[ION_TEMPERATURE]),
      ChiPerpCoef_(ChiPerpConst_, *yCoefPtrs_[ION_DENSITY]),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
-     // dtChiCoef_(0.0, ChiCoef_),
      dbc_(dbc),
      ChiParaGF_(new ParGridFunction(&fes_)),
      ChiPerpGF_(new ParGridFunction(&fes_))
@@ -3221,15 +2760,6 @@ void DGTransportTDO::IonStaticPressureOp::SetTimeStep(double dt)
            << endl;
    }
    NLOperator::SetTimeStep(dt);
-
-   /*
-   nn1Coef_.SetBeta(dt);
-   ni1Coef_.SetBeta(dt);
-   vi1Coef_.SetBeta(dt);
-   Ti1Coef_.SetBeta(dt);
-   Te1Coef_.SetBeta(dt);
-   dtChiCoef_.SetAConst(dt);
-   */
 }
 
 void DGTransportTDO::
@@ -3271,37 +2801,12 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    : TransportOp(mpi, dg, plasma, 4, "Electron Temperature", yGF, kGF,
                  vis_flag, logging, log_prefix),
      ChiPerpConst_(ChiPerp),
-     // nn0Coef_(pgf[0]),
-     // ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
-     // vi0Coef_(pgf[2]),
-     // Te0Coef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
-     // Te0Coef_(pgf[4]),
-     // grad_Te0Coef_(yGF[ELECTRON_TEMPERATURE]),
-     //dnnCoef_(dpgf[0]), dniCoef_(dpgf[1]), dviCoef_(dpgf[2]),
-     //dTiCoef_(dpgf[3]),
-     //dTeCoef_(dpgf[4]),
-     // grad_dTeCoef_(kGF[ELECTRON_TEMPERATURE]),
-     //nn1Coef_(nn0Coef_, dnnCoef_), ni1Coef_(ni0Coef_, dniCoef_),
-     //vi1Coef_(vi0Coef_, dviCoef_),
-     //Ti1Coef_(Ti0Coef_, dTiCoef_),
-     //Te1Coef_(Te0Coef_, dTeCoef_),
-     // grad_Te1Coef_(grad_Te0Coef_, grad_dTeCoef_),
-     // ne0Coef_(z_i_, ni0Coef_),
-     // ne1Coef_(z_i_, *y1CoefPtrs_[ION_DENSITY]),
-     // thTeCoef_(1.5 * plasma.z_i, *y1CoefPtrs_[ELECTRON_TEMPERATURE]),
-     // thneCoef_(1.5, ne1Coef_),
      izCoef_(Te0Coef_),
      B3Coef_(&B3Coef),
      presCoef_(z_i_, ni0Coef_, Te0Coef_),
      ChiParaCoef_(plasma.z_i, ne0Coef_, Te0Coef_),
-     // dChidTParaCoef_(plasma.z_i, ne1Coef_,
-     //              *y1CoefPtrs_[ELECTRON_TEMPERATURE], ELECTRON_TEMPERATURE),
      ChiPerpCoef_(ChiPerpConst_, ne0Coef_),
      ChiCoef_(ChiParaCoef_, ChiPerpCoef_, *B3Coef_),
-     // dtChiCoef_(0.0, ChiCoef_),
-     // dChidTCoef_(true, dChidTParaCoef_, *B3Coef_),
-     // dChiGradTCoef_(dChidTCoef_, grad_Te1Coef_),
-     // dtdChiGradTCoef_(0.0, dChiGradTCoef_),
      dbc_(dbc),
      ChiParaGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace())),
      ChiPerpGF_(new ParGridFunction(yGF_[ELECTRON_TEMPERATURE]->ParFESpace()))
@@ -3402,18 +2907,6 @@ void DGTransportTDO::ElectronStaticPressureOp::SetTimeStep(double dt)
            << endl;
    }
    NLOperator::SetTimeStep(dt);
-
-   /*
-   nn1Coef_.SetBeta(dt);
-   ni1Coef_.SetBeta(dt);
-   vi1Coef_.SetBeta(dt);
-   Ti1Coef_.SetBeta(dt);
-   Te1Coef_.SetBeta(dt);
-   grad_Te1Coef_.SetBeta(dt);
-
-   dtChiCoef_.SetAConst(dt);
-   dtdChiGradTCoef_.SetAConst(-dt);
-   */
 }
 
 void DGTransportTDO::
@@ -3472,14 +2965,7 @@ void DGTransportTDO::DummyOp::Update()
 {
    NLOperator::Update();
 }
-/*
-void DGTransportTDO::DummyOp::Mult(const Vector &k, Vector &y) const
-{
- std::cout << "DGTransportTDO::DummyOp::Mult" << std::endl;
- y = 0.0;
- blf_[index_]->Mult(*(*dpgf_)[index_], y);
-}
-*/
+
 TransportSolver::TransportSolver(ODESolver * implicitSolver,
                                  ODESolver * explicitSolver,
                                  ParFiniteElementSpace & sfes,
