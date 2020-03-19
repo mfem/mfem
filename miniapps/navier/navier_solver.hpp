@@ -113,7 +113,7 @@ public:
    /**
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
     * of the finite element spaces is this algorithm is of equal order
-    * \f$(P_N)^D P_N\f$ for velocity and pressure respectively. This means the
+    * \f$(P_N)^d P_N\f$ for velocity and pressure respectively. This means the
     * pressure is in discretized in the same space (just scalar instead of a
     * vector space) as the velocity.
     *
@@ -184,19 +184,6 @@ public:
    /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^3\f$.
    void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
 
-protected:
-   /// Print informations about the Navier version.
-   void PrintInfo();
-
-   /// Update the EXTk/BDF time integration coefficient.
-   /**
-    * Depending on which time step the computation is in, the EXTk/BDF time
-    * integration coefficients have to be set accordingly. This allows
-    * bootstrapping with a BDF scheme of order 1 and increasing the order each
-    * following time step, up to order 3.
-    */
-   void SetTimeIntegrationCoefficients(int step);
-
    /// Remove mean from a Vector.
    /**
     * Modify the Vector @a v by subtracting its mean using
@@ -210,6 +197,19 @@ protected:
     * \f$ v = v - \int_\Omega \frac{v}{vol(\Omega)} dx \f$.
     */
    void MeanZero(ParGridFunction &v);
+
+protected:
+   /// Print informations about the Navier version.
+   void PrintInfo();
+
+   /// Update the EXTk/BDF time integration coefficient.
+   /**
+    * Depending on which time step the computation is in, the EXTk/BDF time
+    * integration coefficients have to be set accordingly. This allows
+    * bootstrapping with a BDF scheme of order 1 and increasing the order each
+    * following time step, up to order 3.
+    */
+   void SetTimeIntegrationCoefficients(int step);
 
    /// Eliminate essential BCs in an Operator and apply to RHS.
    void EliminateRHS(Operator &A,
@@ -248,7 +248,7 @@ protected:
    /// Pressure \f$H^1\f$ finite element collection.
    FiniteElementCollection *pfec = nullptr;
 
-   /// Velocity \f$(H^1)^D\f$ finite element space.
+   /// Velocity \f$(H^1)^d\f$ finite element space.
    ParFiniteElementSpace *vfes = nullptr;
 
    /// Pressure \f$H^1\f$ finite element space.
