@@ -1398,17 +1398,17 @@ DGTransportTDO::NLOperator::~NLOperator()
       delete coefs_[i];
    }
    for (int i=0; i<dtSCoefs_.Size(); i++)
-     {
-       delete dtSCoefs_[i];
-     }
+   {
+      delete dtSCoefs_[i];
+   }
    for (int i=0; i<dtVCoefs_.Size(); i++)
-     {
-       delete dtVCoefs_[i];
-     }
+   {
+      delete dtVCoefs_[i];
+   }
    for (int i=0; i<dtMCoefs_.Size(); i++)
-     {
-       delete dtMCoefs_[i];
-     }
+   {
+      delete dtMCoefs_[i];
+   }
    for (unsigned int i=0; i<sout_.size(); i++)
    {
       delete sout_[i];
@@ -1520,10 +1520,10 @@ void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
 
    if (bc)
    {
-     bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
-     bfbfi_marker_.Append(NULL);
+      bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
+      bfbfi_marker_.Append(NULL);
    }
-   
+
    if (blf_[index_] == NULL)
    {
       blf_[index_] = new ParBilinearForm(&fes_);
@@ -1532,12 +1532,12 @@ void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
    blf_[index_]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(*dtVCoef));
    blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-								 1.0, -0.5));
+                                                                 1.0, -0.5));
 
    if (bc)
    {
-     blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-								   1.0, -0.5));
+      blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+                                                                    1.0, -0.5));
    }
 }
 
@@ -3228,8 +3228,8 @@ void DGTransportTDO::IonStaticPressureOp::SetTimeStep(double dt)
    vi1Coef_.SetBeta(dt);
    Ti1Coef_.SetBeta(dt);
    Te1Coef_.SetBeta(dt);
-   */
    dtChiCoef_.SetAConst(dt);
+   */
 }
 
 void DGTransportTDO::
@@ -3317,6 +3317,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
     // Time derivative term: 1.5 n_e dT_e/dt
     dbfi_m_[4].Append(new MassIntegrator(thneCoef_));
    */
+   // Time derivative term:  d(1.5 z_i n_i T_e) / dt
    SetTimeDerivativeTerm(presCoef_);
 
    // Diffusion term: -Div(chi Grad T_e)
@@ -3367,10 +3368,12 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                                                            dg_.sigma,
                                                            dg_.kappa));
    */
+   /*
    blf_[4]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtdChiGradTCoef_));
    blf_[4]->AddInteriorFaceIntegrator(new DGTraceIntegrator(dtdChiGradTCoef_,
                                                             1.0, -0.5));
+   */
    /*
    blf_[2]->AddDomainIntegrator(
       new MixedScalarWeakDivergenceIntegrator(dtminiViCoef_));
@@ -3406,11 +3409,11 @@ void DGTransportTDO::ElectronStaticPressureOp::SetTimeStep(double dt)
    vi1Coef_.SetBeta(dt);
    Ti1Coef_.SetBeta(dt);
    Te1Coef_.SetBeta(dt);
-   */
    grad_Te1Coef_.SetBeta(dt);
 
    dtChiCoef_.SetAConst(dt);
    dtdChiGradTCoef_.SetAConst(-dt);
+   */
 }
 
 void DGTransportTDO::
