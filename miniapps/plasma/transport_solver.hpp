@@ -13,6 +13,7 @@
 #define MFEM_TRANSPORT_SOLVER
 
 #include "../common/pfem_extras.hpp"
+#include "../common/mesh_extras.hpp"
 #include "plasma.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -1975,12 +1976,12 @@ private:
       void SetDiffusionTerm(StateVariableMatCoef &DCoef, bool bc = false);
 
       /** Sets the advection term on the right hand side of the
-	  equation to be:
+      equation to be:
              Div(VCoef y[index])
           where index is the index of the equation.
        */
       void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
-     
+
    public:
 
       virtual ~NLOperator();
@@ -2005,6 +2006,36 @@ private:
       virtual void InitializeGLVis();
 
       virtual void DisplayToGLVis();
+   };
+
+   class TransportOp : public NLOperator
+   {
+   protected:
+      StateVariableGridFunctionCoef &nn0Coef_;
+      StateVariableGridFunctionCoef &ni0Coef_;
+      StateVariableGridFunctionCoef &vi0Coef_;
+      StateVariableGridFunctionCoef &Ti0Coef_;
+      StateVariableGridFunctionCoef &Te0Coef_;
+
+      ProductCoefficient      ne0Coef_;
+
+      TransportOp(const MPI_Session & mpi, const DGParams & dg,
+                  const PlasmaParams & plasma, int index,
+                  const std::string &field_name,
+                  ParGridFunctionArray & yGF,
+                  ParGridFunctionArray & kGF,
+                  int vis_flag, int logging = 0,
+                  const std::string & log_prefix = "")
+         : NLOperator(mpi, dg, plasma, index, field_name,
+                      yGF, kGF, vis_flag, logging, log_prefix),
+           nn0Coef_(*yCoefPtrs_[NEUTRAL_DENSITY]),
+           ni0Coef_(*yCoefPtrs_[ION_DENSITY]),
+           vi0Coef_(*yCoefPtrs_[ION_PARA_VELOCITY]),
+           Ti0Coef_(*yCoefPtrs_[ION_TEMPERATURE]),
+           Te0Coef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
+           ne0Coef_(z_i_, ni0Coef_)
+      {}
+
    };
 
    /** The NeutralDensityOp is an mfem::Operator designed to work with
@@ -2045,7 +2076,7 @@ private:
        coefficient (-dt d S_n / d n_i) or (-dt d S_n / d
        T_e). Currently, (-dt d S_n / d T_e) is not implemented.
     */
-   class NeutralDensityOp : public NLOperator
+   class NeutralDensityOp : public TransportOp
    {
    private:
       enum VisField {DIFFUSION_COEF = 1, SOURCE = 2};
@@ -2054,15 +2085,16 @@ private:
        double m_n_;
        double T_n_;
       */
-      StateVariableGridFunctionCoef &nn0Coef_;
-      StateVariableGridFunctionCoef &ni0Coef_;
-      StateVariableGridFunctionCoef &Te0Coef_;
-
+      /*
+       StateVariableGridFunctionCoef &nn0Coef_;
+       StateVariableGridFunctionCoef &ni0Coef_;
+       StateVariableGridFunctionCoef &Te0Coef_;
+      */
       SumCoefficient &nn1Coef_;
       SumCoefficient &ni1Coef_;
       SumCoefficient &Te1Coef_;
 
-      ProductCoefficient      ne0Coef_;
+      // ProductCoefficient      ne0Coef_;
       ProductCoefficient      ne1Coef_;
       /*
        mutable GridFunctionCoefficient nn0Coef_;
@@ -2175,7 +2207,7 @@ private:
        Currently, (dt Div(n_i b_hat)) and (-dt d S_i / d T_e) are not
        implemented.
     */
-   class IonDensityOp : public NLOperator
+   class IonDensityOp : public TransportOp
    {
    private:
       enum VisField {DIFFUSION_PERP_COEF = 1,
@@ -2185,7 +2217,7 @@ private:
       // int    z_i_;
       double DPerpConst_;
 
-      StateVariableGridFunctionCoef &ni0Coef_;
+      // StateVariableGridFunctionCoef &ni0Coef_;
 
       SumCoefficient &nn1Coef_;
       SumCoefficient &ni1Coef_;
@@ -2299,7 +2331,7 @@ private:
        Currently, the static pressure terms and the derivatives of Eta
        do not contribute to the Jacobian.
     */
-   class IonMomentumOp : public NLOperator
+   class IonMomentumOp : public TransportOp
    {
    private:
       enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF = 2,
@@ -2311,9 +2343,9 @@ private:
       double DPerpConst_;
       ConstantCoefficient DPerpCoef_;
 
-      StateVariableGridFunctionCoef &ni0Coef_;
-      StateVariableGridFunctionCoef &vi0Coef_;
-      StateVariableGridFunctionCoef &Ti0Coef_;
+      // StateVariableGridFunctionCoef &ni0Coef_;
+      // StateVariableGridFunctionCoef &vi0Coef_;
+      // StateVariableGridFunctionCoef &Ti0Coef_;
 
       SumCoefficient &nn1Coef_;
       SumCoefficient &ni1Coef_;
@@ -2424,15 +2456,15 @@ private:
 
        MLS: Many more terms will arise once the full equation is implemented.
    */
-   class IonStaticPressureOp : public NLOperator
+   class IonStaticPressureOp : public TransportOp
    {
    private:
       // int    z_i_;
       // double m_i_;
       double ChiPerpConst_;
 
-      StateVariableGridFunctionCoef &ni0Coef_;
-      StateVariableGridFunctionCoef &Ti0Coef_;
+      // StateVariableGridFunctionCoef &ni0Coef_;
+      // StateVariableGridFunctionCoef &Ti0Coef_;
       /*
         GridFunctionCoefficient nn0Coef_;
         GridFunctionCoefficient ni0Coef_;
@@ -2466,7 +2498,7 @@ private:
       IonThermalParaDiffusionCoef      ChiParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
-      ScalarMatrixProductCoefficient   dtChiCoef_;
+      // ScalarMatrixProductCoefficient   dtChiCoef_;
 
       const std::vector<CoefficientByAttr> & dbc_;
 
@@ -2527,15 +2559,15 @@ private:
 
        MLS: Many more terms will arise once the full equation is implemented.
    */
-   class ElectronStaticPressureOp : public NLOperator
+   class ElectronStaticPressureOp : public TransportOp
    {
    private:
       // int    z_i_;
       // double m_i_;
       double ChiPerpConst_;
 
-      StateVariableGridFunctionCoef &ni0Coef_;
-      StateVariableGridFunctionCoef &Te0Coef_;
+      // StateVariableGridFunctionCoef &ni0Coef_;
+      // StateVariableGridFunctionCoef &Te0Coef_;
       /*
        GridFunctionCoefficient nn0Coef_;
        GridFunctionCoefficient ni0Coef_;
@@ -2549,8 +2581,8 @@ private:
        GridFunctionCoefficient dTiCoef_;
        GridFunctionCoefficient dTeCoef_;
       */
-      GradientGridFunctionCoefficient grad_Te0Coef_;
-      GradientGridFunctionCoefficient grad_dTeCoef_;
+      // GradientGridFunctionCoefficient grad_Te0Coef_;
+      // GradientGridFunctionCoefficient grad_dTeCoef_;
       /*
        mutable SumCoefficient  nn1Coef_;
        mutable SumCoefficient  ni1Coef_;
@@ -2558,10 +2590,10 @@ private:
        mutable SumCoefficient  Ti1Coef_;
        mutable SumCoefficient  Te1Coef_;
       */
-      mutable VectorSumCoefficient  grad_Te1Coef_;
+      // mutable VectorSumCoefficient  grad_Te1Coef_;
 
       // ProductCoefficient      ne0Coef_;
-      ProductCoefficient      ne1Coef_;
+      // ProductCoefficient      ne1Coef_;
 
       // ProductCoefficient      thTeCoef_; // 3/2 * Te
       // ProductCoefficient      thneCoef_; // 3/2 * ne
@@ -2572,14 +2604,14 @@ private:
 
       StaticPressureCoef               presCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
-      ElectronThermalParaDiffusionCoef dChidTParaCoef_;
+      // ElectronThermalParaDiffusionCoef dChidTParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
-      ScalarMatrixProductCoefficient   dtChiCoef_;
+      // ScalarMatrixProductCoefficient   dtChiCoef_;
 
-      Aniso2DDiffusionCoef             dChidTCoef_;
-      MatVecCoefficient                dChiGradTCoef_;
-      ScalarVectorProductCoefficient   dtdChiGradTCoef_;
+      // Aniso2DDiffusionCoef             dChidTCoef_;
+      // MatVecCoefficient                dChiGradTCoef_;
+      // ScalarVectorProductCoefficient   dtdChiGradTCoef_;
 
       const std::vector<CoefficientByAttr> & dbc_;
 
