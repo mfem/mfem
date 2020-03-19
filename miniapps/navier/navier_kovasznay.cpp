@@ -124,7 +124,8 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
-   flowsolver.EnablePA(true);
+   flowsolver.EnablePA(ctx.pa);
+   flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    // This is completely user customizeable.
@@ -139,7 +140,6 @@ int main(int argc, char *argv[])
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 1;
    flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
-   flowsolver.AddPresDirichletBC(pres_kovasznay, attr);
 
    double t = 0.0;
    double dt = ctx.dt;
@@ -152,6 +152,9 @@ int main(int argc, char *argv[])
    double err_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
+
+   ParGridFunction p_ex_gf(p_gf->ParFESpace());
+   GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
 
    for (int step = 0; !last_step; ++step)
    {
@@ -168,12 +171,17 @@ int main(int argc, char *argv[])
 
       u_excoeff.SetTime(t);
       p_excoeff.SetTime(t);
+
+      // Remove mean value from exact pressure solution.
+      p_ex_gf.ProjectCoefficient(p_excoeff);
+      flowsolver.MeanZero(p_ex_gf);
+
       err_u = u_gf->ComputeL2Error(u_excoeff);
-      err_p = p_gf->ComputeL2Error(p_excoeff);
+      err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
       if (mpi.Root())
       {
-         printf("%.2E %.2E %.5E %.5E err\n", t, dt, err_u, err_p);
+         printf("%.2d %.2E %.2E %.5E %.5E err\n", ctx.order, t, dt, err_u, err_p);
          fflush(stdout);
       }
    }
