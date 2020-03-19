@@ -20,7 +20,8 @@
 //               ex6 -pa -d occa-cuda
 //               ex6 -pa -d raja-omp
 //               ex6 -pa -d ceed-cpu
-//               ex6 -pa -d ceed-cuda
+//               * ex6 -pa -d ceed-cuda
+//               ex6 -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
