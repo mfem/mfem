@@ -237,11 +237,6 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
-# Gecko
-if (MFEM_USE_GECKO)
-  find_package(Gecko REQUIRED)
-endif()
-
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
@@ -352,7 +347,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS GSLIB NETCDF
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
