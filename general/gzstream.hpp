@@ -565,7 +565,7 @@ private:
    gzFile           file;               // file handle for compressed file
    char             buffer[bufferSize]; // data buffer
    char             opened;             // open/close state of stream
-   char             m_mode[16];           // I/O mode chars
+   char             mode[16];           // I/O mode chars
 
    int flush_buffer();
 
@@ -579,7 +579,7 @@ public:
       // ASSERT: both input & output capabilities will not be used together
    }
    int is_open() { return opened; }
-   gzstreambuf* open(char const *name, char const *m_mode);
+   gzstreambuf* open(char const *name, char const *mode);
    gzstreambuf* close();
    ~gzstreambuf() { close(); }
 
@@ -595,9 +595,9 @@ protected:
 
 public:
    gzstreambase() { init(&buf); }
-   gzstreambase(char const * name, char const *m_mode);
+   gzstreambase(char const * name, char const *mode);
    ~gzstreambase();
-   void open(char const * name, char const *m_mode);
+   void open(char const * name, char const *mode);
    void close();
    gzstreambuf* rdbuf() { return &buf; }
 };
@@ -616,15 +616,15 @@ public:
        the associated file. The mode chars are as in gzopen(),
        https://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA/zlib-gzopen-1.html.
        Default mode is "rb". */
-   igzstream(char const * name, char const *m_mode = "rb")
-      : gzstreambase(name, m_mode), std::istream( &buf) {}
+   igzstream(char const * name, char const *mode = "rb")
+      : gzstreambase(name, mode), std::istream( &buf) {}
    gzstreambuf* rdbuf() { return gzstreambase::rdbuf(); }
    /** Opens a gzip compressed input stream. The mode chars are as in gzopen(),
        https://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA/zlib-gzopen-1.html.
        Default mode is "rb". */
-   void open(char const * name, char const *m_mode = "rb")
+   void open(char const * name, char const *mode = "rb")
    {
-      gzstreambase::open(name, m_mode);
+      gzstreambase::open(name, mode);
    }
 };
 #endif
@@ -662,15 +662,15 @@ public:
        the associated file. The mode chars are as in gzopen(),
        https://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA/zlib-gzopen-1.html.
        Default mode is "wb6". */
-   ogzstream(char const * name, char const *m_mode = "wb6")
-      : gzstreambase(name, m_mode), std::ostream( &buf) {}
+   ogzstream(char const * name, char const *mode = "wb6")
+      : gzstreambase(name, mode), std::ostream( &buf) {}
    gzstreambuf* rdbuf() { return gzstreambase::rdbuf(); }
    /** Opens a gzip compressed output stream. The mode chars are as in gzopen(),
        https://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA/zlib-gzopen-1.html.
        Default mode is "wb6". */
-   void open(char const * name, char const *m_mode = "wb6")
+   void open(char const * name, char const *mode = "wb6")
    {
-      gzstreambase::open(name, m_mode);
+      gzstreambase::open(name, mode);
    }
 };
 #endif
