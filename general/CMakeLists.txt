@@ -15,6 +15,7 @@ list(APPEND SRCS
   cuda.cpp
   device.cpp
   error.cpp
+  gecko.cpp
   globals.cpp
   isockstream.cpp
   mem_manager.cpp
@@ -35,6 +36,7 @@ list(APPEND HDRS
   cuda.hpp
   device.hpp
   error.hpp
+  gecko.hpp
   globals.hpp
   zstr.hpp
   hash.hpp
