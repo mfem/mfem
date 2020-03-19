@@ -1,0 +1,24 @@
+window 0 0 1080 1080
+
+# Initial solution
+solution grid.mesh initial.gf
+
+# Setup the GLVis scene. Executed after pressing the space bar.
+{
+   keys cjppppppppppppppppppppppppppp6666666666666666666666666666666666666666666666666666666666666666666666662222222222
+}
+
+# Take multiple screenshots. Executed after pressing the space bar.
+{
+   solution grid.mesh initial.gf valuerange 0 1 screenshot output/screenshot.00.png
+   solution grid.mesh solution01.gf valuerange 0 1 screenshot output/screenshot.01.png
+   solution grid.mesh solution02.gf valuerange 0 1 screenshot output/screenshot.02.png
+   solution grid.mesh solution03.gf valuerange 0 1 screenshot output/screenshot.03.png
+   solution grid.mesh solution04.gf valuerange 0 1 screenshot output/screenshot.04.png
+   solution grid.mesh solution05.gf valuerange 0 1 screenshot output/screenshot.05.png
+   solution grid.mesh solution06.gf valuerange 0 1 screenshot output/screenshot.06.png
+   solution grid.mesh solution07.gf valuerange 0 1 screenshot output/screenshot.07.png
+   solution grid.mesh solution08.gf valuerange 0 1 screenshot output/screenshot.08.png
+   solution grid.mesh solution09.gf valuerange 0 1 screenshot output/screenshot.09.png
+   solution grid.mesh solution10.gf valuerange 0 1 screenshot output/screenshot.10.png
+}

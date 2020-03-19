@@ -172,36 +172,37 @@ void ParDofInfo::FillNeighborDofs()
          }
       }
    }
-   for (e = 0; e < pfes->GetNBE(); e++)
-   {
-      const int bdr_attr = mesh->GetBdrAttribute(e);
-      FaceElementTransformations *tr = mesh->GetBdrFaceTransformations(e);
 
-      if (tr != NULL)
-      {
-         const int el = tr->Elem1No;
+   // for (e = 0; e < pfes->GetNBE(); e++)
+   // {
+   //    const int bdr_attr = mesh->GetBdrAttribute(e);
+   //    FaceElementTransformations *tr = mesh->GetBdrFaceTransformations(e);
 
-         if (dim == 1) { mesh->GetElementVertices(el, bdrs); }
-         else if (dim == 2) { mesh->GetElementEdges(el, bdrs, orientation); }
-         else if (dim == 3) { mesh->GetElementFaces(el, bdrs, orientation); }
+   //    if (tr != NULL)
+   //    {
+   //       const int el = tr->Elem1No;
 
-         for (i = 0; i < NumBdrs; i++)
-         {
-            if (bdrs[i] == mesh->GetBdrElementEdgeIndex(e))
-            {
-               for (j = 0; j < NumFaceDofs; j++)
-               {
-                  NbrDofs(i, j, el) = -bdr_attr;
-               }
-               continue;
-            }
-         }
-      }
-      else
-      {
-         MFEM_ABORT("Something went wrong.");
-      }
-   }
+   //       if (dim == 1) { mesh->GetElementVertices(el, bdrs); }
+   //       else if (dim == 2) { mesh->GetElementEdges(el, bdrs, orientation); }
+   //       else if (dim == 3) { mesh->GetElementFaces(el, bdrs, orientation); }
+
+   //       for (i = 0; i < NumBdrs; i++)
+   //       {
+   //          if (bdrs[i] == mesh->GetBdrElementEdgeIndex(e))
+   //          {
+   //             for (j = 0; j < NumFaceDofs; j++)
+   //             {
+   //                NbrDofs(i, j, el) = -bdr_attr;
+   //             }
+   //             continue;
+   //          }
+   //       }
+   //    }
+   //    else
+   //    {
+   //       MFEM_ABORT("Something went wrong.");
+   //    }
+   // }
 
    delete face_to_el;
 }

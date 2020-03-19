@@ -47,7 +47,6 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       newly_opened = true;
    }
    sock << "solution\n";
-
    mesh.Print(sock);
    gf.Save(sock);
 
