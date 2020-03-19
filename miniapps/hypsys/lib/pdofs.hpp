@@ -4,6 +4,7 @@
 #include "../../../mfem.hpp"
 #include "dofs.hpp"
 
+using namespace std;
 using namespace mfem;
 
 class ParDofInfo : public DofInfo

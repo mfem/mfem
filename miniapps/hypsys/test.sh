@@ -3,9 +3,9 @@ make clean && make -j;
 ## Advection
 
 # Solid Body Roatation
-./hypsys -tf 0.1
-./phypsys -tf 0.1
-mpirun -np 4 ./phypsys -tf 0.1
+./hypsys -r 0
+./phypsys -r 0
+mpirun -np 4 ./phypsys -r 0
 
 # Steady Circular Convection
 ./hypsys -vs 1000 -m data/inline-4quad.mesh -dt 0.0001 -o 2 -s 1 -r 3 -c 0
@@ -31,7 +31,7 @@ mpirun -np 4 ./phypsys -p 3 -c 0 -tf 0.2828427124746190 -m data/periodic-tri.mes
 
 ## Euler
 
-# Shock Tube
-./hypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh -r 4 -o 1
-./phypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh  -r 4 -o 1
-mpirun -np 4 ./phypsys -p 4 -c 1 -tf 0.25 -m data/inline-4quad.mesh  -r 4 -o 1
+# Shock Tube - temporary fix in terms of b.c.
+./hypsys -p 4 -c 1 -tf 0.5 -m data/periodic-square.mesh -r 4 -o 1
+./phypsys -p 4 -c 1 -tf 0.5 -m data/periodic-square.mesh  -r 4 -o 1
+mpirun -np 4 ./phypsys -p 4 -c 1 -tf 0.5 -m data/periodic-square.mesh  -r 4 -o 1

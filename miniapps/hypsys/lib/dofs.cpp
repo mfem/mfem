@@ -312,8 +312,6 @@ void DofInfo::FillNeighborDofs()
    Table *face_to_el = mesh->GetFaceToElementTable();
 
    NbrDofs.SetSize(NumBdrs, NumFaceDofs, ne);
-   ElBdrAttr.SetSize(ne, NumBdrs);
-   ElBdrAttr = 0.;
 
    // Permutations of BdrDofs, taking into account all possible orientations.
    // Assumes BdrDofs are ordered in xyz order, which is true for 3D hexes,
@@ -350,7 +348,6 @@ void DofInfo::FillNeighborDofs()
             {
                // No neighbor element.
                NbrDofs(i,0,e) = -1;
-               ElBdrAttr(e,i) = 1; // for now
                continue;
             }
 
@@ -376,7 +373,6 @@ void DofInfo::FillNeighborDofs()
             {
                // No neighbor element.
                for (j = 0; j < NumFaceDofs; j++) { NbrDofs(i,j,e) = -1; }
-               ElBdrAttr(e,i) = 1;
                continue;
             }
 
@@ -413,7 +409,6 @@ void DofInfo::FillNeighborDofs()
             {
                // No neighbor element.
                for (j = 0; j < NumFaceDofs; j++) { NbrDofs(f,j,e) = -1; }
-               ElBdrAttr(e,i) = 1;
                continue;
             }
 
@@ -459,30 +454,28 @@ void DofInfo::FillNeighborDofs()
       if (tr != NULL)
       {
          const int el = tr->Elem1No;
-         if (dim == 1)
-         {
-            mesh->GetElementVertices(el, bdrs);
 
-            for (i = 0; i < NumBdrs; i++)
+         if (dim == 1) { mesh->GetElementVertices(el, bdrs); }
+         else if (dim == 2) { mesh->GetElementEdges(el, bdrs, orientation); }
+         else if (dim == 3) { mesh->GetElementFaces(el, bdrs, orientation); }
+
+         for (i = 0; i < NumBdrs; i++)
+         {
+            if (bdrs[i] == mesh->GetBdrElementEdgeIndex(e))
             {
-               if (bdrs[i] == mesh->GetBdrElementEdgeIndex(e))
+               for (j = 0; j < NumFaceDofs; j++)
                {
-                  for (j = 0; j < NumFaceDofs; j++)
-                  {
-                     NbrDofs(i, j, el) = -bdr_attr;
-                  }
+                  NbrDofs(i, j, el) = -bdr_attr;
                }
+               continue;
             }
          }
-         // TODO else
       }
       else
       {
          MFEM_ABORT("Something went wrong.");
       }
    }
-   for (e = 0; e < ne; e++)
-      NbrDofs(e).Print();
 
    delete face_to_el;
 }

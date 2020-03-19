@@ -17,8 +17,8 @@ public:
    Vector xi_min, xi_max; // min/max values for each dof
    Vector xe_min, xe_max; // min/max values for each element
 
-   DenseMatrix BdrDofs, Sub2Ind, ElBdrAttr;
-   DenseTensor NbrDofs;
+   DenseMatrix BdrDofs, Sub2Ind;
+   DenseTensor NbrDofs; // Negative values correspond to the boundary attributes.
 
    int dim, NumBdrs, NumFaceDofs, numSubcells, numDofsSubcell;
 
