@@ -60,8 +60,9 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/quad-pFEM.mesh";
-   int order = 2;
+   //const char *mesh_file = "../data/quad-pFEM.mesh";
+   const char *mesh_file = "../data/quad.mesh";
+   int order = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -107,7 +108,7 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 0;
+      int ref_levels = 1;
          //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -137,10 +138,11 @@ int main(int argc, char *argv[])
    // 6. At this point all elements have the default order (specified when
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
-   for (int i = 0; i < mesh->GetNE()/2; i++)
-   {
-      fespace->SetElementOrder(i, order+1);
-   }
+//   for (int i = 0; i < mesh->GetNE()/2; i++)
+//   {
+//      fespace->SetElementOrder(i, order+1);
+//   }
+   fespace->SetElementOrder(1, 2);
    fespace->Update(false);
 
    Array<int> dofs;
@@ -235,6 +237,67 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
+
+
+
+   x = 0.0;
+   x(8)=1.0;
+
+   // Prepare solution for visualization
+   int max_order = 1;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      int o = fespace->GetElementOrder(i);
+      if (o > max_order)
+      {
+         max_order = o;
+      }
+   }
+   cout << "Max order: " << max_order << endl;
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   FiniteElementCollection *visualization_fec = new H1_FECollection(max_order, dim);
+   FiniteElementSpace *visualization_space = new FiniteElementSpace(mesh, visualization_fec);
+
+   GridFunction visualization_x(visualization_space);
+
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Geometry::Type geometry = mesh->GetElementGeometry(i);
+      T.SetIdentityTransformation(geometry);
+
+      fespace->GetElementDofs(i, dofs);
+      Vector elemvect, visualization_vect;
+      x.GetSubVector(dofs, elemvect);
+
+      cout << "Element order: " << fespace->GetElementOrder(i) << endl;
+      const auto *fe = fec->GetFE(geometry, fespace->GetElementOrder(i));
+      const auto *visualization_fe = visualization_fec->GetFE(geometry, max_order);
+
+      visualization_fe->GetTransferMatrix(*fe, T, I);
+      I.Print();
+      elemvect.Print();
+
+      visualization_space->GetElementDofs(i, dofs);
+      visualization_vect.SetSize(dofs.Size());
+      I.Mult(elemvect, visualization_vect);
+      visualization_vect.Print();
+      visualization_x.SetSubVector(dofs, visualization_vect);
+   }
+
+
+
+
+
+
+
+
+
+
+
+
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -242,7 +305,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << *mesh << visualization_x << flush;
    }
 
    // 15. Free the used memory.
@@ -254,3 +317,5 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+
