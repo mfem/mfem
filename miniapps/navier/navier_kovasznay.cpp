@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
-   ParGridFunction p_ex_gf(p_gf->ParFESpace());
+   ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
    GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
 
    for (int step = 0; !last_step; ++step)
