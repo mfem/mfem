@@ -12,19 +12,22 @@
 namespace mfem
 {
 
-static int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
+namespace // make everything static
+{
+
+const int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
 
 // derefinement tables
 
-static int quad_deref_table[3][4 + 4] =
+const int quad_deref_table[3][4 + 4] =
 {
    { 0, 1, 1, 0, /**/ 1, 1, 0, 0 }, // 1 - X
    { 0, 0, 1, 1, /**/ 0, 0, 1, 1 }, // 2 - Y
    { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
 };
 
-static int hex_deref_table[7][8 + 6] =
+const int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
    { 0, 0, 1, 1, 0, 0, 1, 1, /**/ 0, 0, 0, 1, 1, 1 }, // 2 - Y
@@ -35,7 +38,7 @@ static int hex_deref_table[7][8 + 6] =
    { 0, 1, 2, 3, 4, 5, 6, 7, /**/ 1, 1, 1, 7, 7, 7 }  // 7 - iso
 };
 
-static int prism_deref_table[7][6 + 5] =
+const int prism_deref_table[7][6 + 5] =
 {
    {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 1
    {-1,-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 2
@@ -49,19 +52,19 @@ static int prism_deref_table[7][6 + 5] =
 
 // child ordering tables
 
-static char quad_hilbert_child_order[8][4] =
+const char quad_hilbert_child_order[8][4] =
 {
    {0,1,2,3}, {0,3,2,1}, {1,2,3,0}, {1,0,3,2},
    {2,3,0,1}, {2,1,0,3}, {3,0,1,2}, {3,2,1,0}
 };
 
-static char quad_hilbert_child_state[8][4] =
+const char quad_hilbert_child_state[8][4] =
 {
    {1,0,0,5}, {0,1,1,4}, {3,2,2,7}, {2,3,3,6},
    {5,4,4,1}, {4,5,5,0}, {7,6,6,3}, {6,7,7,2}
 };
 
-static char hex_hilbert_child_order[24][8] =
+const char hex_hilbert_child_order[24][8] =
 {
    {0,1,2,3,7,6,5,4}, {0,3,7,4,5,6,2,1}, {0,4,5,1,2,6,7,3},
    {1,0,3,2,6,7,4,5}, {1,2,6,5,4,7,3,0}, {1,5,4,0,3,7,6,2},
@@ -73,7 +76,7 @@ static char hex_hilbert_child_order[24][8] =
    {7,3,2,6,5,1,0,4}, {7,4,0,3,2,1,5,6}, {7,6,5,4,0,1,2,3}
 };
 
-static char hex_hilbert_child_state[24][8] =
+const char hex_hilbert_child_state[24][8] =
 {
    {1,2,2,7,7,21,21,17},     {2,0,0,22,22,16,16,8},    {0,1,1,15,15,6,6,23},
    {4,5,5,10,10,18,18,14},   {5,3,3,19,19,13,13,11},   {3,4,4,12,12,9,9,20},
@@ -100,14 +103,14 @@ const RefCoord S_HALF = 1;
 const RefCoord S_ONE = 2;
 const RefCoord S_TWO = 4;
 
-static RefCoord tri_corners[3][3] =
+const RefCoord tri_corners[3][3] =
 {
    {    0,     0, 0},
    {T_ONE,     0, 0},
    {    0, T_ONE, 0}
 };
 
-static RefCoord quad_corners[4][3] =
+const RefCoord quad_corners[4][3] =
 {
    {    0,     0, 0},
    {T_ONE,     0, 0},
@@ -115,7 +118,7 @@ static RefCoord quad_corners[4][3] =
    {    0, T_ONE, 0}
 };
 
-static RefCoord hex_corners[8][3] =
+const RefCoord hex_corners[8][3] =
 {
    {    0,     0,     0},
    {T_ONE,     0,     0},
@@ -127,7 +130,7 @@ static RefCoord hex_corners[8][3] =
    {    0, T_ONE, T_ONE}
 };
 
-static RefCoord prism_corners[6][3] =
+const RefCoord prism_corners[6][3] =
 {
    {    0,     0,     0},
    {T_ONE,     0,     0},
@@ -138,7 +141,7 @@ static RefCoord prism_corners[6][3] =
 };
 
 typedef RefCoord RefPoint[3];
-static RefPoint* geom_corners[7] =
+const RefPoint* geom_corners[7] =
 {
    NULL, // point
    NULL, // segment
@@ -157,31 +160,31 @@ struct RefTrf
    void Apply(const RefCoord src[3], RefCoord dst[3]) const;
 };
 
-static RefTrf quad_parent_rt1[2] =
+const RefTrf quad_parent_rt1[2] =
 {
    { {S_HALF, S_ONE, 0}, {     0, 0, 0} },
    { {S_HALF, S_ONE, 0}, {T_HALF, 0, 0} }
 };
 
-static RefTrf quad_child_rt1[2] =
+const RefTrf quad_child_rt1[2] =
 {
    { {S_TWO, S_ONE, 0}, {     0, 0, 0} },
    { {S_TWO, S_ONE, 0}, {-T_ONE, 0, 0} }
 };
 
-static RefTrf quad_parent_rt2[2] =
+const RefTrf quad_parent_rt2[2] =
 {
    { {S_ONE, S_HALF, 0}, {0,      0, 0} },
    { {S_ONE, S_HALF, 0}, {0, T_HALF, 0} }
 };
 
-static RefTrf quad_child_rt2[2] =
+const RefTrf quad_child_rt2[2] =
 {
    { {S_ONE, S_TWO, 0}, {0,      0, 0} },
    { {S_ONE, S_TWO, 0}, {0, -T_ONE, 0} }
 };
 
-static RefTrf quad_parent_rt3[4] =
+const RefTrf quad_parent_rt3[4] =
 {
    { {S_HALF, S_HALF, 0}, {     0,      0, 0} },
    { {S_HALF, S_HALF, 0}, {T_HALF,      0, 0} },
@@ -189,7 +192,7 @@ static RefTrf quad_parent_rt3[4] =
    { {S_HALF, S_HALF, 0}, {     0, T_HALF, 0} }
 };
 
-static RefTrf quad_child_rt3[4] =
+const RefTrf quad_child_rt3[4] =
 {
    { {S_TWO, S_TWO, 0}, {     0,      0, 0} },
    { {S_TWO, S_TWO, 0}, {-T_ONE,      0, 0} },
@@ -197,7 +200,7 @@ static RefTrf quad_child_rt3[4] =
    { {S_TWO, S_TWO, 0}, {     0, -T_ONE, 0} }
 };
 
-static RefTrf* quad_parent[4] =
+const RefTrf* quad_parent[4] =
 {
    NULL,
    quad_parent_rt1,
@@ -205,7 +208,7 @@ static RefTrf* quad_parent[4] =
    quad_parent_rt3
 };
 
-static RefTrf* quad_child[4] =
+const RefTrf* quad_child[4] =
 {
    NULL,
    quad_child_rt1,
@@ -213,31 +216,31 @@ static RefTrf* quad_child[4] =
    quad_child_rt3
 };
 
-static RefTrf hex_parent_rt1[2] =
+const RefTrf hex_parent_rt1[2] =
 {
    { {S_HALF, S_ONE, S_ONE}, {     0, 0, 0} },
    { {S_HALF, S_ONE, S_ONE}, {T_HALF, 0, 0} }
 };
 
-static RefTrf hex_child_rt1[2] =
+const RefTrf hex_child_rt1[2] =
 {
    { {S_TWO, S_ONE, S_ONE}, {     0, 0, 0} },
    { {S_TWO, S_ONE, S_ONE}, {-T_ONE, 0, 0} }
 };
 
-static RefTrf hex_parent_rt2[2] =
+const RefTrf hex_parent_rt2[2] =
 {
    { {S_ONE, S_HALF, S_ONE}, {0,      0, 0} },
    { {S_ONE, S_HALF, S_ONE}, {0, T_HALF, 0} }
 };
 
-static RefTrf hex_child_rt2[2] =
+const RefTrf hex_child_rt2[2] =
 {
    { {S_ONE, S_TWO, S_ONE}, {0,      0, 0} },
    { {S_ONE, S_TWO, S_ONE}, {0, -T_ONE, 0} }
 };
 
-static RefTrf hex_parent_rt3[4] =
+const RefTrf hex_parent_rt3[4] =
 {
    { {S_HALF, S_HALF, S_ONE}, {     0,      0, 0} },
    { {S_HALF, S_HALF, S_ONE}, {T_HALF,      0, 0} },
@@ -245,7 +248,7 @@ static RefTrf hex_parent_rt3[4] =
    { {S_HALF, S_HALF, S_ONE}, {     0, T_HALF, 0} }
 };
 
-static RefTrf hex_child_rt3[4] =
+const RefTrf hex_child_rt3[4] =
 {
    { {S_TWO, S_TWO, S_ONE}, {     0,      0, 0} },
    { {S_TWO, S_TWO, S_ONE}, {-T_ONE,      0, 0} },
@@ -253,19 +256,19 @@ static RefTrf hex_child_rt3[4] =
    { {S_TWO, S_TWO, S_ONE}, {     0, -T_ONE, 0} }
 };
 
-static RefTrf hex_parent_rt4[2] =
+const RefTrf hex_parent_rt4[2] =
 {
    { {S_ONE, S_ONE, S_HALF}, {0, 0,      0} },
    { {S_ONE, S_ONE, S_HALF}, {0, 0, T_HALF} }
 };
 
-static RefTrf hex_child_rt4[2] =
+const RefTrf hex_child_rt4[2] =
 {
    { {S_ONE, S_ONE, S_TWO}, {0, 0,      0} },
    { {S_ONE, S_ONE, S_TWO}, {0, 0, -T_ONE} }
 };
 
-static RefTrf hex_parent_rt5[4] =
+const RefTrf hex_parent_rt5[4] =
 {
    { {S_HALF, S_ONE, S_HALF}, {     0, 0,      0} },
    { {S_HALF, S_ONE, S_HALF}, {T_HALF, 0,      0} },
@@ -273,7 +276,7 @@ static RefTrf hex_parent_rt5[4] =
    { {S_HALF, S_ONE, S_HALF}, {     0, 0, T_HALF} }
 };
 
-static RefTrf hex_child_rt5[4] =
+const RefTrf hex_child_rt5[4] =
 {
    { {S_TWO, S_ONE, S_TWO}, {     0, 0,      0} },
    { {S_TWO, S_ONE, S_TWO}, {-T_ONE, 0,      0} },
@@ -281,7 +284,7 @@ static RefTrf hex_child_rt5[4] =
    { {S_TWO, S_ONE, S_TWO}, {     0, 0, -T_ONE} }
 };
 
-static RefTrf hex_parent_rt6[4] =
+const RefTrf hex_parent_rt6[4] =
 {
    { {S_ONE, S_HALF, S_HALF}, {0,      0,      0} },
    { {S_ONE, S_HALF, S_HALF}, {0, T_HALF,      0} },
@@ -289,7 +292,7 @@ static RefTrf hex_parent_rt6[4] =
    { {S_ONE, S_HALF, S_HALF}, {0, T_HALF, T_HALF} }
 };
 
-static RefTrf hex_child_rt6[4] =
+const RefTrf hex_child_rt6[4] =
 {
    { {S_ONE, S_TWO, S_TWO}, {0,      0,      0} },
    { {S_ONE, S_TWO, S_TWO}, {0, -T_ONE,      0} },
@@ -297,7 +300,7 @@ static RefTrf hex_child_rt6[4] =
    { {S_ONE, S_TWO, S_TWO}, {0, -T_ONE, -T_ONE} }
 };
 
-static RefTrf hex_parent_rt7[8] =
+const RefTrf hex_parent_rt7[8] =
 {
    { {S_HALF, S_HALF, S_HALF}, {     0,      0,      0} },
    { {S_HALF, S_HALF, S_HALF}, {T_HALF,      0,      0} },
@@ -309,7 +312,7 @@ static RefTrf hex_parent_rt7[8] =
    { {S_HALF, S_HALF, S_HALF}, {     0, T_HALF, T_HALF} }
 };
 
-static RefTrf hex_child_rt7[8] =
+const RefTrf hex_child_rt7[8] =
 {
    { {S_TWO, S_TWO, S_TWO}, {     0,      0,      0} },
    { {S_TWO, S_TWO, S_TWO}, {-T_ONE,      0,      0} },
@@ -321,7 +324,7 @@ static RefTrf hex_child_rt7[8] =
    { {S_TWO, S_TWO, S_TWO}, {     0, -T_ONE, -T_ONE} }
 };
 
-static RefTrf* hex_parent[8] =
+const RefTrf* hex_parent[8] =
 {
    NULL,
    hex_parent_rt1,
@@ -333,7 +336,7 @@ static RefTrf* hex_parent[8] =
    hex_parent_rt7
 };
 
-static RefTrf* hex_child[8] =
+const RefTrf* hex_child[8] =
 {
    NULL,
    hex_child_rt1,
@@ -345,7 +348,7 @@ static RefTrf* hex_child[8] =
    hex_child_rt7
 };
 
-static RefTrf tri_parent_rt3[4] =
+const RefTrf tri_parent_rt3[4] =
 {
    { { S_HALF,  S_HALF, 0}, {     0,      0, 0} },
    { { S_HALF,  S_HALF, 0}, {T_HALF,      0, 0} },
@@ -353,7 +356,7 @@ static RefTrf tri_parent_rt3[4] =
    { {-S_HALF, -S_HALF, 0}, {T_HALF, T_HALF, 0} }
 };
 
-static RefTrf tri_child_rt3[4] =
+const RefTrf tri_child_rt3[4] =
 {
    { { S_TWO,  S_TWO, 0}, {     0,      0, 0} },
    { { S_TWO,  S_TWO, 0}, {-T_ONE,      0, 0} },
@@ -361,19 +364,19 @@ static RefTrf tri_child_rt3[4] =
    { {-S_TWO, -S_TWO, 0}, { T_ONE,  T_ONE, 0} }
 };
 
-static RefTrf* tri_parent[4] =
+const RefTrf* tri_parent[4] =
 {
    NULL, NULL, NULL,
    tri_parent_rt3
 };
 
-static RefTrf* tri_child[4] =
+const RefTrf* tri_child[4] =
 {
    NULL, NULL, NULL,
    tri_child_rt3
 };
 
-static RefTrf prism_parent_rt3[4] =
+const RefTrf prism_parent_rt3[4] =
 {
    { { S_HALF,  S_HALF, S_ONE}, {     0,      0, 0} },
    { { S_HALF,  S_HALF, S_ONE}, {T_HALF,      0, 0} },
@@ -381,7 +384,7 @@ static RefTrf prism_parent_rt3[4] =
    { {-S_HALF, -S_HALF, S_ONE}, {T_HALF, T_HALF, 0} }
 };
 
-static RefTrf prism_child_rt3[4] =
+const RefTrf prism_child_rt3[4] =
 {
    { { S_TWO,  S_TWO, S_ONE}, {     0,      0, 0} },
    { { S_TWO,  S_TWO, S_ONE}, {-T_ONE,      0, 0} },
@@ -389,19 +392,19 @@ static RefTrf prism_child_rt3[4] =
    { {-S_TWO, -S_TWO, S_ONE}, { T_ONE,  T_ONE, 0} }
 };
 
-static RefTrf prism_parent_rt4[2] =
+const RefTrf prism_parent_rt4[2] =
 {
    { {S_ONE, S_ONE, S_HALF}, {0, 0,      0} },
    { {S_ONE, S_ONE, S_HALF}, {0, 0, T_HALF} }
 };
 
-static RefTrf prism_child_rt4[2] =
+const RefTrf prism_child_rt4[2] =
 {
    { {S_ONE, S_ONE, S_TWO}, {0, 0,      0} },
    { {S_ONE, S_ONE, S_TWO}, {0, 0, -T_ONE} }
 };
 
-static RefTrf prism_parent_rt7[8] =
+const RefTrf prism_parent_rt7[8] =
 {
    { { S_HALF,  S_HALF, S_HALF}, {     0,      0,      0} },
    { { S_HALF,  S_HALF, S_HALF}, {T_HALF,      0,      0} },
@@ -413,7 +416,7 @@ static RefTrf prism_parent_rt7[8] =
    { {-S_HALF, -S_HALF, S_HALF}, {T_HALF, T_HALF, T_HALF} }
 };
 
-static RefTrf prism_child_rt7[8] =
+const RefTrf prism_child_rt7[8] =
 {
    { { S_TWO,  S_TWO, S_TWO}, {     0,      0,      0} },
    { { S_TWO,  S_TWO, S_TWO}, {-T_ONE,      0,      0} },
@@ -425,7 +428,7 @@ static RefTrf prism_child_rt7[8] =
    { {-S_TWO, -S_TWO, S_TWO}, { T_ONE,  T_ONE, -T_ONE} }
 };
 
-static RefTrf* prism_parent[8] =
+const RefTrf* prism_parent[8] =
 {
    NULL, NULL, NULL,
    prism_parent_rt3,
@@ -434,7 +437,7 @@ static RefTrf* prism_parent[8] =
    prism_parent_rt7
 };
 
-static RefTrf* prism_child[8] =
+const RefTrf* prism_child[8] =
 {
    NULL, NULL, NULL,
    prism_child_rt3,
@@ -443,7 +446,7 @@ static RefTrf* prism_child[8] =
    prism_child_rt7
 };
 
-static RefTrf** geom_parent[7] =
+const RefTrf** geom_parent[7] =
 {
    NULL,
    NULL,
@@ -454,7 +457,7 @@ static RefTrf** geom_parent[7] =
    prism_parent
 };
 
-static RefTrf** geom_child[7] =
+const RefTrf** geom_child[7] =
 {
    NULL,
    NULL,
@@ -465,5 +468,7 @@ static RefTrf** geom_child[7] =
    prism_child
 };
 
+
+} // namespace
 
 } // namespace mfem
