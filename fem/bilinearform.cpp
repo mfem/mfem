@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of class BilinearForm
 
@@ -55,7 +55,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = new double[I[height]];
+   double *data = Memory<double>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -224,10 +224,13 @@ MatrixInverse * BilinearForm::Inverse() const
 
 void BilinearForm::Finalize (int skip_zeros)
 {
-   if (!static_cond) { mat->Finalize(skip_zeros); }
-   if (mat_e) { mat_e->Finalize(skip_zeros); }
-   if (static_cond) { static_cond->Finalize(); }
-   if (hybridization) { hybridization->Finalize(); }
+   if (assembly == AssemblyLevel::FULL)
+   {
+      if (!static_cond) { mat->Finalize(skip_zeros); }
+      if (mat_e) { mat_e->Finalize(skip_zeros); }
+      if (static_cond) { static_cond->Finalize(); }
+      if (hybridization) { hybridization->Finalize(); }
+   }
 }
 
 void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
@@ -1072,7 +1075,6 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 0;
-
    assembly = AssemblyLevel::FULL;
    ext = NULL;
 }
@@ -1087,6 +1089,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    mat = NULL;
    mat_e = NULL;
    extern_bfs = 1;
+   ext = NULL;
 
    // Copy the pointers to the integrators
    dbfi = mbf->dbfi;
@@ -1641,9 +1644,10 @@ void MixedBilinearForm::FormRectangularLinearSystem(const Array<int>
       return;
    }
 
+   const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetOutputProlongation();
    const Operator *Ri = this->GetRestriction();
-   InitTVectors(Po, Ri, x, b, X, B);
+   InitTVectors(Po, Ri, Pi, x, b, X, B);
 
    if (!mat_e)
    {

@@ -30,7 +30,8 @@ the option MFEM_USE_METIS.
 MFEM also includes support for devices such as GPUs, and programming models such
 as CUDA, HIP, OCCA, OpenMP and RAJA.
 
-- Starting with version 4.0, MFEM requires a C++11 compiler
+- Starting with version 4.0, MFEM requires a C++11 compiler. We recommend using
+  a newer compiler, e.g. GCC version 4.9 or higher.
 
 - CUDA support requires an NVIDIA GPU and an installation of the CUDA Toolkit
   https://developer.nvidia.com/cuda-toolkit
@@ -402,10 +403,10 @@ MFEM_USE_CONDUIT = YES/NO
    an installation of Conduit. If Conduit was built with HDF5 support, it also
    requires an installation of HDF5 (see also MFEM_USE_NETCDF).
 
-MFEM_USE_GZSTREAM = YES/NO
+MFEM_USE_ZLIB = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
-   read back files compressed with gzstream (or any compression utility capable
+   read back files compressed with zlib (or any compression utility capable
    of creating a gzip-compatible output such as gzip).
    MFEM will write compressed files if the mode argument in the constructor
    includes a 'z' character. With this feature disabled (NO), MFEM will not be
@@ -420,6 +421,11 @@ MFEM_USE_PUMI = YES/NO
    data management system that is capable of handling general non-manifold
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
+
+MFEM_USE_UMPIRE = YES/NO
+   Enables support for Umpire, a resource management library that allows the
+   discovery, provision, and management of memory on machines with multiple
+   memory devices like NUMA and GPUs.
 
 MFEM_USE_HIOP = YES/NO
   Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
@@ -611,8 +617,8 @@ The specific libraries and their options are:
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
 
-- libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED's master
-  branch, specifically, git-hash c00ee0d or later.
+- libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED v0.6
+  or later version, specifically, git-hash 3d05795 or later.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
@@ -621,6 +627,10 @@ The specific libraries and their options are:
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
+
+- Umpire, used when MFEM_USE_UMPIRE = YES.
+  URL: https://github.com/LLNL/Umpire
+  Options: UMPIRE_DIR, UMPIRE_OPT, UMPIRE_LIB.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
@@ -632,7 +642,7 @@ The specific libraries and their options are:
   URL: http://www.nongnu.org/libunwind
   Options: LIBUNWIND_OPT, LIBUNWIND_LIB.
 
-- ZLIB (optional), used when MFEM_USE_GZSTREAM = YES, or when MFEM_USE_NETCDF =
+- ZLIB (optional), used when MFEM_USE_ZLIB = YES, or when MFEM_USE_NETCDF =
   YES (in the default settings for NETCDF_OPT and NETCDF_LIB).
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
@@ -756,13 +766,14 @@ MFEM_USE_GINKGO
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
-MFEM_USE_GZSTREAM
+MFEM_USE_ZLIB
 MFEM_USE_PUMI
 MFEM_USE_HIOP
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_CEED
 MFEM_USE_RAJA
+MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
 
 The following options are CMake specific:
@@ -814,6 +825,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - HIOP
  - OCCA
  - RAJA
+ - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
 
 The following built-in CMake packages are also used:
