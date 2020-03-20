@@ -166,33 +166,31 @@ void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
    field_in_scalar.SetSpace(&ind_fes);
    Vector node_vals;
 
-   int ncomp = field_in.FESpace()->GetVDim();
-   const int points_cnt = ref_pos.Size() / dim;
+   const int ncomp      = field_in.FESpace()->GetVDim(),
+             points_cnt = field_in.Size() / ncomp;
+
    for (int i = 0; i < ncomp; i++)
    {
-      int dataptr = i*field_in_scalar.Size();
-      for (int j = 0; j < field_in_scalar.Size(); j++)
-      {
-         field_in_scalar(j) = field_in(j+dataptr);
-      }
+      int dataptr = i*points_cnt;
+      field_in_scalar.SetData(field_in.GetData()+dataptr);
       GetNodeValues(field_in_scalar, node_vals);
 
       if (dim==2)
       {
          findpts_eval_2(field_out.GetData()+dataptr, sizeof(double),
-                        codes.GetData(), sizeof(unsigned int),
-                        proc_ids.GetData(), sizeof(unsigned int),
-                        elem_ids.GetData(), sizeof(unsigned int),
-                        ref_pos.GetData(), sizeof(double) * dim,
+                        codes.GetData(),       sizeof(unsigned int),
+                        proc_ids.GetData(),    sizeof(unsigned int),
+                        elem_ids.GetData(),    sizeof(unsigned int),
+                        ref_pos.GetData(),     sizeof(double) * dim,
                         points_cnt, node_vals.GetData(), fdata2D);
       }
       else
       {
          findpts_eval_3(field_out.GetData()+dataptr, sizeof(double),
-                        codes.GetData(), sizeof(unsigned int),
-                        proc_ids.GetData(), sizeof(unsigned int),
-                        elem_ids.GetData(), sizeof(unsigned int),
-                        ref_pos.GetData(), sizeof(double) * dim,
+                        codes.GetData(),       sizeof(unsigned int),
+                        proc_ids.GetData(),    sizeof(unsigned int),
+                        elem_ids.GetData(),    sizeof(unsigned int),
+                        ref_pos.GetData(),     sizeof(double) * dim,
                         points_cnt, node_vals.GetData(), fdata3D);
       }
    }

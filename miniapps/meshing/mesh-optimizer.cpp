@@ -281,7 +281,6 @@ public:
                       - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
-         double  val = wgt;
 
          xc = pos(0), yc = pos(1);
          double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
@@ -291,7 +290,7 @@ public:
          K(0, 1) = -sin(theta);
          K(1, 1) =  cos(theta);
 
-         double asp_ratio_tar = 0.1 + 1*(1-val)*(1-val);
+         double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
 
          K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
          K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
