@@ -1849,14 +1849,20 @@ H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
                (int)BasisType::GetChar(btype), dim, p);
    }
 }
+#endif
 
 
-L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
-                                 const int map_type)
+L2_FECollection::L2_FECollection(const int default_p, const int dim,
+                                 const int btype, const int map_type)
+   : FiniteElementCollection(default_p, dim)
 {
-   MFEM_VERIFY(p >= 0, "L2_FECollection requires order >= 0.");
+   MFEM_VERIFY(default_p >= 0, "L2_FECollection requires order >= 0.");
+
+   const int p = default_p;
 
    b_type = BasisType::Check(btype);
+   this->map_type = map_type;
+
    const char *prefix = NULL;
    switch (map_type)
    {
@@ -1874,71 +1880,79 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, btype, dim, p);
    }
 
+   InitOrder(default_p);
+}
+
+
+bool L2_FECollection::HaveOrder(int p) const
+{
+   const auto &array = L2_Elements[Geometry::POINT];
+   return (array.Size() > p) && (array[p] != NULL);
+}
+
+void L2_FECollection::InitOrder(int p) const
+{
+   MFEM_ASSERT(!HaveOrder(p), "already initialized");
+
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      L2_Elements[g] = NULL;
-      Tr_Elements[g] = NULL;
+       EnlargePArray(L2_Elements[g], p);
+       EnlargePArray(Tr_Elements[g], p);
    }
-   for (int i = 0; i < 2; i++)
-   {
-      SegDofOrd[i] = NULL;
-   }
-   for (int i = 0; i < 6; i++)
-   {
-      TriDofOrd[i] = NULL;
-   }
-   OtherDofOrd = NULL;
+   for (int i = 0; i < 2; i++) { EnlargePArray(SegDofOrd[i], p); }
+   for (int i = 0; i < 6; i++) { EnlargePArray(TriDofOrd[i], p); }
+   EnlargePArray(OtherDofOrd, p);
 
    if (dim == 0)
    {
-      L2_Elements[Geometry::POINT] = new PointFiniteElement;
+      L2_Elements[Geometry::POINT][p] = new PointFiniteElement;
    }
    else if (dim == 1)
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::SEGMENT] = new L2Pos_SegmentElement(p);
+         L2_Elements[Geometry::SEGMENT][p] = new L2Pos_SegmentElement(p);
       }
       else
       {
-         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
+         L2_Elements[Geometry::SEGMENT][p] = new L2_SegmentElement(p, b_type);
       }
-      L2_Elements[Geometry::SEGMENT]->SetMapType(map_type);
+      L2_Elements[Geometry::SEGMENT][p]->SetMapType(map_type);
 
-      Tr_Elements[Geometry::POINT] = new PointFiniteElement;
+      Tr_Elements[Geometry::POINT][p] = new PointFiniteElement;
       // No need to set the map_type for Tr_Elements.
 
       const int pp1 = p + 1;
-      SegDofOrd[0] = new int[2*pp1];
-      SegDofOrd[1] = SegDofOrd[0] + pp1;
+      SegDofOrd[0][p] = new int[2*pp1];
+      SegDofOrd[1][p] = SegDofOrd[0][p] + pp1;
       for (int i = 0; i <= p; i++)
       {
-         SegDofOrd[0][i] = i;
-         SegDofOrd[1][i] = p - i;
+         SegDofOrd[0][p][i] = i;
+         SegDofOrd[1][p][i] = p - i;
       }
    }
    else if (dim == 2)
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::TRIANGLE] = new L2Pos_TriangleElement(p);
-         L2_Elements[Geometry::SQUARE] = new L2Pos_QuadrilateralElement(p);
+         L2_Elements[Geometry::TRIANGLE][p] = new L2Pos_TriangleElement(p);
+         L2_Elements[Geometry::SQUARE][p] = new L2Pos_QuadrilateralElement(p);
       }
       else
       {
-         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
-         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
+         L2_Elements[Geometry::TRIANGLE][p] = new L2_TriangleElement(p, b_type);
+         L2_Elements[Geometry::SQUARE][p] = new L2_QuadrilateralElement(p, b_type);
       }
-      L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
-      L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
+      L2_Elements[Geometry::TRIANGLE][p]->SetMapType(map_type);
+      L2_Elements[Geometry::SQUARE][p]->SetMapType(map_type);
       // All trace elements use the default Gauss-Legendre points
-      Tr_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p);
+      Tr_Elements[Geometry::SEGMENT][p] = new L2_SegmentElement(p);
 
-      const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
-      TriDofOrd[0] = new int[6*TriDof];
+      const int TriDof = L2_Elements[Geometry::TRIANGLE][p]->GetDof();
+      TriDofOrd[0][p] = new int[6*TriDof];
       for (int i = 1; i < 6; i++)
       {
-         TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
+         TriDofOrd[i][p] = TriDofOrd[i-1][p] + TriDof;
       }
       const int pp1 = p + 1, pp2 = pp1 + 1;
       for (int j = 0; j <= p; j++)
@@ -1947,51 +1961,51 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          {
             int o = TriDof - ((pp2 - j)*(pp1 - j))/2 + i;
             int k = p - j - i;
-            TriDofOrd[0][o] = o;  // (0,1,2)
-            TriDofOrd[1][o] = TriDof - ((pp2-j)*(pp1-j))/2 + k;  // (1,0,2)
-            TriDofOrd[2][o] = TriDof - ((pp2-i)*(pp1-i))/2 + k;  // (2,0,1)
-            TriDofOrd[3][o] = TriDof - ((pp2-k)*(pp1-k))/2 + i;  // (2,1,0)
-            TriDofOrd[4][o] = TriDof - ((pp2-k)*(pp1-k))/2 + j;  // (1,2,0)
-            TriDofOrd[5][o] = TriDof - ((pp2-i)*(pp1-i))/2 + j;  // (0,2,1)
+            TriDofOrd[0][p][o] = o;  // (0,1,2)
+            TriDofOrd[1][p][o] = TriDof - ((pp2-j)*(pp1-j))/2 + k;  // (1,0,2)
+            TriDofOrd[2][p][o] = TriDof - ((pp2-i)*(pp1-i))/2 + k;  // (2,0,1)
+            TriDofOrd[3][p][o] = TriDof - ((pp2-k)*(pp1-k))/2 + i;  // (2,1,0)
+            TriDofOrd[4][p][o] = TriDof - ((pp2-k)*(pp1-k))/2 + j;  // (1,2,0)
+            TriDofOrd[5][p][o] = TriDof - ((pp2-i)*(pp1-i))/2 + j;  // (0,2,1)
          }
       }
-      const int QuadDof = L2_Elements[Geometry::SQUARE]->GetDof();
-      OtherDofOrd = new int[QuadDof];
+      const int QuadDof = L2_Elements[Geometry::SQUARE][p]->GetDof();
+      OtherDofOrd[p] = new int[QuadDof];
       for (int j = 0; j < QuadDof; j++)
       {
-         OtherDofOrd[j] = j; // for Or == 0
+         OtherDofOrd[p][j] = j; // for Or == 0
       }
    }
    else if (dim == 3)
    {
       if (b_type == BasisType::Positive)
       {
-         L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
-         L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
-         L2_Elements[Geometry::PRISM] = new L2Pos_WedgeElement(p);
+         L2_Elements[Geometry::TETRAHEDRON][p] = new L2Pos_TetrahedronElement(p);
+         L2_Elements[Geometry::CUBE][p] = new L2Pos_HexahedronElement(p);
+         L2_Elements[Geometry::PRISM][p] = new L2Pos_WedgeElement(p);
       }
       else
       {
-         L2_Elements[Geometry::TETRAHEDRON] =
-            new L2_TetrahedronElement(p, btype);
-         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
-         L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
+         L2_Elements[Geometry::TETRAHEDRON][p] =
+            new L2_TetrahedronElement(p, b_type);
+         L2_Elements[Geometry::CUBE][p] = new L2_HexahedronElement(p, b_type);
+         L2_Elements[Geometry::PRISM][p] = new L2_WedgeElement(p, b_type);
       }
-      L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
-      L2_Elements[Geometry::CUBE]->SetMapType(map_type);
-      L2_Elements[Geometry::PRISM]->SetMapType(map_type);
+      L2_Elements[Geometry::TETRAHEDRON][p]->SetMapType(map_type);
+      L2_Elements[Geometry::CUBE][p]->SetMapType(map_type);
+      L2_Elements[Geometry::PRISM][p]->SetMapType(map_type);
       // All trace element use the default Gauss-Legendre nodal points
-      Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
-      Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
+      Tr_Elements[Geometry::TRIANGLE][p] = new L2_TriangleElement(p);
+      Tr_Elements[Geometry::SQUARE][p] = new L2_QuadrilateralElement(p);
 
-      const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
-      const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
-      const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
+      const int TetDof = L2_Elements[Geometry::TETRAHEDRON][p]->GetDof();
+      const int HexDof = L2_Elements[Geometry::CUBE][p]->GetDof();
+      const int PriDof = L2_Elements[Geometry::PRISM][p]->GetDof();
       const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
-      OtherDofOrd = new int[MaxDof];
+      OtherDofOrd[p] = new int[MaxDof];
       for (int j = 0; j < MaxDof; j++)
       {
-         OtherDofOrd[j] = j; // for Or == 0
+         OtherDofOrd[p][j] = j; // for Or == 0
       }
    }
    else
@@ -2002,35 +2016,69 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    }
 }
 
-const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                   int Or) const
+const FiniteElement* L2_FECollection::GetFE(Geometry::Type geom, int p) const
 {
-   switch (GeomType)
+   if (!HaveOrder(p)) { InitOrder(p); }
+   return L2_Elements[geom][p];
+}
+
+int L2_FECollection::GetNumDof(Geometry::Type geom, int p) const
+{
+   if (!HaveOrder(p)) { InitOrder(p); }
+   if (L2_Elements[geom])
+   {
+      return L2_Elements[geom][p]->GetDof();
+   }
+   return 0;
+}
+
+const int* L2_FECollection::GetDofOrdering(Geometry::Type geom, int p,
+                                           int orientation) const
+{
+   if (!HaveOrder(p)) { InitOrder(p); }
+
+   switch (geom)
    {
       case Geometry::SEGMENT:
-         return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+         return (orientation > 0) ? SegDofOrd[0][p] : SegDofOrd[1][p];
 
       case Geometry::TRIANGLE:
-         return TriDofOrd[Or%6];
+         return TriDofOrd[orientation%6][p];
 
       default:
-         return (Or == 0) ? OtherDofOrd : NULL;
+         return (orientation == 0) ? OtherDofOrd[p] : NULL;
    }
 }
 
 L2_FECollection::~L2_FECollection()
 {
-   delete [] OtherDofOrd;
-   delete [] SegDofOrd[0];
-   delete [] TriDofOrd[0];
-   for (int i = 0; i < Geometry::NumGeom; i++)
+   for (int p = 0; p < SegDofOrd[0].Size(); p++)
    {
-      delete L2_Elements[i];
-      delete Tr_Elements[i];
+      delete [] SegDofOrd[0][p];
+   }
+   for (int p = 0; p < TriDofOrd[0].Size(); p++)
+   {
+      delete [] TriDofOrd[0][p];
+   }
+   for (int p = 0; p < OtherDofOrd.Size(); p++)
+   {
+      delete [] OtherDofOrd[p];
+   }
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      for (int p = 0; p < L2_Elements[g].Size(); p++)
+      {
+         delete L2_Elements[g][p];
+      }
+      for (int p = 0; p < Tr_Elements[g].Size(); p++)
+      {
+         delete Tr_Elements[g][p];
+      }
    }
 }
 
-
+#if 0
 RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
    : ob_type(ob_type)
