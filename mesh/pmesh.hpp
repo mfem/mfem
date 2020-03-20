@@ -284,6 +284,10 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
+   //Same as above but relies on the user knowing the direct face number.
+   FaceElementTransformations *
+   DirectGetSharedFaceTransformations(int FaceNo, bool fill2 = true);
+
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
 
