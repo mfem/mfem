@@ -19,7 +19,8 @@ using namespace mfem;
 namespace qf_coeff
 {
 
-TEST_CASE("Quadrature Function Coefficients", "[Quadrature Function Coefficients]")
+TEST_CASE("Quadrature Function Coefficients",
+          "[Quadrature Function Coefficients]")
 {
    int order_h1 = 1, n = 3, dim = 3;
    double tol = 1e-9;
@@ -36,8 +37,10 @@ TEST_CASE("Quadrature Function Coefficients", "[Quadrature Function Coefficients
       int nelems = quadf_coeff.Size() / quadf_coeff.GetVDim();
       int vdim = quadf_coeff.GetVDim();
 
-      for(int i = 0; i < nelems; i++){
-         for(int j = 0; j < vdim; j++){
+      for (int i = 0; i < nelems; i++)
+      {
+         for (int j = 0; j < vdim; j++)
+         {
             quadf_coeff((i * vdim) + j) = 1.0;
          }
       }
@@ -47,8 +50,10 @@ TEST_CASE("Quadrature Function Coefficients", "[Quadrature Function Coefficients
       int nelems = quadf_vcoeff.Size() / quadf_vcoeff.GetVDim();
       int vdim = quadf_vcoeff.GetVDim();
 
-      for(int i = 0; i < nelems; i++){
-         for(int j = 0; j < vdim; j++){
+      for (int i = 0; i < nelems; i++)
+      {
+         for (int j = 0; j < vdim; j++)
+         {
             quadf_vcoeff((i * vdim) + j) = j;
          }
       }
@@ -85,8 +90,10 @@ TEST_CASE("Quadrature Function Coefficients", "[Quadrature Function Coefficients
             int nnodes = gtrue.Size() / dim;
             int vdim = dim;
 
-            for(int i = 0; i < vdim; i++) {
-               for(int j = 0; j < nnodes; j++) {
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
                   gtrue((i * nnodes) + j) = i;
                }
             }
@@ -109,8 +116,10 @@ TEST_CASE("Quadrature Function Coefficients", "[Quadrature Function Coefficients
             int nnodes = gtrue.Size() / dim;
             int vdim = dim;
 
-            for(int i = 0; i < vdim; i++) {
-               for(int j = 0; j < nnodes; j++) {
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
                   gtrue((i * nnodes) + j) = i;
                }
             }
@@ -136,8 +145,10 @@ TEST_CASE("Quadrature Function Coefficients", "[Quadrature Function Coefficients
             int nnodes = gtrue.Size();
             int vdim = 1;
 
-            for(int i = 0; i < vdim; i++) {
-               for(int j = 0; j < nnodes; j++) {
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
                   gtrue((i * nnodes) + j) = 1.0;
                }
             }
@@ -160,8 +171,10 @@ TEST_CASE("Quadrature Function Coefficients", "[Quadrature Function Coefficients
             int nnodes = gtrue.Size();
             int vdim = 1;
 
-            for(int i = 0; i < vdim; i++) {
-               for(int j = 0; j < nnodes; j++) {
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
                   gtrue((i * nnodes) + j) = 1.0;
                }
             }
