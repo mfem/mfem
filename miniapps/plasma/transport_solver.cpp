@@ -1332,6 +1332,10 @@ void DGTransportTDO::NLOperator::SetTimeStep(double dt)
    {
       dtSCoefs_[i]->SetAConst(dt);
    }
+   for (int i=0; i<dtVCoefs_.Size(); i++)
+   {
+      dtVCoefs_[i]->SetAConst(dt);
+   }
    for (int i=0; i<dtMCoefs_.Size(); i++)
    {
       dtMCoefs_[i]->SetAConst(dt);
