@@ -170,6 +170,39 @@ public:
    }
 };
 
+class FaceMatrixBdr
+{
+private:
+   const int nf;
+   const int ndofs;// on the face
+   const Vector &data;
+
+public:
+   FaceMatrixBdr(const Vector &vec, const int nf, const int ndofs)
+   : nf(nf), ndofs(ndofs), data(vec)
+   {
+   }
+
+   void AddMult(const Vector &x, Vector &y) const
+   {
+      auto X = Reshape(x.Read(), ndofs, nf);
+      auto Y = Reshape(y.ReadWrite(), ndofs, nf);
+      auto A = Reshape(data.Read(), ndofs, ndofs, nf);
+      const int NDOFS = ndofs;
+      MFEM_FORALL(glob_j, nf*ndofs,
+      {
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(i, j, f)*X(i,f);
+         }
+         Y(j, f) += res;
+      });
+   }
+};
+
 // template <typename Scalar>
 // void L1Smoother(EMat<Scalar> &A, Vector &s)
 // {
