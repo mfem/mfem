@@ -157,13 +157,15 @@ void Advection::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 }
 
-double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
+double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                               int i) const
 {
    VelocityVector = VelFace(e*nqf+k).GetColumn(i);
    return abs(VelocityVector * n);
 }
 
-void Advection::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
+void Advection::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
+                           int attr) const
 {
    return;
 }
@@ -191,7 +193,7 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
    {
       double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
       X(i) = 2. * (x(i) - center)
-         / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
+             / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
       s *= ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i);
    }
 
@@ -235,7 +237,7 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
    {
       double center = (ConfigAdvection.bbMin(i) + ConfigAdvection.bbMax(i)) * 0.5;
       X(i) = 2. * (x(i) - center)
-         / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
+             / (ConfigAdvection.bbMax(i) - ConfigAdvection.bbMin(i));
    }
 
    switch (ConfigAdvection.ConfigNum)

@@ -9,7 +9,7 @@ void InflowFunctionKPP(const Vector &x, double t, Vector &u);
 KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
          Configuration &config_)
    : HyperbolicSystem(fes_, u_block, 1, config_,
-   VectorFunctionCoefficient(1, InflowFunctionKPP))
+                      VectorFunctionCoefficient(1, InflowFunctionKPP))
 {
    ConfigKPP = config_;
 
@@ -40,12 +40,14 @@ void KPP::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    FluxEval(0,1) = cos(u(0));
 }
 
-double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
+double KPP::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                         int i) const
 {
    return 1.;
 }
 
-void KPP::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
+void KPP::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
+                     int attr) const
 {
    return;
 }

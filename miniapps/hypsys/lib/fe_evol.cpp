@@ -3,10 +3,10 @@
 FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                            DofInfo &dofs_, EvolutionScheme scheme_,
                            const Vector &LumpedMassMat_)
-    : TimeDependentOperator(fes_->GetVSize()),
-      fes(fes_), hyp(hyp_), dofs(dofs_),
-      scheme(scheme_), LumpedMassMat(LumpedMassMat_),
-      z(fes_->GetVSize()), inflow(fes_), xSizeMPI(dofs_.fes->GetVSize())
+   : TimeDependentOperator(fes_->GetVSize()),
+     fes(fes_), hyp(hyp_), dofs(dofs_),
+     scheme(scheme_), LumpedMassMat(LumpedMassMat_),
+     z(fes_->GetVSize()), inflow(fes_), xSizeMPI(dofs_.fes->GetVSize())
 {
    const char* fecol = fes->FEColl()->Name();
    if (strncmp(fecol, "L2", 2))
@@ -253,7 +253,8 @@ void FE_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
          {
             // nbr in different MPI task?
             uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) :
-               xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
+                   xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd +
+                        (nbr - xSizeMPI) % nd);
          }
 
          y1(n) += x(DofInd) * ShapeEvalFace(i,j,k);
@@ -309,7 +310,8 @@ double FE_Evolution::ConvergenceCheck(double dt, double tol,
    return res;
 }
 
-void FE_Evolution::EvolveStandard(const Vector &x, const Vector &xMPI, Vector &y) const
+void FE_Evolution::EvolveStandard(const Vector &x, const Vector &xMPI,
+                                  Vector &y) const
 {
    if (hyp->TimeDepBC)
    {
@@ -358,7 +360,7 @@ void FE_Evolution::EvolveStandard(const Vector &x, const Vector &xMPI, Vector &y
                for (int j = 0; j < dofs.NumFaceDofs; j++)
                {
                   z(vdofs[n * nd + dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
-                                                      * NumFlux(n);
+                                                          * NumFlux(n);
                }
             }
          }
@@ -368,7 +370,8 @@ void FE_Evolution::EvolveStandard(const Vector &x, const Vector &xMPI, Vector &y
    InvMassMat->Mult(z, y);
 }
 
-void FE_Evolution::EvolveMCL(const Vector &x, const Vector &xMPI, Vector &y) const
+void FE_Evolution::EvolveMCL(const Vector &x, const Vector &xMPI,
+                             Vector &y) const
 {
    MFEM_ABORT("TODO.");
 }

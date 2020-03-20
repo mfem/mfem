@@ -26,7 +26,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
          TimeDepBC = false; // Usage of periodic meshes is required.
          ProjType = 0;
          L2_Projection(ic, u0);
-         valuerange = "0.98 1"
+         valuerange = "0.98 1";
          ProblemName = "Shallow Water Equations - Vorticity Advection";
          break;
       }
@@ -34,7 +34,8 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
       {
          SolutionKnown = false;
          SteadyState = false;
-         TimeDepBC = false; // TODO Choose a boundary condition for dam break and adjust this.
+         TimeDepBC =
+            false; // TODO Choose a boundary condition for dam break and adjust this.
          ProjType = 1;
          u0.ProjectCoefficient(ic);
          valuerange = "0 1";
@@ -109,7 +110,8 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 } */
 
-double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
+double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                                  int i) const
 {
    switch (u.Size())
    {
@@ -121,7 +123,8 @@ double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
    }
 }
 
-void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
+void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2,
+                              const Vector &normal, int attr) const
 {
    switch (attr)
    {

@@ -5,7 +5,7 @@ ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
                                  DofInfo &dofs_, EvolutionScheme scheme_,
                                  const Vector &LumpedMassMat_)
    : FE_Evolution(pfes_, hyp_, dofs_, scheme_, LumpedMassMat_),
-      pfes(pfes_), x_gf_MPI(pfes_) { }
+     pfes(pfes_), x_gf_MPI(pfes_) { }
 
 void ParFE_Evolution::Mult(const Vector &x, Vector &y) const
 {

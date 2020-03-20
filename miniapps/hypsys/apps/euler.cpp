@@ -35,7 +35,8 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       {
          SolutionKnown = false;
          SteadyState = false;
-         TimeDepBC = false; // TODO Choose a boundary condition for shock tube and adjust this.
+         TimeDepBC =
+            false; // TODO Choose a boundary condition for shock tube and adjust this.
          ProjType = 1;
          u0.ProjectCoefficient(ic);
          valuerange = "0 1";
@@ -143,7 +144,8 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 }
 
-double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
+double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                           int i) const
 {
    switch (u.Size())
    {
@@ -151,7 +153,7 @@ double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i)
          return abs(u(1)*n(0)) / u(0) + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 4:
          return abs(u(1)*n(0) + u(2)*n(1)) / u(0)
-                  + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
+                + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 5:
          return abs(u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0) + sqrt(
                    SpHeatRatio * EvaluatePressure(u) / u(0));
@@ -160,50 +162,52 @@ double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i)
    }
 }
 
-void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
+void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
+                       int attr) const
 {
    switch (attr)
    {
-   case -1: // wall boundary
-   {
-      int dim = normal.Size();
-      if (dim == 1)
+      case -1: // wall boundary
       {
-         y2(0) = y1(0);
-         y2(1) = -y1(1);
-         y2(2) = y1(2);
+         int dim = normal.Size();
+         if (dim == 1)
+         {
+            y2(0) = y1(0);
+            y2(1) = -y1(1);
+            y2(2) = y1(2);
+         }
+         else if (dim == 2)
+         {
+            double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1);
+            y2(0) = y1(0);
+            y2(1) = y1(1) - 2. * NormalComponent * normal(0);
+            y2(2) = y1(2) - 2. * NormalComponent * normal(1);
+            y2(3) = y1(3);
+         }
+         else
+         {
+            double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1) + y1(3) * normal(
+                                        2);
+            y2(0) = y1(0);
+            y2(1) = y1(1) - 2. * NormalComponent * normal(0);
+            y2(2) = y1(2) - 2. * NormalComponent * normal(1);
+            y2(3) = y1(3) - 2. * NormalComponent * normal(2);
+            y2(4) = y1(4);
+         }
+         return;
       }
-      else if (dim == 2)
+      case -2: // supersonic outlet
       {
-         double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1);
-         y2(0) = y1(0);
-         y2(1) = y1(1) - 2. * NormalComponent * normal(0);
-         y2(2) = y1(2) - 2. * NormalComponent * normal(1);
-         y2(3) = y1(3);
+         y2 = y1;
+         return;
       }
-      else
+      case -3: // supersonic inlet
       {
-         double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1) + y1(3) * normal(2);
-         y2(0) = y1(0);
-         y2(1) = y1(1) - 2. * NormalComponent * normal(0);
-         y2(2) = y1(2) - 2. * NormalComponent * normal(1);
-         y2(3) = y1(3) - 2. * NormalComponent * normal(2);
-         y2(4) = y1(4);
+         return;
       }
-      return;
-   }
-   case -2: // supersonic outlet
-   {
-      y2 = y1;
-      return;
-   }
-   case -3: // supersonic inlet
-   {
-      return;
-   }
-   // TODO subsonic in- and outlet
-   default:
-      MFEM_ABORT("Invalid boundary attribute.");
+      // TODO subsonic in- and outlet
+      default:
+         MFEM_ABORT("Invalid boundary attribute.");
    }
 }
 

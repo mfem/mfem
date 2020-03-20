@@ -9,7 +9,7 @@ void InflowFunctionBurgers(const Vector &x, double t, Vector &u);
 Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
                  Configuration &config_)
    : HyperbolicSystem(fes_, u_block, 1, config_,
-   VectorFunctionCoefficient (1, InflowFunctionBurgers))
+                      VectorFunctionCoefficient (1, InflowFunctionBurgers))
 {
    ConfigBurgers = config_;
 
@@ -39,12 +39,14 @@ void Burgers::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    FluxEval = 0.5 * u(0) * u(0);
 }
 
-double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
+double Burgers::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                             int i) const
 {
    return abs(u(0) * n.Sum());
 }
 
-void Burgers::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
+void Burgers::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
+                         int attr) const
 {
    return;
 }

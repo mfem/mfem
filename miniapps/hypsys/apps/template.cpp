@@ -48,13 +48,15 @@ void TEMPLATE::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    // TODO
 }
 
-double TEMPLATE::GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const
+double TEMPLATE::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                              int i) const
 {
    //TODO
    return 0.;
 }
 
-void TEMPLATE::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const
+void TEMPLATE::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
+                          int attr) const
 {
    //TODO
 }

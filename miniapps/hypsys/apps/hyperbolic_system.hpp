@@ -28,7 +28,7 @@ public:
    explicit HyperbolicSystem(FiniteElementSpace *fes_, BlockVector &u_block,
                              int NumEq_, Configuration &config_,
                              VectorFunctionCoefficient BdrCond_) : fes(fes_), u0(fes_, u_block),
-                             NumEq(NumEq_), BdrCond(BdrCond_)
+      NumEq(NumEq_), BdrCond(BdrCond_)
    {
       ne = fes->GetNE();
       nd = fes->GetFE(0)->GetDof();
@@ -49,8 +49,10 @@ public:
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const = 0;
-   virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k, int i) const = 0;
-   virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal, int attr) const = 0;
+   virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
+                               int i) const = 0;
+   virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
+                           int attr) const = 0;
    virtual void ComputeErrors(Array<double> &errors, const GridFunction &u,
                               double DomainSize, double t) const = 0;
    virtual void WriteErrors(const Array<double> &errors) const
