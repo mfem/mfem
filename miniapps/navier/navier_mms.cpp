@@ -88,8 +88,8 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.pa,
                   "-pa",
                   "--enable-pa",
-                  "-no-pi",
-                  "--disable-pi",
+                  "-no-pa",
+                  "--disable-pa",
                   "Enable partial assembly.");
    args.AddOption(&ctx.ni,
                   "-ni",
