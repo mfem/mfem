@@ -810,6 +810,10 @@ protected:
    // Normalization factor for the limiting term.
    double lim_normal;
 
+   // Adaptive limiting.
+   const GridFunction *xi_0;
+   Coefficient *xi;
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
@@ -873,6 +877,7 @@ public:
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
+        xi_0(NULL), xi(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3)
    { }
@@ -913,6 +918,13 @@ public:
        function (@a dist in the general version of the method) equal to 1. */
    void EnableLimiting(const GridFunction &n0,
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
+
+   void EnableAnalyticAdaptiveLimiting(const GridFunction &xi0_gf,
+                                       Coefficient &xi_coeff)
+   {
+      xi_0 = &xi0_gf;
+      xi = &xi_coeff;
+   }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }

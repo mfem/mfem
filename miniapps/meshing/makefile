@@ -30,6 +30,9 @@ else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
+MFEM_LIBS += -L$(MFEM_DIR)/miniapps/common -lmfem-common -Wl,-rpath,$(abspath\
+   $(MFEM_DIR)/miniapps/common)
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec

@@ -1260,7 +1260,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0)
+   if (coeff1 || coeff0 || xi_0)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -1299,6 +1299,15 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          val += lim_normal *
                 lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
       }
+
+      if (xi_0)
+      {
+         // Adaptive limiting.
+         const double diff =
+               xi_0->GetValue(T.ElementNo, ip) - xi->Eval(*Tpr, ip);
+         val += 10.0 * lim_normal * diff * diff;
+      }
+
       energy += weight * val;
    }
    delete Tpr;
