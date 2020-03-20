@@ -45,6 +45,25 @@ double tau_i(double ma, double Ta, int ion, int ns, double * ni, int * zi,
    return tau;
 }
 */
+std::string FieldSymbol(FieldType t)
+{
+   switch (t)
+   {
+      case NEUTRAL_DENSITY:
+         return "n_n";
+      case ION_DENSITY:
+         return "n_i";
+      case ION_PARA_VELOCITY:
+         return "v_i";
+      case ION_TEMPERATURE:
+         return "T_i";
+      case ELECTRON_TEMPERATURE:
+         return "T_e";
+      default:
+         return "N/A";
+   }
+}
+
 /*
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
    : nBV_(nBV),
@@ -1188,6 +1207,13 @@ void DGTransportTDO::NLOperator::SetTimeDerivativeTerm(StateVariableCoef &MCoef)
    {
       if (MCoef.NonTrivialValue((FieldType)i))
       {
+         if ( mpi_.Root() && logging_ > 1)
+         {
+            cout << "Adding time derivative term proportional to d "
+                 << FieldSymbol((FieldType)i) << " / dt for "
+                 << field_name_ << endl;
+         }
+
          StateVariableCoef * coef = MCoef.Clone();
          coef->SetDerivType((FieldType)i);
          coefs_.Append(coef);
@@ -1205,6 +1231,11 @@ void DGTransportTDO::NLOperator::SetTimeDerivativeTerm(StateVariableCoef &MCoef)
 void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableCoef &DCoef,
                                                   bool bc)
 {
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Adding isotropic diffusion term for " << field_name_ << endl;
+   }
+
    ProductCoefficient * dtDCoef = new ProductCoefficient(dt_, DCoef);
    dtSCoefs_.Append(dtDCoef);
 
@@ -1241,6 +1272,11 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableCoef &DCoef,
 void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableMatCoef &DCoef,
                                                   bool bc)
 {
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Adding anisotropic diffusion term for " << field_name_ << endl;
+   }
+
    ScalarMatrixProductCoefficient * dtDCoef =
       new ScalarMatrixProductCoefficient(dt_, DCoef);
    dtMCoefs_.Append(dtDCoef);
@@ -1278,6 +1314,11 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableMatCoef &DCoef,
 void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
                                                   bool bc)
 {
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Adding advection term for " << field_name_ << endl;
+   }
+
    ScalarVectorProductCoefficient * dtVCoef =
       new ScalarVectorProductCoefficient(dt_, VCoef);
    dtVCoefs_.Append(dtVCoef);
@@ -1310,6 +1351,11 @@ void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
 
 void DGTransportTDO::NLOperator::SetSourceTerm(StateVariableCoef &SCoef)
 {
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Adding source term for " << field_name_ << endl;
+   }
+
    dlfi_.Append(new DomainLFIntegrator(SCoef));
 
    for (int i=0; i<5; i++)

@@ -273,6 +273,8 @@ enum FieldType {INVALID = -1,
                 ELECTRON_TEMPERATURE = 4
                };
 
+std::string FieldSymbol(FieldType t);
+
 class StateVariableFunc
 {
 public:
