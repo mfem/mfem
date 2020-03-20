@@ -183,111 +183,6 @@ NCMesh::NCMesh(const Mesh *mesh)
    Update();
 }
 
-NCMesh::NCMesh(std::istream &input, int version, int &curved)
-{   
-   if (version == 1) // old MFEM mesh v1.1 format
-   {
-      LoadLegacyFormat(input, curved);
-      return;
-   }
-
-   MFEM_ASSERT(version == 10, "");
-   std::string ident;
-
-   // load dimension
-   skip_comment_lines(input, '#');
-   input >> ident;
-   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
-   input >> Dim;
-
-   // load elements
-   skip_comment_lines(input, '#');
-   input >> ident;
-   MFEM_VERIFY(ident == "elements", "invalid mesh file");
-
-   input >> count;
-   int max_id = -1;
-   for (int i = 0; i < count; i++)
-   {
-      int rank, attr, geom, ref_type;
-      input >> rank >> attr >> geom;
-
-      Geometry::Type type = Geometry::Type(geom);
-      CheckSupportedGeom(type);
-      GI[geom].InitGeom(type);
-
-      int id = AddElement(Element(type, attr));
-      MFEM_ASSERT(id == i, "");
-
-      if (geom >= 0)
-      {
-         input >> ref_type;
-         MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
-
-         Element &el = elements[id];
-         el.ref_type = ref_type;
-         if (ref_type)
-         {
-            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
-            {
-               input >> el.child[j];
-            }
-         }
-         else
-         {
-            for (int j = 0; j < GI[geom].nv; j++)
-            {
-               input >> el.node[j];
-               max_id = std::max(max_id, el.node[j]);
-            }
-         }
-      }
-   }
-
-/*
-# rank attr geom ref_type {node/child}
-# - geom can be zero
-# - number of roots is implied: number of elements without parent
-elements
-N
-rank attr geom 0 n1 n2 n3 n4
-rank attr geom ref_type ch1 ch2 ch3 ch4
-rank attr 0 # unused element
-
-# attr geom {node}
-boundary
-N
-attr geom n1 n2
-attr geom n1 n2
-
-# vertex hierarchy - vertex nodes only
-# id p1 p2
-# if node has no parents (missing in this section), it is a top-level node
-vertex_parents
-N # number of records that follow, not the total number of nodes
-id p1 p2
-id p1 p2
-
-# root states - optional
-# N is the number of records, not the number of root elements
-# if a root element doesn't have state set here, it is assumed to be 0
-root_state
-N
-s
-s
-
-# top vertex coords - optional
-#
-vertices
-N
-spaceDim/"nodes"
-x y z
-x y z
-
-*/
-   MFEM_ABORT("TODO");
-}
-
 NCMesh::NCMesh(const NCMesh &other)
    : Dim(other.Dim)
    , spaceDim(other.spaceDim)
@@ -5144,6 +5039,126 @@ void NCMesh::Print(std::ostream &out) const
    }
 }
 
+NCMesh::NCMesh(std::istream &input, int version, int &curved)
+{
+   if (version == 1) // old MFEM mesh v1.1 format
+   {
+      LoadLegacyFormat(input, curved);
+      return;
+   }
+
+   MFEM_ASSERT(version == 10, "");
+   std::string ident;
+
+   // load dimension
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
+   input >> Dim;
+
+   // load elements
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "elements", "invalid mesh file");
+
+   input >> count;
+   for (int i = 0; i < count; i++)
+   {
+      int rank, attr, geom, ref_type;
+      input >> rank >> attr >> geom;
+
+      Geometry::Type type = Geometry::Type(geom);
+      CheckSupportedGeom(type);
+      GI[geom].InitGeom(type);
+
+      int id = AddElement(Element(type, attr));
+      MFEM_ASSERT(id == i, "");
+
+      if (geom >= 0)
+      {
+         input >> ref_type;
+         MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
+
+         Element &el = elements[id];
+         el.ref_type = ref_type;
+         if (ref_type)
+         {
+            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
+            {
+               input >> el.child[j];
+            }
+         }
+         else
+         {
+            for (int j = 0; j < GI[geom].nv; j++)
+            {
+               int id;
+               input >> id;
+               el.node[j] = id;
+               nodes.Alloc(id, id, id);
+               // NOTE: nodes that won't get parents assigned will
+               // stay hashed with p1 == p2 == id (top-level nodes)
+            }
+         }
+      }
+   }
+
+   nodes.UpdateUnused();
+   CheckRootElements();
+
+   // load boundary
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "boundary", "invalid mesh file");
+
+   LoadBoundary(input);
+
+   // load vertex hierarchy
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "vertex_parents", "invalid mesh file");
+
+   LoadVertexParents(input);
+
+   // load root states
+   skip_comment_lines(input, '#');
+   input >> ident;
+   if (ident == "root_state")
+   {
+      input >> count;
+      MFEM_VERIFY(count <= root_state.Size(), "too many root states");
+      for (int i = 0; i < count; i++)
+      {
+         input >> root_state[i];
+      }
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   // load vertices
+   MFEM_VERIFY(ident == "vertices", "invalid mesh file");
+   input >> count;
+   if (count)
+   {
+      input >> spaceDim;
+
+      top_vertex_pos.SetSize(count * 3);
+      top_vertex_pos = 0.0;
+
+      for (int i = 0; i < count; i++)
+      {
+         for (int j = 0; j < spaceDim; j++)
+         {
+            input >> top_vertex_pos[3*i + j];
+            MFEM_VERIFY(input.good(), "unexpected EOF");
+         }
+      }
+   }
+
+   Update();
+}
+
 void NCMesh::CopyElements(int elem,
                           const BlockArray<Element> &tmp_elements,
                           Array<int> &index_map)
@@ -5370,6 +5385,9 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    // NOTE: InitRootState and InitGeomFlags already called in LoadCoarseElements
    Update();
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
 
 void NCMesh::Trim()
 {
