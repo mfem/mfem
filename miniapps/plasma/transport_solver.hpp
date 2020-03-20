@@ -2012,6 +2012,7 @@ private:
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
 
+      int term_flag_;
       int vis_flag_;
 
       // Data collection used to write data files
@@ -2025,7 +2026,7 @@ private:
                  const std::string &field_name,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
-                 int vis_flag, int logging = 0,
+                 int term_flag, int vis_flag, int logging = 0,
                  const std::string & log_prefix = "");
 
 
@@ -2064,6 +2065,8 @@ private:
       virtual void Update();
       virtual Operator *GetGradientBlock(int i);
 
+      inline bool CheckTermFlag(int flag) { return (term_flag_>> flag) & 1; }
+
       inline bool CheckVisFlag(int flag) { return (vis_flag_>> flag) & 1; }
 
       virtual int GetDefaultVisFlag() { return 1; }
@@ -2100,10 +2103,11 @@ private:
                   const std::string &field_name,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
-                  int vis_flag, int logging = 0,
+                  int term_flag, int vis_flag,
+                  int logging = 0,
                   const std::string & log_prefix = "")
          : NLOperator(mpi, dg, index, field_name,
-                      yGF, kGF, vis_flag, logging, log_prefix),
+                      yGF, kGF, term_flag, vis_flag, logging, log_prefix),
            plasma_(plasma),
            m_n_(plasma.m_n),
            T_n_(plasma.T_n),
@@ -2160,7 +2164,8 @@ private:
    class NeutralDensityOp : public TransportOp
    {
    private:
-      enum VisField {DIFFUSION_COEF = 1, SOURCE = 2};
+      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
+      enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
       /*
        int    z_i_;
        double m_n_;
@@ -2228,9 +2233,8 @@ private:
                        const PlasmaParams & plasma,
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
-                       // int ion_charge, double neutral_mass,
-                       // double neutral_temp,
-                       int vis_flag, int logging = 0,
+                       int term_flag = 3,
+                       int vis_flag = 0, int logging = 0,
                        const std::string & log_prefix = "");
 
       ~NeutralDensityOp();
@@ -2293,8 +2297,11 @@ private:
    class IonDensityOp : public TransportOp
    {
    private:
-      enum VisField {DIFFUSION_PERP_COEF = 1,
-                     ADVECTION_COEF = 2, SOURCE = 3
+      enum TermFlag {DIFFUSION_TERM = 0,
+                     ADVECTION_TERM = 1, SOURCE_TERM = 2
+                    };
+      enum VisField {DIFFUSION_PERP_COEF = 0,
+                     ADVECTION_COEF = 1, SOURCE_COEF = 2
                     };
 
       // int    z_i_;
@@ -2352,8 +2359,8 @@ private:
       // ProductCoefficient   negdtdSizdnnCoef_;
       // ProductCoefficient   negdtdSizdniCoef_;
 
-      ProductCoefficient nnizCoef_;
-      ProductCoefficient niizCoef_;
+      // ProductCoefficient nnizCoef_;
+      // ProductCoefficient niizCoef_;
 
       ParGridFunction * DPerpGF_;
       ParGridFunction * AGF_;
@@ -2365,10 +2372,9 @@ private:
                    ParFiniteElementSpace & vfes,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
-                   // int ion_charge,
                    double DPerp,
                    VectorCoefficient & B3Coef,
-                   int vis_flag, int logging = 0,
+                   int term_flag = 7, int vis_flag = 0, int logging = 0,
                    const std::string & log_prefix = "");
 
       ~IonDensityOp();
@@ -2418,8 +2424,11 @@ private:
    class IonMomentumOp : public TransportOp
    {
    private:
-      enum VisField {DIFFUSION_PARA_COEF = 1, DIFFUSION_PERP_COEF = 2,
-                     ADVECTION_COEF = 3, SOURCE = 4
+      enum TermFlag {DIFFUSION_TERM = 0,
+                     ADVECTION_TERM = 1, SOURCE_TERM = 2
+                    };
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF = 1,
+                     ADVECTION_COEF = 2, SOURCE_COEF = 3
                     };
 
       // int    z_i_;
@@ -2493,7 +2502,7 @@ private:
                     // int ion_charge, double ion_mass,
                     double DPerp,
                     VectorCoefficient & B3Coef,
-                    int vis_flag, int logging = 0,
+                    int term_flag = 7, int vis_flag = 0, int logging = 0,
                     const std::string & log_prefix = "");
 
       ~IonMomentumOp();
@@ -2543,6 +2552,9 @@ private:
    class IonStaticPressureOp : public TransportOp
    {
    private:
+      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
+      enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
+
       // int    z_i_;
       // double m_i_;
       double ChiPerpConst_;
@@ -2598,7 +2610,7 @@ private:
                           double ChiPerp,
                           VectorCoefficient & B3Coef,
                           std::vector<CoefficientByAttr> & dbc,
-                          int vis_flag, int logging = 0,
+                          int term_flag = 0, int vis_flag = 0, int logging = 0,
                           const std::string & log_prefix = "");
 
       ~IonStaticPressureOp();
@@ -2646,6 +2658,9 @@ private:
    class ElectronStaticPressureOp : public TransportOp
    {
    private:
+      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
+      enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
+
       // int    z_i_;
       // double m_i_;
       double ChiPerpConst_;
@@ -2711,7 +2726,8 @@ private:
                                double ChiPerp,
                                VectorCoefficient & B3Coef,
                                std::vector<CoefficientByAttr> & dbc,
-                               int vis_flag, int logging = 0,
+                               int term_flag = 0, int vis_flag = 0,
+                               int logging = 0,
                                const std::string & log_prefix = "");
 
       ~ElectronStaticPressureOp();
@@ -2732,7 +2748,8 @@ private:
               const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
-              int index, const std::string &field_name, int vis_flag,
+              int index, const std::string &field_name,
+              int term_flag = 0, int vis_flag = 0,
               int logging = 0, const std::string & log_prefix = "");
 
       virtual void SetTimeStep(double dt)
@@ -2783,6 +2800,7 @@ private:
                  VectorCoefficient & B3Coef,
                  std::vector<CoefficientByAttr> & Ti_dbc,
                  std::vector<CoefficientByAttr> & Te_dbc,
+                 const Array<int> & term_flags,
                  const Array<int> & vis_flags,
                  // VectorCoefficient & bHatCoef,
                  // MatrixCoefficient & PerpCoef,
@@ -2844,6 +2862,7 @@ public:
                   VectorCoefficient & B3Coef,
                   std::vector<CoefficientByAttr> & Ti_dbc,
                   std::vector<CoefficientByAttr> & Te_dbc,
+                  const Array<int> & term_flags,
                   const Array<int> & vis_flags,
                   bool imex = true,
                   unsigned int op_flag = 31,

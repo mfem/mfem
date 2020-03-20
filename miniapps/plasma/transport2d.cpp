@@ -867,6 +867,7 @@ int main(int argc, char *argv[])
    // double dt_rel_tol = 0.1;
    double cfl = 0.3;
 
+   Array<int> term_flags;
    Array<int> vis_flags;
    bool visualization = true;
    bool visit = false;
@@ -1011,6 +1012,8 @@ int main(int argc, char *argv[])
    args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
                   "Ratio of chi_min_parallel/chi_perp.");
    */
+   args.AddOption(&term_flags, "-term-flags", "--equation-term-flags",
+                  "Detailed control of terms appearing in each equation.");
    args.AddOption(&vis_flags, "-vis-flags", "--visualization-flags",
                   "");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -1062,6 +1065,11 @@ int main(int argc, char *argv[])
       ode_weights[4] = 1e-10;
    }
 
+   if (term_flags.Size() != 5)
+   {
+      term_flags.SetSize(5);
+      term_flags = -1; // Turn on default equation terms
+   }
    if (vis_flags.Size() != 5)
    {
       vis_flags.SetSize(5);
@@ -1680,7 +1688,7 @@ int main(int argc, char *argv[])
 
    DGTransportTDO oper(mpi, dg, plasma, fes, vfes, ffes, offsets, yGF, kGF,
                        Di_perp, Xi_perp, Xe_perp, B3Coef, Ti_dbc, Te_dbc,
-                       vis_flags, imex, op_flag, logging);
+                       term_flags, vis_flags, imex, op_flag, logging);
 
    oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
 
