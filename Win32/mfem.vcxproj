@@ -91,35 +91,35 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='CUDADebug|x64'" Label="PropertySheets">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'" Label="PropertySheets">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Parallel.x64.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Parallel.x64.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='CUDARelease|x64'" Label="PropertySheets">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'" Label="PropertySheets">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Parallel.x64.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Parallel.x64.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParReleaseWithDebugInfo|x64'" Label="PropertySheets">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
-    <Import Project="..\..\..\src\Win32\Properties\Parallel.x64.props" />
+    <Import Project="$(WindowsProjectPath)Properties\Parallel.x64.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
