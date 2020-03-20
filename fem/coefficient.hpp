@@ -957,17 +957,27 @@ private:
    int length;
 
 public:
-   // constructor with a quadrature function as input
+   /// constructor with a quadrature function as input
    QuadratureVectorFunctionCoefficient(QuadratureFunction *qf);
 
-   // constructor with a null qf
+   /// constructor with a null qf
    QuadratureVectorFunctionCoefficient() : VectorCoefficient(0) { QuadF = NULL; }
 
+   /// setter function for the internal quadrature function
    void SetQuadratureFunction(QuadratureFunction *qf);
-
+   
+   /// set the starting index within the QuadFunc that'll be used to project outwards
+   /// if length is set to a value which will go out of bounds after this is changed than
+   /// it will be changed so that things still work. You should always change length right
+   /// after this is changed.
    void SetIndex(int _index);
+   
+   /// set the length of the function that you want to project
+   /// the projected length should have the bounds of 1 <= len <= (length QuadFunc - index)
+   /// where index is the starting location within the QuadFunc that you want projected
    void SetLength(int _length);
 
+   /// getter function for the internal quadrature function
    QuadratureFunction *GetQuadFunction() const { return QuadF; }
 
    using VectorCoefficient::Eval;
@@ -985,12 +995,16 @@ private:
    QuadratureFunction *QuadF;
 
 public:
+   /// constructor with a quadrature function as input
    QuadratureFunctionCoefficient(QuadratureFunction *qf);
 
+   /// constructor with a null qf
    QuadratureFunctionCoefficient() : Coefficient() { QuadF = NULL; }
 
+   /// setter function for the internal quadrature function
    void SetQuadratureFunction(QuadratureFunction *qf);
 
+   /// getter function for the internal quadrature function
    QuadratureFunction *GetQuadFunction() const { return QuadF; }
 
    virtual double Eval(ElementTransformation &T,

@@ -778,10 +778,10 @@ void QuadratureVectorFunctionCoefficient::SetQuadratureFunction(
 
 void QuadratureVectorFunctionCoefficient::SetLength(int _length)
 {
-   MFEM_ASSERT(_length > 0, "Length must be > 0");
+   MFEM_VERIFY(_length > 0, "Length must be > 0");
 
    int diff = vdim - index;
-   MFEM_ASSERT(_length <= diff,
+   MFEM_VERIFY(_length <= diff,
                "Length must be <= (QuadratureFunction length - index)");
 
    length = _length;
@@ -789,16 +789,22 @@ void QuadratureVectorFunctionCoefficient::SetLength(int _length)
 
 void QuadratureVectorFunctionCoefficient::SetIndex(int _index)
 {
-   MFEM_ASSERT(_index >= 0, "Index must be >= 0");
-   MFEM_ASSERT(_index < vdim,
+   MFEM_VERIFY(_index >= 0, "Index must be >= 0");
+   MFEM_VERIFY(_index < vdim,
                "Index must be < the QuadratureFunction length");
    index = _index;
+   // check to see if length needs to be modified
+   int diff = vdim - index;
+   if (length > diff) {
+      length = diff;
+   }
 }
 
 void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
+   QuadF->HostRead();
    int elem_no = T.ElementNo;
    if (index == 0 && length == vdim)
    {
@@ -819,14 +825,14 @@ void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
    QuadratureFunction *qf)
 {
-   MFEM_ASSERT(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
+   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
    QuadF = qf;
 }
 
 void QuadratureFunctionCoefficient::SetQuadratureFunction(
    QuadratureFunction *qf)
 {
-   MFEM_ASSERT(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
+   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
    QuadF = qf;
 }
 
@@ -834,6 +840,7 @@ void QuadratureFunctionCoefficient::SetQuadratureFunction(
 double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
+   QuadF->HostRead();
    int elem_no = T.ElementNo;
    Vector temp(1);
    QuadF->GetElementValues(elem_no, ip.index, temp);
