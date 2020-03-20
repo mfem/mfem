@@ -69,6 +69,19 @@ using namespace std;
 
 #define FOSLS_DIRECT_SOLVER
 
+//#define ZERO_ORDER_FOSLS
+//#define ZERO_ORDER_FOSLS_COMPLEX
+
+//#define IFFOSLS
+//#define IFFOSLS_H
+//#define IFFOSLS_ESS
+
+//#define TEST_DECOUPLED_FOSLS
+//#define TEST_DECOUPLED_FOSLS_PROJ
+//#define TEST_DECOUPLED_FOSLS_PROJ_FULL
+//#define TEST_DECOUPLED_FOSLS_PROJ_FULL_EXT
+
+// For FOSLS-DD, define SDFOSLS, IFFOSLS, IFFOSLS_H, SD_ITERATIVE_GMG, and do not define ZERO_IFND_BC.
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -1244,6 +1257,7 @@ private:
   OperatorPtr *oppa_sdND, *oppa_ifNDmass, *oppa_ifNDcurlcurl, *oppa_ifH1mass;
 #endif
   std::vector<Array<int> > sd_ess_tdof_list;
+  std::vector<Array<int> > sd_all_ess_tdof_list;
   BilinearForm **bf_ifNDmass, **bf_ifNDcurlcurl, **bf_ifH1mass;
   MixedBilinearForm **bf_ifNDH1grad;
   std::vector<Array<int> > if_ND_ess_tdof_list, if_H1_ess_tdof_list;
@@ -1319,7 +1333,7 @@ private:
   BlockOperator *globalInterfaceOpRe, *globalInterfaceOpIm;
   std::vector<Array<int> > block_ComplexOffsetsSD;
   Array<int> block_trueOffsets2;  // Offsets used in globalOp
-  Array<int> block_trueOffsets22;  // Offsets used in globalSubdomainOp
+  //Array<int> block_trueOffsets22;  // Offsets used in globalSubdomainOp
   BlockOperator **injComplexSD;
 #endif
 
@@ -1747,7 +1761,32 @@ public:
     Array<int> bdr_marker(pmesh->bdr_attributes.Max());
     bdr_marker[0] = 1;  // add boundary integrators only in the interior of the domain
     if (pmesh->bdr_attributes.Max() == 2)
-      bdr_marker[1] = 0;
+      {
+#ifdef TEST_DECOUPLED_FOSLS_PROJ_FULL
+	bdr_marker[1] = 1;
+#else
+#ifdef ZERO_ORDER_FOSLS
+	bdr_marker[1] = 1;
+#else
+	bdr_marker[1] = 0;
+#endif
+#endif
+      }
+
+#ifdef IFFOSLS
+    // Note that bdr_marker marks interfaces only. 
+    Array<int> bdr_marker_everywhere(pmesh->bdr_attributes.Max());
+    bdr_marker_everywhere = 1;
+#endif
+    
+#if defined ZERO_ORDER_FOSLS || defined IFFOSLS
+    Array<int> bdr_marker_ext(pmesh->bdr_attributes.Max());
+    bdr_marker_ext[0] = 0;  // add boundary integrators only on the exterior boundary
+    if (pmesh->bdr_attributes.Max() == 2)
+      {
+	bdr_marker_ext[1] = 1;
+      }
+#endif
     
     bM = new ParBilinearForm(fespace);
     bM->AddDomainIntegrator(new VectorFEMassIntegrator());
@@ -1806,7 +1845,17 @@ public:
     ParBilinearForm *a_EE = new ParBilinearForm(fespace);
     a_EE->AddDomainIntegrator(new CurlCurlIntegrator());
     a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
+#ifndef TEST_DECOUPLED_FOSLS
+#ifdef IFFOSLS
+#ifdef IFFOSLS_ESS
     a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+#else
+    a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker_everywhere);
+#endif
+#else
+    a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+#endif
+#endif
     a_EE->Assemble();
     a_EE->Finalize();
     //HypreParMatrix *A_EE = new HypreParMatrix;
@@ -1817,11 +1866,58 @@ public:
 #ifndef AIRY_TEST
       MFEM_VERIFY(false, "TODO: add linear form integrator to RHS");
 #endif
+      VectorFunctionCoefficient E(3, test2_E_exact);
+      ScalarVectorProductCoefficient kE(pos,E);
+#ifdef ZERO_ORDER_FOSLS
+#ifdef TEST_DECOUPLED_FOSLS_PROJ
+      b_E.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(kE), bdr_marker);
+#else
+      b_E.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(kE), bdr_marker_ext);
+#endif
+#else
+#ifdef IFFOSLS
+#ifndef IFFOSLS_ESS
+      b_E.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(kE), bdr_marker_ext);
+#endif
+#endif
+#endif
+      
       b_E.Assemble();
       OperatorPtr Aptr;
       Vector X;
       a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, Aptr, X, rhs_E);
       A_EE = Aptr.As<HypreParMatrix>();
+    }
+
+#if defined ZERO_ORDER_FOSLS_COMPLEX || defined IFFOSLS
+    ParBilinearForm *a_bM = new ParBilinearForm(fespace);
+    a_bM->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+    a_bM->Assemble();
+    a_bM->Finalize();
+    HypreParMatrix *A_bM = new HypreParMatrix;
+    a_bM->FormSystemMatrix(ess_tdof_list_E, *A_bM);
+#endif
+
+    { // Debugging
+      int ninter = 0;
+      int nexter = 0;
+      int nundef = 0;
+      for (int i = 0; i < fespace -> GetNBE(); i++)
+      {
+         const int bdr_attr = pmesh->GetBdrAttribute(i);
+         if (bdr_marker[bdr_attr-1] == 0)
+	   ninter++;
+	 else if (bdr_marker[bdr_attr-1] == 1)
+	   nexter++;
+	 else
+	   nundef++;
+      }
+
+      int nprocs, rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+      
+      cout << rank << ": dbg bdr marker " << ninter << " " << nexter << " " << nundef << endl;
     }
     
 #ifdef IMPEDANCE_POSITIVE
@@ -1848,7 +1944,12 @@ public:
     ParBilinearForm *a_HH = new ParBilinearForm(fespace);
     a_HH->AddDomainIntegrator(new CurlCurlIntegrator());
     a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
+#ifndef ZERO_ORDER_FOSLS
+#ifdef IFFOSLS_H
     a_HH->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+#endif
+#endif
+    
     a_HH->Assemble();
     a_HH->Finalize();
     HypreParMatrix *A_HH = new HypreParMatrix;
@@ -1891,10 +1992,34 @@ public:
 
     { // TODO: remove
       int nprocs, rank;
-      MPI_Comm_rank(comm, &rank);
-      MPI_Comm_size(comm, &nprocs);
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-      if (rank == 0)
+      //for (int i=0; i<pmesh->GetNEdges(); ++i)
+	{
+	  int i = 299;
+	  Array<int> vert;
+	  pmesh->GetEdgeVertices(i, vert);
+	  MFEM_VERIFY(vert.Size() == 2, "");
+	  
+	  double *v1 = pmesh->GetVertex(vert[0]);
+	  double *v2 = pmesh->GetVertex(vert[1]);
+	  cout << rank << ": edge " << i << " (" << v1[0] << ", " << v1[1] << ", " << v1[2] << ") -> ("
+	       << v2[0] << ", " << v2[1] << ", " << v2[2] << ")" << endl;
+
+	  Array<int> dofs;
+	  fespace->GetEdgeDofs(i, dofs);
+	  MFEM_VERIFY(dofs.Size() == 2, "");
+	  
+	  int tdofs[2];
+	  for (int j=0; j<2; ++j)
+	    tdofs[j] = fespace->GetLocalTDofNumber(dofs[j]);
+	  
+	  cout << rank << ": edge " << i << " DOFs " << dofs[0] << ", " << dofs[1] << endl;
+	  cout << rank << ": edge " << i << " tDOFs " << tdofs[0] << ", " << tdofs[1] << endl;
+	}
+      
+      if (rank == -10)
 	{
 	  std::string filenameE = "essE0.txt";
 	  std::ofstream sfile(filenameE, std::ofstream::out);
@@ -1905,6 +2030,9 @@ public:
 
 	  std::string filename2 = "AHE0.txt";
 	  A_mix2->Print(filename2.c_str());  // TODO: remove
+
+	  std::string filename3 = "AEE0.txt";
+	  A_EE->Print(filename3.c_str());  // TODO: remove
 	}
     }
     
@@ -1946,6 +2074,52 @@ public:
     LS_Maxwellop->SetBlock(0, 3, A_tang);  // other rotation
     LS_Maxwellop->SetBlock(2, 3, A_mix1, -1.0);  // no bc
     LS_Maxwellop->SetBlock(3, 3, A_HHm);
+#else 
+#ifdef ZERO_ORDER_FOSLS
+    LS_Maxwellop->SetBlock(0, 0, A_EE);
+    LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
+    //LS_Maxwellop->SetBlock(3, 0, A_tang_Ecol, -omega);
+    LS_Maxwellop->SetBlock(0, 1, A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(1, 1, A_HH);
+    //LS_Maxwellop->SetBlock(2, 1, A_tang_Erow, omega);  // other rotation
+    //LS_Maxwellop->SetBlock(1, 2, A_tang_Ecol, omega);
+    LS_Maxwellop->SetBlock(2, 2, A_EE);
+    LS_Maxwellop->SetBlock(3, 2, A_mix2, -1.0);  // no bc
+    //LS_Maxwellop->SetBlock(0, 3, A_tang_Erow, -omega);  // other rotation
+    LS_Maxwellop->SetBlock(2, 3, A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(3, 3, A_HH);
+#ifdef ZERO_ORDER_FOSLS_COMPLEX
+    /*
+    LS_Maxwellop->SetBlock(2, 0, A_bM, -1.0);
+    LS_Maxwellop->SetBlock(0, 2, A_bM);
+    */
+
+    LS_Maxwellop->SetBlock(3, 0, A_bM, -1.0);  // Er
+    LS_Maxwellop->SetBlock(1, 2, A_bM);  // Ei
+
+#endif
+#else
+#ifdef IFFOSLS
+    LS_Maxwellop->SetBlock(0, 0, A_EE);
+    LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
+    //LS_Maxwellop->SetBlock(3, 0, A_tang_Ecol, -omega);
+    LS_Maxwellop->SetBlock(0, 1, A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(1, 1, A_HH);
+    //LS_Maxwellop->SetBlock(2, 1, A_tang_Erow, omega);  // other rotation
+    //LS_Maxwellop->SetBlock(1, 2, A_tang_Ecol, omega);
+    LS_Maxwellop->SetBlock(2, 2, A_EE);
+    LS_Maxwellop->SetBlock(3, 2, A_mix2, -1.0);  // no bc
+    //LS_Maxwellop->SetBlock(0, 3, A_tang_Erow, -omega);  // other rotation
+    LS_Maxwellop->SetBlock(2, 3, A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(3, 3, A_HH);
+
+    LS_Maxwellop->SetBlock(2, 0, A_bM, -1.0);  // Er
+    LS_Maxwellop->SetBlock(0, 2, A_bM);  // Ei
+    
+#ifdef IFFOSLS_H
+    LS_Maxwellop->SetBlock(3, 1, A_bM, -1.0);  // Hr
+    LS_Maxwellop->SetBlock(1, 3, A_bM);  // Hi
+#endif
 #else  // original version
     LS_Maxwellop->SetBlock(0, 0, A_EE);
     LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
@@ -1959,6 +2133,8 @@ public:
     LS_Maxwellop->SetBlock(0, 3, A_tang_Erow, -omega);  // other rotation
     LS_Maxwellop->SetBlock(2, 3, A_mix1_E, -1.0);  // no bc
     LS_Maxwellop->SetBlock(3, 3, A_HH);
+#endif
+#endif
 #endif
 #endif
    
@@ -2150,9 +2326,30 @@ private:
 class LowerBlockTriangularSubdomainSolver : public Operator
 {
 public:
+#ifdef IFFOSLS_H
+  LowerBlockTriangularSubdomainSolver(HypreParMatrix *fullMat_, FOSLSSolver *sdInv_, STRUMPACKSolver *auxInv_,
+				      Operator *tdofsBdryInjectionTranspose_, std::set<int> *allGlobalSubdomainInterfaces_,
+				      std::vector<InjectionOperator*> *InterfaceToSurfaceInjection_, std::vector<int> *ifNDtrue_,
+				      std::vector<int> *ifH1true_)
+    : fullMat(fullMat_), sdInv(sdInv_), auxInv(auxInv_), allGlobalSubdomainInterfaces(allGlobalSubdomainInterfaces_),
+      tdofsBdryInjectionTranspose(tdofsBdryInjectionTranspose_), InterfaceToSurfaceInjection(InterfaceToSurfaceInjection_),
+      ifNDtrue(ifNDtrue_), ifH1true(ifH1true_)
+#else
   LowerBlockTriangularSubdomainSolver(HypreParMatrix *fullMat_, FOSLSSolver *sdInv_, STRUMPACKSolver *auxInv_)
     : fullMat(fullMat_), sdInv(sdInv_), auxInv(auxInv_)
+#endif
   {
+#ifdef IFFOSLS_H
+    MFEM_VERIFY(tdofsBdryInjectionTranspose != NULL, "");
+
+    int os = 0;
+    for (auto interfaceIndex : *allGlobalSubdomainInterfaces)
+      {
+	fOS.push_back(os);
+	os += 2 * ((*ifNDtrue)[interfaceIndex] + (*ifH1true)[interfaceIndex]);
+      }
+#endif
+    
     nSD = sdInv->Height() / 2;  // Discarding the H result
     nSDhalf = nSD / 2;   // Size of Er or Ei
     nAux = auxInv->Height();  // complex size
@@ -2170,6 +2367,10 @@ public:
 
     xAux.SetSize(nAux);
     yAux.SetSize(nAux);
+
+#ifdef IFFOSLS_H
+    MFEM_VERIFY(os == nAux, "");
+#endif
   }
 
   virtual void Mult(const Vector & x, Vector & y) const
@@ -2193,7 +2394,90 @@ public:
 	y[i] = ySD[i];  // Er
 	y[nSDhalf + nAuxHalf + i] = ySD[nSD + i];  // Ei
       }
-    
+
+#ifdef ZERO_ORDER_FOSLS
+    for (int i=0; i<nAuxHalf; ++i)
+      {
+	y[nSDhalf + i] = x[nSD + i];  // real part
+	y[nSD + nAuxHalf + i] = x[widthHalf + nSD + i];  // imaginary part
+      }
+#else
+#ifdef IFFOSLS
+#ifdef IFFOSLS_H
+    for (int i=0; i<nAuxHalf; ++i)  // Apply identity for rho components, with f components overwritten below. 
+      {
+	y[nSDhalf + i] = x[nSD + i];  // real part
+	y[nSD + nAuxHalf + i] = x[widthHalf + nSD + i];  // imaginary part
+      }
+
+    // f equation is f_{mn} = n x H_m x n (only in A, not C).
+
+    //MFEM_VERIFY(fOS[fOS.size()-1] == nAux, "");
+
+    {
+      Vector ReH(nSDhalf);
+      Vector ImH(nSDhalf);
+      
+      for (int i=0; i<nSDhalf; ++i)
+	{
+	  ReH[i] = x[nSDhalf + i];
+	  ImH[i] = x[widthHalf + nSDhalf + i];
+	}
+
+      MFEM_VERIFY(tdofsBdryInjectionTranspose->Width() == nSDhalf, "");
+
+      /*
+      Vector ReHbdry(tdofsBdryInjectionTranspose->Height());
+      Vector ImHbdry(tdofsBdryInjectionTranspose->Height());
+	     
+      tdofsBdryInjectionTranspose->Mult(ReH, ReHbdry);
+      tdofsBdryInjectionTranspose->Mult(ImH, ImHbdry);
+      */
+      
+      int os = 0;
+      
+      for (auto interfaceIndex : *allGlobalSubdomainInterfaces)
+	{
+	  //leftInjection->SetBlock(0, 0, new ProductOperator(tdofsBdryInjectionTranspose[sd0], InterfaceToSurfaceInjection[sd0][interfaceIndex], false, false));
+
+	  MFEM_VERIFY((*ifNDtrue)[interfaceIndex] > 0, "");
+	  MFEM_VERIFY((*ifNDtrue)[interfaceIndex] == (*InterfaceToSurfaceInjection)[interfaceIndex]->Width(), "");
+	  MFEM_VERIFY(nSDhalf == (*InterfaceToSurfaceInjection)[interfaceIndex]->Height(), "");
+  
+	  Vector tmpx((*ifNDtrue)[interfaceIndex]);
+	  //Vector tmpy((*ifNDtrue)[interfaceIndex]);
+
+	  //Vector tmpu((*InterfaceToSurfaceInjection)[interfaceIndex]->Height());
+	  
+	  (*InterfaceToSurfaceInjection)[interfaceIndex]->MultTranspose(ReH, tmpx);
+	  //tdofsBdryInjectionTranspose->Mult(tmpu);
+
+	  for (int i=0; i<(*ifNDtrue)[interfaceIndex]; ++i)
+	    {
+	      y[nSDhalf + os + i] = tmpx[i];  // real part
+	    }
+
+	  (*InterfaceToSurfaceInjection)[interfaceIndex]->MultTranspose(ImH, tmpx);
+	  for (int i=0; i<(*ifNDtrue)[interfaceIndex]; ++i)
+	    {
+	      y[nSD + nAuxHalf + os + i] = tmpx[i];  // imaginary part
+	    }
+
+	  os += (*ifNDtrue)[interfaceIndex] + (*ifH1true)[interfaceIndex];
+	  
+	  //os += 2 * ((*ifNDtrue)[interfaceIndex] + (*ifH1true)[interfaceIndex]);
+	}
+
+      MFEM_VERIFY(os == nAuxHalf, "");
+    }
+#else
+    for (int i=0; i<nAuxHalf; ++i)
+      {
+	y[nSDhalf + i] = x[nSD + i];  // real part
+	y[nSD + nAuxHalf + i] = x[widthHalf + nSD + i];  // imaginary part
+      }
+#endif
+#else
     tmp = 0.0;
     fullMat->Mult(y, tmp);  // Multiply solution for (0) block to get action of (1,0) block.
 
@@ -2210,6 +2494,8 @@ public:
 	y[nSDhalf + i] = yAux[i];
 	y[nSD + nAuxHalf + i] = yAux[nAuxHalf + i];
       }
+#endif
+#endif
   }
   
 private:
@@ -2217,6 +2503,15 @@ private:
   FOSLSSolver *sdInv;
   int nSD, nSDhalf, nAux, nAuxHalf;
 
+#ifdef IFFOSLS_H
+  std::set<int> *allGlobalSubdomainInterfaces;
+  Operator *tdofsBdryInjectionTranspose;  // TODO: remove?
+  std::vector<InjectionOperator*> *InterfaceToSurfaceInjection;
+  std::vector<int> *ifH1true;
+  std::vector<int> *ifNDtrue;
+  std::vector<int> fOS;  // TODO: remove?
+#endif
+  
   HypreParMatrix *fullMat;
   
   mutable Vector xSD, ySD, tmp, xAux, yAux;

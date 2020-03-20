@@ -4948,6 +4948,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   sdNDPenSp = new SparseMatrix*[numSubdomains];
   bf_sdND = new ParBilinearForm*[numSubdomains];
   sd_ess_tdof_list.resize(numSubdomains);
+#ifdef TEST_DECOUPLED_FOSLS
+  sd_all_ess_tdof_list.resize(numSubdomains);
+#endif
 #ifdef SD_ITERATIVE_GMG_PA
   bfpa_sdND = new ParBilinearForm*[numSubdomains];
   oppa_sdND = new OperatorPtr[numSubdomains];
@@ -5835,12 +5838,14 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   for (int i=0; i<numSubdomains + 1; ++i)
     block_trueOffsets2[i] = 2*block_trueOffsets[i];
 
+  /*
 #ifdef SDFOSLS
   block_trueOffsets22.SetSize(numSubdomains + 1);
   for (int i=0; i<numSubdomains + 1; ++i)
     block_trueOffsets22[i] = 4*block_trueOffsets[i];
 #endif
-
+  */
+  
 #ifdef SDFOSLS
   block_trueOffsets_FOSLS2.SetSize(numSubdomains + 1);
   for (int i=0; i<numSubdomains + 1; ++i)
@@ -7169,8 +7174,44 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		  invAsdComplex[m] = NULL; // TODO: remove this
 		  
 		  {
+#ifdef TEST_DECOUPLED_FOSLS
+		    {
+		      Array<int> ess_bdr(pmeshSD[m]->bdr_attributes.Max());
+		      ess_bdr = 1;
+		      fespace[m]->GetEssentialTrueDofs(ess_bdr, sd_all_ess_tdof_list[m]);
+		      cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], sd_all_ess_tdof_list[m], xsd, sdP[m], sqrt(k2));
+		    }
+#else
+#ifdef TEST_DECOUPLED_FOSLS_PROJ_FULL
+		    Array<int> ess_tdof_list_empty;
+		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], ess_tdof_list_empty, xsd, sdP[m], sqrt(k2));
+#else
+#ifdef ZERO_ORDER_FOSLS
+		    Array<int> ess_tdof_list_empty;
+		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], ess_tdof_list_empty, xsd, sdP[m], sqrt(k2));
+#else
+#ifdef IFFOSLS
+#ifdef IFFOSLS_ESS
 		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], sd_ess_tdof_list[m], xsd, sdP[m], sqrt(k2));
+#else
+		    Array<int> ess_tdof_list_empty;
+		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], ess_tdof_list_empty, xsd, sdP[m], sqrt(k2));
+#endif
+#else
+		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], sd_ess_tdof_list[m], xsd, sdP[m], sqrt(k2));
+#endif
+#endif
+#endif
+#endif
+
+#ifdef IFFOSLS_H
+		    invAsdComplex[m] = new LowerBlockTriangularSubdomainSolver(HypreAsdComplex[m], cfosls[m], auxInv, tdofsBdryInjectionTranspose[m],
+									       &(allGlobalSubdomainInterfaces[m]), &(InterfaceToSurfaceInjection[m]),
+									       &(ifNDtrue), &(ifH1true));
+
+#else
 		    invAsdComplex[m] = new LowerBlockTriangularSubdomainSolver(HypreAsdComplex[m], cfosls[m], auxInv);
+#endif							       
 		  }
 		}
 	      else
@@ -7820,12 +7861,29 @@ dc->Save();
 if (sdsize > 0)
   {
     //MFEM_VERIFY(sourceSD.Size() == srcSD[m]->Size(), "");
-  
+#ifdef SDFOSLS
+    const int nSD = cfosls[m]->rhs_E.Size();
+    MFEM_VERIFY(4*nSD < ySD[m]->Size(), "");
+    const int yImOS = ySD[m]->Size() / 2;
+    MFEM_VERIFY(2*yImOS == ySD[m]->Size(), "");
+#endif
+    
   for (int i=0; i<sdsize; ++i)
     {
       // Set the u_m block of ySD, real part
 #ifdef SDFOSLS
       (*(ySD[m]))[i] = cfosls[m]->rhs_E[i];
+#ifdef ZERO_ORDER_FOSLS_COMPLEX
+      //(*(ySD[m]))[yImOS + i] = -cfosls[m]->rhs_E[i];
+      (*(ySD[m]))[yImOS + nSD + i] = -cfosls[m]->rhs_E[i];
+#endif
+#ifdef IFFOSLS
+#ifdef IFFOSLS_ESS
+      //(*(ySD[m]))[yImOS + i] = cfosls[m]->rhs_E[i];
+#else
+      (*(ySD[m]))[yImOS + i] = -cfosls[m]->rhs_E[i];
+#endif
+#endif
 #else
       (*(ySD[m]))[i] = (*(srcSD[m]))[i];
 #endif
@@ -8062,6 +8120,8 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
   // globalInterfaceOp represents the off-diagonal blocks C_{ij} R_j^T
   globalInterfaceOp->Mult(solReduced, w);
 
+  cout << m_rank << ": global w norm " << w.Norml2() << endl;
+  
   // Now w = \sum_{j\neq i} C_{ij} R_j^T \overbar{u}_j
 
   Vector domainError(3), eSD(3), maxeSD(3);
@@ -8182,16 +8242,47 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  *(rhsSD[m]) = *(ySD[m]);
 	  
 #ifdef SDFOSLS
+	  cout << m_rank << ": uSD2[" << m  << "] norm " << uSD2.Norml2() << endl;
 	  *(ySD[m]) -= uSD2;
 #else
 	  *(ySD[m]) -= uSD;
 #endif
-	  
+
+	  /*
+#ifdef TEST_DECOUPLED_FOSLS_PROJ  // TODO: remove this
+	  {
+	    MFEM_VERIFY(ySD[m]->Size() > cfosls[m]->rhs_E.Size(), "");
+
+	    const int nSD = cfosls[m]->rhs_E.Size();
+	    
+	    (*(ySD[m])) = 0.0;
+	    for (int i=0; i<nSD; ++i)
+	      (*(ySD[m]))[i] = cfosls[m]->rhs_E[i];
+
+	    Vector cfrhs(4*nSD);
+	    Vector cfsol(4*nSD);
+
+	    cfrhs = 0.0;
+	    cfsol = 0.0;
+	    for (int i=0; i<nSD; ++i)
+	      cfrhs[i] = cfosls[m]->rhs_E[i];
+	    
+	    cfosls[m]->Mult(cfrhs, cfsol);
+
+	    uSD = 0.0;
+	    for (int i=0; i<nSD; ++i)
+	      uSD[i] = cfsol[i];
+	    
+	    PrintSubdomainError(m, uSD, eSD, *(rhsSD[m]));
+	  }
+#else
+	  */
 	  uSD = 0.0;
 	  if (invAsdComplex[m] != NULL)
 	    invAsdComplex[m]->Mult(*(ySD[m]), uSD);
 
 	  PrintSubdomainError(m, uSD, eSD, *(rhsSD[m]));
+	  //#endif
 #ifndef SERIAL_INTERFACES	  
 	  PrintInterfaceError(m, uSD);
 #endif
@@ -8841,23 +8932,58 @@ Operator* DDMInterfaceOperator::CreateCij_FOSLS(const int localInterfaceIndex, c
   if (realPart)
     {
       // E row
+#ifndef TEST_DECOUPLED_FOSLS
+#ifndef TEST_DECOUPLED_FOSLS_PROJ
       op->SetBlock(0, 0, ifNDmassSp[interfaceIndex], alphaIm);
+#endif
+#endif
       // H row
+#ifndef ZERO_ORDER_FOSLS
+#ifndef IFFOSLS
       op->SetBlock(1, 0, ifNDmassSp[interfaceIndex], alphaRe);
       op->SetBlock(1, 1, ifNDtangSp[interfaceIndex], -tangSign);  // (f, n x R) = -(n x f, R)
+      //op->SetBlock(1, 1, ifNDtangSp[interfaceIndex], tangSign);  // (f, n x R) = -(n x f, R)
       // f row
       op->SetBlock(2, 0, ifNDmassSp[interfaceIndex], -1.0);
       op->SetBlock(2, 1, ifNDmassSp[interfaceIndex], alphaInverse);
+#endif
+#endif
+
+#ifdef IFFOSLS_H
+      op->SetBlock(1, 1, ifNDmassSp[interfaceIndex], alphaIm);  // (f,R)
+#endif
     }
   else
     {
       // E row
+#ifdef ZERO_ORDER_FOSLS_COMPLEX
+      //op->SetBlock(0, 0, ifNDmassSp[interfaceIndex], -alphaIm);
+      op->SetBlock(1, 0, ifNDmassSp[interfaceIndex], -alphaIm);
+#else
+#ifdef IFFOSLS
+      op->SetBlock(0, 0, ifNDmassSp[interfaceIndex], -alphaIm);
+#else
       op->SetBlock(0, 0, ifNDtangSp[interfaceIndex], -alphaRe * tangSign);
+#endif
+#endif
+
+#ifdef IFFOSLS_H
+      op->SetBlock(1, 1, ifNDmassSp[interfaceIndex], -alphaIm);  // (f,R)
+#endif
+      
+#ifndef IFFOSLS
+#ifndef ZERO_ORDER_FOSLS
       op->SetBlock(0, 1, ifNDmassSp[interfaceIndex]);
+#endif
       // H row
+#ifndef ZERO_ORDER_FOSLS
       op->SetBlock(1, 0, ifNDtangSp[interfaceIndex], -alphaIm * tangSign);
+#endif
       // f row
+#ifndef ZERO_ORDER_FOSLS
       op->SetBlock(2, 1, ifNDmassSp[interfaceIndex], alphaInverse);
+#endif
+#endif
     }
   
   return op;
@@ -10196,7 +10322,11 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
 		const int ldof = fespace[subdomain]->GetLocalTDofNumber(dof_d);  // If the DOF is owned by the current processor, return its local tdof number, otherwise -1.
 		if (ldof >= 0)
 		  {
+		    //#ifndef TEST_DECOUPLED_FOSLS_PROJ
+#ifdef ZERO_IFND_BC
 		    true_ess_dofs[ldof] = 1;
+#endif
+		    //#endif
 		  }
 	      }
 	  }
@@ -11800,8 +11930,10 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 									   ifespace[interfaceIndex], NULL, false,
 									   0.0, 1.0, false);
 
+#ifndef ZERO_ORDER_FOSLS
 	  if (i >= 0)
 	    block((2*i) + 1, 0) = matrixSum;
+#endif
 	  
 	  if (ifSumF != NULL)
 	    delete ifSumF;
@@ -11866,7 +11998,11 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
 #else
 	block((2*i) + 1, (2*i) + 1) = ifNDmass[interfaceIndex];
 #endif
+#ifdef ZERO_ORDER_FOSLS
+	blockCoefficient((2*i) + 1, (2*i) + 1) = 1.0;
+#else
 	blockCoefficient((2*i) + 1, (2*i) + 1) = alphaInverse;
+#endif
       }
 
       // In PengLee2012 A_m^{\rho\rho} corresponds to
