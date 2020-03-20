@@ -102,6 +102,7 @@ valgrind-test:
 
 # TODO
 valgrind-parallel:
+	# mpirun -np 2 valgrind --leak-check=yes ./par-hypsys -tf 0.1 -r 0
 	# valgrind --gen-suppressions=yes phypsys $(VALGRIND-CONFIG)
 	# valgrind --suppressions=$(MPI_HOME)/share/openmpi/openmpi-valgrind.supp phypsys $(VALGRIND-CONFIG)
 	valgrind --suppressions=./my-mpi-suppressions.supp phypsys $(VALGRIND-CONFIG)
