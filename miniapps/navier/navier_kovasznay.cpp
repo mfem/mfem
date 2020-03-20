@@ -179,9 +179,11 @@ int main(int argc, char *argv[])
       err_u = u_gf->ComputeL2Error(u_excoeff);
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
+      double cfl = flowsolver.ComputeCFL(*u_gf, dt);
+
       if (mpi.Root())
       {
-         printf("%.2d %.2E %.2E %.5E %.5E err\n", ctx.order, t, dt, err_u, err_p);
+         printf("%.2d %.2E %.2E %.2E %.5E %.5E err\n", ctx.order, cfl, t, dt, err_u, err_p);
          fflush(stdout);
       }
    }
