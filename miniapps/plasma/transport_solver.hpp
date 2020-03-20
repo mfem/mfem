@@ -530,7 +530,18 @@ public:
    // Result is _alpha * A + _beta * B
    StateVariableSumCoef(StateVariableCoef &A, StateVariableCoef &B,
                         double _alpha = 1.0, double _beta = 1.0)
-      : a(&A), b(&B), alpha(_alpha), beta(_beta) { }
+      : a(A.Clone()), b(B.Clone()), alpha(_alpha), beta(_beta) {}
+
+   ~StateVariableSumCoef()
+   {
+      if (a != NULL) { delete a; }
+      if (b != NULL) { delete b; }
+   }
+
+   virtual StateVariableSumCoef * Clone() const
+   {
+      return new StateVariableSumCoef(*a, *b, alpha, beta);
+   }
 
    void SetACoef(StateVariableCoef &A) { a = &A; }
    StateVariableCoef * GetACoef() const { return a; }
