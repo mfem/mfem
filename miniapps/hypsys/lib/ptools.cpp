@@ -1,7 +1,7 @@
 #include "ptools.hpp"
 
 void ParVisualizeField(socketstream &sock, const char *vishost, int visport,
-                       string ProblemName, ParGridFunction &gf, bool vec)
+                       string ProblemName, ParGridFunction &gf, string valuerange, bool vec)
 {
    ParMesh &pmesh = *gf.ParFESpace()->GetParMesh();
    MPI_Comm comm = pmesh.GetComm();
@@ -30,7 +30,7 @@ void ParVisualizeField(socketstream &sock, const char *vishost, int visport,
       sock << "window_title '" << ProblemName << "'\n"
            << "window_geometry "
            << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n"
-           << "valuerange 0 1\n" << "autoscale off\n"
+           << "valuerange " << valuerange << "\n" << "autoscale off\n"
            << "keys mcjlppppppppppppppppppppppppppp66666666666666666666666"
            << "66666666666666666666666666666666666666666666666662222222222";
       if ( vec ) { sock << "vvv"; }

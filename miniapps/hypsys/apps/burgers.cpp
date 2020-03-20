@@ -15,19 +15,21 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
 
    FunctionCoefficient ic(InitialConditionBurgers);
 
-   if (ConfigBurgers.ConfigNum == 0)
+   switch (ConfigBurgers.ConfigNum)
    {
-      ProblemName = "Burgers Equation - Smooth Solution";
-      MFEM_ABORT("No such test case implemented.");
-   }
-   else
-   {
-      SolutionKnown = true;
-      SteadyState = false;
-      TimeDepBC = true;
-      ProjType = 1;
-      u0.ProjectCoefficient(ic);
-      ProblemName = "Burgers Equation - Riemann Problem";
+      case 1:
+      {
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = true;
+         ProjType = 0; // Use L2 projection to get exact initial condition for p > 0
+         L2_Projection(ic, u0);
+         valuerange = "-1 0.8";
+         ProblemName = "Burgers Equation - Riemann Problem";
+         break;
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
 }
 

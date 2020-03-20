@@ -15,19 +15,21 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
 
    FunctionCoefficient ic(InitialConditionKPP);
 
-   if (ConfigKPP.ConfigNum == 0)
+   switch (ConfigKPP.ConfigNum)
    {
-      ProblemName = "KPP Equation - Smooth Solution";
-      MFEM_ABORT("No such test case implemented.");
-   }
-   else
-   {
-      SolutionKnown = false;
-      SteadyState = false;
-      TimeDepBC = false;
-      ProjType = 1;
-      u0.ProjectCoefficient(ic);
-      ProblemName = "KPP Equation - Riemann Problem";
+      case 1:
+      {
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         valuerange = "0.785398163 10.99557429";
+         ProblemName = "KPP Equation - Riemann Problem";
+         break;
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
 }
 

@@ -17,23 +17,32 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
 
    VectorFunctionCoefficient ic(NumEq, InitialConditionSWE);
 
-   if (ConfigShallowWater.ConfigNum == 0)
+   switch (ConfigShallowWater.ConfigNum)
    {
-      SolutionKnown = true;
-      SteadyState = false;
-      TimeDepBC = false; // Usage of periodic meshes is required.
-      ProjType = 0;
-      L2_Projection(ic, u0);
-      ProblemName = "Shallow Water Equations - Vorticity Advection";
-   }
-   else
-   {
-      SolutionKnown = false;
-      SteadyState = false;
-      TimeDepBC = false; // TODO Choose a boundary condition for dam break and adjust this.
-      ProjType = 1;
-      u0.ProjectCoefficient(ic);
-      ProblemName = "Shallow Water Equations - Dam Break";
+      case 0:
+      {
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = false; // Usage of periodic meshes is required.
+         ProjType = 0;
+         L2_Projection(ic, u0);
+         valuerange = "0.98 1"
+         ProblemName = "Shallow Water Equations - Vorticity Advection";
+         break;
+      }
+      case 1:
+      {
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false; // TODO Choose a boundary condition for dam break and adjust this.
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         valuerange = "0 1";
+         ProblemName = "Shallow Water Equations - Dam Break";
+         break;
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
 }
 

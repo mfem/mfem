@@ -9,6 +9,6 @@ using namespace std;
 using namespace mfem;
 
 void ParVisualizeField(socketstream &sock, const char *vishost, int visport,
-                       string ProblemName, ParGridFunction &gf, bool vec = false);
+                       string ProblemName, ParGridFunction &gf, string valuerange, bool vec = false);
 
 #endif

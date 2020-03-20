@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
    socketstream sout;
    char vishost[] = "localhost";
    int visport = 19916;
-   VisualizeField(sout, vishost, visport, hyp->ProblemName, uk);
+   VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->valuerange);
 
    FE_Evolution evol(&vfes, hyp, dofs, scheme, LumpedMassMat);
 
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         VisualizeField(sout, vishost, visport, hyp->ProblemName, uk);
+         VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->valuerange);
       }
    }
 

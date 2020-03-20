@@ -15,23 +15,30 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
 
    VectorFunctionCoefficient ic(NumEq, InitialConditionTEMPLATE);
 
-   if (ConfigTEMPLATE.ConfigNum == 0)
+   switch (ConfigTEMPLATE.ConfigNum)
    {
-      SolutionKnown = ;
-      SteadyState = ;
-      TimeDepBC = ;
-      ProjType = 0;
-      L2_Projection(ic, u0);
-      ProblemName = "TEMPLATE - ";
-   }
-   else
-   {
-      SolutionKnown = ;
-      SteadyState = ;
-      TimeDepBC = ;
-      ProjType = 1;
-      u0.ProjectCoefficient(ic);
-      ProblemName = "TEMPLATE - ";
+      case 0:
+      {
+         SolutionKnown = ;
+         SteadyState = ;
+         TimeDepBC = ;
+         ProjType = 0;
+         L2_Projection(ic, u0);
+         valuerange = " ";
+         ProblemName = "TEMPLATE - ";
+      }
+      case 1:
+      {
+         SolutionKnown = ;
+         SteadyState = ;
+         TimeDepBC = ;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         valuerange = " ";
+         ProblemName = "TEMPLATE - ";
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
 }
 

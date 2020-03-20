@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
       // Make sure all MPI ranks have sent their 'v' solution before initiating
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(comm);
-      ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk);
+      ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->valuerange);
    }
 
    ParFE_Evolution pevol(&vfes, hyp, pdofs, scheme, LumpedMassMat);
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
             }
          }
 
-         ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk);
+         ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->valuerange);
       }
    }
 

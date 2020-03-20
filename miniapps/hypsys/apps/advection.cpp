@@ -16,23 +16,32 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 
    FunctionCoefficient ic(InitialConditionAdv);
 
-   if (ConfigAdvection.ConfigNum == 0)
+   switch (ConfigAdvection.ConfigNum)
    {
-      SolutionKnown = true;
-      SteadyState = true;
-      TimeDepBC = false;
-      ProjType = 0;
-      L2_Projection(ic, u0);
-      ProblemName = "Advection - Smooth Circular Convection";
-   }
-   else
-   {
-      SolutionKnown = true;
-      SteadyState = false;
-      TimeDepBC = false;
-      ProjType = 1;
-      u0.ProjectCoefficient(ic);
-      ProblemName = "Advection - Solid Body Rotation";
+      case 0:
+      {
+         SolutionKnown = true;
+         SteadyState = true;
+         TimeDepBC = false;
+         ProjType = 0;
+         L2_Projection(ic, u0);
+         valuerange = "0 1";
+         ProblemName = "Advection - Smooth Circular Convection";
+         break;
+      }
+      case 1:
+      {
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         valuerange = "0 1";
+         ProblemName = "Advection - Solid Body Rotation";
+         break;
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
 
    // The following computes and stores all necessary evaluations of the time-independent velocity.

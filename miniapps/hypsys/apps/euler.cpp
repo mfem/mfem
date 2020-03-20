@@ -18,23 +18,43 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
 
    VectorFunctionCoefficient ic(NumEq, InitialConditionEuler);
 
-   if (ConfigEuler.ConfigNum == 0)
+   switch (ConfigEuler.ConfigNum)
    {
-      SolutionKnown = true;
-      SteadyState = false;
-      TimeDepBC = false; // Usage of periodic meshes is required.
-      ProjType = 0;
-      L2_Projection(ic, u0);
-      ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
-   }
-   else
-   {
-      SolutionKnown = false;
-      SteadyState = false;
-      TimeDepBC = false; // TODO Choose a boundary condition for shock tube and adjust this.
-      ProjType = 1;
-      u0.ProjectCoefficient(ic);
-      ProblemName = "Euler Equations of Gas dynamics - SOD Shock Tube";
+      case 0:
+      {
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = false; // Usage of periodic meshes is required.
+         ProjType = 0;
+         L2_Projection(ic, u0);
+         valuerange = "0.493807323 1";
+         ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
+         break;
+      }
+      case 1:
+      {
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false; // TODO Choose a boundary condition for shock tube and adjust this.
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         valuerange = "0 1";
+         ProblemName = "Euler Equations of Gas dynamics - SOD Shock Tube";
+         break;
+      }
+      case 2:
+      {
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         valuerange = "0 7";
+         ProblemName = "Euler Equations of Gas dynamics - Woodward Colella";
+         break;
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
    }
 }
 
@@ -254,7 +274,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          u(dim + 1) = X.Norml2() < 0.5 ? 1. : .1;
          break;
       }
-      case 2: // Woodward Colella
+      case 2:
       {
          if (dim != 1)
          {

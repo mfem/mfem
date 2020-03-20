@@ -106,7 +106,7 @@ public:
 
    mutable VectorFunctionCoefficient BdrCond;
 
-   string ProblemName;
+   string ProblemName, valuerange;
    bool SolutionKnown;
    bool SteadyState;
    bool TimeDepBC;
