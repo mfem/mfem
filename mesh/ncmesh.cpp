@@ -191,18 +191,67 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       return;
    }
 
+   MFEM_ASSERT(version == 10, "");
+   std::string ident;
+
+   // load dimension
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
+   input >> Dim;
+
+   // load elements
+   skip_comment_lines(input, '#');
+   input >> ident;
+   MFEM_VERIFY(ident == "elements", "invalid mesh file");
+
+   input >> count;
+   int max_id = -1;
+   for (int i = 0; i < count; i++)
+   {
+      int rank, attr, geom, ref_type;
+      input >> rank >> attr >> geom;
+
+      Geometry::Type type = Geometry::Type(geom);
+      CheckSupportedGeom(type);
+      GI[geom].InitGeom(type);
+
+      int id = AddElement(Element(type, attr));
+      MFEM_ASSERT(id == i, "");
+
+      if (geom >= 0)
+      {
+         input >> ref_type;
+         MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
+
+         Element &el = elements[id];
+         el.ref_type = ref_type;
+         if (ref_type)
+         {
+            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
+            {
+               input >> el.child[j];
+            }
+         }
+         else
+         {
+            for (int j = 0; j < GI[geom].nv; j++)
+            {
+               input >> el.node[j];
+               max_id = std::max(max_id, el.node[j]);
+            }
+         }
+      }
+   }
+
 /*
-
-dimension
-2
-
 # rank attr geom ref_type {node/child}
 # - geom can be zero
 # - number of roots is implied: number of elements without parent
 elements
 N
-rank attr geom ref_type n1 n2 n3 n4
-rank attr geom 0 ch1 ch2 ch3 ch4
+rank attr geom 0 n1 n2 n3 n4
+rank attr geom ref_type ch1 ch2 ch3 ch4
 rank attr 0 # unused element
 
 # attr geom {node}
@@ -4999,6 +5048,40 @@ int NCMesh::PrintBoundary(std::ostream *out) const
    return count;
 }
 
+void NCMesh::LoadBoundary(std::istream &input)
+{
+   int nb;
+   input >> nb;
+   for (int i = 0; i < nb; i++)
+   {
+      input >> attr >> geom;
+
+      int v1, v2, v3, v4;
+      if (geom == Geometry::SQUARE)
+      {
+         input >> v1 >> v2 >> v3 >> v4;
+         Face* face = faces.Get(v1, v2, v3, v4);
+         face->attribute = attr;
+      }
+      else if (geom == Geometry::TRIANGLE)
+      {
+         input >> v1 >> v2 >> v3;
+         Face* face = faces.Get(v1, v2, v3);
+         face->attribute = attr;
+      }
+      else if (geom == Geometry::SEGMENT)
+      {
+         input >> v1 >> v2;
+         Face* face = faces.Get(v1, v1, v2, v2);
+         face->attribute = attr;
+      }
+      else
+      {
+         MFEM_ABORT("unsupported boundary element geometry: " << geom);
+      }
+   }
+}
+
 void NCMesh::Print(std::ostream &out) const
 {
    out << "MFEM nonconforming mesh v1.0\n\n"
@@ -5216,35 +5299,8 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    skip_comment_lines(input, '#');
    input >> ident;
    MFEM_VERIFY(ident == "boundary", "invalid mesh file");
-   input >> count;
-   for (int i = 0; i < count; i++)
-   {
-      input >> attr >> geom;
 
-      int v1, v2, v3, v4;
-      if (geom == Geometry::SQUARE)
-      {
-         input >> v1 >> v2 >> v3 >> v4;
-         Face* face = faces.Get(v1, v2, v3, v4);
-         face->attribute = attr;
-      }
-      else if (geom == Geometry::TRIANGLE)
-      {
-         input >> v1 >> v2 >> v3;
-         Face* face = faces.Get(v1, v2, v3);
-         face->attribute = attr;
-      }
-      else if (geom == Geometry::SEGMENT)
-      {
-         input >> v1 >> v2;
-         Face* face = faces.Get(v1, v1, v2, v2);
-         face->attribute = attr;
-      }
-      else
-      {
-         MFEM_ABORT("unsupported boundary element geometry: " << geom);
-      }
-   }
+   LoadBoundary(input);
 
    // create top level nodes
    for (int id = 0; id <= max_id; id++)
