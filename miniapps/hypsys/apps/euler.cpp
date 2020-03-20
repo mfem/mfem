@@ -358,7 +358,7 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
             u(0) = 1.0 + t / r;
             u(1) = -X(0) / r * u(0);
             u(2) = -X(1) / r * u(0);
-            EvaluateEnergy(u, 0.0);
+            EvaluateEnergy(u, 1.0E-6);
          }
          else
          {
