@@ -2557,10 +2557,6 @@ public:
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
-   void SetupEA(const FiniteElementSpace &fes,
-                Vector &ea_data_int,
-                Vector &ea_data_ext,
-                FaceType type);
 };
 
 /** Integrator for the DG form:
