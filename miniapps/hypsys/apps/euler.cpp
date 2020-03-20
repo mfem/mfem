@@ -68,6 +68,30 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
+      case 4:
+      {
+         ProblemName = "Euler Equations of Gas dynamics - Sedov Blast";
+         valuerange = "0 2.5"; // TODO
+         SpHeatRatio = 5.0 / 3.0;
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = true;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
+      case 5:
+      {
+         ProblemName = "Euler Equations of Gas dynamics - Noh Problem";
+         valuerange = "1 16";
+         SpHeatRatio = 5.0 / 3.0;
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = true;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -84,7 +108,10 @@ double Euler::EvaluatePressure(const Vector &u) const
    double pressure = (SpHeatRatio - 1.) * (u(dim + 1) - 0.5 * aux / u(0));
    if (pressure < 0.)
    {
-      MFEM_ABORT("Negative pressure.");
+      ostringstream press_str;
+      press_str << pressure;
+      string err_msg = "Negative pressure p = ";
+      MFEM_ABORT(err_msg << press_str.str());
    }
    return pressure;
 }
@@ -101,7 +128,10 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
    if (u(0) < RhoMin)
    {
-      MFEM_ABORT("Density too small.");
+      ostringstream rho_str;
+      rho_str << u(0);
+      string err_msg = "Density too small pho = ";
+      MFEM_ABORT(err_msg << rho_str.str());
    }
 
    double pressure = EvaluatePressure(u);
@@ -311,6 +341,35 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 
          break;
       }
+      case 5:
+      {
+         if (dim != 2)
+         {
+            MFEM_ABORT("Test case only implemented in 2D.");
+         }
+
+         X(0) = 0.5 * (X(0) + 1.0);
+         X(1) = 0.5 * (X(1) + 1.0);
+
+         double r = X.Norml2();
+
+         if (r > t / 3.)
+         {
+            u(0) = 1.0 + t / r;
+            u(1) = -X(0) / r * u(0);
+            u(2) = -X(1) / r * u(0);
+            EvaluateEnergy(u, 0.0);
+         }
+         else
+         {
+            u(0) = 16.0;
+            u(1) = 0.0;
+            u(2) = 0.0;
+            EvaluateEnergy(u, 16.0 / 3.0);
+         }
+
+         break;
+      }
       default:
          MFEM_ABORT("Analytical solution not known.");
    }
@@ -333,6 +392,7 @@ void InitialConditionEuler(const Vector &x, Vector &u)
    {
       case 0:
       case 3:
+      case 5:
       {
          AnalyticalSolutionEuler(x, 0.0, u);
          break;
@@ -374,6 +434,16 @@ void InitialConditionEuler(const Vector &x, Vector &u)
          }
          break;
       }
+      case 4:
+      {
+         X *= 5.0;
+
+         u = 0.0;
+         u(0) = 1.0;
+         // TODO make sure that energy is essentially a delta distribution.
+         u(dim+1) = X.Norml2() < 1.0E-1 ? 100.0 : 1.0E-8;
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -385,12 +455,14 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u)
    {
       case 0:
       case 3:
+      case 5:
       {
          AnalyticalSolutionEuler(x, t, u);
          break;
       }
       case 1:
-      case 2: break; // No boundary condition needed.
+      case 2:
+      case 4: break; // No boundary condition needed.
       default:
          MFEM_ABORT("No such test case implemented.");
    }

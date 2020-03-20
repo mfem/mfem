@@ -3,14 +3,15 @@ HypSyS NOTES
 TODO:
 -Euler: Implement subsonic in- and outflow.
 -option to use rescaling in glvis.
+-Change final time by modifying it in the apps/*.cpp files (for non steady examples or generally if it makes sense).
 -figure out a good way to avoid ifs/switches within the evolution - if possible let each scheme inherit from (p)fe_evol classes
--visualization of other unknowns / quotients of unknowns, vector valued unknowns (Priority 4)
+-visualization of other unknowns / quotients of unknowns, vector valued unknowns
 
 Current state:
 -Solves Advection, Burgers, KPP, Shallow Water, and Euler.
 -DG0 supported, fully MPI parallelized.
 
-Next major tasks:
+Next major tasks - Stabilization
 -Entropy Stability
 -Low order IDP schemes
    * Once different evolution schemes are considered, check combinations of schemes: e.g. DG0 only for standard evolution.

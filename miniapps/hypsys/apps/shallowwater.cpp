@@ -61,7 +61,10 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
    if (u(0) < HMin)
    {
-      MFEM_ABORT("Water height too small.");
+      ostringstream height_str;
+      height_str << u(0);
+      string err_msg = "Water height too small H = ";
+      MFEM_ABORT(err_msg << height_str.str());
    }
 
    switch (dim)
