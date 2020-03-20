@@ -122,7 +122,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
 
 int FiniteElementSpace::GetElementOrder(int i) const
 {
-   MFEM_VERIFY(sequence != mesh->GetSequence(), "space has not been Updated()");
+   MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
 
@@ -728,9 +728,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          {
             int q = GetEdgeDofs(edge, slave_dofs, var);
             if (q < 0) { break; }
-
+            cout << "order = " << q << endl;
             const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
-            master_fe->GetTransferMatrix(*slave_fe, T, I);
+            slave_fe->GetTransferMatrix(*master_fe, T, I);
 
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
@@ -830,7 +830,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
    cP->Finalize();
-
+   cP->Print();
    if (vdim > 1)
    {
       MakeVDimMatrix(*cP);
@@ -1895,7 +1895,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
 
    dofs.SetSize(0);
    dofs.Reserve(2*nv + ne);
-
+   cout << base << endl;
    for (int i = 0; i < 2; i++)
    {
       for (int j = 0; j < nv; j++)
@@ -1905,7 +1905,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
    }
    for (int j = 0; j < ne; j++)
    {
-      dofs.Append(base + j);
+      dofs.Append(nvdofs + base + j);
    }
 
    return p;
