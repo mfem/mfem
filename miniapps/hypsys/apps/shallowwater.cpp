@@ -2,7 +2,7 @@
 
 Configuration ConfigShallowWater;
 
-const double GravConst = 1.;
+double GravConst;
 
 void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u);
 void InitialConditionSWE(const Vector &x, Vector &u);
@@ -11,7 +11,8 @@ void InflowFunctionSWE(const Vector &x, double t, Vector &u);
 ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
                            Configuration &config_)
    : HyperbolicSystem(fes_, u_block, fes_->GetMesh()->Dimension() + 1, config_,
-                      VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 1, InflowFunctionSWE))
+                      VectorFunctionCoefficient(fes_->GetMesh()->Dimension() + 1,
+                                                InflowFunctionSWE))
 {
    ConfigShallowWater = config_;
 
@@ -21,25 +22,26 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 0:
       {
+         ProblemName = "Shallow Water Equations - Vorticity Advection";
+         valuerange = "0.98 1";
+         GravConst = 1.0;
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = false; // Usage of periodic meshes is required.
          ProjType = 0;
          L2_Projection(ic, u0);
-         valuerange = "0.98 1";
-         ProblemName = "Shallow Water Equations - Vorticity Advection";
          break;
       }
       case 1:
       {
+         ProblemName = "Shallow Water Equations - Dam Break";
+         valuerange = "0 1";
+         GravConst = 1.0;
          SolutionKnown = false;
          SteadyState = false;
-         TimeDepBC =
-            false; // TODO Choose a boundary condition for dam break and adjust this.
+         TimeDepBC = false;
          ProjType = 1;
          u0.ProjectCoefficient(ic);
-         valuerange = "0 1";
-         ProblemName = "Shallow Water Equations - Dam Break";
          break;
       }
       default:
@@ -87,29 +89,6 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 }
 
-/* void ShallowWater::EvaluateFluxDerivative(const Vector &u, Vector &df, int n)
-{
-   switch (dim)
-   {
-   case 1:
-   {
-      df(0) = 1;
-      df(1) = pow(-u(1) / u(0), 2.) + GravConst * u(0);
-      df * = normal(0);
-      break;
-   }
-   case 2:
-   {
-      double velx = u(1) / u(0);
-      double vely = u(2) / u(0);
-
-      break;
-   }
-   default:
-      MFEM_ABORT("Invalid space dimension.");
-   }
-} */
-
 double ShallowWater::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                   int i) const
 {
@@ -137,10 +116,10 @@ void ShallowWater::SetBdrCond(const Vector &y1, Vector &y2,
          }
          else
          {
-            double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1);
+            double Mom_x_Norm = y1(1) * normal(0) + y1(2) * normal(1);
             y2(0) = y1(0);
-            y2(1) = y1(1) - 2. * NormalComponent * normal(0);
-            y2(2) = y1(2) - 2. * NormalComponent * normal(1);
+            y2(1) = y1(1) - 2. * Mom_x_Norm * normal(0);
+            y2(2) = y1(2) - 2. * Mom_x_Norm * normal(1);
          }
          return;
       }

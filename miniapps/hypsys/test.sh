@@ -24,14 +24,14 @@ mpirun -np 4 ./phypsys -m data/inline-4quad.mesh -r 5 -o 0 -p 2 -tf 0.25 -dt 0.0
 
 ## Shallow-Water
 
-# Vorticity advection
-./hypsys -p 3 -c 0 -tf 0.2828427124746190 -m data/periodic-tri.mesh -r 3
-./phypsys -p 3 -c 0 -tf 0.2828427124746190 -m data/periodic-tri.mesh -r 3
-mpirun -np 4 ./phypsys -p 3 -c 0 -tf 0.2828427124746190 -m data/periodic-tri.mesh -r 3
+# Dam break
+./hypsys -p 3 -m data/wall-bdr-4tri.mesh -r 3 -o 1 -tf 0.25
+./phypsys -p 3 -m data/wall-bdr-4tri.mesh -r 3 -o 1 -tf 0.25
+mpirun -np 4 ./phypsys -p 3 -m data/wall-bdr-4tri.mesh -r 3 -o 1 -tf 0.25
 
 ## Euler
 
-# Shock Tube - temporary fix in terms of b.c.
-./hypsys -p 4 -c 1 -tf 0.5 -m data/periodic-square.mesh -r 4 -o 1
-./phypsys -p 4 -c 1 -tf 0.5 -m data/periodic-square.mesh  -r 4 -o 1
-mpirun -np 4 ./phypsys -p 4 -c 1 -tf 0.5 -m data/periodic-square.mesh  -r 4 -o 1
+# Smooth vortex
+./hypsys -p 4 -c 0 -tf 2 -m data/periodic-square.mesh -r 2
+./phypsys -p 4 -c 0 -tf 2 -m data/periodic-square.mesh -r 2
+mpirun -np 4 ./phypsys -p 4 -c 0 -tf 2 -m data/periodic-square.mesh -r 2

@@ -19,23 +19,23 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 0:
       {
+         ProblemName = "TEMPLATE - ";
+         valuerange = " ";
          SolutionKnown = ;
          SteadyState = ;
          TimeDepBC = ;
          ProjType = 0;
          L2_Projection(ic, u0);
-         valuerange = " ";
-         ProblemName = "TEMPLATE - ";
       }
       case 1:
       {
+         ProblemName = "TEMPLATE - ";
+         valuerange = " ";
          SolutionKnown = ;
          SteadyState = ;
          TimeDepBC = ;
          ProjType = 1;
          u0.ProjectCoefficient(ic);
-         valuerange = " ";
-         ProblemName = "TEMPLATE - ";
       }
       default:
          MFEM_ABORT("No such test case implemented.");

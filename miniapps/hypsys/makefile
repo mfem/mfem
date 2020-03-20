@@ -95,11 +95,12 @@ clean:
 	@rm -f hypsys phypsys errors.txt *.gf *.mesh $(BLD_DIR)/*
 
 valgrind-test:
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-segment.mesh -r 4 -o 4
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/inline-4tri.mesh -r 2 -o 2
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/unstr.mesh -r 0 -o 3
-	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/periodic-cube.mesh -r 1 -o 2
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-segment.mesh -r 4 -o 1
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/periodic-square.mesh -r 2 -o 2
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 0 -m data/star.mesh -r 1 -o 3
+	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/wall-bdr-4hex.mesh -r 0 -o 2
 
+# TODO
 valgrind-parallel:
 	# valgrind --gen-suppressions=yes phypsys $(VALGRIND-CONFIG)
 	# valgrind --suppressions=$(MPI_HOME)/share/openmpi/openmpi-valgrind.supp phypsys $(VALGRIND-CONFIG)

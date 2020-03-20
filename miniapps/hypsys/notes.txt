@@ -1,21 +1,17 @@
 HypSyS NOTES
 
 TODO:
--make sure the appropriate bdr conditions are used (Priority 1)
-   For systems of equations use physical bdr conditions and Riemann solver - distinction between types of bdr conditions?
--figure out a good way to avoid ifs/switches within the evolution - if possible let each scheme inherit from (p)fe_evol classes (Priority 2)
--clean up hypsys.cpp and phypsys.cpp, try to move as much functionality into the apps-constructors as possible (Priority 3)
+-Euler: Implement subsonic in- and outflow.
+-option to use rescaling in glvis.
+-figure out a good way to avoid ifs/switches within the evolution - if possible let each scheme inherit from (p)fe_evol classes
 -visualization of other unknowns / quotients of unknowns, vector valued unknowns (Priority 4)
--find a good way to set global parameters (GravConst in SWE, gamma in Euler) (Priority 5)
-
 
 Current state:
 -Solves Advection, Burgers, KPP, Shallow Water, and Euler.
 -DG0 supported, fully MPI parallelized.
--Only inflow and periodic boundary conditions are supported.
 
 Next major tasks:
+-Entropy Stability
 -Low order IDP schemes
    * Once different evolution schemes are considered, check combinations of schemes: e.g. DG0 only for standard evolution.
 -Limiting
--Entropy Stability

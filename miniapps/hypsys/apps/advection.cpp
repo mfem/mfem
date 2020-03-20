@@ -20,24 +20,24 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 0:
       {
+         ProblemName = "Advection - Smooth Circular Convection";
+         valuerange = "0 1";
          SolutionKnown = true;
          SteadyState = true;
          TimeDepBC = false;
          ProjType = 0;
          L2_Projection(ic, u0);
-         valuerange = "0 1";
-         ProblemName = "Advection - Smooth Circular Convection";
          break;
       }
       case 1:
       {
+         ProblemName = "Advection - Solid Body Rotation";
+         valuerange = "0 1";
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = false;
          ProjType = 1;
          u0.ProjectCoefficient(ic);
-         valuerange = "0 1";
-         ProblemName = "Advection - Solid Body Rotation";
          break;
       }
       default:

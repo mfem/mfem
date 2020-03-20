@@ -19,13 +19,13 @@ KPP::KPP(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 1:
       {
+         ProblemName = "KPP Equation - Riemann Problem";
+         valuerange = "0.785398163 10.99557429";
          SolutionKnown = false;
          SteadyState = false;
          TimeDepBC = false;
          ProjType = 1;
          u0.ProjectCoefficient(ic);
-         valuerange = "0.785398163 10.99557429";
-         ProblemName = "KPP Equation - Riemann Problem";
          break;
       }
       default:

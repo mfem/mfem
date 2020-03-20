@@ -19,13 +19,13 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 1:
       {
+         ProblemName = "Burgers Equation - Riemann Problem";
+         valuerange = "-1 0.8";
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = true;
-         ProjType = 0; // Use L2 projection to get exact initial condition for p > 0
+         ProjType = 0; // Use L2 projection to get exact initial condition for p > 0.
          L2_Projection(ic, u0);
-         valuerange = "-1 0.8";
-         ProblemName = "Burgers Equation - Riemann Problem";
          break;
       }
       default:

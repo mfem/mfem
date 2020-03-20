@@ -2,7 +2,7 @@
 
 Configuration ConfigEuler;
 
-const double SpHeatRatio = 1.4;
+double SpHeatRatio;
 
 void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u);
 void InitialConditionEuler(const Vector &x, Vector &u);
@@ -22,36 +22,50 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
    {
       case 0:
       {
+         ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
+         valuerange = "0.493807323 1";
+         SpHeatRatio = 1.4;
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = false; // Usage of periodic meshes is required.
          ProjType = 0;
          L2_Projection(ic, u0);
-         valuerange = "0.493807323 1";
-         ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
          break;
       }
       case 1:
       {
-         SolutionKnown = false;
-         SteadyState = false;
-         TimeDepBC =
-            false; // TODO Choose a boundary condition for shock tube and adjust this.
-         ProjType = 1;
-         u0.ProjectCoefficient(ic);
-         valuerange = "0 1";
          ProblemName = "Euler Equations of Gas dynamics - SOD Shock Tube";
-         break;
-      }
-      case 2:
-      {
+         valuerange = "0 1";
+         SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;
          TimeDepBC = false;
          ProjType = 1;
          u0.ProjectCoefficient(ic);
-         valuerange = "0 7";
+         break;
+      }
+      case 2:
+      {
          ProblemName = "Euler Equations of Gas dynamics - Woodward Colella";
+         valuerange = "0 7";
+         SpHeatRatio = 1.4;
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
+      case 3:
+      {
+         ProblemName = "Euler Equations of Gas dynamics - Double Mach Reflection";
+         valuerange = "1.4 22";
+         SpHeatRatio = 1.4;
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = true;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
          break;
       }
       default:
@@ -155,8 +169,8 @@ double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
          return abs(u(1)*n(0) + u(2)*n(1)) / u(0)
                 + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       case 5:
-         return abs(u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0) + sqrt(
-                   SpHeatRatio * EvaluatePressure(u) / u(0));
+         return abs(u(1)*n(0) + u(2)*n(1) + u(3)*n(2)) / u(0)
+                + sqrt(SpHeatRatio * EvaluatePressure(u) / u(0));
       default:
          MFEM_ABORT("Invalid solution vector.");
    }
@@ -178,20 +192,19 @@ void Euler::SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,
          }
          else if (dim == 2)
          {
-            double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1);
+            double Mom_x_Norm = y1(1) * normal(0) + y1(2) * normal(1);
             y2(0) = y1(0);
-            y2(1) = y1(1) - 2. * NormalComponent * normal(0);
-            y2(2) = y1(2) - 2. * NormalComponent * normal(1);
+            y2(1) = y1(1) - 2. * Mom_x_Norm * normal(0);
+            y2(2) = y1(2) - 2. * Mom_x_Norm * normal(1);
             y2(3) = y1(3);
          }
          else
          {
-            double NormalComponent = y1(1) * normal(0) + y1(2) * normal(1) + y1(3) * normal(
-                                        2);
+            double Mom_x_Norm = y1(1) * normal(0) + y1(2) * normal(1) + y1(3) * normal(2);
             y2(0) = y1(0);
-            y2(1) = y1(1) - 2. * NormalComponent * normal(0);
-            y2(2) = y1(2) - 2. * NormalComponent * normal(1);
-            y2(3) = y1(3) - 2. * NormalComponent * normal(2);
+            y2(1) = y1(1) - 2. * Mom_x_Norm * normal(0);
+            y2(2) = y1(2) - 2. * Mom_x_Norm * normal(1);
+            y2(3) = y1(3) - 2. * Mom_x_Norm * normal(2);
             y2(4) = y1(4);
          }
          return;
@@ -223,16 +236,15 @@ void Euler::ComputeErrors(Array<double> & errors, const GridFunction &u,
    errors[2] = u.ComputeLpError(numeric_limits<double>::infinity(), uAnalytic);
 }
 
-// TODO use this everywhere.
 void EvaluateEnergy(Vector &u, const double &pressure)
 {
    const int dim = u.Size() - 2;
    double aux = 0.;
    for (int i = 0; i < dim; i++)
    {
-      aux += u(1 + i) * u(1 + i);
+      aux += u(1+i) * u(1+i);
    }
-   u(dim + 1) = pressure / (SpHeatRatio - 1.) + 0.5 * aux / u(0);
+   u(dim+1) = pressure / (SpHeatRatio - 1.) + 0.5 * aux / u(0);
 }
 
 void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
@@ -262,20 +274,79 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
          // Parameters
          double beta = 5.;
          double r = X.Norml2();
-         double T0 = 1. - (SpHeatRatio - 1.) * beta * beta / (8. * SpHeatRatio * M_PI *
-                                                              M_PI) * exp(1 - r * r);
+         double T0 = 1. - (SpHeatRatio - 1.) * beta * beta
+                     / (8. * SpHeatRatio * M_PI * M_PI) * exp(1. - r * r);
 
          u(0) = pow(T0, 1. / (SpHeatRatio - 1.));
          u(1) = (1. - beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(1)) * u(0);
          u(2) = (1. + beta / (2. * M_PI) * exp(0.5 * (1 - r * r)) * X(0)) * u(0);
-         u(3) = u(0) * T0/(SpHeatRatio-1.) + 0.5 * (u(1) * u(1) + u(2) * u(2)) / u(0);
+         EvaluateEnergy(u, u(0) * T0);
+         break;
+      }
+      case 3:
+      {
+         if (dim != 2)
+         {
+            MFEM_ABORT("Test case only implemented in 2D.");
+         }
+
+         X(0) = 2. * (X(0) + 1.);
+         X(1) = 0.5 * (X(1) + 1.);
+
+         bool left = X(0) < 1. / 6. + (X(1) + 20.*t) / sqrt(3.);
+
+         if (left)
+         {
+            u(0) = 8.;
+            u(1) = 66. * cos(M_PI / 6.);
+            u(2) = -66. * sin(M_PI / 6.);
+            EvaluateEnergy(u, 116.5);
+         }
+         else
+         {
+            u = 0.;
+            u(0) = 1.4;
+            EvaluateEnergy(u, 1.);
+         }
+
+         break;
+      }
+      default:
+         MFEM_ABORT("Analytical solution not known.");
+   }
+}
+
+void InitialConditionEuler(const Vector &x, Vector &u)
+{
+   const int dim = x.Size();
+   u.SetSize(dim + 2);
+
+   // Map to the reference domain [-1,1].
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      double center = (ConfigEuler.bbMin(i) + ConfigEuler.bbMax(i)) * 0.5;
+      X(i) = 2. * (x(i) - center) / (ConfigEuler.bbMax(i) - ConfigEuler.bbMin(i));
+   }
+
+   switch (ConfigEuler.ConfigNum)
+   {
+      case 0:
+      case 3:
+      {
+         AnalyticalSolutionEuler(x, 0.0, u);
          break;
       }
       case 1:
       {
-         u = 0.;
-         u(0) = X.Norml2() < 0.5 ? 1. : .125;
-         u(dim + 1) = X.Norml2() < 0.5 ? 1. : .1;
+         for (int i = 0; i < dim; i++)
+         {
+            X(i) = 0.5 * (X(i) + 1.);
+         }
+
+         u = 0.0;
+         u(0) = X.Norml2() < 0.5 ? 1.0 : 0.125;
+         EvaluateEnergy(u, X.Norml2() < 0.5 ? 1.0 : 0.1);
          break;
       }
       case 2:
@@ -285,10 +356,10 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
             MFEM_ABORT("Test case only implemented in 1D.");
          }
 
-         X(0) = 0.5 * (X(0) + 1.);
+         X(0) = 0.5 * (X(0) + 1.0);
 
-         u = 0.;
-         u(0) = 1.;
+         u = 0.0;
+         u(0) = 1.0;
          if (X(0) < 0.1)
          {
             EvaluateEnergy(u, 1000.);
@@ -308,12 +379,19 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
    }
 }
 
-void InitialConditionEuler(const Vector &x, Vector &u)
-{
-   AnalyticalSolutionEuler(x, 0., u);
-}
-
 void InflowFunctionEuler(const Vector &x, double t, Vector &u)
 {
-   AnalyticalSolutionEuler(x, t, u);
+   switch (ConfigEuler.ConfigNum)
+   {
+      case 0:
+      case 3:
+      {
+         AnalyticalSolutionEuler(x, t, u);
+         break;
+      }
+      case 1:
+      case 2: break; // No boundary condition needed.
+      default:
+         MFEM_ABORT("No such test case implemented.");
+   }
 }
