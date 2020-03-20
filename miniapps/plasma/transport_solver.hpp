@@ -517,6 +517,64 @@ public:
 
 };
 
+class StateVariableSumCoef : public StateVariableCoef
+{
+private:
+   StateVariableCoef *a;
+   StateVariableCoef *b;
+
+   double alpha;
+   double beta;
+
+public:
+   // Result is _alpha * A + _beta * B
+   StateVariableSumCoef(StateVariableCoef &A, StateVariableCoef &B,
+                        double _alpha = 1.0, double _beta = 1.0)
+      : a(&A), b(&B), alpha(_alpha), beta(_beta) { }
+
+   void SetACoef(StateVariableCoef &A) { a = &A; }
+   StateVariableCoef * GetACoef() const { return a; }
+
+   void SetBCoef(StateVariableCoef &B) { b = &B; }
+   StateVariableCoef * GetBCoef() const { return b; }
+
+   void SetAlpha(double _alpha) { alpha = _alpha; }
+   double GetAlpha() const { return alpha; }
+
+   void SetBeta(double _beta) { beta = _beta; }
+   double GetBeta() const { return beta; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return a->NonTrivialValue(deriv) || b->NonTrivialValue(deriv);
+   }
+
+   /// Evaluate the coefficient
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
+   { return alpha * a->Eval_Func(T, ip) + beta * b->Eval_Func(T, ip); }
+
+   virtual double Eval_dNn(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return alpha * a->Eval_dNn(T, ip) + beta * b->Eval_dNn(T, ip); }
+
+   virtual double Eval_dNi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return alpha * a->Eval_dNi(T, ip) + beta * b->Eval_dNi(T, ip); }
+
+   virtual double Eval_dVi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return alpha * a->Eval_dVi(T, ip) + beta * b->Eval_dVi(T, ip); }
+
+   virtual double Eval_dTi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return alpha * a->Eval_dTi(T, ip) + beta * b->Eval_dTi(T, ip); }
+
+   virtual double Eval_dTe(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   { return alpha * a->Eval_dTe(T, ip) + beta * b->Eval_dTe(T, ip); }
+};
+
 /** Given the electron temperature in eV this coefficient returns an
     approximation to the expected ionization rate in m^3/s.
 */
