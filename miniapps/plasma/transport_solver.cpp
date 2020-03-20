@@ -1118,7 +1118,6 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      kGF_(kGF),
      yCoefPtrs_(yGF_.Size()),
      kCoefPtrs_(kGF_.Size()),
-     y1CoefPtrs_(yGF_.Size()),
      dbfi_m_(5),
      blf_(5),
      vis_flag_(vis_flag),
@@ -1135,7 +1134,6 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
    {
       yCoefPtrs_[i] = new StateVariableGridFunctionCoef(yGF_[i], (FieldType)i);
       kCoefPtrs_[i] = new StateVariableGridFunctionCoef(kGF_[i], (FieldType)i);
-      y1CoefPtrs_[i] = new SumCoefficient(*yCoefPtrs_[i], *kCoefPtrs_[i]);
    }
 
    blf_ = NULL;
@@ -1154,7 +1152,6 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete yCoefPtrs_[i];
       delete kCoefPtrs_[i];
-      delete y1CoefPtrs_[i];
    }
    for (int i=0; i<5; i++)
    {
@@ -1324,10 +1321,6 @@ void DGTransportTDO::NLOperator::SetTimeStep(double dt)
 
    dt_ = dt;
 
-   for (int i=0; i<5; i++)
-   {
-      y1CoefPtrs_[i]->SetBeta(dt);;
-   }
    for (int i=0; i<dtSCoefs_.Size(); i++)
    {
       dtSCoefs_[i]->SetAConst(dt);

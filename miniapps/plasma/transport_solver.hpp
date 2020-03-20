@@ -1924,16 +1924,7 @@ private:
 
       Array<StateVariableGridFunctionCoef*> yCoefPtrs_;
       Array<StateVariableGridFunctionCoef*> kCoefPtrs_;
-      mutable Array<SumCoefficient*> y1CoefPtrs_;
-      /*
-       Coefficient *nn1CoefPtr_;
-       Coefficient *ni1CoefPtr_;
-       Coefficient *vi1CoefPtr_;
-       Coefficient *Ti1CoefPtr_;
-       Coefficient *Te1CoefPtr_;
 
-       ProductCoefficient  ne1Coef_;
-      */
       // mutable Vector shape_;
       // mutable DenseMatrix dshape_;
       // mutable DenseMatrix dshapedxt_;
