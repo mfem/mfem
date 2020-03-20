@@ -202,8 +202,9 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 1e-6;
-      if (err_u > tol || err_p > tol)
+      double tol_u = 1e-6;
+      double tol_p = 1e-5;
+      if (err_u > tol_u || err_p > tol_p)
       {
          if (mpi.Root())
          {
