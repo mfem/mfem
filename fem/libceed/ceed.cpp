@@ -88,7 +88,6 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
 {
    Mesh *mesh = fes.GetMesh();
    const FiniteElement *fe = fes.GetFE(0);
-   const int order = fes.GetOrder(0);
    const int dim = mesh->Dimension();
    const int P = fe->GetDof();
    const int Q = ir.GetNPoints();
@@ -154,7 +153,6 @@ static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
          }
       }
 
-      const FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
       for (int e = 0; e < mesh->GetNE(); e++)
       {
          for (int i = 0; i < P; i++)
@@ -286,7 +284,6 @@ void CeedPAAssemble(const FiniteElementSpace &fes,
 {
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
-   const int ir_order = irm.GetOrder();
    CeedInt nqpts, nelem = mesh->GetNE();
    CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
 

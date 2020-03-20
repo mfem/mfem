@@ -12,9 +12,6 @@
 #include "diffusion.hpp"
 
 #ifdef MFEM_USE_CEED
-#include "../../general/device.hpp"
-#include "../../mesh/mesh.hpp"
-#include "../../fem/gridfunc.hpp"
 #include "ceed.hpp"
 #include "diffusion.h"
 
