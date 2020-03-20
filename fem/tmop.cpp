@@ -1212,7 +1212,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          Vector par_vals;
          Vector par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
 
-         if (sizeidx != -1) //Set size spec
+         if (sizeidx != -1) //Set size
          {
             par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
             const double min_size = par_vals.Min();
@@ -1226,10 +1226,11 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                const double size = std::max(shape * par_vals, min_size);
                Jtr(i).Set(std::pow(size, 1.0/dim), Jtr(i));
             }
-         }
+         } //Done size
+
          if (target_type==IDEAL_SHAPE_GIVEN_SIZE) { break; }
 
-         if (aspectratioidx != -1) //Set aspect ratio spec
+         if (aspectratioidx != -1) //Set aspect ratio
          {
             if (dim == 2)
             {
@@ -1262,14 +1263,14 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                   const double rho2 = shape * par_vals_c2;
                   const double rho3 = shape * par_vals_c3;
                   D_rho = 0.;
-                  D_rho(0,0) = rho1;
-                  D_rho(1,1) = rho2;
-                  D_rho(2,2) = rho3;
+                  D_rho(0,0) = pow(rho1,2./3.);
+                  D_rho(1,1) = pow(rho2,2./3.);
+                  D_rho(2,2) = pow(rho3,2./3.);
                }
                DenseMatrix Temp = Jtr(i);
                Mult(D_rho, Temp, Jtr(i));
             }
-         }
+         } //Done aspect ratio
 
          if (skewidx != -1) //Set skew
          {
@@ -1287,15 +1288,13 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
             }
 
-            const double min_size = par_vals.Min();
-
             for (int i = 0; i < ir.GetNPoints(); i++)
             {
                const IntegrationPoint &ip = ir.IntPoint(i);
                tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
                if (dim == 2)
                {
-                  const double skew = std::max(shape * par_vals, min_size);
+                  const double skew = shape * par_vals;
 
                   Q_phi = 0.;
                   Q_phi(0,0) = 1.;
@@ -1304,9 +1303,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
                else
                {
-                  const double phi12 = shape * par_vals_c1;
-                  const double phi13 = shape * par_vals_c2;
-                  const double phichi = shape * par_vals_c3;
+                  const double phi12  = shape * par_vals_c1;
+                  const double phi13  = shape * par_vals_c2;
+                  const double chi = shape * par_vals_c3;
 
                   Q_phi = 0.;
                   Q_phi(0,0) = 1.;
@@ -1314,18 +1313,17 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                   Q_phi(0,2) = cos(phi13);
 
                   Q_phi(1,1) = sin(phi12);
-                  Q_phi(1,2) = sin(phi13)*cos(phichi);
+                  Q_phi(1,2) = sin(phi13)*cos(chi);
 
-                  Q_phi(2,2) = sin(phi13)*sin(phichi);
+                  Q_phi(2,2) = sin(phi13)*sin(chi);
                }
-
 
                DenseMatrix Temp = Jtr(i);
                Mult(Q_phi, Temp, Jtr(i));
             }
-         }
+         } // done skew
 
-         if (orientationidx != -1) //Set skew
+         if (orientationidx != -1) //Set orientation
          {
             if (dim == 2)
             {
@@ -1341,15 +1339,13 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
             }
 
-            const double min_size = par_vals.Min();
-
             for (int i = 0; i < ir.GetNPoints(); i++)
             {
                const IntegrationPoint &ip = ir.IntPoint(i);
                tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
                if (dim == 2)
                {
-                  const double theta = std::max(shape * par_vals, min_size);
+                  const double theta = shape * par_vals;
                   R_theta(0,0) =  cos(theta);
                   R_theta(0,1) = -sin(theta);
                   R_theta(1,0) =  sin(theta);
@@ -1357,16 +1353,38 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
                else
                {
-                  //const double theta1 = shape * par_vals_c1;
-                  //const double theta2 = shape * par_vals_c2;
-                  //const double theta3 = shape * par_vals_c3;
+                  const double theta = shape * par_vals_c1;
+                  const double psi   = shape * par_vals_c2;
+                  const double beta  = shape * par_vals_c3;
 
-                  MFEM_ABORT("Orientation target construction not available in 3D")
+                  DenseMatrix R_tp(dim), R_beta(dim), R_theta(dim);
+                  double ct = cos(theta), st = sin(theta),
+                         cp = cos(psi),   sp = sin(psi);
+                  R_tp(0,0) = ct*sp;
+                  R_tp(1,0) = st*sp;
+                  R_tp(2,0) = cp;
+
+                  R_tp(0,1) = -(ct*st*sp*sp)/(1+cp);
+                  R_tp(1,1) = cp+(pow(ct,2.)*pow(sp,2.))/(1+cp);
+                  R_tp(2,1) = -st*sp;
+
+                  R_tp(0,2) = -cp-(pow(st,2.)*pow(sp,2.))/(1+cp);
+                  R_tp(1,2) = -R_tp(0,1);
+                  R_tp(2,2) =  ct*sp;
+
+                  R_beta = 0.;
+                  R_beta(0,0) = 1.;
+                  R_beta(1,1) =  cos(beta);
+                  R_beta(1,2) = -sin(beta);
+                  R_beta(2,1) =  sin(beta);
+                  R_beta(2,2) =  cos(beta);
+
+                  Mult(R_tp, R_beta, R_theta);
                }
                DenseMatrix Temp = Jtr(i);
                Mult(R_theta, Temp, Jtr(i));
             }
-         }
+         } // done orientation
          break;
       }
       default:
@@ -1401,9 +1419,9 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
 {
    const int dim    = tspec_fes->GetFE(0)->GetDim(),
              cnt    = x.Size()/dim,
-             totidx = 1+2*(dim-2);
+             totmix = 1+2*(dim-2);
    tspec_pert2h.SetSize(cnt*dim*ncomp);
-   tspec_pertmix.SetSize(cnt*totidx*ncomp);
+   tspec_pertmix.SetSize(cnt*totmix*ncomp);
 
    Vector TSpecTemp;
    TSpecTemp.SetSize(cnt*ncomp);
@@ -1421,7 +1439,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    }
 
    // T(x+h,y+h)
-   int idx = 0;
+   int j = 0;
    for (int k1 = 0; k1 < dim; k1++)
    {
       for (int k2 = 0; (k1 != k2) && (k2 < dim); k2++)
@@ -1432,7 +1450,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
             xtemp(k2*cnt+i) += dx;
          }
 
-         TSpecTemp.SetDataAndSize(tspec_pertmix.GetData() + idx*cnt*ncomp, cnt*ncomp);
+         TSpecTemp.SetDataAndSize(tspec_pertmix.GetData() + j*cnt*ncomp, cnt*ncomp);
          UpdateTargetSpecification(xtemp, TSpecTemp);
 
          for (int i = 0; i < cnt; i++)
@@ -1440,7 +1458,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
             xtemp(k1*cnt+i) -= dx;
             xtemp(k2*cnt+i) -= dx;
          }
-         idx++;
+         j++;
       }
    }
 }
