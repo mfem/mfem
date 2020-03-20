@@ -62,6 +62,7 @@
 //     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 #include "mfem.hpp"
+#include "miniapps/common/pfem_extras.hpp"
 #include <iostream>
 #include <fstream>
 
@@ -69,6 +70,8 @@ using namespace mfem;
 using namespace std;
 
 double weight_fun(const Vector &x);
+
+double adapt_lim_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
@@ -304,7 +307,7 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int fdscheme          = 0;
+   bool fdscheme         = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -370,7 +373,7 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
-   args.AddOption(&fdscheme, "-fd", "--fd_approximation",
+   args.AddOption(&fdscheme, "-fd", "--fd_approximation", "no-fd", "no-fd-app",
                   "Enable finite difference based derivative computations.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -399,6 +402,7 @@ int main (int argc, char *argv[])
       else { cout << "(NONE)"; }
       cout << endl;
    }
+
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 
    delete mesh;
@@ -494,10 +498,10 @@ int main (int argc, char *argv[])
    //     num_mpi_tasks".
    {
       ostringstream mesh_name;
-      mesh_name << "perturbed." << setfill('0') << setw(6) << myid;
+      mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -609,6 +613,15 @@ int main (int argc, char *argv[])
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+
+   // Adaptive limiting.
+   ParGridFunction xi_0;
+   xi_0.SetSpace(&ind_fes);
+   FunctionCoefficient alim_coeff(adapt_lim_fun);
+   xi_0.ProjectCoefficient(alim_coeff);
+   he_nlf_integ->EnableAnalyticAdaptiveLimiting(xi_0, alim_coeff);
+   socketstream vis1;
+   common::VisualizeField(vis1, "localhost", 19916, xi_0, "Xi 0", 300, 600, 300, 300);
 
    // 15. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -804,10 +817,10 @@ int main (int argc, char *argv[])
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
-      mesh_name << "optimized." << setfill('0') << setw(6) << myid;
+      mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 22. Compute the amount of energy decrease.
@@ -837,6 +850,9 @@ int main (int argc, char *argv[])
       char title[] = "Final metric values";
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
+
+   socketstream vis0;
+   common::VisualizeField(vis0, "localhost", 19916, xi_0, "Xi 0", 600, 600, 300, 300);
 
    // 23. Visualize the mesh displacement.
    if (visualization)
@@ -883,4 +899,14 @@ double weight_fun(const Vector &x)
    double l2 = 0.2 + 0.5 * (std::tanh((r-0.16)/den) - std::tanh((r-0.17)/den)
                             + std::tanh((r-0.23)/den) - std::tanh((r-0.24)/den));
    return l2;
+}
+
+double adapt_lim_fun(const Vector &x)
+{
+   const double X = x(0), Y = x(1);
+   double val = std::tanh((10*(Y-0.5) + std::cos(3.0*M_PI*X)) + 1) -
+                std::tanh((10*(Y-0.5) + std::cos(3.0*M_PI*X)) - 1);
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+   return val;
 }
