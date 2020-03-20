@@ -800,22 +800,11 @@ private:
    mutable Vector B_;
 
 public:
-   /*
-   IonAdvectionCoef(ParGridFunctionArray &yGF,
-                     ParGridFunctionArray &kGF,
-                     VectorCoefficient &B3Coef)
-       : StateVariableVecCoef(2),
-         dt_(0.0),
-         vi0_(yGF[ION_PARA_VELOCITY]), dvi0_(kGF[ION_PARA_VELOCITY]),
-         B3_(&B3Coef), B_(3) {}
-   */
    IonAdvectionCoef(StateVariableGridFunctionCoef &vi,
                     VectorCoefficient &B3Coef)
       : StateVariableVecCoef(2),
         vi_(vi),
         B3_(&B3Coef), B_(3) {}
-
-   //void SetTimeStep(double dt) { dt_ = dt; }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
@@ -2060,6 +2049,8 @@ private:
        */
       void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
 
+      void SetSourceTerm(StateVariableCoef &SCoef);
+
    public:
 
       virtual ~NLOperator();
@@ -2211,13 +2202,15 @@ private:
       IonSourceCoef           SizCoef_;
       IonSinkCoef             SrcCoef_;
 
-      ProductCoefficient   negSrcCoef_;
+      //ProductCoefficient   negSrcCoef_;
 
-      IonSourceCoef       dSizdnnCoef_;
-      IonSourceCoef       dSizdniCoef_;
+      StateVariableSumCoef SCoef_;
 
-      ProductCoefficient dtdSizdnnCoef_;
-      ProductCoefficient dtdSizdniCoef_;
+      // IonSourceCoef       dSizdnnCoef_;
+      // IonSourceCoef       dSizdniCoef_;
+
+      // ProductCoefficient dtdSizdnnCoef_;
+      // ProductCoefficient dtdSizdniCoef_;
 
       ParGridFunction * DGF_;
       ParGridFunction * SGF_;
@@ -2350,13 +2343,14 @@ private:
       IonSourceCoef           SizCoef_;
       IonSinkCoef             SrcCoef_;
 
-      ProductCoefficient   negSizCoef_;
+      StateVariableSumCoef SCoef_;
+      // ProductCoefficient   negSizCoef_;
 
-      IonSourceCoef           dSizdnnCoef_;
-      IonSourceCoef           dSizdniCoef_;
+      // IonSourceCoef           dSizdnnCoef_;
+      // IonSourceCoef           dSizdniCoef_;
 
-      ProductCoefficient   negdtdSizdnnCoef_;
-      ProductCoefficient   negdtdSizdniCoef_;
+      // ProductCoefficient   negdtdSizdnnCoef_;
+      // ProductCoefficient   negdtdSizdniCoef_;
 
       ProductCoefficient nnizCoef_;
       ProductCoefficient niizCoef_;
