@@ -795,7 +795,8 @@ void QuadratureVectorFunctionCoefficient::SetIndex(int _index)
    index = _index;
    // check to see if length needs to be modified
    int diff = vdim - index;
-   if (length > diff) {
+   if (length > diff)
+   {
       length = diff;
    }
 }
