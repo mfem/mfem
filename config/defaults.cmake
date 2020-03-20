@@ -34,7 +34,6 @@ option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
-option(MFEM_USE_GECKO "Enable GECKO usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
@@ -139,8 +138,6 @@ set(ScaLAPACK_DIR "${MFEM_DIR}/../scalapack-2.0.2/lib/cmake/scalapack-2.0.2"
 set(ScaLAPACK_TARGET_NAMES scalapack)
 # set(ScaLAPACK_TARGET_FORCE)
 # set(ScaLAPACK_IMPORT_CONFIG DEBUG)
-
-set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
 
 set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
 
