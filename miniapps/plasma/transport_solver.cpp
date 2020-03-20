@@ -1311,6 +1311,24 @@ void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
 void DGTransportTDO::NLOperator::SetSourceTerm(StateVariableCoef &SCoef)
 {
    dlfi_.Append(new DomainLFIntegrator(SCoef));
+
+   for (int i=0; i<5; i++)
+   {
+      if (SCoef.NonTrivialValue((FieldType)i))
+      {
+         StateVariableCoef * coef = SCoef.Clone();
+         coef->SetDerivType((FieldType)i);
+         ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
+         negdtSCoefs_.Append(dtdSCoef);
+
+         if (blf_[i] == NULL)
+         {
+            blf_[i] = new ParBilinearForm(&fes_);
+         }
+         blf_[i]->AddDomainIntegrator(new MassIntegrator(*dtdSCoef));
+
+      }
+   }
 }
 
 void DGTransportTDO::NLOperator::SetLogging(int logging, const string & prefix)
@@ -1332,6 +1350,10 @@ void DGTransportTDO::NLOperator::SetTimeStep(double dt)
    for (int i=0; i<dtSCoefs_.Size(); i++)
    {
       dtSCoefs_[i]->SetAConst(dt);
+   }
+   for (int i=0; i<negdtSCoefs_.Size(); i++)
+   {
+      negdtSCoefs_[i]->SetAConst(-dt);
    }
    for (int i=0; i<dtVCoefs_.Size(); i++)
    {

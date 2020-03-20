@@ -1960,6 +1960,7 @@ private:
       StateVariableGridFunctionCoef dummyCoef_;
       Array<StateVariableCoef*> coefs_;
       Array<ProductCoefficient*>             dtSCoefs_;
+      Array<ProductCoefficient*>             negdtSCoefs_;
       Array<ScalarVectorProductCoefficient*> dtVCoefs_;
       Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
       std::vector<socketstream*> sout_;
