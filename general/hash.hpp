@@ -116,6 +116,15 @@ public:
    /// Remove all items.
    void DeleteAll();
 
+   /// Allocate an item at 'id'. Enlarge the underlying BlockArray if necessary.
+   /** This is a special purpose method used when loading data from a file.
+       Does nothing if the slot 'id' has already been allocated. */
+   void Alloc(int id, int p1, int p2);
+
+   /// Reinitialize the internal list of unallocated items.
+   /** This is a special purpose method used when loading data from a file. */
+   void UpdateUnused();
+
    /// Make an item hashed under different parent IDs.
    void Reparent(int id, int new_p1, int new_p2);
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
@@ -212,7 +221,10 @@ HashTable<T>::HashTable(int block_size, int init_hash_size)
    MFEM_VERIFY(!(init_hash_size & mask), "init_size must be a power of two.");
 
    table = new int[init_hash_size];
-   for (int i = 0; i < init_hash_size; i++) { table[i] = -1; }
+   for (int i = 0; i < init_hash_size; i++)
+   {
+      table[i] = -1;
+   }
 }
 
 template<typename T>
@@ -480,6 +492,36 @@ void HashTable<T>::DeleteAll()
    Base::DeleteAll();
    for (int i = 0; i <= mask; i++) { table[i] = -1; }
    unused.DeleteAll();
+}
+
+template<typename T>
+void HashTable<T>::Alloc(int id, int p1, int p2)
+{
+   // enlarge the BlockArray to hold 'id'
+   while (id >= Base::Size())
+   {
+      Base::At(Base::Append()).next = -2; // append "unused" items
+   }
+
+   T& item = Base::At(id);
+   if (item.next = -2)
+   {
+      item.next = -1;
+      item.p1 = p1;
+      item.p2 = p2;
+
+      Insert(Hash(p1, p2), id, item);
+   }
+}
+
+template<typename T>
+void HashTable<T>::UpdateUnused()
+{
+   unused.DeleteAll();
+   for (int i = 0; i < Base::Size(); i++)
+   {
+      if (Base::At(i).next == -2) { unused.Append(i); }
+   }
 }
 
 template<typename T>

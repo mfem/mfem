@@ -824,6 +824,8 @@ protected: // implementation
    /** Print the "boundary" section of the mesh file.
        If out == NULL, only return the number of boundary elements. */
    int PrintBoundary(std::ostream *out) const;
+   /// Load the "boundary" section of the mesh file.
+   void LoadBoundary(std::istream &input);
 
    /// Load the element refinement hierarchy from a legacy mesh file.
    void LoadCoarseElements(std::istream &input);
