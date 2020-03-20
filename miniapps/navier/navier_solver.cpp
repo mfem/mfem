@@ -776,6 +776,64 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
    }
 }
 
+double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
+{
+   ParMesh *pmesh = u.ParFESpace()->GetParMesh();
+
+   double hmin = 0.0;
+   double hmin_loc = pmesh->GetElementSize(0, 1);
+
+   for (int i = 1; i < pmesh->GetNE(); i++)
+   {
+      hmin_loc = std::min(pmesh->GetElementSize(i, 1), hmin_loc);
+   }
+
+   MPI_Allreduce(&hmin_loc, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
+
+   int ndofs = u.ParFESpace()->GetNDofs();
+   Vector uc(ndofs), vc(ndofs), wc(ndofs);
+
+   // Only set z-component to zero because x and y are always present.
+   wc = 0.0;
+
+   for (int comp = 0; comp < u.ParFESpace()->GetVDim(); comp++)
+   {
+      for (int i = 0; i < ndofs; i++)
+      {
+         if (comp == 0)
+         {
+            uc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+         }
+         else if (comp == 1)
+         {
+            vc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+         }
+         else if (comp == 2)
+         {
+            wc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+         }
+      }
+   }
+
+   double velmag_max_loc = 0.0;
+   double velmag_max = 0.0;
+   for (int i = 0; i < ndofs; i++)
+   {
+      velmag_max_loc = std::max(sqrt(pow(uc(i), 2.0) + pow(vc(i), 2.0)
+                                     + pow(wc(i), 2.0)),
+                                velmag_max_loc);
+   }
+
+   MPI_Allreduce(&velmag_max_loc,
+                 &velmag_max,
+                 1,
+                 MPI_DOUBLE,
+                 MPI_MAX,
+                 pmesh->GetComm());
+
+   return velmag_max * dt / hmin;
+}
+
 void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
    vel_dbcs.emplace_back(

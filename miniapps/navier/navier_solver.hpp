@@ -198,6 +198,9 @@ public:
     */
    void MeanZero(ParGridFunction &v);
 
+   /// Compute CFL
+   double ComputeCFL(ParGridFunction &u, double dt);
+
 protected:
    /// Print informations about the Navier version.
    void PrintInfo();
