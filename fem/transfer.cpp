@@ -515,7 +515,8 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
 }
 
 #ifdef MFEM_USE_MPI
-TrueTransferOperator::TrueTransferOperator(const ParFiniteElementSpace& lFESpace_,
+TrueTransferOperator::TrueTransferOperator(const
+                                           ParFiniteElementSpace& lFESpace_,
                                            const ParFiniteElementSpace& hFESpace_)
    : lFESpace(lFESpace_), hFESpace(hFESpace_)
 {
