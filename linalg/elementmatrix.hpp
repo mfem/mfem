@@ -129,6 +129,33 @@ public:
          Y(j, 1, f) += res;
       });
    }
+
+   void Print()
+   {
+      for (size_t f = 0; f < nf; f++)
+      {
+         std::cout << "Face "<<f <<std::endl;
+         for (size_t i = 0; i < ndofs; i++)
+         {
+            for (size_t j = 0; j < ndofs; j++)
+            {
+               std::cout << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
+            }
+            std::cout << std::endl;
+         }
+         std::cout << std::endl;
+         for (size_t i = 0; i < ndofs; i++)
+         {
+            for (size_t j = 0; j < ndofs; j++)
+            {
+               std::cout << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
+            }
+            std::cout << std::endl;
+         }
+         std::cout << std::endl;
+         std::cout << std::endl;
+      }
+   }
 };
 
 class FaceMatrixExt
@@ -168,6 +195,33 @@ public:
          Y(j, 0, f) += res;
       });
    }
+
+   void Print()
+   {
+      for (size_t f = 0; f < nf; f++)
+      {
+         std::cout << "Face "<<f <<std::endl;
+         for (size_t i = 0; i < ndofs; i++)
+         {
+            for (size_t j = 0; j < ndofs; j++)
+            {
+               std::cout << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
+            }
+            std::cout << std::endl;
+         }
+         std::cout << std::endl;
+         for (size_t i = 0; i < ndofs; i++)
+         {
+            for (size_t j = 0; j < ndofs; j++)
+            {
+               std::cout << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
+            }
+            std::cout << std::endl;
+         }
+         std::cout << std::endl;
+         std::cout << std::endl;
+      }
+   }
 };
 
 class FaceMatrixBdr
@@ -196,10 +250,28 @@ public:
          double res = 0.0;
          for (int i = 0; i < NDOFS; i++)
          {
-            res += A(i, j, f)*X(i,f);
+            res += A(i, j, f)*X(i, f);
          }
          Y(j, f) += res;
       });
+   }
+
+   void Print()
+   {
+      for (size_t f = 0; f < nf; f++)
+      {
+         std::cout << "Face "<<f <<std::endl;
+         for (size_t i = 0; i < ndofs; i++)
+         {
+            for (size_t j = 0; j < ndofs; j++)
+            {
+               std::cout << data[i+j*ndofs+f*ndofs*ndofs] << ", ";
+            }
+            std::cout << std::endl;
+         }
+         std::cout << std::endl;
+         std::cout << std::endl;
+      }
    }
 };
 
