@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
+   spaceHierarchy.GetFinestFESpace().GetMesh()->Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
@@ -264,7 +264,8 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << *spaceHierarchy.GetFinestFESpace().GetMesh()
+               << x << flush;
    }
 
    // 13. Free the used memory.
