@@ -360,8 +360,8 @@ void EABilinearFormExtension::Assemble()
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
    if (intFaceIntegratorCount>0)
    {
-      ea_data_int.SetSize(nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_ext.SetSize(nf_int*faceDofs*faceDofs, Device::GetMemoryType());
+      ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
+      ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
    }
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
