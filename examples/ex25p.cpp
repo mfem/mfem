@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      spaceHierarchy->GetFinestFESpace().GetParMesh()->Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
@@ -317,7 +317,8 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
+      sol_sock << "solution\n" << *spaceHierarchy->GetFinestFESpace().GetParMesh()
+               << x << flush;
    }
 
    // 15. Free the used memory.
