@@ -2363,11 +2363,13 @@ FaceElementTransformations *ParMesh::
 GetSharedFaceTransformations(int sf, bool fill2, bool direct)
 {
    int FaceNo;
-   if(direct)
+   if (direct)
    {
-     FaceNo = sf;
-   }else{
-     FaceNo = GetSharedFace(sf);
+      FaceNo = sf;
+   }
+   else
+   {
+      FaceNo = GetSharedFace(sf);
    }
 
    FaceInfo &face_info = faces_info[FaceNo];
