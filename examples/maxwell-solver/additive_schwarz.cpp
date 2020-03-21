@@ -6,7 +6,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
 {  // default overlap size is 2 elements 
    int dim = mesh->Dimension();
    int n = pow(mesh->GetNE(), 1.0/(double)dim);
-   nx = 10;
+   nx = 4;
    ny = 1;
    nz = 1;
    if (nx > n) 

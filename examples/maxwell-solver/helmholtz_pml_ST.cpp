@@ -23,7 +23,6 @@ double f_exact_Re(const Vector &x);
 double f_exact_Im(const Vector &x);
 
 
-
 int dim;
 double omega;
 int sol = 1;
@@ -32,7 +31,6 @@ double length = 1.0;
 double pml_length = 0.25;
 bool scatter = false;
 Array2D<double>comp_bdr;
-
 
 #ifndef MFEM_USE_SUPERLU
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
@@ -114,8 +112,9 @@ int main(int argc, char *argv[])
    }
    dim = mesh->Dimension();
 
+
    Array<int> directions;
-   int nrlayers = 2;
+   int nrlayers = 4;
    
    for (int i = 0; i<nrlayers; i++)
    {
@@ -126,12 +125,15 @@ int main(int argc, char *argv[])
       }
    }
    // Find uniform h size of the original mesh
-   double h = GetUniformMeshElementSize(mesh);
-   cout << "pml length = " << h*nrlayers << endl;
+   double hl = GetUniformMeshElementSize(mesh);
+   cout << "pml length = " << hl*nrlayers << endl;
    Mesh *mesh_ext = ExtendMesh(mesh,directions);
 
+
+
+
    Array2D<double> lengths(dim,2);
-   lengths = h*nrlayers;
+   lengths = hl*nrlayers;
    CartesianPML pml(mesh_ext,lengths);
    pml.SetOmega(omega);
    comp_bdr.SetSize(dim,2);
@@ -197,55 +199,55 @@ int main(int argc, char *argv[])
 
 
    SourceTransferPrecond S(&a,ess_tdof_list, omega,nrlayers, 2);
-	// S.SetOperator(*A);
-   // S.SetSmoothType(1);
-   // S.SetLoadVector(B);
-   // S.SetDumpingParam(1.0);
+	S.SetOperator(*A);
+   S.SetSmoothType(1);
+   S.SetLoadVector(B);
+   S.SetDumpingParam(1.0);
    
-   // X = 0.0;
-   // Vector z(X.Size()); z = 0.0;
-   // Vector r(B);
-   // Vector ztemp(r.Size());
+   X = 0.0;
+   Vector z(X.Size()); z = 0.0;
+   Vector r(B);
+   Vector ztemp(r.Size());
 
-   // int n= 1;
+   int n= 1;
 
-   // Vector Ax(X.Size());
-   // for (int i = 0; i<n; i++)
-   // {
-   //    A->Mult(X,Ax); Ax *=-1.0;
-   //    r = b; r+=Ax;
-   //    // A->AddMult(X,r,-1.0); //r = r-Ax
-   //    cout << "residual norm =" << r.Norml2() << endl;
-   //    // S.Mult(r,z); 
-   //    S.Mult(r,z); 
-   //    cout << "correction norm =" << z.Norml2() << endl;
+   Vector Ax(X.Size());
+   for (int i = 0; i<n; i++)
+   {
+      A->Mult(X,Ax); Ax *=-1.0;
+      r = b; r+=Ax;
+      // A->AddMult(X,r,-1.0); //r = r-Ax
+      cout << "residual norm =" << r.Norml2() << endl;
+      // S.Mult(r,z); 
+      S.Mult(r,z); 
+      cout << "correction norm =" << z.Norml2() << endl;
 
-   //    X += z;
+      X += z;
 
-   //    cout << "solution norm =" << X.Norml2() << endl;
+      cout << "solution norm =" << X.Norml2() << endl;
 
-   //    p_gf = 0.0;
-   //    a.RecoverFEMSolution(X,B,p_gf);
+      p_gf = 0.0;
+      a.RecoverFEMSolution(X,B,p_gf);
 
-   //       char vishost[] = "localhost";
-   //       int  visport   = 19916;
-   //       string keys;
-   //       if (dim ==2 )
-   //       {
-   //          keys = "keys mrRljc\n";
-   //       }
-   //       else
-   //       {
-   //          keys = "keys mc\n";
-   //       }
-   //       socketstream sol_sock_re(vishost, visport);
-   //       sol_sock_re.precision(8);
-   //       sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-   //                   "window_title 'Numerical Pressure (real part)' "
-   //                   << keys << flush;
-   //    cout << "Iteration " << i << endl;
-   //    // cin.get();
-   // }
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+                     "window_title 'Numerical Pressure (real part)' "
+                     << keys << flush;
+      cout << "Iteration " << i << endl;
+      // cin.get();
+   }
 
 
 
@@ -255,7 +257,35 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X,B,p_gf1);
 
-   // p_gf1 -= p_gf;
+
+   p_gf1 -= p_gf;
+   // Get the tew vectors
+   // Vector pmin, pmax;
+   // mesh_ext->GetBoundingBox(pmin,pmax);
+
+   // // CutoffFunction
+   // Array2D<double> h(dim,2);
+   // h[0][0] = 0.25;
+   // h[0][1] = 0.625;
+   // h[1][0] = 0.5;
+   // h[1][1] = 0.25;
+   // // for (int i = 0; i<dim; i++)
+   // // {
+   // //    h[i][0] = 0.15;
+   // //    h[i][1] = 0.25;
+   // // }
+   // CutOffFunctionCoefficient cf(CutOffFn, pmin, pmax, h);
+   // GridFunction g_cf(fespace);
+   // g_cf.ProjectCoefficient(cf);
+
+   // GridFunctionCoefficient * coeff1_re = new GridFunctionCoefficient(&p_gf1.real());
+   // GridFunctionCoefficient * coeff2_re = new GridFunctionCoefficient(&g_cf);
+
+   // ProductCoefficient *prod_re = new ProductCoefficient(*coeff1_re, *coeff2_re);
+
+   // GridFunction gf(fespace);
+   // gf.ProjectCoefficient(*prod_re);
+
 
    if (visualization)
    {
@@ -270,15 +300,30 @@ int main(int argc, char *argv[])
       {
          keys = "keys mc\n";
       }
-      // socketstream sol_sock_re(vishost, visport);
-      // sol_sock_re.precision(8);
-      // sol_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
-      //             "window_title 'Numerical Pressure (real part from KLU)' "
-      //             << keys << flush;
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock.precision(8);
-      mesh_sock << "mesh\n" << *mesh_ext << "window_title 'Global mesh' "
-                << flush;            
+      socketstream sol_sock_re(vishost, visport);
+      sol_sock_re.precision(8);
+      sol_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
+                  "window_title 'Numerical Pressure (real part from KLU)' "
+                  << keys << flush;
+      // socketstream mesh_sock(vishost, visport);
+      // mesh_sock.precision(8);
+      // mesh_sock << "mesh\n" << *mesh_ext << "window_title 'Global mesh' "
+      //           << flush;    
+
+      // socketstream gcf_sock(vishost, visport);
+      // gcf_sock.precision(8);
+      // gcf_sock << "solution\n" << *mesh_ext << g_cf << "window_title 'CutOffFunction' "
+      //          << keys << flush;               
+
+      // socketstream p_gfgcf_sock(vishost, visport);
+      // p_gfgcf_sock.precision(8);
+      // p_gfgcf_sock << "solution\n" << *mesh_ext << gf << "window_title 'CutOffFunction' "
+      //          << keys << flush;     
+
+      // socketstream test_sock(vishost, visport);
+      // test_sock.precision(8);
+      // test_sock << "solution\n" << *mesh_ext << *testgf << "window_title 'test' "
+      //          << keys << flush;                               
    }
 
    delete fespace;
@@ -296,8 +341,8 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.0;
-   x1 = 0.0;
+   x0 = 0.1;
+   x1 = 0.5;
    double alpha,beta;
    double n = 5.0 * omega/M_PI;
    double coeff = pow(n,2)/M_PI;
@@ -326,7 +371,6 @@ double f_exact_Im(const Vector &x)
    f_im = 0.0;
    return f_im;
 }
-
 
 
 
