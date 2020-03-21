@@ -26,8 +26,10 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
       P.SetOperatorOwner(false);
       opr = P.Ptr();
    }
-   else if (hFESpace_.GetMesh()->GetNE() > 0 &&
-            dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0)))
+   else if (lFESpace_.GetMesh()->GetNE() > 0
+            && hFESpace_.GetMesh()->GetNE() > 0
+            && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetFE(0))
+            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0)))
    {
       opr = new TensorProductPRefinementTransferOperator(lFESpace_, hFESpace_);
    }

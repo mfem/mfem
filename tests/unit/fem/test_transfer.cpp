@@ -44,124 +44,139 @@ TEST_CASE("transfer")
    {
       for (dimension = 2; dimension <= 3; ++dimension)
       {
-         for (int ne = 1; ne <= 3; ++ne)
+         for (int elementType = 0; elementType <= 1; ++elementType)
          {
-            for (int order = 1; order <= 4; order *= 2)
+            for (int ne = 1; ne <= 3; ++ne)
             {
-               for (int geometric = 0; geometric <= 1; ++geometric)
+               for (int order = 1; order <= 4; order *= 2)
                {
-
-                  int fineOrder = (geometric == 1) ? order : 2 * order;
-
-                  std::cout << "Testing transfer:\n"
-                            << "  Vectorspace:  " << vectorspace << "\n"
-                            << "  Dimension:    " << dimension << "\n"
-                            << "  Elements:     " << std::pow(ne, dimension) << "\n"
-                            << "  Coarse order: " << order << "\n"
-                            << "  Fine order:   " << fineOrder << "\n"
-                            << "  Geometric:    " << geometric << "\n";
-
-                  Mesh* mesh;
-                  if (dimension == 2)
+                  for (int geometric = 0; geometric <= 1; ++geometric)
                   {
-                     mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+
+                     int fineOrder = (geometric == 1) ? order : 2 * order;
+
+                     std::cout << "Testing transfer:\n"
+                               << "  Vectorspace:  " << vectorspace << "\n"
+                               << "  Dimension:    " << dimension << "\n"
+                               << "  Element type: " << elementType << "\n"
+                               << "  Elements:     " << std::pow(ne, dimension) << "\n"
+                               << "  Coarse order: " << order << "\n"
+                               << "  Fine order:   " << fineOrder << "\n"
+                               << "  Geometric:    " << geometric << "\n";
+
+                     Mesh* mesh;
+                     if (dimension == 2)
+                     {
+                        Element::Type type = Element::QUADRILATERAL;
+                        if (elementType != 0)
+                        {
+                           type = Element::TRIANGLE;
+                        }
+                        mesh = new Mesh(ne, ne, type, 1, 1.0, 1.0);
+                     }
+                     else
+                     {
+                        Element::Type type = Element::HEXAHEDRON;
+                        if (elementType != 0)
+                        {
+                           type = Element::TETRAHEDRON;
+                        }
+                        mesh =
+                           new Mesh(ne, ne, ne, type, 1, 1.0, 1.0, 1.0);
+                     }
+                     FiniteElementCollection* c_h1_fec =
+                        new H1_FECollection(order, dimension);
+                     FiniteElementCollection* f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                                                         H1_FECollection(fineOrder, dimension);
+
+                     Mesh fineMesh(*mesh);
+                     if (geometric)
+                     {
+                        fineMesh.UniformRefinement();
+                     }
+
+                     int spaceDimension = 1;
+
+                     if (vectorspace == 1)
+                     {
+                        spaceDimension = dimension;
+                     }
+
+                     FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(mesh, c_h1_fec,
+                                                                               spaceDimension);
+                     FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh, f_h1_fec,
+                                                                               spaceDimension);
+
+                     Operator* referenceOperator = nullptr;
+
+                     if (geometric == 0)
+                     {
+                        referenceOperator = new PRefinementTransferOperator(*c_h1_fespace,
+                                                                            *f_h1_fespace);
+                     }
+                     else
+                     {
+                        OperatorPtr P(Operator::ANY_TYPE);
+                        f_h1_fespace->GetTransferOperator(*c_h1_fespace, P);
+                        P.SetOperatorOwner(false);
+                        referenceOperator = P.Ptr();
+                     }
+
+                     TransferOperator testTransferOperator(*c_h1_fespace, *f_h1_fespace);
+                     GridFunction X(c_h1_fespace);
+                     GridFunction X_cmp(c_h1_fespace);
+                     GridFunction Y_exact(f_h1_fespace);
+                     GridFunction Y_std(f_h1_fespace);
+                     GridFunction Y_test(f_h1_fespace);
+
+                     if (vectorspace == 0)
+                     {
+                        FunctionCoefficient funcCoeff(&coeff);
+                        X.ProjectCoefficient(funcCoeff);
+                        Y_exact.ProjectCoefficient(funcCoeff);
+                     }
+                     else
+                     {
+                        VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
+                        X.ProjectCoefficient(funcCoeff);
+                        Y_exact.ProjectCoefficient(funcCoeff);
+                     }
+
+                     Y_std = 0.0;
+                     Y_test = 0.0;
+
+                     referenceOperator->Mult(X, Y_std);
+
+                     Y_std -= Y_exact;
+                     REQUIRE(Y_std.Norml2() < 1e-12 * Y_exact.Norml2());
+
+                     if (vectorspace == 0)
+                     {
+                        testTransferOperator.Mult(X, Y_test);
+
+                        Y_test -= Y_exact;
+                        REQUIRE(Y_test.Norml2() < 1e-12 * Y_exact.Norml2());
+                     }
+
+                     if (vectorspace == 0)
+                     {
+                        referenceOperator->MultTranspose(Y_exact, X);
+                        testTransferOperator.MultTranspose(Y_exact, X_cmp);
+
+                        X -= X_cmp;
+                        REQUIRE(X.Norml2() < 1e-12 * X_cmp.Norml2());
+                     }
+
+                     delete referenceOperator;
+                     delete f_h1_fespace;
+                     delete c_h1_fespace;
+                     if (geometric == 0)
+                     {
+                        delete f_h1_fec;
+                     }
+                     delete c_h1_fec;
+                     delete mesh;
                   }
-                  else
-                  {
-                     mesh =
-                        new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
-                  }
-                  FiniteElementCollection* c_h1_fec =
-                     new H1_FECollection(order, dimension);
-                  FiniteElementCollection* f_h1_fec = (geometric == 1) ? c_h1_fec : new
-                                                      H1_FECollection(fineOrder, dimension);
-
-                  Mesh fineMesh(*mesh);
-                  if (geometric)
-                  {
-                     fineMesh.UniformRefinement();
-                  }
-
-                  int spaceDimension = 1;
-
-                  if (vectorspace == 1)
-                  {
-                     spaceDimension = dimension;
-                  }
-
-                  FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(mesh, c_h1_fec,
-                                                                            spaceDimension);
-                  FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh, f_h1_fec,
-                                                                            spaceDimension);
-
-                  Operator* referenceOperator = nullptr;
-
-                  if (geometric == 0)
-                  {
-                     referenceOperator = new PRefinementTransferOperator(*c_h1_fespace,
-                                                                         *f_h1_fespace);
-                  }
-                  else
-                  {
-                     referenceOperator = new TransferOperator(*c_h1_fespace,
-                                                              *f_h1_fespace);
-                  }
-
-                  TensorProductPRefinementTransferOperator tpTransferOperator(
-                     *c_h1_fespace, *f_h1_fespace);
-                  GridFunction X(c_h1_fespace);
-                  GridFunction X_cmp(c_h1_fespace);
-                  GridFunction Y_exact(f_h1_fespace);
-                  GridFunction Y_std(f_h1_fespace);
-                  GridFunction Y_tp(f_h1_fespace);
-
-                  if (vectorspace == 0)
-                  {
-                     FunctionCoefficient funcCoeff(&coeff);
-                     X.ProjectCoefficient(funcCoeff);
-                     Y_exact.ProjectCoefficient(funcCoeff);
-                  }
-                  else
-                  {
-                     VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
-                     X.ProjectCoefficient(funcCoeff);
-                     Y_exact.ProjectCoefficient(funcCoeff);
-                  }
-
-                  Y_std = 0.0;
-                  Y_tp = 0.0;
-
-                  referenceOperator->Mult(X, Y_std);
-
-                  Y_std -= Y_exact;
-                  REQUIRE(Y_std.Norml2() < 1e-12 * Y_exact.Norml2());
-
-                  if (vectorspace == 0 && geometric == 0)
-                  {
-                     tpTransferOperator.Mult(X, Y_tp);
-
-                     Y_tp -= Y_exact;
-                     REQUIRE(Y_tp.Norml2() < 1e-12 * Y_exact.Norml2());
-                  }
-
-                  if (vectorspace == 0 && geometric == 0)
-                  {
-                     referenceOperator->MultTranspose(Y_exact, X);
-                     tpTransferOperator.MultTranspose(Y_exact, X_cmp);
-
-                     X -= X_cmp;
-                     REQUIRE(X.Norml2() < 1e-12 * X_cmp.Norml2());
-                  }
-
-                  delete referenceOperator;
-                  delete f_h1_fespace;
-                  delete c_h1_fespace;
-                  if (geometric == 0)
-                  {
-                     delete f_h1_fec;
-                  }
-                  delete c_h1_fec;
-                  delete mesh;
                }
             }
          }
@@ -175,133 +190,147 @@ TEST_CASE("partransfer", "[Parallel]")
 {
    for (dimension = 2; dimension <= 3; ++dimension)
    {
-      for (int ne = 4; ne <= 5; ++ne)
+      for (int elementType = 0; elementType <= 1; ++elementType)
       {
-         for (int order = 1; order <= 4; order *= 2)
+         for (int ne = 4; ne <= 5; ++ne)
          {
-            for (int geometric = 0; geometric <= 1; ++geometric)
+            for (int order = 1; order <= 4; order *= 2)
             {
-               int fineOrder = (geometric == 1) ? order : 2 * order;
-
-               int num_procs;
-               MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-               int myid;
-               MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-
-               if (myid == 0)
+               for (int geometric = 0; geometric <= 1; ++geometric)
                {
-                  std::cout << "Testing parallel transfer:\n"
-                            << "  Dimension:    " << dimension << "\n"
-                            << "  Elements:     " << std::pow(ne, dimension) << "\n"
-                            << "  Coarse order: " << order << "\n"
-                            << "  Fine order:   " << fineOrder << "\n"
-                            << "  Geometric:    " << geometric << "\n";
-               }
+                  int fineOrder = (geometric == 1) ? order : 2 * order;
 
-               Mesh* mesh;
-               if (dimension == 2)
-               {
-                  mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-               }
-               else
-               {
-                  mesh =
-                     new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
-               }
+                  int num_procs;
+                  MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+                  int myid;
+                  MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-               Mesh fineMesh(*mesh);
-               if (geometric)
-               {
-                  fineMesh.UniformRefinement();
-               }
+                  if (myid == 0)
+                  {
+                     std::cout << "Testing parallel transfer:\n"
+                               << "  Dimension:    " << dimension << "\n"
+                               << "  Element type: " << elementType << "\n"
+                               << "  Elements:     " << std::pow(ne, dimension) << "\n"
+                               << "  Coarse order: " << order << "\n"
+                               << "  Fine order:   " << fineOrder << "\n"
+                               << "  Geometric:    " << geometric << "\n";
+                  }
 
-               ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-               ParMesh pfineMesh(MPI_COMM_WORLD, *mesh);
-               if (geometric)
-               {
-                  pfineMesh.UniformRefinement();
-               }
+                  Mesh* mesh;
+                  if (dimension == 2)
+                  {
+                     Element::Type type = Element::QUADRILATERAL;
+                     if (elementType != 0)
+                     {
+                        type = Element::TRIANGLE;
+                     }
+                     mesh = new Mesh(ne, ne, type, 1, 1.0, 1.0);
+                  }
+                  else
+                  {
+                     Element::Type type = Element::HEXAHEDRON;
+                     if (elementType != 0)
+                     {
+                        type = Element::TETRAHEDRON;
+                     }
+                     mesh =
+                        new Mesh(ne, ne, ne, type, 1, 1.0, 1.0, 1.0);
+                  }
 
-               FiniteElementCollection* c_h1_fec =
-                  new H1_FECollection(order, dimension);
-               FiniteElementCollection* f_h1_fec = (geometric == 1) ? c_h1_fec : new
-                                                   H1_FECollection(fineOrder, dimension);
+                  Mesh fineMesh(*mesh);
+                  if (geometric)
+                  {
+                     fineMesh.UniformRefinement();
+                  }
 
-               int spaceDimension = 1;
+                  ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+                  ParMesh pfineMesh(MPI_COMM_WORLD, *mesh);
+                  if (geometric)
+                  {
+                     pfineMesh.UniformRefinement();
+                  }
 
-               double referenceRestrictionValue = 0.0;
+                  FiniteElementCollection* c_h1_fec =
+                     new H1_FECollection(order, dimension);
+                  FiniteElementCollection* f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                                                      H1_FECollection(fineOrder, dimension);
 
-               // Compute reference values in serial
-               {
-                  FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(mesh, c_h1_fec,
-                                                                            spaceDimension);
-                  FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh, f_h1_fec,
-                                                                            spaceDimension);
+                  int spaceDimension = 1;
 
-                  Operator* transferOperator = new TransferOperator(*c_h1_fespace,
-                                                                    *f_h1_fespace);
-                  GridFunction X(c_h1_fespace);
-                  GridFunction Y(f_h1_fespace);
+                  double referenceRestrictionValue = 0.0;
+
+                  // Compute reference values in serial
+                  {
+                     FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(mesh, c_h1_fec,
+                                                                               spaceDimension);
+                     FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh, f_h1_fec,
+                                                                               spaceDimension);
+
+                     Operator* transferOperator = new TransferOperator(*c_h1_fespace,
+                                                                       *f_h1_fespace);
+                     GridFunction X(c_h1_fespace);
+                     GridFunction Y(f_h1_fespace);
+
+                     FunctionCoefficient funcCoeff(&coeff);
+                     Y.ProjectCoefficient(funcCoeff);
+                     X = 0.0;
+
+                     transferOperator->MultTranspose(Y, X);
+
+                     referenceRestrictionValue = std::sqrt(InnerProduct(X, X));
+
+                     delete transferOperator;
+                     delete f_h1_fespace;
+                     delete c_h1_fespace;
+                  }
+
+                  ParFiniteElementSpace* c_h1_fespace = new ParFiniteElementSpace(pmesh, c_h1_fec,
+                                                                                  spaceDimension);
+                  ParFiniteElementSpace* f_h1_fespace = new ParFiniteElementSpace(&pfineMesh,
+                                                                                  f_h1_fec,
+                                                                                  spaceDimension);
+
+                  Operator* transferOperator = new TrueTransferOperator(*c_h1_fespace,
+                                                                        *f_h1_fespace);
+                  ParGridFunction X(c_h1_fespace);
+                  ParGridFunction Y_exact(f_h1_fespace);
+                  ParGridFunction Y(f_h1_fespace);
 
                   FunctionCoefficient funcCoeff(&coeff);
-                  Y.ProjectCoefficient(funcCoeff);
-                  X = 0.0;
+                  X.ProjectCoefficient(funcCoeff);
+                  Y_exact.ProjectCoefficient(funcCoeff);
 
-                  transferOperator->MultTranspose(Y, X);
+                  Y = 0.0;
 
-                  referenceRestrictionValue = std::sqrt(InnerProduct(X, X));
+                  Vector X_true(c_h1_fespace->GetTrueVSize());
+                  Vector Y_true(f_h1_fespace->GetTrueVSize());
+
+                  c_h1_fespace->GetRestrictionMatrix()->Mult(X, X_true);
+                  transferOperator->Mult(X_true, Y_true);
+                  f_h1_fespace->GetProlongationMatrix()->Mult(Y_true, Y);
+
+                  Y -= Y_exact;
+                  REQUIRE(Y.Norml2() < 1e-12 * Y_exact.Norml2());
+
+                  f_h1_fespace->GetRestrictionMatrix()->Mult(Y_exact, Y_true);
+                  transferOperator->MultTranspose(Y_true, X_true);
+
+                  double restrictionValue = std::sqrt(InnerProduct(MPI_COMM_WORLD, X_true,
+                                                                   X_true));
+                  REQUIRE(std::abs(restrictionValue - referenceRestrictionValue) < 1e-12 *
+                          std::abs(referenceRestrictionValue));
 
                   delete transferOperator;
                   delete f_h1_fespace;
                   delete c_h1_fespace;
+                  if (geometric == 0)
+                  {
+                     delete f_h1_fec;
+                  }
+                  delete c_h1_fec;
+                  delete pmesh;
+                  delete mesh;
                }
-
-               ParFiniteElementSpace* c_h1_fespace = new ParFiniteElementSpace(pmesh, c_h1_fec,
-                                                                               spaceDimension);
-               ParFiniteElementSpace* f_h1_fespace = new ParFiniteElementSpace(&pfineMesh,
-                                                                               f_h1_fec,
-                                                                               spaceDimension);
-
-               Operator* transferOperator = new TrueTransferOperator(*c_h1_fespace,
-                                                                     *f_h1_fespace);
-               ParGridFunction X(c_h1_fespace);
-               ParGridFunction Y_exact(f_h1_fespace);
-               ParGridFunction Y(f_h1_fespace);
-
-               FunctionCoefficient funcCoeff(&coeff);
-               X.ProjectCoefficient(funcCoeff);
-               Y_exact.ProjectCoefficient(funcCoeff);
-
-               Y = 0.0;
-
-               Vector X_true(c_h1_fespace->GetTrueVSize());
-               Vector Y_true(f_h1_fespace->GetTrueVSize());
-
-               c_h1_fespace->GetRestrictionMatrix()->Mult(X, X_true);
-               transferOperator->Mult(X_true, Y_true);
-               f_h1_fespace->GetProlongationMatrix()->Mult(Y_true, Y);
-
-               Y -= Y_exact;
-               REQUIRE(Y.Norml2() < 1e-12 * Y_exact.Norml2());
-
-               f_h1_fespace->GetRestrictionMatrix()->Mult(Y_exact, Y_true);
-               transferOperator->MultTranspose(Y_true, X_true);
-
-               double restrictionValue = std::sqrt(InnerProduct(MPI_COMM_WORLD, X_true,
-                                                                X_true));
-               REQUIRE(std::abs(restrictionValue - referenceRestrictionValue) < 1e-12 *
-                       std::abs(referenceRestrictionValue));
-
-               delete transferOperator;
-               delete f_h1_fespace;
-               delete c_h1_fespace;
-               if (geometric == 0)
-               {
-                  delete f_h1_fec;
-               }
-               delete c_h1_fec;
-               delete pmesh;
-               delete mesh;
             }
          }
       }
