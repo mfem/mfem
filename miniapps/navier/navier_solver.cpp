@@ -779,59 +779,77 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
 double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
 {
    ParMesh *pmesh = u.ParFESpace()->GetParMesh();
+   FiniteElementSpace *fes = u.FESpace();
+   int vdim = fes->GetVDim();
 
-   double hmin = 0.0;
-   double hmin_loc = pmesh->GetElementSize(0, 1);
+   Vector ux, uy, uz;
+   Vector ur, us, ut;
+   double cflx, cfly, cflz, cflm, cflmax = 0.0;
 
-   for (int i = 1; i < pmesh->GetNE(); i++)
+   for (int e = 0; e < fes->GetNE(); ++e)
    {
-      hmin_loc = std::min(pmesh->GetElementSize(i, 1), hmin_loc);
-   }
+      const FiniteElement *fe = fes->GetFE(e);
+      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
+                                               fe->GetOrder());
+      ElementTransformation *tr = fes->GetElementTransformation(e);
 
-   MPI_Allreduce(&hmin_loc, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
-
-   int ndofs = u.ParFESpace()->GetNDofs();
-   Vector uc(ndofs), vc(ndofs), wc(ndofs);
-
-   // Only set z-component to zero because x and y are always present.
-   wc = 0.0;
-
-   for (int comp = 0; comp < u.ParFESpace()->GetVDim(); comp++)
-   {
-      for (int i = 0; i < ndofs; i++)
+      u.GetValues(e, ir, ux, 1);
+      ur.SetSize(ux.Size());
+      u.GetValues(e, ir, uy, 2);
+      us.SetSize(uy.Size());
+      if (vdim == 3)
       {
-         if (comp == 0)
+         u.GetValues(e, ir, uz, 3);
+         ut.SetSize(uz.Size());
+      }
+
+      double hmin = pmesh->GetElementSize(e, 1) / (double) fes->GetOrder(0);
+
+      for (int i = 0; i < ir.GetNPoints(); ++i)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         tr->SetIntPoint(&ip);
+         const DenseMatrix &invJ = tr->InverseJacobian();
+         const double detJinv = 1.0 / tr->Jacobian().Det();
+
+         if (vdim == 2)
          {
-            uc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+            ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)) * detJinv;
+            us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)) * detJinv;
          }
-         else if (comp == 1)
+         else if (vdim == 3)
          {
-            vc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+            ur(i) = (ux(i) * invJ(0, 0) + uy(i) * invJ(1, 0)
+                     + uz(i) * invJ(2, 0))
+                    * detJinv;
+            us(i) = (ux(i) * invJ(0, 1) + uy(i) * invJ(1, 1)
+                     + uz(i) * invJ(2, 1))
+                    * detJinv;
+            ut(i) = (ux(i) * invJ(0, 2) + uy(i) * invJ(1, 2)
+                     + uz(i) * invJ(2, 2))
+                    * detJinv;
          }
-         else if (comp == 2)
+
+         cflx = fabs(dt * ux(i) / hmin);
+         cfly = fabs(dt * uy(i) / hmin);
+         if (vdim == 3)
          {
-            wc(i) = u[u.ParFESpace()->DofToVDof(i, comp)];
+            cflz = fabs(dt * uz(i) / hmin);
          }
+         cflm = cflx + cfly + cflz;
+         cflmax = fmax(cflmax, cflm);
       }
    }
 
-   double velmag_max_loc = 0.0;
-   double velmag_max = 0.0;
-   for (int i = 0; i < ndofs; i++)
-   {
-      velmag_max_loc = std::max(sqrt(pow(uc(i), 2.0) + pow(vc(i), 2.0)
-                                     + pow(wc(i), 2.0)),
-                                velmag_max_loc);
-   }
-
-   MPI_Allreduce(&velmag_max_loc,
-                 &velmag_max,
+   double cflmax_global = 0.0;
+   MPI_Allreduce(&cflmax,
+                 &cflmax_global,
                  1,
                  MPI_DOUBLE,
                  MPI_MAX,
                  pmesh->GetComm());
 
-   return velmag_max * dt / hmin;
+   return cflmax_global;
 }
 
 void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
