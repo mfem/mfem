@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//             ----------------------------------------------
-//             Twist Miniapp:  Generate simple twisted meshes
-//             ----------------------------------------------
+//          -------------------------------------------------------
+//          Twist Miniapp:  Generate simple twisted periodic meshes
+//          -------------------------------------------------------
 //
 // This miniapp generates simple periodic meshes to demonstrate MFEM's handling
 // of periodic domains. MFEM's strategy is to use a discontinuous vector field
