@@ -1,26 +1,25 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //             ----------------------------------------------
 //             Twist Miniapp:  Generate simple twisted meshes
 //             ----------------------------------------------
 //
-// This miniapp generates simple periodic meshes to demonstrate MFEM's
-// implementation of periodic domains.  MFEM's strategy is to use a
-// discontinuous vector field to define the mesh coordinates on a
-// topologically periodic mesh.  It works by defining a stack of
-// individual elements and stitching together the top and bottom of
-// the mesh.  The stack can also be twisted so that the vertices of
-// the bottom and top can be joined with any integer offset (for
-// tetrahedral and wedge meshes only even offsets are supported).
+// This miniapp generates simple periodic meshes to demonstrate MFEM's handling
+// of periodic domains. MFEM's strategy is to use a discontinuous vector field
+// to define the mesh coordinates on a topologically periodic mesh. It works by
+// defining a stack of individual elements and stitching together the top and
+// bottom of the mesh. The stack can also be twisted so that the vertices of the
+// bottom and top can be joined with any integer offset (for tetrahedral and
+// wedge meshes only even offsets are supported).
 //
 // Compile with: make twist
 //
