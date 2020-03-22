@@ -281,7 +281,7 @@ class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 private:
    Coefficient *F;
    Vector shape;
-   int oa, ob;
+   int oa, ob; // these contol the quadrature order, see DomainLFIntegrator
 
 public:
    VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
