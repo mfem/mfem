@@ -156,11 +156,17 @@ int main(int argc, char *argv[])
       {
          fec = pmesh->GetNodes()->OwnFEC();
          own_fec = 0;
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         if (myid == 0)
+         {
+            cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         }
       }
       else
       {
-         cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         if (myid == 0)
+         {
+            cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         }
          fec = new H1_FECollection(1, dim);
          own_fec = 1;
       }
