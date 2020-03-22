@@ -10,10 +10,6 @@
 
 Version 4.1.1 (development)
 ===========================
-- Added a GitLab pipeline that automates PR testing on supercomputing systems
-  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
-  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
-  and the updated CONTRIBUTING.md file.
 
 Meshing improvements
 --------------------
@@ -21,6 +17,17 @@ Meshing improvements
   now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
+
+Discretization improvements
+---------------------------
+- Added support for simplices in GSLIB-FindPoints.
+
+Improved testing
+----------------
+- Added a GitLab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
+  and the updated CONTRIBUTING.md file.
 
 Miscellaneous
 -------------
