@@ -18,6 +18,12 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
 
+New and updated examples and miniapps
+-------------------------------------
+- Adding a simple meshing miniapp, Twist, which demonstates MFEM's strategy of
+  stitching together opposite surfaces of a mesh to create a topologically
+  periodic mesh.
+
 Discretization improvements
 ---------------------------
 - Added support for simplices in GSLIB-FindPoints.
