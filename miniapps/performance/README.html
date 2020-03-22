@@ -162,7 +162,7 @@
             
             
                 <li>
-                    <!-- Replace "nav_item.url" with "nav_item.url|url" for mkdocs-1.0 -->
+                    <!-- Replace "nav_item.url|url" with "nav_item.url" for older mkdocs (before 1.0) -->
                     <a href="http://mfem.org/features/">Features</a>
                 </li>
             
@@ -171,7 +171,7 @@
             
             
                 <li>
-                    <!-- Replace "nav_item.url" with "nav_item.url|url" for mkdocs-1.0 -->
+                    <!-- Replace "nav_item.url|url" with "nav_item.url" for older mkdocs (before 1.0) -->
                     <a href="http://mfem.org/examples/">Examples</a>
                 </li>
             
@@ -240,8 +240,16 @@
                         
                     
                         
+                    
+                        
                             <li>
-                                 <a href="http://mfem.org/code-overview/">Code Overview</a>
+                                 <a href="http://mfem.org/tools/">Tools</a>
+                            </li>
+                        
+                    
+                        
+                            <li>
+                                 <a href="http://mfem.org/toys/">Toys</a>
                             </li>
                         
                     
@@ -265,7 +273,7 @@
             
             
                 <li>
-                    <!-- Replace "nav_item.url" with "nav_item.url|url" for mkdocs-1.0 -->
+                    <!-- Replace "nav_item.url|url" with "nav_item.url" for older mkdocs (before 1.0) -->
                     <a href="http://mfem.org/gallery/">Gallery</a>
                 </li>
             
@@ -274,7 +282,7 @@
             
             
                 <li>
-                    <!-- Replace "nav_item.url" with "nav_item.url|url" for mkdocs-1.0 -->
+                    <!-- Replace "nav_item.url|url" with "nav_item.url" for older mkdocs (before 1.0) -->
                     <a href="http://mfem.org/download/">Download</a>
                 </li>
             
@@ -320,7 +328,7 @@
 <h2 id="overview">Overview</h2>
 <p>The high performance (HPC) versions of the example codes in the <code>miniapps/performance</code> directory
 use a set of templated classes to efficiently implement the inner-most portion
-(<span class="MathJax_Preview" style="color: inherit; display: none;"></span><span class="MathJax_SVG" id="MathJax-Element-1-Frame" tabindex="0" data-mathml="&lt;math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot;&gt;&lt;msup&gt;&lt;mi&gt;B&lt;/mi&gt;&lt;mi&gt;T&lt;/mi&gt;&lt;/msup&gt;&lt;mi&gt;D&lt;/mi&gt;&lt;mi&gt;B&lt;/mi&gt;&lt;/math&gt;" role="presentation" style="font-size: 100%; display: inline-block; position: relative;"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="6.842ex" height="2.378ex" viewBox="0 -908.4 2945.7 1023.7" role="img" focusable="false" aria-hidden="true" style="vertical-align: -0.268ex;"><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="matrix(1 0 0 -1 0 0)"><use xlink:href="#MJMATHI-42" x="0" y="0"></use><use transform="scale(0.707)" xlink:href="#MJMATHI-54" x="1074" y="513"></use><use xlink:href="#MJMATHI-44" x="1357" y="0"></use><use xlink:href="#MJMATHI-42" x="2186" y="0"></use></g></svg><span class="MJX_Assistive_MathML" role="presentation"><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mi>B</mi><mi>T</mi></msup><mi>D</mi><mi>B</mi></math></span></span><script type="math/tex" id="MathJax-Element-1">B^T D B</script>) of the fundamental finite element (FE) operator decomposition:</p>
+(<span class="MathJax_Preview" style="color: inherit; display: none;"></span><span class="MathJax_SVG" id="MathJax-Element-1-Frame" tabindex="0" data-mathml="&lt;math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot;&gt;&lt;msup&gt;&lt;mi&gt;B&lt;/mi&gt;&lt;mi&gt;T&lt;/mi&gt;&lt;/msup&gt;&lt;mi&gt;D&lt;/mi&gt;&lt;mi&gt;B&lt;/mi&gt;&lt;/math&gt;" role="presentation" style="font-size: 100%; display: inline-block; position: relative;"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="6.842ex" height="2.378ex" viewBox="0 -908.4 2945.7 1023.7" role="img" focusable="false" style="vertical-align: -0.268ex;" aria-hidden="true"><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="matrix(1 0 0 -1 0 0)"><use xlink:href="#MJMATHI-42" x="0" y="0"></use><use transform="scale(0.707)" xlink:href="#MJMATHI-54" x="1074" y="513"></use><use xlink:href="#MJMATHI-44" x="1357" y="0"></use><use xlink:href="#MJMATHI-42" x="2186" y="0"></use></g></svg><span class="MJX_Assistive_MathML" role="presentation"><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mi>B</mi><mi>T</mi></msup><mi>D</mi><mi>B</mi></math></span></span><script type="math/tex" id="MathJax-Element-1">B^T D B</script>) of the fundamental finite element (FE) operator decomposition:</p>
 <p><img alt="" src="../../doc/web/FEDecomposition.png"></p>
 <p>We take advantage of the tensor-product structure of both the finite element
 basis and the quadrature rule to efficiently apply the action of <span class="MathJax_Preview" style="color: inherit; display: none;"></span><span class="MathJax_SVG" id="MathJax-Element-2-Frame" tabindex="0" data-mathml="&lt;math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot;&gt;&lt;mi&gt;B&lt;/mi&gt;&lt;/math&gt;" role="presentation" style="font-size: 100%; display: inline-block; position: relative;"><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1.764ex" height="2.115ex" viewBox="0 -795.1 759.5 910.4" role="img" focusable="false" aria-hidden="true" style="vertical-align: -0.268ex;"><g stroke="currentColor" fill="currentColor" stroke-width="0" transform="matrix(1 0 0 -1 0 0)"><use xlink:href="#MJMATHI-42" x="0" y="0"></use></g></svg><span class="MJX_Assistive_MathML" role="presentation"><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>B</mi></math></span></span><script type="math/tex" id="MathJax-Element-2">B</script> without
@@ -486,7 +494,7 @@ evaluation algorithms.</p>
         <script src="../../doc/web/highlight.pack.js"></script>
         <script src="../../doc/web/base.js"></script>
         <script src="../../doc/web/retina.min.js"></script>
-        <script src="../search/require.js"></script>
-        <script src="../search/search.js"></script>
+        <script src="../search/main.js"></script>
     
+
 </body></html>

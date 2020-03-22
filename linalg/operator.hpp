@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_OPERATOR
 #define MFEM_OPERATOR
@@ -42,7 +42,7 @@ protected:
 
 public:
    /// Initializes memory for true vectors of linear system
-   void InitTVectors(const Operator *Po, const Operator *Ri,
+   void InitTVectors(const Operator *Po, const Operator *Ri, const Operator *Pi,
                      Vector &x, Vector &b,
                      Vector &X, Vector &B) const;
 
@@ -251,7 +251,7 @@ public:
 };
 
 
-/// Base abstract class for time dependent operators.
+/// Base abstract class for first order time dependent operators.
 /** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
     algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
     _implicit_ and _explicit_ parts of the operator, respectively. For explicit
@@ -441,6 +441,60 @@ public:
 
    virtual ~TimeDependentOperator() { }
 };
+
+/// Base abstract class for second order time dependent operators.
+/** Operator of the form: (x,dxdt,t) -> f(x,dxdt,t), where k = f(x,dxdt,t)
+    generally solves the algebraic equation F(x,dxdt,k,t) = G(x,dxdt,t).
+    The functions F and G represent the_implicit_ and _explicit_ parts of
+    the operator, respectively. For explicit operators,
+    F(x,dxdt,k,t) = k, so f(x,dxdt,t) = G(x,dxdt,t). */
+class SecondOrderTimeDependentOperator : public TimeDependentOperator
+{
+public:
+   /** @brief Construct a "square" SecondOrderTimeDependentOperator
+       y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
+   explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
+                                             Type type_ = EXPLICIT)
+      : TimeDependentOperator(n, t_,type_) { }
+
+   /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,dxdt,t),
+       where x, dxdt and y have the same dimension @a n. */
+   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0,
+                                    Type type_ = EXPLICIT)
+      : TimeDependentOperator(h, w, t_,type_) { }
+
+   using TimeDependentOperator::Mult;
+
+   /** @brief Perform the action of the operator: @a y = k = f(@a x,@ dxdt, t),
+       where k solves the algebraic equation
+       F(@a x,@ dxdt, k, t) = G(@a x,@ dxdt, t) and t is the current time. */
+   virtual void Mult(const Vector &x, const Vector &dxdt, Vector &y) const;
+
+   using TimeDependentOperator::ImplicitSolve;
+   /** @brief Solve the equation:
+       @a k = f(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t), for the
+       unknown @a k at the current time t.
+
+       For general F and G, the equation for @a k becomes:
+       F(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t)
+                        = G(@a x + 1/2 @a dt0^2 @a k, @a dxdt + @a dt1 @a k, t).
+
+       The input vector @a x corresponds to time index (or cycle) n, while the
+       currently set time, #t, and the result vector @a k correspond to time
+       index n+1. The time step @a dt corresponds to the time interval between
+       cycles n and n+1.
+
+       This method allows for the abstract implementation of some time
+       integration methods.
+
+       If not re-implemented, this method simply generates an error. */
+   virtual void ImplicitSolve(const double dt0, const double dt1,
+                              const Vector &x, const Vector &dxdt, Vector &k);
+
+
+   virtual ~SecondOrderTimeDependentOperator() { }
+};
+
 
 /// Base class for solvers
 class Solver : public Operator
