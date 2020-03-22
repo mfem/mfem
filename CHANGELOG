@@ -10,10 +10,6 @@
 
 Version 4.1.1 (development)
 ===========================
-- Added a GitLab pipeline that automates PR testing on supercomputing systems
-  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
-  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
-  and the updated CONTRIBUTING.md file.
 
 Meshing improvements
 --------------------
@@ -21,6 +17,17 @@ Meshing improvements
   now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
+
+Discretization improvements
+---------------------------
+- Added support for simplices in GSLIB-FindPoints.
+
+Improved testing
+----------------
+- Added a GitLab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
+  and the updated CONTRIBUTING.md file.
 
 Miscellaneous
 -------------
@@ -129,15 +136,6 @@ Discretization improvements
   in physical space. See INSTALL for details on building MFEM with GSLIB, and
   miniapps/gslib for examples of how to use this feature.
 
-- Added support for simplices in GSLIB-FindPoints.
-
-- Extended the support for partial assembly to DG integrarors, H(curl) bilinear
-  forms, and the vector mass and vector diffusion bilinear integrators.
-
-- Added support for serendipity elements of arbitrary order on affinely-mapped
-  square elements. Basis functions for these elements can be visualized using
-  an option in the display-basis miniapp.
-  
 - Added support for complex-valued finite element operators and fields using a
   2x2 block structured linear system to mimic complex arithmetic. New classes
   include: ComplexGridFunction, SesquilinearForm, ComplexLinearForm, and their
