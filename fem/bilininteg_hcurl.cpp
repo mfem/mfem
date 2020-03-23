@@ -2139,5 +2139,24 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 }
 
+void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
+{
+   std::cout << "GradientInterpolator::AddMultPA" << std::endl;
+   if (dim == 3)
+   {
+      PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+                       mapsO->Bt, mapsC->Bt, pa_data, x, y);
+   }
+   else if (dim == 2)
+   {
+      PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+                       mapsO->Bt, mapsC->Bt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
 
 } // namespace mfem
