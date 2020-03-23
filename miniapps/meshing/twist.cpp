@@ -1,35 +1,34 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
-//             ----------------------------------------------
-//             Twist Miniapp:  Generate simple twisted meshes
-//             ----------------------------------------------
+//          -------------------------------------------------------
+//          Twist Miniapp:  Generate simple twisted periodic meshes
+//          -------------------------------------------------------
 //
-// This miniapp generates simple periodic meshes to demonstrate MFEM's
-// implementation of periodic domains.  MFEM's strategy is to use a
-// discontinuous vector field to define the mesh coordinates on a
-// topologically periodic mesh.  It works by defining a stack of
-// individual elements and stitching together the top and bottom of
-// the mesh.  The stack can also be twisted so that the vertices of
-// the bottom and top can be joined with any integer offset (for
-// tetrahedral and wedge meshes only even offsets are supported).
+// This miniapp generates simple periodic meshes to demonstrate MFEM's handling
+// of periodic domains. MFEM's strategy is to use a discontinuous vector field
+// to define the mesh coordinates on a topologically periodic mesh. It works by
+// defining a stack of individual elements and stitching together the top and
+// bottom of the mesh. The stack can also be twisted so that the vertices of the
+// bottom and top can be joined with any integer offset (for tetrahedral and
+// wedge meshes only even offsets are supported).
 //
 // Compile with: make twist
 //
 // Sample runs:  twist
-//               twist -ns 2
-//               twist -ns -2
-//               twist -ns 2 -e 4 -pm
-//               twist -ns 2 -e 6 -pm
-//               twist -ns 3 -e 8 -pm
+//               twist -no-pm
+//               twist -nt -2 -no-pm
+//               twist -nt 2 -e 4
+//               twist -nt 2 -e 6
+//               twist -nt 3 -e 8
 //
 #include "mfem.hpp"
 #include <fstream>
@@ -41,7 +40,7 @@ using namespace mfem;
 static Element::Type el_type_ = Element::WEDGE;
 static int    order_ = 3;
 static int    nz_    = 3;
-static int    ns_    = 0;
+static int    nt_    = 2;
 static double a_     = 1.0;
 static double b_     = 1.0;
 static double c_     = 3.0;
@@ -53,15 +52,15 @@ int main(int argc, char *argv[])
 {
    int ser_ref_levels = 0;
    int el_type = 8;
-   bool per_mesh = false;
+   bool per_mesh = true;
    bool dg_mesh  = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&nz_, "-nz", "--num-elements-z",
                   "Number of elements in z-direction.");
-   args.AddOption(&ns_, "-ns", "--num-shifts",
-                  "Number of shifts.");
+   args.AddOption(&nt_, "-nt", "--num-twists",
+                  "Number of node positions to twist the top of the mesh.");
    args.AddOption(&order_, "-o", "--mesh-order",
                   "Order (polynomial degree) of the mesh elements.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -117,7 +116,7 @@ int main(int argc, char *argv[])
    {
       mesh->SetCurvature(order_, dg_mesh || per_mesh, 3, Ordering::byVDIM);
    }
-   if (ns_ != 0 )
+   if (nt_ != 0 )
    {
       mesh->Transform(trans);
    }
@@ -125,7 +124,7 @@ int main(int argc, char *argv[])
    while (per_mesh)
    {
       // Verify geometric compatibility
-      if (ns_ % 2 == 1 && fabs(a_ - b_) > 1e-6 * a_)
+      if (nt_ % 2 == 1 && fabs(a_ - b_) > 1e-6 * a_)
       {
          cout << "Base is rectangular so number of shifts must be even "
               << "for a periodic mesh!" << endl;
@@ -133,7 +132,7 @@ int main(int argc, char *argv[])
       }
 
       // Verify topological compatibility
-      if (ns_ % 2 == 1 && (el_type_ == Element::TETRAHEDRON ||
+      if (nt_ % 2 == 1 && (el_type_ == Element::TETRAHEDRON ||
                            el_type_ == Element::WEDGE))
       {
          cout << "Diagonal cuts on the base and top must line up "
@@ -142,7 +141,7 @@ int main(int argc, char *argv[])
       }
 
       int nnode = 4;
-      int noff = (ns_ >= 0) ? 0 : (nnode * (1 - ns_ / nnode));
+      int noff = (nt_ >= 0) ? 0 : (nnode * (1 - nt_ / nnode));
 
       Array<int> v2v(mesh->GetNV());
       for (int i = 0; i < v2v.Size() - nnode; i++)
@@ -150,7 +149,7 @@ int main(int argc, char *argv[])
          v2v[i] = i;
       }
       // identify vertices at the extremes of the stack
-      switch ((noff + ns_) % nnode)
+      switch ((noff + nt_) % nnode)
       {
          case 0:
             v2v[v2v.Size() - nnode + 0] = 0;
@@ -226,7 +225,7 @@ int main(int argc, char *argv[])
       {
          oss << "twist-hex";
       }
-      oss << "-o" << order_ << "-s" << ns_;
+      oss << "-o" << order_ << "-s" << nt_;
       if (ser_ref_levels > 0)
       {
          oss << "-r" << ser_ref_levels;
@@ -269,7 +268,7 @@ int main(int argc, char *argv[])
 void trans(const Vector &x, Vector &p)
 {
    double z = x[2];
-   double phi = 0.5 * M_PI * ns_ * z / c_;
+   double phi = 0.5 * M_PI * nt_ * z / c_;
    double cp = cos(phi);
    double sp = sin(phi);
 
