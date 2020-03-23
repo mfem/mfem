@@ -221,11 +221,15 @@ inline double eta_i_para(double ma, double Ta,
 
 class ParGridFunctionArray : public Array<ParGridFunction*>
 {
+private:
+   bool owns_data;
+
 public:
-   ParGridFunctionArray() {}
-   ParGridFunctionArray(int size) : Array<ParGridFunction*>(size) {}
+   ParGridFunctionArray() : owns_data(true) {}
+   ParGridFunctionArray(int size)
+      : Array<ParGridFunction*>(size), owns_data(true) {}
    ParGridFunctionArray(int size, ParFiniteElementSpace *pf)
-      : Array<ParGridFunction*>(size)
+      : Array<ParGridFunction*>(size), owns_data(true)
    {
       for (int i=0; i<size; i++)
       {
@@ -235,11 +239,17 @@ public:
 
    ~ParGridFunctionArray()
    {
-      for (int i=0; i<size; i++)
+      if (owns_data)
       {
-         delete data[i];
+         for (int i=0; i<size; i++)
+         {
+            delete data[i];
+         }
       }
    }
+
+   void SetOwner(bool owner) { owns_data = owner; }
+   bool GetOwner() const { return owns_data; }
 
    void ProjectCoefficient(Array<Coefficient*> &coeff)
    {

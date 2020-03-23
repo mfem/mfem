@@ -1185,6 +1185,14 @@ DGTransportTDO::NLOperator::~NLOperator()
       delete blf_[i];
    }
 
+   for (int i=0; i<dbfi_m_.Size(); i++)
+   {
+      for (int j=0; j<dbfi_m_[i].Size(); j++)
+      {
+         delete dbfi_m_[i][j];
+      }
+   }
+
    for (int i=0; i<dbfi_.Size(); i++)
    {
       delete dbfi_[i];

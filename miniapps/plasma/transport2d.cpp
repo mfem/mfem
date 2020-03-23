@@ -1467,12 +1467,14 @@ int main(int argc, char *argv[])
    yGF.Append(&para_velocity);
    yGF.Append(&ion_energy);
    yGF.Append(&elec_energy);
+   yGF.SetOwner(false);
 
    ParGridFunctionArray kGF;
    for (int i=0; i<5; i++)
    {
       kGF.Append(new ParGridFunction(&fes, (double*)NULL));
    }
+   kGF.SetOwner(true);
 
    // ParGridFunction u(&fes);
    // u.ProjectCoefficient(u0Coef);
