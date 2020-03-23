@@ -250,6 +250,15 @@ public:
       bfi->AddMultTransposePA(x, y);
    }
 
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr);
+
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
 
