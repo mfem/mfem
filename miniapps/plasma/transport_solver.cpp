@@ -2186,7 +2186,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 0, "Neutral Density", yGF, kGF,
                  term_flag, vis_flag, logging, log_prefix),
-     vnCoef_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
+     vnCoef_(v_n_),
      izCoef_(Te0Coef_),
      rcCoef_(Te0Coef_),
      DCoef_(ne0Coef_, vnCoef_, izCoef_),

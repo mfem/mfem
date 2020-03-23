@@ -2098,6 +2098,7 @@ private:
 
       double m_n_;
       double T_n_;
+      double v_n_;
       double m_i_;
       int    z_i_;
 
@@ -2122,6 +2123,7 @@ private:
            plasma_(plasma),
            m_n_(plasma.m_n),
            T_n_(plasma.T_n),
+           v_n_(sqrt(8.0 * T_n_ * eV_ / (M_PI * m_n_ * amu_))),
            m_i_(plasma.m_i),
            z_i_(plasma.z_i),
            nn0Coef_(*yCoefPtrs_[NEUTRAL_DENSITY]),
