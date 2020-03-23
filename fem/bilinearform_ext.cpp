@@ -503,17 +503,8 @@ void PADiscreteLinearOperatorExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      std::cout << "  integrator " << i << std::endl;
-      DiscreteInterpolator * dinterp = dynamic_cast<DiscreteInterpolator*>(integrators[i]);
-      if (dinterp) std::cout << "  its a DiscreteInterpolator" << std::endl;
-      GradientInterpolator * ginterp = dynamic_cast<GradientInterpolator*>(integrators[i]);
-      if (ginterp) std::cout << "  its a GradientInterpolator" << std::endl;
       if (ginterp)
       {
-         // is it because the intermediate DiscreteInterpolator class
-         // doesn't implement AssemblePA?
-         std::cout << "    still a GradientInterpolator..." << std::endl;
-         // ginterp->AssemblePA2(*trialFes, *testFes); // ???
          ginterp->AssemblePA(*trialFes, *testFes);
       }
       else
@@ -527,6 +518,8 @@ void PADiscreteLinearOperatorExtension::Assemble()
 void PADiscreteLinearOperatorExtension::AddMult(
    const Vector &x, Vector &y, const double c) const
 {
+   std::cout << "PADiscreteLinearOperatorExtension::AddMult" << std::endl;
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
