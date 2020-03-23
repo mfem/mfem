@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
@@ -822,6 +822,26 @@ Constants<Geometry::TETRAHEDRON>::VertToVert::J[6][2] =
    {1, 0}, {2, 1}, {3, 2}, // 0,1:0   0,2:1   0,3:2
    {2, 3}, {3, 4},         // 1,2:3   1,3:4
    {3, 5}                  // 2,3:5
+};
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::Orient[24][4] =
+{
+   {0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 3, 1}, {0, 2, 1, 3},
+   {0, 3, 1, 2}, {0, 3, 2, 1},
+   {1, 2, 0, 3}, {1, 2, 3, 0}, {1, 3, 2, 0}, {1, 3, 0, 2},
+   {1, 0, 3, 2}, {1, 0, 2, 3},
+   {2, 3, 0, 1}, {2, 3, 1, 0}, {2, 0, 1, 3}, {2, 0, 3, 1},
+   {2, 1, 3, 0}, {2, 1, 0, 3},
+   {3, 0, 2, 1}, {3, 0, 1, 2}, {3, 1, 0, 2}, {3, 1, 2, 0},
+   {3, 2, 1, 0}, {3, 2, 0, 1}
+};
+const int Geometry::
+Constants<Geometry::TETRAHEDRON>::InvOrient[24] =
+{
+   0,   1,  4,  3,  2,  5,
+   14, 19, 18, 15, 10, 11,
+   12, 23,  6,  9, 20, 17,
+   8,   7, 16, 21, 22, 13
 };
 
 const int Geometry::

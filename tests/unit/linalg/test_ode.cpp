@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
@@ -249,7 +249,7 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new AB5Solver()) + tol > 5.0 );
    }
 
-   //Adams-Moulton
+   // Adams-Moulton
    SECTION("AM0Solver()")
    {
       std::cout <<"\nTesting AM0Solver()" << std::endl;
