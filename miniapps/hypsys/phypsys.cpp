@@ -133,14 +133,6 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace pfesBounds(&pmesh, &fecBounds);
    ParDofInfo pdofs(&pfes, &pfesBounds);
 
-   // Compute the lumped mass matrix.
-   Vector LumpedMassMat;
-   ParBilinearForm ml(&pfes);
-   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-   ml.Assemble();
-   ml.Finalize();
-   ml.SpMat().GetDiag(LumpedMassMat);
-
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
@@ -161,12 +153,8 @@ int main(int argc, char *argv[])
    ParGridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-   // uk is used for visualization.
+   // uk is used for visualization with GLVis.
    ParGridFunction uk(&pfes, u_block.GetBlock(0));
-   double InitialMass, MassMPI = LumpedMassMat * uk;
-   MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
-
-   // Visualization with GLVis, VisIt is currently not supported.
    if (hyp->FileOutput)
    {
       ofstream omesh("grid.mesh");
@@ -188,7 +176,9 @@ int main(int argc, char *argv[])
                         hyp->valuerange);
    }
 
-   ParFE_Evolution pevol(&vfes, hyp, pdofs, scheme, LumpedMassMat);
+   ParFE_Evolution pevol(&vfes, hyp, pdofs, scheme);
+   double InitialMass, MassMPI = pevol.LumpedMassMat * uk;
+   MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    odeSolver->Init(pevol);
    if (hyp->SteadyState)
@@ -249,7 +239,7 @@ int main(int argc, char *argv[])
       cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
    }
 
-   double FinalMass, DomainSize, DomainSizeMPI = LumpedMassMat.Sum();
+   double FinalMass, DomainSize, DomainSizeMPI = pevol.LumpedMassMat.Sum();
    MPI_Allreduce(&DomainSizeMPI, &DomainSize, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (hyp->SolutionKnown)
@@ -266,7 +256,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   MassMPI = LumpedMassMat * uk;
+   MassMPI = pevol.LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (myid == 0)

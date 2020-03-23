@@ -109,14 +109,6 @@ int main(int argc, char *argv[])
    FiniteElementSpace fesBounds(&mesh, &fecBounds);
    DofInfo dofs(&fes, &fesBounds);
 
-   // Compute the lumped mass matrix.
-   Vector LumpedMassMat;
-   BilinearForm ml(&fes);
-   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-   ml.Assemble();
-   ml.Finalize();
-   ml.SpMat().GetDiag(LumpedMassMat);
-
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
@@ -137,11 +129,8 @@ int main(int argc, char *argv[])
    GridFunction u(&vfes, u_block);
    u = hyp->u0;
 
-   // uk is used for visualization.
+   // uk is used for visualization with GLVis.
    GridFunction uk(&fes, u_block.GetBlock(0));
-   double InitialMass = LumpedMassMat * uk;
-
-   // Visualization with GLVis, VisIt is currently not supported.
    if (hyp->FileOutput)
    {
       ofstream omesh("grid.mesh");
@@ -157,7 +146,8 @@ int main(int argc, char *argv[])
    int visport = 19916;
    VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->valuerange);
 
-   FE_Evolution evol(&vfes, hyp, dofs, scheme, LumpedMassMat);
+   FE_Evolution evol(&vfes, hyp, dofs, scheme);
+   double InitialMass = evol.LumpedMassMat * uk;
 
    odeSolver->Init(evol);
    if (hyp->SteadyState)
@@ -209,7 +199,7 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
 
-   double DomainSize = LumpedMassMat.Sum();
+   double DomainSize = evol.LumpedMassMat.Sum();
    if (hyp->SolutionKnown)
    {
       Array<double> errors;
@@ -222,7 +212,7 @@ int main(int argc, char *argv[])
    }
 
    cout << "Difference in solution mass: "
-        << abs(InitialMass - LumpedMassMat * uk) / DomainSize << "\n\n";
+        << abs(InitialMass - evol.LumpedMassMat * uk) / DomainSize << "\n\n";
 
    if (hyp->FileOutput)
    {

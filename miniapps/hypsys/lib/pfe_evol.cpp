@@ -2,10 +2,16 @@
 
 ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
                                  HyperbolicSystem *hyp_,
-                                 DofInfo &dofs_, EvolutionScheme scheme_,
-                                 const Vector &LumpedMassMat_)
-   : FE_Evolution(pfes_, hyp_, dofs_, scheme_, LumpedMassMat_),
-     pfes(pfes_), x_gf_MPI(pfes_) { }
+                                 DofInfo &dofs_, EvolutionScheme scheme_)
+   : FE_Evolution(pfes_, hyp_, dofs_, scheme_), pfes(pfes_), x_gf_MPI(pfes_)
+{
+   // Compute the lumped mass matrix.
+   ParBilinearForm ml(pfes);
+   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   ml.Assemble();
+   ml.Finalize();
+   ml.SpMat().GetDiag(LumpedMassMat);
+}
 
 void ParFE_Evolution::Mult(const Vector &x, Vector &y) const
 {

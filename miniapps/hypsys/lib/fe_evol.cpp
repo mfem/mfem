@@ -1,12 +1,11 @@
 #include "fe_evol.hpp"
 
 FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
-                           DofInfo &dofs_, EvolutionScheme scheme_,
-                           const Vector &LumpedMassMat_)
+                           DofInfo &dofs_, EvolutionScheme scheme_)
    : TimeDependentOperator(fes_->GetVSize()),
      fes(fes_), hyp(hyp_), dofs(dofs_),
-     scheme(scheme_), LumpedMassMat(LumpedMassMat_),
-     z(fes_->GetVSize()), inflow(fes_), xSizeMPI(dofs_.fes->GetVSize())
+     scheme(scheme_), z(fes_->GetVSize()), inflow(fes_),
+     xSizeMPI(dofs_.fes->GetVSize())
 {
    const char* fecol = fes->FEColl()->Name();
    if (strncmp(fecol, "L2", 2))
@@ -41,6 +40,13 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
 
    MassMat = new MassMatrixDG(fes);
    InvMassMat = new InverseMassMatrixDG(MassMat);
+
+   // Compute the lumped mass matrix.
+   BilinearForm ml(fes);
+   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   ml.Assemble();
+   ml.Finalize();
+   ml.SpMat().GetDiag(LumpedMassMat);
 
    uElem.SetSize(nd);
    uEval.SetSize(hyp->NumEq);
@@ -118,16 +124,6 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
          }
       }
    }
-
-   // // Array<int> bdr_elem_vtx, bdr_attr;
-   // // fes->GetMesh()->GetBdrElementData(1, bdr_elem_vtx, bdr_attr);
-   // // bdr_attr.Print();
-
-   // Array<Element *> list(1);
-   // // list[0] = fes->GetMesh()->GetBdrElement(0);
-   // Array<int> bdr_elem_vtx, attr;
-   // fes->GetMesh()->GetBdrElementData(1, bdr_elem_vtx, attr);
-   // // bdr_elem_vtx.Print();
 
    // Compute element and boundary contributions (without shape functions).
    for (int e = 0; e < ne; e++)

@@ -45,13 +45,12 @@ public:
    DenseTensor OuterUnitNormals;
 
    // DG mass matrices.
-   const Vector &LumpedMassMat;
    const MassMatrixDG *MassMat;
    const InverseMassMatrixDG *InvMassMat;
 
    // Tools to compute the discrete time derivative, needed repeatedly.
    mutable Array<int> vdofs;
-   mutable Vector z, uOld, uElem, uEval, uNbrEval, NumFlux, normal;
+   mutable Vector z, uOld, uElem, uEval, uNbrEval, NumFlux, normal, LumpedMassMat;
    mutable DenseMatrix Flux, FluxNbr, mat1, mat2;
    mutable int DofInd, nbr;
    mutable double uNbr;
@@ -59,8 +58,7 @@ public:
    mutable GridFunction inflow;
 
    FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
-                DofInfo &dofs_, EvolutionScheme scheme_,
-                const Vector &LumpedMassMat_);
+                DofInfo &dofs_, EvolutionScheme scheme_);
 
    virtual ~FE_Evolution()
    {

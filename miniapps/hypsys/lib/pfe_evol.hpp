@@ -16,8 +16,7 @@ public:
    mutable ParGridFunction x_gf_MPI;
 
    ParFE_Evolution(ParFiniteElementSpace *pfes_, HyperbolicSystem *hyp_,
-                   DofInfo &dofs_, EvolutionScheme scheme_,
-                   const Vector &LumpedMassMat_);
+                   DofInfo &dofs_, EvolutionScheme scheme_);
 
    virtual ~ParFE_Evolution() { };
 
