@@ -990,7 +990,7 @@ void DGTransportTDO::SetTime(const double _t)
 {
    if (mpi_.Root() && logging_ > 1)
    {
-      cout << "Entering DGTransportTDO::SetTime" << endl;
+      cout << "Entering DGTransportTDO::SetTime with t = " << _t << endl;
    }
    this->TimeDependentOperator::SetTime(_t);
 
@@ -1105,6 +1105,11 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
 
 void DGTransportTDO::Update()
 {
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Entering DGTransportTDO::Update" << endl;
+   }
+
    height = width = ffes_.GetVSize();
 
    BxyGF_->Update();
@@ -1113,6 +1118,11 @@ void DGTransportTDO::Update()
    op_.Update();
 
    newton_solver_.SetOperator(op_);
+
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Leaving DGTransportTDO::Update" << endl;
+   }
 }
 
 DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
@@ -1242,9 +1252,9 @@ void DGTransportTDO::NLOperator::SetTimeDerivativeTerm(StateVariableCoef &MCoef)
       {
          if ( mpi_.Root() && logging_ > 1)
          {
-            cout << "Adding time derivative term proportional to d "
-                 << FieldSymbol((FieldType)i) << " / dt for "
-                 << field_name_ << endl;
+            cout << field_name_
+                 << ": Adding time derivative term proportional to d "
+                 << FieldSymbol((FieldType)i) << " / dt" << endl;
          }
 
          StateVariableCoef * coef = MCoef.Clone();
@@ -1266,7 +1276,7 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableCoef &DCoef,
 {
    if ( mpi_.Root() && logging_ > 1)
    {
-      cout << "Adding isotropic diffusion term for " << field_name_ << endl;
+      cout << field_name_ << ": Adding isotropic diffusion term" << endl;
    }
 
    ProductCoefficient * dtDCoef = new ProductCoefficient(dt_, DCoef);
@@ -1307,7 +1317,7 @@ void DGTransportTDO::NLOperator::SetDiffusionTerm(StateVariableMatCoef &DCoef,
 {
    if ( mpi_.Root() && logging_ > 1)
    {
-      cout << "Adding anisotropic diffusion term for " << field_name_ << endl;
+      cout << field_name_ << ": Adding anisotropic diffusion term" << endl;
    }
 
    ScalarMatrixProductCoefficient * dtDCoef =
@@ -1349,7 +1359,7 @@ void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
 {
    if ( mpi_.Root() && logging_ > 1)
    {
-      cout << "Adding advection term for " << field_name_ << endl;
+      cout << field_name_ << ": Adding advection term" << endl;
    }
 
    ScalarVectorProductCoefficient * dtVCoef =
@@ -1386,7 +1396,7 @@ void DGTransportTDO::NLOperator::SetSourceTerm(StateVariableCoef &SCoef)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
-      cout << "Adding source term for " << field_name_ << endl;
+      cout << field_name_ << ": Adding source term" << endl;
    }
 
    dlfi_.Append(new DomainLFIntegrator(SCoef));
@@ -1833,6 +1843,11 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
 
 void DGTransportTDO::NLOperator::Update()
 {
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Entering DGTransportTDO::NLOperator::Update" << endl;
+   }
+
    height = fes_.GetVSize();
    width  = 5 * fes_.GetVSize();
 
@@ -1843,14 +1858,25 @@ void DGTransportTDO::NLOperator::Update()
          blf_[i]->Update();
       }
    }
+
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Leaving DGTransportTDO::NLOperator::Update" << endl;
+   }
 }
 
 Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 {
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Entering DGTransportTDO::NLOperator::GetGradientBlock("
+           << i << ")" << endl;
+   }
+
    if ( blf_[i] != NULL)
    {
       blf_[i]->Update();
-      blf_[i]->Assemble();
+      blf_[i]->Assemble(0);
       blf_[i]->Finalize();
       Operator * D = blf_[i]->ParallelAssemble();
       return D;
@@ -1981,6 +2007,11 @@ DGTransportTDO::CombinedOp::~CombinedOp()
 
 void DGTransportTDO::CombinedOp::updateOffsets()
 {
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Entering DGTransportTDO::CombinedOp::updateOffsets" << endl;
+   }
+
    offsets_[0] = 0;
 
    for (int i=0; i<neq_; i++)
@@ -1991,6 +2022,11 @@ void DGTransportTDO::CombinedOp::updateOffsets()
    offsets_.PartialSum();
 
    height = width = offsets_[neq_];
+
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Leaving DGTransportTDO::CombinedOp::updateOffsets" << endl;
+   }
 }
 
 void DGTransportTDO::CombinedOp::SetTimeStep(double dt)
@@ -2074,12 +2110,22 @@ DGTransportTDO::CombinedOp::DisplayToGLVis()
 
 void DGTransportTDO::CombinedOp::Update()
 {
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Entering DGTransportTDO::CombinedOp::Update" << endl;
+   }
+
    for (int i=0; i<neq_; i++)
    {
       op_[i]->Update();
    }
 
    this->updateOffsets();
+
+   if (mpi_.Root() && logging_ > 1)
+   {
+      cout << "Leaving DGTransportTDO::CombinedOp::Update" << endl;
+   }
 }
 
 void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
@@ -2199,6 +2245,9 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Constructing NeutralDensityOp" << endl;
+      cout << "   Neutral mass:        " << m_n_ << " amu" << endl;
+      cout << "   Neutral temperature: " << T_n_ << " eV" << endl;
+      cout << "   Neutral velocity:    " << v_n_ << " m/s" << endl;
    }
 
    if (term_flag_ < 0)
@@ -2356,6 +2405,8 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Constructing IonDensityOp" << endl;
+      cout << "   Ion mass:   " << m_i_ << " amu" << endl;
+      cout << "   Ion charge: " << z_i_ << " e" << endl;
    }
 
    if (term_flag_ < 0)
