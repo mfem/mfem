@@ -88,7 +88,7 @@ protected:
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
-   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
+   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8], *TetDofOrd[24];
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
@@ -147,9 +147,10 @@ private:
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
-   int *SegDofOrd[2]; // for rotating segment dofs in 1D
-   int *TriDofOrd[6]; // for rotating triangle dofs in 2D
-   int *OtherDofOrd;  // for rotating other types of elements (for Or == 0)
+   int *SegDofOrd[2];  // for rotating segment dofs in 1D
+   int *TriDofOrd[6];  // for rotating triangle dofs in 2D
+   int *TetDofOrd[24]; // for rotating tetrahedron dofs in 3D
+   int *OtherDofOrd;   // for rotating other types of elements (for Or == 0)
 
 public:
    L2_FECollection(const int p, const int dim,

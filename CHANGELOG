@@ -28,6 +28,8 @@ Discretization improvements
   continuous H1 finite element spaces of different order on the same mesh or with
   the same order on uniformly refined meshes.
 
+- Added support for simplices in GSLIB-FindPoints.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -41,6 +43,17 @@ New and updated examples and miniapps
 - Added a new example 25/25p to demonstrate the construction of a matrix-free
   geometric and p-multigrid preconditioner for the iterative solution of the
   Laplace problem.
+
+- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
+  stitching together opposite surfaces of a mesh to create a topologically
+  periodic mesh.
+
+Improved testing
+----------------
+- Added a GitLab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
+  and the updated CONTRIBUTING.md file.
 
 Miscellaneous
 -------------
