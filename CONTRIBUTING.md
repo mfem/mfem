@@ -370,6 +370,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   checks in Travis enforce MFEM-specific rules which are explained in the
   error messages and the `tests/scripts` directory.
 
+- If triggered, track the status of the LLNL GitLab tests. If failing, ask
+  one of the _LLNL developers_ for details.
+
 ### Pull Request Checklist
 
 Before a PR can be merged, it should satisfy the following:
@@ -536,6 +539,17 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
 
+### Mirroring on GitLab
+
+- MFEM repository is also mirrored on the LLNL GitLab instance, in a
+  semi-automated manner.
+
+- This instance is meant to complete CI testing with tests on Livermore
+  Computing systems. Gitlab pipeline status is reported in the corresponding
+  GitHub pull request.
+
+- No change can be made on this instance.
+
 ## Automated Testing
 
 MFEM has several levels of automated testing running on GitHub, as well as on
@@ -563,10 +577,14 @@ and debug build is performed with a simple run of `ex1` to verify the executable
 
 ### Tests at LLNL
 
-- We mirror the `master` and `next` branches internally (to `gh-master`
-and `gh-next`) and run longer nightly tests via cron. On the weekends, a more
-extensive test is run which extracts and executes all the different sample runs
-from each example.
+- We mirror the `master` and `next` branches internally (to `gh-master` and
+  `gh-next`) and run longer nightly tests via cron. On the weekends, a more
+  extensive test is run which extracts and executes all the different sample
+  runs from each example.
+
+- We also mirror PRs on the LLNL GitLab instance. PR mirroring can only be
+  triggered by _LLNL developers_, but test status is publicly available. Only
+  _LLNL developers_ can access the detailed test report.
 
 ## Contact Information
 
