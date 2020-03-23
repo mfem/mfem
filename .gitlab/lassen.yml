@@ -55,11 +55,3 @@ sanitycheck_mfem_debug_ser_lassen:
   script:
     - cd ${BUILD_PATH}/${CI_PROJECT_NAME}_lassen_ser_debug
     - lalloc 1 -W 30 -q pdebug make -j test
-
-  ## Baseline
-  #baselinecheck_mfem_intel_lassen:
-  #  extends: [.baselinecheck_mfem, .on_lassen]
-  #
-  #baselinepublish_mfem_lassen:
-  #  extends: [.rebaseline_mfem, .on_lassen]
-  #  needs: [baselinecheck_mfem_intel_lassen]
