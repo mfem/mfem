@@ -40,7 +40,7 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- Added a new example 25/25p to demonstrate the construction of a matrix-free
+- Added a new Example 26/26p to demonstrate the construction of a matrix-free
   geometric and p-multigrid preconditioner for the iterative solution of the
   Laplace problem.
 

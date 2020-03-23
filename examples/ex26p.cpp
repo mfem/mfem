@@ -1,17 +1,17 @@
-//                       MFEM Example 25 - Parallel Version
+//                       MFEM Example 26 - Parallel Version
 //
-// Compile with: make ex25p
+// Compile with: make ex26p
 //
-// Sample runs:  mpirun -np 4 ex25p -m ../data/star.mesh
-//               mpirun -np 4 ex25p -m ../data/fichera.mesh
-//               mpirun -np 4 ex25p -m ../data/beam-hex.mesh
+// Sample runs:  mpirun -np 4 ex26p -m ../data/star.mesh
+//               mpirun -np 4 ex26p -m ../data/fichera.mesh
+//               mpirun -np 4 ex26p -m ../data/beam-hex.mesh
 //
 // Device sample runs:
-//               mpirun -np 4 ex25p -d cuda
-//               mpirun -np 4 ex25p -d occa-cuda
-//               mpirun -np 4 ex25p -d raja-omp
-//               mpirun -np 4 ex25p -d ceed-cpu
-//               mpirun -np 4 ex25p -d ceed-cuda
+//               mpirun -np 4 ex26p -d cuda
+//               mpirun -np 4 ex26p -d occa-cuda
+//               mpirun -np 4 ex26p -d raja-omp
+//               mpirun -np 4 ex26p -d ceed-cpu
+//               mpirun -np 4 ex26p -d ceed-cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
