@@ -281,7 +281,7 @@ void CeedPAAssemble(const CeedPAOperator& op,
                     CeedData& ceedData)
 {
    const FiniteElementSpace &fes = op.fes;
-   const mfem::IntegrationRule &irm = op.ir;                    
+   const mfem::IntegrationRule &irm = op.ir;
    Ceed ceed(internal::ceed);
    mfem::Mesh *mesh = fes.GetMesh();
    CeedInt nqpts, nelem = mesh->GetNE();
