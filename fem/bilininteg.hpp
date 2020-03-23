@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_BILININTEG
@@ -674,10 +674,12 @@ protected:
              "vector field";
    }
 
+   // Subtract one due to the divergence and add one for the coefficient
+   // which is assumed to be at least linear.
    inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
                                           const FiniteElement & test_fe,
                                           ElementTransformation &Trans)
-   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -710,6 +712,11 @@ protected:
              "Trial space must be a scalar field "
              "and the test space must be H(Div)";
    }
+
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
    virtual void CalcTestShape(const FiniteElement & test_fe,
                               ElementTransformation &Trans,
@@ -870,6 +877,13 @@ public:
              "Trial space must be a vector field "
              "and the test space must be a vector field with a divergence";
    }
+
+   // Subtract one due to the gradient and add one for the coefficient
+   // which is assumed to be at least linear.
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -1831,8 +1845,8 @@ public:
 #endif
    }
 
-   /** Given a particular Finite Element
-       computes the element stiffness matrix elmat. */
+   /** Given a particular Finite Element computes the element stiffness matrix
+       elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -1920,8 +1934,8 @@ public:
       delete ceedDataPtr;
 #endif
    }
-   /** Given a particular Finite Element
-       computes the element mass matrix elmat. */
+   /** Given a particular Finite Element computes the element mass matrix
+       elmat. */
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
@@ -2042,10 +2056,9 @@ public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
       : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
-   /** Construct an integrator with scalar coefficient q.
-       If possible, save memory by using a scalar integrator since
-       the resulting matrix is block diagonal with the same diagonal
-       block repeated. */
+   /** Construct an integrator with scalar coefficient q.  If possible, save
+       memory by using a scalar integrator since the resulting matrix is block
+       diagonal with the same diagonal block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
       : vdim(-1), Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
@@ -2075,13 +2088,13 @@ public:
 };
 
 
-/** Class for integrating (div u, p) where u is a vector field given
-    by VectorFiniteElement through Piola transformation (for RT
-    elements); p is scalar function given by FiniteElement through
-    standard transformation. Here, u is the trial function and p is
-    the test function.
-    Note: the element matrix returned by AssembleElementMatrix2
-    does NOT depend on the ElementTransformation Trans. */
+/** Class for integrating (div u, p) where u is a vector field given by
+    VectorFiniteElement through Piola transformation (for RT elements); p is
+    scalar function given by FiniteElement through standard transformation.
+    Here, u is the trial function and p is the test function.
+
+    Note: the element matrix returned by AssembleElementMatrix2 does NOT depend
+    on the ElementTransformation Trans. */
 class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:

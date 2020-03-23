@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -1276,6 +1276,13 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    group_squad.ShiftUpI();
 
    FinalizeParTopo();
+
+   if (Nodes != NULL)
+   {
+      // This call will turn the Nodes into a ParGridFunction
+      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
+                   GetNodalFESpace()->GetOrdering());
+   }
 }
 
 void ParMesh::Finalize(bool refine, bool fix_orientation)

@@ -50,7 +50,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.0.1)
+set(${PROJECT_NAME}_VERSION 4.1.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -237,11 +237,6 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
-# Gecko
-if (MFEM_USE_GECKO)
-  find_package(Gecko REQUIRED)
-endif()
-
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
@@ -322,7 +317,7 @@ endif()
 if (MFEM_USE_RAJA)
    find_package(RAJA REQUIRED)
 endif()
-   
+
 # UMPIRE
 if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
@@ -352,7 +347,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS GSLIB NETCDF
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")

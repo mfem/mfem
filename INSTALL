@@ -30,7 +30,8 @@ the option MFEM_USE_METIS.
 MFEM also includes support for devices such as GPUs, and programming models such
 as CUDA, HIP, OCCA, OpenMP and RAJA.
 
-- Starting with version 4.0, MFEM requires a C++11 compiler
+- Starting with version 4.0, MFEM requires a C++11 compiler. We recommend using
+  a newer compiler, e.g. GCC version 4.9 or higher.
 
 - CUDA support requires an NVIDIA GPU and an installation of the CUDA Toolkit
   https://developer.nvidia.com/cuda-toolkit

@@ -34,6 +34,7 @@ list(APPEND HDRS
   dtensor.hpp
   handle.hpp
   invariants.hpp
+  kernels.hpp
   linalg.hpp
   matrix.hpp
   ode.hpp

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "pfespace.hpp"
+#include "prestriction.hpp"
 #include "../general/forall.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../mesh/mesh_headers.hpp"
@@ -497,7 +498,7 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 const Operator *ParFiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
-   const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
+   const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
    auto key = std::make_tuple(is_dg_space, e_ordering, type, m);
