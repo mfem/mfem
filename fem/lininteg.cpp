@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 
@@ -395,11 +395,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
-      if (F == NULL)
-      {
-         intorder -= el.GetOrder() + 1;
-      }
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -434,7 +430,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 

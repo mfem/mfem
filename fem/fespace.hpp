@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_FESPACE
@@ -655,6 +655,12 @@ public:
 
    /// Return update counter (see Mesh::sequence)
    long GetSequence() const { return sequence; }
+
+   /// Return whether or not the space is discontinuous (L2)
+   bool IsDGSpace() const
+   {
+      return dynamic_cast<const L2_FECollection*>(fec) != NULL;
+   }
 
    void Save(std::ostream &out) const;
 
