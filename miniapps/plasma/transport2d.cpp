@@ -641,6 +641,14 @@ public:
       }
    }
 
+   ~VectorRelativeErrorMeasure()
+   {
+      for (int i=0; i<msr_.Size(); i++)
+      {
+         delete msr_[i];
+      }
+   }
+
    double Eval(Vector &u, Vector &e)
    {
       size_ = u.Size() / w_.Size();

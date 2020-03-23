@@ -1170,15 +1170,41 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
 
 DGTransportTDO::NLOperator::~NLOperator()
 {
-   for (int i=0; i<yGF_.Size(); i++)
-   {
-      delete yCoefPtrs_[i];
-      delete kCoefPtrs_[i];
-   }
-   for (int i=0; i<5; i++)
+   for (int i=0; i<blf_.Size(); i++)
    {
       delete blf_[i];
    }
+
+   for (int i=0; i<dbfi_.Size(); i++)
+   {
+      delete dbfi_[i];
+   }
+   for (int i=0; i<fbfi_.Size(); i++)
+   {
+      delete fbfi_[i];
+   }
+   for (int i=0; i<bfbfi_.Size(); i++)
+   {
+      delete bfbfi_[i];
+   }
+   for (int i=0; i<bfbfi_marker_.Size(); i++)
+   {
+      delete bfbfi_marker_[i];
+   }
+
+   for (int i=0; i<dlfi_.Size(); i++)
+   {
+      delete dlfi_[i];
+   }
+   for (int i=0; i<flfi_.Size(); i++)
+   {
+      delete flfi_[i];
+   }
+   for (int i=0; i<flfi_marker_.Size(); i++)
+   {
+      delete flfi_marker_[i];
+   }
+
    for (int i=0; i<coefs_.Size(); i++)
    {
       delete coefs_[i];
@@ -1195,6 +1221,13 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete dtMCoefs_[i];
    }
+
+   for (int i=0; i<yGF_.Size(); i++)
+   {
+      delete yCoefPtrs_[i];
+      delete kCoefPtrs_[i];
+   }
+
    for (unsigned int i=0; i<sout_.size(); i++)
    {
       delete sout_[i];

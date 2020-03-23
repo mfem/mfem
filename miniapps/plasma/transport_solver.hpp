@@ -233,6 +233,14 @@ public:
       }
    }
 
+   ~ParGridFunctionArray()
+   {
+      for (int i=0; i<size; i++)
+      {
+         delete data[i];
+      }
+   }
+
    void ProjectCoefficient(Array<Coefficient*> &coeff)
    {
       for (int i=0; i<size; i++)
@@ -2240,7 +2248,7 @@ private:
                        int vis_flag = 0, int logging = 0,
                        const std::string & log_prefix = "");
 
-      ~NeutralDensityOp();
+      virtual ~NeutralDensityOp();
 
       virtual void SetTimeStep(double dt);
 
@@ -2380,7 +2388,7 @@ private:
                    int term_flag = 7, int vis_flag = 0, int logging = 0,
                    const std::string & log_prefix = "");
 
-      ~IonDensityOp();
+      virtual ~IonDensityOp();
 
       virtual void SetTimeStep(double dt);
 
@@ -2508,7 +2516,7 @@ private:
                     int term_flag = 7, int vis_flag = 0, int logging = 0,
                     const std::string & log_prefix = "");
 
-      ~IonMomentumOp();
+      virtual ~IonMomentumOp();
 
       virtual void SetTimeStep(double dt);
 
@@ -2616,7 +2624,7 @@ private:
                           int term_flag = 0, int vis_flag = 0, int logging = 0,
                           const std::string & log_prefix = "");
 
-      ~IonStaticPressureOp();
+      virtual ~IonStaticPressureOp();
 
       virtual void SetTimeStep(double dt);
 
@@ -2733,7 +2741,7 @@ private:
                                int logging = 0,
                                const std::string & log_prefix = "");
 
-      ~ElectronStaticPressureOp();
+      virtual ~ElectronStaticPressureOp();
 
       virtual void SetTimeStep(double dt);
 
