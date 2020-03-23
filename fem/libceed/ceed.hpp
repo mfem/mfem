@@ -95,6 +95,10 @@ struct CeedData
  *  See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
 struct CeedPAOperator
 {
+   /** The finite element space for the trial and test functions.*/
+   const FiniteElementSpace &fes;
+   /** The Integration Rule to use to compote the operator.*/
+   const IntegrationRule &ir;
    /** The number of quadrature data at each quadrature point.*/
    int qdatasize;
    /** The path to the header containing the functions for libCEED.*/
@@ -138,9 +142,7 @@ const std::string &GetCeedPath();
 /** This function initalize an arbitrary linear operator using the partial
  *  assembly decomposition in libCEED. The specificities of the operator
  *  are described by the struct CEEDPAOperator input. */
-void CeedPAAssemble(const FiniteElementSpace &fes,
-                    const mfem::IntegrationRule &irm,
-                    const CeedPAOperator& op,
+void CeedPAAssemble(const CeedPAOperator& op,
                     CeedData& ceedData);
 
 /** @brief Function that determines if a CEED kernel should be used, based on
