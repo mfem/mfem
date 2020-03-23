@@ -22,14 +22,15 @@ void CeedPADiffusionAssemble(const FiniteElementSpace &fes,
                              const mfem::IntegrationRule &irm, CeedData& ceedData)
 {
    CeedInt dim = fes.GetMesh()->SpaceDimension();
-   CeedPAOperator diffOp = {dim * (dim + 1) / 2, "/diffusion.h",
+   CeedPAOperator diffOp = {fes, irm,
+                            dim * (dim + 1) / 2, "/diffusion.h",
                             ":f_build_diff_const", f_build_diff_const,
                             ":f_build_diff_grid", f_build_diff_grid,
                             ":f_apply_diff", f_apply_diff,
                             CEED_EVAL_GRAD,
                             CEED_EVAL_GRAD
                            };
-   CeedPAAssemble(fes, irm, diffOp, ceedData);
+   CeedPAAssemble(diffOp, ceedData);
 }
 
 } // namespace mfem
