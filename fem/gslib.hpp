@@ -28,6 +28,7 @@ class FindPointsGSLIB
 {
 protected:
    Mesh *mesh;
+   IntegrationRule *ir_simplex;
    Vector gsl_mesh;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
@@ -36,6 +37,8 @@ protected:
    struct comm *gsl_comm;
 
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+   void GetQuadHexNodalCoordinates();
+   void GetSimplexNodalCoordinates();
 
 public:
    FindPointsGSLIB();
