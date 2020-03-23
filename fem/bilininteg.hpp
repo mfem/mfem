@@ -2742,6 +2742,7 @@ public:
                            const FiniteElementSpace &test_fes);
    // { std::cout << "Blerg!" << std::endl; }
 
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 
 private:
    // PA extension

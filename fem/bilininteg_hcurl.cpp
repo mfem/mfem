@@ -1935,6 +1935,62 @@ static void PAHcurlH1Apply3D(const int D1D,
    }); // end of element loop
 }
 
+// Apply to x corresponding to DOF's in H^1 (trial) the (topological) gradient
+// to get a dof in H(curl) (test, kinda, but there's no integration)
+// see high-order/element-tensor/TensorNedelec.cpp : TensorGradMult
+static void PAHcurlApplyGradient2D(const int D1Dclosed,
+                                   const int Q1D,
+                                   const int NE,
+                                   const Array<double> &_Bc,
+                                   const Array<double> &_Gc,
+                                   const Vector &_x,
+                                   Vector &_y)
+{
+   constexpr static int VDIM = 2;
+
+   // Dylan uses D1D - 1 for what I call Q1Dopen?
+   // Dylan's numbering is better, nothing here is
+   // really about quadrature points
+
+   const int D1Dopen = D1Dclosed - 1;
+   auto Bc = Reshape(_Bc.Read(), Q1D, D1Dclosed);
+   auto Gc = Reshape(_Gc.Read(), Q1D, D1Dclosed);
+   auto x = Reshape(_x.Read(), D1Dclosed, D1Dclosed, NE);
+   auto y = Reshape(_y.ReadWrite(), 2 * D1Dopen * D1Dclosed);
+
+   MFEM_FORALL(e, NE,
+   {
+      // horizontal part
+
+      // first dimension H1, second H(curl)
+      double out[D1Dclosed][Q1D];
+
+      for (int dy = 0; dy < D1Dclosed; ++dy) // H1
+      {
+         for (int qy = 0; qy < Q1D; ++qy) // H1
+         {
+            out[dy][qy] = 0.0;
+            for (int dx = 0; dx < D1D; ++dx) // H1
+            {
+               out[dy][qy] += Bc(qy,dx) * x(dx,dy,e);
+            }
+         }
+      }
+
+      for (int qy = 0; qy < Q1Dclosed; ++qy)
+      {
+         for (int qx = 0; qx < Q1Dopen; ++qx)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               // orientation?
+               y(qx,qy,e) += Gc(qx,dx) * out[dy][qy];
+            }
+         }
+      }
+   }
+}
+
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
 // against H(curl) test functions corresponding to y.
 static void PAHcurlH1Apply2D(const int D1D,
@@ -2141,6 +2197,8 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
+   // these may just be the wrong kernels
+
    std::cout << "GradientInterpolator::AddMultPA" << std::endl;
    if (dim == 3)
    {
@@ -2149,6 +2207,7 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
    }
    else if (dim == 2)
    {
+      // mapsC, mapsO are open/closed points
       PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
    }
