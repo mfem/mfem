@@ -1177,7 +1177,6 @@ int main(int argc, char *argv[])
       for (int i=0; i<5; i++)
       {
          delete coef[i];
-         delete coef_gf[i];
       }
    }
 
