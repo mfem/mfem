@@ -39,6 +39,7 @@ set(SRCS
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
+  spacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -47,6 +48,7 @@ set(SRCS
   tmop.cpp
   tmop_tools.cpp
   gslib.cpp
+  transfer.cpp
   )
 
 set(HDRS
@@ -74,6 +76,7 @@ set(HDRS
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
+  spacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
@@ -86,6 +89,7 @@ set(HDRS
   tmop.hpp
   tmop_tools.hpp
   gslib.hpp
+  transfer.hpp
   )
 
 if (MFEM_USE_SIDRE)
