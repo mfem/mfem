@@ -1387,8 +1387,8 @@ void DGTransportTDO::NLOperator::SetAdvectionTerm(StateVariableVecCoef &VCoef,
 
    if (bc)
    {
-      blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-                                                                    1.0, -0.5));
+      blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+                                                               1.0, -0.5));
    }
 }
 
@@ -3153,9 +3153,12 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
 
    dbfi_m_[index].Append(new MassIntegrator);
 
-   blf_[index_] = new ParBilinearForm(yGF_[index_]->ParFESpace());
+   if (blf_[index_] == NULL)
+   {
+      blf_[index_] = new ParBilinearForm(&fes_);
+   }
    blf_[index_]->AddDomainIntegrator(new MassIntegrator);
-   blf_[index_]->Assemble();
+   blf_[index_]->Assemble(0);
    blf_[index_]->Finalize();
 
    if ( mpi_.Root() && logging_ > 1)
