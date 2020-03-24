@@ -362,6 +362,8 @@ void EABilinearFormExtension::Assemble()
    {
       ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
+      ea_data_int = 0.0;
+      ea_data_ext = 0.0;
    }
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
@@ -374,6 +376,7 @@ void EABilinearFormExtension::Assemble()
    if (boundFaceIntegratorCount>0)
    {
       ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
+      ea_data_bdr = 0.0;
    }
    for (int i = 0; i < boundFaceIntegratorCount; ++i)
    {

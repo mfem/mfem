@@ -278,14 +278,12 @@ int main(int argc, char *argv[])
       k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
    }
    m.AddDomainIntegrator(new MassIntegrator);
-   // k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   // k.AddInteriorFaceIntegrator(
-   //    new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
-   // k.AddBdrFaceIntegrator(
-   //    new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   k.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   k.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
 
-   k.AddInteriorFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
-   k.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5));
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
