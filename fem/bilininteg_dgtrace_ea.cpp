@@ -24,8 +24,8 @@ static void EADGTraceAssemble1DInt(const int NF,
                                    Vector &eadata_ext)
 {
    auto D = Reshape(padata.Read(), 2, 2, NF);
-   auto A_int = Reshape(eadata_int.Write(), 2, NF);
-   auto A_ext = Reshape(eadata_ext.Write(), 2, NF);
+   auto A_int = Reshape(eadata_int.ReadWrite(), 2, NF);
+   auto A_ext = Reshape(eadata_ext.ReadWrite(), 2, NF);
    MFEM_FORALL(f, NF,
    {
       double val_int0, val_int1, val_ext01, val_ext10;
@@ -33,10 +33,10 @@ static void EADGTraceAssemble1DInt(const int NF,
       val_ext10 = D(1, 0, f);
       val_ext01 = D(0, 1, f);
       val_int1  = D(1, 1, f);
-      A_int(0, f) = val_int0;
-      A_int(1, f) = val_int1;
-      A_ext(0, f) = val_ext01;
-      A_ext(1, f) = val_ext10;
+      A_int(0, f) += val_int0;
+      A_int(1, f) += val_int1;
+      A_ext(0, f) += val_ext01;
+      A_ext(1, f) += val_ext10;
    });
 }
 
@@ -46,10 +46,10 @@ static void EADGTraceAssemble1DBdr(const int NF,
                                 Vector &eadata_bdr)
 {
    auto D = Reshape(padata.Read(), 2, 2, NF);
-   auto A_bdr = Reshape(eadata_bdr.Write(), NF);
+   auto A_bdr = Reshape(eadata_bdr.ReadWrite(), NF);
    MFEM_FORALL(f, NF,
    {
-      A_bdr(f) = D(0, 0, f);
+      A_bdr(f) += D(0, 0, f);
    });
 }
 
@@ -68,8 +68,8 @@ static void EADGTraceAssemble2DInt(const int NF,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
-   auto A_int = Reshape(eadata_int.Write(), D1D, D1D, 2, NF);
-   auto A_ext = Reshape(eadata_ext.Write(), D1D, D1D, 2, NF);
+   auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, 2, NF);
+   auto A_ext = Reshape(eadata_ext.ReadWrite(), D1D, D1D, 2, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -101,10 +101,10 @@ static void EADGTraceAssemble2DInt(const int NF,
                val_ext10 += B(k1,i1) * B(k1,j1) * D(k1, 1, 0, f);
                val_int1  += B(k1,i1) * B(k1,j1) * D(k1, 1, 1, f);
             }
-            A_int(i1, j1, 0, f) = val_int0;
-            A_int(i1, j1, 1, f) = val_int1;
-            A_ext(i1, j1, 0, f) = val_ext01;
-            A_ext(i1, j1, 1, f) = val_ext10;
+            A_int(i1, j1, 0, f) += val_int0;
+            A_int(i1, j1, 1, f) += val_int1;
+            A_ext(i1, j1, 0, f) += val_ext01;
+            A_ext(i1, j1, 1, f) += val_ext10;
          }
       }
    });
@@ -124,7 +124,7 @@ static void EADGTraceAssemble2DBdr(const int NF,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
-   auto A_bdr = Reshape(eadata_bdr.Write(), D1D, D1D, NF);
+   auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -147,7 +147,7 @@ static void EADGTraceAssemble2DBdr(const int NF,
                // val_bdr  += r_Bi[k1] * r_Bj[k1] * D(k1, 0, 0, f);
                val_bdr  += B(k1,i1) * B(k1,j1) * D(k1, 0, 0, f);
             }
-            A_bdr(i1, j1, f) = val_bdr;
+            A_bdr(i1, j1, f) += val_bdr;
          }
       }
    });
@@ -168,8 +168,8 @@ static void EADGTraceAssemble3DInt(const int NF,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
-   auto A_int = Reshape(eadata_int.Write(), D1D, D1D, D1D, D1D, 2, NF);
-   auto A_ext = Reshape(eadata_ext.Write(), D1D, D1D, D1D, D1D, 2, NF);
+   auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, D1D, D1D, 2, NF);
+   auto A_ext = Reshape(eadata_ext.ReadWrite(), D1D, D1D, D1D, D1D, 2, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -229,10 +229,10 @@ static void EADGTraceAssemble3DInt(const int NF,
                                   * s_D[k1][k2][1][0];
                      }
                   }
-                  A_int(i1, i2, j1, j2, 0, f) = val_int0;
-                  A_int(i1, i2, j1, j2, 1, f) = val_int1;
-                  A_ext(i1, i2, j1, j2, 0, f) = val_ext01;
-                  A_ext(i1, i2, j1, j2, 1, f) = val_ext10;
+                  A_int(i1, i2, j1, j2, 0, f) += val_int0;
+                  A_int(i1, i2, j1, j2, 1, f) += val_int1;
+                  A_ext(i1, i2, j1, j2, 0, f) += val_ext01;
+                  A_ext(i1, i2, j1, j2, 1, f) += val_ext10;
                }
             }
          }
@@ -254,7 +254,7 @@ static void EADGTraceAssemble3DBdr(const int NF,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
-   auto A_bdr = Reshape(eadata_bdr.Write(), D1D, D1D, D1D, D1D, NF);
+   auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, D1D, D1D, NF);
    MFEM_FORALL_3D(f, NF, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -302,7 +302,7 @@ static void EADGTraceAssemble3DBdr(const int NF,
                                   * s_D[k1][k2][0][0];
                      }
                   }
-                  A_bdr(i1, i2, j1, j2, f) = val_bdr;
+                  A_bdr(i1, i2, j1, j2, f) += val_bdr;
                }
             }
          }

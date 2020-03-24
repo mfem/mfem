@@ -65,17 +65,13 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
         const double a_int1 = A_int(i, j, 1, f);
         const double a_ext0 = A_ext(i, j, 0, f);
         const double a_ext1 = A_ext(i, j, 1, f);
-        AT_int(j, i, 0, f) += a_int1;
-        AT_int(j, i, 1, f) += a_int0;
+        AT_int(j, i, 0, f) += a_int0;
+        AT_int(j, i, 1, f) += a_int1;
         AT_ext(j, i, 0, f) += a_ext1;
         AT_ext(j, i, 1, f) += a_ext0;
       }
     }
   });
-  FaceMatrixInt fmat_int(ea_data_int, nf, faceDofs);
-  FaceMatrixInt fmat_int_tmp(ea_data_int_tmp, nf, faceDofs);
-  fmat_int.Print();
-  fmat_int_tmp.Print();
 }
 
 void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
