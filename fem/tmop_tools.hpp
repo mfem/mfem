@@ -28,6 +28,8 @@ private:
    Vector nodes0;
    Vector field0;
 
+   virtual void ComputeAtNewPositionScalar(const Vector &new_nodes,
+                                           Vector &new_field);
 public:
    AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
 
@@ -36,9 +38,6 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
-
-   virtual void ComputeAtNewPositionScalar(const Vector &new_nodes,
-                                           Vector &new_field);
 };
 
 #ifdef MFEM_USE_GSLIB
