@@ -52,11 +52,11 @@ STPmlPatchAssembly::STPmlPatchAssembly(SesquilinearForm * bf_, Array<int> & ess_
                   }
                   if (comp == 1 && ky != 0)
                   {
-                     // ext_directions.Append(-comp-1);
+                     ext_directions.Append(-comp-1);
                   }
                   if (comp == 1 && ky != ny-1)
                   {
-                     // ext_directions.Append(comp+1);
+                     ext_directions.Append(comp+1);
                   }
                   if (comp == 2 && kz != 0)
                   {
@@ -70,10 +70,10 @@ STPmlPatchAssembly::STPmlPatchAssembly(SesquilinearForm * bf_, Array<int> & ess_
             }
             if (ip < nrpatch-1)
             {
-               ext_directions.Append(1);
-               ext_directions.Append(1);
-               ext_directions.Append(1);
-               ext_directions.Append(1);
+               // ext_directions.Append(1);
+               // ext_directions.Append(1);
+               // ext_directions.Append(1);
+               // ext_directions.Append(1);
             }
             patch_meshes_ext[ip] = ExtendMesh(p->patch_mesh[ip],ext_directions);
          }
@@ -168,7 +168,7 @@ STPmlPatchAssembly::STPmlPatchAssembly(SesquilinearForm * bf_, Array<int> & ess_
 
       if (ip < nrpatch-1)
       {
-         length(0,1) = h*(nrlayers+4);
+         // length(0,1) = h*(nrlayers+4);
       }
       // if (ip != 0) 
       // {
@@ -278,7 +278,7 @@ void SourceTransferPrecond::GetCutOffSolution(Vector & sol, int ip) const
    double hl = GetUniformMeshElementSize(mesh);
    Array2D<double> h(dim,2);
    h[0][0] = 0.0;
-   h[0][1] = 2.0*hl;
+   h[0][1] = hl;
    h[1][0] = 0.0;
    h[1][1] = 0.0;
    CutOffFunctionCoefficient cf(CutOffFn, pmin, pmax, h);
@@ -339,14 +339,14 @@ void SourceTransferPrecond::Mult(const Vector &r, Vector &z) const
    // sol_sock.precision(8);
    // socketstream res_sock(vishost, visport);
    // res_sock.precision(8);
-   cout << "nrpatch = " << nrpatch << endl; 
+   // cout << "nrpatch = " << nrpatch << endl; 
    for (int iter = 0; iter < maxit; iter++)
    {
       znew = 0.0;
       visit = 0;
       for (int ip = 0; ip < nrpatch; ip++)
       {
-         cout << "ip = " << ip << endl;
+         // cout << "ip = " << ip << endl;
          Array<int> * dof_map = &p->patch_dof_map[ip];
          int ndofs = dof_map->Size();
          res_local.SetSize(ndofs);
@@ -370,7 +370,7 @@ void SourceTransferPrecond::Mult(const Vector &r, Vector &z) const
          sol_ext.GetSubVector(p->dof2extdof_map[ip],sol_local);
 
          // Smooth the solution before transfer
-         if (ip < nrpatch-1) GetCutOffSolution(sol_local, ip);
+         // if (ip < nrpatch-1) GetCutOffSolution(sol_local, ip);
 
          if (type == 1) znew = 0.0;
          znew.AddElementVector(*dof_map,sol_local);
