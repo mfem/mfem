@@ -656,6 +656,12 @@ public:
    /// Return update counter (see Mesh::sequence)
    long GetSequence() const { return sequence; }
 
+   /// Return whether or not the space is discontinuous (L2)
+   bool IsDGSpace() const
+   {
+      return dynamic_cast<const L2_FECollection*>(fec) != NULL;
+   }
+
    void Save(std::ostream &out) const;
 
    /** @brief Read a FiniteElementSpace from a stream. The returned
