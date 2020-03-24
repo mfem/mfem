@@ -17,7 +17,7 @@ using namespace std;
 using namespace mfem;
 
 
-enum EvolutionScheme { Standard, MCL };
+enum EvolutionScheme { Galerkin, MCL };
 
 class FE_Evolution : public TimeDependentOperator
 {
@@ -40,7 +40,7 @@ public:
    DenseTensor ShapeEvalFace;
 
    // Element and boundary integrals evaluated in quadrature points.
-   DenseTensor ElemInt; // TODO better names
+   DenseTensor ElemInt;
    DenseTensor BdrInt;
    DenseTensor OuterUnitNormals;
 

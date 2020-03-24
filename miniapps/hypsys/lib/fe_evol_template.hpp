@@ -1,5 +1,5 @@
-#ifndef HYPSYS_SCHEME
-#define HYPSYS_SCHEME
+#ifndef HYPSYS_TEMPLATE_EVOLUTION
+#define HYPSYS_TEMPLATE_EVOLUTION
 
 #include "fe_evol.hpp"
 
@@ -8,13 +8,13 @@ using namespace mfem;
 
 static Vector serial;
 
-class SCHEME : public FE_Evolution
+class TEMPLATE : public FE_Evolution
 {
 public:
-   explicit SCHEME(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
-                   DofInfo &dofs_, EvolutionScheme scheme_);
+   explicit TEMPLATE(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
+                     DofInfo &dofs_, EvolutionScheme scheme_);
 
-   virtual ~SCHEME() { }
+   virtual ~TEMPLATE() { }
 
    void Mult(const Vector&x, Vector &y) const override;
    void ComputeTimeDerivative(const Vector &x, Vector &y,

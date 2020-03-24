@@ -1,4 +1,4 @@
-#include "lib/fe_evol_std.hpp"
+#include "lib/fe_evol_galerkin.hpp" // TODO headerfile(s) in lib
 
 int main(int argc, char *argv[])
 {
@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
    config.odeSolverType = 3;
    config.VisSteps = 100;
 
-   EvolutionScheme scheme = Standard;
+   EvolutionScheme scheme = Galerkin;
 
    config.precision = 8;
    cout.precision(config.precision);
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    args.AddOption(&config.VisSteps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption((int*)(&scheme), "-e", "--EvolutionScheme",
-                  "Scheme: 0 - Standard Finite Element Approximation,\n\t"
+                  "Scheme: 0 - Galerkin Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
 
    args.Parse();
@@ -146,14 +146,22 @@ int main(int argc, char *argv[])
    int visport = 19916;
    VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->valuerange);
 
-   StandardEvolution evol(&vfes, hyp, dofs, scheme); // TODO like hypsys
-   double InitialMass = evol.LumpedMassMat * uk;
+   FE_Evolution *evol;
+   switch (scheme)
+   {
+      case Galerkin: { evol = new GalerkinEvolution(&vfes, hyp, dofs, scheme); break; }
+      // case MCL: { evol = new MCLEvolution(&vfes, hyp, dofs, scheme); break; }
+      default:
+         MFEM_ABORT("Unknown evolution scheme");
+   }
 
-   odeSolver->Init(evol);
+   double InitialMass = evol->LumpedMassMat * uk;
+
+   odeSolver->Init(*evol);
    if (hyp->SteadyState)
    {
-      evol.uOld.SetSize(ProblemSize);
-      evol.uOld = 0.;
+      evol->uOld.SetSize(ProblemSize);
+      evol->uOld = 0.;
    }
 
    double dt, res, t = 0., tol = 1.e-12;
@@ -172,11 +180,11 @@ int main(int argc, char *argv[])
 
       if (hyp->SteadyState)
       {
-         res = evol.ConvergenceCheck(dt, tol, u);
+         res = evol->ConvergenceCheck(dt, tol, u);
          if (res < tol)
          {
             done = true;
-            u = evol.uOld;
+            u = evol->uOld;
          }
       }
 
@@ -199,7 +207,7 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
 
-   double DomainSize = evol.LumpedMassMat.Sum();
+   double DomainSize = evol->LumpedMassMat.Sum();
    if (hyp->SolutionKnown)
    {
       Array<double> errors;
@@ -212,7 +220,7 @@ int main(int argc, char *argv[])
    }
 
    cout << "Difference in solution mass: "
-        << abs(InitialMass - evol.LumpedMassMat * uk) / DomainSize << "\n\n";
+        << abs(InitialMass - evol->LumpedMassMat * uk) / DomainSize << "\n\n";
 
    if (hyp->FileOutput)
    {
@@ -221,6 +229,7 @@ int main(int argc, char *argv[])
       uk.Save(osol);
    }
 
+   delete evol;
    delete hyp;
    delete odeSolver;
    return 0;

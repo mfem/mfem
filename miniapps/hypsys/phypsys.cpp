@@ -1,4 +1,4 @@
-#include "lib/pfe_evol_std.hpp"
+#include "lib/pfe_evol_galerkin.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
    config.odeSolverType = 3;
    config.VisSteps = 100;
 
-   EvolutionScheme scheme = Standard;
+   EvolutionScheme scheme = Galerkin;
 
    config.precision = 8;
    cout.precision(config.precision);
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
    args.AddOption(&config.VisSteps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption((int *)(&scheme), "-e", "--EvolutionScheme",
-                  "Scheme: 0 - Standard Finite Element Approximation,\n\t"
+                  "Scheme: 0 - Galerkin Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
 
    args.Parse();
@@ -176,15 +176,23 @@ int main(int argc, char *argv[])
                         hyp->valuerange);
    }
 
-   ParStandardEvolution pevol(&vfes, hyp, pdofs, scheme);
-   double InitialMass, MassMPI = pevol.LumpedMassMat * uk;
+   FE_Evolution *evol;
+   switch (scheme)
+   {
+      case Galerkin: { evol = new ParGalerkinEvolution(&vfes, hyp, pdofs, scheme); break; }
+      // case MCL: { evol = new Par_MCL_Evolution(&vfes, hyp, pdofs, scheme); break; }
+      default:
+         MFEM_ABORT("Unknown evolution scheme");
+   }
+
+   double InitialMass, MassMPI = evol->LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
-   odeSolver->Init(pevol);
+   odeSolver->Init(*evol);
    if (hyp->SteadyState)
    {
-      pevol.uOld.SetSize(ProblemSize);
-      pevol.uOld = 0.;
+      evol->uOld.SetSize(ProblemSize);
+      evol->uOld = 0.;
    }
 
    double dt, res, t = 0., tol = 1.e-12;
@@ -206,11 +214,11 @@ int main(int argc, char *argv[])
 
       if (hyp->SteadyState)
       {
-         res = pevol.ConvergenceCheck(dt, tol, u);
+         res = evol->ConvergenceCheck(dt, tol, u);
          if (res < tol)
          {
             done = true;
-            u = pevol.uOld;
+            u = evol->uOld;
          }
       }
 
@@ -239,7 +247,7 @@ int main(int argc, char *argv[])
       cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
    }
 
-   double FinalMass, DomainSize, DomainSizeMPI = pevol.LumpedMassMat.Sum();
+   double FinalMass, DomainSize, DomainSizeMPI = evol->LumpedMassMat.Sum();
    MPI_Allreduce(&DomainSizeMPI, &DomainSize, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (hyp->SolutionKnown)
@@ -256,7 +264,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   MassMPI = pevol.LumpedMassMat * uk;
+   MassMPI = evol->LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (myid == 0)
@@ -272,6 +280,7 @@ int main(int argc, char *argv[])
       uk.SaveAsOne(osol);
    }
 
+   delete evol;
    delete hyp;
    delete odeSolver;
    return 0;

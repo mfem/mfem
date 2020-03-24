@@ -1,5 +1,5 @@
-#ifndef HYPSYS_STANDARDEVOLUTION
-#define HYPSYS_STANDARDEVOLUTION
+#ifndef HYPSYS_GALERKINEVOLUTION
+#define HYPSYS_GALERKINEVOLUTION
 
 #include "fe_evol.hpp"
 
@@ -8,14 +8,14 @@ using namespace mfem;
 
 static Vector serial;
 
-class StandardEvolution : public FE_Evolution
+class GalerkinEvolution : public FE_Evolution
 {
 public:
-   explicit StandardEvolution(FiniteElementSpace *fes_,
+   explicit GalerkinEvolution(FiniteElementSpace *fes_,
                               HyperbolicSystem *hyp_, DofInfo &dofs_,
                               EvolutionScheme scheme_);
 
-   virtual ~StandardEvolution() { }
+   virtual ~GalerkinEvolution() { }
 
    void Mult(const Vector&x, Vector &y) const override;
    void ComputeTimeDerivative(const Vector &x, Vector &y,
