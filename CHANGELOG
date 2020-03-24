@@ -11,6 +11,35 @@
 Version 4.1.1 (development)
 ===========================
 
+Meshing improvements
+--------------------
+- The graph linear ordering library Gecko, previously an external dependency, is
+  now included directly in MFEM. As a result, Mesh::GetGeckoElementOrdering is
+  always available. The interface has also been improved, see for example the
+  mesh-explorer miniapp.
+
+New and updated examples and miniapps
+-------------------------------------
+- Adding a simple meshing miniapp, Twist, which demonstates MFEM's strategy of
+  stitching together opposite surfaces of a mesh to create a topologically
+  periodic mesh.
+
+Discretization improvements
+---------------------------
+- Added support for simplices in GSLIB-FindPoints.
+
+Improved testing
+----------------
+- Added a GitLab pipeline that automates PR testing on supercomputing systems
+  and Linux clusters at Lawrence Livermore National Lab (LLNL). This can be
+  triggered only by LLNL developers, see .gitlab-ci.yml, the .gitlab directory
+  and the updated CONTRIBUTING.md file.
+
+Miscellaneous
+-------------
+- In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
+  solver can work with non-SPD preconditioner B.
+
 
 Version 4.1, released on March 10, 2020
 =======================================
