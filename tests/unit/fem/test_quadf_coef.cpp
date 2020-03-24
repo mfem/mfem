@@ -12,8 +12,6 @@
 #include "mfem.hpp"
 #include "catch.hpp"
 
-#ifdef MFEM_USE_EXCEPTIONS
-
 using namespace mfem;
 
 namespace qf_coeff
@@ -65,6 +63,7 @@ TEST_CASE("Quadrature Function Coefficients",
    SECTION("Operators on VecQuadFuncCoeff")
    {
       std::cout << "Testing VecQuadFuncCoeff: " << std::endl;
+#ifdef MFEM_USE_EXCEPTIONS
       std::cout << " Setting Index" << std::endl;
       REQUIRE_THROWS(qfvc.SetIndex(3));
       REQUIRE_THROWS(qfvc.SetIndex(-1));
@@ -76,11 +75,13 @@ TEST_CASE("Quadrature Function Coefficients",
       REQUIRE_THROWS(qfvc.SetLength(3));
       REQUIRE_NOTHROW(qfvc.SetLength(2));
       REQUIRE_THROWS(qfvc.SetLength(0));
+#endif
       qfvc.SetIndex(0);
       qfvc.SetLength(3);
 
       SECTION("Gridfunction L2 tests")
       {
+         std::cout << "  Testing GridFunc L2 projection" << std::endl;
          L2_FECollection    fec_l2(order_h1, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
          GridFunction g0(&fespace_l2);
@@ -107,7 +108,8 @@ TEST_CASE("Quadrature Function Coefficients",
 
       SECTION("Gridfunction H1 tests")
       {
-         L2_FECollection    fec_h1(order_h1, dim);
+         std::cout << "  Testing GridFunc H1 projection" << std::endl;
+         H1_FECollection    fec_h1(order_h1, dim);
          FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
          GridFunction g0(&fespace_h1);
          GridFunction gtrue(&fespace_h1);
@@ -136,6 +138,8 @@ TEST_CASE("Quadrature Function Coefficients",
    {
       SECTION("Gridfunction L2 tests")
       {
+         std::cout << "Testing QuadFuncCoeff:";
+         std::cout << "  Testing GridFunc L2 projection" << std::endl;
          L2_FECollection    fec_l2(order_h1, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2, 1);
          GridFunction g0(&fespace_l2);
@@ -162,7 +166,8 @@ TEST_CASE("Quadrature Function Coefficients",
 
       SECTION("Gridfunction H1 tests")
       {
-         L2_FECollection    fec_h1(order_h1, dim);
+         std::cout << "  Testing GridFunc H1 projection" << std::endl;
+         H1_FECollection    fec_h1(order_h1, dim);
          FiniteElementSpace fespace_h1(&mesh, &fec_h1, 1);
          GridFunction g0(&fespace_h1);
          GridFunction gtrue(&fespace_h1);
@@ -190,4 +195,3 @@ TEST_CASE("Quadrature Function Coefficients",
 
 } // namespace qf_coeff
 
-#endif  // MFEM_USE_EXCEPTIONS
