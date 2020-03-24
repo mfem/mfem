@@ -42,7 +42,6 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
 
    // This function will not work for AMR meshes in the current state.
-   // The two lines below are optional.
    field0 = new_field;
    nodes0 = new_nodes;
 }

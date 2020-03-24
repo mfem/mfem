@@ -68,10 +68,7 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
    unsigned dof1D = fe->GetOrder() + 1;
-   int NE      = mesh->GetNE(),
-       dof_cnt = fe->GetDof(),
-       pts_cnt = NE * dof_cnt,
-       gt      = fe->GetGeomType();
+   const int gt   = fe->GetGeomType();
 
    if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
        gt == Geometry::PRISM)
@@ -87,8 +84,8 @@ void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
       MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
    }
 
-   pts_cnt = gsl_mesh.Size()/dim;
-   int NEtot = pts_cnt/(int)pow(dof1D, dim);
+   const int pts_cnt = gsl_mesh.Size()/dim,
+             NEtot = pts_cnt/(int)pow(dof1D, dim);
 
    if (dim == 2)
    {
