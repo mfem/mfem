@@ -622,16 +622,47 @@ int main (int argc, char *argv[])
       if (mk == 'o')
       {
          cout << "What type of reordering?\n"
+              "g) Gecko edge-product minimization\n"
               "h) Hilbert spatial sort\n"
-              //"g) Gecko edge-product minimization\n" // TODO future
               "--> " << flush;
          char rk;
          cin >> rk;
 
-         Array<int> ordering;
+         Array<int> ordering, tentative;
          if (rk == 'h')
          {
             mesh->GetHilbertElementOrdering(ordering);
+            mesh->ReorderElements(ordering);
+         }
+         else if (rk == 'g')
+         {
+            int outer, inner, window, period;
+            cout << "Enter number of outer iterations (default 5): " << flush;
+            cin >> outer;
+            cout << "Enter number of inner iterations (default 4): " << flush;
+            cin >> inner;
+            cout << "Enter window size (default 4, beware of exponential cost): "
+                 << flush;
+            cin >> window;
+            cout << "Enter period for window size increment (default 2): "
+                 << flush;
+            cin >> period;
+
+            double best_cost = infinity();
+            for (int i = 0; i < outer; i++)
+            {
+               int seed = i+1;
+               double cost = mesh->GetGeckoElementOrdering(
+                                tentative, inner, window, period, seed, true);
+
+               if (cost < best_cost)
+               {
+                  ordering = tentative;
+                  best_cost = cost;
+               }
+            }
+            cout << "Final cost: " << best_cost << endl;
+
             mesh->ReorderElements(ordering);
          }
       }

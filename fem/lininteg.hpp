@@ -281,10 +281,13 @@ class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 private:
    Coefficient *F;
    Vector shape;
+   int oa, ob; // these contol the quadrature order, see DomainLFIntegrator
 
 public:
-   VectorFEBoundaryFluxLFIntegrator() : F(NULL) { }
-   VectorFEBoundaryFluxLFIntegrator(Coefficient &f) : F(&f) { }
+   VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
+      : F(NULL), oa(a), ob(b) { }
+   VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
+      : F(&f), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -298,9 +301,12 @@ class VectorFEBoundaryTangentLFIntegrator : public LinearFormIntegrator
 {
 private:
    VectorCoefficient &f;
+   int oa, ob;
 
 public:
-   VectorFEBoundaryTangentLFIntegrator(VectorCoefficient &QG) : f(QG) { }
+   VectorFEBoundaryTangentLFIntegrator(VectorCoefficient &QG,
+                                       int a = 2, int b = 0)
+      : f(QG), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
