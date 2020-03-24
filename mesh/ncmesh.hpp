@@ -539,6 +539,7 @@ protected: // implementation
    void FreeElement(int id)
    {
       free_element_ids.Append(id);
+      elements[id].ref_type = 0;
       elements[id].parent = -2; // mark the element as free
    }
 
@@ -826,6 +827,14 @@ protected: // implementation
    int PrintBoundary(std::ostream *out) const;
    /// Load the "boundary" section of the mesh file.
    void LoadBoundary(std::istream &input);
+
+   /// Print the "vertices" section of the mesh file.
+   void PrintVertices(std::ostream &out) const;
+   /// Load the "vertices" section of the mesh file.
+   void LoadVertices(std::istream &input);
+
+   /// Count root elements and intialize root_state.
+   void InitRootElements();
 
    /// Load the element refinement hierarchy from a legacy mesh file.
    void LoadCoarseElements(std::istream &input);

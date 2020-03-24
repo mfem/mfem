@@ -504,7 +504,7 @@ void HashTable<T>::Alloc(int id, int p1, int p2)
    }
 
    T& item = Base::At(id);
-   if (item.next = -2)
+   if (item.next == -2)
    {
       item.next = -1;
       item.p1 = p1;

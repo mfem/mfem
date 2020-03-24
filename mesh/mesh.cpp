@@ -8526,6 +8526,13 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
    {
       // nonconforming mesh format
       ncmesh->Print(out);
+
+      if (Nodes)
+      {
+         out << "\nnodes\n";
+         Nodes->Save(out);
+      }
+      out << "\nmfem_mesh_end" << endl;
       return;
    }
 
