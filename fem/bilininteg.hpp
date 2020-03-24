@@ -1905,7 +1905,7 @@ protected:
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
 #endif
-Coefficient *Q;
+   Coefficient *Q;
    // PA extension
    const FiniteElementSpace *fespace;
    Vector pa_data;
