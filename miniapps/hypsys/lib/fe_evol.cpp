@@ -2,9 +2,8 @@
 
 FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                            DofInfo &dofs_, EvolutionScheme scheme_)
-   : TimeDependentOperator(fes_->GetVSize()),
-     fes(fes_), hyp(hyp_), dofs(dofs_),
-     scheme(scheme_), z(fes_->GetVSize()), inflow(fes_),
+   : TimeDependentOperator(fes_->GetVSize()), fes(fes_), hyp(hyp_),
+     dofs(dofs_), scheme(scheme_), z(fes_->GetVSize()), inflow(fes_),
      xSizeMPI(dofs_.fes->GetVSize())
 {
    const char* fecol = fes->FEColl()->Name();
@@ -195,26 +194,6 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    }
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
-{
-   Vector xMPI = x; // xMPI is unused in serial code.
-   switch (scheme)
-   {
-      case 0: // Standard Finite Element Approximation.
-      {
-         EvolveStandard(x, xMPI, y);
-         break;
-      }
-      case 1: // Monolithic Convex Limiting.
-      {
-         EvolveMCL(x, xMPI, y);
-         break;
-      }
-      default:
-         MFEM_ABORT("Unknown Evolution Scheme.");
-   }
-}
-
 void FE_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
 {
    uEval = 0.;
@@ -302,70 +281,4 @@ double FE_Evolution::ConvergenceCheck(double dt, double tol,
 
    uOld = u;
    return res;
-}
-
-void FE_Evolution::EvolveStandard(const Vector &x, const Vector &xMPI,
-                                  Vector &y) const
-{
-   if (hyp->TimeDepBC)
-   {
-      hyp->BdrCond.SetTime(t);
-      if (!hyp->ProjType)
-      {
-         hyp->L2_Projection(hyp->BdrCond, inflow);
-      }
-      else
-      {
-         inflow.ProjectCoefficient(hyp->BdrCond);
-      }
-   }
-
-   z = 0.;
-   for (int e = 0; e < ne; e++)
-   {
-      fes->GetElementVDofs(e, vdofs);
-      x.GetSubVector(vdofs, uElem);
-      mat2 = 0.;
-
-      for (int k = 0; k < nqe; k++)
-      {
-         ElemEval(uElem, uEval, k);
-         hyp->EvaluateFlux(uEval, Flux, e, k);
-         MultABt(ElemInt(e * nqe + k), Flux, mat1);
-         AddMult(DShapeEval(k), mat1, mat2);
-      }
-
-      z.AddElementVector(vdofs, mat2.GetData());
-
-      // Here, the use of nodal basis functions is essential, i.e. shape
-      // functions must vanish on faces that their node is not associated with.
-      for (int i = 0; i < dofs.NumBdrs; i++)
-      {
-         for (int k = 0; k < nqf; k++)
-         {
-            OuterUnitNormals(e * dofs.NumBdrs + i).GetColumn(k, normal);
-            FaceEval(x, uEval, uNbrEval, xMPI, normal, e, i, k);
-
-            LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
-            NumFlux *= BdrInt(i, k, e);
-
-            for (int n = 0; n < hyp->NumEq; n++)
-            {
-               for (int j = 0; j < dofs.NumFaceDofs; j++)
-               {
-                  z(vdofs[n * nd + dofs.BdrDofs(j,i)]) -= ShapeEvalFace(i,j,k)
-                                                          * NumFlux(n);
-               }
-            }
-         }
-      }
-   }
-
-   InvMassMat->Mult(z, y);
-}
-
-void FE_Evolution::EvolveMCL(const Vector &x, const Vector &xMPI,
-                             Vector &y) const
-{
-   MFEM_ABORT("TODO.");
 }

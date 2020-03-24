@@ -34,7 +34,6 @@ ifeq ($(MFEM_USE_MPI), YES)
    MAIN_FILES += phypsys
    POBJ_FILES += $(BLD_DIR)/pdofs.o
    POBJ_FILES += $(BLD_DIR)/ptools.o
-   POBJ_FILES += $(BLD_DIR)/pfe_evol.o
    POBJ_FILES += $(BLD_DIR)/pfe_evol_std.o
 endif
 

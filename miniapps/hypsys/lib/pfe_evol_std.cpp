@@ -1,11 +1,10 @@
 #include "pfe_evol_std.hpp"
 
-ParStandardEvolution::ParStandardEvolution(ParFiniteElementSpace *fes_,
+ParStandardEvolution::ParStandardEvolution(ParFiniteElementSpace *pfes_,
                                            HyperbolicSystem *hyp_,
                                            DofInfo &dofs_,
                                            EvolutionScheme scheme_)
-   : ParFE_Evolution(fes_, hyp_, dofs_, scheme_),
-     StandardEvolution(fes_, hyp_, dofs_, scheme_) { }
+   : StandardEvolution(pfes_, hyp_, dofs_, scheme_), x_gf_MPI(pfes_) { }
 
 void ParStandardEvolution::Mult(const Vector &x, Vector &y) const
 {

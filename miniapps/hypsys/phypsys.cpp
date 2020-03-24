@@ -1,4 +1,4 @@
-#include "lib/pfe_evol.hpp"
+#include "lib/pfe_evol_std.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
                         hyp->valuerange);
    }
 
-   ParFE_Evolution pevol(&vfes, hyp, pdofs, scheme);
+   ParStandardEvolution pevol(&vfes, hyp, pdofs, scheme);
    double InitialMass, MassMPI = pevol.LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 

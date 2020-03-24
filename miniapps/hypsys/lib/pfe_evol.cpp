@@ -3,7 +3,9 @@
 ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
                                  HyperbolicSystem *hyp_,
                                  DofInfo &dofs_, EvolutionScheme scheme_)
-   : FE_Evolution(pfes_, hyp_, dofs_, scheme_), pfes(pfes_), x_gf_MPI(pfes_)
+   : TimeDependentOperator(pfes_->GetVSize()), pfes(pfes_), x_gf_MPI(pfes_),
+      scheme(scheme_)
+
 {
    // Compute the lumped mass matrix.
    ParBilinearForm ml(pfes);
@@ -11,29 +13,6 @@ ParFE_Evolution::ParFE_Evolution(ParFiniteElementSpace *pfes_,
    ml.Assemble();
    ml.Finalize();
    ml.SpMat().GetDiag(LumpedMassMat);
-}
-
-void ParFE_Evolution::Mult(const Vector &x, Vector &y) const
-{
-   x_gf_MPI = x;
-   x_gf_MPI.ExchangeFaceNbrData();
-   Vector &xMPI = x_gf_MPI.FaceNbrData();
-
-   switch (scheme)
-   {
-      case 0: // Standard Finite Element Approximation.
-      {
-         EvolveStandard(x, xMPI, y);
-         break;
-      }
-      case 1: // Monolithic Convex Limiting.
-      {
-         EvolveMCL(x, xMPI, y);
-         break;
-      }
-      default:
-         MFEM_ABORT("Unknown Evolution Scheme.");
-   }
 }
 
 double ParFE_Evolution::ConvergenceCheck(double dt, double tol,

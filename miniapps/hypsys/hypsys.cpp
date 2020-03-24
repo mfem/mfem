@@ -1,4 +1,4 @@
-#include "lib/fe_evol.hpp"
+#include "lib/fe_evol_std.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
    int visport = 19916;
    VisualizeField(sout, vishost, visport, hyp->ProblemName, uk, hyp->valuerange);
 
-   FE_Evolution evol(&vfes, hyp, dofs, scheme);
+   StandardEvolution evol(&vfes, hyp, dofs, scheme); // TODO like hypsys
    double InitialMass = evol.LumpedMassMat * uk;
 
    odeSolver->Init(evol);

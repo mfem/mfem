@@ -47,10 +47,11 @@ public:
    // DG mass matrices.
    const MassMatrixDG *MassMat;
    const InverseMassMatrixDG *InvMassMat;
+   Vector LumpedMassMat;
 
    // Tools to compute the discrete time derivative, needed repeatedly.
    mutable Array<int> vdofs;
-   mutable Vector z, uOld, uElem, uEval, uNbrEval, NumFlux, normal, LumpedMassMat;
+   mutable Vector z, uOld, uElem, uEval, uNbrEval, NumFlux, normal;
    mutable DenseMatrix Flux, FluxNbr, mat1, mat2;
    mutable int DofInd, nbr;
    mutable double uNbr;
@@ -66,17 +67,13 @@ public:
       delete InvMassMat;
    }
 
-   void Mult(const Vector &x, Vector &y) const override;
+   void Mult(const Vector &x, Vector &y) const = 0;
    void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
    virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
                          const Vector &xMPI, const Vector &normal,
                          int e, int i, int k) const;
    void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
                       Vector &y, int e, int k, int i) const;
-   virtual void EvolveStandard(const Vector &x, const Vector &xMPI,
-                               Vector &y) const;
-   virtual void EvolveMCL(const Vector &x, const Vector &xMPI, Vector &y) const;
-
    virtual double ConvergenceCheck(double dt, double tol, const Vector &u) const;
 };
 
