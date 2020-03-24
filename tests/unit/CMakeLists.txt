@@ -122,7 +122,7 @@ endif()
 if (MFEM_USE_MPI)
    add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
    target_link_libraries(punit_tests mfem)
-   add_test(NAME punit_tests COMMAND punit_tests)   
+   add_test(NAME punit_tests COMMAND punit_tests)
 
    set(PAR_SEDOV_TESTS_SRCS punit_test_main.cpp miniapps/test_sedov.cpp)
    if (MFEM_USE_CUDA)
