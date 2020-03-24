@@ -131,8 +131,6 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
       const FiniteElement *el = fes->GetFE(e);
       ElementTransformation *eltrans = fes->GetElementTransformation(e);
 
-      // cout << fes->GetMesh()->GetBdrAttribute(e) << endl;
-
       for (int k = 0; k < nqe; k++)
       {
          const IntegrationPoint &ip = IntRuleElem->IntPoint(k);

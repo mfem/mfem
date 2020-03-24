@@ -25,7 +25,7 @@ OUT_DIR = output
 
 DIRS = $(LIB_DIR) $(APP_DIR)
 
-OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/fe_evol.o
+OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/fe_evol.o $(BLD_DIR)/fe_evol_std.o
 APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app
 
 MAIN_FILES = hypsys
@@ -35,6 +35,7 @@ ifeq ($(MFEM_USE_MPI), YES)
    POBJ_FILES += $(BLD_DIR)/pdofs.o
    POBJ_FILES += $(BLD_DIR)/ptools.o
    POBJ_FILES += $(BLD_DIR)/pfe_evol.o
+   POBJ_FILES += $(BLD_DIR)/pfe_evol_std.o
 endif
 
 # valgrind-test setup
