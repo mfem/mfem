@@ -4945,7 +4945,7 @@ int NCMesh::PrintBoundary(std::ostream *out) const
 
 void NCMesh::LoadBoundary(std::istream &input)
 {
-   int nb;
+   int nb, attr, geom;
    input >> nb;
    for (int i = 0; i < nb; i++)
    {
@@ -4973,6 +4973,45 @@ void NCMesh::LoadBoundary(std::istream &input)
       else
       {
          MFEM_ABORT("unsupported boundary element geometry: " << geom);
+      }
+   }
+}
+
+void NCMesh::PrintVertices(std::ostream &out) const
+{
+   int nv = top_vertex_pos.Size()/3;
+   out << nv << "\n";
+   if (!nv) { return; }
+
+   out << spaceDim << "\n";
+   for (int i = 0; i < nv; i++)
+   {
+      out << top_vertex_pos[3*i];
+      for (int j = 1; j < spaceDim; j++)
+      {
+         out << " " << top_vertex_pos[3*i + j];
+      }
+      out << "\n";
+   }
+}
+
+void NCMesh::LoadVertices(std::istream &input)
+{
+   int nv;
+   input >> nv;
+   if (!nv) { return; }
+
+   input >> spaceDim;
+
+   top_vertex_pos.SetSize(nv * 3);
+   top_vertex_pos = 0.0;
+
+   for (int i = 0; i < nv; i++)
+   {
+      for (int j = 0; j < spaceDim; j++)
+      {
+         input >> top_vertex_pos[3*i + j];
+         MFEM_VERIFY(input.good(), "unexpected EOF");
       }
    }
 }
@@ -5006,7 +5045,7 @@ void NCMesh::Print(std::ostream &out) const
       out << "\n";
    }
 
-   out << "\n# attr geom node_list";
+   out << "\n# attr geom nodes";
    out << "\nboundary\n" << PrintBoundary(NULL) << "\n";
 
    PrintBoundary(&out);
@@ -5016,27 +5055,57 @@ void NCMesh::Print(std::ostream &out) const
 
    PrintVertexParents(out);
 
-   out << "\nroot_state\n" << root_state.Size() << "\n";
-   for (int i = 0; i < root_state.Size(); i++)
+   if (1) // TODO: if nonzero root_state
    {
-      out << root_state[i] << "\n";
-   }
-
-   int nvert = top_vertex_pos.Size()/3;
-   out << "\nvertices\n" << nvert << "\n";
-   if (nvert)
-   {
-      out << spaceDim << "\n";
-      for (int i = 0; i < nvert; i++)
+      out << "\n# root element orientation";
+      out << "\nroot_state\n" << root_state.Size() << "\n";
+      for (int i = 0; i < root_state.Size(); i++)
       {
-         out << top_vertex_pos[3*i];
-         for (int j = 1; j < spaceDim; j++)
-         {
-            out << " " << top_vertex_pos[3*i + j];
-         }
-         out << "\n";
+         out << root_state[i] << "\n";
       }
    }
+
+   out << "\n# top-level vertices";
+   out << "\nvertices\n";
+
+   PrintVertices(out);
+}
+
+void NCMesh::InitRootElements()
+{
+   // initialize Element::parent
+   for (int i = 0; i < elements.Size(); i++)
+   {
+      Element &el = elements[i];
+      if (el.ref_type)
+      {
+         for (int j = 0; j < 8 && el.child[j] >= 0; j++)
+         {
+            elements[el.child[j]].parent = i;
+         }
+      }
+   }
+
+   // count the root elements
+   int nroots = 0;
+   while (nroots < elements.Size() &&
+          elements[nroots].parent == -1)
+   {
+      nroots++;
+   }
+   MFEM_VERIFY(nroots, "No root elements found.");
+
+   // check that only the first 'nroot' elements are roots (have no parent)
+   for (int i = nroots; i < elements.Size(); i++)
+   {
+      MFEM_VERIFY(elements[i].parent != -1,
+                  "Only the first M elements in the mesh file can be roots. "
+                  "Found element " << i << " with no parent.");
+   }
+
+   // default root state is zero
+   root_state.SetSize(nroots);
+   root_state = 0;
 }
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved)
@@ -5049,6 +5118,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
 
    MFEM_ASSERT(version == 10, "");
    std::string ident;
+   int count;
 
    // load dimension
    skip_comment_lines(input, '#');
@@ -5073,14 +5143,14 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
 
       int id = AddElement(Element(type, attr));
       MFEM_ASSERT(id == i, "");
+      Element &el = elements[id];
 
       if (geom >= 0)
       {
          input >> ref_type;
          MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
-
-         Element &el = elements[id];
          el.ref_type = ref_type;
+
          if (ref_type)
          {
             for (int j = 0; j < ref_type_num_children[ref_type]; j++)
@@ -5101,10 +5171,14 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
             }
          }
       }
+      else
+      {
+         el.parent = -2; // mark as unused
+         free_element_ids.Append(id);
+      }
    }
 
-   nodes.UpdateUnused();
-   CheckRootElements();
+   InitRootElements();
 
    // load boundary
    skip_comment_lines(input, '#');
@@ -5138,22 +5212,32 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
 
    // load vertices
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-   input >> count;
-   if (count)
+
+   LoadVertices(input);
+
+   // check for curved mesh
+   skip_comment_lines(input, '#');
+   input >> ident;
+   if (ident == "nodes")
    {
-      input >> spaceDim;
+      // prepare to read the nodes
+      input >> std::ws;
+      curved = 1;
+   }
+   else if (ident != "mfem_mesh_end")
+   {
+      MFEM_WARNING("'mfem_mesh_end' was expected but not found "
+                   "at the end of the mesh file");
+   }
 
-      top_vertex_pos.SetSize(count * 3);
-      top_vertex_pos = 0.0;
-
-      for (int i = 0; i < count; i++)
-      {
-         for (int j = 0; j < spaceDim; j++)
-         {
-            input >> top_vertex_pos[3*i + j];
-            MFEM_VERIFY(input.good(), "unexpected EOF");
-         }
-      }
+   // create edge nodes and faces
+   nodes.UpdateUnused();
+   UpdateLeafElements();
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      int elem = leaf_elements[i];
+      ReferenceElement(elem);
+      RegisterFaces(elem);
    }
 
    Update();
