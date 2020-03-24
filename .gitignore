@@ -159,6 +159,7 @@ miniapps/electromagnetics/Joule_*
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
 miniapps/meshing/toroid
+miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
@@ -168,6 +169,7 @@ miniapps/meshing/pmesh-optimizer
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
+miniapps/meshing/twist-*.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
