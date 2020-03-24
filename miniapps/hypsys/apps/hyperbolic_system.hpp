@@ -1,13 +1,7 @@
 #ifndef HYPSYS_HYPERBOLIC_SYSTEM
 #define HYPSYS_HYPERBOLIC_SYSTEM
 
-#include <fstream>
-#include <iostream>
-#include "../../../mfem.hpp"
 #include "../lib/tools.hpp"
-
-using namespace std;
-using namespace mfem;
 
 struct Configuration
 {

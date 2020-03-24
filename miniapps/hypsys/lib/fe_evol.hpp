@@ -1,17 +1,10 @@
 #ifndef HYPSYS_FE_EVOL
 #define HYPSYS_FE_EVOL
 
-#include <fstream>
-#include <iostream>
-#include "../../../mfem.hpp"
 #include "massmat.hpp"
 #include "dofs.hpp"
 #include "tools.hpp"
-#include "../apps/advection.hpp"
-#include "../apps/burgers.hpp"
-#include "../apps/kpp.hpp"
-#include "../apps/shallowwater.hpp"
-#include "../apps/euler.hpp"
+#include "../apps/hyperbolic_system.hpp"
 
 using namespace std;
 using namespace mfem;

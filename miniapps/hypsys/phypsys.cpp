@@ -1,4 +1,7 @@
+#include "lib/lib.hpp"
+#include "lib/ptools.hpp"
 #include "lib/pfe_evol_galerkin.hpp"
+#include "apps/lib.hpp"
 
 int main(int argc, char *argv[])
 {

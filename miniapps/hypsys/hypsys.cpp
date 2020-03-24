@@ -1,4 +1,5 @@
-#include "lib/fe_evol_galerkin.hpp" // TODO headerfile(s) in lib
+#include "lib/lib.hpp"
+#include "apps/lib.hpp"
 
 int main(int argc, char *argv[])
 {
