@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
          MFEM_ABORT("Unknown evolution scheme");
    }
 
-   double InitialMass = evol->LumpedMassMat * uk;
+   double InitialMass = evol->LumpedMassMat * u;
 
    odeSolver->Init(*evol);
    if (hyp->SteadyState)
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
    }
 
    cout << "Difference in solution mass: "
-        << abs(InitialMass - evol->LumpedMassMat * uk) / DomainSize << "\n\n";
+        << abs(InitialMass - evol->LumpedMassMat * u) / DomainSize << "\n\n";
 
    if (hyp->FileOutput)
    {

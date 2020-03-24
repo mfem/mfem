@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
          MFEM_ABORT("Unknown evolution scheme");
    }
 
-   double InitialMass, MassMPI = evol->LumpedMassMat * uk;
+   double InitialMass, MassMPI = evol->LumpedMassMat * u;
    MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    odeSolver->Init(*evol);
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   MassMPI = evol->LumpedMassMat * uk;
+   MassMPI = evol->LumpedMassMat * u;
    MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (myid == 0)
