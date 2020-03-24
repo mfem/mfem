@@ -60,11 +60,11 @@ TEST_CASE("Quadrature Function Coefficients",
    }
 
    QuadratureFunctionCoefficient qfc(&quadf_coeff);
-   QuadratureVectorFunctionCoefficient qfvc(&quadf_vcoeff);
+   VectorQuadratureFunctionCoefficient qfvc(&quadf_vcoeff);
 
-   SECTION("Operators on QuadVecFuncCoeff")
+   SECTION("Operators on VecQuadFuncCoeff")
    {
-      std::cout << "Testing QuadVecFuncCoeff: " << std::endl;
+      std::cout << "Testing VecQuadFuncCoeff: " << std::endl;
       std::cout << " Setting Index" << std::endl;
       REQUIRE_THROWS(qfvc.SetIndex(3));
       REQUIRE_THROWS(qfvc.SetIndex(-1));
