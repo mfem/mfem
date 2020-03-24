@@ -40,9 +40,11 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    MassMat = new MassMatrixDG(fes);
    InvMassMat = new InverseMassMatrixDG(MassMat);
 
-   // Compute the lumped mass matrix.
+   Vector aux_vec(hyp->NumEq);
+   aux_vec = 1.0;
+   VectorConstantCoefficient ones(aux_vec);
    BilinearForm ml(fes);
-   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   ml.AddDomainIntegrator(new LumpedIntegrator(new VectorMassIntegrator(ones)));
    ml.Assemble();
    ml.Finalize();
    ml.SpMat().GetDiag(LumpedMassMat);
@@ -265,12 +267,12 @@ double FE_Evolution::ConvergenceCheck(double dt, double tol,
    z -= uOld;
 
    double res = 0.;
-   if (scheme == 0) // Standard, i.e. use consistent mass matrix.
+   if (!hyp->SteadyState) // Use consistent mass matrix.
    {
       MassMat->Mult(z, uOld);
       res = uOld.Norml2() / dt;
    }
-   else // use lumped mass matrix.
+   else // Use lumped mass matrix.
    {
       for (int i = 0; i < u.Size(); i++)
       {
