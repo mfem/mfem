@@ -949,19 +949,19 @@ public:
 class QuadratureFunction;
 
 /// Quadrature function vector coefficient
-class QuadratureVectorFunctionCoefficient : public VectorCoefficient
+class VectorQuadratureFunctionCoefficient : public VectorCoefficient
 {
 private:
-   QuadratureFunction *QuadF;
+   QuadratureFunction *QuadF; //do not own
    int index;
    int length;
 
 public:
    /// constructor with a quadrature function as input
-   QuadratureVectorFunctionCoefficient(QuadratureFunction *qf);
+   VectorQuadratureFunctionCoefficient(QuadratureFunction *qf);
 
    /// constructor with a null qf
-   QuadratureVectorFunctionCoefficient() : VectorCoefficient(0) { QuadF = NULL; }
+   VectorQuadratureFunctionCoefficient() : VectorCoefficient(0) { QuadF = NULL; }
 
    /// setter function for the internal quadrature function
    void SetQuadratureFunction(QuadratureFunction *qf);
@@ -984,7 +984,7 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   virtual ~QuadratureVectorFunctionCoefficient() { };
+   virtual ~VectorQuadratureFunctionCoefficient() { };
 };
 
 /// Generic quadrature function coefficient class for using

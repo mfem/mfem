@@ -758,7 +758,7 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 }
 #endif
 
-QuadratureVectorFunctionCoefficient::QuadratureVectorFunctionCoefficient(
+VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
    QuadratureFunction *qf)
    : VectorCoefficient(qf->GetVDim())
 {
@@ -767,7 +767,7 @@ QuadratureVectorFunctionCoefficient::QuadratureVectorFunctionCoefficient(
    length = qf->GetVDim();
 }
 
-void QuadratureVectorFunctionCoefficient::SetQuadratureFunction(
+void VectorQuadratureFunctionCoefficient::SetQuadratureFunction(
    QuadratureFunction *qf)
 {
    index = 0;
@@ -776,7 +776,7 @@ void QuadratureVectorFunctionCoefficient::SetQuadratureFunction(
    QuadF = qf;
 }
 
-void QuadratureVectorFunctionCoefficient::SetLength(int _length)
+void VectorQuadratureFunctionCoefficient::SetLength(int _length)
 {
    MFEM_VERIFY(_length > 0, "Length must be > 0");
 
@@ -787,7 +787,7 @@ void QuadratureVectorFunctionCoefficient::SetLength(int _length)
    length = _length;
 }
 
-void QuadratureVectorFunctionCoefficient::SetIndex(int _index)
+void VectorQuadratureFunctionCoefficient::SetIndex(int _index)
 {
    MFEM_VERIFY(_index >= 0, "Index must be >= 0");
    MFEM_VERIFY(_index < vdim,
@@ -801,7 +801,7 @@ void QuadratureVectorFunctionCoefficient::SetIndex(int _index)
    }
 }
 
-void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
+void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
