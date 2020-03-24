@@ -371,6 +371,8 @@ protected:
    static int GetTriOrientation (const int * base, const int * test);
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
+   /// Returns the orientation of "test" relative to "base"
+   static int GetTetOrientation (const int * base, const int * test);
 
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
