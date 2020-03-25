@@ -9,6 +9,8 @@ using namespace mfem;
 class MCL_Evolution : public FE_Evolution
 {
 public:
+   DenseTensor PrecGrad;
+
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                           DofInfo &dofs_);
 

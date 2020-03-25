@@ -1,17 +1,17 @@
-HypSyS NOTES
+ATTENTION
+   -FluxEval for problems with x-dependent flux (advection) needs to be adjusted to nodal quadrature!
 
-TODO:
--Euler: Implement subsonic in- and outflow.
--option to use rescaling in glvis.
--Change final time by modifying it in the apps/*.cpp files (for non steady examples or generally if it makes sense).
--visualization of other unknowns / quotients of unknowns, vector valued unknowns
 
-Current state:
--Solves Advection, Burgers, KPP, Shallow Water, and Euler.
--DG0 supported, fully MPI parallelized.
+next steps
+   -implement eq. (6) in my note (first w.o. preconditioning)
 
-Next major tasks - Stabilization
--Low order IDP schemes
-   * Once different evolution schemes are considered, check combinations of schemes: e.g. DG0 only for standard evolution.
--Limiting
--Entropy Stability
+
+minor tasks:
+   -Euler: Implement subsonic in- and outflow.
+   -option to use rescaling in glvis.
+   -Change final time by modifying it in the apps/*.cpp files (for non steady examples or generally if it makes sense).
+   -visualization of other unknowns / quotients of unknowns, vector valued unknowns
+
+
+future tasks
+   -Once different evolution schemes are considered, check combinations of schemes: e.g. DG0 only for standard evolution.

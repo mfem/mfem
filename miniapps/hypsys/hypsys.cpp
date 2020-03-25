@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
    config.odeSolverType = 3;
    config.VisSteps = 100;
 
-   EvolutionScheme scheme = Galerkin;
+   EvolutionScheme scheme = MonolithicConvexLimiting;
 
    config.precision = 8;
    cout.precision(config.precision);

@@ -126,12 +126,9 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
       }
    }
 
-   // Compute element and boundary contributions (without shape functions).
    for (int e = 0; e < ne; e++)
    {
-      const FiniteElement *el = fes->GetFE(e);
       ElementTransformation *eltrans = fes->GetElementTransformation(e);
-
       for (int k = 0; k < nqe; k++)
       {
          const IntegrationPoint &ip = IntRuleElem->IntPoint(k);
@@ -147,7 +144,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
 
       for (int i = 0; i < dofs.NumBdrs; i++)
       {
-         Vector vval, nor(dim);
+         Vector nor(dim);
          FaceElementTransformations *facetrans
             = mesh->GetFaceElementTransformations(bdrs[i]);
 
