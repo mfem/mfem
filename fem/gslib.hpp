@@ -75,7 +75,7 @@ public:
                               Note: the gslib reference frame is [-1,1].
        @param[out] dist       Distance between the seeked and the found point
                               in physical space. */
-   void FindPoints(Vector &point_pos, Array<unsigned int> &codes,
+   void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
                    Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
                    Vector &ref_pos, Vector &dist);
 
