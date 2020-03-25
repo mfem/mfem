@@ -25,7 +25,7 @@ Meshing improvements
 
 New and updated examples and miniapps
 -------------------------------------
-- Adding a simple meshing miniapp, Twist, which demonstates MFEM's strategy of
+- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
 

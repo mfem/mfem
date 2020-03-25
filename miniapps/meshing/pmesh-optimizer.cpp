@@ -190,7 +190,7 @@ public:
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
       }
-      else if (metric == 14) //Size + Alignment
+      else if (metric == 14) // Size + Alignment
       {
          const double xc = pos(0), yc = pos(1);
          double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
@@ -203,7 +203,7 @@ public:
 
          K *= alpha_bar;
       }
-      else if (metric == 87) //Shape + Size + Alignment
+      else if (metric == 87) // Shape + Size + Alignment
       {
          Vector x = pos;
          double xc = x(0)-0.5, yc = x(1)-0.5;
@@ -434,7 +434,7 @@ int main (int argc, char *argv[])
    //    We define a random grid function of fespace and make sure that it is
    //    zero on the boundary and its values are locally of the order of h0.
    //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in fespace.
+   //    the vector degrees of freedom in pfespace.
    ParGridFunction rdm(pfespace);
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
