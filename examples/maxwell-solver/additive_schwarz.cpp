@@ -6,7 +6,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
 {  // default overlap size is 2 elements 
    int dim = mesh->Dimension();
    int n = pow(mesh->GetNE(), 1.0/(double)dim);
-   nx = 8;
+   nx = 4;
    ny = 1;
    nz = 1;
    if (nx > n) 
@@ -51,7 +51,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
       for (int i = 0; i<dim; i++)
       {
          idx0[i]  = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
-         idx1[i] = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         idx1[i] = (int)floor(nxyz[i]*((pt(i)-2*h - pmin[i])/(pmax[i] - pmin[i])));
          idx2[i] = (int)floor(nxyz[i]*((pt(i)-h - pmin[i])/(pmax[i] - pmin[i])));
 
          if (idx0[i] < 0) idx0[i] = 0;
@@ -135,6 +135,59 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
    }
 }
 
+
+STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
+{
+   int dim = mesh->Dimension();
+   nx = 4;
+   ny = 1;
+   nz = 1;
+   int nxyz[3] = {nx,ny,nz};
+   nrpatch = nx*ny*nz;
+
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
+
+   int nrelem = mesh->GetNE();
+   int partitioning[nrelem];
+
+   // determine the partitioning using the centers of the elements
+   double ppt[dim];
+   Vector pt(ppt, dim);
+   for (int el = 0; el < nrelem; el++)
+   {
+      mesh->GetElementTransformation(el)->Transform(
+         Geometries.GetCenter(mesh->GetElementBaseGeometry(el)), pt);
+      int part = 0;
+      for (int i = dim-1; i >= 0; i--)
+      {
+         int idx = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         if (idx < 0)
+         {
+            idx = 0;
+         }
+         if (idx >= nxyz[i])
+         {
+            idx = nxyz[i]-1;
+         }
+         part = part * nxyz[i] + idx;
+      }
+      partitioning[el] = part;
+   }
+
+   element_map.resize(nrpatch);
+   for (int iel = 0; iel < nrelem; iel++)
+   {
+      int ip = partitioning[iel];
+      element_map[ip].Append(iel);
+   }
+   // Append the next subdomain to the previous
+   for (int ip = 0; ip<nrpatch-1; ip++)
+   {
+      element_map[ip].Append(element_map[ip+1]);
+   }
+}
+
 // constructor
 VertexMeshPartition::VertexMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
@@ -169,6 +222,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
       nx = partition.nx;
       ny = partition.ny;
       nz = partition.nz;
+      partition_kind = 1;
    }
    else if (part == 2)
    {
@@ -178,12 +232,24 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
       nx = partition.nx;
       ny = partition.ny;
       nz = partition.nz;
+      partition_kind = 2;
+   }
+   else if (part == 3)
+   {
+      cout << "STP Overlapping Cartesian Partition " << endl;
+      STPOverlappingCartesianMeshPartition partition(mesh);
+      element_map = partition.element_map;
+      nx = partition.nx;
+      ny = partition.ny;
+      nz = partition.nz;
+      partition_kind = 3;
    }
    else
    {
       cout << "Overlapping Vertex based partition " << endl;
       VertexMeshPartition partition(mesh);
       element_map = partition.element_map;
+      partition_kind = 0;
    }
 
    nrpatch = element_map.size();
