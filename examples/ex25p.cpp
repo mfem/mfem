@@ -3,7 +3,7 @@
 // Compile with: make ex25p
 //
 // Sample runs:  mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0
-//               mpirun -np 4 ex25p -o 3 -f 1.0 -rs 1 -rp 1 -prob 1
+//               mpirun -np 4 ex25p -o 3 -f 10.0 -rs 1 -rp 1 -prob 1
 //               mpirun -np 4 ex25p -o 2 -f 3.0 -rs 3 -rp 1 -prob 2
 //               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 3
 //               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
             mesh_file = "../data/beam-hex.mesh";
             break;
          case scatter:
-            mesh_file = "../data/square_w_hole.mesh";
+            mesh_file = "../data/square-disc.mesh";
             break;
          case lshape:
             mesh_file = "../data/l-shape.mesh";
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
    switch (prob)
    {
       case scatter:
-         length = 1.0;
+         length = 0.2;
          break;
       case lshape:
          length(0, 1) = 0.5;
@@ -670,6 +670,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
          Vector shift(dim);
          shift = 0.0;
          if (prob == fichera) { shift = 1.0; }
+         if (prob == scatter) { shift = -0.5;}
 
          if (dim == 2)
          {
