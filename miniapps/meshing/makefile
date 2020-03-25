@@ -64,7 +64,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 toroid-test-seq: toroid
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-wedge-o3-s0.mesh)
 twist-test-seq: twist
-	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-hex-o3-s0-c.mesh)
+	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-hex-o3-s2-p.mesh)
 mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
