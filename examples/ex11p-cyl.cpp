@@ -1,50 +1,34 @@
-//                       MFEM Example 11 - Parallel Version
+//                       MFEM Example 11-cyl - Parallel Version
 //
-// Compile with: make ex11p
+// Compile with: make ex11p-cyl
 //
-// Sample runs:  mpirun -np 4 ex11p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex11p -m ../data/star.mesh
-//               mpirun -np 4 ex11p -m ../data/star-mixed.mesh
-//               mpirun -np 4 ex11p -m ../data/escher.mesh
-//               mpirun -np 4 ex11p -m ../data/fichera.mesh
-//               mpirun -np 4 ex11p -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex11p -m ../data/toroid-wedge.mesh -o 2
-//               mpirun -np 4 ex11p -m ../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex11p -m ../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex11p -m ../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex11p -m ../data/disc-nurbs.mesh -o -1 -n 20
-//               mpirun -np 4 ex11p -m ../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex11p -m ../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex11p -m ../data/star-surf.mesh
-//               mpirun -np 4 ex11p -m ../data/square-disc-surf.mesh
-//               mpirun -np 4 ex11p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex11p -m ../data/inline-quad.mesh
-//               mpirun -np 4 ex11p -m ../data/inline-tri.mesh
-//               mpirun -np 4 ex11p -m ../data/inline-hex.mesh
-//               mpirun -np 4 ex11p -m ../data/inline-tet.mesh
-//               mpirun -np 4 ex11p -m ../data/inline-wedge.mesh -s 83
-//               mpirun -np 4 ex11p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex11p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex11p -m ../data/mobius-strip.mesh -n 8
-//               mpirun -np 4 ex11p -m ../data/klein-bottle.mesh -n 10
+// Sample runs:  mpirun -np 4 ex11p-cyl
+//               mpirun -np 4 ex11p-cyl -o 2
+//               mpirun -np 4 ex11p-cyl -o 2 -e 0
 //
-// Description:  This example code demonstrates the use of MFEM to solve the
-//               eigenvalue problem -Delta u = lambda u with homogeneous
-//               Dirichlet boundary conditions.
+// Description:  This example code demonstrates the use of MFEM to solve PDEs
+//               on an axisymmetric domain.  The eigenvalue problem:
+//                  -Delta u = lambda u
+//               with homogeneous Dirichlet boundary conditions is solved on
+//               a cylindrical domain by meshing only a rectangle in the
+//               rho, z plane.  In cylindrical coordinates the weak form of
+//               the eigenvalue problem is given by:
+//                  (rho Grad(u), Grad(v)) = lambda (rho u, v)
 //
-//               We compute a number of the lowest eigenmodes by discretizing
+//               We compute the five lowest eigenmodes by discretizing
 //               the Laplacian and Mass operators using a FE space of the
-//               specified order, or an isoparametric/isogeometric space if
-//               order < 1 (quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               specified order and compare to the known values.  Because the
+//               eigenvalue spectrum of a domain is unique this provides a
+//               reliable test that the axisymmetric domain is being faithfully
+//               characterized.
 //
-//               The example highlights the use of the LOBPCG eigenvalue solver
-//               together with the BoomerAMG preconditioner in HYPRE, as well as
-//               optionally the SuperLU or STRUMPACK parallel direct solvers.
-//               Reusing a single GLVis visualization window for multiple
-//               eigenfunctions is also illustrated.
+//               The example highlights the use of specialized coefficients
+//               with existing operators to mimic axisymmetric domains.  The
+//               gradient of each eigenmode is also computed and displayed to
+//               ilustrate that no special steps need to be taken to compute
+//               gradients in this coordinate system.
 //
-//               We recommend viewing Example 1 before viewing this example.
+//               We recommend viewing Example 11 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -158,10 +142,9 @@ int main(int argc, char *argv[])
       exit(1);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors. We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
-   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // 3. Prepare a rectangular mesh with the desired dimensions and element
+   //    type.  Other 2D meshes could be used but then we couldn't check the
+   //    eigenvalues.
    Mesh *mesh = new Mesh(nr, nz, el_type);
    int dim = mesh->Dimension();
 
@@ -185,8 +168,8 @@ int main(int argc, char *argv[])
    }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
+   //    use continuous Lagrange finite elements (H1) of the specified order.
+   //    We also create a Nedelec space to represent the gradients of the modes.
    H1_FECollection fec_h1(order, dim);
    ND_FECollection fec_nd(order, dim);
    ParFiniteElementSpace fespace_h1(pmesh, &fec_h1);
@@ -207,8 +190,8 @@ int main(int argc, char *argv[])
    //    matrices A and M.
    FunctionCoefficient rhoCoef(rhoFunc);
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   ess_bdr = 1;
-   ess_bdr[3] = 0;
+   ess_bdr = 1;     // Homogeneous Dirichlet BCs everywhere except for
+   ess_bdr[3] = 0;  // attribute 4 which is on the axis of symmetry.
 
    ParBilinearForm *a = new ParBilinearForm(&fespace_h1);
    a->AddDomainIntegrator(new DiffusionIntegrator(rhoCoef));
@@ -298,7 +281,7 @@ int main(int argc, char *argv[])
 
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //    parallel grid function to represent each of the eigenmodes returned by
-   //    the solver.
+   //    the solver.  Also define a discrete gradient operator.
    Array<double> eigenvalues;
    lobpcg->Solve();
    lobpcg->GetEigenvalues(eigenvalues);
@@ -311,6 +294,7 @@ int main(int argc, char *argv[])
 
    if ( myid == 0 )
    {
+      // Display the eigenvalues and their relative errors
       cout << "\nRelative error in eigenvalues:\n";
       for (int i=0; i<nev; i++)
       {
@@ -407,7 +391,6 @@ int main(int argc, char *argv[])
 #if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
    delete Arow;
 #endif
-
    delete pmesh;
 
    MPI_Finalize();

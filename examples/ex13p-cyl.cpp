@@ -1,36 +1,35 @@
-//                       MFEM Example 13 - Parallel Version
+//                       MFEM Example 13-cyl - Parallel Version
 //
-// Compile with: make ex13p
+// Compile with: make ex13p-cyl
 //
-// Sample runs:  mpirun -np 4 ex13p -m ../data/star.mesh
-//               mpirun -np 4 ex13p -m ../data/square-disc.mesh -o 2 -n 4
-//               mpirun -np 4 ex13p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex13p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex13p -m ../data/escher.mesh
-//               mpirun -np 4 ex13p -m ../data/fichera.mesh
-//               mpirun -np 4 ex13p -m ../data/fichera-q2.vtk
-//               mpirun -np 4 ex13p -m ../data/fichera-q3.mesh
-//               mpirun -np 4 ex13p -m ../data/square-disc-nurbs.mesh
-//               mpirun -np 4 ex13p -m ../data/beam-hex-nurbs.mesh
-//               mpirun -np 4 ex13p -m ../data/amr-quad.mesh -o 2
-//               mpirun -np 4 ex13p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex13p -m ../data/mobius-strip.mesh -n 8 -o 2
-//               mpirun -np 4 ex13p -m ../data/klein-bottle.mesh -n 10 -o 2
+// Sample runs:  mpirun -np 4 ex13p-cyl
+//               mpirun -np 4 ex13p-cyl -o 2
+//               mpirun -np 4 ex13p-cyl -o 2 -e 0
 //
-// Description:  This example code solves the Maxwell (electromagnetic)
-//               eigenvalue problem curl curl E = lambda E with homogeneous
-//               Dirichlet boundary conditions E x n = 0.
+// Description:  This example code demonstrates the use of MFEM to solve the
+//               Maxwell (electromagnetic) eigenvalue problem on an
+//               axisymmetric domain. The eigenvalue problem:
+//                 curl curl E = lambda E
+//               with homogeneous Dirichlet boundary conditions E x n = 0 is
+//               solved on a cylindrical domain by meshing only a rectangle in
+//               the rho, z plane.  In cylindrical coordinates the weak form of
+//               the eigenvalue problem is given by:
+//                  (rho Curl(u), Curl(v)) = lambda (rho u, v)
 //
-//               We compute a number of the lowest nonzero eigenmodes by
-//               discretizing the curl curl operator using a Nedelec FE space of
-//               the specified order in 2D or 3D.
+//               We compute the five lowest nonzero eigenmodes by discretizing
+//               the curl curl operator using a Nedelec FE space of the
+//               specified order and compare to the known values.  Because the
+//               eigenvalue spectrum of a domain is unique this provides a
+//               reliable test that the axisymmetric domain is being faithfully
+//               characterized.
 //
-//               The example highlights the use of the AME subspace eigenvalue
-//               solver from HYPRE, which uses LOBPCG and AMS internally.
-//               Reusing a single GLVis visualization window for multiple
-//               eigenfunctions is also illustrated.
+//               The example highlights the use of specialized coefficients
+//               with existing operators to mimic axisymmetric domains.  The
+//               curl of each eigenmode is also computed and displayed to
+//               ilustrate that no special steps need to be taken to compute
+//               the curl in this coordinate system.
 //
-//               We recommend viewing examples 3 and 11 before viewing this
+//               We recommend viewing examples 13 and 11-cyl before viewing this
 //               example.
 
 #include "mfem.hpp"
@@ -119,9 +118,9 @@ int main(int argc, char *argv[])
       exit(1);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors. We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   // 3. Prepare a rectangular mesh with the desired dimensions and element
+   //    type.  Other 2D meshes could be used but then we couldn't check the
+   //    eigenvalues.
    Mesh *mesh = new Mesh(nr, nz, el_type);
    int dim = mesh->Dimension();
 
@@ -146,7 +145,9 @@ int main(int argc, char *argv[])
    pmesh->ReorientTetMesh();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
-   //    use the Nedelec finite elements of the specified order.
+   //    use the Nedelec finite elements (ND) of the specified order. We also
+   //    create an L2 space to represent the z-component of the curl of the
+   //    modes.
    ND_FECollection fec_nd(order, dim);
    L2_FECollection fec_rt(order - 1, dim,
                           BasisType::GaussLegendre, FiniteElement::INTEGRAL);
@@ -211,20 +212,23 @@ int main(int argc, char *argv[])
 
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //    parallel grid function to represent each of the eigenmodes returned by
-   //    the solver.
+   //    the solver. Also, define a discrete curl operator.
    Array<double> eigenvalues;
    ame->Solve();
    ame->GetEigenvalues(eigenvalues);
    ParGridFunction x(&fespace_nd);
    ParGridFunction dx(&fespace_rt);
-   ParGridFunction dx_l2(&fespace_l2);
 
    ParDiscreteLinearOperator curl(&fespace_nd, &fespace_rt);
    curl.AddDomainInterpolator(new CurlInterpolator());
    curl.Assemble();
 
-   GridFunctionCoefficient dxCoef(&dx);
+   /*
+   // This is one workaround for GLVis limitations
+   ParGridFunction dx_l2(&fespace_l2);
 
+   GridFunctionCoefficient dxCoef(&dx);
+   */
    if ( myid == 0 )
    {
       cout << "\nRelative error in eigenvalues:\n";
@@ -294,11 +298,12 @@ int main(int argc, char *argv[])
                    << "window_title 'Eigenmode " << i+1 << '/' << nev
                    << ", Lambda = " << eigenvalues[i] << "'" << endl;
          /*
-              curl_sock << "parallel " << num_procs << " " << myid << "\n"
-                        << "solution\n" << *pmesh << dx_l2 << flush
-                        << "window_title 'Curl of Eigenmode " << i+1 << '/' << nev
-                        << ", Lambda = " << eigenvalues[i] << "'"
-                        << "window_geometry 400 0 400 350" << endl;
+         // Limitations in the GridFunction and GLVis prevent this from working
+         curl_sock << "parallel " << num_procs << " " << myid << "\n"
+                   << "solution\n" << *pmesh << dx_l2 << flush
+                   << "window_title 'Curl of Eigenmode " << i+1 << '/' << nev
+                   << ", Lambda = " << eigenvalues[i] << "'"
+                   << "window_geometry 400 0 400 350" << endl;
          */
          char c;
          if (myid == 0)
