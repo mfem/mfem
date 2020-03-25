@@ -27,7 +27,7 @@ OUT_DIR = results
 DIRS = $(LIB_DIR) $(EVL_DIR) $(APP_DIR)
 
 OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o
-EVL_FILES = $(BLD_DIR)/fe_evol.evl $(BLD_DIR)/fe_evol_galerkin.evl
+EVL_FILES = $(BLD_DIR)/fe_evol.evl $(BLD_DIR)/galerkin.evl $(BLD_DIR)/monolithic_convex_limiting.evl
 APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app
 
 MAIN_FILES = hypsys
@@ -36,7 +36,8 @@ ifeq ($(MFEM_USE_MPI), YES)
    MAIN_FILES += phypsys
    POBJ_FILES += $(BLD_DIR)/pdofs.o
    POBJ_FILES += $(BLD_DIR)/ptools.o
-   PEVL_FILES += $(BLD_DIR)/pfe_evol_galerkin.evl
+   PEVL_FILES += $(BLD_DIR)/pgalerkin.evl
+   PEVL_FILES += $(BLD_DIR)/pmonolithic_convex_limiting.evl
 endif
 
 # valgrind-test setup

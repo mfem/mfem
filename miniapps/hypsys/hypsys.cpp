@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    switch (scheme)
    {
       case Galerkin: { evol = new GalerkinEvolution(&vfes, hyp, dofs); break; }
-      // case MCL: { evol = new MCLEvolution(&vfes, hyp, dofs); break; }
+      case MonolithicConvexLimiting: { evol = new MCL_Evolution(&vfes, hyp, dofs); break; }
       default:
          MFEM_ABORT("Unknown evolution scheme");
    }

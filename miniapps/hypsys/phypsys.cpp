@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
    switch (scheme)
    {
       case Galerkin: { evol = new ParGalerkinEvolution(&vfes, hyp, pdofs); break; }
-      // case MCL: { evol = new Par_MCL_Evolution(&vfes, hyp, pdofs); break; }
+      case MonolithicConvexLimiting: { evol = new ParMCL_Evolution(&vfes, hyp, pdofs); break; }
       default:
          MFEM_ABORT("Unknown evolution scheme");
    }

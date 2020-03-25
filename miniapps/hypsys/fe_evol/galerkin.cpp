@@ -1,4 +1,4 @@
-#include "fe_evol_galerkin.hpp"
+#include "galerkin.hpp"
 
 GalerkinEvolution::GalerkinEvolution(FiniteElementSpace *fes_,
                                      HyperbolicSystem *hyp_, DofInfo &dofs_)

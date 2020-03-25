@@ -1,12 +1,11 @@
-#include "pfe_evol_tempplate.hpp"
+#include "ptemplate.hpp"
 
-PAR_TEMPLATE::PAR_TEMPLATE(ParFiniteElementSpace *pfes_,
-                           HyperbolicSystem *hyp_,
-                           DofInfo &dofs_)
-   : TEMPLATE(fes_, hyp_, dofs_),
-     SCHEME(fes_, hyp_, dofs_), x_gf_MPI(pfes_) { }
+PARTEMPLATE::PARTEMPLATE(ParFiniteElementSpace *pfes_,
+                         HyperbolicSystem *hyp_,
+                         DofInfo &dofs_)
+   : PARTEMPLATE(pfes_, hyp_, dofs_), x_gf_MPI(pfes_) { }
 
-void PAR_TEMPLATE::Mult(const Vector &x, Vector &y) const
+void PARTEMPLATE::Mult(const Vector &x, Vector &y) const
 {
    x_gf_MPI = x;
    x_gf_MPI.ExchangeFaceNbrData();
@@ -14,8 +13,8 @@ void PAR_TEMPLATE::Mult(const Vector &x, Vector &y) const
    ComputeTimeDerivative(x, y, xMPI);
 }
 
-double PAR_TEMPLATE::ConvergenceCheck(double dt, double tol,
-                                      const Vector &u) const
+double PARTEMPLATE::ConvergenceCheck(double dt, double tol,
+                                     const Vector &u) const
 {
    z = u;
    z -= uOld;

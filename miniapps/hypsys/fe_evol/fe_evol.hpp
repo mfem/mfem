@@ -7,6 +7,9 @@
 using namespace std;
 using namespace mfem;
 
+// Auxiliary, only used to pass a non-used reference as parameter.
+static Vector serial;
+
 class FE_Evolution : public TimeDependentOperator
 {
 public:

@@ -6,8 +6,6 @@
 using namespace std;
 using namespace mfem;
 
-static Vector serial;
-
 class TEMPLATE : public FE_Evolution
 {
 public:

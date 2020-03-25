@@ -1,11 +1,11 @@
-#include "pfe_evol_galerkin.hpp"
+#include "pmonolithic_convex_limiting.hpp"
 
-ParGalerkinEvolution::ParGalerkinEvolution(ParFiniteElementSpace *pfes_,
-                                           HyperbolicSystem *hyp_,
-                                           DofInfo &dofs_)
-   : GalerkinEvolution(pfes_, hyp_, dofs_), x_gf_MPI(pfes_) { }
+ParMCL_Evolution::ParMCL_Evolution(ParFiniteElementSpace *pfes_,
+                                   HyperbolicSystem *hyp_,
+                                   DofInfo &dofs_)
+   : MCL_Evolution(pfes_, hyp_, dofs_), x_gf_MPI(pfes_) { }
 
-void ParGalerkinEvolution::Mult(const Vector &x, Vector &y) const
+void ParMCL_Evolution::Mult(const Vector &x, Vector &y) const
 {
    x_gf_MPI = x;
    x_gf_MPI.ExchangeFaceNbrData();
@@ -13,8 +13,8 @@ void ParGalerkinEvolution::Mult(const Vector &x, Vector &y) const
    ComputeTimeDerivative(x, y, xMPI);
 }
 
-double ParGalerkinEvolution::ConvergenceCheck(double dt, double tol,
-                                              const Vector &u) const
+double ParMCL_Evolution::ConvergenceCheck(double dt, double tol,
+                                          const Vector &u) const
 {
    z = u;
    z -= uOld;
