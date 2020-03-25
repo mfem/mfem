@@ -13,7 +13,7 @@
 #include <fstream>
 #include <iostream>
 #include "pml.hpp"
-#include "SourceTransfer.hpp"
+#include "ST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -130,8 +130,6 @@ int main(int argc, char *argv[])
    Mesh *mesh_ext = ExtendMesh(mesh,directions);
 
 
-
-
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    CartesianPML pml(mesh_ext,lengths);
@@ -198,11 +196,9 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   SourceTransferPrecond S(&a,ess_tdof_list, omega,nrlayers, 2);
+   STP S(&a,ess_tdof_list, omega,nrlayers);
 	S.SetOperator(*A);
-   S.SetSmoothType(1);
    S.SetLoadVector(B);
-   S.SetDumpingParam(1.0);
    
    X = 0.0;
    Vector z(X.Size()); z = 0.0;
@@ -210,61 +206,57 @@ int main(int argc, char *argv[])
    Vector ztemp(r.Size());
 
 
-   X = 0.0;
-	GMRESSolver gmres;
-	gmres.SetPreconditioner(S);
-	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-8);
-	gmres.SetMaxIter(500);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
+   // X = 0.0;
+	// GMRESSolver gmres;
+	// gmres.SetPreconditioner(S);
+	// gmres.SetOperator(*A);
+	// gmres.SetRelTol(1e-8);
+	// gmres.SetMaxIter(500);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
 
 
 
 
-   // int n= 16;
+   int n= 1;
 
+   Vector Ax(X.Size());
+   for (int i = 0; i<n; i++)
+   {
+      A->Mult(X,Ax); Ax *=-1.0;
+      r = b; r+=Ax;
+      // A->AddMult(X,r,-1.0); //r = r-Ax
+      cout << "residual norm =" << r.Norml2() << endl;
+      // S.Mult(r,z); 
+      S.Mult(r,z); 
+      cout << "correction norm =" << z.Norml2() << endl;
 
+      X += z;
 
+      cout << "solution norm =" << X.Norml2() << endl;
 
+      p_gf = 0.0;
+      a.RecoverFEMSolution(X,B,p_gf);
 
-   // Vector Ax(X.Size());
-   // for (int i = 0; i<n; i++)
-   // {
-   //    A->Mult(X,Ax); Ax *=-1.0;
-   //    r = b; r+=Ax;
-   //    // A->AddMult(X,r,-1.0); //r = r-Ax
-   //    cout << "residual norm =" << r.Norml2() << endl;
-   //    // S.Mult(r,z); 
-   //    S.Mult(r,z); 
-   //    cout << "correction norm =" << z.Norml2() << endl;
-
-   //    X += z;
-
-   //    cout << "solution norm =" << X.Norml2() << endl;
-
-   //    p_gf = 0.0;
-   //    a.RecoverFEMSolution(X,B,p_gf);
-
-   //       char vishost[] = "localhost";
-   //       int  visport   = 19916;
-   //       string keys;
-   //       if (dim ==2 )
-   //       {
-   //          keys = "keys mrRljc\n";
-   //       }
-   //       else
-   //       {
-   //          keys = "keys mc\n";
-   //       }
-   //       socketstream sol_sock_re(vishost, visport);
-   //       sol_sock_re.precision(8);
-   //       sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-   //                   "window_title 'Numerical Pressure (real part)' "
-   //                   << keys << flush;
-   //    cout << "Iteration " << i << endl;
-   //    cin.get();
-   // }
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         socketstream sol1_sock_re(vishost, visport);
+         sol1_sock_re.precision(8);
+         sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+                     "window_title 'Numerical Pressure (real part)' "
+                     << keys << flush;
+      cout << "Iteration " << i << endl;
+      cin.get();
+   }
 
 
 
@@ -332,7 +324,7 @@ double f_exact_Re(const Vector &x)
    double x1 = length/2.0;
    double x2 = length/2.0;
    x0 = 0.1;
-   x1 = 0.1;
+   x1 = 0.5;
    double alpha,beta;
    double n = 5.0 * omega/M_PI;
    double coeff = pow(n,2)/M_PI;

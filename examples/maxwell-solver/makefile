@@ -34,7 +34,7 @@ endif
 COMMON_O= schwarz.o complex_additive_schwarz.o \
 		    complex_additive_schwarzp.o additive_schwarz.o \
 			 additive_schwarzp.o pml.o LSweepsPrecond.o \
-			 SourceTransfer.o
+			 SourceTransfer.o ST.o
 
 # Remove built-in rules
 %: %.cpp
@@ -59,5 +59,6 @@ $(MFEM_LIB_FILE):
 clean:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
+	rm output/*
 
 

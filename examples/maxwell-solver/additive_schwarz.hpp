@@ -6,7 +6,7 @@ using namespace std;
 using namespace mfem;
 
 
-class OverlappingCartesianMeshPartition // for now every vertex defines a patch
+class OverlappingCartesianMeshPartition 
 {
 private:
    Mesh *mesh=nullptr;
@@ -19,6 +19,18 @@ public:
    ~OverlappingCartesianMeshPartition() {};
 };
 
+class STPOverlappingCartesianMeshPartition // Special layered partition for STP
+{
+private:
+   Mesh *mesh=nullptr;
+public:
+   int nrpatch;
+   int nx, ny, nz;
+   std::vector<Array<int>> element_map;
+   // constructor
+   STPOverlappingCartesianMeshPartition(Mesh * mesh_);
+   ~STPOverlappingCartesianMeshPartition() {};
+};
 
 
 class CartesianMeshPartition // for now every vertex defines a patch
@@ -59,6 +71,7 @@ public:
    int nx, ny, nz;
    std::vector<Array<int>> element_map;
    Array<Mesh *> patch_mesh;
+   int partition_kind;
    // constructor
    MeshPartition(Mesh * mesh_, int part);
    ~MeshPartition();
