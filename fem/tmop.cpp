@@ -160,7 +160,7 @@ double TMOP_Metric_aspratio3D::EvalW(const DenseMatrix &Jpt) const
           ) / 3.0;
 }
 
-//mu_14 = |T-I|^2
+// mu_14 = |T-I|^2
 double TMOP_Metric_SSA2D::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
@@ -177,7 +177,7 @@ double TMOP_Metric_SSA2D::EvalW(const DenseMatrix &Jpt) const
    return Mat.FNorm2();
 }
 
-//mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
+// mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
 double TMOP_Metric_SS2D::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,

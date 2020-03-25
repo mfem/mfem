@@ -249,7 +249,7 @@ public:
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
       }
-      else if (metric == 14) //Size + Alignment
+      else if (metric == 14) // Size + Alignment
       {
          const double xc = pos(0), yc = pos(1);
          double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
@@ -262,7 +262,7 @@ public:
 
          K *= alpha_bar;
       }
-      else if (metric == 87) //Shape + Size + Alignment
+      else if (metric == 87) // Shape + Size + Alignment
       {
          Vector x = pos;
          double xc = x(0)-0.5, yc = x(1)-0.5;
@@ -444,7 +444,7 @@ int main(int argc, char *argv[])
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
+   //    freedom in fespace. Note: this is partition-dependent.
    //
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
