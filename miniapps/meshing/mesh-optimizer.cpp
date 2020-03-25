@@ -163,34 +163,6 @@ double ind_values(const Vector &x)
    return val * small + (1.0 - val) * big;
 }
 
-double ori_values(const Vector &x)
-{
-   const int opt = 2;
-
-   // circle
-   if (opt == 1)
-   {
-      double val = 0.;
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      double r1 = -0.2; double r2 = 0.3; double sf=2.0;
-      val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
-      val = 0;
-      if (r<r2) {val=1;}
-      val = 0 + (M_PI/4)*val;
-
-      return val;
-   }
-   else if (opt == 2)
-   {
-      const double xc = x(0), yc = x(1);
-      double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
-      return theta;
-   }
-
-   return 0.0;
-}
-
 class HessianCoefficient : public MatrixCoefficient
 {
 private:
