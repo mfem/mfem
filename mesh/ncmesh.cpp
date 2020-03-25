@@ -113,10 +113,10 @@ NCMesh::NCMesh(const Mesh *mesh)
    }
 
    // copy vertices
-   top_vertex_pos.SetSize(3*mesh->GetNV());
+   coordinates.SetSize(3*mesh->GetNV());
    for (int i = 0; i < mesh->GetNV(); i++)
    {
-      std::memcpy(&top_vertex_pos[3*i], mesh->GetVertex(i), 3*sizeof(double));
+      std::memcpy(&coordinates[3*i], mesh->GetVertex(i), 3*sizeof(double));
    }
 
    // create the NCMesh::Element struct for each Mesh element
@@ -195,7 +195,7 @@ NCMesh::NCMesh(const NCMesh &other)
 {
    other.free_element_ids.Copy(free_element_ids);
    other.root_state.Copy(root_state);
-   other.top_vertex_pos.Copy(top_vertex_pos);
+   other.coordinates.Copy(coordinates);
    Update();
 }
 
@@ -2004,7 +2004,7 @@ const double* NCMesh::CalcVertexPos(int node) const
    const Node &nd = nodes[node];
    if (nd.p1 == nd.p2) // top-level vertex
    {
-      return &top_vertex_pos[3*nd.p1];
+      return &coordinates[3*nd.p1];
    }
 
 #ifdef MFEM_DEBUG
@@ -2031,7 +2031,7 @@ const double* NCMesh::CalcVertexPos(int node) const
 void NCMesh::GetMeshComponents(Mesh &mesh) const
 {
    mesh.vertices.SetSize(vertex_nodeId.Size());
-   if (top_vertex_pos.Size())
+   if (coordinates.Size())
    {
       // calculate vertex positions from stored top-level vertex coordinates
       tmp_vertex = new TmpVertex[nodes.NumIds()];
@@ -2041,7 +2041,7 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
       }
       delete [] tmp_vertex;
    }
-   // NOTE: if the mesh is curved (top_vertex_pos is empty), mesh.vertices are
+   // NOTE: if the mesh is curved ('coordinates' is empty), mesh.vertices are
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
@@ -4970,25 +4970,25 @@ void NCMesh::LoadBoundary(std::istream &input)
    }
 }
 
-void NCMesh::PrintVertices(std::ostream &out) const
+void NCMesh::PrintCoordinates(std::ostream &out) const
 {
-   int nv = top_vertex_pos.Size()/3;
+   int nv = coordinates.Size()/3;
    out << nv << "\n";
    if (!nv) { return; }
 
    out << spaceDim << "\n";
    for (int i = 0; i < nv; i++)
    {
-      out << top_vertex_pos[3*i];
+      out << coordinates[3*i];
       for (int j = 1; j < spaceDim; j++)
       {
-         out << " " << top_vertex_pos[3*i + j];
+         out << " " << coordinates[3*i + j];
       }
       out << "\n";
    }
 }
 
-void NCMesh::LoadVertices(std::istream &input)
+void NCMesh::LoadCoordinates(std::istream &input)
 {
    int nv;
    input >> nv;
@@ -4996,17 +4996,26 @@ void NCMesh::LoadVertices(std::istream &input)
 
    input >> spaceDim;
 
-   top_vertex_pos.SetSize(nv * 3);
-   top_vertex_pos = 0.0;
+   coordinates.SetSize(nv * 3);
+   coordinates = 0.0;
 
    for (int i = 0; i < nv; i++)
    {
       for (int j = 0; j < spaceDim; j++)
       {
-         input >> top_vertex_pos[3*i + j];
+         input >> coordinates[3*i + j];
          MFEM_VERIFY(input.good(), "unexpected EOF");
       }
    }
+}
+
+bool NCMesh::ZeroRootStates() const
+{
+   for (int i = 0; i < root_state.Size(); i++)
+   {
+      if (root_state[i]) { return false; }
+   }
+   return true;
 }
 
 void NCMesh::Print(std::ostream &out) const
@@ -5048,7 +5057,7 @@ void NCMesh::Print(std::ostream &out) const
 
    PrintVertexParents(out);
 
-   if (1) // TODO: if nonzero root_state
+   if (!ZeroRootStates()) // root_state section is optional
    {
       out << "\n# root element orientation";
       out << "\nroot_state\n" << root_state.Size() << "\n";
@@ -5058,10 +5067,10 @@ void NCMesh::Print(std::ostream &out) const
       }
    }
 
-   out << "\n# top-level vertices";
-   out << "\nvertices\n";
+   out << "\n# top-level node coordinates";
+   out << "\ncoordinates\n";
 
-   PrintVertices(out);
+   PrintCoordinates(out);
 }
 
 void NCMesh::InitRootElements()
@@ -5102,6 +5111,16 @@ void NCMesh::InitRootElements()
    // default root state is zero
    root_state.SetSize(nroots);
    root_state = 0;
+}
+
+int NCMesh::CountTopLevelNodes() const
+{
+   int ntop = 0;
+   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      if (node->p1 == node->p2) { ntop = node.index() + 1; }
+   }
+   return ntop;
 }
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved)
@@ -5175,6 +5194,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    }
 
    InitRootElements();
+   InitGeomFlags();
 
    // load boundary
    skip_comment_lines(input, '#');
@@ -5206,24 +5226,25 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       input >> ident;
    }
 
-   // load vertices
-   MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-
-   LoadVertices(input);
-
-   // check for curved mesh
-   skip_comment_lines(input, '#');
-   input >> ident;
-   if (ident == "nodes")
+   if (ident == "coordinates")
    {
+      LoadCoordinates(input);
+
+      MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
+                  "Not all top-level nodes are covered by the 'coordinates' "
+                  "section of the mesh file.");
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+      MFEM_VERIFY(ident == "mfem_mesh_end", "end of file tag not found");
+   }
+   else if (ident == "nodes")
+   {
+      coordinates.SetSize(0); // this means the mesh is curved
+
       // prepare to read the nodes
       input >> std::ws;
       curved = 1;
-   }
-   else if (ident != "mfem_mesh_end")
-   {
-      MFEM_WARNING("'mfem_mesh_end' was expected but not found "
-                   "at the end of the mesh file");
    }
 
    // create edge nodes and faces
@@ -5434,20 +5455,29 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    {
       spaceDim = atoi(ident.c_str());
 
-      top_vertex_pos.SetSize(3*count);
-      top_vertex_pos = 0.0;
+      coordinates.SetSize(3*count);
+      coordinates = 0.0;
 
       for (int i = 0; i < count; i++)
       {
          for (int j = 0; j < spaceDim; j++)
          {
-            input >> top_vertex_pos[3*i + j];
+            input >> coordinates[3*i + j];
             MFEM_VERIFY(input.good(), "unexpected EOF");
          }
+      }
+
+      // truncate extra coordinates (legacy vertices section is longer)
+      int ntop = CountTopLevelNodes();
+      if (3*ntop < coordinates.Size())
+      {
+         coordinates.SetSize(3*ntop);
       }
    }
    else
    {
+      coordinates.SetSize(0);
+
       // prepare to read the nodes
       input >> std::ws;
       curved = 1;
@@ -5512,7 +5542,7 @@ long NCMesh::MemoryUsage() const
           elements.MemoryUsage() +
           free_element_ids.MemoryUsage() +
           root_state.MemoryUsage() +
-          top_vertex_pos.MemoryUsage() +
+          coordinates.MemoryUsage() +
           leaf_elements.MemoryUsage() +
           vertex_nodeId.MemoryUsage() +
           face_list.MemoryUsage() +
@@ -5535,7 +5565,7 @@ int NCMesh::PrintMemoryDetail() const
    mfem::out << elements.MemoryUsage() << " elements\n"
              << free_element_ids.MemoryUsage() << " free_element_ids\n"
              << root_state.MemoryUsage() << " root_state\n"
-             << top_vertex_pos.MemoryUsage() << " top_vertex_pos\n"
+             << coordinates.MemoryUsage() << " top_vertex_pos\n"
              << leaf_elements.MemoryUsage() << " leaf_elements\n"
              << vertex_nodeId.MemoryUsage() << " vertex_nodeId\n"
              << face_list.MemoryUsage() << " face_list\n"

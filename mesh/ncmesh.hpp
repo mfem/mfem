@@ -456,8 +456,9 @@ protected: // implementation
        NOTE: the first M items of 'elements' is the coarse mesh. */
    Array<int> root_state;
 
-   /// coordinates of top-level vertices (organized as triples)
-   Array<double> top_vertex_pos;
+   /** Coordinates of top-level vertices (organized as triples). If empty,
+       the Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
+   Array<double> coordinates;
 
    typedef HashTable<Node>::iterator node_iterator;
    typedef HashTable<Face>::iterator face_iterator;
@@ -829,12 +830,16 @@ protected: // implementation
    void LoadBoundary(std::istream &input);
 
    /// Print the "vertices" section of the mesh file.
-   void PrintVertices(std::ostream &out) const;
+   void PrintCoordinates(std::ostream &out) const;
    /// Load the "vertices" section of the mesh file.
-   void LoadVertices(std::istream &input);
+   void LoadCoordinates(std::istream &input);
 
    /// Count root elements and intialize root_state.
    void InitRootElements();
+   /// Return the index of the last top-level node plus one.
+   int CountTopLevelNodes() const;
+   /// Return true if all root_states are zero.
+   bool ZeroRootStates() const;
 
    /// Load the element refinement hierarchy from a legacy mesh file.
    void LoadCoarseElements(std::istream &input);
