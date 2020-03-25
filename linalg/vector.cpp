@@ -1163,20 +1163,21 @@ void Vector::ToNVector(N_Vector &nv, long global_length)
          break;
 #ifdef MFEM_USE_MPI
       case SUNDIALS_NVEC_PARALLEL:
-         MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");	 
+         MFEM_ASSERT(NV_OWN_DATA_P(nv) == SUNFALSE, "invalid parallel N_Vector");
          NV_DATA_P(nv) = data;
          NV_LOCLENGTH_P(nv) = size;
-	 if (global_length == 0)
-	   {
-	     global_length = NV_GLOBLENGTH_P(nv);
+         if (global_length == 0)
+         {
+            global_length = NV_GLOBLENGTH_P(nv);
 
-	     if (global_length == 0 && global_length != size) {
-	       MPI_Comm sundials_comm = NV_COMM_P(nv);
-	       MPI_Allreduce(&size, &global_length, 1, MPI_LONG, MPI_SUM,
-			     sundials_comm);
-	     }
-	   }
-	 NV_GLOBLENGTH_P(nv) = global_length;
+            if (global_length == 0 && global_length != size)
+            {
+               MPI_Comm sundials_comm = NV_COMM_P(nv);
+               MPI_Allreduce(&size, &global_length, 1, MPI_LONG, MPI_SUM,
+                             sundials_comm);
+            }
+         }
+         NV_GLOBLENGTH_P(nv) = global_length;
          break;
 #endif
       default:
