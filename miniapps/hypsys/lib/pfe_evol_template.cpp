@@ -2,9 +2,9 @@
 
 PAR_TEMPLATE::PAR_TEMPLATE(ParFiniteElementSpace *pfes_,
                            HyperbolicSystem *hyp_,
-                           DofInfo &dofs_, EvolutionScheme scheme_)
-   : TEMPLATE(fes_, hyp_, dofs_, scheme_),
-     SCHEME(fes_, hyp_, dofs_, scheme_), x_gf_MPI(pfes_) { }
+                           DofInfo &dofs_)
+   : TEMPLATE(fes_, hyp_, dofs_),
+     SCHEME(fes_, hyp_, dofs_), x_gf_MPI(pfes_) { }
 
 void PAR_TEMPLATE::Mult(const Vector &x, Vector &y) const
 {

@@ -13,7 +13,7 @@ class PAR_TEMPLATE : public TEMPLATE
 public:
    explicit PAR_TEMPLATE(ParFiniteElementSpace *fes_,
                          HyperbolicSystem *hyp_,
-                         DofInfo &dofs_, EvolutionScheme scheme_);
+                         DofInfo &dofs_);
 
    virtual ~PAR_TEMPLATE() { }
 

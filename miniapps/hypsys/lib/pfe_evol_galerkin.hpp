@@ -14,8 +14,7 @@ public:
    mutable ParGridFunction x_gf_MPI;
 
    explicit ParGalerkinEvolution(ParFiniteElementSpace *fes_,
-                                 HyperbolicSystem *hyp_, DofInfo &dofs_,
-                                 EvolutionScheme scheme_);
+                                 HyperbolicSystem *hyp_, DofInfo &dofs_);
 
    virtual ~ParGalerkinEvolution() { }
 

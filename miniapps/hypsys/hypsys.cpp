@@ -1,6 +1,8 @@
 #include "lib/lib.hpp"
 #include "apps/lib.hpp"
 
+enum EvolutionScheme { Galerkin, MCL };
+
 int main(int argc, char *argv[])
 {
    Configuration config;
@@ -150,8 +152,8 @@ int main(int argc, char *argv[])
    FE_Evolution *evol;
    switch (scheme)
    {
-      case Galerkin: { evol = new GalerkinEvolution(&vfes, hyp, dofs, scheme); break; }
-      // case MCL: { evol = new MCLEvolution(&vfes, hyp, dofs, scheme); break; }
+      case Galerkin: { evol = new GalerkinEvolution(&vfes, hyp, dofs); break; }
+      // case MCL: { evol = new MCLEvolution(&vfes, hyp, dofs); break; }
       default:
          MFEM_ABORT("Unknown evolution scheme");
    }

@@ -3,6 +3,8 @@
 #include "lib/pfe_evol_galerkin.hpp"
 #include "apps/lib.hpp"
 
+enum EvolutionScheme { Galerkin, MCL };
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
@@ -182,8 +184,8 @@ int main(int argc, char *argv[])
    FE_Evolution *evol;
    switch (scheme)
    {
-      case Galerkin: { evol = new ParGalerkinEvolution(&vfes, hyp, pdofs, scheme); break; }
-      // case MCL: { evol = new Par_MCL_Evolution(&vfes, hyp, pdofs, scheme); break; }
+      case Galerkin: { evol = new ParGalerkinEvolution(&vfes, hyp, pdofs); break; }
+      // case MCL: { evol = new Par_MCL_Evolution(&vfes, hyp, pdofs); break; }
       default:
          MFEM_ABORT("Unknown evolution scheme");
    }

@@ -12,8 +12,7 @@ class GalerkinEvolution : public FE_Evolution
 {
 public:
    explicit GalerkinEvolution(FiniteElementSpace *fes_,
-                              HyperbolicSystem *hyp_, DofInfo &dofs_,
-                              EvolutionScheme scheme_);
+                              HyperbolicSystem *hyp_, DofInfo &dofs_);
 
    virtual ~GalerkinEvolution() { }
 

@@ -2,9 +2,8 @@
 
 ParGalerkinEvolution::ParGalerkinEvolution(ParFiniteElementSpace *pfes_,
                                            HyperbolicSystem *hyp_,
-                                           DofInfo &dofs_,
-                                           EvolutionScheme scheme_)
-   : GalerkinEvolution(pfes_, hyp_, dofs_, scheme_), x_gf_MPI(pfes_) { }
+                                           DofInfo &dofs_)
+   : GalerkinEvolution(pfes_, hyp_, dofs_), x_gf_MPI(pfes_) { }
 
 void ParGalerkinEvolution::Mult(const Vector &x, Vector &y) const
 {

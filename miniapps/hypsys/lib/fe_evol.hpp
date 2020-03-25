@@ -9,9 +9,6 @@
 using namespace std;
 using namespace mfem;
 
-
-enum EvolutionScheme { Galerkin, MCL };
-
 class FE_Evolution : public TimeDependentOperator
 {
 public:
@@ -19,7 +16,6 @@ public:
    FiniteElementSpace *fes;
    const HyperbolicSystem *hyp;
    const DofInfo dofs;
-   EvolutionScheme scheme;
    const IntegrationRule *IntRuleElem;
    const IntegrationRule *IntRuleFace;
 
@@ -52,7 +48,7 @@ public:
    mutable GridFunction inflow;
 
    FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
-                DofInfo &dofs_, EvolutionScheme scheme_);
+                DofInfo &dofs_);
 
    virtual ~FE_Evolution()
    {

@@ -1,9 +1,8 @@
 #include "fe_evol_galerkin.hpp"
 
 GalerkinEvolution::GalerkinEvolution(FiniteElementSpace *fes_,
-                                     HyperbolicSystem *hyp_, DofInfo &dofs_,
-                                     EvolutionScheme scheme_)
-   : FE_Evolution(fes_, hyp_, dofs_, scheme_)
+                                     HyperbolicSystem *hyp_, DofInfo &dofs_)
+   : FE_Evolution(fes_, hyp_, dofs_)
 {
    // TODO
 }

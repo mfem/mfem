@@ -1,9 +1,9 @@
 #include "fe_evol.hpp"
 
 FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
-                           DofInfo &dofs_, EvolutionScheme scheme_)
+                           DofInfo &dofs_)
    : TimeDependentOperator(fes_->GetVSize()), fes(fes_), hyp(hyp_),
-     dofs(dofs_), scheme(scheme_), z(fes_->GetVSize()), inflow(fes_),
+     dofs(dofs_), z(fes_->GetVSize()), inflow(fes_),
      xSizeMPI(dofs_.fes->GetVSize())
 {
    const char* fecol = fes->FEColl()->Name();
