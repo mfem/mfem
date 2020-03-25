@@ -1,9 +1,7 @@
 #ifndef HYPSYS_FE_EVOL
 #define HYPSYS_FE_EVOL
 
-#include "massmat.hpp"
-#include "dofs.hpp"
-#include "tools.hpp"
+#include "../lib/lib.hpp"
 #include "../apps/hyperbolic_system.hpp"
 
 using namespace std;

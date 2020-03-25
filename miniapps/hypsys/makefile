@@ -20,12 +20,14 @@ MFEM_LIB_FILE = mfem_is_not_built
 # Code directories in logical order
 APP_DIR = apps
 BLD_DIR = build
+EVL_DIR = fe_evol
 LIB_DIR = lib
-OUT_DIR = output
+OUT_DIR = results
 
-DIRS = $(LIB_DIR) $(APP_DIR)
+DIRS = $(LIB_DIR) $(EVL_DIR) $(APP_DIR)
 
-OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o $(BLD_DIR)/fe_evol.o $(BLD_DIR)/fe_evol_galerkin.o
+OBJ_FILES = $(BLD_DIR)/massmat.o $(BLD_DIR)/dofs.o $(BLD_DIR)/tools.o
+EVL_FILES = $(BLD_DIR)/fe_evol.evl $(BLD_DIR)/fe_evol_galerkin.evl
 APP_FILES = $(BLD_DIR)/advection.app $(BLD_DIR)/burgers.app $(BLD_DIR)/kpp.app $(BLD_DIR)/shallowwater.app $(BLD_DIR)/euler.app
 
 MAIN_FILES = hypsys
@@ -34,7 +36,7 @@ ifeq ($(MFEM_USE_MPI), YES)
    MAIN_FILES += phypsys
    POBJ_FILES += $(BLD_DIR)/pdofs.o
    POBJ_FILES += $(BLD_DIR)/ptools.o
-   POBJ_FILES += $(BLD_DIR)/pfe_evol_galerkin.o
+   PEVL_FILES += $(BLD_DIR)/pfe_evol_galerkin.evl
 endif
 
 # valgrind-test setup
@@ -78,18 +80,21 @@ CONFIG-NAME = p4e0o2-$(GEOM)
 %.o: ../$(LIB_DIR)/%.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $^ -o $@
 
+%.evl: ../$(EVL_DIR)/%.cpp
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $^ -o $@
+
 %.app: ../$(APP_DIR)/%.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $^ -o $@
 
 all: $(MAIN_FILES)
 
-library: $(OBJ_FILES) $(POBJ_FILES) $(APP_FILES)
+library: $(OBJ_FILES) $(POBJ_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES)
 
 hypsys: library
-	$(MFEM_CXX) $(MFEM_FLAGS) hypsys.cpp -o $@ $(OBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) hypsys.cpp -o $@ $(OBJ_FILES) $(EVL_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 phypsys: library
-	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o $@ $(OBJ_FILES) $(POBJ_FILES) $(APP_FILES) $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o $@ $(OBJ_FILES) $(POBJ_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 clean:
 	@rm -f hypsys phypsys errors.txt *.gf *.mesh $(BLD_DIR)/*

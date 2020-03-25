@@ -1,9 +1,6 @@
 #include "lib/lib.hpp"
-#include "lib/ptools.hpp"
-#include "lib/pfe_evol_galerkin.hpp"
+#include "fe_evol/plib.hpp"
 #include "apps/lib.hpp"
-
-enum EvolutionScheme { Galerkin, MCL };
 
 int main(int argc, char *argv[])
 {
@@ -280,7 +277,7 @@ int main(int argc, char *argv[])
 
    if (hyp->FileOutput)
    {
-      ofstream osol("final.gf");
+      ofstream osol("ultimate.gf");
       osol.precision(config.precision);
       uk.SaveAsOne(osol);
    }

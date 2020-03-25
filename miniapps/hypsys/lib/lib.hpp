@@ -1,6 +1,8 @@
-#ifndef HYPSYS_LIB
-#define HYPSYS_LIB
+#ifndef HYPSYS_LIB_LIB
+#define HYPSYS_LIB_LIB
 
-#include "fe_evol_galerkin.hpp"
+#include "massmat.hpp"
+#include "dofs.hpp"
+#include "tools.hpp"
 
 #endif
