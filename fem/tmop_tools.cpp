@@ -323,7 +323,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
 {
    const int pts_cnt = new_nodes.Size() / dim;
 
-   // The sizes may change between calls due to AMR procedures.
+   // The sizes may change between calls due to AMR.
    if (el_id_out.Size() != pts_cnt)
    {
       el_id_out.SetSize(pts_cnt);

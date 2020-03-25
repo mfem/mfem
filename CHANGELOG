@@ -18,9 +18,14 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
 
+- Added support for finite difference-based gradient and Hessian approximation
+  in the TMOP mesh optimization algorithms. This improves the accuracy of the
+  Hessian for r-adaptivity using discrete fields, and allows use of skewness
+  and orientation based metrics.
+
 New and updated examples and miniapps
 -------------------------------------
-- Adding a simple meshing miniapp, Twist, which demonstates MFEM's strategy of
+- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
 
@@ -134,13 +139,6 @@ Meshing improvements
 - Added support for creating refined versions of periodic meshes, making use of
   the new L2ElementRestriction class. This class also allows for computing
   geometric factors on periodic meshes using partial assembly.
-  
-- The TMOP mesh optimization algorithms were improved to support AMR meshes.
-
-- Added support for finite difference based gradient and Hessian approximation
-  in the TMOP mesh optimization algorithms. This improves the accuracy of the
-  Hessian for r-adaptivity using discrete fields, and allows use of skewness
-  and orientation based metrics.
 
 Discretization improvements
 ---------------------------
