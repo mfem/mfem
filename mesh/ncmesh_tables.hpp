@@ -15,6 +15,7 @@ namespace mfem
 namespace // make everything static
 {
 
+// FIXME: non-tensor elements?
 const int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
 

@@ -4855,7 +4855,7 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 
 void NCMesh::PrintVertexParents(std::ostream &out) const
 {
-   // count vertices with parents
+   // count vertex nodes with parents
    int nv = 0;
    for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
@@ -4868,14 +4868,10 @@ void NCMesh::PrintVertexParents(std::ostream &out) const
    {
       if (node->HasVertex() && node->p1 != node->p2)
       {
-         const Node &p1 = nodes[node->p1];
-         const Node &p2 = nodes[node->p2];
+         MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
+         MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
-         MFEM_ASSERT(p1.HasVertex(), "");
-         MFEM_ASSERT(p2.HasVertex(), "");
-
-         out << node->vert_index << " "
-             << p1.vert_index << " " << p2.vert_index << "\n";
+         out << node.index() << " " << node->p1 << " " << node->p2 << "\n";
       }
    }
 }
@@ -4900,9 +4896,6 @@ void NCMesh::LoadVertexParents(std::istream &input)
 
       // assign new parents for the node
       nodes.Reparent(id, p1, p2);
-
-      // NOTE: when loading an AMR mesh, node indices are guaranteed to have
-      // the same indices as vertices, see NCMesh::NCMesh.
    }
 }
 
@@ -5081,7 +5074,10 @@ void NCMesh::InitRootElements()
       {
          for (int j = 0; j < 8 && el.child[j] >= 0; j++)
          {
-            elements[el.child[j]].parent = i;
+            int child = el.child[j];
+            MFEM_VERIFY(child < elements.Size(),
+                        "element " << i << " references invalid child " << child);
+            elements[child].parent = i;
          }
       }
    }
