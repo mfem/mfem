@@ -48,6 +48,7 @@ examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
+examples/ex1[0-9]p-cyl
 
 examples/refined.mesh
 examples/displaced.mesh
