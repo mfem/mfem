@@ -58,6 +58,8 @@ if (MFEM_USE_MPI)
     ex21p.cpp
     ex22p.cpp
     ex24p.cpp
+    ex11p-cyl.cpp
+    ex13p-cyl.cpp
     )
 endif()
 
