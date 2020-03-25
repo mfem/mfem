@@ -3,7 +3,7 @@
 // Compile with: make ex25
 //
 // Sample runs:  ex25 -o 2 -f 1.0 -ref 2 -prob 0
-//               ex25 -o 3 -f 1.0 -ref 2 -prob 1
+//               ex25 -o 3 -f 10.0 -ref 2 -prob 1
 //               ex25 -o 2 -f 3.0 -ref 3 -prob 2
 //               ex25 -o 2 -f 1.0 -ref 2 -prob 3
 //               ex25 -o 2 -f 1.0 -ref 2 -prob 0 -m ../data/beam-quad.mesh
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
             mesh_file = "../data/beam-hex.mesh";
             break;
          case scatter:
-            mesh_file = "../data/square_w_hole.mesh";
+            mesh_file = "../data/square-disc.mesh";
             break;
          case lshape:
             mesh_file = "../data/l-shape.mesh";
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
    switch (prob)
    {
       case scatter:
-         length = 1.0;
+         length = 0.2;
          break;
       case lshape:
          length(0, 1) = 0.5;
@@ -619,6 +619,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
          Vector shift(dim);
          shift = 0.0;
          if (prob == fichera) { shift = 1.0; }
+         if (prob == scatter) { shift = -0.5; }
 
          if (dim == 2)
          {
