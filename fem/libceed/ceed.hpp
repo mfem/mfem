@@ -92,37 +92,36 @@ struct CeedData
 };
 
 /** This structure contains the data to assemble a PA operator with libCEED.
- *  See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
+    See libceed/mass.cpp or libceed/diffusion.cpp for examples. */
 struct CeedPAOperator
 {
-   /** The finite element space for the trial and test functions.*/
+   /** The finite element space for the trial and test functions. */
    const FiniteElementSpace &fes;
-   /** The Integration Rule to use to compote the operator.*/
+   /** The Integration Rule to use to compote the operator. */
    const IntegrationRule &ir;
-   /** The number of quadrature data at each quadrature point.*/
+   /** The number of quadrature data at each quadrature point. */
    int qdatasize;
-   /** The path to the header containing the functions for libCEED.*/
+   /** The path to the header containing the functions for libCEED. */
    std::string header;
    /** The name of the Qfunction to build the quadrature data with a constant
-    *  coefficient.*/
+       coefficient.*/
    std::string const_func;
-   /** The Qfunction to build the quadrature data with a constant coefficient.*/
+   /** The Qfunction to build the quadrature data with constant coefficient. */
    CeedQFunctionUser const_qf;
-   /** The name of the Qfunction to build the quadrature data with a
-    *  grid function coefficient. */
+   /** The name of the Qfunction to build the quadrature data with grid function
+       coefficient. */
    std::string grid_func;
-   /** The Qfunction to build the quadrature data with a grid function
-    *  coefficient.*/
+   /** The Qfunction to build the quad. data with grid function coefficient. */
    CeedQFunctionUser grid_qf;
-   /** The name of the Qfunction to apply the operator.*/
+   /** The name of the Qfunction to apply the operator. */
    std::string apply_func;
-   /** The Qfunction to appply the operator.*/
+   /** The Qfunction to apply the operator. */
    CeedQFunctionUser apply_qf;
-   /** The evaluation mode to apply to the trial function
-    *  (e.g.: CEED_EVAL_INTERP, CEED_EVAL_GRAD)*/
+   /** The evaluation mode to apply to the trial function (CEED_EVAL_INTERP,
+       CEED_EVAL_GRAD, etc.) */
    CeedEvalMode trial_op;
-   /** The evaluation mode to apply to the test function
-    *  (e.g.: CEED_EVAL_INTERP, CEED_EVAL_GRAD)*/
+   /** The evaluation mode to apply to the test function ( CEED_EVAL_INTERP,
+       CEED_EVAL_GRAD, etc.)*/
    CeedEvalMode test_op;
 };
 
@@ -139,9 +138,9 @@ void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
 
-/** This function initalize an arbitrary linear operator using the partial
- *  assembly decomposition in libCEED. The specificities of the operator
- *  are described by the struct CEEDPAOperator input. */
+/** This function initializes an arbitrary linear operator using the partial
+    assembly decomposition in libCEED. The operator details are described by the
+    struct CEEDPAOperator input. */
 void CeedPAAssemble(const CeedPAOperator& op,
                     CeedData& ceedData);
 
