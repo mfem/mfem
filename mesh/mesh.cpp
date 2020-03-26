@@ -3387,6 +3387,14 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       }
       while (line != parse_tag);
    }
+   else if (mfem_nc_version >= 10)
+   {
+      string ident;
+      skip_comment_lines(input, '#');
+      input >> ident;
+      MFEM_VERIFY(ident == "mfem_mesh_end",
+                  "invalid mesh: end of file tag not found");
+   }
 
    // Finalize(...) should be called after this, if needed.
 }
@@ -8529,6 +8537,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
 
       if (Nodes)
       {
+         out << "\n# mesh curvature GridFunction";
          out << "\nnodes\n";
          Nodes->Save(out);
       }

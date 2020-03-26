@@ -83,9 +83,6 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
             input >> vertices[j](i);
          }
       }
-
-      // initialize vertex positions in NCMesh
-      //if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
    }
    else
    {
