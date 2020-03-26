@@ -4845,26 +4845,32 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 
 //// I/O ////////////////////////////////////////////////////////////////////////
 
-void NCMesh::PrintVertexParents(std::ostream &out) const
+int NCMesh::PrintVertexParents(std::ostream *out) const
 {
-   // count vertex nodes with parents
-   int nv = 0;
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   if (!out)
    {
-      if (node->HasVertex() && node->p1 != node->p2) { nv++; }
-   }
-   out << nv << "\n";
-
-   // print the relations
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
-   {
-      if (node->HasVertex() && node->p1 != node->p2)
+      // count vertex nodes with parents
+      int nv = 0;
+      for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
-         MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
-         MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
-
-         out << node.index() << " " << node->p1 << " " << node->p2 << "\n";
+         if (node->HasVertex() && node->p1 != node->p2) { nv++; }
       }
+      return nv;
+   }
+   else
+   {
+      // print the relations
+      for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+      {
+         if (node->HasVertex() && node->p1 != node->p2)
+         {
+            MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
+            MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
+
+            (*out) << node.index() << " " << node->p1 << " " << node->p2 << "\n";
+         }
+      }
+      return 0;
    }
 }
 
@@ -5039,20 +5045,29 @@ void NCMesh::Print(std::ostream &out) const
       out << "\n";
    }
 
-   out << "\n# attr geom nodes";
-   out << "\nboundary\n" << PrintBoundary(NULL) << "\n";
+   int nb = PrintBoundary(NULL);
+   if (nb)
+   {
+      out << "\n# attr geom nodes";
+      out << "\nboundary\n" << nb << "\n";
 
-   PrintBoundary(&out);
+      PrintBoundary(&out);
+   }
 
-   out << "\n# vert_id p1 p2";
-   out << "\nvertex_parents\n";
+   int nvp = PrintVertexParents(NULL);
+   if (nvp)
+   {
+      out << "\n# vert_id p1 p2";
+      out << "\nvertex_parents\n" << nvp << "\n";
 
-   PrintVertexParents(out);
+      PrintVertexParents(&out);
+   }
 
    if (!ZeroRootStates()) // root_state section is optional
    {
       out << "\n# root element orientation";
       out << "\nroot_state\n" << root_state.Size() << "\n";
+
       for (int i = 0; i < root_state.Size(); i++)
       {
          out << root_state[i] << "\n";
@@ -5196,23 +5211,28 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    InitRootElements();
    InitGeomFlags();
 
-   // load boundary
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "boundary", "invalid mesh file: " << ident);
 
-   LoadBoundary(input);
+   // load boundary
+   if (ident == "boundary")
+   {
+      LoadBoundary(input);
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
 
    // load vertex hierarchy
-   skip_comment_lines(input, '#');
-   input >> ident;
-   MFEM_VERIFY(ident == "vertex_parents", "invalid mesh file: " << ident);
+   if (ident == "vertex_parents")
+   {
+      LoadVertexParents(input);
 
-   LoadVertexParents(input);
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
 
    // load root states
-   skip_comment_lines(input, '#');
-   input >> ident;
    if (ident == "root_state")
    {
       input >> count;
@@ -5226,6 +5246,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       input >> ident;
    }
 
+   // load coordinates or nodes
    if (ident == "coordinates")
    {
       LoadCoordinates(input);
@@ -5248,7 +5269,8 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    }
    else
    {
-      MFEM_ABORT("invalid mesh file: 'coordinates' or 'nodes' expected");
+      MFEM_ABORT("invalid mesh file: either 'coordinates' or "
+                 "'nodes' must be present");
    }
 
    // create edge nodes and faces

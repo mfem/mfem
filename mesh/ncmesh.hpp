@@ -819,7 +819,7 @@ protected: // implementation
    // I/O
 
    /// Print the "vertex_parents" section of the mesh file.
-   void PrintVertexParents(std::ostream &out) const;
+   int PrintVertexParents(std::ostream *out) const;
    /// Load the vertex parent hierarchy from a mesh file.
    void LoadVertexParents(std::istream &input);
 
