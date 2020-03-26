@@ -225,7 +225,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
 {
    auto lf_DefineMeshMetadata = [this](Mesh& mesh)
    {
-      //check types are constant
+      // check types are constant
       if (!IsConstantElementType(mesh.elements))
       {
          throw std::invalid_argument("MFEM::adios2stream ERROR: non-constant "
@@ -310,7 +310,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
          {
             const size_t nVertices = static_cast<size_t>(mesh.GetNV());
             const size_t spaceDim = static_cast<size_t>(mesh.SpaceDimension());
-            //similar to Ordering::byVDIM
+            // similar to Ordering::byVDIM
             SafeDefineVariable<double>( io, "vertices", {}, {}, {nVertices, spaceDim});
          }
          else
@@ -413,7 +413,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
 
       adios2::Variable<uint64_t> varConnectivity =
          io.InquireVariable<uint64_t>("connectivity");
-      //zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
+      // zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
       adios2::Variable<uint64_t>::Span spanConnectivity =
          engine.Put<uint64_t>(varConnectivity);
 
@@ -436,7 +436,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
       if (mesh.GetNodes() == nullptr)
       {
          adios2::Variable<double> varVertices = io.InquireVariable<double>("vertices");
-         //zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
+         // zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
          adios2::Variable<double>::Span spanVertices = engine.Put(varVertices);
 
          for (int v = 0; v < mesh.GetNV(); ++v)
@@ -534,7 +534,7 @@ void adios2stream::Save(const GridFunction& grid_function,
       }
    };
 
-   //BODY OF FUNCTION STARTS HERE
+   // BODY OF FUNCTION STARTS HERE
    const std::map<std::string, std::string> parameters = io.Parameters();
    const bool full_data = SetBoolParameter("FullData", parameters, false);
 
@@ -549,7 +549,7 @@ void adios2stream::Save(const GridFunction& grid_function,
    {
       const Mesh *mesh = fes->GetMesh();
       const size_t components = static_cast<size_t>(grid_function.VectorDim());
-      //const size_t tuples = static_cast<size_t>(mesh->GetNV());
+      // const size_t tuples = static_cast<size_t>(mesh->GetNV());
       const size_t tuples = refined_mesh_nvertices;
 
       lf_SafeDefine(variable_name, tuples, components,
@@ -562,7 +562,7 @@ void adios2stream::Save(const GridFunction& grid_function,
       RefinedGeometry* refined_geometry;
       DenseMatrix transform;
 
-      //zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
+      // zero-copy access to adios2 buffer to put non-contiguous to contiguous memory
       adios2::Variable<double> variable = io.InquireVariable<double>(variable_name);
       adios2::Variable<double>::Span span = engine.Put<double>(variable);
 
