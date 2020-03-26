@@ -4,7 +4,7 @@
 //
 // Sample runs:  mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 0
 //               mpirun -np 4 ex25p -o 3 -f 10.0 -rs 1 -rp 1 -prob 1
-//               mpirun -np 4 ex25p -o 2 -f 3.0 -rs 3 -rp 1 -prob 2
+//               mpirun -np 4 ex25p -o 3 -f 5.0 -rs 3 -rp 1 -prob 2
 //               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 1 -rp 1 -prob 3
 //               mpirun -np 4 ex25p -o 2 -f 1.0 -rs 2 -rp 2 -prob 0 -m ../data/beam-quad.mesh
 //               mpirun -np 4 ex25p -o 2 -f 8.0 -rs 2 -rp 2 -prob 4 -m ../data/inline-quad.mesh
@@ -21,7 +21,7 @@
 //               bilinear and linear forms. We recommend viewing example 22
 //               before viewing this example.
 //               Examples 0-3 (prob = 0-3) are provided with exact solutions
-//               (See "Vaziri Astaneh, A., Keith, B. & Demkowicz, L.
+//               (See "Vaziri Astaneh, Keith, Demkowicz
 //               On perfectly matched layers for discontinuous Petrov–Galerkin methods,
 //               Comput Mech 63, 1131–1145 (2019)" )
 
@@ -82,13 +82,13 @@ public:
 };
 
 // Class for returning the Pml coefficients of the bilinear form
-class PmlMatrixCoefficient : public MatrixCoefficient
+class PMLMatrixCoefficient : public MatrixCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
    void (*Function)(const Vector &, CartesianPML * , DenseMatrix &);
 public:
-   PmlMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
+   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
                                           DenseMatrix &),
                         CartesianPML * pml_)
       : MatrixCoefficient(dim), pml(pml_), Function(F)
@@ -135,11 +135,11 @@ bool exact_known = false;
 
 enum prob_type
 {
-   beam,     // PML on one end of the domain
-   scatter,  // Scattering from a square or a cube
-   lshape,   // Scattering from 1/4 of a square
-   fichera,  // Scattering from 1/8 of a cube
-   load_src  // point source with PML all around
+   beam,     // Wave propagating in a beam-like domain
+   disc,     // Point source propagating in the square-disc domain
+   lshape,   // Point source propagating in the L-shape domain
+   fichera,  // Point source propagating in the fichera domain
+   load_src  // Approximated point source with PML all around
 };
 prob_type prob;
 
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: beam, 1: scatter, 2: lshape, 3: fichera, 4: General");
+                  " 0: beam, 1: disc, 2: lshape, 3: fichera, 4: General");
    args.AddOption(&ref_levels, "-rs", "--refinements-serial",
                   "Number of serial refinements");
    args.AddOption(&par_ref_levels, "-rp", "--refinements-parallel",
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
          case beam:
             mesh_file = "../data/beam-hex.mesh";
             break;
-         case scatter:
+         case disc:
             mesh_file = "../data/square-disc.mesh";
             break;
          case lshape:
@@ -238,12 +238,12 @@ int main(int argc, char *argv[])
 
    switch (prob)
    {
-      case scatter:
+      case disc:
          length = 0.2;
          break;
       case lshape:
-         length(0, 1) = 0.5;
-         length(1, 1) = 0.5;
+         length(0, 0) = 0.1;
+         length(1, 0) = 0.1;
          break;
       case fichera:
          length(0, 1) = 0.5;
@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
             switch (prob)
             {
                case lshape:
-                  if (center[0] == 1.0 || center[0] == 0.0 || center[1] == 1.0)
+                  if (center[0] == 1.0 || center[0] == 0.5 || center[1] == 0.5)
                   {
                      ess_bdr[k - 1] = 1;
                   }
@@ -393,15 +393,15 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
    int cdim = (dim == 2) ? 1 : dim;
-   PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
-   PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
+   PMLMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
+   PMLMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
    ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
    ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
    MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
    MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
-   PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
-   PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
+   PMLMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
+   PMLMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
    ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
    ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
    MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
@@ -459,11 +459,11 @@ int main(int argc, char *argv[])
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_absomeg));
 
-      PmlMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
+      PMLMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
       ScalarMatrixProductCoefficient c1_abs(muinv,pml_c1_abs);
       MatrixRestrictedCoefficient restr_c1_abs(c1_abs,attrPML);
 
-      PmlMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
+      PMLMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
       ScalarMatrixProductCoefficient c2_abs(absomeg,pml_c2_abs);
       MatrixRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
 
@@ -663,14 +663,15 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
    double k = omega * sqrt(epsilon * mu);
    switch (prob)
    {
-      case scatter:
+      case disc:
       case lshape:
       case fichera:
       {
          Vector shift(dim);
          shift = 0.0;
          if (prob == fichera) { shift = 1.0; }
-         if (prob == scatter) { shift = -0.5;}
+         if (prob == disc) { shift = -0.5;}
+         if (prob == lshape) { shift = -1.0;}
 
          if (dim == 2)
          {
