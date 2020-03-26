@@ -29,6 +29,10 @@ New and updated examples and miniapps
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
 
+- Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
+  Matched Layer (PML) for the simulation of electromagnetic wave propagation.
+  The example defines and solves several indefinite Maxwell problems.
+
 Discretization improvements
 ---------------------------
 - Added support for simplices in GSLIB-FindPoints.
