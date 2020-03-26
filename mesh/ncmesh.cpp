@@ -93,32 +93,6 @@ NCMesh::NCMesh(const Mesh *mesh)
    spaceDim = mesh->SpaceDimension();
    Iso = true;
 
-   // examine elements and reserve the first node IDs for vertices
-   int max_id = -1;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      const mfem::Element *elem = mesh->GetElement(i);
-      const int *v = elem->GetVertices(), nv = elem->GetNVertices();
-      for (int j = 0; j < nv; j++)
-      {
-         max_id = std::max(max_id, v[j]);
-      }
-   }
-   for (int id = 0; id <= max_id; id++)
-   {
-      // top-level nodes are special: id == p1 == p2 == orig. vertex id
-      int node = nodes.GetId(id, id);
-      MFEM_CONTRACT_VAR(node);
-      MFEM_ASSERT(node == id, "");
-   }
-
-   // copy vertices
-   coordinates.SetSize(3*mesh->GetNV());
-   for (int i = 0; i < mesh->GetNV(); i++)
-   {
-      std::memcpy(&coordinates[3*i], mesh->GetVertex(i), 3*sizeof(double));
-   }
-
    // create the NCMesh::Element struct for each Mesh element
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -136,15 +110,23 @@ NCMesh::NCMesh(const Mesh *mesh)
       const int *v = elem->GetVertices();
       for (int j = 0; j < GI[geom].nv; j++)
       {
-         root_elem.node[j] = v[j];
+         int id = v[j];
+         root_elem.node[j] = id;
+         nodes.Alloc(id, id, id);
+         // NOTE: top-level nodes are special: id == p1 == p2 == orig. vertex id
       }
+   }
 
+   // create edge nodes and faces
+   nodes.UpdateUnused();
+   for (int i = 0; i < elements.Size(); i++)
+   {
       // increase reference count of all nodes the element is using
       // (NOTE: this will also create and reference all edge nodes and faces)
-      ReferenceElement(root_id);
+      ReferenceElement(i);
 
       // make links from faces back to the element
-      RegisterFaces(root_id);
+      RegisterFaces(i);
    }
 
    // store boundary element attributes
@@ -174,6 +156,16 @@ NCMesh::NCMesh(const Mesh *mesh)
       else
       {
          MFEM_ABORT("Unsupported boundary element geometry.");
+      }
+   }
+
+   // copy top-level vertex coordinates (leave empty if the mesh is curved)
+   if (!mesh->Nodes)
+   {
+      coordinates.SetSize(3*mesh->GetNV());
+      for (int i = 0; i < mesh->GetNV(); i++)
+      {
+         std::memcpy(&coordinates[3*i], mesh->GetVertex(i), 3*sizeof(double));
       }
    }
 
@@ -246,7 +238,7 @@ NCMesh::~NCMesh()
 
 NCMesh::Node::~Node()
 {
-   MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreffed properly, "
+   MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreferenced properly, "
                "vert_refc: " << (int) vert_refc << ", edge_refc: "
                << (int) edge_refc);
 }
@@ -5067,10 +5059,17 @@ void NCMesh::Print(std::ostream &out) const
       }
    }
 
-   out << "\n# top-level node coordinates";
-   out << "\ncoordinates\n";
+   if (coordinates.Size())
+   {
+      out << "\n# top-level node coordinates";
+      out << "\ncoordinates\n";
 
-   PrintCoordinates(out);
+      PrintCoordinates(out);
+   }
+   else
+   {
+      // 'nodes' will be printed one level up by Mesh::Printer()
+   }
 }
 
 void NCMesh::InitRootElements()
@@ -5084,7 +5083,7 @@ void NCMesh::InitRootElements()
          for (int j = 0; j < 8 && el.child[j] >= 0; j++)
          {
             int child = el.child[j];
-            MFEM_VERIFY(child < elements.Size(),
+            MFEM_VERIFY(child < elements.Size(), "invalid mesh file: "
                         "element " << i << " references invalid child " << child);
             elements[child].parent = i;
          }
@@ -5098,13 +5097,13 @@ void NCMesh::InitRootElements()
    {
       nroots++;
    }
-   MFEM_VERIFY(nroots, "No root elements found.");
+   MFEM_VERIFY(nroots, "invalid mesh file: no root elements found.");
 
    // check that only the first 'nroot' elements are roots (have no parent)
    for (int i = nroots; i < elements.Size(); i++)
    {
       MFEM_VERIFY(elements[i].parent != -1,
-                  "Only the first M elements in the mesh file can be roots. "
+                  "invalid mesh file: only the first M elements can be roots. "
                   "Found element " << i << " with no parent.");
    }
 
@@ -5138,13 +5137,14 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    // load dimension
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "dimension", "invalid mesh file");
+   MFEM_VERIFY(ident == "dimension", "invalid mesh file: " << ident);
    input >> Dim;
+   spaceDim = 0; // will be set later
 
    // load elements
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "elements", "invalid mesh file");
+   MFEM_VERIFY(ident == "elements", "invalid mesh file: " << ident);
 
    input >> count;
    for (int i = 0; i < count; i++)
@@ -5199,14 +5199,14 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    // load boundary
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "boundary", "invalid mesh file");
+   MFEM_VERIFY(ident == "boundary", "invalid mesh file: " << ident);
 
    LoadBoundary(input);
 
    // load vertex hierarchy
    skip_comment_lines(input, '#');
    input >> ident;
-   MFEM_VERIFY(ident == "vertex_parents", "invalid mesh file");
+   MFEM_VERIFY(ident == "vertex_parents", "invalid mesh file: " << ident);
 
    LoadVertexParents(input);
 
@@ -5231,8 +5231,8 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       LoadCoordinates(input);
 
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
-                  "Not all top-level nodes are covered by the 'coordinates' "
-                  "section of the mesh file.");
+                  "invalid mesh file: not all top-level nodes are covered by "
+                  "the 'coordinates' section of the mesh file.");
 
       skip_comment_lines(input, '#');
       input >> ident;
@@ -5245,6 +5245,10 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       // prepare to read the nodes
       input >> std::ws;
       curved = 1;
+   }
+   else
+   {
+      MFEM_ABORT("invalid mesh file: 'coordinates' or 'nodes' expected");
    }
 
    // create edge nodes and faces
