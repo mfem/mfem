@@ -96,10 +96,6 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
       }
     }
   });
-  FaceMatrixBdr fmat_bdr(ea_data_bdr, nf, faceDofs);
-  FaceMatrixBdr fmat_bdr_tmp(ea_data_bdr_tmp, nf, faceDofs);
-  fmat_bdr.Print();
-  fmat_bdr_tmp.Print();
 }
 
 }
