@@ -364,7 +364,39 @@ public:
 
    typedef int64_t RefCoord;
 
+   /** Return all vertex-, edge- and face-neighbors of a single element.
+       You can limit the number of elements being checked using 'search_set'.
+       The complexity of the function is linear in the size of the search set.*/
+   void FindNeighbors(int elem,
+                      Array<int> &neighbors, /* append */
+                      const Array<int> *search_set = NULL);
 
+   Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements
+
+     /** This is an element in the refinement hierarchy. Each element has
+       either been refined and points to its children, or is a leaf and points
+       to its vertex nodes. */
+   struct Element
+   {
+      char geom;     ///< Geometry::Type of the element (char for storage only)
+      char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
+      char tet_type; ///< tetrahedron split type, currently always 0
+      char flag;     ///< generic flag/marker, can be used by algorithms
+      int index;     ///< element number in the Mesh, -1 if refined
+      int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
+      int attribute;
+      union
+      {
+         int node[8];  ///< element corners (if ref_type == 0)
+         int child[8]; ///< 2-8 children (if ref_type != 0)
+      };
+      int parent; ///< parent element, -1 if this is a root element, -2 if free
+
+      Element(Geometry::Type geom, int attr);
+
+      Geometry::Type Geom() const { return Geometry::Type(geom); }
+   };
+  BlockArray<Element> elements; // storage for all Elements
 protected: // interface for Mesh to be able to construct itself from NCMesh
 
    friend class Mesh;
@@ -430,36 +462,12 @@ protected: // implementation
       int GetSingleElement() const;
    };
 
-   /** This is an element in the refinement hierarchy. Each element has
-       either been refined and points to its children, or is a leaf and points
-       to its vertex nodes. */
-   struct Element
-   {
-      char geom;     ///< Geometry::Type of the element (char for storage only)
-      char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
-      char tet_type; ///< tetrahedron split type, currently always 0
-      char flag;     ///< generic flag/marker, can be used by algorithms
-      int index;     ///< element number in the Mesh, -1 if refined
-      int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
-      int attribute;
-      union
-      {
-         int node[8];  ///< element corners (if ref_type == 0)
-         int child[8]; ///< 2-8 children (if ref_type != 0)
-      };
-      int parent; ///< parent element, -1 if this is a root element, -2 if free
-
-      Element(Geometry::Type geom, int attr);
-
-      Geometry::Type Geom() const { return Geometry::Type(geom); }
-   };
 
    // primary data
 
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
-   BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
    /** Initial traversal state (~ element orientation) for each root element
@@ -489,7 +497,6 @@ protected: // implementation
    int NVertices; // set by UpdateVertices
    int NEdges, NFaces; // set by OnMeshUpdated
 
-   Array<int> leaf_elements; // finest level, calculated by UpdateLeafElements
    Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
@@ -655,13 +662,6 @@ protected: // implementation
    void FindSetNeighbors(const Array<char> &elem_set,
                          Array<int> *neighbors, /* append */
                          Array<char> *neighbor_set = NULL);
-
-   /** Return all vertex-, edge- and face-neighbors of a single element.
-       You can limit the number of elements being checked using 'search_set'.
-       The complexity of the function is linear in the size of the search set.*/
-   void FindNeighbors(int elem,
-                      Array<int> &neighbors, /* append */
-                      const Array<int> *search_set = NULL);
 
    /** Expand a set of elements by all vertex-, edge- and face-neighbors.
        The output array 'expanded' will contain all items from 'elems'
