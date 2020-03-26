@@ -576,50 +576,55 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int visport = 19916;
 
-      socketstream sol_sock_re(vishost, visport);
-      sol_sock_re << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_re.precision(8);
-      sol_sock_re << "solution\n"
-                  << *pmesh << x.real() << keys
-                  << "window_title 'Solution real part'" << flush;
-
-      socketstream sol_sock_im(vishost, visport);
-      sol_sock_im << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_im.precision(8);
-      sol_sock_im << "solution\n"
-                  << *pmesh << x.imag() << keys
-                  << "window_title 'Solution imag part'" << flush;
-
-      ParGridFunction x_t(fespace);
-      x_t = x.real();
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << *pmesh << x_t << keys << "autoscale off\n"
-               << "window_title 'Harmonic Solution (t = 0.0 T)'"
-               << "pause\n"
-               << flush;
-      if (myid == 0)
       {
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
+         socketstream sol_sock_re(vishost, visport);
+         sol_sock_re.precision(8);
+         sol_sock_re << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh << x.real() << keys
+                     << "window_title 'Solution real part'" << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
       }
-      int num_frames = 32;
-      int i = 0;
-      while (sol_sock)
-      {
-         double t = (double)(i % num_frames) / num_frames;
-         ostringstream oss;
-         oss << "Harmonic Solution (t = " << t << " T)";
 
-         add(cos(2.0 * M_PI * t), x.real(),
-             sin(2.0 * M_PI * t), x.imag(), x_t);
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock << "solution\n"
-                  << *pmesh << x_t
-                  << "window_title '" << oss.str() << "'" << flush;
-         i++;
+      {
+         socketstream sol_sock_im(vishost, visport);
+         sol_sock_im.precision(8);
+         sol_sock_im << "parallel " << num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh << x.imag() << keys
+                     << "window_title 'Solution imag part'" << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
+
+      {
+         ParGridFunction x_t(fespace);
+         x_t = x.real();
+
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << *pmesh << x_t << keys << "autoscale off\n"
+                  << "window_title 'Harmonic Solution (t = 0.0 T)'"
+                  << "pause\n" << flush;
+
+         if (myid == 0)
+         {
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
+         }
+
+         int num_frames = 32;
+         int i = 0;
+         while (sol_sock)
+         {
+            double t = (double)(i % num_frames) / num_frames;
+            ostringstream oss;
+            oss << "Harmonic Solution (t = " << t << " T)";
+
+            add(cos(2.0*M_PI*t), x.real(), sin(2.0*M_PI*t), x.imag(), x_t);
+            sol_sock << "parallel " << num_procs << " " << myid << "\n";
+            sol_sock << "solution\n" << *pmesh << x_t
+                     << "window_title '" << oss.str() << "'" << flush;
+            i++;
+         }
       }
    }
 
