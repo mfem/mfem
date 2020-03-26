@@ -382,7 +382,6 @@ int main(int argc, char *argv[])
       {
          case 0:
             pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
-            s = 1.0;
             break;
          case 1:
             pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());

@@ -11,11 +11,6 @@
 Version 4.1.1 (development)
 ===========================
 
-- Added support for finite difference-based gradient and Hessian approximation
-  in the TMOP mesh optimization algorithms. This improves the accuracy of the
-  Hessian for r-adaptivity using discrete fields, and allows use of skewness
-  and orientation based metrics.
-
 Meshing improvements
 --------------------
 - The graph linear ordering library Gecko, previously an external dependency, is
@@ -23,15 +18,10 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
 
-- Added a new example, Example 25/25p, to demonstrate the use a Perfectly Matched
-  Layer (PML) for the simulation of electromagnetic wave propagation. The example
-  defines and solves several cases of the indefinite Maxwell equations.
-
-New and updated examples and miniapps
--------------------------------------
-- Adding a simple meshing miniapp, Twist, which demonstates MFEM's strategy of
-  stitching together opposite surfaces of a mesh to create a topologically
-  periodic mesh.
+- Added support for finite difference-based gradient and Hessian approximation
+  in the TMOP mesh optimization algorithms. This improves the accuracy of the
+  Hessian for r-adaptivity using discrete fields, and allows use of skewness
+  and orientation based metrics.
 
 Improved GPU capabilities
 -------------------------
@@ -40,8 +30,8 @@ Improved GPU capabilities
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
-  continuous H1 finite element spaces of different order on the same mesh or with
-  the same order on uniformly refined meshes.
+  continuous H1 finite element spaces of different order on the same mesh or
+  with the same order on uniformly refined meshes.
 
 - Added support for simplices in GSLIB-FindPoints.
 
@@ -55,6 +45,10 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
+  Matched Layer (PML) for the simulation of electromagnetic wave propagation.
+  The example defines and solves several indefinite Maxwell problems.
+
 - Added a new Example 26/26p to demonstrate the construction of a matrix-free
   geometric and p-multigrid preconditioner for the iterative solution of the
   Laplace problem.

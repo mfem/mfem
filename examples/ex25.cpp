@@ -1,29 +1,29 @@
-//                       MFEM Example 25 - Serial Version
+//                                MFEM Example 25
 //
 // Compile with: make ex25
 //
 // Sample runs:  ex25 -o 2 -f 1.0 -ref 2 -prob 0
-//               ex25 -o 3 -f 1.0 -ref 2 -prob 1
-//               ex25 -o 2 -f 3.0 -ref 3 -prob 2
+//               ex25 -o 3 -f 10.0 -ref 2 -prob 1
+//               ex25 -o 2 -f 5.0 -ref 4 -prob 2
 //               ex25 -o 2 -f 1.0 -ref 2 -prob 3
 //               ex25 -o 2 -f 1.0 -ref 2 -prob 0 -m ../data/beam-quad.mesh
 //               ex25 -o 2 -f 8.0 -ref 3 -prob 4 -m ../data/inline-quad.mesh
 //               ex25 -o 2 -f 2.0 -ref 1 -prob 4 -m ../data/inline-hex.mesh
-
+//
 // Description:  This example code solves a simple electromagnetic wave
 //               propagation problem corresponding to the second order
 //               indefinite Maxwell equation
-//               (1/mu) * curl curl E - \omega^2 * epsilon E = f
+//                  (1/mu) * curl curl E - \omega^2 * epsilon E = f
 //               with a Perfectly Matched Layer (PML).
-//               We discretize with Nedelec finite elements in 2D or 3D.
 //
-//               The example also demonstrates the use of complex valued
-//               bilinear and linear forms. We recommend viewing example 22
-//               before viewing this example.
-//               Examples 0-3 (prob = 0-3) are provided with exact solutions
-//               (See "Vaziri Astaneh, A., Keith, B. & Demkowicz, L.
-//               On perfectly matched layers for discontinuous Petrov–Galerkin methods,
-//               Comput Mech 63, 1131–1145 (2019)" )
+//               The example demonstrates discretization with Nedelec finite
+//               elements in 2D or 3D, as well as the use of complex-valued
+//               bilinear and linear forms. Several test problems are included,
+//               with prob = 0-3 having known exact solutions, see "On perfectly
+//               matched layers for discontinuous Petrov–Galerkin methods" by
+//               Vaziri Astaneh, Keith, Demkowicz, Comput Mech 63, 2019.
+//
+//               We recommend viewing Example 22 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -54,8 +54,8 @@ private:
    // Domain Boundary
    Array2D<double> dom_bdr;
 
-   // Integer Array identifying elements in the pml
-   // 0: in the pml, 1: not in the pml
+   // Integer Array identifying elements in the PML
+   // 0: in the PML, 1: not in the PML
    Array<int> elems;
 
    // Compute Domain and Computational Domain Boundaries
@@ -81,14 +81,14 @@ public:
    void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
 };
 
-// Class for returning the Pml coefficients of the bilinear form
-class PmlMatrixCoefficient : public MatrixCoefficient
+// Class for returning the PML coefficients of the bilinear form
+class PMLMatrixCoefficient : public MatrixCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
    void (*Function)(const Vector &, CartesianPML * , DenseMatrix &);
 public:
-   PmlMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
+   PMLMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
                                           DenseMatrix &),
                         CartesianPML * pml_)
       : MatrixCoefficient(dim), pml(pml_), Function(F)
@@ -114,7 +114,7 @@ void E_exact_Im(const Vector &x, Vector &E);
 
 void source(const Vector &x, Vector & f);
 
-// Functions for computing the neccessary coefficients after PML stretching.
+// Functions for computing the necessary coefficients after PML stretching.
 // J is the Jacobian matrix of the stretching function
 void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M);
 void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, DenseMatrix &M);
@@ -135,11 +135,11 @@ bool exact_known = false;
 
 enum prob_type
 {
-   beam,     // PML on one end of the domain
-   scatter,  // Scattering from a square or a cube
-   lshape,   // Scattering from 1/4 of a square
-   fichera,  // Scattering from 1/8 of a cube
-   load_src  // point source with PML all around
+   beam,     // Wave propagating in a beam-like domain
+   disc,     // Point source propagating in the square-disc domain
+   lshape,   // Point source propagating in the L-shape domain
+   fichera,  // Point source propagating in the fichera domain
+   load_src  // Approximated point source with PML all around
 };
 prob_type prob;
 
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: beam, 1: scatter, 2: lshape, 3: fichera, 4: General");
+                  " 0: beam, 1: disc, 2: lshape, 3: fichera, 4: General");
    args.AddOption(&ref_levels, "-ref", "--refinements",
                   "Number of refinements");
    args.AddOption(&mu, "-mu", "--permeability",
@@ -176,10 +176,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.Parse();
 
-   // 2. Setup the (serial) mesh on all processors.
    if (iprob > 4) { iprob = 4; }
    prob = (prob_type)iprob;
 
+   // 2. Setup the mesh
    if (!mesh_file)
    {
       exact_known = true;
@@ -188,8 +188,8 @@ int main(int argc, char *argv[])
          case beam:
             mesh_file = "../data/beam-hex.mesh";
             break;
-         case scatter:
-            mesh_file = "../data/square_w_hole.mesh";
+         case disc:
+            mesh_file = "../data/square-disc.mesh";
             break;
          case lshape:
             mesh_file = "../data/l-shape.mesh";
@@ -214,21 +214,21 @@ int main(int argc, char *argv[])
    Mesh * mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
 
-   //Angular frequency
+   // Angular frequency
    omega = 2.0 * M_PI * freq;
 
    // Setup PML length
-   Array2D<double> length(dim, 2);  length = 0.0;
+   Array2D<double> length(dim, 2); length = 0.0;
 
    // 3. Setup the Cartesian PML region.
    switch (prob)
    {
-      case scatter:
-         length = 1.0;
+      case disc:
+         length = 0.2;
          break;
       case lshape:
-         length(0, 1) = 0.5;
-         length(1, 1) = 0.5;
+         length(0, 0) = 0.1;
+         length(1, 0) = 0.1;
          break;
       case fichera:
          length(0, 1) = 0.5;
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
    comp_domain_bdr = pml->GetCompDomainBdr();
    domain_bdr = pml->GetDomainBdr();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution.
+   // 4. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
       mesh->UniformRefinement();
@@ -255,20 +255,20 @@ int main(int argc, char *argv[])
    // 5. Reorient mesh in case of a tet mesh
    mesh->ReorientTetMesh();
 
-   // Set element attributes in order to destiguish elements in the PML region
+   // Set element attributes in order to distinguish elements in the PML region
    pml->SetAttributes(mesh);
 
-   // 6. Define a finite element space on the mesh. Here we
-   //    use the Nedelec finite elements of the specified order.
+   // 6. Define a finite element space on the mesh. Here we use the Nedelec
+   //    finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    int size = fespace->GetTrueVSize();
 
    cout << "Number of finite element unknowns: " << size << endl;
 
-   // 7. Determine the list of true essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    based on the specific mesh and the problem type.
+   // 7. Determine the list of true essential boundary dofs. In this example,
+   //    the boundary conditions are defined based on the specific mesh and the
+   //    problem type.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    if (mesh->bdr_attributes.Size())
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
             switch (prob)
             {
                case lshape:
-                  if (center[0] == 1.0 || center[0] == 0.0 || center[1] == 1.0)
+                  if (center[0] == 1.0 || center[0] == 0.5 || center[1] == 0.5)
                   {
                      ess_bdr[k - 1] = 1;
                   }
@@ -312,8 +312,8 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 9. Set up the linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system.
+   // 9. Set up the linear form b(.) which corresponds to the right-hand side of
+   //    the FEM linear system.
    VectorFunctionCoefficient f(dim, source);
    ComplexLinearForm b(fespace, conv);
    if (prob == load_src)
@@ -323,8 +323,8 @@ int main(int argc, char *argv[])
    b.Vector::operator=(0.0);
    b.Assemble();
 
-   // 10. Define the solution vector x as a complex finite element grid
-   //    function corresponding to fespace.
+   // 10. Define the solution vector x as a complex finite element grid function
+   //     corresponding to fespace.
    ComplexGridFunction x(fespace);
    x = 0.0;
    VectorFunctionCoefficient E_Re(dim, E_bdr_data_Re);
@@ -333,14 +333,13 @@ int main(int argc, char *argv[])
 
    // 11. Set up the sesquilinear form a(.,.)
    //
-   //    In Comp
-   //    Domain:   1/mu (Curl E, Curl F) - omega^2 * epsilon (E,F)
+   //     In Comp
+   //     Domain:   1/mu (Curl E, Curl F) - omega^2 * epsilon (E,F)
    //
-   //    In PML:   1/mu (1/det(J) J^T J Curl E, Curl F)
-   //  - omega^2 * epsilon (det(J) * (J^T J)^-1 * E, F)
+   //     In PML:   1/mu (1/det(J) J^T J Curl E, Curl F)
+   //               - omega^2 * epsilon (det(J) * (J^T J)^-1 * E, F)
    //
-   //    where J denotes the Jacobian Matrix of the PML Stretching function
-
+   //     where J denotes the Jacobian Matrix of the PML Stretching function
    Array<int> attr;
    Array<int> attrPML;
    if (mesh->attributes.Size())
@@ -360,21 +359,21 @@ int main(int argc, char *argv[])
    RestrictedCoefficient restr_muinv(muinv,attr);
    RestrictedCoefficient restr_omeg(omeg,attr);
 
+   // Integrators inside the computational domain (excluding the PML region)
    SesquilinearForm a(fespace, conv);
-   // Integrators inside the compuational domain (excluding the PML region)
    a.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv),NULL);
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),NULL);
 
    int cdim = (dim == 2) ? 1 : dim;
-   PmlMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
-   PmlMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
+   PMLMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
+   PMLMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
    ScalarMatrixProductCoefficient c1_Re(muinv,pml_c1_Re);
    ScalarMatrixProductCoefficient c1_Im(muinv,pml_c1_Im);
    MatrixRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
    MatrixRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
-   PmlMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
-   PmlMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
+   PMLMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
+   PMLMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
    ScalarMatrixProductCoefficient c2_Re(omeg,pml_c2_Re);
    ScalarMatrixProductCoefficient c2_Im(omeg,pml_c2_Im);
    MatrixRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
@@ -386,10 +385,10 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
                          new VectorFEMassIntegrator(restr_c2_Im));
 
-   // 12. Assemble the bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as:
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, etc.
+   // 12. Assemble the bilinear form and the corresponding linear system,
+   //     applying any necessary transformations such as: assembly, eliminating
+   //     boundary conditions, applying conforming constraints for
+   //     non-conforming AMR, etc.
    a.Assemble();
 
    OperatorHandle Ah;
@@ -401,7 +400,7 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   // 14.  Solve using a direct or an iterative solver
+   // 14. Solve using a direct or an iterative solver
 #ifdef MFEM_USE_SUITESPARSE
    {
       UMFPackSolver  solver(*A);
@@ -409,7 +408,7 @@ int main(int argc, char *argv[])
       solver.Mult(B, X);
    }
 #else
-   // Set up the preconditioner
+
    // 14a. Set up the Bilinear form a(.,.) for the preconditioner
    //
    //    In Comp
@@ -425,11 +424,11 @@ int main(int argc, char *argv[])
       prec.AddDomainIntegrator(new CurlCurlIntegrator(restr_muinv));
       prec.AddDomainIntegrator(new VectorFEMassIntegrator(restr_absomeg));
 
-      PmlMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
+      PMLMatrixCoefficient pml_c1_abs(cdim,detJ_inv_JT_J_abs, pml);
       ScalarMatrixProductCoefficient c1_abs(muinv,pml_c1_abs);
       MatrixRestrictedCoefficient restr_c1_abs(c1_abs,attrPML);
 
-      PmlMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
+      PMLMatrixCoefficient pml_c2_abs(dim, detJ_JT_J_inv_abs,pml);
       ScalarMatrixProductCoefficient c2_abs(absomeg,pml_c2_abs);
       MatrixRestrictedCoefficient restr_c2_abs(c2_abs,attrPML);
 
@@ -442,8 +441,7 @@ int main(int argc, char *argv[])
       prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
       // 14b. Define and apply a GMRES solver for AU=B with a block diagonal
-      //      preconditioner based on the the Gauss-Seidel sparse smoother.
-
+      //      preconditioner based on the Gauss-Seidel sparse smoother.
       Array<int> offsets(3);
       offsets[0] = 0;
       offsets[1] = fespace->GetTrueVSize();
@@ -452,10 +450,8 @@ int main(int argc, char *argv[])
 
       GSSmoother gs00(*PCOpAh.As<SparseMatrix>());
       BlockDiagonalPreconditioner BlockGS(offsets);
-
-      ScaledOperator gs11(&gs00,(conv
-                                 == ComplexOperator::HERMITIAN) ? -1.0:1.0);
-
+      ScaledOperator gs11(&gs00,
+                          (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0);
       BlockGS.SetDiagonalBlock(0,&gs00);
       BlockGS.SetDiagonalBlock(1,&gs11);
 
@@ -471,10 +467,11 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // 15. Recover the solution as a finite element grid function and compute
-   //     the errors if the exact solution is known.
+   // 15. Recover the solution as a finite element grid function and compute the
+   //     errors if the exact solution is known.
    a.RecoverFEMSolution(X, b, x);
 
+   // If exact is known compute the error
    if (exact_known)
    {
       ComplexGridFunction x_gf(fespace);
@@ -501,12 +498,12 @@ int main(int argc, char *argv[])
       norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
                                               pml->GetMarkedPMLElements());
 
-      cout << " Rel Error - Real Part: || E_h - E || / ||E|| = " << L2Error_Re /
-           norm_E_Re << '\n' << endl;
-      cout << " Rel Error - Imag Part: || E_h - E || / ||E|| = " << L2Error_Im /
-           norm_E_Im << '\n' << endl;
-      cout << " Total Error: " << sqrt(L2Error_Re * L2Error_Re + L2Error_Im *
-                                       L2Error_Im)  << endl;
+      cout << "\n Relative Error (Re part): || E_h - E || / ||E|| = "
+           << L2Error_Re / norm_E_Re
+           << "\n Relative Error (Im part): || E_h - E || / ||E|| = "
+           << L2Error_Im / norm_E_Im
+           << "\n Total Error: "
+           << sqrt(L2Error_Re*L2Error_Re + L2Error_Im*L2Error_Im) << "\n\n";
    }
 
    // 16. Save the refined mesh and the solution. This output can be viewed
@@ -612,13 +609,15 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
    double k = omega * sqrt(epsilon * mu);
    switch (prob)
    {
-      case scatter:
+      case disc:
       case lshape:
       case fichera:
       {
          Vector shift(dim);
          shift = 0.0;
-         if (prob == fichera) { shift = 1.0; }
+         if (prob == fichera) { shift =  1.0; }
+         if (prob == disc)    { shift = -0.5; }
+         if (prob == lshape)  { shift = -1.0; }
 
          if (dim == 2)
          {
@@ -663,7 +662,6 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
             double r_zx = -(r_z / r) * r_x;
 
             complex<double> val, val_r, val_rr;
-
             val = exp(zi * k * r) / r;
             val_r = val / r * (zi * k * r - 1.0);
             val_rr = val / (r * r) * (-k * k * r * r
@@ -727,6 +725,7 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
 
    for (int i = 0; i < dim; ++i)
    {
+      // check if in PML
       if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
           x(i) - comp_domain_bdr(i, 1) > 0.0)
       {
@@ -745,6 +744,7 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    }
 }
 
+// Define bdr_data solution
 void E_bdr_data_Im(const Vector &x, Vector &E)
 {
    E = 0.0;
@@ -752,6 +752,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
 
    for (int i = 0; i < dim; ++i)
    {
+      // check if in PML
       if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
           x(i) - comp_domain_bdr(i, 1) > 0.0)
       {
@@ -835,7 +836,7 @@ void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, DenseMatrix &M)
       det *= dxs[i];
    }
 
-   // in the 2D case the coefficient is scalar (1/det(J))
+   // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {
       M = (1.0 / det).real();
@@ -927,17 +928,20 @@ void CartesianPML::SetAttributes(Mesh *mesh_)
    int nrelem = mesh_->GetNE();
    elems.SetSize(nrelem);
 
+   // Loop through the elements and identify which of them are in the PML
    for (int i = 0; i < nrelem; ++i)
    {
       elems[i] = 1;
       bool in_pml = false;
       Element *el = mesh_->GetElement(i);
       Array<int> vertices;
-      // Initialize Attribute
+
+      // Initialize attribute
       el->SetAttribute(1);
       el->GetVertices(vertices);
       int nrvert = vertices.Size();
-      // Check if any vertex is in the pml
+
+      // Check if any vertex is in the PML
       for (int iv = 0; iv < nrvert; ++iv)
       {
          int vert_idx = vertices[iv];
@@ -970,7 +974,8 @@ void CartesianPML::StretchFunction(const Vector &x,
    double c = 5.0;
    double coeff;
    double k = omega * sqrt(epsilon * mu);
-   // Stretch in each direction independenly
+
+   // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)
    {
       dxs[i] = 1.0;
