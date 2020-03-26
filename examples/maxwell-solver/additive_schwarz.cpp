@@ -234,7 +234,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
       nz = partition.nz;
       partition_kind = 2;
    }
-   else if (part == 3)
+   else if (part == 3 || part == 4)
    {
       cout << "STP Overlapping Cartesian Partition " << endl;
       STPOverlappingCartesianMeshPartition partition(mesh);
@@ -242,7 +242,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
       nx = partition.nx;
       ny = partition.ny;
       nz = partition.nz;
-      partition_kind = 3;
+      partition_kind = part;
    }
    else
    {
