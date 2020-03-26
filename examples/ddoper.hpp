@@ -88,6 +88,7 @@ void test1_RHS_exact(const Vector &x, Vector &f);
 void test1_f_exact_0(const Vector &x, Vector &f);
 void test1_f_exact_1(const Vector &x, Vector &f);
 void test2_E_exact(const Vector &x, Vector &E);
+void test2_H_exact(const Vector &x, Vector &H);
 void test2_RHS_exact(const Vector &x, Vector &f);
 void test2_f_exact_0(const Vector &x, Vector &f);
 void test2_f_exact_1(const Vector &x, Vector &f);
@@ -1090,7 +1091,7 @@ public:
 
     for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
       uSD[i] = u[i];
-
+    
 #ifdef DEBUG_RECONSTRUCTION
     ComputeF(sd, uSD, u, rhs);
 #endif
@@ -1108,6 +1109,30 @@ public:
     double errRe = x.ComputeL2Error(E);
     double normXRe = x.ComputeL2Error(vzero);
 
+#ifdef IFFOSLS
+    double normIFRe = 0.0;
+    double normIFIm = 0.0;
+
+    for (int i=fespace[sd]->GetTrueVSize(); i<block_ComplexOffsetsSD[sd][1]; ++i)
+      {
+	normIFRe = u[i] * u[i];
+      }
+#endif
+    /*
+#ifdef IFFOSLS_H
+    Vector H(fespace[sd]->GetTrueVSize());
+    for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
+      H[i] = u[uSD.Size() + i];
+
+    x.SetFromTrueDofs(H);
+
+    VectorFunctionCoefficient Hexact(3, test2_H_exact);
+
+    double errHRe = x.ComputeL2Error(Hexact);
+    double normHRe = x.ComputeL2Error(vzero);
+#endif
+    */
+    
     DataCollection *dc = NULL;
     const bool visit = false;
     if (visit && sd == 7)
@@ -1141,6 +1166,14 @@ public:
       uSD[i] = u[block_ComplexOffsetsSD[sd][1] + i];
 
     MFEM_VERIFY(u.Size() == block_ComplexOffsetsSD[sd][2], "");
+    MFEM_VERIFY(u.Size() == 2*block_ComplexOffsetsSD[sd][1], "");
+
+#ifdef IFFOSLS
+    for (int i=fespace[sd]->GetTrueVSize() + block_ComplexOffsetsSD[sd][1]; i < u.Size(); ++i)
+      {
+	normIFIm = u[i] * u[i];
+      }
+#endif
     
     x.SetFromTrueDofs(uSD);
     const double errIm = x.ComputeL2Error(vzero);
@@ -1153,6 +1186,17 @@ public:
     const double relErrRe = errRe / normE;
     const double relErrTot = sqrt((errRe*errRe) + (errIm*errIm)) / normE;
 
+    /*
+#ifdef IFFOSLS_H
+    for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
+      H[i] = u[block_ComplexOffsetsSD[sd][1] + uSD.Size() + i];
+
+    x.SetFromTrueDofs(H);
+
+    double normHIm = x.ComputeL2Error(vzero);
+#endif
+    */
+    
     /*
     double relErrReMax = -1.0;
     double relErrTotMax = -1.0;
@@ -1170,6 +1214,19 @@ public:
 	cout << m_rank << ": sd " << sd << " rel err Re " << relErrRe << endl; // ", max " << relErrReMax << endl;
 	cout << m_rank << ": sd " << sd << " rel err tot " << relErrTot << endl; // ", max " << relErrTotMax << endl;
 
+    /*
+#ifdef IFFOSLS_H
+	cout << m_rank << ": sd " << sd << " || H_h - H ||_{L^2} Re = " << errHRe << endl;
+	cout << m_rank << ": sd " << sd << " || H_h ||_{L^2} Re = " << normHRe << endl;
+	cout << m_rank << ": sd " << sd << " || H_h ||_{L^2} Im = " << normHIm << endl;
+#endif
+    */
+	
+#ifdef IFFOSLS
+	cout << m_rank << ": sd " << sd << " || f,rho ||_{l2}^2 Re = " << normIFRe << endl;
+	cout << m_rank << ": sd " << sd << " || f,rho ||_{l2}^2 Im = " << normIFIm << endl;
+#endif
+	
 	eSD[0] = errRe;
 	eSD[1] = errIm;
 	eSD[2] = normE;
@@ -1990,6 +2047,7 @@ public:
 
     HypreParMatrix *A_mix1_E = A_mix2->Transpose();
 
+    /*
     { // TODO: remove
       int nprocs, rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -2035,6 +2093,7 @@ public:
 	  A_EE->Print(filename3.c_str());  // TODO: remove
 	}
     }
+    */
     
     BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
     const int numBlocks = 4;
@@ -2113,6 +2172,8 @@ public:
     LS_Maxwellop->SetBlock(2, 3, A_mix1_E, -1.0);  // no bc
     LS_Maxwellop->SetBlock(3, 3, A_HH);
 
+    /*
+    // TODO: If BC are defined for E, then for A_bM put 0 on diagonal for eliminated entries. 
     LS_Maxwellop->SetBlock(2, 0, A_bM, -1.0);  // Er
     LS_Maxwellop->SetBlock(0, 2, A_bM);  // Ei
     
@@ -2120,6 +2181,7 @@ public:
     LS_Maxwellop->SetBlock(3, 1, A_bM, -1.0);  // Hr
     LS_Maxwellop->SetBlock(1, 3, A_bM);  // Hi
 #endif
+    */
 #else  // original version
     LS_Maxwellop->SetBlock(0, 0, A_EE);
     LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
@@ -2420,12 +2482,19 @@ public:
       
       for (int i=0; i<nSDhalf; ++i)
 	{
+	  /*
 	  ReH[i] = x[nSDhalf + i];
 	  ImH[i] = x[widthHalf + nSDhalf + i];
+	  */
+	  
+	  ReH[i] = ySD[nSDhalf + i];
+	  ImH[i] = ySD[nSD + nSDhalf + i];
 	}
 
       MFEM_VERIFY(tdofsBdryInjectionTranspose->Width() == nSDhalf, "");
 
+      //cout << "ReH norm " << ReH.Norml2() << ", ImH " << ImH.Norml2() << endl;
+      
       /*
       Vector ReHbdry(tdofsBdryInjectionTranspose->Height());
       Vector ImHbdry(tdofsBdryInjectionTranspose->Height());

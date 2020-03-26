@@ -225,6 +225,8 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 //#define K2_AIRY 175702.65424  // 20 GHz
 //#define K2_AIRY 1601.0
 
+//#define AIRY_USE_Y
+
 void test_Airy1_E_exact(const Vector &x, Vector &E)
 {
   const double k = sqrt(K2_AIRY);  // TODO: input k
@@ -237,7 +239,11 @@ void test_Airy1_E_exact(const Vector &x, Vector &E)
   E(2) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
   */
 
+#ifdef AIRY_USE_Y
+  const double y = (4.0 * x(1)) - 1.0;
+#else
   const double y = (4.0 * x(2)) - 1.0;
+#endif
   
   E(0) = gsl_sf_airy_Ai(beta * y, GSL_PREC_DOUBLE);
   E(1) = 0.0;
@@ -252,8 +258,12 @@ void test_Airy_epsilon(const Vector &x, Vector &e)
   e(1) = 1.0;
   e(2) = (4.0 * x(0)) - 1.0;
   */
-
+  
+#ifdef AIRY_USE_Y
+  e(0) = (4.0 * x(1)) - 1.0;
+#else
   e(0) = (4.0 * x(2)) - 1.0;
+#endif
   e(1) = 1.0;
   e(2) = 1.0;
 
@@ -263,14 +273,22 @@ void test_Airy_epsilon(const Vector &x, Vector &e)
 
 void Airy_epsilon(const Vector &x, Vector &e)
 {
+#ifdef AIRY_USE_Y
+  e(0) = (4.0 * x(1)) - 1.0;
+#else
   e(0) = (4.0 * x(2)) - 1.0;
+#endif
   e(1) = 1.0;
   e(2) = 1.0;
 }
 
 void Airy_epsilon2(const Vector &x, Vector &e)
 {
+#ifdef AIRY_USE_Y
+  e(0) = ((4.0 * x(1)) - 1.0) * ((4.0 * x(1)) - 1.0);
+#else
   e(0) = ((4.0 * x(2)) - 1.0) * ((4.0 * x(2)) - 1.0);
+#endif
   e(1) = 1.0;
   e(2) = 1.0;
 }
@@ -366,6 +384,33 @@ void test2_E_exact(const Vector &x, Vector &E)
   E(1) = x(1) * x(0) * (1.0 - x(0)) * x(2) * (1.0 - x(2));
   E(2) = x(2) * x(1) * (1.0 - x(1)) * x(0) * (1.0 - x(0));
   */
+}
+
+void test2_H_exact(const Vector &x, Vector &H)
+{
+#ifdef AIRY_TEST
+  const double k = sqrt(K2_AIRY);  // TODO: input k
+  const double beta = -pow(0.25 * k, 2.0/3.0);  // TODO: store this somehow?
+
+#ifdef AIRY_USE_Y
+  const double y = (4.0 * x(1)) - 1.0;
+#else
+  const double y = (4.0 * x(2)) - 1.0;
+#endif
+
+  H = 0.0;
+ 
+#ifdef AIRY_USE_Y
+  H(2) = -4.0 * beta * gsl_sf_airy_Ai_deriv(beta * y, GSL_PREC_DOUBLE);
+#else
+  H(1) = 4.0 * beta * gsl_sf_airy_Ai_deriv(beta * y, GSL_PREC_DOUBLE);
+#endif
+ 
+  H *= 1.0 / k;
+  
+#else
+  H = 0.0;  // TODO
+#endif
 }
 
 // Note that test2_f has zero tangential components on the exterior boundary.
@@ -7881,7 +7926,7 @@ if (sdsize > 0)
 #ifdef IFFOSLS_ESS
       //(*(ySD[m]))[yImOS + i] = cfosls[m]->rhs_E[i];
 #else
-      (*(ySD[m]))[yImOS + i] = -cfosls[m]->rhs_E[i];
+      //(*(ySD[m]))[yImOS + i] = -cfosls[m]->rhs_E[i];
 #endif
 #endif
 #else
@@ -8961,14 +9006,14 @@ Operator* DDMInterfaceOperator::CreateCij_FOSLS(const int localInterfaceIndex, c
       op->SetBlock(1, 0, ifNDmassSp[interfaceIndex], -alphaIm);
 #else
 #ifdef IFFOSLS
-      op->SetBlock(0, 0, ifNDmassSp[interfaceIndex], -alphaIm);
+      //op->SetBlock(0, 0, ifNDmassSp[interfaceIndex], -alphaIm);
 #else
       op->SetBlock(0, 0, ifNDtangSp[interfaceIndex], -alphaRe * tangSign);
 #endif
 #endif
 
 #ifdef IFFOSLS_H
-      op->SetBlock(1, 1, ifNDmassSp[interfaceIndex], -alphaIm);  // (f,R)
+      //op->SetBlock(1, 1, ifNDmassSp[interfaceIndex], -alphaIm);  // (f,R)
 #endif
       
 #ifndef IFFOSLS
