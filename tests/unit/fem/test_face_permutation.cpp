@@ -157,7 +157,7 @@ double x_fn(const Vector &xvec) { return xvec[0]; }
 double y_fn(const Vector &xvec) { return xvec[1]; }
 double z_fn(const Vector &xvec) { return xvec[2]; }
 
-void TestFaceRestriction(Mesh &mesh, int order)
+double TestFaceRestriction(Mesh &mesh, int order)
 {
    int dim = mesh.Dimension();
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
@@ -171,6 +171,7 @@ void TestFaceRestriction(Mesh &mesh, int order)
 
    Vector face_values(ndof_face*2);
 
+   double max_err = 0.0;
    for (int d=0; d<dim; ++d)
    {
       double (*fn)(const Vector &);
@@ -189,7 +190,7 @@ void TestFaceRestriction(Mesh &mesh, int order)
       else
       {
          MFEM_ABORT("Bad dimension");
-         return;
+         return infinity();
       }
       FunctionCoefficient coeff(fn);
       gf.ProjectCoefficient(coeff);
@@ -197,35 +198,45 @@ void TestFaceRestriction(Mesh &mesh, int order)
 
       for (int i=0; i<ndof_face; ++i)
       {
-         REQUIRE(face_values(i) == face_values(i + ndof_face));
+         double err = std::abs(face_values(i) - face_values(i + ndof_face));
+         max_err = std::max(max_err, err);
       }
    }
+   return max_err;
 }
 
 TEST_CASE("2D Face Permutation", "[Face Permutation]")
 {
    int order = 3;
+   double max_err = 0.0;
    for (int fp2=0; fp2<4; ++fp2)
    {
       for (int fp1=0; fp1<4; ++fp1)
       {
          Mesh *mesh = mesh_2d_orientation(fp1, fp2);
-         TestFaceRestriction(*mesh, order);
+         double err = TestFaceRestriction(*mesh, order);
+         max_err = std::max(max_err, err);
          delete mesh;
       }
    }
+   std::cout << "2D Face Permutation: max_err = " << max_err << '\n';
+   REQUIRE(max_err < 1e-15);
 }
 
 TEST_CASE("3D Face Permutation", "[Face Permutation]")
 {
    int order = 3;
+   double max_err = 0.0;
    for (int fp2=0; fp2<24; ++fp2)
    {
       for (int fp1=0; fp1<24; ++fp1)
       {
          Mesh *mesh = mesh_3d_orientation(fp1, fp2);
-         TestFaceRestriction(*mesh, order);
+         double err = TestFaceRestriction(*mesh, order);
+         max_err = std::max(max_err, err);
          delete mesh;
       }
    }
+   std::cout << "3D Face Permutation: max_err = " << max_err << '\n';
+   REQUIRE(max_err < 1e-15);
 }
