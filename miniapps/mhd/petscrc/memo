@@ -33,6 +33,29 @@ glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 36 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+3/22
+Try supg on res=1e-3 to see if it is working?? Maybe supg preconditioner is needed there!!
+
+3/17
+without supg and fd, it works with
+srun -n 72 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 1 -tf .2 -dt .1 -usepetsc --petscopts ./petscrc/rc_full -s 3 -shell -resi 1e-6 -visc 1e-6 -no-supg -no-fd -local -lr 2
+
+but this was not working:
+srun -n 128 ./imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -vs 2 -tf .2 -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-6 -visc 1e-6 -supg -fd -local -yrefine 0.2 -part_method 1 
+
+why??
+two possibilities: rc_full or supg or fd, maybe because of J boundary??
+It looks like it is an issue with fd!! Maybe reduce alpha??
+
+choose alpha=0.0001 still not working, maybe modify the preconditioner??
+
+ok, the boundary issue is clearly the killer!
+
+this gives me crappy omege (not other solutions though):
+mpirun -n 72 ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 6 -no-vis -tf 1 -dt .1 -usepetsc --petscopts rc_full -s 3 -shell -resi 1e-6 -visc 1e-6 -supg -fd -local -lr 2 -alpha 0.0001
+
+Maybe fd does not like jumps in diffusion?
+
 3/16
 mpirun -n 12 ./imMHDp -m ./Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -tf .2 -dt .1 -usepetsc --petscopts petscrc/rc_full -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -updatej 0
 

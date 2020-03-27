@@ -46,6 +46,11 @@ bool region(const Vector &p, const int lev)
    }
 }
 
+bool yregion(const Vector &x, const double y0)
+{
+   return std::max(-x(1)-y0, x(1) - y0)<1e-8;
+}
+
 int main(int argc, char *argv[])
 {
    int num_procs, myid;
@@ -225,10 +230,33 @@ int main(int argc, char *argv[])
            for (int j = 0; j < T.GetPointMat().Width(); j++)
            {
               T.GetPointMat().GetColumnReference(j, pt);
-              if (region(pt, lev))
+              if (true)
               {
-                 marked_elements.Append(i);
-                 break;
+                double y0;
+                switch (lev)
+                {
+                    case 0: y0=0.9; break;
+                    case 1: y0=0.5; break;
+                    case 2: y0=0.2; break;
+                    default:
+                        if (myid == 0) cout << "Unknown level: " << lev << '\n';
+                        delete mesh;
+                        MPI_Finalize();
+                        return 3;
+                }
+                if (yregion(pt, y0))
+                {
+                   marked_elements.Append(i);
+                   break;
+                }
+              }
+              else
+              {
+                if (region(pt, lev))
+                {
+                   marked_elements.Append(i);
+                   break;
+                }
               }
            }
         }
