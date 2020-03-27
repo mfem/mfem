@@ -206,59 +206,60 @@ int main(int argc, char *argv[])
    Vector ztemp(r.Size());
 
 
-   // X = 0.0;
-	// GMRESSolver gmres;
-	// gmres.SetPreconditioner(S);
-	// gmres.SetOperator(*A);
-	// gmres.SetRelTol(1e-8);
-	// gmres.SetMaxIter(500);
-	// gmres.SetPrintLevel(1);
-	// gmres.Mult(B, X);
+   X = 0.0;
+	GMRESSolver gmres;
+	gmres.SetPreconditioner(S);
+	gmres.SetOperator(*A);
+	gmres.SetRelTol(1e-12);
+	gmres.SetMaxIter(500);
+	gmres.SetPrintLevel(1);
+	gmres.Mult(B, X);
 
 
 
 
-   int n= 1;
+   // int n= 2;
 
-   Vector Ax(X.Size());
-   for (int i = 0; i<n; i++)
-   {
-      A->Mult(X,Ax); Ax *=-1.0;
-      r = b; r+=Ax;
-      // A->AddMult(X,r,-1.0); //r = r-Ax
-      cout << "residual norm =" << r.Norml2() << endl;
-      // S.Mult(r,z); 
-      S.Mult(r,z); 
-      cout << "correction norm =" << z.Norml2() << endl;
+   // Vector Ax(X.Size());
+   // for (int i = 0; i<n; i++)
+   // {
+   //    A->Mult(X,Ax); Ax *=-1.0;
+   //    r = b; r+=Ax;
+   //    // A->AddMult(X,r,-1.0); //r = r-Ax
+   //    cout << "residual norm =" << r.Norml2() << endl;
+   //    // S.Mult(r,z); 
+   //    S.Mult(r,z); 
+   //    cout << "correction norm =" << z.Norml2() << endl;
 
-      X += z;
+   //    X += z;
 
-      cout << "solution norm =" << X.Norml2() << endl;
+   //    cout << "solution norm =" << X.Norml2() << endl;
 
-      p_gf = 0.0;
-      a.RecoverFEMSolution(X,B,p_gf);
+   //    p_gf = 0.0;
+   //    a.RecoverFEMSolution(X,B,p_gf);
 
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         string keys;
-         if (dim ==2 )
-         {
-            keys = "keys mrRljc\n";
-         }
-         else
-         {
-            keys = "keys mc\n";
-         }
-         socketstream sol1_sock_re(vishost, visport);
-         sol1_sock_re.precision(8);
-         sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-                     "window_title 'Numerical Pressure (real part)' "
-                     << keys << flush;
-      cout << "Iteration " << i << endl;
-      cin.get();
-   }
+   //       char vishost[] = "localhost";
+   //       int  visport   = 19916;
+   //       string keys;
+   //       if (dim ==2 )
+   //       {
+   //          keys = "keys mrRljc\n";
+   //       }
+   //       else
+   //       {
+   //          keys = "keys mc\n";
+   //       }
+   //       socketstream sol1_sock_re(vishost, visport);
+   //       sol1_sock_re.precision(8);
+   //       sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+   //                   "window_title 'Numerical Pressure (real part)' "
+   //                   << keys << flush;
+   //    cout << "Iteration " << i << endl;
+   //    cin.get();
+   // }
 
 
+   a.RecoverFEMSolution(X,B,p_gf);
 
    KLUSolver klu(*A);
    klu.Mult(B,X);
@@ -284,28 +285,16 @@ int main(int argc, char *argv[])
       }
       socketstream sol_sock_re(vishost, visport);
       sol_sock_re.precision(8);
-      sol_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
+      sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
                   "window_title 'Numerical Pressure (real part from KLU)' "
                   << keys << flush;
-      // socketstream mesh_sock(vishost, visport);
-      // mesh_sock.precision(8);
-      // mesh_sock << "mesh\n" << *mesh_ext << "window_title 'Global mesh' "
-      //           << flush;    
+      socketstream diff_sock_re(vishost, visport);
+      diff_sock_re.precision(8);
+      diff_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
+                  "window_title 'Numerical Pressure (real part from KLU)' "
+                  << keys << flush;
 
-      // socketstream gcf_sock(vishost, visport);
-      // gcf_sock.precision(8);
-      // gcf_sock << "solution\n" << *mesh_ext << g_cf << "window_title 'CutOffFunction' "
-      //          << keys << flush;               
-
-      // socketstream p_gfgcf_sock(vishost, visport);
-      // p_gfgcf_sock.precision(8);
-      // p_gfgcf_sock << "solution\n" << *mesh_ext << gf << "window_title 'CutOffFunction' "
-      //          << keys << flush;     
-
-      // socketstream test_sock(vishost, visport);
-      // test_sock.precision(8);
-      // test_sock << "solution\n" << *mesh_ext << *testgf << "window_title 'test' "
-      //          << keys << flush;                               
+                                  
    }
 
    delete fespace;
@@ -332,6 +321,13 @@ double f_exact_Re(const Vector &x)
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
+
+   x0 = 0.9;
+   x1 = 0.5;
+   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   if (dim == 3) { beta += pow(x2-x(2),2); }
+   alpha = -pow(n,2) * beta;
+   f_re += coeff*exp(alpha);
 
    bool in_pml = false;
    for (int i = 0; i<dim; i++)

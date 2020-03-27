@@ -71,8 +71,7 @@ private:
    mutable Array<Vector * > res;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
-   void GetHalfSpaceLinearSystem(int ip, SparseMatrix * Mat, Vector & x,  
-      Vector & load, Vector & ModLoad) const;
+   void SolveHalfSpaceLinearSystem(int ip, Vector & x, Vector & load) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
    void GetCutOffSolution(Vector & sol, int ip) const;
 

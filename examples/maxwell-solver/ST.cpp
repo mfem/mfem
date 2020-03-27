@@ -2,7 +2,6 @@
 
 
 
-
 DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers) 
                : bf(bf_), partition(partition_)
 {
@@ -10,7 +9,6 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
    int partition_kind = partition->partition_kind;
    fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
-   int dim = mesh->Dimension();
    const FiniteElementCollection * fec = fespace->FEColl();
 
    nrpatch = partition->nrpatch;
@@ -56,7 +54,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
       MFEM_ABORT("This partition kind not supported yet");
    }
    
-   SaveMeshPartition(PmlMeshes, meshpath, solpath);
+   // SaveMeshPartition(PmlMeshes, meshpath, solpath);
 
    PmlFespaces.SetSize(nrpatch);
    Dof2GlobalDof.resize(nrpatch);
@@ -123,7 +121,7 @@ STP::STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrla
    dim = mesh->Dimension();
 
    // ----------------- Step 1 --------------------
-   // Introduce 2 layered partition of the domain 
+   // Introduce 2 layered partitios of the domain 
    // 
    int partition_kind;
    // 1. Non ovelapping 
@@ -134,12 +132,12 @@ STP::STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrla
    partition_kind = 3; // Ovelapping partition for the full space
    povlp = new MeshPartition(mesh, partition_kind);
 
-   nrpatch = pnovlp->nrpatch;
+   nrpatch = pnovlp->nrpatch-1;
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
    SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
-   SaveMeshPartition(pnovlp->patch_mesh, "output/mesh_novlp.", "output/sol_novlp.");
+   // SaveMeshPartition(pnovlp->patch_mesh, "output/mesh_novlp.", "output/sol_novlp.");
 
    // ------------------Step 2 --------------------
    // Construct the dof maps from subdomains to global (for the extended and not)
@@ -207,8 +205,7 @@ SparseMatrix * STP::GetPmlSystemMatrix(int ip)
 
 
 
-void STP::GetHalfSpaceLinearSystem(int ip, SparseMatrix * Mat, Vector &x,  
-                                    Vector & load, Vector & ModLoad) const
+void STP::SolveHalfSpaceLinearSystem(int ip, Vector &x, Vector & load) const
 {
    double h = GetUniformMeshElementSize(novlp_prob->PmlMeshes[ip]);
    Array2D<double> length(dim,2);
@@ -222,7 +219,7 @@ void STP::GetHalfSpaceLinearSystem(int ip, SparseMatrix * Mat, Vector &x,
    {
       Array<int> ess_bdr(ovlp_prob->PmlMeshes[ip]->bdr_attributes.Max());
       ess_bdr = 1;
-      ovlp_prob->PmlFespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      novlp_prob->PmlFespaces[ip]->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    ConstantCoefficient one(1.0);
@@ -247,16 +244,17 @@ void STP::GetHalfSpaceLinearSystem(int ip, SparseMatrix * Mat, Vector &x,
 
    OperatorHandle Ah;
    Vector X;
+   Vector Modload;
 
-   cout << x.Size() << endl;
-   cout << load.Size() << endl;
-
-   cout << 2*novlp_prob->PmlFespaces[ip]->GetTrueVSize() << endl;
-
-   a.FormLinearSystem(ess_tdof_list, x, load, Ah, X, ModLoad);
+   a.FormLinearSystem(ess_tdof_list, x, load, Ah, X, Modload);
 
    ComplexSparseMatrix * AZ = Ah.As<ComplexSparseMatrix>();
-   Mat = AZ->GetSystemMatrix();
+
+   KLUSolver * HSmatInv = new KLUSolver;
+   HSmatInv->SetOperator(*AZ->GetSystemMatrix());
+   HSmatInv->Mult(Modload,X);
+   delete HSmatInv;
+   a.RecoverFEMSolution(X,Modload,x);
 }
 
 
@@ -268,16 +266,9 @@ void STP::Mult(const Vector &r, Vector &z) const
    Vector znew(z);
    Vector raux(znew.Size());
    Vector res_local, sol_local;
-   Array<int> visit(znew.Size());
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   // socketstream sol_sock_re(vishost, visport);
-   // sol_sock_re.precision(8);
-   // socketstream res_sock_re(vishost, visport);
-   // res_sock_re.precision(8);
    znew = 0.0;
    // source transfer algorithm
-   for (int ip = 0; ip < nrpatch-1; ip++)
+   for (int ip = 0; ip < nrpatch; ip++)
    {
       Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
       Array<int> * Dof2PmlDof = &ovlp_prob->Dof2PmlDof[ip];
@@ -289,7 +280,7 @@ void STP::Mult(const Vector &r, Vector &z) const
 
       // store residuals for the non overlapping partition
       Array<int> * nDof2GlobalDof;
-      if (ip == nrpatch-2 )
+      if (ip == nrpatch-1 )
       {
          nDof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
       }
@@ -300,7 +291,7 @@ void STP::Mult(const Vector &r, Vector &z) const
       int mdofs = nDof2GlobalDof->Size();
       res[ip] = new Vector(mdofs);
       rnew.GetSubVector(*nDof2GlobalDof, *res[ip]);
-      if (ip == nrpatch-2) continue;
+      if (ip == nrpatch-1) continue;
 
       //-----------------------------------------------
       // Extend by zero to the extended mesh
@@ -315,44 +306,39 @@ void STP::Mult(const Vector &r, Vector &z) const
       sol_ext.GetSubVector(*Dof2PmlDof,sol_local);
 
       znew = 0.0;
-      znew.AddElementVector(*Dof2GlobalDof,sol_local);
+      znew.SetSubVector(*Dof2GlobalDof,sol_local);
 
-      if (ip < nrpatch -2) GetCutOffSolution(znew, ip);
-      // PlotSolution(znew, sol_sock_re, ip); cin.get();
-      // Cut off the solution so that it has support only in the subdomain ip
+      GetCutOffSolution(znew, ip);
 
-      z.Add(1.0, znew);
       A->Mult(znew, raux);
       rnew -= raux;
-      // PlotSolution(rnew, res_sock_re, ip); cin.get();
    }
 
    // solution stage
    // First solve the nrpatch-1 problem (last subdomain)
    // extend residual to all around pml
-   // reset solution
-   z = 0.0;
-   int nrdof_ext = PmlMat[nrpatch-2]->Height();
+   cout << "ip = " << nrpatch-1 << endl;
+   int nrdof_ext = PmlMat[nrpatch-1]->Height();
    Vector res_ext(nrdof_ext); res_ext = 0.0;
    Vector sol_ext(nrdof_ext); sol_ext = 0.0;
-   Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[nrpatch-2];
-   Array<int> * Dof2PmlDof = &ovlp_prob->Dof2PmlDof[nrpatch-2];
-   res_ext.SetSubVector(*Dof2PmlDof,*res[nrpatch-2]);
-   PmlMatInv[nrpatch-2]->Mult(res_ext, sol_ext);
+   Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[nrpatch-1];
+   Array<int> * Dof2PmlDof = &ovlp_prob->Dof2PmlDof[nrpatch-1];
+   res_ext.SetSubVector(*Dof2PmlDof,*res[nrpatch-1]);
+   PmlMatInv[nrpatch-1]->Mult(res_ext, sol_ext);
    int ndofs = Dof2GlobalDof->Size();
    sol_local.SetSize(ndofs);
    sol_ext.GetSubVector(*Dof2PmlDof,sol_local);
    znew = 0.0;
-   znew.AddElementVector(*Dof2GlobalDof,sol_local);
-   z.Add(1.0, znew);
+   znew.SetSubVector(*Dof2GlobalDof,sol_local);
+   z.SetSubVector(*Dof2GlobalDof,sol_local);
+
 
    // backward sweep for half space problems
 
    Vector z_loc(z.Size());
-   for (int ip = nrpatch-3; ip > 0; ip--)
+   for (int ip = nrpatch-2; ip >= 0; ip--)
    {
-      socketstream res_sock_re(vishost, visport);
-      res_sock_re.precision(8);
+      cout << "ip = " << ip<< endl;
       // Get solution from previous layer
       Array<int> * Dof2GlobalDof = &novlp_prob->Dof2GlobalDof[ip];
       Array<int> * Dof2PmlDof = &novlp_prob->Dof2PmlDof[ip];
@@ -378,32 +364,20 @@ void STP::Mult(const Vector &r, Vector &z) const
          ess_tdof_list.Append(ess_tdof_list[i]+mdof/2);
       }
       sol_pml.SetSubVectorComplement(ess_tdof_list,0.0);
-      // double * data = sol_pml.GetData();
-      // GridFunction gf(subfespace);
-      // gf.SetData(data);
       
       // Set up the halfspace problem
-      SparseMatrix * HSmat = nullptr;
-      Vector ModLoad;
       // extend the residual by zero to pml region
       Vector pmlres(sol_pml.Size()); pmlres = 0.0;
       pmlres.SetSubVector(* Dof2PmlDof,*res[ip]);
-      GetHalfSpaceLinearSystem(ip, HSmat, sol_pml, pmlres, ModLoad);
-      cin.get();
-      // z_loc = 0.0;
-      // z_loc.SetSubVector(* Dof2GlobalDof, sol_loc);
+      SolveHalfSpaceLinearSystem(ip, sol_pml, pmlres);
 
-      // FiniteElementSpace * fespace = bf->FESpace();
-      // int n = fespace->GetTrueVSize();
-      // ComplexGridFunction gf(fespace);
-      // double * data = z_loc.GetData();
-      // gf.real().SetData(data);
-      // gf.imag().SetData(&data[n]);
+      sol_loc = 0.0;
+      sol_pml.GetSubVector(* Dof2PmlDof, sol_loc);
 
-      // string keys;
-      // keys = "keys mrRljc\n";
-      // res_sock_re << "solution\n" << *submesh << gf << keys << flush;
-      // cin.get();
+      z_loc = 0.0;
+      z_loc.SetSubVector(* Dof2GlobalDof, sol_loc);
+      znew = z_loc;
+      z.SetSubVector(* Dof2GlobalDof, sol_loc);
    }
 
 }
@@ -412,20 +386,17 @@ void STP::PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const
 {
    FiniteElementSpace * fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
-   ComplexGridFunction gf(fespace);
-   int n = fespace->GetTrueVSize();
+   GridFunction gf(fespace);
    double * data = sol.GetData();
-   gf.real().SetData(data);
-   gf.imag().SetData(&data[n]);
+   gf.SetData(data);
    
    string keys;
    if (ip == 0) keys = "keys mrRljc\n";
-   sol_sock << "solution\n" << *mesh << gf.real() << keys << flush;
+   sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
 
 void STP::GetCutOffSolution(Vector & sol, int ip) const
 {
-
    Mesh * novlp_mesh = novlp_prob->fespaces[ip+1]->GetMesh();
    Mesh * ovlp_mesh = ovlp_prob->fespaces[ip]->GetMesh();
    Vector novlpmin, novlpmax;
@@ -433,21 +404,12 @@ void STP::GetCutOffSolution(Vector & sol, int ip) const
    novlp_mesh->GetBoundingBox(novlpmin, novlpmax);
    ovlp_mesh->GetBoundingBox(ovlpmin, ovlpmax);
 
-   // cout << "novlmin = " ; novlpmin.Print();
-   // cout << "novlmax = " ; novlpmax.Print();
-
-   // cout << "ovlmin = " ; ovlpmin.Print();
-   // cout << "ovlmax = " ; ovlpmax.Print();
-
    Array2D<double> h(dim,2);
-   // h[0][0] = ovlpmin[0] - novlpmin[0];
-   // h[0][1] = ovlpmax[0] - novlpmax[0];
    h[0][0] = 0.0;
    h[0][1] = ovlpmax[0] - novlpmin[0];
    h[1][0] = ovlpmin[1] - novlpmin[1];
    h[1][1] = ovlpmax[1] - novlpmax[1];
 
-   // cout << "h = " ; h.Print();
 
    CutOffFnCoefficient cf(CutOffFncn, ovlpmin, ovlpmax, h);
 

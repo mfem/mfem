@@ -139,7 +139,7 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
-   nx = 4;
+   nx = 10;
    ny = 1;
    nz = 1;
    int nxyz[3] = {nx,ny,nz};
