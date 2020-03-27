@@ -137,6 +137,30 @@ public:
    }
 };
 
+/**
+   this one has two different norms potentially outputted, ||s|| and ||r||,
+   not easy to unify interface
+ */
+class BiCGSTABLegacyMonitor : public IterativeSolverMonitor
+{
+private:
+   int restart;
+
+public:
+   BiCGSTABLegacyMonitor(int m_) : restart(m_) { }
+
+   void BeginInfo(int iteration, double res_norm);
+   void IterationInfo(int iteration, double res_norm);
+   void ConvergenceInfo(int iteration, double res_norm,
+                        double initial_norm);
+   void NoConvergenceInfo(int iteration, double res_norm,
+                          double initial_norm);
+   
+   void Alert(std::string& message)
+   {
+   }
+};
+
 /// Minres, bicgstab are fine...
 /// Newton will be just a bit different (but quite doable)
 /// and SLBQP probably does not fit in this framework
@@ -379,12 +403,16 @@ protected:
 
    void UpdateVectors();
 
+   IterativeSolverMonitor * monitor;
+
 public:
-   BiCGSTABSolver() { }
+   BiCGSTABSolver() : monitor(new BiCGSTABLegacyMonitor) { }
 
 #ifdef MFEM_USE_MPI
-   BiCGSTABSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   BiCGSTABSolver(MPI_Comm _comm) : IterativeSolver(_comm),
+                                    monitor(new BiCGSTABLegacyMonitor) { }
 #endif
+   ~BiCGSTABSolver() { delete monitor; }
 
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }

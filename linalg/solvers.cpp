@@ -252,6 +252,58 @@ void FGMRESLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
    }
 }
 
+void BiCGSTABLegacyMonitor::BeginInfo(int iteration, double res_norm)
+{
+   if (print_level >= 0)
+   {
+      mfem::out << "   Iteration : " << setw(3) << iteration
+                << "   ||r|| = " << res_norm << '\n';
+   }
+}
+
+void BiCGSTABLegacyMonitor::IterationInfo(int iteration, double res_norm)
+{
+   if (print_level == 1)
+   {
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
+                << "   Iteration : " << setw(3) << iteration
+                << "  ||B r|| = " << res_norm << "\n";
+      if (iteration % restart == 0)
+      {
+         mfem::out << "Restarting..." << '\n';
+      }
+   }
+}
+
+void BiCGSTABLegacyMonitor::ConvergenceInfo(int iteration, double res_norm,
+                                         double initial_norm)
+{
+   if (print_level >= 0)
+   {
+      mfem::out << "   Iteration : " << setw(3) << iteration
+                      << "   ||r|| = " << res_norm << '\n';
+   }
+}
+
+void BiCGSTABLegacyMonitor::NoConvergenceInfo(int iteration, double res_norm,
+                                           double initial_norm)
+{
+   if (print_level == 1 || print_level == 3)
+   {
+      mfem::out << "   Pass : " << setw(2) << (iteration-1)/restart+1
+                << "   Iteration : " << setw(3) << iteration
+                << "  ||B r|| = " << res_norm << '\n';
+   }
+   else if (print_level == 2)
+   {
+      mfem::out << "GMRES: Number of iterations: " << iteration << '\n';
+   }
+   if (print_level >= 0)
+   {
+      mfem::out << "GMRES: No convergence!\n";
+   }
+}
+
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
@@ -1134,9 +1186,13 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
    resid = Norm(r);
    MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+   monitor->SetPrintLevel(print_level);
+   monitor->BeginInfo(0, resid);
+/*
    if (print_level >= 0)
       mfem::out << "   Iteration : " << setw(3) << 0
                 << "   ||r|| = " << resid << '\n';
+*/
 
    tol_goal = std::max(resid*rel_tol, abs_tol);
 
@@ -1153,9 +1209,12 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       rho_1 = Dot(rtilde, r);
       if (rho_1 == 0)
       {
+         monitor->NoConvergenceInfo(i, resid);
+         /*
          if (print_level >= 0)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
+         */
          final_norm = resid;
          final_iter = i;
          converged = 0;
@@ -1187,17 +1246,23 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
+         monitor->ConvergenceInfo(i, resid);
+         /*
          if (print_level >= 0)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||s|| = " << resid << '\n';
+         */
          final_norm = resid;
          final_iter = i;
          converged = 1;
          return;
       }
+      monitor->IterationInfo(i, resid);
+      /*
       if (print_level >= 0)
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
+      */
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
