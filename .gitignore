@@ -95,6 +95,9 @@ examples/ex21p_*.*
 examples/ex23-*.gf
 examples/ex23*.mesh
 examples/Example23*
+examples/ex25.mesh
+examples/ex25-*.gf
+examples/ex25p-*.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]

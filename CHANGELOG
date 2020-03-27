@@ -18,11 +18,20 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
 
+- Added support for finite difference-based gradient and Hessian approximation
+  in the TMOP mesh optimization algorithms. This improves the accuracy of the
+  Hessian for r-adaptivity using discrete fields, and allows use of skewness
+  and orientation based metrics.
+
 New and updated examples and miniapps
 -------------------------------------
-- Adding a simple meshing miniapp, Twist, which demonstates MFEM's strategy of
+- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
+
+- Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
+  Matched Layer (PML) for the simulation of electromagnetic wave propagation.
+  The example defines and solves several indefinite Maxwell problems.
 
 Discretization improvements
 ---------------------------
