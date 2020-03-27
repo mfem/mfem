@@ -303,9 +303,9 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 void DofInfo::FillNeighborDofs()
 {
    // Use the first mesh element as indicator.
-   const FiniteElement &dummy = *fes->GetFE(0);
+   const FiniteElement &el = *fes->GetFE(0);
    int i, j, e, nbr, ne = mesh->GetNE();
-   int nd = dummy.GetDof(), p = dummy.GetOrder();
+   int nd = el.GetDof(), p = el.GetOrder();
    Array <int> bdrs, orientation;
    FaceElementTransformations *Trans;
 
@@ -481,10 +481,11 @@ void DofInfo::FillNeighborDofs()
    delete face_to_el;
 }
 
-void DofInfo::FillSubcell2CellDof() // TODO triangles
+void DofInfo::FillSubcell2CellDof()
 {
-   const FiniteElement &dummy = *fes->GetFE(0);
-   int j, m, aux, p = dummy.GetOrder();
+   const FiniteElement &el = *fes->GetFE(0);
+   int j, m, aux, p = el.GetOrder();
+   Geometry::Type gtype = el.GetGeomType();
 
    if (dim==1)
    {
@@ -493,8 +494,20 @@ void DofInfo::FillSubcell2CellDof() // TODO triangles
    }
    else if (dim==2)
    {
-      numSubcells = p*p;
-      numDofsSubcell = 4;
+      if (gtype == Geometry::TRIANGLE)
+      {
+         numSubcells = 1;
+         numDofsSubcell = 3;
+         for (int i = 1; i < p; i++)
+         {
+            numSubcells += 2*i+1;
+         }
+      }
+      else if (gtype == Geometry::SQUARE)
+      {
+         numSubcells = p*p;
+         numDofsSubcell = 4;
+      }
    }
    else if (dim==3)
    {
@@ -504,12 +517,49 @@ void DofInfo::FillSubcell2CellDof() // TODO triangles
 
    Sub2Ind.SetSize(numSubcells, numDofsSubcell);
 
+   if (gtype == Geometry::TRIANGLE)
+   {
+      int nd = (p+1)*(p+2) / 2;
+
+      int ctr = numSubcells - 1;
+      int node = nd - 1;
+      int old;
+      aux = 1;
+      for (int iy = p; iy > 0; iy--)
+      {
+         old = node;
+         Sub2Ind(ctr,2) = node;
+         Sub2Ind(ctr,1) = node - aux;
+         Sub2Ind(ctr,0) = node - aux - 1;
+         ctr--;
+
+         for (int ix = p - iy; ix > 0; ix--)
+         {
+            Sub2Ind(ctr,2) = node;
+            Sub2Ind(ctr,1) = node - aux - 1;
+            Sub2Ind(ctr,0) = node - 1;
+            ctr--;
+            node--;
+
+            Sub2Ind(ctr,2) = node;
+            Sub2Ind(ctr,1) = node - aux;
+            Sub2Ind(ctr,0) = node - aux - 1;
+            ctr--;
+         }
+
+         node = old - aux;
+         aux++;
+      }
+
+      return;
+   }
+
    for (m = 0; m < numSubcells; m++)
    {
       for (j = 0; j < numDofsSubcell; j++)
       {
          if (dim == 1) { Sub2Ind(m,j) = m + j; }
-         else if (dim == 2)
+         else if (dim == 2 && gtype == Geometry::SQUARE)
          {
             aux = m + m/p;
             switch (j)

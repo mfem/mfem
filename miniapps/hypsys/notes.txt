@@ -3,7 +3,6 @@ ATTENTION
 
 
 next steps
-   -implement eq. (6) in my note (first w.o. preconditioning)
 
 
 minor tasks:

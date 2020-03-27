@@ -58,7 +58,7 @@ public:
    }
 
    void Mult(const Vector &x, Vector &y) const = 0;
-   void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
+   virtual void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
    virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
                          const Vector &xMPI, const Vector &normal,
                          int e, int i, int k) const;

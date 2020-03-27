@@ -28,9 +28,9 @@ ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_sltn,
 void ParDofInfo::FillNeighborDofs()
 {
    // Use the first mesh element as indicator.
-   const FiniteElement &dummy = *pfes->GetFE(0);
+   const FiniteElement &el = *pfes->GetFE(0);
    int i, j, e, nbr, ne = pmesh->GetNE();
-   int nd = dummy.GetDof(), p = dummy.GetOrder();
+   int nd = el.GetDof(), p = el.GetOrder();
    Array <int> bdrs, orientation;
    FaceElementTransformations *Trans;
 

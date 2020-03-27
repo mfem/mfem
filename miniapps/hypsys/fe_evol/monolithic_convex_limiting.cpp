@@ -8,16 +8,19 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
    IntegrationRule nodes =  el->GetNodes();
-   Vector shape(nd), dx_shape(nd);
-   DenseMatrix dshape(nd,dim), GradOp(nd,nd), test(nd,dim);
+   Vector shape(nd), dx_shape(nd), RefMassLumped(nd);
+   DenseMatrix dshape(nd,dim), GradOp(nd,nd), RefMass(nd,nd), InvRefMass(nd,nd);
+   DenseTensor Grad_aux(nd,nd,dim);
 
    ShapeEval.SetSize(nd,nd);
    ElemInt.SetSize(dim,dim,ne);
    PrecGrad.SetSize(nd,dim,nd);
    OuterUnitNormals.SetSize(dim, dofs.NumBdrs, ne);
 
+   RefMassLumped =  0.;
+   RefMass = 0.;
    PrecGrad = 0.;
-   test = 0.;
+   Grad_aux = 0.;
 
    Array <int> bdrs, orientation;
 
@@ -33,35 +36,44 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       const IntegrationPoint &ip = IntRuleElem->IntPoint(k);
       el->CalcShape(ip, shape);
       el->CalcDShape(ip, dshape);
+      RefMassLumped.Add(ip.weight, shape);
+      AddMult_a_VVt(ip.weight, shape, RefMass);
 
       for (int l = 0; l < dim; l++)
       {
-         GradOp = 0.;
          dshape.GetColumn(l, dx_shape);
-         AddMult_a_VWt(ip.weight, shape, dx_shape, GradOp);
+         AddMult_a_VWt(ip.weight, shape, dx_shape, Grad_aux(l));
+      }
+   }
 
-         for (int i = 0; i < nd; i++)
+   DenseMatrixInverse inv(&RefMass);
+   inv.Factor();
+   inv.GetInverseMatrix(InvRefMass);
+
+   for (int l = 0; l < dim; l++)
+   {
+      GradOp = 0.;
+      AddMult(InvRefMass, Grad_aux(l), GradOp);
+      GradOp.LeftScaling(RefMassLumped);
+
+      for (int i = 0; i < nd; i++)
+      {
+         for (int j = 0; j < nd; j++)
          {
-            for (int j = 0; j < nd; j++)
-            {
-               PrecGrad(i,l,j) -= GradOp(i,j);
-               test(i,l) += GradOp(i,j);
-            }
+            PrecGrad(i,l,j) -= GradOp(i,j);
          }
       }
    }
 
-   // test.Print();
-
    for (int e = 0; e < ne; e++)
    {
       ElementTransformation *eltrans = fes->GetElementTransformation(e);
-      for (int k = 0; k < nqe; k++)
-      {
-         const IntegrationPoint &ip = IntRuleElem->IntPoint(k);
-         eltrans->SetIntPoint(&ip);
-         CalcAdjugate(eltrans->Jacobian(), ElemInt(e));
-      }
+      const IntegrationPoint &ip = IntRuleElem->IntPoint(0);
+      eltrans->SetIntPoint(&ip);
+      DenseMatrix mat_aux(dim,dim);
+      CalcAdjugate(eltrans->Jacobian(), mat_aux);
+      mat_aux.Transpose();
+      ElemInt(e) = mat_aux;
 
       if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
       else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
@@ -101,6 +113,14 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    }
 }
 
+void MCL_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
+{
+   for (int n = 0; n < hyp->NumEq; n++)
+   {
+      uEval(n) = uElem(n*nd+k);
+   }
+}
+
 void MCL_Evolution::Mult(const Vector &x, Vector &y) const
 {
    ComputeTimeDerivative(x, y);
@@ -128,17 +148,64 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
       mat2 = 0.;
+      DenseTensor CTilde(nd,dim,nd);
 
       for (int j = 0; j < nd; j++)
       {
          ElemEval(uElem, uEval, j);
          hyp->EvaluateFlux(uEval, Flux, e, j);
-
-         MultABt(ElemInt(e), Flux, mat1);
-         AddMult(PrecGrad(j), mat1, mat2);
+         MultABt(PrecGrad(j), ElemInt(e), CTilde(j));
+         AddMultABt(CTilde(j), Flux, mat2);
       }
 
       z.AddElementVector(vdofs, mat2.GetData());
+
+      // Artificial diffusion
+      for (int m = 0; m < dofs.numSubcells; m++)
+      {
+         for (int i = 0; i < dofs.numDofsSubcell; i++)
+         {
+            int I = dofs.Sub2Ind(m,i);
+            // uEval(0) = uElem(I); // TODO
+
+            for (int j = 0; j < dofs.numDofsSubcell; j++)
+            {
+               if (i==j) { continue; }
+
+               int J = dofs.Sub2Ind(m,j);
+               // ElemEval(uElem, uNbrEval, J);
+               // uNbrEval(0) = uElem(J); // TODO
+
+               double CTildeNorm1 = 0.;
+               double CTildeNorm2 = 0.;
+               for (int l = 0; l < dim; l++)
+               {
+                  CTildeNorm1 += CTilde(I,l,J) * CTilde(I,l,J);
+                  CTildeNorm2 += CTilde(J,l,I) * CTilde(J,l,I);
+               }
+               CTildeNorm1 = sqrt(CTildeNorm1);
+               CTildeNorm2 = sqrt(CTildeNorm2);
+               double dij = max(CTildeNorm1, CTildeNorm2);
+               // double dij = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
+
+               // CTilde(j).GetRow(i, normal);
+               // normal /= CTildeNorm1;
+
+               // // TODO for advection this needs to be element values, fix indices
+               // double ws1 = max( hyp->GetWaveSpeed(uEval, normal, e, j, i),
+               //                hyp->GetWaveSpeed(uNbrEval, normal, e, j, i) );
+
+               // CTilde(i).GetRow(j, normal);
+               // normal /= CTildeNorm2;
+
+               // double ws2 = max( hyp->GetWaveSpeed(uEval, normal, e, j, i),
+               //                hyp->GetWaveSpeed(uNbrEval, normal, e, j, i) );
+
+               // dij *= max(ws1, ws2);
+               z(vdofs[I]) += dij * (x(vdofs[J]) - x(vdofs[I]));
+            }
+         }
+      }
 
       // Here, the use of nodal basis functions is essential, i.e. shape
       // functions must vanish on faces that their node is not associated with.
@@ -196,7 +263,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               z(vdofs[n * nd + dofs.BdrDofs(j,i)]) + 0.5 * (
+               z(vdofs[n * nd + dofs.BdrDofs(j,i)]) += 0.5 * (
                   (uNbrEval(n) -uEval(n)) * c_eij + tmp(n) );
             }
          }

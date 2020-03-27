@@ -17,6 +17,7 @@ public:
    virtual ~MCL_Evolution() { }
 
    void Mult(const Vector&x, Vector &y) const override;
+   virtual void ElemEval(const Vector &uElem, Vector &uEval, int k) const override;
    void ComputeTimeDerivative(const Vector &x, Vector &y,
                               const Vector &xMPI = serial) const;
 };
