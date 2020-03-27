@@ -979,26 +979,23 @@ void DiscreteAdaptTC::SetParDiscreteTargetBase(ParGridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              cnt = tspec_.Size()/vdim;
-   if (ncomp==0)
-   {
-      tspec_fes   = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
-                                           tspec_.FESpace()->FEColl(),
-                                           1);
-      ptspec_fes  = tspec_.ParFESpace();
-   }
 
-   if (ncomp == 0)
+   ncomp += vdim;
+
+   if (ncomp == vdim)
    {
-      ncomp += vdim;
+      tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
+                                         tspec_.FESpace()->FEColl(),
+                                         1);
+      ptspec_fes = tspec_.ParFESpace();
       tspec = tspec_;
+
       return;
    }
 
-   ncomp += vdim;
-   //need to append data to tspec
+   // need to append data to tspec
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
-
    Vector tspec_temp = tspec;
    tspec.SetSize(ncomp*cnt);
 
@@ -1049,25 +1046,18 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
    const int vdim = tspec_.FESpace()->GetVDim(),
              cnt  = tspec_.Size()/vdim;
 
-   if (ncomp == 0)
-   {
-      tspec_fes   = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
-                                           tspec_.FESpace()->FEColl(),
-                                           1);
-      // we don't do tspec_.FESpace() here because it can be a vector FESpace
-      // for 3D cases (e.g., aspect ratio has 3 components in 3D).
-   }
-   else
-   {
-      MFEM_VERIFY(tspec_fes->GetNDofs() == tspec_.FESpace()->GetNDofs(),
-                  " The FiniteElementSpace should be same for all discrete functions.")
-   }
-
    ncomp += vdim;
 
    if (ncomp == vdim)
    {
+      tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
+                                         tspec_.FESpace()->FEColl(),
+                                         1);
+      // we don't do tspec_.FESpace() here because it can be a vector FESpace
+      // for 3D cases (e.g., aspect ratio has 3 components in 3D).
+
       tspec = tspec_;
+
       return;
    }
 
@@ -1155,7 +1145,7 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   const int cnt    = tspec.Size()/ncomp;            //dofs per scalar-field
+   const int cnt = tspec.Size()/ncomp; //dofs per scalar-field
 
    for (int i = 0; i < ncomp; i++)
    {
@@ -1196,7 +1186,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                    ntspec_dofs = ndofs*ncomp;
 
 
-         Vector shape(ndofs), tspec_vals(ntspec_dofs);
+         Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
+                par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
+
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
@@ -1207,51 +1199,26 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
             Jtr(i) = Wideal; //Initialize to identity
-         }
 
-         Vector par_vals;
-         Vector par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
-
-         if (sizeidx != -1) //Set size
-         {
-            par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
-            const double min_size = par_vals.Min();
-            MFEM_VERIFY(min_size > 0.0,
-                        "Non-positive size propagated in the target definition.");
-
-            for (int i = 0; i < ir.GetNPoints(); i++)
+            if (sizeidx != -1) //Set size
             {
-               const IntegrationPoint &ip = ir.IntPoint(i);
-               tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
+               par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
+               const double min_size = par_vals.Min();
+               MFEM_VERIFY(min_size > 0.0,
+                           "Non-positive size propagated in the target definition.");
                const double size = std::max(shape * par_vals, min_size);
                Jtr(i).Set(std::pow(size, 1.0/dim), Jtr(i));
-            }
-         } //Done size
+            } //Done size
 
-         if (target_type==IDEAL_SHAPE_GIVEN_SIZE) { break; }
+            if (target_type == IDEAL_SHAPE_GIVEN_SIZE) { continue; }
 
-         if (aspectratioidx != -1) //Set aspect ratio
-         {
-            if (dim == 2)
+            if (aspectratioidx != -1) //Set aspect ratio
             {
-               par_vals.SetDataAndSize(tspec_vals.GetData()+
-                                       aspectratioidx*ndofs, ndofs);
-            }
-            else
-            {
-               par_vals.SetDataAndSize(tspec_vals.GetData()+
-                                       aspectratioidx*ndofs, ndofs*3);
-               par_vals_c1.SetData(par_vals.GetData());
-               par_vals_c2.SetData(par_vals.GetData()+ndofs);
-               par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
-            }
-
-            for (int i = 0; i < ir.GetNPoints(); i++)
-            {
-               const IntegrationPoint &ip = ir.IntPoint(i);
-               tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
                if (dim == 2)
                {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          aspectratioidx*ndofs, ndofs);
+
                   const double aspectratio = shape * par_vals;
                   D_rho = 0.;
                   D_rho(0,0) = 1./pow(aspectratio,0.5);
@@ -1259,6 +1226,12 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
                else
                {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          aspectratioidx*ndofs, ndofs*3);
+                  par_vals_c1.SetData(par_vals.GetData());
+                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
+                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+
                   const double rho1 = shape * par_vals_c1;
                   const double rho2 = shape * par_vals_c2;
                   const double rho3 = shape * par_vals_c3;
@@ -1267,33 +1240,18 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                   D_rho(1,1) = pow(rho2,2./3.);
                   D_rho(2,2) = pow(rho3,2./3.);
                }
+
                DenseMatrix Temp = Jtr(i);
                Mult(D_rho, Temp, Jtr(i));
-            }
-         } //Done aspect ratio
+            } //Done aspect ratio
 
-         if (skewidx != -1) //Set skew
-         {
-            if (dim == 2)
+            if (skewidx != -1) //Set skew
             {
-               par_vals.SetDataAndSize(tspec_vals.GetData()+
-                                       skewidx*ndofs, ndofs);
-            }
-            else
-            {
-               par_vals.SetDataAndSize(tspec_vals.GetData()+
-                                       skewidx*ndofs, ndofs*3);
-               par_vals_c1.SetData(par_vals.GetData());
-               par_vals_c2.SetData(par_vals.GetData()+ndofs);
-               par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
-            }
-
-            for (int i = 0; i < ir.GetNPoints(); i++)
-            {
-               const IntegrationPoint &ip = ir.IntPoint(i);
-               tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
                if (dim == 2)
                {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          skewidx*ndofs, ndofs);
+
                   const double skew = shape * par_vals;
 
                   Q_phi = 0.;
@@ -1303,6 +1261,12 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
                else
                {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          skewidx*ndofs, ndofs*3);
+                  par_vals_c1.SetData(par_vals.GetData());
+                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
+                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+
                   const double phi12  = shape * par_vals_c1;
                   const double phi13  = shape * par_vals_c2;
                   const double chi = shape * par_vals_c3;
@@ -1320,31 +1284,15 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
                DenseMatrix Temp = Jtr(i);
                Mult(Q_phi, Temp, Jtr(i));
-            }
-         } // done skew
+            } // done skew
 
-         if (orientationidx != -1) //Set orientation
-         {
-            if (dim == 2)
+            if (orientationidx != -1) //Set orientation
             {
-               par_vals.SetDataAndSize(tspec_vals.GetData()+
-                                       orientationidx*ndofs, ndofs);
-            }
-            else
-            {
-               par_vals.SetDataAndSize(tspec_vals.GetData()+
-                                       orientationidx*ndofs, ndofs*3);
-               par_vals_c1.SetData(par_vals.GetData());
-               par_vals_c2.SetData(par_vals.GetData()+ndofs);
-               par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
-            }
-
-            for (int i = 0; i < ir.GetNPoints(); i++)
-            {
-               const IntegrationPoint &ip = ir.IntPoint(i);
-               tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
                if (dim == 2)
                {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          orientationidx*ndofs, ndofs);
+
                   const double theta = shape * par_vals;
                   R_theta(0,0) =  cos(theta);
                   R_theta(0,1) = -sin(theta);
@@ -1353,6 +1301,12 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
                else
                {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          orientationidx*ndofs, ndofs*3);
+                  par_vals_c1.SetData(par_vals.GetData());
+                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
+                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+
                   const double theta = shape * par_vals_c1;
                   const double psi   = shape * par_vals_c2;
                   const double beta  = shape * par_vals_c3;
@@ -1383,8 +1337,8 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                }
                DenseMatrix Temp = Jtr(i);
                Mult(R_theta, Temp, Jtr(i));
-            }
-         } // done orientation
+            } // done orientation
+         }
          break;
       }
       default:
@@ -1395,14 +1349,13 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
                                                         const double dx)
 {
-   const int dim = tspec_fes->GetFE(0)->GetDim();
-   const int cnt = x.Size()/dim;
+   const int dim = tspec_fes->GetFE(0)->GetDim(),
+             cnt = x.Size()/dim;
 
    tspec_perth.SetSize(x.Size()*ncomp);
 
-   Vector TSpecTemp;
-   TSpecTemp.SetSize(ncomp*cnt);
-   Vector xtemp = x;
+   Vector TSpecTemp(ncomp*cnt);
+   Vector xtemp(x.GetData(), x.Size());
    for (int j = 0; j < dim; j++)
    {
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += dx; }
@@ -1423,9 +1376,8 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    tspec_pert2h.SetSize(cnt*dim*ncomp);
    tspec_pertmix.SetSize(cnt*totmix*ncomp);
 
-   Vector TSpecTemp;
-   TSpecTemp.SetSize(cnt*ncomp);
-   Vector xtemp = x;
+   Vector TSpecTemp(cnt*ncomp);
+   Vector xtemp(x.GetData(), x.Size());
 
    // T(x+2h)
    for (int j = 0; j < dim; j++)

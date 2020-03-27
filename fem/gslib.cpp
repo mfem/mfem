@@ -154,10 +154,8 @@ void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
                                   Vector &field_out)
 {
 
-   H1_FECollection ind_fec(mesh->GetNodalFESpace()->GetFE(0)->GetOrder(), dim);
-   FiniteElementSpace ind_fes(mesh, &ind_fec);
-   GridFunction field_in_scalar;
-   field_in_scalar.SetSpace(&ind_fes);
+   FiniteElementSpace ind_fes(mesh, field_in.FESpace()->FEColl());
+   GridFunction field_in_scalar(&ind_fes);
    Vector node_vals;
 
    const int ncomp      = field_in.FESpace()->GetVDim(),

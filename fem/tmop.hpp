@@ -746,6 +746,7 @@ public:
    virtual ~DiscreteAdaptTC()
    {
       delete adapt_eval;
+      delete tspec_fes;
       delete tspec_fesv;
    }
 
