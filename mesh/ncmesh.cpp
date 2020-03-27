@@ -5174,6 +5174,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       int id = AddElement(Element(type, attr));
       MFEM_ASSERT(id == i, "");
       Element &el = elements[id];
+      el.rank = rank;
 
       if (geom >= 0)
       {
@@ -5254,10 +5255,6 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
                   "invalid mesh file: not all top-level nodes are covered by "
                   "the 'coordinates' section of the mesh file.");
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-      MFEM_VERIFY(ident == "mfem_mesh_end", "end of file tag not found");
    }
    else if (ident == "nodes")
    {

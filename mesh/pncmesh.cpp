@@ -46,6 +46,16 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    // branches that only contain someone else's leaves (see Prune())
 }
 
+ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version, int &curved)
+   : NCMesh(input, version, curved)
+{
+   MyComm = comm;
+   MPI_Comm_size(MyComm, &NRanks);
+   MPI_Comm_rank(MyComm, &MyRank);
+
+   Update();
+}
+
 ParNCMesh::ParNCMesh(const ParNCMesh &other)
 // copy primary data only
    : NCMesh(other)
@@ -929,9 +939,9 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
 
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
-   // make sure we have entity_conf_group[x] and the ordering arrays
    if (leaf_elements.Size())
    {
+      // make sure we have entity_conf_group[x] and the ordering arrays
       for (int ent = 0; ent < Dim; ent++)
       {
          GetSharedList(ent);
