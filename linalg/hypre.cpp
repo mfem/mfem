@@ -1965,7 +1965,13 @@ void HypreSmoother::SetOperator(const Operator &op)
 
    if (type >= 1 && type <= 4)
    {
-      hypre_ParCSRComputeL1Norms(*A, type, NULL, &l1_norms);
+      l1_norms = mfem_hypre_CTAlloc(double, height);
+      hypre_Vector *l1_norms_vec = hypre_SeqVectorCreate(height);
+      hypre_VectorData(l1_norms_vec) = l1_norms;
+      hypre_VectorOwnsData(l1_norms_vec) = 0;
+      hypre_SeqVectorInitialize(l1_norms_vec);
+      hypre_ParCSRComputeL1Norms(*A, type, NULL, l1_norms_vec);
+      hypre_SeqVectorDestroy(l1_norms_vec);
    }
    else if (type == 5)
    {
@@ -2109,16 +2115,23 @@ void HypreSmoother::Mult(const HypreParVector &b, HypreParVector &x) const
    }
    else
    {
+      hypre_Vector *l1_norms_vec = hypre_SeqVectorCreate(A->GetNumRows());
+      hypre_VectorData(l1_norms_vec) = l1_norms;
+      hypre_VectorOwnsData(l1_norms_vec) = 0;
+      hypre_SeqVectorInitialize(l1_norms_vec);
+
       if (Z == NULL)
          hypre_ParCSRRelax(*A, b, type,
-                           relax_times, l1_norms, relax_weight, omega,
+                           relax_times, l1_norms_vec, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, NULL);
       else
          hypre_ParCSRRelax(*A, b, type,
-                           relax_times, l1_norms, relax_weight, omega,
+                           relax_times, l1_norms_vec, relax_weight, omega,
                            max_eig_est, min_eig_est, poly_order, poly_fraction,
                            x, *V, *Z);
+
+      hypre_SeqVectorDestroy(l1_norms_vec);
    }
 }
 
