@@ -3255,7 +3255,18 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    else if (mfem_nc_version)
    {
       MFEM_ASSERT(ncmesh == NULL, "internal error");
-      ncmesh = new NCMesh(input, mfem_nc_version, curved);
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(this);
+      if (pmesh)
+      {
+         ncmesh = new ParNCMesh(pmesh->GetComm(),
+                                input, mfem_nc_version, curved);
+      }
+      else
+#endif
+      {
+         ncmesh = new NCMesh(input, mfem_nc_version, curved);
+      }
       InitFromNCMesh(*ncmesh);
    }
    else if (mesh_type == "linemesh") // 1D mesh

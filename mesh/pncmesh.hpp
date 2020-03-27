@@ -64,8 +64,15 @@ class FiniteElementSpace;
 class ParNCMesh : public NCMesh
 {
 public:
+   /// Construct by partitioning a serial NCMesh.
+   /** SFC partitioning is used by default. A user-specified partition can be
+       passed in 'part', where part[i] is the desired MPI rank for element i. */
    ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
+   /// Load from a stream. The id header is assumed to have been read already.
+   ParNCMesh(MPI_Comm comm, std::istream &input, int version, int &curved);
+
+   /// Deep copy of another instance.
    ParNCMesh(const ParNCMesh &other);
 
    virtual ~ParNCMesh();
