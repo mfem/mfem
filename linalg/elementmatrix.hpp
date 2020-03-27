@@ -50,6 +50,43 @@ public:
          Y(j, e) += res;
       });
    }
+
+   void AddMultTranspose(const Vector &x, Vector &y) const
+   {
+      const int NDOFS = ndofs;
+      auto X = Reshape(x.Read(), ndofs, ne);
+      auto Y = Reshape(y.ReadWrite(), ndofs, ne);
+      auto A = Reshape(data.Read(), ndofs, ndofs, ne);
+      MFEM_FORALL(glob_j, ne*ndofs,
+      {
+         const int e = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(j, i, e)*X(i, e);
+         }
+         Y(j, e) += res;
+      });
+   }
+
+   void Print()
+   {
+      for (size_t e = 0; e < ne; e++)
+      {
+         std::cout << "Element "<< e <<std::endl;
+         for (size_t i = 0; i < ndofs; i++)
+         {
+            for (size_t j = 0; j < ndofs; j++)
+            {
+               std::cout << data[i+j*ndofs+e*ndofs*ndofs] << ", ";
+            }
+            std::cout << std::endl;
+         }
+         std::cout << std::endl;
+         std::cout << std::endl;
+      }
+   }
 };
 
 class FaceMatrixInt
@@ -85,6 +122,31 @@ public:
          for (int i = 0; i < NDOFS; i++)
          {
             res += A(i, j, 1, f)*X(i, 1, f);
+         }
+         Y(j, 1, f) += res;
+      });
+   }
+
+   void AddMultTranspose(const Vector &x, Vector &y) const
+   {
+      auto X = Reshape(x.Read(), ndofs, 2, nf);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nf);
+      auto A = Reshape(data.Read(), ndofs, ndofs, 2, nf);
+      const int NDOFS = ndofs;
+      MFEM_FORALL(glob_j, nf*ndofs,
+      {
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(j, i, 0, f)*X(i, 0, f);
+         }
+         Y(j, 0, f) += res;
+         res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(j, i, 1, f)*X(i, 1, f);
          }
          Y(j, 1, f) += res;
       });
@@ -156,6 +218,31 @@ public:
       });
    }
 
+   void AddMultTranspose(const Vector &x, Vector &y) const
+   {
+      auto X = Reshape(x.Read(), ndofs, 2, nf);
+      auto Y = Reshape(y.ReadWrite(), ndofs, 2, nf);
+      auto A = Reshape(data.Read(), ndofs, ndofs, 2, nf);
+      const int NDOFS = ndofs;
+      MFEM_FORALL(glob_j, nf*ndofs,
+      {
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(j, i, 0, f)*X(i, 0, f);
+         }
+         Y(j, 1, f) += res;
+         res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(j, i, 1, f)*X(i, 1, f);
+         }
+         Y(j, 0, f) += res;
+      });
+   }
+
    void Print()
    {
       for (size_t f = 0; f < nf; f++)
@@ -211,6 +298,25 @@ public:
          for (int i = 0; i < NDOFS; i++)
          {
             res += A(i, j, f)*X(i, f);
+         }
+         Y(j, f) += res;
+      });
+   }
+
+   void AddMultTranspose(const Vector &x, Vector &y) const
+   {
+      auto X = Reshape(x.Read(), ndofs, nf);
+      auto Y = Reshape(y.ReadWrite(), ndofs, nf);
+      auto A = Reshape(data.Read(), ndofs, ndofs, nf);
+      const int NDOFS = ndofs;
+      MFEM_FORALL(glob_j, nf*ndofs,
+      {
+         const int f = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(j, i, f)*X(i, f);
          }
          Y(j, f) += res;
       });
