@@ -267,7 +267,8 @@ Element *ParPumiMesh::ReadElement(apf::MeshEntity* Ent, const int geom,
 
 // This function loads a parallel PUMI mesh and returns the parallel MFEM mesh
 // corresponding to it.
-ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
+ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
+                         int refine, bool fix_orientation)
 {
    // Set the communicator for gtopo
    gtopo.SetComm(comm);
@@ -690,6 +691,8 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       this->edge_vertex = NULL;
       own_nodes = 1;
    }
+
+   Finalize(refine, fix_orientation);
 }
 
 

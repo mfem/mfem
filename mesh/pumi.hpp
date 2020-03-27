@@ -30,7 +30,6 @@
 #include "mesh.hpp"
 #include "pmesh.hpp"
 
-#include <pumi.h>
 #include <apf.h>
 #include <apfMesh2.h>
 #include <apfShape.h>
@@ -80,7 +79,8 @@ protected:
 
 public:
    /// Build a parallel MFEM mesh from a parallel PUMI mesh.
-   ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh);
+   ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
+               int refine = 1, bool fix_orientation = true);
 
    /// Transfer field from MFEM mesh to PUMI mesh [Mixed].
    void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
