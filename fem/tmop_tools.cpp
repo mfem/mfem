@@ -50,10 +50,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                                             Vector &new_field)
 {
    Mesh *m = mesh;
-
 #ifdef MFEM_USE_MPI
-   int myid = 0;
-   if (pfes) { MPI_Comm_rank(pfes->GetComm(), &myid); }
    if (pmesh) { m = pmesh; }
 #endif
 
@@ -103,7 +100,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    }
    double v_max = 0.0, v_max_glob = 0.0;
    const int dim = fes->GetFE(0)->GetDim(),
-             s = new_field.Size() ;
+             s   = new_field.Size() ;
 
    for (int i = 0; i < s; i++)
    {
@@ -135,8 +132,8 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    }
 
    v_max = std::sqrt(v_max);
-   double dt = 0.5 * min_h / v_max;
-   double glob_dt = dt;
+   double dt = 0.5 * min_h / v_max,
+          glob_dt = dt;
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
