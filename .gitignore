@@ -107,6 +107,8 @@ examples/sundials/ex16-mesh.*
 examples/sundials/ex16-init.*
 examples/sundials/ex16-final.*
 examples/sundials/Example16*
+examples/sundials/sundials_test
+examples/sundials/sundials_test_AdvDiff
 
 examples/petsc/ex[1-69]p
 examples/petsc/ex10p

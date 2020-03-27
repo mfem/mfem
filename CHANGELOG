@@ -106,7 +106,7 @@ Miscellaneous
 -------------
 - Upgraded the SUNDIALS interface to utilize version 5.0. This necessitated a
   complete rework of the interface and requires changes at the application
-  level. Example usage of the new interface can be found in examples/sundials.
+  level. Basic support for using the CVODES has been added and requires using the cvodes interface instead of the cvode. Example usage of the new interface can be found in examples/sundials.
 
 - Added support for output in the ParaView XML format. See Examples 5/5p, 9/9p
   and the new ParaViewDataCollection class.
