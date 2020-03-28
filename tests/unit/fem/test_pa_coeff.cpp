@@ -1,16 +1,16 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-#include "catch.hpp"
 #include "mfem.hpp"
+#include "catch.hpp"
 
 using namespace mfem;
 
@@ -57,7 +57,7 @@ TEST_CASE("H1 pa_coeff")
             std::cout << "Testing " << dimension << "D partial assembly with "
                       << "coeffType " << coeffType << " and "
                       << "integrator " << integrator << std::endl;
-            for (int order = 1; order < 5; ++order)
+            for (int order = 1; order < 4; ++order)
             {
                Mesh* mesh;
                if (dimension == 2)
@@ -160,44 +160,82 @@ TEST_CASE("Hcurl pa_coeff")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
+      Mesh* mesh;
+      const int ne = 3;
+      if (dimension == 2)
+      {
+         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      }
+      else
+      {
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+      }
+
       for (int coeffType = 0; coeffType < 2; ++coeffType)
       {
-         for (int integrator = 0; integrator < 2; ++integrator)
+         Coefficient* coeff = nullptr;
+         Coefficient* curlCoeff = nullptr;
+         if (coeffType == 0)
          {
-            const int ne = 2;
+            coeff = new ConstantCoefficient(12.34);
+            curlCoeff = new ConstantCoefficient(12.34);
+         }
+         else if (coeffType == 1)
+         {
+            coeff = new FunctionCoefficient(&coeffFunction);
+            curlCoeff = new FunctionCoefficient(&linearFunction);
+         }
+
+         for (int integrator = 0; integrator < 3; ++integrator)
+         {
             std::cout << "Testing " << dimension << "D ND partial assembly with "
                       << "coeffType " << coeffType << " and "
                       << "integrator " << integrator << std::endl;
-            for (int order = 1; order < 5; ++order)
+            for (int order = 1; order < 4; ++order)
             {
-               Mesh* mesh;
-               if (dimension == 2)
-               {
-                  mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-               }
-               else
-               {
-                  mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                                  1.0);
-               }
                FiniteElementCollection* ND_fec =
                   new ND_FECollection(order, dimension);
                FiniteElementSpace ND_fespace(mesh, ND_fec);
-               Array<int> ess_tdof_list;
+
+               // Set essential boundary conditions on the entire boundary.
+               Array<int> tdof_ess(ND_fespace.GetVSize());
+               for (int i=0; i<ND_fespace.GetVSize(); ++i)
+               {
+                  tdof_ess[i] = 0;
+               }
+
+               for (int i=0; i<mesh->GetNBE(); ++i)
+               {
+                  Array<int> dofs;
+                  ND_fespace.GetBdrElementDofs(i, dofs);
+                  for (int j=0; j<dofs.Size(); ++j)
+                  {
+                     const int dof_j = (dofs[j] >= 0) ? dofs[j] : -1 - dofs[j];
+                     tdof_ess[dof_j] = 1;
+                  }
+               }
+
+               int num_ess = 0;
+               for (int i=0; i<ND_fespace.GetVSize(); ++i)
+               {
+                  if (tdof_ess[i] == 1)
+                  {
+                     num_ess++;
+                  }
+               }
+
+               Array<int> ess_tdof_list(num_ess);
+               num_ess = 0;
+               for (int i=0; i<ND_fespace.GetVSize(); ++i)
+               {
+                  if (tdof_ess[i] == 1)
+                  {
+                     ess_tdof_list[num_ess] = i;
+                     num_ess++;
+                  }
+               }
 
                BilinearForm paform(&ND_fespace);
-               Coefficient* coeff = nullptr;
-               Coefficient* curlCoeff = nullptr;
-               if (coeffType == 0)
-               {
-                  coeff = new ConstantCoefficient(12.34);
-                  curlCoeff = new ConstantCoefficient(12.34);
-               }
-               else if (coeffType == 1)
-               {
-                  coeff = new FunctionCoefficient(&coeffFunction);
-                  curlCoeff = new FunctionCoefficient(&linearFunction);
-               }
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
                if (integrator < 2)
                {
@@ -224,7 +262,8 @@ TEST_CASE("Hcurl pa_coeff")
                assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
                assemblyform.Assemble();
                assemblyform.Finalize();
-               const SparseMatrix& A_explicit = assemblyform.SpMat();
+               SparseMatrix A_explicit;
+               assemblyform.FormSystemMatrix(ess_tdof_list, A_explicit);
 
                Vector xin(ND_fespace.GetTrueVSize());
                xin.Randomize();
@@ -243,7 +282,7 @@ TEST_CASE("Hcurl pa_coeff")
                double pa_error = y_pa.Norml2();
                std::cout << "  order: " << order
                          << ", pa error norm: " << pa_error << std::endl;
-               REQUIRE(pa_error < 1.e-12);
+               REQUIRE(pa_error < 1.e-11);
 
                y_assembly -= y_mat;
                double assembly_error = y_assembly.Norml2();
@@ -252,13 +291,15 @@ TEST_CASE("Hcurl pa_coeff")
                          << std::endl;
                REQUIRE(assembly_error < 1.e-12);
 
-               delete coeff;
-               delete curlCoeff;
-               delete mesh;
                delete ND_fec;
             }
          }
+
+         delete coeff;
+         delete curlCoeff;
       }
+
+      delete mesh;
    }
 }
 
@@ -266,26 +307,38 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
+      Mesh* mesh;
+      const int ne = 2;
+      if (dimension == 2)
+      {
+         mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      }
+      else
+      {
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+      }
+
       for (int coeffType = 0; coeffType < 2; ++coeffType)
       {
+         Coefficient* coeff = nullptr;
+         if (coeffType == 0)
+         {
+            coeff = new ConstantCoefficient(12.34);
+         }
+         else if (coeffType == 1)
+         {
+            coeff = new FunctionCoefficient(&coeffFunction);
+         }
+
+         // Currently, we test only one integrator. More could be tested here
+         // when they are implemented, using different test spaces (e.g. vector L2, H(div)).
          for (int integrator = 0; integrator < 1; ++integrator)
          {
-            const int ne = 2;
             std::cout << "Testing " << dimension << "D ND H1 mixed partial assembly with "
                       << "coeffType " << coeffType << " and "
                       << "integrator " << integrator << std::endl;
-            for (int order = 1; order < 5; ++order)
+            for (int order = 1; order < 4; ++order)
             {
-               Mesh* mesh;
-               if (dimension == 2)
-               {
-                  mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-               }
-               else
-               {
-                  mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0,
-                                  1.0);
-               }
                FiniteElementCollection* ND_fec =
                   new ND_FECollection(order, dimension);
                FiniteElementSpace ND_fespace(mesh, ND_fec);
@@ -297,28 +350,12 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
                Array<int> ess_tdof_list;
 
                MixedBilinearForm paform(&h1_fespace, &ND_fespace);
-               Coefficient* coeff = nullptr;
-               if (coeffType == 0)
-               {
-                  coeff = new ConstantCoefficient(12.34);
-               }
-               else if (coeffType == 1)
-               {
-                  coeff = new FunctionCoefficient(&coeffFunction);
-               }
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-               if (integrator < 1)
-               {
-                  paform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
-               }
+               paform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
                paform.Assemble();
 
                MixedBilinearForm assemblyform(&h1_fespace, &ND_fespace);
-               if (integrator < 1)
-               {
-                  assemblyform.AddDomainIntegrator(
-                     new MixedVectorGradientIntegrator(*coeff));
-               }
+               assemblyform.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
                assemblyform.Assemble();
                assemblyform.Finalize();
                const SparseMatrix& A_explicit = assemblyform.SpMat();
@@ -349,13 +386,15 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
                          << std::endl;
                REQUIRE(assembly_error < 1.e-12);
 
-               delete coeff;
-               delete mesh;
                delete ND_fec;
                delete h1_fec;
             }
          }
+
+         delete coeff;
       }
+
+      delete mesh;
    }
 }
 

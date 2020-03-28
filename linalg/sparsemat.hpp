@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SPARSEMAT_HPP
 #define MFEM_SPARSEMAT_HPP
@@ -259,7 +259,10 @@ public:
    void ToDenseMatrix(DenseMatrix & B) const;
 
    virtual MemoryClass GetMemoryClass() const
-   { return Finalized() ? Device::GetMemoryClass() : MemoryClass::HOST; }
+   {
+      return Finalized() ?
+             Device::GetDeviceMemoryClass() : Device::GetHostMemoryClass();
+   }
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -353,6 +356,10 @@ public:
    void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
                       Vector *b = NULL);
 
+   /** @brief Similar to EliminateCols + save the eliminated entries into
+       @a Ae so that (*this) + Ae is equal to the original matrix. */
+   void EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae);
+
    /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
    /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
@@ -417,8 +424,10 @@ public:
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
+   /// Returns whether or not CSR format has been finalized.
    bool Finalized() const { return !A.Empty(); }
-   bool areColumnsSorted() const { return isSorted; }
+   /// Returns whether or not the columns are sorted.
+   bool ColumnsAreSorted() const { return isSorted; }
 
    /** @brief Remove entries smaller in absolute value than a given tolerance
        @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
@@ -525,7 +534,7 @@ public:
    /// Prints a sparse matrix to stream out in CSR format.
    void PrintCSR2(std::ostream &out) const;
 
-   /// Print various sparse matrix staticstics.
+   /// Print various sparse matrix statistics.
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix

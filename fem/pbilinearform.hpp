@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PBILINEARFORM
 #define MFEM_PBILINEARFORM
@@ -195,7 +195,8 @@ protected:
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction X, Y;
 
-  HypreParMatrix *p_mat, *p_mat_e;
+   /// Matrix and eliminated matrix
+   OperatorHandle p_mat, p_mat_e;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -211,7 +212,8 @@ public:
        constructed object. */
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes)
-      : MixedBilinearForm(trial_fes, test_fes)
+      : MixedBilinearForm(trial_fes, test_fes),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -229,7 +231,8 @@ public:
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes,
                         ParMixedBilinearForm * mbf)
-      : MixedBilinearForm(trial_fes, test_fes, mbf)
+      : MixedBilinearForm(trial_fes, test_fes, mbf),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -243,13 +246,25 @@ public:
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
 
-  virtual void FormColSystemMatrix(const Array<int> &ess_tdof_list,
-				   HypreParMatrix &A);
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
 
-  virtual void FormColLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
-				   Vector &b, HypreParMatrix &A, Vector &X,
-				   Vector &B, int copy_interior = 0);
-  
+       This returns the same operator as FormRectangularLinearSystem(), but does
+       without the transformations of the right-hand side. */
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
+
+   /** @brief Form the parallel linear system A X = B, corresponding to this mixed
+       bilinear form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list, Vector &x,
+                                            Vector &b, OperatorHandle &A, Vector &X,
+                                            Vector &B);
+
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 

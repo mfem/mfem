@@ -8,7 +8,7 @@
 //    mpirun -np 4 ex12p -m ../data/beam-tet.mesh -s 462 -n 10 -o 2 -elast
 //    mpirun -np 4 ex12p -m ../data/beam-hex.mesh -s 3878
 //    mpirun -np 4 ex12p -m ../data/beam-wedge.mesh -s 81
-//    mpirun -np 4 ex12p -m ../data/beam-tri.mesh -s 3876 -o 2 -sys
+//    mpirun -np 4 ex12p -m ../data/beam-tri.mesh -s 3877 -o 2 -sys
 //    mpirun -np 4 ex12p -m ../data/beam-quad.mesh -s 4544 -n 6 -o 3 -elast
 //    mpirun -np 4 ex12p -m ../data/beam-quad-nurbs.mesh
 //    mpirun -np 4 ex12p -m ../data/beam-hex-nurbs.mesh
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
    int nev = 5;
-   int seed = 75;
+   int seed = 66;
    bool visualization = 1;
    bool amg_elast = 0;
 

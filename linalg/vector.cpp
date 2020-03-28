@@ -1,18 +1,18 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of data type vector
 
+#include "kernels.hpp"
 #include "vector.hpp"
-#include "dtensor.hpp"
 #include "../general/forall.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
@@ -635,7 +635,9 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
    const bool use_dev = UseDevice() || dofs.UseDevice();
    const int n = dofs.Size();
    const int N = size;
-   Vector dofs_vals(n, use_dev ? Device::GetMemoryType() : MemoryType::HOST);
+   Vector dofs_vals(n, use_dev ?
+                    Device::GetDeviceMemoryType() :
+                    Device::GetHostMemoryType());
    auto d_data = ReadWrite(use_dev);
    auto d_dofs_vals = dofs_vals.Write(use_dev);
    auto d_dofs = dofs.Read(use_dev);
@@ -716,31 +718,12 @@ double Vector::Norml2() const
       return 0.0;
    } // end if 0 == size
 
+   data.Read(MemoryClass::HOST, size);
    if (1 == size)
    {
       return std::abs(data[0]);
    } // end if 1 == size
-
-   double scale = 0.0;
-   double sum = 0.0;
-
-   for (int i = 0; i < size; i++)
-   {
-      if (data[i] != 0.0)
-      {
-         const double absdata = std::abs(data[i]);
-         if (scale <= absdata)
-         {
-            const double sqr_arg = scale / absdata;
-            sum = 1.0 + sum * (sqr_arg * sqr_arg);
-            scale = absdata;
-            continue;
-         } // end if scale <= absdata
-         const double sqr_arg = absdata / scale;
-         sum += (sqr_arg * sqr_arg); // else scale > absdata
-      } // end if data[i] != 0
-   }
-   return scale * std::sqrt(sum);
+   return kernels::Norml2(size, (const double*) data);
 }
 
 double Vector::Normlinf() const
@@ -879,7 +862,7 @@ static double cuVectorMin(const int N, const double *X)
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(min_sz);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_min = buf.Write(MemoryClass::CUDA, min_sz);
+   double *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
    MFEM_GPU_CHECK(cudaGetLastError());
    const double *h_min = buf.Read(MemoryClass::HOST, min_sz);
@@ -920,9 +903,9 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(dot_sz);
+   cuda_reduce_buf.SetSize(dot_sz, MemoryType::DEVICE);
    Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_dot = buf.Write(MemoryClass::CUDA, dot_sz);
+   double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
    MFEM_GPU_CHECK(cudaGetLastError());
    const double *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
@@ -932,12 +915,101 @@ static double cuVectorDot(const int N, const double *X, const double *Y)
 }
 #endif // MFEM_USE_CUDA
 
+#ifdef MFEM_USE_HIP
+static __global__ void hipKernelMin(const int N, double *gdsr, const double *x)
+{
+   __shared__ double s_min[MFEM_CUDA_BLOCKS];
+   const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
+   if (n>=N) { return; }
+   const int bid = hipBlockIdx_x;
+   const int tid = hipThreadIdx_x;
+   const int bbd = bid*hipBlockDim_x;
+   const int rid = bbd+tid;
+   s_min[tid] = x[n];
+   for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
+   {
+      __syncthreads();
+      if (tid >= workers) { continue; }
+      if (rid >= N) { continue; }
+      const int dualTid = tid + workers;
+      if (dualTid >= N) { continue; }
+      const int rdd = bbd+dualTid;
+      if (rdd >= N) { continue; }
+      if (dualTid >= hipBlockDim_x) { continue; }
+      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
+   }
+   if (tid==0) { gdsr[bid] = s_min[0]; }
+}
+
+static Array<double> cuda_reduce_buf;
+
+static double hipVectorMin(const int N, const double *X)
+{
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int gridSize = (N+blockSize-1)/blockSize;
+   const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
+   cuda_reduce_buf.SetSize(min_sz);
+   Memory<double> &buf = cuda_reduce_buf.GetMemory();
+   double *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
+   hipLaunchKernelGGL(hipKernelMin,gridSize,blockSize,0,0,N,d_min,X);
+   MFEM_GPU_CHECK(hipGetLastError());
+   const double *h_min = buf.Read(MemoryClass::HOST, min_sz);
+   double min = std::numeric_limits<double>::infinity();
+   for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
+   return min;
+}
+
+static __global__ void hipKernelDot(const int N, double *gdsr,
+                                    const double *x, const double *y)
+{
+   __shared__ double s_dot[MFEM_CUDA_BLOCKS];
+   const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
+   if (n>=N) { return; }
+   const int bid = hipBlockIdx_x;
+   const int tid = hipThreadIdx_x;
+   const int bbd = bid*hipBlockDim_x;
+   const int rid = bbd+tid;
+   s_dot[tid] = x[n] * y[n];
+   for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
+   {
+      __syncthreads();
+      if (tid >= workers) { continue; }
+      if (rid >= N) { continue; }
+      const int dualTid = tid + workers;
+      if (dualTid >= N) { continue; }
+      const int rdd = bbd+dualTid;
+      if (rdd >= N) { continue; }
+      if (dualTid >= hipBlockDim_x) { continue; }
+      s_dot[tid] += s_dot[dualTid];
+   }
+   if (tid==0) { gdsr[bid] = s_dot[0]; }
+}
+
+static double hipVectorDot(const int N, const double *X, const double *Y)
+{
+   const int tpb = MFEM_CUDA_BLOCKS;
+   const int blockSize = MFEM_CUDA_BLOCKS;
+   const int gridSize = (N+blockSize-1)/blockSize;
+   const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
+   cuda_reduce_buf.SetSize(dot_sz);
+   Memory<double> &buf = cuda_reduce_buf.GetMemory();
+   double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
+   hipLaunchKernelGGL(hipKernelDot,gridSize,blockSize,0,0,N,d_dot,X,Y);
+   MFEM_GPU_CHECK(hipGetLastError());
+   const double *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
+   double dot = 0.0;
+   for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
+   return dot;
+}
+#endif // MFEM_USE_HIP
+
 double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
    const bool use_dev = UseDevice() || v.UseDevice();
-#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_OPENMP)
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_OPENMP)
    auto m_data = Read(use_dev);
 #else
    Read(use_dev);
@@ -964,15 +1036,7 @@ double Vector::operator*(const Vector &v) const
 #ifdef MFEM_USE_HIP
    if (Device::Allows(Backend::HIP_MASK))
    {
-      auto m_data = HostRead();
-      auto v_data = v.HostRead();
-      double prod = 0.0;
-      const int N = size;
-      for (int i = 0; i < N; i++)
-      {
-         prod += m_data[i] * v_data[i];
-      }
-      return prod;
+      return hipVectorDot(size, m_data, v_data);
    }
 #endif
 
@@ -988,7 +1052,19 @@ double Vector::operator*(const Vector &v) const
       return prod;
    }
 #endif
-
+   if (Device::Allows(Backend::DEBUG))
+   {
+      const int N = size;
+      auto v_data = v.Read();
+      auto m_data = Read();
+      Vector dot(1);
+      dot.UseDevice(true);
+      auto d_dot = dot.Write();
+      dot = 0.0;
+      MFEM_FORALL(i, N, d_dot[0] += m_data[i] * v_data[i];);
+      dot.HostReadWrite();
+      return dot[0];
+   }
 vector_dot_cpu:
    return operator*(v_data);
 }
@@ -1016,6 +1092,13 @@ double Vector::Min() const
    }
 #endif
 
+#ifdef MFEM_USE_HIP
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      return hipVectorMin(size, m_data);
+   }
+#endif
+
 #ifdef MFEM_USE_OPENMP
    if (Device::Allows(Backend::OMP_MASK))
    {
@@ -1028,6 +1111,19 @@ double Vector::Min() const
       return minimum;
    }
 #endif
+
+   if (Device::Allows(Backend::DEBUG))
+   {
+      const int N = size;
+      auto m_data = Read();
+      Vector min(1);
+      min = infinity();
+      min.UseDevice(true);
+      auto d_min = min.ReadWrite();
+      MFEM_FORALL(i, N, d_min[0] = (d_min[0]<m_data[i])?d_min[0]:m_data[i];);
+      min.HostReadWrite();
+      return min[0];
+   }
 
 vector_min_cpu:
    double minimum = data[0];

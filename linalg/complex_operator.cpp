@@ -1,17 +1,37 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "complex_operator.hpp"
 #include <set>
 #include <map>
+
+// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
+// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
+// Note: the same macros are defined in hypre.cpp and hypre_parser.cpp.
+#if MFEM_HYPRE_VERSION < 21400
+
+#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
+#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
+
+#else // MFEM_HYPRE_VERSION >= 21400
+
+// See the notes about hypre 2.14.0 in hypre.cpp
+#define mfem_hypre_TAlloc(type, size) \
+   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_CTAlloc(type, size) \
+   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
+
+#endif // #if MFEM_HYPRE_VERSION < 21400
 
 namespace mfem
 {
@@ -19,16 +39,17 @@ namespace mfem
 ComplexOperator::ComplexOperator(Operator * Op_Real, Operator * Op_Imag,
                                  bool ownReal, bool ownImag,
                                  Convention convention)
-   : Operator(2*Op_Real->Height(), 2*Op_Real->Width())
+   : Operator(2*((Op_Real)?Op_Real->Height():Op_Imag->Height()),
+              2*((Op_Real)?Op_Real->Width():Op_Imag->Width()))
    , Op_Real_(Op_Real)
    , Op_Imag_(Op_Imag)
    , ownReal_(ownReal)
    , ownImag_(ownImag)
    , convention_(convention)
-   , x_r_(NULL, Op_Real->Width())
-   , x_i_(NULL, Op_Real->Width())
-   , y_r_(NULL, Op_Real->Height())
-   , y_i_(NULL, Op_Real->Height())
+   , x_r_(NULL, width / 2)
+   , x_i_(NULL, width / 2)
+   , y_r_(NULL, height / 2)
+   , y_i_(NULL, height / 2)
    , u_(NULL)
    , v_(NULL)
 {}
@@ -69,10 +90,10 @@ void ComplexOperator::Mult(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    x_r_.SetData(x_data);
-   x_i_.SetData(&x_data[Op_Real_->Width()]);
+   x_i_.SetData(&x_data[width / 2]);
 
    y_r_.SetData(&y[0]);
-   y_i_.SetData(&y[Op_Real_->Height()]);
+   y_i_.SetData(&y[height / 2]);
 
    this->Mult(x_r_, x_i_, y_r_, y_i_);
 }
@@ -109,10 +130,10 @@ void ComplexOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    double * x_data = x.GetData();
    y_r_.SetData(x_data);
-   y_i_.SetData(&x_data[Op_Real_->Height()]);
+   y_i_.SetData(&x_data[height / 2]);
 
    x_r_.SetData(&y[0]);
-   x_i_.SetData(&y[Op_Real_->Width()]);
+   x_i_.SetData(&y[width / 2]);
 
    this->MultTranspose(y_r_, y_i_, x_r_, x_i_);
 }
@@ -192,9 +213,9 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int    nnz_i = (I_i)?I_i[nrows]:0;
    const int    nnz   = 2 * (nnz_r + nnz_i);
 
-   int    *I = new int[this->Height()+1];
-   int    *J = new int[nnz];
-   double *D = new double[nnz];
+   int    *I = Memory<int>(this->Height()+1);
+   int    *J = Memory<int>(nnz);
+   double *D = Memory<double>(nnz);
 
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
@@ -289,8 +310,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    HYPRE_Int global_num_cols = std::max(global_num_cols_r, global_num_cols_i);
 
    int row_starts_size = (HYPRE_AssumedPartitionCheck()) ? 2 : nranks_ + 1;
-   HYPRE_Int * row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
-   HYPRE_Int * col_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int * row_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int * col_starts = mfem_hypre_CTAlloc(HYPRE_Int, row_starts_size);
 
    const HYPRE_Int * row_starts_z = (A_r) ? A_r->RowPart() :
                                     ((A_i) ? A_i->RowPart() : NULL);
@@ -368,14 +389,14 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    int offd_nnz = 2 * (offd_r_nnz + offd_i_nnz);
 
    // Allocate CSR arrays for the combined matrix
-   HYPRE_Int * diag_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * diag_J = hypre_CTAlloc(HYPRE_Int, diag_nnz);
-   double    * diag_D = hypre_CTAlloc(double, diag_nnz);
+   HYPRE_Int * diag_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * diag_J = mfem_hypre_CTAlloc(HYPRE_Int, diag_nnz);
+   double    * diag_D = mfem_hypre_CTAlloc(double, diag_nnz);
 
-   HYPRE_Int * offd_I = hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
-   HYPRE_Int * offd_J = hypre_CTAlloc(HYPRE_Int, offd_nnz);
-   double    * offd_D = hypre_CTAlloc(double, offd_nnz);
-   HYPRE_Int * cmap   = hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
+   HYPRE_Int * offd_I = mfem_hypre_CTAlloc(HYPRE_Int, 2 * nrows + 1);
+   HYPRE_Int * offd_J = mfem_hypre_CTAlloc(HYPRE_Int, offd_nnz);
+   double    * offd_D = mfem_hypre_CTAlloc(double, offd_nnz);
+   HYPRE_Int * cmap   = mfem_hypre_CTAlloc(HYPRE_Int, 2 * num_cols_offd);
 
    // Fill the CSR arrays for the diagonal portion of the matrix
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
@@ -502,7 +523,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
                                            offd_I, offd_J, offd_D,
                                            2 * num_cols_offd, cmap);
 
-   // Give the new matrix ownership of its interanl arrays
+   // Give the new matrix ownership of its internal arrays
    A->SetOwnerFlags(-1,-1,-1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->diag,1);
    hypre_CSRMatrixSetDataOwner(((hypre_ParCSRMatrix*)(*A))->offd,1);
@@ -584,7 +605,6 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    delete [] req;
    delete [] stat;
 }
-
 
 #endif // MFEM_USE_MPI
 

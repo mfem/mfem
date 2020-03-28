@@ -1,21 +1,25 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
+#include "../general/tic_toc.hpp"
+#include "../general/gecko.hpp"
+#include "../fem/quadinterpolator.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -46,10 +50,6 @@ extern "C" {
 }
 #endif
 
-#ifdef MFEM_USE_GECKO
-#include "graph.h"
-#endif
-
 using namespace std;
 
 namespace mfem
@@ -63,12 +63,12 @@ void Mesh::GetElementJacobian(int i, DenseMatrix &J)
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
-void Mesh::GetElementCenter(int i, Vector &cent)
+void Mesh::GetElementCenter(int i, Vector &center)
 {
-   cent.SetSize(spaceDim);
+   center.SetSize(spaceDim);
    int geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
-   eltransf->Transform(Geometries.GetCenter(geom), cent);
+   eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
 double Mesh::GetElementSize(int i, int type)
@@ -369,6 +369,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    DenseMatrix &pm = ElTr->GetPointMat();
+   nodes.HostRead();
    if (Nodes == NULL)
    {
       MFEM_ASSERT(nodes.Size() == spaceDim*GetNV(), "");
@@ -776,6 +777,27 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
    return gf;
 }
 
+const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
+   const IntegrationRule& ir,
+   const int flags, FaceType type)
+{
+   for (int i = 0; i < face_geom_factors.Size(); i++)
+   {
+      FaceGeometricFactors *gf = face_geom_factors[i];
+      if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags &&
+          gf->type==type)
+      {
+         return gf;
+      }
+   }
+
+   this->EnsureNodes();
+
+   FaceGeometricFactors *gf = new FaceGeometricFactors(this, ir, flags, type);
+   face_geom_factors.Append(gf);
+   return gf;
+}
+
 void Mesh::DeleteGeometricFactors()
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -783,6 +805,11 @@ void Mesh::DeleteGeometricFactors()
       delete geom_factors[i];
    }
    geom_factors.SetSize(0);
+   for (int i = 0; i < face_geom_factors.Size(); i++)
+   {
+      delete face_geom_factors[i];
+   }
+   face_geom_factors.SetSize(0);
 }
 
 void Mesh::GetLocalFaceTransformation(
@@ -971,6 +998,8 @@ void Mesh::Init()
    NumOfVertices = -1;
    NumOfElements = NumOfBdrElements = 0;
    NumOfEdges = NumOfFaces = 0;
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
    meshgen = mesh_geoms = 0;
    sequence = 0;
    Nodes = NULL;
@@ -1049,7 +1078,8 @@ void Mesh::Destroy()
 
    // TODO:
    // IsoparametricTransformations
-   // Transformation, Transformation2, BdrTransformation, FaceTransformation, EdgeTransformation;
+   // Transformation, Transformation2, BdrTransformation, FaceTransformation,
+   // EdgeTransformation;
    // FaceElementTransformations FaceElemTr;
 
    CoarseFineTr.Clear();
@@ -1062,12 +1092,14 @@ void Mesh::Destroy()
    bdr_attributes.DeleteAll();
 }
 
-void Mesh::DeleteLazyTables()
+void Mesh::ResetLazyData()
 {
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    DeleteGeometricFactors();
+   nbInteriorFaces = -1;
+   nbBoundaryFaces = -1;
 }
 
 void Mesh::SetAttributes()
@@ -1127,6 +1159,11 @@ void Mesh::AddVertex(const double *x)
       y[i] = x[i];
    }
    NumOfVertices++;
+}
+
+void Mesh::AddSegment(const int *vi, int attr)
+{
+   elements[NumOfElements++] = new Segment(vi, attr);
 }
 
 void Mesh::AddTri(const int *vi, int attr)
@@ -1344,37 +1381,72 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 }
 
 
-#ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering,
+class GeckoProgress : public Gecko::Progress
+{
+   double limit;
+   mutable StopWatch sw;
+public:
+   GeckoProgress(double limit) : limit(limit) { sw.Start(); }
+   virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
+};
+
+class GeckoVerboseProgress : public GeckoProgress
+{
+   using Float = Gecko::Float;
+   using Graph = Gecko::Graph;
+   using uint = Gecko::uint;
+public:
+   GeckoVerboseProgress(double limit) : GeckoProgress(limit) {}
+
+   virtual void beginorder(const Graph* graph, Float cost) const
+   { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
+   virtual void endorder(const Graph* graph, Float cost) const
+   { mfem::out << "End ordering, cost = " << cost << std::endl; }
+
+   virtual void beginiter(const Graph* graph,
+                          uint iter, uint maxiter, uint window) const
+   {
+      mfem::out << "Iteration " << iter << "/" << maxiter << ", window "
+                << window << std::flush;
+   }
+   virtual void enditer(const Graph* graph, Float mincost, Float cost) const
+   { mfem::out << ", cost = " << cost << endl; }
+};
+
+
+double Mesh::GetGeckoElementOrdering(Array<int> &ordering,
                                      int iterations, int window,
-                                     int period, int seed)
+                                     int period, int seed, bool verbose,
+                                     double time_limit)
 {
    Gecko::Graph graph;
+   Gecko::FunctionalGeometric functional; // edge product cost
 
-   Gecko::Functional *functional =
-      new Gecko::FunctionalGeometric(); // ordering functional
+   GeckoProgress progress(time_limit);
+   GeckoVerboseProgress vprogress(time_limit);
 
-   // Run through all the elements and insert the nodes in the graph for them
+   // insert elements as nodes in the graph
    for (int elemid = 0; elemid < GetNE(); ++elemid)
    {
-      graph.insert();
+      graph.insert_node();
    }
 
-   // Run through all the elems and insert arcs to the graph for each element
-   // face Indices in Gecko are 1 based hence the +1 on the insertion
+   // insert graph edges for element neighbors
+   // NOTE: indices in Gecko are 1 based hence the +1 on insertion
    const Table &my_el_to_el = ElementToElementTable();
    for (int elemid = 0; elemid < GetNE(); ++elemid)
    {
       const int *neighid = my_el_to_el.GetRow(elemid);
       for (int i = 0; i < my_el_to_el.RowSize(elemid); ++i)
       {
-         graph.insert(elemid + 1,  neighid[i] + 1);
+         graph.insert_arc(elemid + 1,  neighid[i] + 1);
       }
    }
 
-   // Get the reordering from Gecko and copy it into the ordering Array<int>
-   graph.order(functional, iterations, window, period, seed);
-   ordering.DeleteAll();
+   // get the ordering from Gecko and copy it into the Array<int>
+   graph.order(&functional, iterations, window, period, seed,
+               verbose ? &vprogress : &progress);
+
    ordering.SetSize(GetNE());
    Gecko::Node::Index NE = GetNE();
    for (Gecko::Node::Index gnodeid = 1; gnodeid <= NE; ++gnodeid)
@@ -1382,9 +1454,183 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
       ordering[gnodeid - 1] = graph.rank(gnodeid);
    }
 
-   delete functional;
+   return graph.cost();
 }
-#endif
+
+
+struct HilbertCmp
+{
+   int coord;
+   bool dir;
+   const Array<double> &points;
+   double mid;
+
+   HilbertCmp(int coord, bool dir, const Array<double> &points, double mid)
+      : coord(coord), dir(dir), points(points), mid(mid) {}
+
+   bool operator()(int i) const
+   {
+      return (points[3*i + coord] < mid) != dir;
+   }
+};
+
+static void HilbertSort2D(int coord1, // major coordinate to sort points by
+                          bool dir1,  // sort coord1 ascending/descending?
+                          bool dir2,  // sort coord2 ascending/descending?
+                          const Array<double> &points, int *beg, int *end,
+                          double xmin, double ymin, double xmax, double ymax)
+{
+   if (end - beg <= 1) { return; }
+
+   double xmid = (xmin + xmax)*0.5;
+   double ymid = (ymin + ymax)*0.5;
+
+   int coord2 = (coord1 + 1) % 2; // the 'other' coordinate
+
+   // sort (partition) points into four quadrants
+   int *p0 = beg, *p4 = end;
+   int *p2 = std::partition(p0, p4, HilbertCmp(coord1,  dir1, points, xmid));
+   int *p1 = std::partition(p0, p2, HilbertCmp(coord2,  dir2, points, ymid));
+   int *p3 = std::partition(p2, p4, HilbertCmp(coord2, !dir2, points, ymid));
+
+   if (p1 != p4)
+   {
+      HilbertSort2D(coord2, dir2, dir1, points, p0, p1,
+                    ymin, xmin, ymid, xmid);
+   }
+   if (p1 != p0 || p2 != p4)
+   {
+      HilbertSort2D(coord1, dir1, dir2, points, p1, p2,
+                    xmin, ymid, xmid, ymax);
+   }
+   if (p2 != p0 || p3 != p4)
+   {
+      HilbertSort2D(coord1, dir1, dir2, points, p2, p3,
+                    xmid, ymid, xmax, ymax);
+   }
+   if (p3 != p0)
+   {
+      HilbertSort2D(coord2, !dir2, !dir1, points, p3, p4,
+                    ymid, xmax, ymin, xmid);
+   }
+}
+
+static void HilbertSort3D(int coord1, bool dir1, bool dir2, bool dir3,
+                          const Array<double> &points, int *beg, int *end,
+                          double xmin, double ymin, double zmin,
+                          double xmax, double ymax, double zmax)
+{
+   if (end - beg <= 1) { return; }
+
+   double xmid = (xmin + xmax)*0.5;
+   double ymid = (ymin + ymax)*0.5;
+   double zmid = (zmin + zmax)*0.5;
+
+   int coord2 = (coord1 + 1) % 3;
+   int coord3 = (coord1 + 2) % 3;
+
+   // sort (partition) points into eight octants
+   int *p0 = beg, *p8 = end;
+   int *p4 = std::partition(p0, p8, HilbertCmp(coord1,  dir1, points, xmid));
+   int *p2 = std::partition(p0, p4, HilbertCmp(coord2,  dir2, points, ymid));
+   int *p6 = std::partition(p4, p8, HilbertCmp(coord2, !dir2, points, ymid));
+   int *p1 = std::partition(p0, p2, HilbertCmp(coord3,  dir3, points, zmid));
+   int *p3 = std::partition(p2, p4, HilbertCmp(coord3, !dir3, points, zmid));
+   int *p5 = std::partition(p4, p6, HilbertCmp(coord3,  dir3, points, zmid));
+   int *p7 = std::partition(p6, p8, HilbertCmp(coord3, !dir3, points, zmid));
+
+   if (p1 != p8)
+   {
+      HilbertSort3D(coord3, dir3, dir1, dir2, points, p0, p1,
+                    zmin, xmin, ymin, zmid, xmid, ymid);
+   }
+   if (p1 != p0 || p2 != p8)
+   {
+      HilbertSort3D(coord2, dir2, dir3, dir1, points, p1, p2,
+                    ymin, zmid, xmin, ymid, zmax, xmid);
+   }
+   if (p2 != p0 || p3 != p8)
+   {
+      HilbertSort3D(coord2, dir2, dir3, dir1, points, p2, p3,
+                    ymid, zmid, xmin, ymax, zmax, xmid);
+   }
+   if (p3 != p0 || p4 != p8)
+   {
+      HilbertSort3D(coord1, dir1, !dir2, !dir3, points, p3, p4,
+                    xmin, ymax, zmid, xmid, ymid, zmin);
+   }
+   if (p4 != p0 || p5 != p8)
+   {
+      HilbertSort3D(coord1, dir1, !dir2, !dir3, points, p4, p5,
+                    xmid, ymax, zmid, xmax, ymid, zmin);
+   }
+   if (p5 != p0 || p6 != p8)
+   {
+      HilbertSort3D(coord2, !dir2, dir3, !dir1, points, p5, p6,
+                    ymax, zmid, xmax, ymid, zmax, xmid);
+   }
+   if (p6 != p0 || p7 != p8)
+   {
+      HilbertSort3D(coord2, !dir2, dir3, !dir1, points, p6, p7,
+                    ymid, zmid, xmax, ymin, zmax, xmid);
+   }
+   if (p7 != p0)
+   {
+      HilbertSort3D(coord3, !dir3, !dir1, dir2, points, p7, p8,
+                    zmid, xmax, ymin, zmin, xmid, ymid);
+   }
+}
+
+void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
+{
+   MFEM_VERIFY(spaceDim <= 3, "");
+
+   Vector min, max, center;
+   GetBoundingBox(min, max);
+
+   Array<int> indices(GetNE());
+   Array<double> points(3*GetNE());
+
+   if (spaceDim < 3) { points = 0.0; }
+
+   // calculate element centers
+   for (int i = 0; i < GetNE(); i++)
+   {
+      GetElementCenter(i, center);
+      for (int j = 0; j < spaceDim; j++)
+      {
+         points[3*i + j] = center(j);
+      }
+      indices[i] = i;
+   }
+
+   if (spaceDim == 1)
+   {
+      indices.Sort([&](int a, int b)
+      { return points[3*a] < points[3*b]; });
+   }
+   else if (spaceDim == 2)
+   {
+      // recursively partition the points in 2D
+      HilbertSort2D(0, false, false,
+                    points, indices.begin(), indices.end(),
+                    min(0), min(1), max(0), max(1));
+   }
+   else
+   {
+      // recursively partition the points in 3D
+      HilbertSort3D(0, false, false, false,
+                    points, indices.begin(), indices.end(),
+                    min(0), min(1), min(2), max(0), max(1), max(2));
+   }
+
+   // return ordering in the format required by ReorderElements
+   ordering.SetSize(GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      ordering[indices[i]] = i;
+   }
+}
 
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
@@ -1853,6 +2099,9 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
             case Geometry::SQUARE:
                new_or = GetQuadOrientation(old_v, new_v);
                break;
+            case Geometry::TETRAHEDRON:
+               new_or = GetTetOrientation(old_v, new_v);
+               break;
             default:
                new_or = 0;
                MFEM_ABORT(Geometry::Name[geom] << " elements (" << fec->Name()
@@ -2256,7 +2505,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
                ind[4] = VTX(x  , y  , z+1);
                ind[5] = VTX(x+1, y  , z+1);
                ind[6] = VTX(x+1, y+1, z+1);
-               ind[7] = VTX(x  , y+1, z+1);
+               ind[7] = VTX(  x, y+1, z+1);
                if (type == Element::TETRAHEDRON)
                {
                   AddHexAsTets(ind, 1);
@@ -2643,6 +2892,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    NumOfBdrElements = mesh.NumOfBdrElements;
    NumOfEdges = mesh.NumOfEdges;
    NumOfFaces = mesh.NumOfFaces;
+   nbInteriorFaces = mesh.nbInteriorFaces;
+   nbBoundaryFaces = mesh.nbBoundaryFaces;
 
    meshgen = mesh.meshgen;
    mesh_geoms = mesh.mesh_geoms;
@@ -2677,10 +2928,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Copy the element-to-edge Table, el_to_edge
    el_to_edge = (mesh.el_to_edge) ? new Table(*mesh.el_to_edge) : NULL;
 
-   // Copy the boudary-to-edge Table, bel_to_edge (3D)
+   // Copy the boundary-to-edge Table, bel_to_edge (3D)
    bel_to_edge = (mesh.bel_to_edge) ? new Table(*mesh.bel_to_edge) : NULL;
 
-   // Copy the boudary-to-edge Array, be_to_edge (2D)
+   // Copy the boundary-to-edge Array, be_to_edge (2D)
    mesh.be_to_edge.Copy(be_to_edge);
 
    // Duplicate the faces and faces_info.
@@ -3042,7 +3293,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       if (mesh_input)
       {
 #ifdef MFEM_USE_NETCDF
-         ReadCubit(mesh_input->filename, curved, read_gf);
+         ReadCubit(mesh_input->filename.c_str(), curved, read_gf);
 #else
          MFEM_ABORT("NetCDF support requires configuration with"
                     " MFEM_USE_NETCDF=YES");
@@ -3347,11 +3598,16 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-   SetCurvature(1, true, spaceDim);
-   Vector node_coordinates_vec(
-      node_coordinates.Data(),
-      node_coordinates.Width()*node_coordinates.Height());
-   SetNodes(node_coordinates_vec);
+   if (orig_mesh->GetNodes())
+   {
+      L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
+      FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
+      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
+      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
+      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      SetCurvature(1, discont, spaceDim, dof_ordering);
+      Nodes->ProjectGridFunction(nodes_dg);
+   }
 
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
@@ -3507,6 +3763,8 @@ void Mesh::DegreeElevate(int rel_degree, int degree)
 
 void Mesh::UpdateNURBS()
 {
+   ResetLazyData();
+
    NURBSext->SetKnotsFromPatches();
 
    Dim = NURBSext->Dimension();
@@ -3672,8 +3930,24 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void Mesh::EnsureNodes()
 {
-   if (Nodes) { return; }
-   SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (Nodes)
+   {
+      const FiniteElementCollection *fec = GetNodalFESpace()->FEColl();
+      if (dynamic_cast<const H1_FECollection*>(fec)
+          || dynamic_cast<const L2_FECollection*>(fec))
+      {
+         return;
+      }
+      else // Mesh using a legacy FE_Collection
+      {
+         const int order = GetNodalFESpace()->GetOrder(0);
+         SetCurvature(order, false, -1, Ordering::byVDIM);
+      }
+   }
+   else //First order H1 mesh
+   {
+      SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
@@ -3715,6 +3989,29 @@ int Mesh::GetNumFaces() const
       case 3: return GetNFaces();
    }
    return 0;
+}
+
+static int CountFacesByType(const Mesh &mesh, const FaceType type)
+{
+   int e1, e2;
+   int inf1, inf2;
+   int nf = 0;
+   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   {
+      mesh.GetFaceElements(f, &e1, &e2);
+      mesh.GetFaceInfos(f, &inf1, &inf2);
+      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
+          (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
+   }
+   return nf;
+}
+
+int Mesh::GetNFbyType(FaceType type) const
+{
+   const bool isInt = type==FaceType::Interior;
+   int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
+   if (nf<0) { nf = CountFacesByType(*this, type); }
+   return nf;
 }
 
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
@@ -3847,9 +4144,11 @@ int Mesh::CheckElementOrientation(bool fix_it)
    }
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
    if (wo > 0)
+   {
       mfem::out << "Elements with wrong orientation: " << wo << " / "
                 << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
                 << ")" << endl;
+   }
 #endif
    return wo;
 }
@@ -3948,6 +4247,139 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
    }
 
    return 2*i+1;
+}
+
+int Mesh::GetTetOrientation(const int *base, const int *test)
+{
+   // Static method.
+   // This function computes the index 'j' of the permutation that transforms
+   // test into base: test[tet_orientation[j][i]]=base[i].
+   // tet_orientation = Geometry::Constants<Geometry::TETRAHEDRON>::Orient
+   int orient;
+
+   if (test[0] == base[0])
+      if (test[1] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 0;   //  (0, 1, 2, 3)
+         }
+         else
+         {
+            orient = 1;   //  (0, 1, 3, 2)
+         }
+      else if (test[2] == base[1])
+         if (test[3] == base[2])
+         {
+            orient = 2;   //  (0, 2, 3, 1)
+         }
+         else
+         {
+            orient = 3;   //  (0, 2, 1, 3)
+         }
+      else // test[3] == base[1]
+         if (test[1] == base[2])
+         {
+            orient = 4;   //  (0, 3, 1, 2)
+         }
+         else
+         {
+            orient = 5;   //  (0, 3, 2, 1)
+         }
+   else if (test[1] == base[0])
+      if (test[2] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 6;   //  (1, 2, 0, 3)
+         }
+         else
+         {
+            orient = 7;   //  (1, 2, 3, 0)
+         }
+      else if (test[3] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 8;   //  (1, 3, 2, 0)
+         }
+         else
+         {
+            orient = 9;   //  (1, 3, 0, 2)
+         }
+      else // test[0] == base[1]
+         if (test[3] == base[2])
+         {
+            orient = 10;   //  (1, 0, 3, 2)
+         }
+         else
+         {
+            orient = 11;   //  (1, 0, 2, 3)
+         }
+   else if (test[2] == base[0])
+      if (test[3] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 12;   //  (2, 3, 0, 1)
+         }
+         else
+         {
+            orient = 13;   //  (2, 3, 1, 0)
+         }
+      else if (test[0] == base[1])
+         if (test[1] == base[2])
+         {
+            orient = 14;   //  (2, 0, 1, 3)
+         }
+         else
+         {
+            orient = 15;   //  (2, 0, 3, 1)
+         }
+      else // test[1] == base[1]
+         if (test[3] == base[2])
+         {
+            orient = 16;   //  (2, 1, 3, 0)
+         }
+         else
+         {
+            orient = 17;   //  (2, 1, 0, 3)
+         }
+   else // (test[3] == base[0])
+      if (test[0] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 18;   //  (3, 0, 2, 1)
+         }
+         else
+         {
+            orient = 19;   //  (3, 0, 1, 2)
+         }
+      else if (test[1] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 20;   //  (3, 1, 0, 2)
+         }
+         else
+         {
+            orient = 21;   //  (3, 1, 2, 0)
+         }
+      else // test[2] == base[1]
+         if (test[1] == base[2])
+         {
+            orient = 22;   //  (3, 2, 1, 0)
+         }
+         else
+         {
+            orient = 23;   //  (3, 2, 0, 1)
+         }
+
+#ifdef MFEM_DEBUG
+   const int *aor = tet_t::Orient[orient];
+   for (int j = 0; j < 4; j++)
+      if (test[aor[j]] != base[j])
+      {
+         mfem_error("Mesh::GetTetOrientation(...)");
+      }
+#endif
+
+   return orient;
 }
 
 int Mesh::CheckBdrElementOrientation(bool fix_it)
@@ -4995,7 +5427,7 @@ void Mesh::ReorientTetMesh()
       return;
    }
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -5144,6 +5576,21 @@ int *Mesh::CartesianPartitioningXY(int nxyz[], const int X, const int Y)
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
 #ifdef MFEM_USE_METIS
+
+   int print_messages = 1;
+   // If running in parallel, print messages only from rank 0.
+#ifdef MFEM_USE_MPI
+   int init_flag, fin_flag;
+   MPI_Initialized(&init_flag);
+   MPI_Finalized(&fin_flag);
+   if (init_flag && !fin_flag)
+   {
+      int rank;
+      MPI_Comm_rank(GetGlobalMPI_Comm(), &rank);
+      if (rank != 0) { print_messages = 0; }
+   }
+#endif
+
    int i, *partitioning;
 
    ElementToElementTable();
@@ -5253,8 +5700,10 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                         &edgecut,
                                         mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphRecursive!");
+         }
 #endif
       }
 
@@ -5289,8 +5738,10 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    &edgecut,
                                    mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
@@ -5326,19 +5777,27 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    &edgecut,
                                    mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
 #ifdef MFEM_DEBUG
-      mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
-                << edgecut << endl;
+      if (print_messages)
+      {
+         mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
+                   << edgecut << endl;
+      }
 #endif
       nparts = (int) mparts;
       if (mpartitioning != (idx_t*)partitioning)
       {
-         for (int k = 0; k<NumOfElements; k++) { partitioning[k] = mpartitioning[k]; }
+         for (int k = 0; k<NumOfElements; k++)
+         {
+            partitioning[k] = mpartitioning[k];
+         }
       }
       if (freedata)
       {
@@ -5348,10 +5807,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       }
    }
 
-   if (el_to_el)
-   {
-      delete el_to_el;
-   }
+   delete el_to_el;
    el_to_el = NULL;
 
    // Check for empty partitionings (a "feature" in METIS)
@@ -5370,17 +5826,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 
       int empty_parts = 0;
       for (i = 0; i < nparts; i++)
-         if (psize[i].one == 0)
-         {
-            empty_parts++;
-         }
+      {
+         if (psize[i].one == 0) { empty_parts++; }
+      }
 
       // This code just split the largest partitionings in two.
       // Do we need to replace it with something better?
       if (empty_parts)
       {
-         mfem::err << "Mesh::GeneratePartitioning returned " << empty_parts
-                   << " empty parts!" << endl;
+         if (print_messages)
+         {
+            mfem::err << "Mesh::GeneratePartitioning(...): METIS returned "
+                      << empty_parts << " empty parts!"
+                      << " Applying a simple fix ..." << endl;
+         }
 
          SortPairs<int,int>(psize, nparts);
 
@@ -5390,7 +5849,9 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          }
 
          for (int j = 0; j < NumOfElements; j++)
+         {
             for (i = nparts-1; i > nparts-1-empty_parts; i--)
+            {
                if (psize[i].one == 0 || partitioning[j] != psize[i].two)
                {
                   continue;
@@ -5400,6 +5861,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                   partitioning[j] = psize[nparts-1-i].two;
                   psize[i].one--;
                }
+            }
+         }
       }
    }
 
@@ -6040,9 +6503,9 @@ void Mesh::UpdateNodes()
    }
 }
 
-void Mesh::UniformRefinement2D()
+void Mesh::UniformRefinement2D_base(bool update_nodes)
 {
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (el_to_edge == NULL)
    {
@@ -6183,10 +6646,13 @@ void Mesh::UniformRefinement2D()
    last_operation = Mesh::REFINE;
    sequence++;
 
-   UpdateNodes();
+   if (update_nodes) { UpdateNodes(); }
 
 #ifdef MFEM_DEBUG
-   CheckElementOrientation(false);
+   if (!Nodes || update_nodes)
+   {
+      CheckElementOrientation(false);
+   }
    CheckBdrElementOrientation(false);
 #endif
 }
@@ -6196,9 +6662,10 @@ static inline double sqr(const double &x)
    return x*x;
 }
 
-void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
+void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
+                                    bool update_nodes)
 {
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (el_to_edge == NULL)
    {
@@ -6784,7 +7251,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    last_operation = Mesh::REFINE;
    sequence++;
 
-   UpdateNodes();
+   if (update_nodes) { UpdateNodes(); }
 }
 
 void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
@@ -6792,7 +7259,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    int i, j, ind, nedges;
    Array<int> v;
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (ncmesh)
    {
@@ -7035,7 +7502,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    MFEM_VERIFY(!NURBSext, "Nonconforming refinement of NURBS meshes is "
                "not supported. Project the NURBS to Nodes first.");
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    if (!ncmesh)
    {
@@ -7105,7 +7572,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
 
-   DeleteLazyTables();
+   ResetLazyData();
 
    const Table &dt = ncmesh->GetDerefinementTable();
 
@@ -7141,11 +7608,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    last_operation = Mesh::DEREFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate mesh curvature
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 
    return true;
 }
@@ -7186,7 +7649,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
-   ncmesh.GetMeshComponents(vertices, elements, boundary);
+   ncmesh.GetMeshComponents(*this);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
@@ -7195,6 +7658,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    SetMeshGen(); // set the mesh type: 'meshgen', ...
 
    NumOfEdges = NumOfFaces = 0;
+   nbInteriorFaces = nbBoundaryFaces = -1;
 
    if (Dim > 1)
    {
@@ -7257,6 +7721,10 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    mfem::Swap(geom_factors, other.geom_factors);
 
+#ifdef MFEM_USE_MEMALLOC
+   TetMemory.Swap(other.TetMemory);
+#endif
+
    if (non_geometry)
    {
       mfem::Swap(NURBSext, other.NURBSext);
@@ -7295,39 +7763,35 @@ void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
    }
 }
 
+static Array<int>& AllElements(Array<int> &list, int nelem)
+{
+   list.SetSize(nelem);
+   for (int i = 0; i < nelem; i++) { list[i] = i; }
+   return list;
+}
+
 void Mesh::UniformRefinement(int ref_algo)
 {
+   Array<int> list;
+
    if (NURBSext)
    {
       NURBSUniformRefinement();
    }
-   else if (ref_algo == 0 && Dim == 3 && meshgen == 1)
+   else if (ncmesh)
    {
-      UniformRefinement3D();
+      GeneralRefinement(AllElements(list, GetNE()));
    }
-   else if (meshgen == 1 || ncmesh)
+   else if (ref_algo == 1 && meshgen == 1 && Dim == 3)
    {
-      Array<int> elem_to_refine(GetNE());
-      for (int i = 0; i < elem_to_refine.Size(); i++)
-      {
-         elem_to_refine[i] = i;
-      }
-
-      if (Conforming())
-      {
-         // In parallel we should set the default 2nd argument to -3 to indicate
-         // uniform refinement.
-         LocalRefinement(elem_to_refine);
-      }
-      else
-      {
-         GeneralRefinement(elem_to_refine, 1);
-      }
+      // algorithm "B" for an all-tet mesh
+      LocalRefinement(AllElements(list, GetNE()));
    }
    else
    {
       switch (Dim)
       {
+         case 1: LocalRefinement(AllElements(list, GetNE())); break;
          case 2: UniformRefinement2D(); break;
          case 3: UniformRefinement3D(); break;
          default: MFEM_ABORT("internal error");
@@ -7403,7 +7867,7 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
    GeneralRefinement(refinements, nonconforming, nc_limit);
 }
 
-void Mesh::EnsureNCMesh(bool triangles_nonconforming)
+void Mesh::EnsureNCMesh(bool simplices_nonconforming)
 {
    MFEM_VERIFY(!NURBSext, "Cannot convert a NURBS mesh to an NC mesh. "
                "Project the NURBS to Nodes first.");
@@ -7412,10 +7876,8 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
    {
       if ((meshgen & 0x2) /* quads/hexes */ ||
           (meshgen & 0x4) /* wedges */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
+          (simplices_nonconforming && (meshgen & 0x1)) /* simplices */)
       {
-         MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
-                     "mixed meshes are not supported");
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();
@@ -8395,6 +8857,304 @@ void Mesh::PrintVTK(std::ostream &out)
    }
    out.flush();
 }
+
+void Mesh::PrintVTU(std::string fname,
+                    VTKFormat format,
+                    bool high_order_output,
+                    int compression_level)
+{
+   int ref = (high_order_output && Nodes) ? Nodes->FESpace()->GetOrder(0) : 1;
+   fname = fname + ".vtu";
+   std::fstream out(fname.c_str(),std::ios::out);
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   if (compression_level != 0)
+   {
+      out << " compressor=\"vtkZLibDataCompressor\"";
+   }
+   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   out << "<UnstructuredGrid>\n";
+   PrintVTU(out, ref, format, high_order_output, compression_level);
+   out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>\n";
+   out << "</VTKFile>" << std::endl;
+
+   out.close();
+}
+
+template <typename T>
+void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
+                        const char *suffix, VTKFormat format)
+{
+   if (format == VTKFormat::ASCII) { out << val << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+// Ensure ASCII output of uint8_t to stream is integer rather than character
+template <>
+void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
+                                 const uint8_t &val, const char *suffix,
+                                 VTKFormat format)
+{
+   if (format == VTKFormat::ASCII) { out << static_cast<int>(val) << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+template <>
+void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
+                                const double &val, const char *suffix,
+                                VTKFormat format)
+{
+   if (format == VTKFormat::BINARY32)
+   {
+      bin_io::AppendBytes<float>(buf, float(val));
+   }
+   else if (format == VTKFormat::BINARY)
+   {
+      bin_io::AppendBytes(buf, val);
+   }
+   else
+   {
+      out << val << suffix;
+   }
+}
+
+template <>
+void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
+                               const float &val, const char *suffix,
+                               VTKFormat format)
+{
+   if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
+   else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
+   else { out << val << suffix; }
+}
+
+void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+                                 int compression_level)
+{
+   WriteVTKEncodedCompressed(out, buf.data(), buf.size(), compression_level);
+   out << '\n';
+   buf.clear();
+}
+
+void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,
+                    bool high_order_output, int compression_level)
+{
+   RefinedGeometry *RefG;
+   DenseMatrix pmat;
+
+   const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+   const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
+   std::vector<char> buf;
+
+   // count the points, cells, size
+   int np = 0, nc_ref = 0, size = 0;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      np += RefG->RefPts.GetNPoints();
+      nc_ref += RefG->RefGeoms.Size() / nv;
+      size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
+   }
+
+   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
+       << (high_order_output ? GetNE() : nc_ref) << "\">\n";
+
+   // print out the points
+   out << "<Points>\n";
+   out << "<DataArray type=\"" << type_str
+       << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
+   for (int i = 0; i < GetNE(); i++)
+   {
+      RefG = GlobGeometryRefiner.Refine(
+                GetElementBaseGeometry(i), ref, 1);
+
+      GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+
+      for (int j = 0; j < pmat.Width(); j++)
+      {
+         WriteBinaryOrASCII(out, buf, pmat(0,j), " ", format);
+         if (pmat.Height() > 1)
+         {
+            WriteBinaryOrASCII(out, buf, pmat(1,j), " ", format);
+         }
+         else
+         {
+            WriteBinaryOrASCII(out, buf, 0.0, " ", format);
+         }
+         if (pmat.Height() > 2)
+         {
+            WriteBinaryOrASCII(out, buf, pmat(2,j), "", format);
+         }
+         else
+         {
+            WriteBinaryOrASCII(out, buf, 0.0, "", format);
+         }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>" << std::endl;
+   out << "</Points>" << std::endl;
+
+   out << "<Cells>" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
+       << fmt_str << "\">" << std::endl;
+   // connectivity
+   std::vector<int> offset;
+
+   np = 0;
+   if (high_order_output)
+   {
+      Array<int> local_connectivity;
+      for (int iel = 0; iel < GetNE(); iel++)
+      {
+         Geometry::Type geom = GetElementBaseGeometry(iel);
+         CreateVTKElementConnectivity(local_connectivity, geom, ref);
+         int nnodes = local_connectivity.Size();
+         for (int i=0; i<nnodes; ++i)
+         {
+            WriteBinaryOrASCII(out, buf, np+local_connectivity[i], " ", format);
+         }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
+         np += nnodes;
+         offset.push_back(np);
+      }
+   }
+   else
+   {
+      int coff = 0;
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Geometry::Type geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         Array<int> &RG = RefG->RefGeoms;
+         for (int j = 0; j < RG.Size(); )
+         {
+            // out << nv;
+            coff = coff+nv;
+            offset.push_back(coff);
+
+            for (int k = 0; k < nv; k++, j++)
+            {
+               WriteBinaryOrASCII(out, buf, np + RG[j], " ", format);
+            }
+            if (format == VTKFormat::ASCII) { out << '\n'; }
+         }
+         np += RefG->RefPts.GetNPoints();
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>" << std::endl;
+
+   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
+       << fmt_str << "\">" << std::endl;
+   // offsets
+   for (size_t ii=0; ii<offset.size(); ii++)
+   {
+      WriteBinaryOrASCII(out, buf, offset[ii], "\n", format);
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>" << std::endl;
+   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
+       << fmt_str << "\">" << std::endl;
+   // cell types
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      uint8_t vtk_cell_type = 5;
+
+      // VTK element types defined at: https://git.io/JvZLm
+      switch (geom)
+      {
+         case Geometry::POINT:
+            vtk_cell_type = 1;
+            break;
+         case Geometry::SEGMENT:
+            vtk_cell_type = high_order_output ? 68 : 3;
+            break;
+         case Geometry::TRIANGLE:
+            vtk_cell_type = high_order_output ? 69 : 5;
+            break;
+         case Geometry::SQUARE:
+            vtk_cell_type = high_order_output ? 70 : 9;
+            break;
+         case Geometry::TETRAHEDRON:
+            vtk_cell_type = high_order_output ? 71 : 10;
+            break;
+         case Geometry::CUBE:
+            vtk_cell_type = high_order_output ? 72 : 12;
+            break;
+         case Geometry::PRISM:
+            vtk_cell_type = high_order_output ? 73 : 13;
+            break;
+         default:
+            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
+            break;
+      }
+
+      if (high_order_output)
+      {
+         WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
+      }
+      else
+      {
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         Array<int> &RG = RefG->RefGeoms;
+         for (int j = 0; j < RG.Size(); j += nv)
+         {
+            WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
+         }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>" << std::endl;
+   out << "</Cells>" << std::endl;
+
+   out << "<CellData Scalars=\"material\">" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"material\" format=\""
+       << fmt_str << "\">" << std::endl;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      int attr = GetAttribute(i);
+      if (high_order_output)
+      {
+         WriteBinaryOrASCII(out, buf, attr, "\n", format);
+      }
+      else
+      {
+         Geometry::Type geom = GetElementBaseGeometry(i);
+         int nv = Geometries.GetVertices(geom)->GetNPoints();
+         RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+         for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+         {
+            WriteBinaryOrASCII(out, buf, attr, "\n", format);
+         }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>" << std::endl;
+   out << "</CellData>" << std::endl;
+}
+
 
 void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
 {
@@ -9675,7 +10435,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                }
             }
          }
-         // Try neighbours for non-conforming meshes
+         // Try neighbors for non-conforming meshes
          if (ncmesh)
          {
             Array<int> neigh;
@@ -9725,11 +10485,9 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const int ND   = fe->GetDof();
    const int NQ   = ir.GetNPoints();
 
-   Vector Enodes(vdim*ND*NE);
    // For now, we are not using tensor product evaluation
    const Operator *elem_restr = fespace->GetElementRestriction(
                                    ElementDofOrdering::NATIVE);
-   elem_restr->Mult(*nodes, Enodes);
 
    unsigned eval_flags = 0;
    if (flags & GeometricFactors::COORDINATES)
@@ -9751,9 +10509,67 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
    // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
-   qi->Mult(Enodes, eval_flags, X, J, detJ);
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   if (elem_restr)
+   {
+      Vector Enodes(vdim*ND*NE);
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
+   }
 }
 
+FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
+                                           const IntegrationRule &ir,
+                                           int flags, FaceType type)
+   : type(type)
+{
+   this->mesh = mesh;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const GridFunction *nodes = mesh->GetNodes();
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const int vdim = fespace->GetVDim();
+   const int NF   = fespace->GetNFbyType(type);
+   const int NQ   = ir.GetNPoints();
+
+   const Operator *face_restr = fespace->GetFaceRestriction(
+                                   ElementDofOrdering::LEXICOGRAPHIC,
+                                   type,
+                                   L2FaceValues::SingleValued );
+   Vector Fnodes(face_restr->Height());
+   face_restr->Mult(*nodes, Fnodes);
+
+   unsigned eval_flags = 0;
+   if (flags & FaceGeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::VALUES;
+   }
+   if (flags & FaceGeometricFactors::JACOBIANS)
+   {
+      J.SetSize(vdim*vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & FaceGeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
+   }
+   if (flags & FaceGeometricFactors::NORMALS)
+   {
+      normal.SetSize(vdim*NQ*NF);
+      eval_flags |= FaceQuadratureInterpolator::NORMALS;
+   }
+
+   const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
+                                             ir, type);
+   qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
+}
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
                                                const double _s)

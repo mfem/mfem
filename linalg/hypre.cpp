@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -79,7 +79,7 @@ template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
-   TargetT *target_array = cplusplus ? new TargetT[size]
+   TargetT *target_array = cplusplus ? (TargetT*) Memory<TargetT>(size)
                            /*     */ : mfem_hypre_TAlloc(TargetT, size);
    for (int i = 0; i < size; i++)
    {
@@ -635,13 +635,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = new double[diag_nnz];
+   double *a_diag = Memory<double>(diag_nnz);
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = new double[offd_nnz];
+   double *a_offd = Memory<double>(offd_nnz);
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
@@ -1416,9 +1416,22 @@ HypreParMatrix* HypreParMatrix::EliminateCols(const Array<int> &cols)
    get_sorted_rows_cols(cols, rc_sorted);
 
    hypre_ParCSRMatrix* Ae;
-   internal::hypre_ParCSRMatrixEliminateAAe(A, &Ae, rc_sorted.Size(), rc_sorted.GetData(), 1);
+
+   internal::hypre_ParCSRMatrixEliminateAAe(
+      A, &Ae, rc_sorted.Size(), rc_sorted.GetData(), 1);
 
    return new HypreParMatrix(Ae);
+}
+
+void HypreParMatrix::EliminateRows(const Array<int> &rows)
+{
+   if (rows.Size() > 0)
+   {
+      Array<HYPRE_Int> r_sorted;
+      get_sorted_rows_cols(rows, r_sorted);
+      internal::hypre_ParCSRMatrixEliminateRows(A, r_sorted.Size(),
+                                                r_sorted.GetData());
+   }
 }
 
 void HypreParMatrix::Print(const char *fname, HYPRE_Int offi, HYPRE_Int offj)
@@ -1499,6 +1512,33 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
    MPI_Barrier(comm);
 }
 
+inline void delete_hypre_CSRMatrixData(hypre_CSRMatrix *M)
+{
+   HYPRE_Complex *data = hypre_CSRMatrixData(M);
+   Memory<HYPRE_Complex>(data, M->num_nonzeros, true).Delete();
+}
+
+inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
+{
+   HYPRE_Int  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
+   int size = hypre_CSRMatrixNumCols(hypre_ParCSRMatrixOffd(A));
+   Memory<HYPRE_Int>(A_col_map_offd, size, true).Delete();
+}
+
+inline void delete_hypre_CSRMatrixI(hypre_CSRMatrix *M)
+{
+   HYPRE_Int *I = hypre_CSRMatrixI(M);
+   int size = hypre_CSRMatrixNumRows(M) + 1;
+   Memory<HYPRE_Int>(I, size, true).Delete();
+}
+
+inline void delete_hypre_CSRMatrixJ(hypre_CSRMatrix *M)
+{
+   HYPRE_Int *J = hypre_CSRMatrixJ(M);
+   int size = hypre_CSRMatrixNumNonzeros(M);
+   Memory<HYPRE_Int>(J, size, true).Delete();
+}
+
 void HypreParMatrix::Destroy()
 {
    if ( X != NULL ) { delete X; }
@@ -1510,14 +1550,14 @@ void HypreParMatrix::Destroy()
    {
       if (diagOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->diag);
-         delete [] hypre_CSRMatrixJ(A->diag);
+         delete_hypre_CSRMatrixI(A->diag);
+         delete_hypre_CSRMatrixJ(A->diag);
       }
       hypre_CSRMatrixI(A->diag) = NULL;
       hypre_CSRMatrixJ(A->diag) = NULL;
       if (diagOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->diag);
+         delete_hypre_CSRMatrixData(A->diag);
       }
       hypre_CSRMatrixData(A->diag) = NULL;
    }
@@ -1525,14 +1565,14 @@ void HypreParMatrix::Destroy()
    {
       if (offdOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->offd);
-         delete [] hypre_CSRMatrixJ(A->offd);
+         delete_hypre_CSRMatrixI(A->offd);
+         delete_hypre_CSRMatrixJ(A->offd);
       }
       hypre_CSRMatrixI(A->offd) = NULL;
       hypre_CSRMatrixJ(A->offd) = NULL;
       if (offdOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->offd);
+         delete_hypre_CSRMatrixData(A->offd);
       }
       hypre_CSRMatrixData(A->offd) = NULL;
    }
@@ -1540,7 +1580,7 @@ void HypreParMatrix::Destroy()
    {
       if (colMapOwner & 1)
       {
-         delete [] hypre_ParCSRMatrixColMapOffd(A);
+         delete_hypre_ParCSRMatrixColMapOffd(A);
       }
       hypre_ParCSRMatrixColMapOffd(A) = NULL;
    }
@@ -1568,15 +1608,21 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
    return C;
 }
 
-HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B)
+HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
+                         bool own_matrix)
 {
    hypre_ParCSRMatrix * ab;
    ab = hypre_ParMatmul(*A,*B);
    hypre_ParCSRMatrixSetNumNonzeros(ab);
 
    hypre_MatvecCommPkgCreate(ab);
-
-   return new HypreParMatrix(ab);
+   HypreParMatrix *C = new HypreParMatrix(ab);
+   if (own_matrix)
+   {
+      C->CopyRowStarts();
+      C->CopyColStarts();
+   }
+   return C;
 }
 
 HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
@@ -1806,7 +1852,6 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
 
    return 0;
 }
-
 
 HypreSmoother::HypreSmoother() : Solver()
 {
@@ -2709,7 +2754,7 @@ void HypreEuclid::SetOperator(const Operator &op)
    if (A)
    {
       MPI_Comm comm;
-      HYPRE_ParCSRMatrixGetComm(*A, &comm);
+      HYPRE_ParCSRMatrixGetComm(*new_A, &comm);
       ResetEuclidPrecond(comm);
    }
 

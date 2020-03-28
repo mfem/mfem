@@ -7011,7 +7011,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      ComplexOperator *AsdPA = new ComplexOperator(AsdPARe[m], AsdPAIm[m], false, false);
 	      gmres->SetOperator(*AsdPA);
 #else
+#ifndef SDFOSLS
 	      gmres->SetOperator(*(HypreAsdComplex[m]));
+#endif
 #endif
 	      
 	      gmres->SetRelTol(1e-12);

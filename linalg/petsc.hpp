@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Author: Stefano Zampini <stefano.zampini@gmail.com>
 
@@ -430,6 +430,10 @@ PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B);
 /// Returns the matrix Rt^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
+/// Returns the matrix R * A * P
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A,
+                                     PetscParMatrix *P);
+
 /// Returns the matrix P^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);
 
@@ -494,6 +498,12 @@ public:
 
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
    void FixResidualBC(const Vector& x, Vector& y);
+
+   /// Replace boundary dofs with 0
+   void Zero(Vector &x);
+
+   /// y = x on ess_tdof_list_c and y = 0 on ess_tdof_list
+   void ZeroBC(const Vector &x, Vector &y);
 
 private:
    enum Type bctype;

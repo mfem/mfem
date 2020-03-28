@@ -68,7 +68,7 @@ using namespace std;
 
 //#define IMPEDANCE_POSITIVE
 
-//#define FOSLS_DIRECT_SOLVER
+#define FOSLS_DIRECT_SOLVER
 
 //#define ZERO_ORDER_FOSLS
 //#define ZERO_ORDER_FOSLS_COMPLEX
@@ -1876,8 +1876,10 @@ public:
     bM_curl->Finalize();
     
     bM->FormSystemMatrix(ess_tdof_list_empty, M);
-    bM_curl->FormColSystemMatrix(ess_tdof_list_empty, M_curl);
-
+    //bM_curl->FormColSystemMatrix(ess_tdof_list_empty, M_curl);
+    //bM_curl->FormSystemMatrix(ess_tdof_list_empty, M_curl);  // TODO: if nonempty list is used, then this needs to be FormColSystemMatrix.
+    bM_curl->FormRectangularSystemMatrix(ess_tdof_list_empty, ess_tdof_list_empty, M_curl);
+    
     bM->FormSystemMatrix(ess_tdof_list_E, M_Ebc);
     bM_eps->FormSystemMatrix(ess_tdof_list_E, M_eps_Ebc);
 
@@ -2091,7 +2093,13 @@ public:
     a_mix1->Assemble();
     if (!pa) a_mix1->Finalize();
     HypreParMatrix *A_mix1 = new HypreParMatrix;
-    if (!pa) a_mix1->FormColSystemMatrix(ess_tdof_list_empty, *A_mix1);
+    //if (!pa) a_mix1->FormColSystemMatrix(ess_tdof_list_empty, *A_mix1);
+    if (!pa)
+      {
+	OperatorPtr A_mix1_ptr;
+	a_mix1->FormRectangularSystemMatrix(ess_tdof_list_empty, ess_tdof_list_empty, A_mix1_ptr);
+	A_mix1 = A_mix1_ptr.As<HypreParMatrix>();
+      }
     
     // (k curl u, v) + (k eps u, curl v)
     a_mix2->AddDomainIntegrator(new MixedVectorCurlIntegrator(pos));
@@ -2099,8 +2107,14 @@ public:
     a_mix2->Assemble();
     if (!pa) a_mix2->Finalize();
     HypreParMatrix *A_mix2 = new HypreParMatrix;
-    if (!pa) a_mix2->FormColSystemMatrix(ess_tdof_list_E, *A_mix2);
-
+    //if (!pa) a_mix2->FormColSystemMatrix(ess_tdof_list_E, *A_mix2);
+    if (!pa)
+      {
+	OperatorPtr A_mix2_ptr;
+	a_mix2->FormRectangularSystemMatrix(ess_tdof_list_E, ess_tdof_list_empty, A_mix2_ptr);
+	A_mix2 = A_mix2_ptr.As<HypreParMatrix>();
+      }
+    
     HypreParMatrix *A_mix1_E = NULL;
     if (!pa) A_mix1_E = A_mix2->Transpose();
 
@@ -2382,7 +2396,7 @@ public:
 
     trueRhs->GetBlock(0) -= z;
 
-    M_curl.Mult(Minv_x, z);
+    M_curl->Mult(Minv_x, z);
     z *= 1.0 / omega;  // TODO: essential DOF's?
     
     trueRhs->GetBlock(1) = z;
@@ -2395,7 +2409,7 @@ public:
 
     trueRhs->GetBlock(2) -= z;
 
-    M_curl.Mult(Minv_x, z);
+    M_curl->Mult(Minv_x, z);
     z *= 1.0 / omega;  // TODO: essential DOF's?
 
     trueRhs->GetBlock(3) += z;
@@ -2449,7 +2463,8 @@ private:
   ParBilinearForm *bM, *bM_eps;
   ParMixedBilinearForm *bM_curl;
   
-  HypreParMatrix M, M_curl;
+  HypreParMatrix M;
+  OperatorPtr M_curl;
   HypreParMatrix M_Ebc, M_eps_Ebc;
 
   CGSolver M_inv;
