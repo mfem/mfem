@@ -62,12 +62,13 @@ using namespace std;
 //#define TEST_SD_CMG
 
 //#define SDFOSLS
+//#define SDFOSLS_PA
 
 //#define IMPEDANCE_OTHER_SIGN
 
 //#define IMPEDANCE_POSITIVE
 
-#define FOSLS_DIRECT_SOLVER
+//#define FOSLS_DIRECT_SOLVER
 
 //#define ZERO_ORDER_FOSLS
 //#define ZERO_ORDER_FOSLS_COMPLEX
@@ -81,7 +82,7 @@ using namespace std;
 //#define TEST_DECOUPLED_FOSLS_PROJ_FULL
 //#define TEST_DECOUPLED_FOSLS_PROJ_FULL_EXT
 
-// For FOSLS-DD, define SDFOSLS, IFFOSLS, IFFOSLS_H, SD_ITERATIVE_GMG, and do not define ZERO_IFND_BC.
+// For FOSLS-DD, define SDFOSLS, IFFOSLS, IFFOSLS_H, SD_ITERATIVE_GMG, and do not define ZERO_IFND_BC. With PA, define SDFOSLS_PA, undefine FOSLS_DIRECT_SOLVER.
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -629,6 +630,9 @@ public:
 		       std::vector<std::vector<HypreParMatrix*> > const& sdP,
 		       std::vector<HypreParMatrix*> *sdcRe, std::vector<HypreParMatrix*> *sdcIm,
 #endif
+#ifdef SDFOSLS_PA
+		       std::vector<Array2D<HypreParMatrix*> > *coarseFOSLS,
+#endif
 		       const double h_, const bool partialConstructor=false);
 
   
@@ -656,6 +660,10 @@ public:
   }  
 
   void CopySDMatrices(std::vector<HypreParMatrix*>& Re, std::vector<HypreParMatrix*>& Im);
+
+#ifdef SDFOSLS_PA
+  void CopyFOSLSMatrices(std::vector<Array2D<HypreParMatrix*> >& A);
+#endif
   
   void TestIFMult(const Vector & x, Vector & y) const
   {
@@ -1785,7 +1793,11 @@ class FOSLSSolver : public Solver
 {
 public:
   FOSLSSolver(MPI_Comm comm, ParFiniteElementSpace *fespace_, Array<int>& ess_tdof_list_E,
-	      ParGridFunction& Eexact, std::vector<HypreParMatrix*> const& P, const double omega_)
+	      ParGridFunction& Eexact, std::vector<HypreParMatrix*> const& P,
+#ifdef SDFOSLS_PA
+	      Array2D<HypreParMatrix*> const& blockCoarseA, const bool fullAssembly,
+#endif
+	      const double omega_)
     : Solver(4 * fespace_->GetTrueVSize()), M_inv(comm), fespace(fespace_),
       n(fespace_->GetTrueVSize()), nfull(fespace_->GetVSize()), LSpcg(comm),
       omega(omega_)
@@ -1844,7 +1856,10 @@ public:
 	bdr_marker_ext[1] = 1;
       }
 #endif
-    
+
+    Array<int> ess_tdof_list_empty;  // empty
+
+#ifndef SDFOSLS_PA
     bM = new ParBilinearForm(fespace);
     bM->AddDomainIntegrator(new VectorFEMassIntegrator());
     bM->Assemble();
@@ -1860,9 +1875,6 @@ public:
     bM_curl->Assemble();
     bM_curl->Finalize();
     
-    Array<int> ess_tdof_list_empty;  // empty
-    // TODO: define BC on exterior boundary
-    
     bM->FormSystemMatrix(ess_tdof_list_empty, M);
     bM_curl->FormColSystemMatrix(ess_tdof_list_empty, M_curl);
 
@@ -1874,7 +1886,8 @@ public:
     M_inv.SetMaxIter(100);
     M_inv.SetOperator(M_Ebc);
     M_inv.SetPrintLevel(0);
-
+#endif
+    
     block_trueOffsets.SetSize(5);
     
     block_trueOffsets[0] = 0;
@@ -1900,6 +1913,43 @@ public:
     // A11 = (curl H, curl G) + \omega^2 (H,G)
 
     ParBilinearForm *a_EE = new ParBilinearForm(fespace);
+    ParBilinearForm *a_HH = new ParBilinearForm(fespace);
+    ParMixedBilinearForm *a_mix1 = new ParMixedBilinearForm(fespace,fespace);
+    ParMixedBilinearForm *a_mix2 = new ParMixedBilinearForm(fespace,fespace);
+
+#ifdef SDFOSLS_PA
+    const bool pa = !fullAssembly;
+
+    if (pa)
+      {
+	a_EE->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+	a_HH->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+	a_mix1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+	a_mix2->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+	diag_PA_EE.SetSize(fespace->GetTrueVSize());
+	diag_PA_HH.SetSize(fespace->GetTrueVSize());
+      
+	ParGridFunction diag_gf(fespace);
+
+	diag_gf = 0.0;
+	a_EE->AssembleDiagonal(diag_gf);
+	diag_gf.GetTrueDofs(diag_PA_EE);
+
+	diag_gf = 0.0;
+	a_HH->AssembleDiagonal(diag_gf);
+	diag_gf.GetTrueDofs(diag_PA_HH);
+
+	diag_pa.resize(4);
+	diag_pa[0] = &diag_PA_EE;
+	diag_pa[1] = &diag_PA_HH;
+	diag_pa[2] = &diag_PA_EE;
+	diag_pa[3] = &diag_PA_HH;
+      }
+#else
+    const bool pa = false;
+#endif
+    
     a_EE->AddDomainIntegrator(new CurlCurlIntegrator());
     a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
 #ifndef TEST_DECOUPLED_FOSLS
@@ -1914,10 +1964,11 @@ public:
 #endif
 #endif
     a_EE->Assemble();
-    a_EE->Finalize();
+    if (!pa) a_EE->Finalize();
     //HypreParMatrix *A_EE = new HypreParMatrix;
     //a_EE->FormSystemMatrix(ess_tdof_list_E, *A_EE);
-    HypreParMatrix *A_EE = NULL;
+    //HypreParMatrix *A_EE = NULL;
+    OperatorPtr A_EE;
     {
       ParLinearForm b_E(fespace);
 #ifndef AIRY_TEST
@@ -1940,13 +1991,15 @@ public:
 #endif
       
       b_E.Assemble();
-      OperatorPtr Aptr;
+      //OperatorPtr Aptr;
       Vector X;
-      a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, Aptr, X, rhs_E);
-      A_EE = Aptr.As<HypreParMatrix>();
+      a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, A_EE, X, rhs_E);
+      //a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, Aptr, X, rhs_E);
+      //A_EE = Aptr.As<HypreParMatrix>();
     }
 
-#if defined ZERO_ORDER_FOSLS_COMPLEX || defined IFFOSLS
+    //#if defined ZERO_ORDER_FOSLS_COMPLEX || defined IFFOSLS
+#ifdef ZERO_ORDER_FOSLS_COMPLEX
     ParBilinearForm *a_bM = new ParBilinearForm(fespace);
     a_bM->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
     a_bM->Assemble();
@@ -1955,6 +2008,7 @@ public:
     a_bM->FormSystemMatrix(ess_tdof_list_E, *A_bM);
 #endif
 
+    /*
     { // Debugging
       int ninter = 0;
       int nexter = 0;
@@ -1976,6 +2030,7 @@ public:
       
       cout << rank << ": dbg bdr marker " << ninter << " " << nexter << " " << nundef << endl;
     }
+    */
     
 #ifdef IMPEDANCE_POSITIVE
     ConstantCoefficient negOne(-1.0);
@@ -1998,7 +2053,6 @@ public:
     a_HHm->FormSystemMatrix(ess_tdof_list, *A_HHm);
 #endif
     
-    ParBilinearForm *a_HH = new ParBilinearForm(fespace);
     a_HH->AddDomainIntegrator(new CurlCurlIntegrator());
     a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
 #ifndef ZERO_ORDER_FOSLS
@@ -2008,10 +2062,13 @@ public:
 #endif
     
     a_HH->Assemble();
-    a_HH->Finalize();
-    HypreParMatrix *A_HH = new HypreParMatrix;
-    a_HH->FormSystemMatrix(ess_tdof_list_empty, *A_HH);
+    if (!pa) a_HH->Finalize();
+    //HypreParMatrix *A_HH = new HypreParMatrix;
+    OperatorPtr A_HH;
+    //a_HH->FormSystemMatrix(ess_tdof_list_empty, *A_HH);
+    a_HH->FormSystemMatrix(ess_tdof_list_empty, A_HH);
 
+#ifndef IFFOSLS
     ParBilinearForm *a_tang = new ParBilinearForm(fespace);
     //ParMixedBilinearForm *a_tang = new ParMixedBilinearForm(fespace, fespace);
     //bdr_marker[1] = 1;  // TODO: remove
@@ -2026,26 +2083,26 @@ public:
     HypreParMatrix *A_tang_Ecol = A_tang->EliminateCols(ess_tdof_list_E);
 
     HypreParMatrix *A_tang_Erow = A_tang_Ecol->Transpose();  // other rotation
+#endif
     
     // (k curl u, eps v) + (k u, curl v)
-    ParMixedBilinearForm *a_mix1 = new ParMixedBilinearForm(fespace,fespace);
-    a_mix1->AddDomainIntegrator(new MixedVectorCurlIntegrator(coeffT));
+    a_mix1->AddDomainIntegrator(new MixedVectorCurlIntegrator(coeffT)); // Not supported for PA!
     a_mix1->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(pos));
     a_mix1->Assemble();
-    a_mix1->Finalize();
+    if (!pa) a_mix1->Finalize();
     HypreParMatrix *A_mix1 = new HypreParMatrix;
-    a_mix1->FormColSystemMatrix(ess_tdof_list_empty, *A_mix1);
+    if (!pa) a_mix1->FormColSystemMatrix(ess_tdof_list_empty, *A_mix1);
     
     // (k curl u, v) + (k eps u, curl v)
-    ParMixedBilinearForm *a_mix2 = new ParMixedBilinearForm(fespace,fespace);
     a_mix2->AddDomainIntegrator(new MixedVectorCurlIntegrator(pos));
     a_mix2->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(coeff));
     a_mix2->Assemble();
-    a_mix2->Finalize();
+    if (!pa) a_mix2->Finalize();
     HypreParMatrix *A_mix2 = new HypreParMatrix;
-    a_mix2->FormColSystemMatrix(ess_tdof_list_E, *A_mix2);
+    if (!pa) a_mix2->FormColSystemMatrix(ess_tdof_list_E, *A_mix2);
 
-    HypreParMatrix *A_mix1_E = A_mix2->Transpose();
+    HypreParMatrix *A_mix1_E = NULL;
+    if (!pa) A_mix1_E = A_mix2->Transpose();
 
     /*
     { // TODO: remove
@@ -2095,7 +2152,7 @@ public:
     }
     */
     
-    BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
+    LS_Maxwellop = new BlockOperator(block_trueOffsets);
     const int numBlocks = 4;
 
 #ifdef IMPEDANCE_OTHER_SIGN
@@ -2159,18 +2216,22 @@ public:
 #endif
 #else
 #ifdef IFFOSLS
-    LS_Maxwellop->SetBlock(0, 0, A_EE);
-    LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
+    Operator *a_mix2_tr = pa ? new TransposeOperator(a_mix2) : NULL;
+    
+    //LS_Maxwellop->SetBlock(0, 0, A_EE);
+    LS_Maxwellop->SetBlock(0, 0, A_EE.Ptr());
+    LS_Maxwellop->SetBlock(1, 0, pa ? (Operator*) a_mix2 : (Operator*) A_mix2, -1.0); // no bc
     //LS_Maxwellop->SetBlock(3, 0, A_tang_Ecol, -omega);
-    LS_Maxwellop->SetBlock(0, 1, A_mix1_E, -1.0);  // no bc
-    LS_Maxwellop->SetBlock(1, 1, A_HH);
+    LS_Maxwellop->SetBlock(0, 1, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(1, 1, A_HH.Ptr());
     //LS_Maxwellop->SetBlock(2, 1, A_tang_Erow, omega);  // other rotation
     //LS_Maxwellop->SetBlock(1, 2, A_tang_Ecol, omega);
-    LS_Maxwellop->SetBlock(2, 2, A_EE);
-    LS_Maxwellop->SetBlock(3, 2, A_mix2, -1.0);  // no bc
+    //LS_Maxwellop->SetBlock(2, 2, A_EE);
+    LS_Maxwellop->SetBlock(2, 2, A_EE.Ptr());
+    LS_Maxwellop->SetBlock(3, 2, pa ? (Operator*) a_mix2 : (Operator*) A_mix2, -1.0);  // no bc
     //LS_Maxwellop->SetBlock(0, 3, A_tang_Erow, -omega);  // other rotation
-    LS_Maxwellop->SetBlock(2, 3, A_mix1_E, -1.0);  // no bc
-    LS_Maxwellop->SetBlock(3, 3, A_HH);
+    LS_Maxwellop->SetBlock(2, 3, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(3, 3, A_HH.Ptr());
 
     /*
     // TODO: If BC are defined for E, then for A_bM put 0 on diagonal for eliminated entries. 
@@ -2182,7 +2243,8 @@ public:
     LS_Maxwellop->SetBlock(1, 3, A_bM);  // Hi
 #endif
     */
-#else  // original version
+#else  // original version (obsolete and broken)
+    /*
     LS_Maxwellop->SetBlock(0, 0, A_EE);
     LS_Maxwellop->SetBlock(1, 0, A_mix2, -1.0); // no bc
     LS_Maxwellop->SetBlock(3, 0, A_tang_Ecol, -omega);
@@ -2195,13 +2257,18 @@ public:
     LS_Maxwellop->SetBlock(0, 3, A_tang_Erow, -omega);  // other rotation
     LS_Maxwellop->SetBlock(2, 3, A_mix1_E, -1.0);  // no bc
     LS_Maxwellop->SetBlock(3, 3, A_HH);
+    */
 #endif
 #endif
 #endif
 #endif
    
-    // Set up the preconditioner  
+    // Set up the preconditioner
+#ifdef SDFOSLS_PA
+    Array2D<Operator*> blockA(numBlocks, numBlocks);
+#else
     Array2D<HypreParMatrix*> blockA(numBlocks, numBlocks);
+#endif
     Array2D<double> blockAcoef(numBlocks, numBlocks);
 
     for (int i=0; i<numBlocks; ++i)
@@ -2210,7 +2277,11 @@ public:
 	  {
 	    if (LS_Maxwellop->IsZeroBlock(i,j) == 0)
 	      {
+#ifdef SDFOSLS_PA
+		blockA(i,j) = &(LS_Maxwellop->GetBlock(i,j));
+#else
 		blockA(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+#endif
 		blockAcoef(i,j) = LS_Maxwellop->GetBlockCoef(i,j);
 	      }
 	    else
@@ -2225,9 +2296,7 @@ public:
     LSpcg.SetRelTol(1.0e-8);
     LSpcg.SetMaxIter(2000);
     LSpcg.SetOperator(*LS_Maxwellop);
-    LSpcg.SetPrintLevel(1);
-    
-    blockgmg::BlockMGSolver * precMG = NULL;
+    LSpcg.SetPrintLevel(0);
 
 #ifdef FOSLS_DIRECT_SOLVER
     std::vector<std::vector<int> > blockProcOffsets(numBlocks);
@@ -2272,8 +2341,13 @@ public:
 
     invLSH = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*LSH), comm);
 #else
-    precMG = new blockgmg::BlockMGSolver(LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
+#ifdef SDFOSLS_PA
+    blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, blockCoarseA, P, diag_pa, ess_tdof_list_empty);
     LSpcg.SetPreconditioner(*precMG);
+#else
+    blockgmg::BlockMGSolver *precMG = new blockgmg::BlockMGSolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
+    LSpcg.SetPreconditioner(*precMG);
+#endif
 #endif
   }
   
@@ -2353,6 +2427,17 @@ public:
     return strumpack;
   }
 
+  void GetMatrixPointers(Array2D<HypreParMatrix*>& A)
+  {
+    MFEM_VERIFY(LS_Maxwellop->NumRowBlocks() == 4 && LS_Maxwellop->NumColBlocks() == 4, "");
+    const int n = 4;
+    A.SetSize(n,n);
+
+    for (int i=0; i<n; ++i)
+      for (int j=0; j<n; ++j)
+	A(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+  }
+  
   Vector rhs_E;  // real part
   
 private:
@@ -2376,11 +2461,18 @@ private:
   
   CGSolver LSpcg;
   
+  BlockOperator *LS_Maxwellop;
+  
   STRUMPACKSolver *invLSH;
   HypreParMatrix *LSH;
 
   ParFiniteElementSpace *fespace;
 
+#ifdef SDFOSLS_PA
+  std::vector<Vector*> diag_pa;
+  Vector diag_PA_EE, diag_PA_HH;
+#endif
+  
   const double omega;
 };
 
@@ -2420,7 +2512,9 @@ public:
     height = nSD + nAux;
     width = height + nSD;
 
+#ifndef IFFOSLS
     MFEM_VERIFY(height == fullMat->Height(), "");
+#endif
     
     tmp.SetSize(height);
     
@@ -2580,7 +2674,7 @@ private:
   std::vector<int> *ifNDtrue;
   std::vector<int> fOS;  // TODO: remove?
 #endif
-  
+
   HypreParMatrix *fullMat;
   
   mutable Vector xSD, ySD, tmp, xAux, yAux;

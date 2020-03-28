@@ -75,6 +75,7 @@ void CreateInterfaceMeshes(const int numInterfaces, const int numSubdomains, con
 
 #ifdef AIRY_TEST
 //#define SIGMAVAL -686.3384931312 // 1.25 GHz
+//#define SIGMAVAL (-2.0*686.3384931312) // 2.5 GHz
 #define SIGMAVAL -10981.4158900991  // 5 GHz
 //#define SIGMAVAL -43925.6635603965  // 10 GHz
 //#define SIGMAVAL -175702.65424  // 20 GHz
@@ -992,7 +993,7 @@ int main(int argc, char *argv[])
 #ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {2, 2, 2};
+   int nxyzSubdomains[3] = {4, 4, 4};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -1142,6 +1143,7 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {1, 1, 1};
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {1, 1, 4};
+       //int nxyzGlobal[3] = {1, 2, 1};
        //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {3, 3, 4};
@@ -1237,7 +1239,11 @@ int main(int argc, char *argv[])
    std::vector<HypreParMatrix*> sdcRe;
    std::vector<HypreParMatrix*> sdcIm;
 #endif
-   
+
+#ifdef SDFOSLS_PA
+   std::vector<Array2D<HypreParMatrix*> > coarseFOSLS;
+#endif
+
    {
       int par_ref_levels = 1;
       
@@ -1297,9 +1303,16 @@ int main(int argc, char *argv[])
 #ifdef SD_ITERATIVE_GMG
 				  sdP, NULL, NULL,  // not used here
 #endif
+#ifdef SDFOSLS_PA
+				  NULL,  // not used here
+#endif
 				  1.0, true);  // hmin value not relevant here
 
 	ddiC.CopySDMatrices(sdcRe, sdcIm);
+
+#ifdef SDFOSLS_PA
+	ddiC.CopyFOSLSMatrices(coarseFOSLS);
+#endif
 	
 	for (int i=0; i<numInterfaces_C; ++i)
 	  {
@@ -2025,6 +2038,9 @@ int main(int argc, char *argv[])
 #endif
 #ifdef SD_ITERATIVE_GMG
 			    sdP, &sdcRe, &sdcIm,
+#endif
+#ifdef SDFOSLS_PA
+			    &coarseFOSLS,
 #endif
 			    hmin);
 

@@ -220,6 +220,7 @@ void test1_f_exact_1(const Vector &x, Vector &f)
 //#define K2_AIRY 1.0  // TODO: input k
 //#define K2_AIRY 2.0  // TODO: input k
 //#define K2_AIRY 686.3384931312 // 1.25 GHz
+//#define K2_AIRY (2.0*686.3384931312) // 2.5 GHz
 #define K2_AIRY 10981.4158900991  // 5 GHz
 //#define K2_AIRY 43925.6635603965  // 10 GHz
 //#define K2_AIRY 175702.65424  // 20 GHz
@@ -4880,6 +4881,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 					   std::vector<std::vector<HypreParMatrix*> > const& sdP,
 					   std::vector<HypreParMatrix*> *sdcRe, std::vector<HypreParMatrix*> *sdcIm,
 #endif
+#ifdef SDFOSLS_PA
+					   std::vector<Array2D<HypreParMatrix*> > *coarseFOSLS,
+#endif
 					   const double h_, const bool partialConstructor) :
   numSubdomains(numSubdomains_), numInterfaces(numInterfaces_), orderND(orderND_), pmeshSD(pmeshSD_),
 #ifdef SERIAL_INTERFACES
@@ -5687,9 +5691,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 	  tdofsBdryInjection[m] = new SetInjectionOperator(fespace[m]->GetTrueVSize(), &(tdofsBdry[m]));
 	  tdofsBdryInjectionTranspose[m] = new TransposeOperator(tdofsBdryInjection[m]);
-
+	  
+	  //#ifndef SDFOSLS  // TODO: in SDFOSLS case, do not call CreateSubdomainMatrices, but do set attributes for pmeshSD as done in this function.
 	  CreateSubdomainMatrices(m, partialConstructor);
-
+	  //#endif
+	  
 	  /*
 	    { // debugging
 	    hypre_CSRMatrix* csr = GetHypreParMatrixData(*(sdND[m]));
@@ -5746,11 +5752,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       if (partialConstructor)
 #endif
       {
+#ifndef SDFOSLS
 	CreateSubdomainHypreBlocks(m, AsdRe_HypreBlocks[m],
 				   //#ifdef SERIAL_INTERFACES
 				   AsdRe_SparseBlocks[m],
 				   //#endif				 
 				   AsdRe_HypreBlockCoef[m]);
+#endif
       }
       
 #ifdef SD_ITERATIVE      
@@ -5780,11 +5788,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
       if (partialConstructor)
 #endif
 	{
+#ifndef SDFOSLS
 	  CreateSubdomainHypreBlocks(m, AsdIm_HypreBlocks[m],
 				     //#ifdef SERIAL_INTERFACES
 				     AsdIm_SparseBlocks[m],
 				     //#endif				 
 				     AsdIm_HypreBlockCoef[m]);
+#endif
 	}
       
 #ifdef SD_ITERATIVE      
@@ -6787,6 +6797,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 	    // TODO: in case SD_ITERATIVE_GMG_PA, compute operator versions of HypreAsdComplexRe, HypreAsdComplexIm.
 #ifndef SD_ITERATIVE_GMG_PA
+#ifndef SDFOSLS
 	    HypreParMatrix *HypreAsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], AsdRe_HypreBlocks[m],
 									       //#ifdef SERIAL_INTERFACES
 									       AsdRe_SparseBlocks[m],
@@ -6799,7 +6810,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 									       //#endif
 									       AsdIm_HypreBlockCoef[m], blockGI, blockProcOffsets, all_block_num_loc_rows);
 #endif
-	    
+#endif
+    
 #ifdef SD_ITERATIVE
 #ifdef SD_ITERATIVE_FULL
 	    HypreParMatrix *HypreDsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsSD[m], DsdRe_HypreBlocks[m], DsdRe_SparseBlocks[m],
@@ -6842,6 +6854,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    }
 	    
 #ifndef SD_ITERATIVE_GMG_PA
+#ifndef SDFOSLS
 	    if (m == -1)
 	      {
 
@@ -6916,7 +6929,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      delete HypreAsdComplexIm;
 	    }
 #endif
-
+#endif
+	    
 #ifdef SD_ITERATIVE
 #ifndef IF_ITERATIVE
 	    {
@@ -7097,15 +7111,23 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		
 		ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(sdND[m], NULL, false, false);
 #else
+#ifndef SDFOSLS
 		ComplexHypreParMatrix *AZ = new ComplexHypreParMatrix(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), false, false);
 #endif
+#endif
+#ifndef SDFOSLS
 		ComplexGMGSolver *cgmg = new ComplexGMGSolver(AZ, sdP[m], ComplexGMGSolver::CoarseSolver::STRUMPACK); //, (m == 0));
 		cgmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
 #endif
+#endif
 
+#ifdef SDFOSLS
+		sdNDinv[m] = NULL;
+#else
 		cgmg->SetTheta(0.5);
 		sdNDinv[m] = cgmg;
-
+#endif
+		
 		/*
 		{ // Use cgmg as a preconditioner for GMRES, rather than a solver.
 		  GMRESSolver *gmresSD = new GMRESSolver(sd_com[m]);
@@ -7192,14 +7214,18 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #else
 	      STRUMPACKSolver *auxInv = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreDsdComplex[m])), sd_com[m]);
 #endif
+#ifndef SDFOSLS
 #ifdef SD_ITERATIVE_GMG_PA
 	      Solver *sdprec = new BlockSubdomainPreconditioner(AsdPA->Height(), sdNDinv[m], sdImag[m], auxInv);
 #else
 	      Solver *sdprec = new BlockSubdomainPreconditioner(HypreAsdComplex[m]->Height(), sdNDinv[m], sdImag[m], auxInv);		
 #endif
 #endif
-		
+#endif
+
+#ifndef SDFOSLS
 	      gmres->SetPreconditioner(*sdprec);
+#endif
 	      gmres->SetName("invAsdComplexIter" + std::to_string(m));
 	      gmres->iterative_mode = false;
 	      
@@ -7240,7 +7266,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], sd_ess_tdof_list[m], xsd, sdP[m], sqrt(k2));
 #else
 		    Array<int> ess_tdof_list_empty;
-		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], ess_tdof_list_empty, xsd, sdP[m], sqrt(k2));
+		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], ess_tdof_list_empty, xsd, sdP[m],
+#ifdef SDFOSLS_PA
+						(*coarseFOSLS)[m], partialConstructor,
+#endif
+						sqrt(k2));
 #endif
 #else
 		    cfosls[m] = new FOSLSSolver(sd_com[m], fespace[m], sd_ess_tdof_list[m], xsd, sdP[m], sqrt(k2));
@@ -7291,9 +7321,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    }
 	    */
 
-#ifndef TEST_SD_CMG	    
+#ifndef TEST_SD_CMG
+#ifndef SDFOSLS
 	    // Delete subdomain blocks. Note that interface blocks must be deleted after the loop over subdomains, since they can be shared.
 	    delete sdND[m];
+#endif
 #endif
 
 #ifndef SD_ITERATIVE
@@ -12696,3 +12728,14 @@ void DDMInterfaceOperator::CopySDMatrices(std::vector<HypreParMatrix*>& Re, std:
 #endif
     }
 }
+
+#ifdef SDFOSLS_PA
+void DDMInterfaceOperator::CopyFOSLSMatrices(std::vector<Array2D<HypreParMatrix*> >& A)
+{
+  A.resize(numSubdomains);
+  for (int m=0; m<numSubdomains; ++m)
+    {
+      cfosls[m]->GetMatrixPointers(A[m]);
+    }
+}
+#endif
