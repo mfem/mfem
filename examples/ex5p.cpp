@@ -22,6 +22,8 @@
 //               The example demonstrates the use of the BlockMatrix class, as
 //               well as the collective saving of several grid functions in
 //               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               Optional saving with ADIOS2 (adios2.readthedocs.io) streams is
+//               also illustrated.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -70,8 +72,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
-                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX reader visualization.");
-
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -342,8 +343,8 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("pressure",p);
    paraview_dc.Save();
 
-   // 17. Optionally output a BP (binary pack file) ADIOS2DataCollection
-   //     ADIOS2: https://adios2.readthedocs.io
+   // 17. Optionally output a BP (binary pack) file using ADIOS2. This can be
+   //     visualized with the ParaView VTX reader.
 #ifdef MFEM_USE_ADIOS2
    if (adios2)
    {

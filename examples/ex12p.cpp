@@ -33,7 +33,8 @@
 //               The example highlights the use of the LOBPCG eigenvalue solver
 //               together with the BoomerAMG preconditioner in HYPRE. Reusing a
 //               single GLVis visualization window for multiple eigenfunctions
-//               is also illustrated.
+//               and optional saving with ADIOS2 (adios2.readthedocs.io) streams
+//               are also illustrated.
 //
 //               We recommend viewing examples 2 and 11 before viewing this
 //               example.
@@ -80,8 +81,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
-                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX visualization.");
-
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -291,8 +291,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 13. Optionally output a BP (binary pack file)
-   //     ADIOS2: https://adios2.readthedocs.io
+   // 13. Optionally output a BP (binary pack) file using ADIOS2. This can be
+   //     visualized with the ParaView VTX reader.
 #ifdef MFEM_USE_ADIOS2
    if (adios2)
    {
