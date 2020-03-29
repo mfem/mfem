@@ -426,11 +426,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
-      if (F == NULL)
-      {
-         intorder -= el.GetOrder() + 1;
-      }
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -465,7 +461,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
