@@ -1,11 +1,11 @@
-//                       MFEM Example 26 - Serial Version
+//                       MFEM Example 27 - Parallel Version
 //
-// Compile with: make ex26
+// Compile with: make ex27p
 //
-// Sample runs:  ex26
-//               ex26 -dg
-//               ex26 -dg -dbc 8 -nbc -2
-//               ex26 -rbc-a 1 -rbc-b 8
+// Sample runs:  mpirun -np 4 ex27p
+//               mpirun -np 4 ex27p -dg
+//               mpirun -np 4 ex27p -dg -dbc 8 -nbc -2
+//               mpirun -np 4 ex27p -rbc-a 1 -rbc-b 8
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -70,15 +70,20 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 
 Mesh * GenerateSerialMesh(int ref);
 
-double IntegrateBC(GridFunction & x, Array<int> &bdr, bool h1);
-double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
+double IntegrateBC(ParGridFunction & x, Array<int> &bdr, bool h1);
+double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
                         Array<int> &bdr, bool h1,
                         OperatorHandle &M, double a = 0.0);
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // 1. Initialize MPI.
+   MPI_Session mpi;
+   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+
+   // 2. Parse command-line options.
    int ser_ref_levels = 2;
+   int par_ref_levels = 1;
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
@@ -105,6 +110,8 @@ int main(int argc, char *argv[])
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&mat_val, "-mat", "--material-value",
                   "Constant value for material coefficient "
                   "in the Laplace operator.");
@@ -146,35 +153,45 @@ int main(int argc, char *argv[])
       a_ = 0.49;
    }
 
-   // 2. Construct the (serial) mesh and refine it if requested.
+   // 3. Construct the (serial) mesh and refine it if requested.
    Mesh *mesh = GenerateSerialMesh(ser_ref_levels);
    int dim = mesh->Dimension();
 
-   // 3. Define a finite element space on the serial mesh.  Here we
+   // 4. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   for (int l = 0; l < par_ref_levels; l++)
+   {
+      pmesh.UniformRefinement();
+   }
+
+   // 5. Define a parallel finite element space on the parallel mesh. Here we
    //    use either continuous Lagrange finite elements or discontinuous
    //    Galerkin finite elements of the specified order.
    FiniteElementCollection *fec =
       h1 ? (FiniteElementCollection*)new H1_FECollection(order, dim) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
-   FiniteElementSpace fespace(mesh, fec);
-   int size = fespace.GetTrueVSize();
+   ParFiniteElementSpace fespace(&pmesh, fec);
+   HYPRE_Int size = fespace.GlobalTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;
 
-   // 4. Create "marker arrays" to define the portions of the boundary
+   // 6. Create "marker arrays" to define the portions of the boundary
    //    associated with each type of boundary condition.  These arrays
    //    have an entry corresponding to each boundary attribute.
    //    Placing a '1' in an entry marks that attribute as being
    //    active, '0' is inactive.
-   Array<int> nbc_bdr(mesh->bdr_attributes.Max());
-   Array<int> rbc_bdr(mesh->bdr_attributes.Max());
-   Array<int> dbc_bdr(mesh->bdr_attributes.Max());
+   Array<int> nbc_bdr(pmesh.bdr_attributes.Max());
+   Array<int> rbc_bdr(pmesh.bdr_attributes.Max());
+   Array<int> dbc_bdr(pmesh.bdr_attributes.Max());
 
    nbc_bdr = 0; nbc_bdr[0] = 1;
    rbc_bdr = 0; rbc_bdr[1] = 1;
    dbc_bdr = 0; dbc_bdr[2] = 1;
 
    Array<int> ess_tdof_list(0);
-   if (h1 && mesh->bdr_attributes.Size())
+   if (h1 && pmesh.bdr_attributes.Size())
    {
       // For a continuous basis the linear system must be modifed to enforce
       // an essential (Dirichlet) boundary condition.  In the DG case this is
@@ -182,7 +199,7 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(dbc_bdr, ess_tdof_list);
    }
 
-   // 5. Setup the various coefficients needed for the Laplace operator and
+   // 7. Setup the various coefficients needed for the Laplace operator and
    //    the various boundary conditions.  In general these coefficients could
    //    be functions of position but here we use only constants.
    ConstantCoefficient matCoef(mat_val);
@@ -195,15 +212,15 @@ int main(int argc, char *argv[])
    ProductCoefficient m_rbcACoef(matCoef, rbcACoef);
    ProductCoefficient m_rbcBCoef(matCoef, rbcBCoef);
 
-   // 6. Define the solution vector u as a finite element grid function
+   // 8. Define the solution vector u as a parallel finite element grid function
    //    corresponding to fespace. Initialize u with initial guess of zero.
-   GridFunction u(&fespace);
+   ParGridFunction u(&fespace);
    u = 0.0;
 
-   // 7. Set up the bilinear form a(.,.) on the finite element space
+   // 9. Set up the parallel bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm a(&fespace);
+   ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(matCoef));
    if (h1)
    {
@@ -226,8 +243,8 @@ int main(int argc, char *argv[])
    }
    a.Assemble();
 
-   // 8. Assemble the linear form for the right hand side vector.
-   LinearForm b(&fespace);
+   // 10. Assemble the parallel linear form for the right hand side vector.
+   ParLinearForm b(&fespace);
 
    if (h1)
    {
@@ -257,42 +274,44 @@ int main(int argc, char *argv[])
    }
    b.Assemble();
 
-   // 9. Construct the linear system.
+   // 11. Construct the linear system.
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
 
-#ifndef MFEM_USE_SUITESPARSE
-   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system AX=B with PCG in the symmetric case, and GMRES in the
-   //     non-symmetric one.
+   // 12. Solve the linear system A X = B.
+   HypreSolver *amg = new HypreBoomerAMG;
+   if (h1 || sigma == -1.0)
    {
-      GSSmoother M((SparseMatrix&)(*A));
-      if (sigma == -1.0)
-      {
-         PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
-      }
-      else
-      {
-         GMRES(*A, M, B, X, 1, 500, 10, 1e-12, 0.0);
-      }
+      HyprePCG pcg(MPI_COMM_WORLD);
+      pcg.SetTol(1e-12);
+      pcg.SetMaxIter(200);
+      pcg.SetPrintLevel(2);
+      pcg.SetPreconditioner(*amg);
+      pcg.SetOperator(*A);
+      pcg.Mult(B, X);
    }
-#else
-   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
-   //     system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(*A);
-   umf_solver.Mult(B, X);
-#endif
+   else
+   {
+      GMRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetAbsTol(0.0);
+      gmres.SetRelTol(1e-12);
+      gmres.SetMaxIter(200);
+      gmres.SetKDim(10);
+      gmres.SetPrintLevel(1);
+      gmres.SetPreconditioner(*amg);
+      gmres.SetOperator(*A);
+      gmres.Mult(B, X);
+   }
+   delete amg;
 
-   // 12. Recover the grid function corresponding to U. This is the
-   //     local finite element solution.
+   // 13. Recover the parallel grid function corresponding to U. This is the
+   //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, u);
 
-   // 13. Build a mass matrix to help solve for n.Grad(u) where 'n' is
+   // 14. Build a mass matrix to help solve for n.Grad(u) where 'n' is
    //     a surface normal.
-   BilinearForm m(&fespace);
+   ParBilinearForm m(&fespace);
    m.AddDomainIntegrator(new MassIntegrator);
    m.Assemble();
 
@@ -300,7 +319,7 @@ int main(int argc, char *argv[])
    OperatorPtr M;
    m.FormSystemMatrix(ess_tdof_list, M);
 
-   // 14. Compute the various boundary integrals.
+   // 15. Compute the various boundary integrals.
    mfem::out << endl << "Verifying boundary conditions:" << endl;
    {
       // Integrate the solution on the Dirichlet boundary and compare
@@ -335,7 +354,7 @@ int main(int argc, char *argv[])
       // Integrate n.Grad(u) with n given by the function n4Vec on the
       // homogeneous Neumann boundary and compare to the expected
       // value of zero.
-      Array<int> nbc0_bdr(mesh->bdr_attributes.Max());
+      Array<int> nbc0_bdr(pmesh.bdr_attributes.Max());
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
@@ -368,31 +387,38 @@ int main(int argc, char *argv[])
                 << " error " << rbc_err << endl;
    }
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
+   // 16. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
-      ofstream mesh_ofs("refined.mesh");
+      ostringstream mesh_name, sol_name;
+      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
+      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
+
+      ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
-      ofstream sol_ofs("sol.gf");
+      pmesh.Print(mesh_ofs);
+
+      ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       u.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       string title_str = h1 ? "H1" : "DG";
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << mpi.WorldSize()
+               << " " << mpi.WorldRank() << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << u
+      sol_sock << "solution\n" << pmesh << u
                << "window_title '" << title_str << " Solution'"
                << " keys 'mmc'" << flush;
    }
 
-   // 17. Free the used memory.
+   // 18. Free the used memory.
    delete fec;
 
    return 0;
@@ -651,13 +677,13 @@ Mesh * GenerateSerialMesh(int ref)
    return mesh;
 }
 
-double IntegrateBC(GridFunction & x, Array<int> &bdr, bool h1)
+double IntegrateBC(ParGridFunction & x, Array<int> &bdr, bool h1)
 {
-   FiniteElementSpace * fespace = x.FESpace();
+   ParFiniteElementSpace * fespace = x.ParFESpace();
    ConstantCoefficient one(1.0);
 
    // Integrate the basis functions along the given boundary
-   LinearForm lf(fespace);
+   ParLinearForm lf(fespace);
    if (h1)
    {
       lf.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), bdr);
@@ -672,35 +698,38 @@ double IntegrateBC(GridFunction & x, Array<int> &bdr, bool h1)
    return lf(x);
 }
 
-double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
+double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
                         Array<int> &bdr, bool h1,
                         OperatorHandle &M, double a)
 {
-   FiniteElementSpace * fespace = u.FESpace();
+   ParFiniteElementSpace * fespace = u.ParFESpace();
 
    // Compute the operator n.Grad
-   BilinearForm nd(fespace);
+   ParBilinearForm nd(fespace);
    nd.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
    nd.Assemble();
 
    // Apply the operator to the solution vector
-   LinearForm b(fespace);
+   ParLinearForm b(fespace);
    nd.Mult(u, b);
 
    // Solve for n.Grad(u)
-   Vector X;
-   X.SetSize(fespace->GetTrueVSize());
+   Vector B, X;
+   X.SetSize(fespace->TrueVSize());
    X = 0.0;
 
-   CGSolver mcg;
+   B.SetSize(X.Size());
+   b.ParallelAssemble(B);
+
+   CGSolver mcg(MPI_COMM_WORLD);
    mcg.SetRelTol(1e-12);
    mcg.SetMaxIter(2000);
    mcg.SetPrintLevel(0);
    mcg.SetOperator(*M);
-   mcg.Mult(b, X);
+   mcg.Mult(B, X);
 
-   GridFunction ndu(fespace);
-   ndu.SetFromTrueDofs(X);
+   ParGridFunction ndu(fespace);
+   ndu.Distribute(X);
 
    // For Robin BCs we add a * u
    if (a != 0.0)
