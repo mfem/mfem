@@ -13,18 +13,25 @@
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               -Delta u = 1 with homogeneous Dirichlet boundary conditions in
+//               a variety of orthogonal coordinate systems.  The discretization
+//               is identical to that used in example 1 but here we use
+//               non-trivial coefficients in the Laplace operator and the right-
+//               hand-side vector to mimic a curvilinear coordinate system.  We
+//               also transform the mesh and solve the standard Laplace problem
+//               on the transformed mesh to compare the solutions.
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+//               The example highlights the use of standard differential
+//               operators to mimic the behavior of more exotic operators
+//               derived from coordinate transformations.
+//
+//               We recommend viewing Example 1 and Example 11-cyl before
+//               viewing this example.
+//
+//               Note: the notation used in this code comes from the Wikipedia
+//               page https://en.wikipedia.org/wiki/Orthogonal_coordinates.
+//               There are, however, minor differences made to ensure that
+//               we use right-handed coordinate systems in all cases.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -170,6 +177,7 @@ int main(int argc, char *argv[])
    Element::Type el_type;
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
+   int morder = 2;
    int order = 2;
    const char *device_config = "cpu";
    bool discont = false;
@@ -177,8 +185,10 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&coords, "-c", "--coord-sys",
-                  "Coordinate system: 1 - SPHERICAL, 2 - PARABOLIC, "
-                  "3 - TOROIDAL, 4 - BISPHERICAL");
+                  "Coordinate system: 1 - POLAR, 2 - PARABOLIC_CYL, "
+		  "3 - ELLIPTIC, 4 - BIPOLAR, 5 - CYLINDRICAL, 6 - SPHERICAL, "
+		  "7 - PARABOLIC, 8 - PROLATE_SPHEROIDAL, "
+		  "9 - OBLATE_SPHEROIDAL, 10 - TOROIDAL, 11 - BISPHERICAL");
    args.AddOption(&n1, "-n1", "--num-elements-1",
                   "Number of elements in q1-direction.");
    args.AddOption(&n2, "-n2", "--num-elements-2",
@@ -191,12 +201,16 @@ int main(int argc, char *argv[])
                   "Minimum value of q2 coordinate.");
    args.AddOption(&q2_max_, "-q2-max", "--q2-maximum-1",
                   "Maximum value of q2 coordinate.");
+   args.AddOption(&a_, "-a", "--scale-parameter",
+                  "Scale paramter appearing in some of the transformations.");
    args.AddOption(&el_type_flag, "-e", "--element-type",
                   "Element type: 0 - Triangle, 1 - Quadrilateral.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&morder, "-mo", "--mesh-order",
+                  "Order (polynomial degree) for the mesh geometry.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -224,6 +238,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   // Cast the user input to the enumerated type and set the appropriate
+   // coordinate ranges.
    coords_ = (CoordSys)coords;
    SetRanges();
 
@@ -240,9 +256,8 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   // 3. Prepare a rectangular mesh with the desired dimensions and element
+   //    type.
    Mesh *mesh = new Mesh(n1, n2, el_type, false,
                          q1_max_ - q1_min_, q2_max_ - q2_min_);
    mesh->Transform(trans1);
@@ -330,7 +345,7 @@ int main(int argc, char *argv[])
    }
 
    ParMesh *pmesh_cart = new ParMesh(*pmesh);
-   pmesh_cart->SetCurvature(3, discont);
+   pmesh_cart->SetCurvature(morder, discont);
    pmesh_cart->Transform(trans);
 
    DenseMatrix OneMat(2); OneMat = 0.0; OneMat(0,0) = 1.0; OneMat(1,1) = 1.0;
