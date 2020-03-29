@@ -8,7 +8,7 @@
 using namespace std;
 using namespace mfem;
 
-const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes);
+const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes, bool NodalQuadRule = false);
 
 // Appropriate quadrature rule for faces, conforming with DGTraceIntegrator.
 const IntegrationRule* GetFaceIntegrationRule(FiniteElementSpace *fes);

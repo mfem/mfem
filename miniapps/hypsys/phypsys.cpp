@@ -135,10 +135,16 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace pfesBounds(&pmesh, &fecBounds);
    ParDofInfo pdofs(&pfes, &pfesBounds);
 
+   bool NodalQuadRule = false;
+   if (scheme == MonolithicConvexLimiting)
+   {
+      NodalQuadRule = true;
+   }
+
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-      case 0: { hyp = new Advection(&vfes, u_block, config); break; }
+      case 0: { hyp = new Advection(&vfes, u_block, config, NodalQuadRule); break; }
       case 1: { hyp = new Burgers(&vfes, u_block, config); break; }
       case 2: { hyp = new KPP(&vfes, u_block, config); break; }
       case 3: { hyp = new ShallowWater(&vfes, u_block, config); break; }

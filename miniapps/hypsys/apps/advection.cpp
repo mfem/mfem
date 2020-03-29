@@ -8,7 +8,7 @@ void InflowFunctionAdv(const Vector &x, double t, Vector &u);
 void VelocityFunctionAdv(const Vector &x, Vector &v);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
-                     Configuration &config_)
+                     Configuration &config_, bool NodalQuadRule)
    : HyperbolicSystem(fes_, u_block, 1, config_,
                       VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
@@ -40,6 +40,17 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
+      case 2: // For debugging and having a real conservation law.
+      {
+         ProblemName = "Advection - Translation";
+         valuerange = "0 1";
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -48,7 +59,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
-   const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes);
+   const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes, NodalQuadRule);
    const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes);
    const int nqe = IntRuleElem->GetNPoints();
    nqf = IntRuleFace->GetNPoints();
@@ -222,6 +233,16 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          }
          break;
       }
+      case 2: // Constant velocity.
+      {
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = 1.0; v(1) = -0.5; break;
+            case 3: v(0) = 1.0; v(1) = -0.5; v(2) = 0.25; break;
+         }
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -266,6 +287,10 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
                 + (1. - cone) * (pow(X(0), 2.) + pow(X(1)+.5, 2.) <= 4.*s)
                 + .25 * (1. + cos(M_PI*hump))
                 * ((pow(X(0)+.5, 2.) + pow(X(1), 2.)) <= 4.*s);
+      }
+      case 2:
+      {
+         return abs(X.Norml2()) < 0.2 ? 1. : 0.;
       }
       default:
          MFEM_ABORT("No such test case implemented.");

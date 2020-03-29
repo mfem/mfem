@@ -1,8 +1,12 @@
 #include "tools.hpp"
 
-const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes)
+const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes, bool NodalQuadRule)
 {
    const FiniteElement *el = fes->GetFE(0);
+   if (NodalQuadRule)
+   {
+      return &(el->GetNodes());
+   }
    ElementTransformation *eltrans = fes->GetElementTransformation(0);
    int order = eltrans->OrderGrad(el) + eltrans->Order() + el->GetOrder();
    return &IntRules.Get(el->GetGeomType(), order);
