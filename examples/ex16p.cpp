@@ -24,7 +24,8 @@
 //               class ConductionOperator defining C(u)), as well as their
 //               implicit time integration. Note that implementing the method
 //               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration.
+//               high-order implicit (SDIRK) time integration. Optional saving
+//               with ADIOS2 (adios2.readthedocs.io) is also illustrated.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -143,8 +144,7 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
-                  "Save data adios2 streams, files can use ParaView (paraview.org) VTX visualization.");
-
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -253,6 +253,8 @@ int main(int argc, char *argv[])
       visit_dc.Save();
    }
 
+   // Optionally output a BP (binary pack) file using ADIOS2. This can be
+   // visualized with the ParaView VTX reader.
 #ifdef MFEM_USE_ADIOS2
    ADIOS2DataCollection* adios2_dc = NULL;
    if (adios2)

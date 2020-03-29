@@ -72,6 +72,10 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/ex5-p-*.bp
+examples/ex9-p-*.bp
+examples/ex12-p-*.bp
+examples/ex16-p-*.bp
 examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
