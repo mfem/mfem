@@ -1,11 +1,11 @@
-//                       MFEM Example 29 - Serial Version
+//                       MFEM Example 26 - Serial Version
 //
-// Compile with: make ex29
+// Compile with: make ex26
 //
-// Sample runs:  ex29
-//               ex29 -dg
-//               ex29 -dg -dbc 8 -nbc -2
-//               ex29 -rbc-a 1 -rbc-b 8
+// Sample runs:  ex26
+//               ex26 -dg
+//               ex26 -dg -dbc 8 -nbc -2
+//               ex26 -rbc-a 1 -rbc-b 8
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem

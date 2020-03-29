@@ -1,11 +1,11 @@
-//                       MFEM Example 29 - Parallel Version
+//                       MFEM Example 26 - Parallel Version
 //
-// Compile with: make ex29p
+// Compile with: make ex26p
 //
-// Sample runs:  mpirun -np 4 ex29p
-//               mpirun -np 4 ex29p -dg
-//               mpirun -np 4 ex29p -dg -dbc 8 -nbc -2
-//               mpirun -np 4 ex29p -rbc-a 1 -rbc-b 8
+// Sample runs:  mpirun -np 4 ex26p
+//               mpirun -np 4 ex26p -dg
+//               mpirun -np 4 ex26p -dg -dbc 8 -nbc -2
+//               mpirun -np 4 ex26p -rbc-a 1 -rbc-b 8
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
