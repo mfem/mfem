@@ -33,6 +33,12 @@ New and updated examples and miniapps
   Matched Layer (PML) for the simulation of electromagnetic wave propagation.
   The example defines and solves several indefinite Maxwell problems.
 
+- Added a new example, Example 26/26p, to demonstrate the enforcement of
+  various boundary conditions with the Laplace operator.  The example shows the
+  procedures for applying Dirichlet, Neumann (both homogeneous and
+  inhomogeneous), Robin, and periodic boundary conditions with either H1 or DG
+  discretizations.
+
 Discretization improvements
 ---------------------------
 - Added support for simplices in GSLIB-FindPoints.
