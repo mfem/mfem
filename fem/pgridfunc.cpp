@@ -498,6 +498,26 @@ void ParGridFunction::Save(std::ostream &out) const
    }
 }
 
+#ifdef MFEM_USE_ADIOS2
+void ParGridFunction::Save(adios2stream &out,
+                           const std::string& variable_name,
+                           const adios2stream::data_type type) const
+{
+   double *data_  = const_cast<double*>(HostRead());
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   GridFunction::Save(out, variable_name, type);
+
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+}
+#endif
+
 void ParGridFunction::SaveAsOne(std::ostream &out)
 {
    int i, p;
