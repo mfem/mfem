@@ -98,6 +98,11 @@ if (MFEM_USE_CONDUIT)
   list(APPEND HDRS conduitdatacollection.hpp)
 endif()
 
+if (MFEM_USE_ADIOS2)
+  list(APPEND SRCS adios2datacollection.cpp)
+  list(APPEND HDRS adios2datacollection.hpp)
+endif()
+
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     pbilinearform.cpp

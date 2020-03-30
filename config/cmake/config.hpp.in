@@ -132,6 +132,9 @@
 // Enable MFEM functionality based on the Umpire library
 #cmakedefine MFEM_USE_UMPIRE
 
+// Enable MFEM functionality based on the ADIOS2 library
+#cmakedefine MFEM_USE_ADIOS2
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.

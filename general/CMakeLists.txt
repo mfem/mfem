@@ -65,6 +65,11 @@ if (MFEM_USE_MPI)
   list(APPEND HDRS communication.hpp)
 endif()
 
+if (MFEM_USE_ADIOS2)
+  list(APPEND SRCS adios2stream.cpp)
+  list(APPEND HDRS adios2stream.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 
