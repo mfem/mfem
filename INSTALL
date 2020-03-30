@@ -403,6 +403,11 @@ MFEM_USE_CONDUIT = YES/NO
    an installation of Conduit. If Conduit was built with HDF5 support, it also
    requires an installation of HDF5 (see also MFEM_USE_NETCDF).
 
+MFEM_USE_ADIOS2 = YES/NO
+   Enables support for ADIOS2, version 2 of the adaptable input output system
+   for scientific data management. In MFEM, ADIOS2 provides parallel I/O with
+   ParaView visualization.
+
 MFEM_USE_ZLIB = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
@@ -587,6 +592,9 @@ The specific libraries and their options are:
   URL: https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: CONDUIT_OPT, CONDUIT_LIB.
+
+- ADIOS2 (optional) used when MFEM_USE_ADIOS2 = YES.
+  URL: https://adios2.readthedocs.io/
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi

@@ -341,6 +341,7 @@ private:
 class FunctionalHarmonic : public FunctionalQuasiconvex
 {
 public:
+   using Functional::sum;
    bool less(const WeightedSum& s, const WeightedSum& t) const
    {
       // This is only a loose bound when s.weight < t.weight.
@@ -368,6 +369,7 @@ public:
 class FunctionalGeometric : public FunctionalQuasiconvex
 {
 public:
+   using Functional::sum;
    WeightedSum sum(const WeightedValue& term) const
    {
       return WeightedSum(term.weight * std::log(term.value), term.weight);
@@ -390,6 +392,7 @@ public:
 class FunctionalSMR : public FunctionalQuasiconvex
 {
 public:
+   using Functional::sum;
    WeightedSum sum(const WeightedValue& term) const
    {
       return WeightedSum(term.weight * std::sqrt(term.value), term.weight);
@@ -412,6 +415,7 @@ public:
 class FunctionalArithmetic : public Functional
 {
 public:
+   using Functional::sum;
    WeightedSum sum(const WeightedValue& term) const
    {
       return WeightedSum(term.weight * term.value, term.weight);
@@ -473,6 +477,7 @@ public:
 class FunctionalRMS : public Functional
 {
 public:
+   using Functional::sum;
    WeightedSum sum(const WeightedValue& term) const
    {
       return WeightedSum(term.weight * term.value * term.value, term.weight);
@@ -503,6 +508,8 @@ public:
 class FunctionalMaximum : public Functional
 {
 public:
+   using Functional::sum;
+   using Functional::accumulate;
    WeightedSum sum(const WeightedValue& term) const
    {
       return WeightedSum(term.value, term.weight);
