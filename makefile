@@ -404,6 +404,9 @@ endif
 # Source dirs in logical order
 DIRS = general linalg mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(filter-out $(SRC)$(dir)/mpp.cpp, $(wildcard $(SRC)$(dir)/*.cpp)))
+ADIOS2_FILES = $(SRC)general/adios2stream.h $(SRC)general/adios2stream.cpp \
+ $(SRC)fem/adios2datacollection.hpp $(SRC)fem/adios2datacollection.cpp
+SOURCE_FILES := $(filter-out $(ADIOS2_FILES),$(SOURCE_FILES))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
@@ -440,7 +443,7 @@ endif
 
 # Rule for compiling kernel source file generator.
 MPP_MFEM_CONFIG  = -DMFEM_CXX="$(MFEM_CXX)"
-MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
+#MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
 MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
 $(BLD)mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp #$(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)

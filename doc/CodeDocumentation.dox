@@ -86,6 +86,8 @@ namespace mfem {
  * - <a class="el" href="ex23_8cpp_source.html">Example 23</a>: second order in time wave equation
  * - <a class="el" href="ex24_8cpp_source.html">Example 24</a>: mixed finite element spaces and interpolators
  * - <a class="el" href="ex24p_8cpp_source.html">Example 24p</a>: parallel mixed finite element spaces and interpolators
+ * - <a class="el" href="ex25_8cpp_source.html">Example 25</a>: simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
+ * - <a class="el" href="ex25p_8cpp_source.html">Example 25p</a>: parallel simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
@@ -139,6 +141,7 @@ namespace mfem {
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
  * - <a class="el" href="toroid_8cpp_source.html">Toroid</a>: generate simple toroidal meshes
+ * - <a class="el" href="twist_8cpp_source.html">Twist</a>: generate simple periodic meshes
  * - <a class="el" href="shaper_8cpp_source.html">Shaper</a>: resolve material interfaces by mesh refinement
  * - <a class="el" href="extruder_8cpp_source.html">Extruder</a>: extrude a low-dimensional mesh into a higher dimension
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes

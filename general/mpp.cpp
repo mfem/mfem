@@ -18,8 +18,7 @@
 #include <iostream>
 #include <algorithm>
 
-#include "../config/config.hpp"
-#include "globals.hpp"
+//#include "../config/config.hpp"
 
 using namespace std;
 
@@ -145,8 +144,8 @@ struct error_t
 // *****************************************************************************
 int help(char* argv[])
 {
-   mfem::out << "MFEM preprocessor:";
-   mfem::out << argv[0] << " -o output input" << endl;
+   std::cout << "MFEM preprocessor:";
+   std::cout << argv[0] << " -o output input" << endl;
    return ~0;
 }
 
@@ -986,8 +985,8 @@ void __range(context_t &pp, argument_t &arg)
       dash = false;
       arg.range.push_back(n);
       c = get(pp);
-      assert(not pp.in.eof());
-      check(pp, c==',' or c=='-' or  c==')', "unknown MFEM_TEMPLATE range");
+      assert(!pp.in.eof());
+      //check(pp, (c==',' || c=='-' || c==')'), "unknown MFEM_TEMPLATE range");
       if (c=='-')
       {
          dash = true;
@@ -1301,7 +1300,7 @@ void forall2DPostfix(context_t &pp)
 void tokens(context_t &pp)
 {
    if (peekn(pp,4) != "MFEM") { return; }
-   const string id = get_id(pp);
+   const string &id = get_id(pp);
    //DBG(id.c_str());
    if (id == "MFEM_JIT") { return __jit(pp); }
    if (id == "MFEM_EMBED") { return __embed(pp); }
@@ -1377,12 +1376,12 @@ int main(const int argc, char* argv[])
    assert(!in.fail());
    assert(in.is_open());
    if (output_file) {assert(out.is_open());}
-   ostream &mfem_out(mfem::out);
+   ostream &mfem_out(std::cout);
    mfem::context_t pp(in,output_file?out:mfem_out,file);
    try { mfem::preprocess(pp); }
    catch (mfem::error_t err)
    {
-      mfem::err << endl << err.file << ":" << err.line << ":"
+      std::cerr << endl << err.file << ":" << err.line << ":"
                 << " mpp error" << (err.msg?": ":"") << (err.msg?err.msg:"") << endl;
       remove(output.c_str());
       return ~0;
