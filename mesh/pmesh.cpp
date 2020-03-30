@@ -4223,6 +4223,13 @@ void ParMesh::Print(std::ostream &out) const
    }
 }
 
+#ifdef MFEM_USE_ADIOS2
+void ParMesh::Print(adios2stream &out) const
+{
+   Mesh::Print(out);
+}
+#endif
+
 static void dump_element(const Element* elem, Array<int> &data)
 {
    data.Append(elem->GetGeometryType());
