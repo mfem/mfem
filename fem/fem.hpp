@@ -54,4 +54,8 @@
 #include "conduitdatacollection.hpp"
 #endif
 
+#ifdef MFEM_USE_ADIOS2
+#include "adios2datacollection.hpp"
+#endif
+
 #endif
