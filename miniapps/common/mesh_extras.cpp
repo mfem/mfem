@@ -193,6 +193,27 @@ MergeMeshNodes(Mesh * mesh, int logging)
    }
 }
 
+void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
+{
+   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+
+   marker.SetSize(max_attr);
+   if (attrs.Size() == 1 && attrs[0] == -1)
+   {
+      marker = 1;
+   }
+   else
+   {
+      marker = 0;
+      for (int j=0; j<attrs.Size(); j++)
+      {
+         int attr = attrs[j];
+         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
+         marker[attr-1] = 1;
+      }
+   }
+}
+
 } // namespace common
 
 } // namespace mfem
