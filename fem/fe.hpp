@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FE
 #define MFEM_FE
@@ -1715,6 +1715,7 @@ private:
    typedef std::map< int, Array<double*>* > PointsMap;
    typedef std::map< int, Array<Basis*>* > BasisMap;
 
+   MemoryType h_mt;
    PointsMap points_container;
    BasisMap  bases_container;
 
@@ -1731,7 +1732,7 @@ private:
    QuadratureFunctions1D quad_func;
 
 public:
-   Poly_1D() { }
+   Poly_1D(): h_mt(MemoryType::HOST) { }
 
    /** @brief Get a pointer to an array containing the binomial coefficients "p
        choose k" for k=0,...,p for the given p. */
@@ -1904,6 +1905,31 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
+};
+
+class VectorTensorFiniteElement : public VectorFiniteElement,
+   public TensorBasisElement
+{
+private:
+   mutable Array<DofToQuad*> dof2quad_array_open;
+
+protected:
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   VectorTensorFiniteElement(const int dims, const int d, const int p,
+                             const int cbtype, const int obtype,
+                             const int M, const DofMapType dmtype);
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const;
+
+   const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
+                                     DofToQuad::Mode mode) const;
+
+   const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir,
+                                       DofToQuad::Mode mode,
+                                       const bool closed) const;
 };
 
 class H1_SegmentElement : public NodalTensorFiniteElement
@@ -2614,16 +2640,14 @@ public:
 };
 
 
-class ND_HexahedronElement : public VectorFiniteElement
+class ND_HexahedronElement : public VectorTensorFiniteElement
 {
    static const double tk[18];
-
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
-   Array<int> dof_map, dof2tk;
+   Array<int> dof2tk;
 
 public:
    ND_HexahedronElement(const int p,
@@ -2680,16 +2704,15 @@ public:
 };
 
 
-class ND_QuadrilateralElement : public VectorFiniteElement
+class ND_QuadrilateralElement : public VectorTensorFiniteElement
 {
    static const double tk[8];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2tk;
+   Array<int> dof2tk;
 
 public:
    ND_QuadrilateralElement(const int p,
