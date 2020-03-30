@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_GSLIB
@@ -28,6 +28,7 @@ class FindPointsGSLIB
 {
 protected:
    Mesh *mesh;
+   IntegrationRule *ir_simplex;
    Vector gsl_mesh;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
@@ -36,6 +37,8 @@ protected:
    struct comm *gsl_comm;
 
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+   void GetQuadHexNodalCoordinates();
+   void GetSimplexNodalCoordinates();
 
 public:
    FindPointsGSLIB();
@@ -72,7 +75,7 @@ public:
                               Note: the gslib reference frame is [-1,1].
        @param[out] dist       Distance between the seeked and the found point
                               in physical space. */
-   void FindPoints(Vector &point_pos, Array<unsigned int> &codes,
+   void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
                    Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
                    Vector &ref_pos, Vector &dist);
 
