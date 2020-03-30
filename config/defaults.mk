@@ -132,6 +132,7 @@ MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
 MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
+MFEM_USE_AMGX          = NO
 MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
@@ -353,6 +354,11 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include
 UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+
+# AMGX library configuration
+AMGX_DIR = @MFEM_DIR@/../AMGX
+AMGX_OPT = -I$(AMGX_DIR)/include
+AMGX_LIB = -L$(CUDA_HOME)/lib64 -lcusparse -lcusolver -lcublas -lnvToolsExt -L$(AMGX_DIR)/lib -lamgx -Xlinker=-rpath=$(CUDA_HOME)/lib64
 
 # If YES, enable some informational messages
 VERBOSE = NO
