@@ -190,6 +190,10 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
       static const int I[NumVert];
       static const int J[NumEdges][2]; // {end,edge_idx}
    };
+
+   static const int NumOrient = 24;
+   static const int Orient[NumOrient][NumVert];
+   static const int InvOrient[NumOrient];
 };
 
 template <> struct Geometry::Constants<Geometry::CUBE>

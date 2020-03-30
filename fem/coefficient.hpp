@@ -91,7 +91,7 @@ public:
    { constants = 0.0; }
 
    /** c should be a vector defined by attributes, so for region with
-       attribute i  c[i] is the coefficient in that region */
+       attribute i  c[i-1] is the coefficient in that region */
    PWConstCoefficient(Vector &c)
    { constants.SetSize(c.Size()); constants=c; }
 
