@@ -85,12 +85,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
    L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
 
    // Select surface attributes for Dirichlet BCs
-   ess_bdr_.SetSize(pmesh.bdr_attributes.Max());
-   ess_bdr_ = 0;   // Deselect all outer surfaces
-   for (int i=0; i<dbcs_->Size(); i++)
-   {
-      ess_bdr_[(*dbcs_)[i]-1] = 1;
-   }
+   AttrToMarker(pmesh.bdr_attributes.Max(), *dbcs_, ess_bdr_);
 
    // Setup various coefficients
 

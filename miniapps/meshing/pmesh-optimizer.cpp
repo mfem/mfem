@@ -34,11 +34,16 @@
 // Sample runs:
 //   Adapted analytic Hessian:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Adapted analytic Hessian with size+orientation:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//   Adapted analytic Hessian with Shape+size+orientation
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Blade shape with FD-based solver:
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Blade limited shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -69,45 +74,34 @@ double ind_values(const Vector &x)
 {
    const int opt = 6;
    const double small = 0.001, big = 0.01;
+   double val = 0.;
 
    // Sine wave.
-   if (opt==1)
+   if (opt == 1)
    {
       const double X = x(0), Y = x(1);
-      const double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                         std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-
-      return ind * small + (1.0 - ind) * big;
+      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
    }
-
-   if (opt==2)
+   else if (opt == 2)
    {
       // Circle in the middle.
-      double val = 0.;
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.15; double r2 = 0.35; double sf=30.0;
       val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-
-      return val * small + (1.0 - val) * big;
    }
-
-   if (opt == 3)
+   else if (opt == 3)
    {
       // cross
       const double X = x(0), Y = x(1);
       const double r1 = 0.45, r2 = 0.55;
       const double sf = 40.0;
 
-      double val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
-                           std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
-      if (val > 1.) { val = 1.0; }
-
-      return val * small + (1.0 - val) * big;
+      val = 0.5 * (std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
+                   std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)));
    }
-
-   if (opt==4)
+   else if (opt == 4)
    {
       // Multiple circles
       double r1,r2,val,rval;
@@ -117,35 +111,30 @@ double ind_values(const Vector &x)
       r1= 0.25; r2 = 0.25; rval = 0.1;
       double xc = x(0) - r1, yc = x(1) - r2;
       double r = sqrt(xc*xc+yc*yc);
-      val =  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                               (r-rval)));// std::exp(val1);
+      val = 0.5*(1+std::tanh(sf*(r+rval))) -
+            0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
       // circle 2
       r1= 0.75; r2 = 0.75;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  (0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                                 (r-rval))));// std::exp(val1);
+      val += (0.5*(1+std::tanh(sf*(r+rval))) -
+              0.5*(1+std::tanh(sf*(r-rval)))); // std::exp(val1);
       // circle 3
       r1= 0.75; r2 = 0.25;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                                (r-rval)));// std::exp(val1);
+      val += 0.5*(1+std::tanh(sf*(r+rval))) -
+             0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
       // circle 4
       r1= 0.25; r2 = 0.75;
       xc = x(0) - r1, yc = x(1) - r2;
       r = sqrt(xc*xc+yc*yc);
-      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));
-      if (val > 1.0) {val = 1.;}
-      if (val < 0.0) {val = 0.;}
-
-      return val * small + (1.0 - val) * big;
+      val += 0.5*(1+std::tanh(sf*(r+rval))) -
+             0.5*(1+std::tanh(sf*(r-rval)));
    }
-
-   if (opt==5)
+   else if (opt == 5)
    {
       // cross
-      double val = 0.;
       double X = x(0)-0.5, Y = x(1)-0.5;
       double rval = std::sqrt(X*X + Y*Y);
       double thval = 60.*M_PI/180.;
@@ -154,54 +143,39 @@ double ind_values(const Vector &x)
       Ymod= -X*std::sin(thval) + Y*std::cos(thval);
       X = Xmod+0.5; Y = Ymod+0.5;
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
-              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
-      if (rval > 0.4) {val = 0.;}
-      if (val > 1.0) {val = 1.;}
-      if (val < 0.0) {val = 0.;}
-
-      return val * small + (1.0 - val) * big;
+      val = (0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2))) +
+             0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))));
+      if (rval > 0.4) { val = 0.; }
    }
-
-   if (opt==6)
+   else if (opt == 6)
    {
-      double val = 0.;
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-      if (val < 0.) {val = 0;}
-
-      return val * small + (1.0 - val) * big;
    }
 
-   return 0.0;
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+
+   return val * small + (1.0 - val) * big;
 }
 
 class HessianCoefficient : public MatrixCoefficient
 {
 private:
-   int type;
+   int metric;
 
 public:
-   HessianCoefficient(int dim, int type_)
-      : MatrixCoefficient(dim), type(type_) { }
+   HessianCoefficient(int dim, int metric_id)
+      : MatrixCoefficient(dim), metric(metric_id) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       Vector pos(3);
       T.Transform(ip, pos);
-
-      if (type == 0)
-      {
-         K(0, 0) = 1.0 + 3.0 * std::sin(M_PI*pos(0));
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-      }
-      else
+      if (metric != 14 && metric != 87)
       {
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const double r = sqrt(xc*xc + yc*yc);
@@ -216,8 +190,58 @@ public:
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
       }
+      else if (metric == 14) // Size + Alignment
+      {
+         const double xc = pos(0), yc = pos(1);
+         double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+         double alpha_bar = 0.1;
+
+         K(0, 0) =  cos(theta);
+         K(1, 0) =  sin(theta);
+         K(0, 1) = -sin(theta);
+         K(1, 1) =  cos(theta);
+
+         K *= alpha_bar;
+      }
+      else if (metric == 87) // Shape + Size + Alignment
+      {
+         Vector x = pos;
+         double xc = x(0)-0.5, yc = x(1)-0.5;
+         double th = 22.5*M_PI/180.;
+         double xn =  cos(th)*xc + sin(th)*yc;
+         double yn = -sin(th)*xc + cos(th)*yc;
+         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+         double stretch = 1/cos(th2);
+         xc = xn/stretch; yc = yn/stretch;
+         xc = xn; yc=yn;
+
+         double tfac = 20;
+         double s1 = 3;
+         double s2 = 2;
+         double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
+                      - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+         double  val = wgt;
+
+         xc = pos(0), yc = pos(1);
+         double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
+
+         K(0, 0) =  cos(theta);
+         K(1, 0) =  sin(theta);
+         K(0, 1) = -sin(theta);
+         K(1, 1) =  cos(theta);
+
+         double asp_ratio_tar = 0.1 + 1*(1-val)*(1-val);
+
+         K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
+         K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
+         K(0, 1) *=  pow(asp_ratio_tar,0.5);
+         K(1, 1) *=  pow(asp_ratio_tar,0.5);
+      }
    }
 };
+
 
 // Additional IntegrationRules that can be used with the --quad-type option.
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
@@ -243,7 +267,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-12;
+   double newton_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -251,6 +275,7 @@ int main (int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
+   int fdscheme          = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -316,6 +341,8 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
+   args.AddOption(&fdscheme, "-fd", "--fd_approximation",
+                  "Enable finite difference based derivative computations.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -331,7 +358,10 @@ int main (int argc, char *argv[])
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   for (int lev = 0; lev < rs_levels; lev++)
+   {
+      mesh->UniformRefinement();
+   }
    const int dim = mesh->Dimension();
    if (myid == 0)
    {
@@ -343,7 +373,10 @@ int main (int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
 
    delete mesh;
-   for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
+   for (int lev = 0; lev < rp_levels; lev++)
+   {
+      pmesh->UniformRefinement();
+   }
 
    // 4. Define a finite element space on the mesh. Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
@@ -401,7 +434,7 @@ int main (int argc, char *argv[])
    //    We define a random grid function of fespace and make sure that it is
    //    zero on the boundary and its values are locally of the order of h0.
    //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in fespace.
+   //    the vector degrees of freedom in pfespace.
    ParGridFunction rdm(pfespace);
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
@@ -451,12 +484,14 @@ int main (int argc, char *argv[])
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
+      case 14: metric = new TMOP_Metric_SSA2D; break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
+      case 87: metric = new TMOP_Metric_SS2D; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
@@ -473,7 +508,7 @@ int main (int argc, char *argv[])
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
-   H1_FECollection ind_fec(3, dim);
+   H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParGridFunction size;
    switch (target_id)
@@ -485,7 +520,7 @@ int main (int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficient(dim, 1);
+         adapt_coeff = new HessianCoefficient(dim, metric_id);
          tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tc;
          break;
@@ -497,6 +532,11 @@ int main (int argc, char *argv[])
          size.SetSpace(&ind_fes);
          FunctionCoefficient ind_coeff(ind_values);
          size.ProjectCoefficient(ind_coeff);
+#ifdef MFEM_USE_GSLIB
+         tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+         tc->SetAdaptivityEvaluator(new AdvectorCG);
+#endif
          tc->SetParDiscreteTargetSpec(size);
          target_c = tc;
          break;
@@ -512,6 +552,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ= new TMOP_Integrator(metric, target_c);
+   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 13. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -572,6 +613,7 @@ int main (int argc, char *argv[])
       TMOP_Integrator *he_nlf_integ2;
       he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
+      if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);
@@ -694,10 +736,6 @@ int main (int argc, char *argv[])
    {
       tauval = 0.0;
       TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
-      if (target_id == 5)
-      {
-         tns->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
-      }
       newton = tns;
       if (myid == 0)
       { cout << "TMOPNewtonSolver is used (as all det(J) > 0)." << endl; }
