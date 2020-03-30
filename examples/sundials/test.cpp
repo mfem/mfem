@@ -49,34 +49,32 @@ Vector bb_min, bb_max;
 class RobertsSUNDIALS : public TimeDependentAdjointOperator
 {
 public:
-   RobertsSUNDIALS(int dim, Vector p) :
-      TimeDependentAdjointOperator(dim, 3),
-      p_(p),
-      adjointMatrix(NULL)
-   {}
+  RobertsSUNDIALS(int dim, Vector p) :
+    TimeDependentAdjointOperator(dim, 3),
+    p_(p),
+    adjointMatrix(NULL)
+  {}
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
-   virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
-   virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB,
-                                         Vector &qbdot) const;
-   virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
-                                 const Vector &fyB, int jokB, int *jcurB, double gammaB);
-   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
-
+  virtual void Mult(const Vector &x, Vector &y) const;
+  virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
+  virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
+  virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qbdot) const;
+  virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
+			     const Vector &fyB, int jokB, int *jcurB, double gammaB);
+  virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
 
 
-   ~RobertsSUNDIALS()
-   {
-      delete adjointMatrix;
-   }
-
+  
+  ~RobertsSUNDIALS() {
+    delete adjointMatrix;
+  }
+  
 protected:
-   Vector p_;
+  Vector p_;
 
-   // Solvers
-   GMRESSolver adjointSolver;
-   SparseMatrix* adjointMatrix;
+  // Solvers
+  GMRESSolver adjointSolver;  
+  SparseMatrix* adjointMatrix;
 };
 
 // class SundialsJacSolverB : public SundialsLinearSolver
@@ -85,7 +83,7 @@ protected:
 //   SundialsJacSolverB(TimeDependentAdjointOperator &oper_) : oper(&oper_) {}
 
 //   virtual int ODELinSysB(double t, Vector y, Vector yB, Vector fyB, int jokB, int *jcurB,
-//           double gammaB)
+// 			 double gammaB)
 //   {
 //     return oper->ImplicitSetupB(t, y, yB, fyB, jokB, jcurB, gammaB);
 //   }
@@ -94,10 +92,10 @@ protected:
 //     double ignored = 0.0;
 //     return oper->ImplicitSolveB(x, b, ignored);
 //   }
-
+  
 // private:
 //   TimeDependentAdjointOperator *oper;
-
+  
 // };
 
 
@@ -135,7 +133,7 @@ int main(int argc, char *argv[])
                   "ODE solver: 1 - CVODE (adaptive order) implicit Adams,\n\t"
                   "            2 - ARKODE default (4th order) explicit,\n\t"
                   "            3 - ARKODE, \n\t"
-                  "            4 - CVODES for adjoint sensitivities");
+		  "            4 - CVODES for adjoint sensitivities");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -151,7 +149,7 @@ int main(int argc, char *argv[])
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-
+   
    args.Parse();
    if (!args.Good())
    {
@@ -187,7 +185,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and define the ODE solver used for time integration.
-
+   
    Vector p(3);
    p[0] = 0.04;
    p[1] = 1.0e4;
@@ -206,8 +204,8 @@ int main(int argc, char *argv[])
 
    Vector u(3);
    u = 0.;
-   u[0] = 1.;
-
+   u[0] = 1.;  
+   
    Vector abstol_v(3);
    abstol_v[0] = 1.0e-8;
    abstol_v[1] = 1.0e-14;
@@ -215,46 +213,45 @@ int main(int argc, char *argv[])
 
    Vector q(1);
    q = 0.;
-
+   
    switch (ode_solver_type)
-   {
-      case 1:
-         cvode = new CVODESolver(CV_BDF);
-         cvode->Init(adv);
-         cvode->SetSVtolerances(reltol, abstol_v);
-         cvode->SetMaxStep(dt);
-         cvode->UseSundialsLinearSolver();
-         ode_solver = cvode;
-         break;
-      case 2:
-      case 3:
-         arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
-         arkode->Init(adv);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         if (ode_solver_type == 3) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
-         ode_solver = arkode; break;
-      case 4:
-         cvodes = new CVODESSolver(CV_BDF);
-         cvodes->Init(adv);
-         cvodes->SetWFTolerances([reltol, abstol_v]
-                                 (Vector y, Vector w, CVODESolver * self)
-         {
-            for (int i = 0; i < y.Size(); i++)
-            {
-               double ww = reltol * abs(y[i]) + abstol_v[i];
-               if (ww <= 0.) { return -1; }
-               w[i] = 1./ww;
-            }
-            return 0;
-         }
-                                );
-         cvodes->SetSVtolerances(reltol, abstol_v);
-         cvodes->UseSundialsLinearSolver();
-         cvodes->InitQuadIntegration(q, 1.e-6, 1.e-6);
-         cvodes->InitAdjointSolve(150, CV_HERMITE);
-         ode_solver = cvodes; break;
-   }
+     {
+     case 1:
+	 cvode = new CVODESolver(CV_BDF);
+	 cvode->Init(adv);
+	 cvode->SetSVtolerances(reltol, abstol_v);
+	 cvode->SetMaxStep(dt);
+	 cvode->UseSundialsLinearSolver();
+	 ode_solver = cvode;
+       break;
+     case 2:
+     case 3:
+       arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
+       arkode->Init(adv);
+       arkode->SetSStolerances(reltol, abstol);
+       arkode->SetMaxStep(dt);
+       if (ode_solver_type == 3) arkode->SetERKTableNum(FEHLBERG_13_7_8);
+       ode_solver = arkode; break;
+     case 4:
+       cvodes = new CVODESSolver(CV_BDF);
+       cvodes->Init(adv);
+       cvodes->SetWFTolerances([reltol, abstol_v]
+			       (Vector y, Vector w, CVODESolver * self)
+			       {
+				 for (int i = 0; i < y.Size(); i++) {
+				   double ww = reltol * abs(y[i]) + abstol_v[i];
+				   if (ww <= 0.) return -1;
+				   w[i] = 1./ww;
+				 }
+				 return 0;
+			       }
+			       );
+       cvodes->SetSVtolerances(reltol, abstol_v);
+       cvodes->UseSundialsLinearSolver();       
+       cvodes->InitQuadIntegration(q, 1.e-6, 1.e-6);
+       cvodes->InitAdjointSolve(150, CV_HERMITE);
+       ode_solver = cvodes; break;
+     }
 
    // 8. Perform time-integration (looping over the time iterations, ti,
    //    with a time-step dt).
@@ -269,23 +266,22 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         //         cout << "time step: " << ti << ", time: " << t << endl;
+	//         cout << "time step: " << ti << ", time: " << t << endl;
          if (cvode) { cvode->PrintInfo(); }
          if (arkode) { arkode->PrintInfo(); }
-         if (cvodes) { cvodes->PrintInfo(); }
+	 if (cvodes) { cvodes->PrintInfo(); }
 
       }
    }
-
+   
    cout << "Final Solution: " << t << endl;
    u.Print();
 
-   if (cvodes)
-   {
-      Vector q;
-      cout << " Final Quadrature " << endl;
-      cvodes->EvalQuadIntegration(t, q);
-      q.Print();
+   if (cvodes) {
+     Vector q;
+     cout << " Final Quadrature " << endl;
+     cvodes->EvalQuadIntegration(t, q);
+     q.Print();
    }
 
    // backward portion
@@ -294,131 +290,126 @@ int main(int argc, char *argv[])
    double TBout1 = 40.;
    Vector dG_dp(3);
    dG_dp=0.;
-   if (cvodes)
-   {
-      t = t_final;
-      adv.SetTime(t);
-      cvodes->InitB(adv);
-      cvodes->InitQuadIntegrationB(dG_dp, 1.e-6, 1.e-6);
+   if (cvodes) {
+     t = t_final;
+     adv.SetTime(t);
+     cvodes->InitB(adv);
+     cvodes->InitQuadIntegrationB(dG_dp, 1.e-6, 1.e-6);
+     
+     //     SundialsJacSolverB jacB(adv);
+     //     cvodes->SetLinearSolverB(jacB);
+     
+     // Results at time TBout1
+     double dt_real = max(dt, t - TBout1);
+     cvodes->StepB(w, t, dt_real); 
+     cout << "t: " << t << endl;
+     cout << "w:" << endl;
+     w.Print();
+   
+     cvodes->GetForwardSolution(t, u);
+     cout << "u:" << endl;
+     u.Print();
 
-      //     SundialsJacSolverB jacB(adv);
-      //     cvodes->SetLinearSolverB(jacB);
+     // Results at T0
+     dt_real = max(dt, t - 0.);
+     cvodes->StepB(w, t, dt_real);
+     cout << "t: " << t << endl;
+     cout << "w:" << endl;
 
-      // Results at time TBout1
-      double dt_real = max(dt, t - TBout1);
-      cvodes->StepB(w, t, dt_real);
-      cout << "t: " << t << endl;
-      cout << "w:" << endl;
-      w.Print();
+     cvodes->GetForwardSolution(t, u);
+     w.Print();
+     cout << "u:" << endl;
+     u.Print();
 
-      cvodes->GetForwardSolution(t, u);
-      cout << "u:" << endl;
-      u.Print();
-
-      // Results at T0
-      dt_real = max(dt, t - 0.);
-      cvodes->StepB(w, t, dt_real);
-      cout << "t: " << t << endl;
-      cout << "w:" << endl;
-
-      cvodes->GetForwardSolution(t, u);
-      w.Print();
-      cout << "u:" << endl;
-      u.Print();
-
-      // Evaluate Sensitivity
-      cvodes->EvalQuadIntegrationB(t, dG_dp);
-      cout << "dG/dp:" << endl;
-      dG_dp.Print();
-
+     // Evaluate Sensitivity
+     cvodes->EvalQuadIntegrationB(t, dG_dp);
+     cout << "dG/dp:" << endl;
+     dG_dp.Print();
+     
    }
-
+   
    // 10. Free the used memory.
    delete ode_solver;
-
+   
    return 0;
 }
 
 // Roberts Implementation
 void RobertsSUNDIALS::Mult(const Vector &x, Vector &y) const
 {
-   y[0] = -p_[0]*x[0] + p_[1]*x[1]*x[2];
-   y[2] = p_[2]*x[1]*x[1];
-   y[1] = -y[0] - y[2];
+  y[0] = -p_[0]*x[0] + p_[1]*x[1]*x[2];
+  y[2] = p_[2]*x[1]*x[1];
+  y[1] = -y[0] - y[2];
 }
 
 
 void RobertsSUNDIALS::QuadratureIntegration(const Vector &y, Vector &qdot) const
 {
-   qdot[0] = y[2];
+  qdot[0] = y[2];
 }
 
 
-void RobertsSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
-                                      Vector &yBdot) const
+void RobertsSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB, Vector &yBdot) const
 {
-   double l21 = (yB[1]-yB[0]);
-   double l32 = (yB[2]-yB[1]);
-   double p1 = p_[0];
-   double p2 = p_[1];
-   double p3 = p_[2];
-   yBdot[0] = -p1 * l21;
-   yBdot[1] = p2 * y[2] * l21 - 2. * p3 * y[1] * l32;
-   yBdot[2] = p2 * y[1] * l21 - 1.0;
+  double l21 = (yB[1]-yB[0]);
+  double l32 = (yB[2]-yB[1]);
+  double p1 = p_[0];
+  double p2 = p_[1];
+  double p3 = p_[2];
+  yBdot[0] = -p1 * l21;
+  yBdot[1] = p2 * y[2] * l21 - 2. * p3 * y[1] * l32;
+  yBdot[2] = p2 * y[1] * l21 - 1.0;
 }
 
-void RobertsSUNDIALS::ObjectiveSensitivityMult(const Vector &y,
-                                               const Vector &yB, Vector &qBdot) const
+void RobertsSUNDIALS::ObjectiveSensitivityMult(const Vector &y, const Vector &yB, Vector &qBdot) const
 {
-   double l21 = (yB[1]-yB[0]);
-   double l32 = (yB[2]-yB[1]);
-   double y23 = y[1] * y[2];
+  double l21 = (yB[1]-yB[0]);
+  double l32 = (yB[2]-yB[1]);
+  double y23 = y[1] * y[2];
 
-   qBdot[0] = y[0] * l21;
-   qBdot[1] = -y23 * l21;
-   qBdot[2] = y[1]*y[1]*l32;
+  qBdot[0] = y[0] * l21;
+  qBdot[1] = -y23 * l21;
+  qBdot[2] = y[1]*y[1]*l32;
 }
 
-int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
-                                       const Vector &yB,
-                                       const Vector &fyB, int jokB, int *jcurB, double gammaB)
+int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
+				    const Vector &fyB, int jokB, int *jcurB, double gammaB)
 {
 
-   // M = I- gamma J
-   // J = dfB/dyB
-   // fB
-   // Let's create a SparseMatrix and fill in the entries since this example doesn't contain finite elements
-
-   delete adjointMatrix;
-   adjointMatrix = new SparseMatrix(y.Size(), yB.Size());
-   for (int j = 0; j < y.Size(); j++)
-   {
+  // M = I- gamma J
+  // J = dfB/dyB
+  // fB
+  // Let's create a SparseMatrix and fill in the entries since this example doesn't contain finite elements
+  
+  delete adjointMatrix;
+  adjointMatrix = new SparseMatrix(y.Size(), yB.Size());
+  for (int j = 0; j < y.Size(); j++)
+    {
       Vector JacBj(yB.Size());
       Vector yBone(yB.Size());
       yBone = 0.;
       yBone[j] = 1.;
       AdjointRateMult(y, yBone, JacBj);
       JacBj[2] += 1.;
-      for (int i = 0; i < y.Size(); i++)
-      {
-         adjointMatrix->Set(i,j, (i == j ? 1.0 : 0.) - gammaB * JacBj[i]);
+      for (int i = 0; i < y.Size(); i++) {
+	adjointMatrix->Set(i,j, (i == j ? 1.0 : 0.) - gammaB * JacBj[i]);	
       }
-   }
+    }
 
-   *jcurB = 1;
-   adjointMatrix->Finalize();
-   //  adjointMatrix->PrintMatlab();
-   //  y.Print();
-   adjointSolver.SetOperator(*adjointMatrix);
-
-   return 0;
+  *jcurB = 1;
+  adjointMatrix->Finalize();
+  //  adjointMatrix->PrintMatlab();
+  //  y.Print();
+  adjointSolver.SetOperator(*adjointMatrix);
+  
+  return 0;
 }
 
 // Is b = -fB ?
 // is tol reltol or abstol?
 int RobertsSUNDIALS::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
 {
-   adjointSolver.SetRelTol(1e-14);
-   adjointSolver.Mult(b, x);
-   return (0);
+  adjointSolver.SetRelTol(1e-14);
+  adjointSolver.Mult(b, x);
+  return(0);
 }
