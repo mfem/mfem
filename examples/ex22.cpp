@@ -180,14 +180,6 @@ int main(int argc, char *argv[])
    {
       ess_bdr.SetSize(mesh->bdr_attributes.Max());
       ess_bdr = 1;
-      if (exact_sol)
-      {
-         switch (prob)
-         {
-            case 0:   ess_bdr = 0; ess_bdr[0] = 1;  break;
-            default:  ess_bdr = 1; ess_bdr[2] = 0;  break;
-         }
-      }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -222,16 +214,37 @@ int main(int argc, char *argv[])
    switch (prob)
    {
       case 0:
-         u.ProjectBdrCoefficient(oneCoef, zeroCoef, ess_bdr);
-         if (exact_sol) { u_exact->ProjectCoefficient(u0_r, u0_i); }
+         if (exact_sol)
+         {
+            u.ProjectBdrCoefficient(u0_r, u0_i, ess_bdr);
+            u_exact->ProjectCoefficient(u0_r, u0_i);
+         }
+         else
+         {
+            u.ProjectBdrCoefficient(oneCoef, zeroCoef, ess_bdr);
+         }
          break;
       case 1:
-         u.ProjectBdrCoefficientTangent(oneVecCoef, zeroVecCoef, ess_bdr);
-         if (exact_sol) { u_exact->ProjectCoefficient(u1_r, u1_i); }
+         if (exact_sol)
+         {
+            u.ProjectBdrCoefficientTangent(u1_r, u1_i, ess_bdr);
+            u_exact->ProjectCoefficient(u1_r, u1_i);
+         }
+         else
+         {
+            u.ProjectBdrCoefficientTangent(oneVecCoef, zeroVecCoef, ess_bdr);
+         }
          break;
       case 2:
-         u.ProjectBdrCoefficientNormal(oneVecCoef, zeroVecCoef, ess_bdr);
-         if (exact_sol) { u_exact->ProjectCoefficient(u2_r, u2_i); }
+         if (exact_sol)
+         {
+            u.ProjectBdrCoefficientNormal(u2_r, u2_i, ess_bdr);
+            u_exact->ProjectCoefficient(u2_r, u2_i);
+         }
+         else
+         {
+            u.ProjectBdrCoefficientNormal(oneVecCoef, zeroVecCoef, ess_bdr);
+         }
          break;
       default: break; // This should be unreachable
    }
@@ -364,20 +377,25 @@ int main(int argc, char *argv[])
       Operator * pc_r = NULL;
       Operator * pc_i = NULL;
 
+      double s = 1.0;
       switch (prob)
       {
-         case 0: // fallthrough to case 2
-         case 2:
+         case 0:
             pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
             break;
          case 1:
             pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
+            s = -1.0;
             break;
+         case 2:
+            pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+            break;
+
          default: break; // This should be unreachable
       }
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
-                                1.0:-1.0);
+                                s:-s);
 
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);

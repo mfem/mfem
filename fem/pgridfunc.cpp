@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -16,6 +16,7 @@
 #include "fem.hpp"
 #include <iostream>
 #include <limits>
+#include "../general/forall.hpp"
 using namespace std;
 
 namespace mfem
@@ -130,7 +131,8 @@ void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 
 void ParGridFunction::Distribute(const Vector *tv)
 {
-   pfes->GetProlongationMatrix()->Mult(*tv, *this);
+   const Operator *prolong = pfes->GetProlongationMatrix();
+   prolong->Mult(*tv, *this);
 }
 
 void ParGridFunction::AddDistribute(double a, const Vector *tv)
@@ -215,7 +217,8 @@ void ParGridFunction::ExchangeFaceNbrData()
    Vector send_data(pfes->send_face_nbr_ldof.Size_of_connections());
 
    int *send_offset = pfes->send_face_nbr_ldof.GetI();
-   int *send_ldof = pfes->send_face_nbr_ldof.GetJ();
+   const int *d_send_ldof = mfem::Read(pfes->send_face_nbr_ldof.GetJMemory(),
+                                       send_data.Size());
    int *recv_offset = pfes->face_nbr_ldof.GetI();
    MPI_Comm MyComm = pfes->GetComm();
 
@@ -225,23 +228,27 @@ void ParGridFunction::ExchangeFaceNbrData()
    MPI_Request *recv_requests = requests + num_face_nbrs;
    MPI_Status  *statuses = new MPI_Status[num_face_nbrs];
 
-   const double *h_data = this->HostRead();
-   for (int i = 0; i < send_data.Size(); i++)
+   auto d_data = this->Read();
+   auto d_send_data = send_data.Write();
+   MFEM_FORALL(i, send_data.Size(),
    {
-      send_data[i] = h_data[send_ldof[i]];
-   }
+      d_send_data[i] = d_data[d_send_ldof[i]];
+   });
 
-   double *h_face_nbr_data = face_nbr_data.HostWrite();
+   bool mpi_gpu_aware = Device::GetGPUAwareMPI();
+   auto send_data_ptr = mpi_gpu_aware ? send_data.Read() : send_data.HostRead();
+   auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() :
+                            face_nbr_data.HostWrite();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_rank = pmesh->GetFaceNbrRank(fn);
       int tag = 0;
 
-      MPI_Isend(&send_data(send_offset[fn]),
+      MPI_Isend(&send_data_ptr[send_offset[fn]],
                 send_offset[fn+1] - send_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &send_requests[fn]);
 
-      MPI_Irecv(&h_face_nbr_data[recv_offset[fn]],
+      MPI_Irecv(&face_nbr_data_ptr[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
                 MPI_DOUBLE, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
