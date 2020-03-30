@@ -17,11 +17,11 @@ set(SRCS
   bilininteg_dgtrace.cpp
   bilininteg_diffusion.cpp
   bilininteg_divergence.cpp
+  bilininteg_hcurl.cpp
   bilininteg_gradient.cpp
   bilininteg_mass.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
-  bilininteg_hcurl.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
@@ -96,6 +96,11 @@ endif()
 if (MFEM_USE_CONDUIT)
   list(APPEND SRCS conduitdatacollection.cpp)
   list(APPEND HDRS conduitdatacollection.hpp)
+endif()
+
+if (MFEM_USE_ADIOS2)
+  list(APPEND SRCS adios2datacollection.cpp)
+  list(APPEND HDRS adios2datacollection.hpp)
 endif()
 
 if (MFEM_USE_MPI)

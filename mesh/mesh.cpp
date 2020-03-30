@@ -17,6 +17,8 @@
 #include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "../general/device.hpp"
+#include "../general/tic_toc.hpp"
+#include "../general/gecko.hpp"
 #include "../fem/quadinterpolator.hpp"
 
 #include <iostream>
@@ -46,10 +48,6 @@ extern "C" {
    void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
                              int*, int*, int*, int*, int*, idxtype*);
 }
-#endif
-
-#ifdef MFEM_USE_GECKO
-#include "graph.h"
 #endif
 
 using namespace std;
@@ -1383,37 +1381,72 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 }
 
 
-#ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementOrdering(Array<int> &ordering,
-                                   int iterations, int window,
-                                   int period, int seed)
+class GeckoProgress : public Gecko::Progress
+{
+   double limit;
+   mutable StopWatch sw;
+public:
+   GeckoProgress(double limit) : limit(limit) { sw.Start(); }
+   virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
+};
+
+class GeckoVerboseProgress : public GeckoProgress
+{
+   using Float = Gecko::Float;
+   using Graph = Gecko::Graph;
+   using uint = Gecko::uint;
+public:
+   GeckoVerboseProgress(double limit) : GeckoProgress(limit) {}
+
+   virtual void beginorder(const Graph* graph, Float cost) const
+   { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
+   virtual void endorder(const Graph* graph, Float cost) const
+   { mfem::out << "End ordering, cost = " << cost << std::endl; }
+
+   virtual void beginiter(const Graph* graph,
+                          uint iter, uint maxiter, uint window) const
+   {
+      mfem::out << "Iteration " << iter << "/" << maxiter << ", window "
+                << window << std::flush;
+   }
+   virtual void enditer(const Graph* graph, Float mincost, Float cost) const
+   { mfem::out << ", cost = " << cost << endl; }
+};
+
+
+double Mesh::GetGeckoElementOrdering(Array<int> &ordering,
+                                     int iterations, int window,
+                                     int period, int seed, bool verbose,
+                                     double time_limit)
 {
    Gecko::Graph graph;
+   Gecko::FunctionalGeometric functional; // edge product cost
 
-   Gecko::Functional *functional =
-      new Gecko::FunctionalGeometric(); // ordering functional
+   GeckoProgress progress(time_limit);
+   GeckoVerboseProgress vprogress(time_limit);
 
-   // Run through all the elements and insert the nodes in the graph for them
+   // insert elements as nodes in the graph
    for (int elemid = 0; elemid < GetNE(); ++elemid)
    {
-      graph.insert();
+      graph.insert_node();
    }
 
-   // Run through all the elems and insert arcs to the graph for each element
-   // face Indices in Gecko are 1 based hence the +1 on the insertion
+   // insert graph edges for element neighbors
+   // NOTE: indices in Gecko are 1 based hence the +1 on insertion
    const Table &my_el_to_el = ElementToElementTable();
    for (int elemid = 0; elemid < GetNE(); ++elemid)
    {
       const int *neighid = my_el_to_el.GetRow(elemid);
       for (int i = 0; i < my_el_to_el.RowSize(elemid); ++i)
       {
-         graph.insert(elemid + 1,  neighid[i] + 1);
+         graph.insert_arc(elemid + 1,  neighid[i] + 1);
       }
    }
 
-   // Get the reordering from Gecko and copy it into the ordering Array<int>
-   graph.order(functional, iterations, window, period, seed);
-   ordering.DeleteAll();
+   // get the ordering from Gecko and copy it into the Array<int>
+   graph.order(&functional, iterations, window, period, seed,
+               verbose ? &vprogress : &progress);
+
    ordering.SetSize(GetNE());
    Gecko::Node::Index NE = GetNE();
    for (Gecko::Node::Index gnodeid = 1; gnodeid <= NE; ++gnodeid)
@@ -1421,9 +1454,8 @@ void Mesh::GetGeckoElementOrdering(Array<int> &ordering,
       ordering[gnodeid - 1] = graph.rank(gnodeid);
    }
 
-   delete functional;
+   return graph.cost();
 }
-#endif
 
 
 struct HilbertCmp
@@ -2066,6 +2098,9 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
                break;
             case Geometry::SQUARE:
                new_or = GetQuadOrientation(old_v, new_v);
+               break;
+            case Geometry::TETRAHEDRON:
+               new_or = GetTetOrientation(old_v, new_v);
                break;
             default:
                new_or = 0;
@@ -3563,11 +3598,16 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-   SetCurvature(1, true, spaceDim);
-   Vector node_coordinates_vec(
-      node_coordinates.Data(),
-      node_coordinates.Width()*node_coordinates.Height());
-   SetNodes(node_coordinates_vec);
+   if (orig_mesh->GetNodes())
+   {
+      L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
+      FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
+      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
+      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
+      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      SetCurvature(1, discont, spaceDim, dof_ordering);
+      Nodes->ProjectGridFunction(nodes_dg);
+   }
 
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
@@ -4207,6 +4247,139 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
    }
 
    return 2*i+1;
+}
+
+int Mesh::GetTetOrientation(const int *base, const int *test)
+{
+   // Static method.
+   // This function computes the index 'j' of the permutation that transforms
+   // test into base: test[tet_orientation[j][i]]=base[i].
+   // tet_orientation = Geometry::Constants<Geometry::TETRAHEDRON>::Orient
+   int orient;
+
+   if (test[0] == base[0])
+      if (test[1] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 0;   //  (0, 1, 2, 3)
+         }
+         else
+         {
+            orient = 1;   //  (0, 1, 3, 2)
+         }
+      else if (test[2] == base[1])
+         if (test[3] == base[2])
+         {
+            orient = 2;   //  (0, 2, 3, 1)
+         }
+         else
+         {
+            orient = 3;   //  (0, 2, 1, 3)
+         }
+      else // test[3] == base[1]
+         if (test[1] == base[2])
+         {
+            orient = 4;   //  (0, 3, 1, 2)
+         }
+         else
+         {
+            orient = 5;   //  (0, 3, 2, 1)
+         }
+   else if (test[1] == base[0])
+      if (test[2] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 6;   //  (1, 2, 0, 3)
+         }
+         else
+         {
+            orient = 7;   //  (1, 2, 3, 0)
+         }
+      else if (test[3] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 8;   //  (1, 3, 2, 0)
+         }
+         else
+         {
+            orient = 9;   //  (1, 3, 0, 2)
+         }
+      else // test[0] == base[1]
+         if (test[3] == base[2])
+         {
+            orient = 10;   //  (1, 0, 3, 2)
+         }
+         else
+         {
+            orient = 11;   //  (1, 0, 2, 3)
+         }
+   else if (test[2] == base[0])
+      if (test[3] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 12;   //  (2, 3, 0, 1)
+         }
+         else
+         {
+            orient = 13;   //  (2, 3, 1, 0)
+         }
+      else if (test[0] == base[1])
+         if (test[1] == base[2])
+         {
+            orient = 14;   //  (2, 0, 1, 3)
+         }
+         else
+         {
+            orient = 15;   //  (2, 0, 3, 1)
+         }
+      else // test[1] == base[1]
+         if (test[3] == base[2])
+         {
+            orient = 16;   //  (2, 1, 3, 0)
+         }
+         else
+         {
+            orient = 17;   //  (2, 1, 0, 3)
+         }
+   else // (test[3] == base[0])
+      if (test[0] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 18;   //  (3, 0, 2, 1)
+         }
+         else
+         {
+            orient = 19;   //  (3, 0, 1, 2)
+         }
+      else if (test[1] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 20;   //  (3, 1, 0, 2)
+         }
+         else
+         {
+            orient = 21;   //  (3, 1, 2, 0)
+         }
+      else // test[2] == base[1]
+         if (test[1] == base[2])
+         {
+            orient = 22;   //  (3, 2, 1, 0)
+         }
+         else
+         {
+            orient = 23;   //  (3, 2, 0, 1)
+         }
+
+#ifdef MFEM_DEBUG
+   const int *aor = tet_t::Orient[orient];
+   for (int j = 0; j < 4; j++)
+      if (test[aor[j]] != base[j])
+      {
+         mfem_error("Mesh::GetTetOrientation(...)");
+      }
+#endif
+
+   return orient;
 }
 
 int Mesh::CheckBdrElementOrientation(bool fix_it)
@@ -8442,6 +8615,13 @@ void Mesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
    }
    out << "\nvertices\n" << NumOfVertices << '\n';
 }
+
+#ifdef MFEM_USE_ADIOS2
+void Mesh::Print(adios2stream &out) const
+{
+   out.Print(*this);
+}
+#endif
 
 void Mesh::PrintVTK(std::ostream &out)
 {
