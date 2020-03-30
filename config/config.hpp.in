@@ -97,9 +97,6 @@
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
-// Enable functionality based on the Gecko library
-// #define MFEM_USE_GECKO
-
 // Enable MFEM features based on the Ginkgo library
 // #define MFEM_USE_GINKGO
 
@@ -149,6 +146,9 @@
 
 // Enable functionality based on the Umpire library.
 // #define MFEM_USE_UMPIRE
+
+// Enable IO functionality based on the ADIOS2 library.
+// #define MFEM_USE_ADIOS2
 
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@

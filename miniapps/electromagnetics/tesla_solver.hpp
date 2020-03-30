@@ -13,6 +13,7 @@
 #define MFEM_TESLA_SOLVER
 
 #include "../common/pfem_extras.hpp"
+#include "../common/mesh_extras.hpp"
 #include "electromagnetics.hpp"
 
 #ifdef MFEM_USE_MPI
