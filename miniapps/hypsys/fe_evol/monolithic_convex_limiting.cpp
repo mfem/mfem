@@ -166,15 +166,14 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          for (int i = 0; i < dofs.numDofsSubcell; i++)
          {
             int I = dofs.Sub2Ind(m,i);
-            // uEval(0) = uElem(I); // TODO
+            ElemEval(uElem, uEval, i);
 
             for (int j = 0; j < dofs.numDofsSubcell; j++)
             {
                if (i==j) { continue; }
 
                int J = dofs.Sub2Ind(m,j);
-               // ElemEval(uElem, uNbrEval, J);
-               // uNbrEval(0) = uElem(J); // TODO
+               ElemEval(uElem, uNbrEval, J);
 
                double CTildeNorm1 = 0.;
                double CTildeNorm2 = 0.;
@@ -185,23 +184,23 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                }
                CTildeNorm1 = sqrt(CTildeNorm1);
                CTildeNorm2 = sqrt(CTildeNorm2);
-               double dij = max(CTildeNorm1, CTildeNorm2);
+
                // double dij = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
 
-               // CTilde(j).GetRow(i, normal);
-               // normal /= CTildeNorm1;
+               CTilde(J).GetRow(I, normal);
+               normal /= CTildeNorm1;
 
-               // // TODO for advection this needs to be element values, fix indices
-               // double ws1 = max( hyp->GetWaveSpeed(uEval, normal, e, j, i),
-               //                hyp->GetWaveSpeed(uNbrEval, normal, e, j, i) );
+               double ws1 = max( hyp->GetWaveSpeed(uEval, normal, e, I, -1),
+                              hyp->GetWaveSpeed(uNbrEval, normal, e, J, -1) );
 
-               // CTilde(i).GetRow(j, normal);
-               // normal /= CTildeNorm2;
+               CTilde(I).GetRow(J, normal);
+               normal /= CTildeNorm2;
 
-               // double ws2 = max( hyp->GetWaveSpeed(uEval, normal, e, j, i),
-               //                hyp->GetWaveSpeed(uNbrEval, normal, e, j, i) );
+               double ws2 = max( hyp->GetWaveSpeed(uEval, normal, e, I, -1),
+                              hyp->GetWaveSpeed(uNbrEval, normal, e, J, -1) );
+ws1 = ws2 = 1.;
+               double dij = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
 
-               // dij *= max(ws1, ws2);
                z(vdofs[I]) += dij * (x(vdofs[J]) - x(vdofs[I]));
             }
          }

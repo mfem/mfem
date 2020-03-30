@@ -57,6 +57,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
          break;
       }
       case 3:
+      case 6:
       {
          ProblemName = "Euler Equations of Gas dynamics - Double Mach Reflection";
          valuerange = "1.4 22";
@@ -370,6 +371,33 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 
          break;
       }
+      case 6:
+      {
+         if (dim != 2)
+         {
+            MFEM_ABORT("Test case only implemented in 2D.");
+         }
+
+         bool left = X(0) < 0. && X(0)*X(0) + 0.24 * (X(1)+1.)*(X(1)+1.) > 1.05;
+         X(0) = 0.5 * (X(0) + 1.);
+         X(1) = 0.25 * (X(1) + 1.);
+
+         if (left)
+         {
+            u(0) = 8.;
+            u(1) = 66. * cos(M_PI / 6.);
+            u(2) = -66. * sin(M_PI / 6.);
+            EvaluateEnergy(u, 116.5);
+         }
+         else
+         {
+            u = 0.;
+            u(0) = 1.4;
+            EvaluateEnergy(u, 1.);
+         }
+
+         break;
+      }
       default:
          MFEM_ABORT("Analytical solution not known.");
    }
@@ -393,6 +421,7 @@ void InitialConditionEuler(const Vector &x, Vector &u)
       case 0:
       case 3:
       case 5:
+      case 6:
       {
          AnalyticalSolutionEuler(x, 0.0, u);
          break;
@@ -456,6 +485,7 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u)
       case 0:
       case 3:
       case 5:
+      case 6:
       {
          AnalyticalSolutionEuler(x, t, u);
          break;

@@ -171,7 +171,15 @@ void Advection::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
 double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                int i) const
 {
-   VelocityVector = VelFace(e*nqf+k).GetColumn(i);
+   if (i == -1) // Element terms.
+   {
+      VelocityVector = VelElem(e).GetColumn(k);
+   }
+   else
+   {
+      VelocityVector = VelFace(e*nqf+k).GetColumn(i);
+   }
+
    return abs(VelocityVector * n);
 }
 

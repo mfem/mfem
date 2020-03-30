@@ -98,7 +98,7 @@ phypsys: library
 	$(MFEM_CXX) $(MFEM_FLAGS) phypsys.cpp -o $@ $(OBJ_FILES) $(POBJ_FILES) $(EVL_FILES) $(PEVL_FILES) $(APP_FILES) $(MFEM_LIBS)
 
 clean:
-	@rm -f hypsys phypsys errors.txt *.gf *.mesh $(BLD_DIR)/*
+	@rm -f hypsys phypsys errors.txt *.gf grid.mesh $(BLD_DIR)/*
 
 valgrind-test:
 	valgrind ./hypsys $(VALGRIND-CONFIG) -c 1 -m data/inline-segment.mesh -r 4 -o 1
