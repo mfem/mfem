@@ -1884,7 +1884,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
    {
       blf_[i]->Update();
       blf_[i]->Assemble(0);
-      blf_[i]->Finalize();
+      blf_[i]->Finalize(0);
       Operator * D = blf_[i]->ParallelAssemble();
       return D;
    }
