@@ -670,6 +670,16 @@ void Vector::Print(std::ostream &out, int width) const
    out << '\n';
 }
 
+#ifdef MFEM_USE_ADIOS2
+void Vector::Print(adios2stream &out,
+                   const std::string& variable_name) const
+{
+   if (!size) { return; }
+   data.Read(MemoryClass::HOST, size);
+   out.engine.Put(variable_name, &data[0] );
+}
+#endif
+
 void Vector::Print_HYPRE(std::ostream &out) const
 {
    int i;
