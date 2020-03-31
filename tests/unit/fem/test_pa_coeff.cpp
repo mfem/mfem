@@ -33,6 +33,20 @@ double coeffFunction(const Vector& x)
    }
 }
 
+void vectorCoeffFunction(const Vector & x, Vector & f)
+{
+   f = 0.0;
+   if (dimension > 1)
+   {
+      f[0] = sin(M_PI * x[1]);
+      f[1] = sin(2.5 * M_PI * x[2]);
+   }
+   if (dimension == 3)
+   {
+      f[2] = sin(6.1 * M_PI * x[0]);
+   }
+}
+
 double linearFunction(const Vector & x)
 {
    if (dimension == 3)
@@ -171,10 +185,11 @@ TEST_CASE("Hcurl pa_coeff")
          mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
       }
 
-      for (int coeffType = 0; coeffType < 2; ++coeffType)
+      for (int coeffType = 0; coeffType < 3; ++coeffType)
       {
          Coefficient* coeff = nullptr;
          Coefficient* curlCoeff = nullptr;
+         VectorCoefficient* vcoeff = nullptr;
          if (coeffType == 0)
          {
             coeff = new ConstantCoefficient(12.34);
@@ -185,8 +200,14 @@ TEST_CASE("Hcurl pa_coeff")
             coeff = new FunctionCoefficient(&coeffFunction);
             curlCoeff = new FunctionCoefficient(&linearFunction);
          }
+         else if (coeffType == 2)
+         {
+            vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
+            curlCoeff = new FunctionCoefficient(&linearFunction);
+         }
 
-         for (int integrator = 0; integrator < 3; ++integrator)
+         const int numIntegrators = (coeffType == 2) ? 2 : 3;
+         for (int integrator = 0; integrator < numIntegrators; ++integrator)
          {
             std::cout << "Testing " << dimension << "D ND partial assembly with "
                       << "coeffType " << coeffType << " and "
@@ -239,7 +260,14 @@ TEST_CASE("Hcurl pa_coeff")
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
                if (integrator < 2)
                {
-                  paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                  if (coeffType == 2)
+                  {
+                     paform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                  }
+                  else
+                  {
+                     paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                  }
                }
                if (integrator > 0)
                {
@@ -252,8 +280,14 @@ TEST_CASE("Hcurl pa_coeff")
                BilinearForm assemblyform(&ND_fespace);
                if (integrator < 2)
                {
-                  assemblyform.AddDomainIntegrator(
-                     new VectorFEMassIntegrator(*coeff));
+                  if (coeffType == 2)
+                  {
+                     assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*vcoeff));
+                  }
+                  else
+                  {
+                     assemblyform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
+                  }
                }
                if (integrator > 0)
                {
@@ -297,6 +331,7 @@ TEST_CASE("Hcurl pa_coeff")
 
          delete coeff;
          delete curlCoeff;
+         delete vcoeff;
       }
 
       delete mesh;
@@ -409,9 +444,10 @@ TEST_CASE("Hcurl L2 mixed pa_coeff")  // TODO: merge this with the other Hcurl m
          mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
       }
 
-      for (int coeffType = 0; coeffType < 2; ++coeffType)
+      for (int coeffType = 0; coeffType < 3; ++coeffType)
       {
          Coefficient* coeff = nullptr;
+         VectorCoefficient* vcoeff = nullptr;
          if (coeffType == 0)
          {
             coeff = new ConstantCoefficient(12.34);
@@ -419,6 +455,10 @@ TEST_CASE("Hcurl L2 mixed pa_coeff")  // TODO: merge this with the other Hcurl m
          else if (coeffType == 1)
          {
             coeff = new FunctionCoefficient(&coeffFunction);
+         }
+         else if (coeffType == 2)
+         {
+            vcoeff = new VectorFunctionCoefficient(3, &vectorCoeffFunction);
          }
 
          for (int integrator = 0; integrator < 1; ++integrator)
@@ -428,26 +468,62 @@ TEST_CASE("Hcurl L2 mixed pa_coeff")  // TODO: merge this with the other Hcurl m
                       << "integrator " << integrator << std::endl;
             for (int order = 1; order < 4; ++order)
             {
-	      FiniteElementCollection* ND_fec =
-		new ND_FECollection(order, dimension);
-	      FiniteElementSpace ND_fespace(mesh, ND_fec);
+               FiniteElementCollection* ND_fec =
+                  new ND_FECollection(order, dimension);
+               FiniteElementSpace ND_fespace(mesh, ND_fec);
 
-	      Array<int> ess_tdof_list;
+               Array<int> ess_tdof_list;
 
                MixedBilinearForm paform(&ND_fespace, &ND_fespace);
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-	       if (integrator == 0)
-		 paform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-	       else
-		 paform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+               if (integrator == 0)
+               {
+                  if (coeffType == 2)
+                  {
+                     paform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                  }
+                  else
+                  {
+                     paform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                  }
+               }
+               else
+               {
+                  if (coeffType == 2)
+                  {
+                     paform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+                  }
+                  else
+                  {
+                     paform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+                  }
+               }
 
                paform.Assemble();
 
                MixedBilinearForm assemblyform(&ND_fespace, &ND_fespace);
-	       if (integrator == 0)
-		 assemblyform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-	       else
-		 assemblyform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+               if (integrator == 0)
+               {
+                  if (coeffType == 2)
+                  {
+                     assemblyform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                  }
+                  else
+                  {
+                     assemblyform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                  }
+               }
+               else
+               {
+                  if (coeffType == 2)
+                  {
+                     assemblyform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+                  }
+                  else
+                  {
+                     assemblyform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+                  }
+               }
 
                assemblyform.Assemble();
                assemblyform.Finalize();
@@ -484,6 +560,7 @@ TEST_CASE("Hcurl L2 mixed pa_coeff")  // TODO: merge this with the other Hcurl m
          }
 
          delete coeff;
+         delete vcoeff;
       }
 
       delete mesh;
