@@ -769,7 +769,7 @@ struct Costa: public Surface
       p[2] = sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
       if (y_top) { p[1] *= -1.0; }
       if (x_top) { p[0] *= -1.0; }
-      const bool nan = isnan(p[0])||isnan(p[1])||isnan(p[2]);
+      const bool nan = std::isnan(p[0]) || std::isnan(p[1]) || std::isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
       ALPHA[0] = fmax(p[0], ALPHA[0]);
       ALPHA[1] = fmax(p[1], ALPHA[1]);
