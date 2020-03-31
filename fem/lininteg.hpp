@@ -126,7 +126,8 @@ class BoundaryLFIntegrator : public LinearFormIntegrator
    Coefficient &Q;
    int oa, ob;
 public:
-   /// Constructs a boundary integrator with a given Coefficient QG
+   /** Constructs a boundary integrator with a given Coefficient QG.
+       Integration order will be a * basis_order + b */
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 

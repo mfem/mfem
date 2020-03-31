@@ -105,8 +105,8 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = oa * el.GetOrder() + ob;  // <----------
-      ir = &IntRules.Get(Tr.FaceGeom, intorder);
+      int intorder = oa * el.GetOrder() + ob;    // <------ user control
+      ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
