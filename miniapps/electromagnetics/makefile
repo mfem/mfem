@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
@@ -87,10 +87,11 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-volta-test-par: volta
+volta-test-par: volta-test-1 volta-test-2
+volta-test-1: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')
-volta-1-test-par: volta
+volta-test-2: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -m ../../data/square-disc.mesh \
 	-dbcs '1 2 3 4 5 6 7 8' -dbcv '0 0 0 0 1 1 1 1')

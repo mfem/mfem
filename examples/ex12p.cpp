@@ -33,7 +33,8 @@
 //               The example highlights the use of the LOBPCG eigenvalue solver
 //               together with the BoomerAMG preconditioner in HYPRE. Reusing a
 //               single GLVis visualization window for multiple eigenfunctions
-//               is also illustrated.
+//               and optional saving with ADIOS2 (adios2.readthedocs.io) streams
+//               are also illustrated.
 //
 //               We recommend viewing examples 2 and 11 before viewing this
 //               example.
@@ -60,6 +61,7 @@ int main(int argc, char *argv[])
    int seed = 66;
    bool visualization = 1;
    bool amg_elast = 0;
+   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -77,6 +79,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -286,7 +291,28 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 13. Send the above data by socket to a GLVis server. Use the "n" and "b"
+   // 13. Optionally output a BP (binary pack) file using ADIOS2. This can be
+   //     visualized with the ParaView VTX reader.
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+
+      adios2stream adios2output("ex12-p-" + postfix + ".bp",
+                                adios2stream::openmode::out, MPI_COMM_WORLD);
+      pmesh->Print(adios2output);
+      for (int i=0; i<nev; i++)
+      {
+         x = lobpcg->GetEigenvector(i);
+         // x is a temporary that must be saved immediately
+         x.Save(adios2output, "mode_" + std::to_string(i));
+      }
+   }
+#endif
+
+   // 14. Send the above data by socket to a GLVis server. Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -326,7 +352,7 @@ int main(int argc, char *argv[])
       mode_sock.close();
    }
 
-   // 14. Free the used memory.
+   // 15. Free the used memory.
    delete lobpcg;
    delete amg;
    delete M;

@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = annulus mobius-strip klein-bottle toroid \
+SEQ_MINIAPPS = annulus mobius-strip klein-bottle toroid twist \
 	mesh-explorer shaper extruder mesh-optimizer
 PAR_MINIAPPS = pmesh-optimizer
 ifeq ($(MFEM_USE_MPI),NO)
@@ -63,6 +63,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
 toroid-test-seq: toroid
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-wedge-o3-s0.mesh)
+twist-test-seq: twist
+	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-hex-o3-s2-p.mesh)
 mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
@@ -83,13 +85,13 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ annulus mobius-strip klein-bottle toroid
+	rm -f *.o *~ annulus mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder
 	rm -f mesh-optimizer pmesh-optimizer
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f annulus-*.mesh toroid-*.mesh
+	@rm -f annulus-*.mesh toroid-*.mesh twist-*.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed*

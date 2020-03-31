@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "complex_operator.hpp"
 #include <set>
@@ -213,9 +213,9 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int    nnz_i = (I_i)?I_i[nrows]:0;
    const int    nnz   = 2 * (nnz_r + nnz_i);
 
-   int    *I = new int[this->Height()+1];
-   int    *J = new int[nnz];
-   double *D = new double[nnz];
+   int    *I = Memory<int>(this->Height()+1);
+   int    *J = Memory<int>(nnz);
+   double *D = Memory<double>(nnz);
 
    const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
