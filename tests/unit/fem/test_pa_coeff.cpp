@@ -398,4 +398,96 @@ TEST_CASE("Hcurl H1 mixed pa_coeff")
    }
 }
 
+TEST_CASE("Hcurl L2 mixed pa_coeff")  // TODO: merge this with the other Hcurl mixed test in rtpa
+{
+   for (dimension = 3; dimension < 4; ++dimension)
+   {
+      Mesh* mesh;
+      const int ne = 2;
+      if (dimension == 3)
+      {
+         mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+      }
+
+      for (int coeffType = 0; coeffType < 2; ++coeffType)
+      {
+         Coefficient* coeff = nullptr;
+         if (coeffType == 0)
+         {
+            coeff = new ConstantCoefficient(12.34);
+         }
+         else if (coeffType == 1)
+         {
+            coeff = new FunctionCoefficient(&coeffFunction);
+         }
+
+         for (int integrator = 0; integrator < 1; ++integrator)
+         {
+            std::cout << "Testing " << dimension << "D ND L2 mixed partial assembly with "
+                      << "coeffType " << coeffType << " and "
+                      << "integrator " << integrator << std::endl;
+            for (int order = 1; order < 4; ++order)
+            {
+	      FiniteElementCollection* ND_fec =
+		new ND_FECollection(order, dimension);
+	      FiniteElementSpace ND_fespace(mesh, ND_fec);
+
+	      Array<int> ess_tdof_list;
+
+               MixedBilinearForm paform(&ND_fespace, &ND_fespace);
+               paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+	       if (integrator == 0)
+		 paform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+	       else
+		 paform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+
+               paform.Assemble();
+
+               MixedBilinearForm assemblyform(&ND_fespace, &ND_fespace);
+	       if (integrator == 0)
+		 assemblyform.AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+	       else
+		 assemblyform.AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+
+               assemblyform.Assemble();
+               assemblyform.Finalize();
+               const SparseMatrix& A_explicit = assemblyform.SpMat();
+
+               Vector xin(ND_fespace.GetTrueVSize());
+               xin.Randomize();
+               Vector y_mat(ND_fespace.GetTrueVSize());
+               y_mat = 0.0;
+               Vector y_assembly(ND_fespace.GetTrueVSize());
+               y_assembly = 0.0;
+               Vector y_pa(ND_fespace.GetTrueVSize());
+               y_pa = 0.0;
+
+               paform.Mult(xin, y_pa);
+               assemblyform.Mult(xin, y_assembly);
+               A_explicit.Mult(xin, y_mat);
+
+               y_pa -= y_mat;
+               double pa_error = y_pa.Norml2();
+               std::cout << "  order: " << order
+                         << ", pa error norm: " << pa_error << std::endl;
+               REQUIRE(pa_error < 1.e-12);
+
+               y_assembly -= y_mat;
+               double assembly_error = y_assembly.Norml2();
+               std::cout << "  order: " << order
+                         << ", assembly error norm: " << assembly_error
+                         << std::endl;
+               REQUIRE(assembly_error < 1.e-12);
+
+               delete ND_fec;
+            }
+         }
+
+         delete coeff;
+      }
+
+      delete mesh;
+   }
+}
+
 } // namespace pa_coeff
