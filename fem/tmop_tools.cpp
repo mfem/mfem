@@ -29,7 +29,7 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
-    // This function will not work for AMR meshes in the current state.
+   // This function will not work for AMR meshes in the current state.
    const int dim     = fes->GetFE(0)->GetDim(),
              ncomp   = fes->GetVDim(),
              pnt_cnt = new_nodes.Size()/dim;
