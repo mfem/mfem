@@ -29,6 +29,10 @@ New and updated examples and miniapps
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
 
+- Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
+  Matched Layer (PML) for the simulation of electromagnetic wave propagation.
+  The example defines and solves several indefinite Maxwell problems.
+
 Discretization improvements
 ---------------------------
 - Added support for simplices in GSLIB-FindPoints.
@@ -44,6 +48,12 @@ Miscellaneous
 -------------
 - In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
   solver can work with non-SPD preconditioner B.
+
+- Added support for ADIOS2 for parallel I/O with ParaView visualization. The
+  classes adios2stream and ADIOS2DataCollection are introduced in mfem as the
+  interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
+  entire spatial and temporal data. In addition, ADIOS2 allows for setting a
+  user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
 
 
 Version 4.1, released on March 10, 2020

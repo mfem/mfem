@@ -29,6 +29,7 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
+    // This function will not work for AMR meshes in the current state.
    const int dim     = fes->GetFE(0)->GetDim(),
              ncomp   = fes->GetVDim(),
              pnt_cnt = new_nodes.Size()/dim;
@@ -41,9 +42,8 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
    }
 
-   // This function will not work for AMR meshes in the current state.
-   field0 = new_field;
-   nodes0 = new_nodes;
+   //field0 = new_field;
+   //nodes0 = new_nodes;
 }
 
 void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
@@ -93,10 +93,10 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    ode_solver.Init(*oper);
 
    // Compute some time step [mesh_size / speed].
-   double min_h = std::numeric_limits<double>::infinity();
+   double h_min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < m->GetNE(); i++)
    {
-      min_h = std::min(min_h, m->GetElementSize(i));
+      h_min = std::min(h_min, m->GetElementSize(i));
    }
    double v_max = 0.0, v_max_glob = 0.0;
    const int dim = fes->GetFE(0)->GetDim(),
@@ -112,14 +112,14 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       v_max = std::max(v_max, vel);
    }
 
-   v_max_glob = v_max;
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&v_max, &v_max_glob, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+      double v_loc = v_max, h_loc = h_min;
+      MPI_Allreduce(&v_loc, &v_max, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+      MPI_Allreduce(&h_loc, &h_min, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
    }
 #endif
-   v_max = v_max_glob;
 
    if (v_max == 0.0) // No need to change the field.
    {
@@ -132,25 +132,18 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    }
 
    v_max = std::sqrt(v_max);
-   double dt = 0.5 * min_h / v_max,
-          glob_dt = dt;
-#ifdef MFEM_USE_MPI
-   if (pfes)
-   {
-      MPI_Allreduce(&dt, &glob_dt, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
-   }
-#endif
+   double dt = dt_scale * h_min / v_max;
 
    double t = 0.0;
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      if (t + glob_dt >= 1.0)
+      if (t + dt >= 1.0)
       {
-         glob_dt = 1.0 - t;
+         dt = 1.0 - t;
          last_step = true;
       }
-      ode_solver.Step(new_field, t, glob_dt);
+      ode_solver.Step(new_field, t, dt);
    }
 
    double glob_minv = minv;
