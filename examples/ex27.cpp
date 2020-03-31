@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
 
    // 17. Free the used memory.
    delete fec;
-   delete mesh;	
+   delete mesh;
 
    return 0;
 }
