@@ -10,10 +10,17 @@
 // CONTRIBUTING.md for details.
 //
 //               --------------------------------
-//              Parallel Minimal Surface Miniapp
+//               Parallel Minimal Surface Miniapp
 //               --------------------------------
 //
-// Description:  This example code
+// This miniapp solves Plateau's problem: the Dirichlet problem for the minimal
+// surface equation.
+//
+// Two problems can be run:
+//
+//  - Problem 0 solves the minimal surface equation of parametric surfaces.
+//              The surface (-s) option allow the selection of different
+//              parameterizations:
 //                s=0: Uses the given mesh from command line options
 //                s=1: Catenoid
 //                s=2: Helicoid
@@ -26,6 +33,10 @@
 //                s=9: QuarterPeach
 //               s=10: SlottedSphere
 //
+//  - Problem 1 solves the minimal surface equation of the form z=f(x,y),
+//              for the Dirichlet problem, using Picard iterations:
+//              -div( q grad u) = 0, with q(u) = (1 + |∇u|²)^{-1/2}
+//
 // Compile with: make pmesh-minimal-surface
 //
 // Sample runs:  pmesh-minimal-surface
@@ -35,19 +46,15 @@
 //               pmesh-minimal-surface -no-pa
 //               pmesh-minimal-surface -no-pa -a
 //               pmesh-minimal-surface -no-pa -a -c
-//               pmesh-minimal-surface -s 8 -a -rad
+//               pmesh-minimal-surface -p 1
+//
 // Device sample runs:
 //               pmesh-minimal-surface -d cuda
+//               pmesh-minimal-surface -d debug
 
 #include "mfem.hpp"
-#include <fstream>
-#include <iostream>
+#include "general/forall.hpp"
 
-#include "../../../dbg.hpp"
-#include "linalg/densemat.hpp"
-#include "../../general/forall.hpp"
-
-using namespace std;
 using namespace mfem;
 
 // Constant variables
@@ -60,16 +67,17 @@ constexpr Element::Type QUAD = Element::QUADRILATERAL;
 constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
 // Static variables for GLVis
-static int NRanks, MyRank;
 static socketstream glvis;
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
 constexpr int  visport = 19916;
 constexpr char vishost[] = "localhost";
 
-// Options for the solver
+// Context/Options for the solver
 struct Opt
 {
+   int sz, id;
+   int pb = 0;
    int nx = 6;
    int ny = 6;
    int order = 3;
@@ -85,11 +93,7 @@ struct Opt
    bool vis_mesh = false;
    double lambda = 0.1;
    double amr_threshold = 0.6;
-#ifdef __APPLE__
-   const char *keys = "Am";
-#else
    const char *keys = "gAm";
-#endif
    const char *device_config = "cpu";
    const char *mesh_file = "../../data/mobius-strip.mesh";
    void (*Tptr)(const Vector&, Vector&) = nullptr;
@@ -107,7 +111,7 @@ public:
    // Reading from mesh file
    Surface(Opt &opt, const char *file): Mesh(file, true), opt(opt) { }
 
-   // Generate 2D generic empty surface mesh
+   // Generate 2D empty surface mesh
    Surface(Opt &opt, bool): Mesh(), opt(opt) { }
 
    // Generate 2D quad surface mesh
@@ -117,12 +121,12 @@ public:
    Surface(Opt &opt, int nv, int ne, int nbe):
       Mesh(DIM, nv, ne, nbe, SDIM), opt(opt) { }
 
-   int Solve()
+   void Create()
    {
       if (opt.surface > 0)
       {
          Prefix();
-         Create();
+         Transform();
       }
       Postfix();
       Refine();
@@ -131,14 +135,15 @@ public:
       if (opt.amr) { EnsureNCMesh(); }
       mesh = new ParMesh(MPI_COMM_WORLD, *this);
       fes = new ParFiniteElementSpace(mesh, fec, opt.by_vdim ? 1 : SDIM);
-      BC();
+      BoundaryConditions();
+   }
 
+   int Solve()
+   {
       // Initialize GLVis server if 'visualization' is set
       if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
-
       // Send to GLVis the first mesh
       if (opt.vis) { Visualize(opt, mesh, GLVIZ_W, GLVIZ_H); }
-
       // Create and launch the surface solver
       if (opt.by_vdim)
       {
@@ -148,7 +153,6 @@ public:
       {
          ByNodes(*this, opt).Solve();
       }
-
       return 0;
    }
 
@@ -163,7 +167,7 @@ public:
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
-   void Create() { if (opt.Tptr) { Transform(opt.Tptr); } }
+   virtual void Transform() { if (opt.Tptr) { Mesh::Transform(opt.Tptr); } }
 
    virtual void Postfix()
    {
@@ -194,7 +198,7 @@ public:
       }
    }
 
-   virtual void BC()
+   virtual void BoundaryConditions()
    {
       if (bdr_attributes.Size())
       {
@@ -207,26 +211,30 @@ public:
 
    // Initialize visualization of some given mesh
    static void Visualize(const Opt &opt, const Mesh *mesh,
-                         const int w, const int h)
+                         const int w, const int h,
+                         const GridFunction *sol = nullptr)
    {
-      // Mesh visualization is not supported in parallel by GLVis
-      MFEM_VERIFY(!opt.vis_mesh, "Option not available in parallel!");
-      glvis << "parallel " << NRanks << " " << MyRank << "\n";
-      glvis << "solution\n" << *mesh << *mesh->GetNodes();
+      const GridFunction &solution = sol ? *sol : *mesh->GetNodes();
+      glvis << "parallel " << opt.sz << " " << opt.id << "\n";
+      if (opt.vis_mesh) { glvis << "mesh\n" << *mesh; }
+      else { glvis << "solution\n" << *mesh << solution; }
       glvis.precision(8);
       glvis << "window_size " << w << " " << h << "\n";
       glvis << "keys " << opt.keys << "\n";
       if (opt.wait) { glvis << "pause\n"; }
-      glvis << flush;
+      glvis << std::flush;
    }
 
    // Visualize some solution on the given mesh
-   static void Visualize(const Opt &opt, const Mesh *mesh)
+   static void Visualize(const Opt &opt, const Mesh *mesh,
+                         const GridFunction *sol = nullptr)
    {
-      glvis << "parallel " << NRanks << " " << MyRank << "\n";
-      glvis << "solution\n" << *mesh << *mesh->GetNodes();
+      glvis << "parallel " << opt.sz << " " << opt.id << "\n";
+      const GridFunction &solution = sol ? *sol : *mesh->GetNodes();
+      if (opt.vis_mesh) { glvis << "mesh\n" << *mesh; }
+      else { glvis << "solution\n" << *mesh << solution; }
       if (opt.wait) { glvis << "pause\n"; }
-      glvis << flush;
+      glvis << std::flush;
    }
 
    // Surface Solver class
@@ -261,11 +269,11 @@ public:
          if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL);}
          for (int i=0; i < opt.niters; ++i)
          {
-            if (MyRank == 0) { mfem::out << "Iteration " << i << ": "; }
             if (opt.amr) { Amr(); }
-            if (opt.vis) { S.Visualize(opt, S.mesh); }
+            if (opt.vis) { Surface::Visualize(opt, S.mesh); }
+            if (!opt.id) { mfem::out << "Iteration " << i << ": "; }
             S.mesh->DeleteGeometricFactors();
-            //a.Update();
+            a.Update();
             a.Assemble();
             if (Step() == converged) { break; }
          }
@@ -278,7 +286,7 @@ public:
       {
          if (rnorm < NRM)
          {
-            if (MyRank==0) { mfem::out << "Converged!" << endl; }
+            if (!opt.id) { mfem::out << "Converged!" << std::endl; }
             return true;
          }
          return false;
@@ -302,7 +310,7 @@ public:
          double glob_norm;
          MPI_Allreduce(&rnorm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
          rnorm = glob_norm;
-         if (MyRank == 0) { mfem::out << "rnorm = " << rnorm << endl; }
+         if (!opt.id) { mfem::out << "rnorm = " << rnorm << std::endl; }
          const double lambda = opt.lambda;
          if (by_vdim)
          {
@@ -380,7 +388,7 @@ public:
             a.Update();
             b.HostReadWrite();
             b.Update();
-            S.BC();
+            S.BoundaryConditions();
          }
       }
    };
@@ -508,9 +516,9 @@ struct Helicoid: public Surface
       // u in [0,2π] and v in [-2π/3,2π/3]
       const double u = 2.0*PI*x[0];
       const double v = 2.0*PI*(2.0*x[1]-1.0)/3.0;
-      p[0] = sin(u)*v;
-      p[1] = cos(u)*v;
-      p[2] = u;
+      p(0) = sin(u)*v;
+      p(1) = cos(u)*v;
+      p(2) = u;
    }
 };
 
@@ -835,7 +843,7 @@ struct FullPeach: public Surface
    static constexpr int NE = 6;
 
    FullPeach(Opt &opt):
-      Surface((opt.niters = min(4, opt.niters), opt), NV, NE, 0) { }
+      Surface((opt.niters = std::min(4, opt.niters), opt), NV, NE, 0) { }
 
    void Prefix()
    {
@@ -861,16 +869,12 @@ struct FullPeach: public Surface
 
    void Snap() { SnapNodesToUnitSphere(); }
 
-   void BC()
+   void BoundaryConditions()
    {
-      dbg("\033[35m[FullPeach] BC: NE=%d, NV=%d & BE=%d",
-          mesh->GetNE(), mesh->GetNV(), mesh->GetNBE());
       Vector X(SDIM);
       Array<int> dofs;
       Array<int> ess_vdofs, ess_tdofs;
       ess_vdofs.SetSize(fes->GetVSize());
-      dbg("\033[35m[FullPeach] GetVSize():%d, GetTrueVSize:%d",
-          fes->GetVSize(), fes->GetTrueVSize());
       MFEM_VERIFY(fes->GetVSize() >= fes->GetTrueVSize(),"");
       ess_vdofs = 0;
       DenseMatrix PointMat;
@@ -1065,18 +1069,160 @@ struct SlottedSphere: public Surface
    void Snap() { SnapNodesToUnitSphere(); }
 };
 
+static int Problem0(Opt &opt)
+{
+   // Create our surface mesh from command line options
+   Surface *S = nullptr;
+   switch (opt.surface)
+   {
+      case 0: S = new MeshFromFile(opt); break;
+      case 1: S = new Catenoid(opt); break;
+      case 2: S = new Helicoid(opt); break;
+      case 3: S = new Enneper(opt); break;
+      case 4: S = new Hold(opt); break;
+      case 5: S = new Costa(opt); break;
+      case 6: S = new Shell(opt); break;
+      case 7: S = new Scherk(opt); break;
+      case 8: S = new FullPeach(opt); break;
+      case 9: S = new QuarterPeach(opt); break;
+      case 10: S = new SlottedSphere(opt); break;
+      default: MFEM_ABORT("Unknown surface (surface <= 10)!");
+   }
+   S->Create();
+   S->Solve();
+   delete S;
+   return 0;
+}
+
+// Problem 1: solve the Dirichlet problem for the minimal surface equation
+//            of the form z=f(x,y), using Picard iterations.
+static double u0(Vector &x) { return sin(3.0 * PI * (x[1] + x[0])); }
+enum {NORM, AREA};
+static double qf(const int order, const int ker, Mesh &m,
+                 FiniteElementSpace &fes, GridFunction &u)
+{
+   const Geometry::Type type = m.GetElementBaseGeometry(0);
+   const IntegrationRule &ir(IntRules.Get(type, order));
+   const QuadratureInterpolator *qi(fes.GetQuadratureInterpolator(ir));
+
+   const int NE(m.GetNE());
+   const int ND(fes.GetFE(0)->GetDof());
+   const int NQ(ir.GetNPoints());
+   const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
+   const GeometricFactors *geom = m.GetGeometricFactors(ir, flags);
+
+   const int D1D = fes.GetFE(0)->GetOrder() + 1;
+   const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
+   MFEM_VERIFY(ND == D1D*D1D, "");
+   MFEM_VERIFY(NQ == Q1D*Q1D, "");
+
+   Vector Eu(ND*NE), grad_u(DIM*NQ*NE), sum(NE*NQ), one(NE*NQ);
+   qi->SetOutputLayout(QVectorLayout::byVDIM);
+   const ElementDofOrdering e_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *G(fes.GetElementRestriction(e_ordering));
+   G->Mult(u, Eu);
+   qi->Derivatives(Eu, grad_u);
+
+   auto W = Reshape(ir.GetWeights().Read(), Q1D, Q1D);
+   auto J = Reshape(geom->J.Read(), Q1D, Q1D, DIM, DIM, NE);
+   auto detJ = Reshape(geom->detJ.Read(), Q1D, Q1D, NE);
+   auto grdU = Reshape(grad_u.Read(), DIM, Q1D, Q1D, NE);
+   auto S = Reshape(sum.Write(), Q1D, Q1D, NE);
+
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            const double w = W(qx, qy);
+            const double J11 = J(qx, qy, 0, 0, e);
+            const double J12 = J(qx, qy, 1, 0, e);
+            const double J21 = J(qx, qy, 0, 1, e);
+            const double J22 = J(qx, qy, 1, 1, e);
+            const double det = detJ(qx, qy, e);
+            const double area = w * det;
+            const double gu0 = grdU(0, qx, qy, e);
+            const double gu1 = grdU(1, qx, qy, e);
+            const double tgu0 = (J22*gu0 - J12*gu1)/det;
+            const double tgu1 = (J11*gu1 - J21*gu0)/det;
+            const double ngu = tgu0*tgu0 + tgu1*tgu1;
+            const double s = (ker == AREA) ? sqrt(1.0 + ngu) :
+            (ker == NORM) ? ngu : 0.0;
+            S(qx, qy, e) = area * s;
+         }
+      }
+   });
+   one = 1.0;
+   return sum * one;
+}
+
+static int Problem1(Opt &opt)
+{
+   const int order = opt.order;
+   Mesh mesh(opt.nx, opt.ny, QUAD);
+   mesh.SetCurvature(opt.order, false, DIM, Ordering::byNODES);
+   for (int l = 0; l < opt.refine; l++) { mesh.UniformRefinement(); }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   const H1_FECollection fec(order, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   Array<int> ess_tdof_list;
+   if (pmesh.bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+   ParGridFunction uold(&fes), u(&fes), b(&fes);
+   FunctionCoefficient u0_fc(u0);
+   u.ProjectCoefficient(u0_fc);
+   if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+   if (opt.vis) { Surface::Visualize(opt, &pmesh, GLVIZ_W, GLVIZ_H, &u); }
+   Vector B, X;
+   OperatorPtr A;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(EPS);
+   cg.SetMaxIter(400);
+   cg.SetPrintLevel(0);
+   ParGridFunction eps(&fes);
+   for (int i = 0; i < opt.niters; i++)
+   {
+      b = 0.0;
+      uold = u;
+      ParBilinearForm a(&fes);
+      if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      const double q_uold = qf(order, AREA, pmesh, fes, uold);
+      MFEM_VERIFY(fabs(q_uold) > EPS,"");
+      ConstantCoefficient q_uold_cc(1.0/sqrt(q_uold));
+      a.AddDomainIntegrator(new DiffusionIntegrator(q_uold_cc));
+      a.Assemble();
+      a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      a.RecoverFEMSolution(X, b, u);
+      subtract(u, uold, eps);
+      const double norm = sqrt(fabs(qf(order, NORM, pmesh, fes, eps)));
+      const double area = qf(order, AREA, pmesh, fes, u);
+      if (!opt.id)
+      {
+         mfem::out << "Iteration " << i << ", norm: " << norm
+                   << ", area: " << area << std::endl;
+      }
+      if (opt.vis) { Surface::Visualize(opt, &pmesh, &u); }
+      if (norm < NRM) { break; }
+   }
+   return 0;
+}
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   NRanks = num_procs; MyRank = myid;
-   // Parse command-line options.
    Opt opt;
+   MPI_Init(&argc, &argv);
+   MPI_Comm_rank(MPI_COMM_WORLD, &opt.id);
+   MPI_Comm_size(MPI_COMM_WORLD, &opt.sz);
+   // Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
    args.AddOption(&opt.mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&opt.wait, "-w", "--wait", "-no-w", "--no-wait",
                   "Enable or disable a GLVis pause.");
@@ -1106,33 +1252,19 @@ int main(int argc, char *argv[])
                   "-no-c", "--solve-bynodes",
                   "Enable or disable the 'ByVdim' solver");
    args.Parse();
-   if (!args.Good()) { args.PrintUsage(cout); return 1; }
-   MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <=1.0,"");
-   if (MyRank == 0) { args.PrintOptions(cout); }
+   if (!args.Good()) { args.PrintUsage(mfem::out); MPI_Finalize(); return 1; }
+   MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
+   MFEM_VERIFY(!opt.vis_mesh, "Option not available in parallel!");
+   if (!opt.id) { args.PrintOptions(mfem::out); }
 
    // Initialize hardware devices
    Device device(opt.device_config);
-   if (MyRank == 0) { device.Print(); }
+   if (!opt.id) { device.Print(); }
 
-   // Create our surface mesh from command line options
-   Surface *S = nullptr;
-   switch (opt.surface)
-   {
-      case 0: S = new MeshFromFile(opt); break;
-      case 1: S = new Catenoid(opt); break;
-      case 2: S = new Helicoid(opt); break;
-      case 3: S = new Enneper(opt); break;
-      case 4: S = new Hold(opt); break;
-      case 5: S = new Costa(opt); break;
-      case 6: S = new Shell(opt); break;
-      case 7: S = new Scherk(opt); break;
-      case 8: S = new FullPeach(opt); break;
-      case 9: S = new QuarterPeach(opt); break;
-      case 10: S = new SlottedSphere(opt); break;
-      default: MFEM_ABORT("Unknown surface (surface <= 10)!");
-   }
-   S->Solve();
-   delete S;
+   if (opt.pb == 0) { Problem0(opt); }
+
+   if (opt.pb == 1) { Problem1(opt); }
+
    MPI_Finalize();
    return 0;
 }
