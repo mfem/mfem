@@ -53,7 +53,7 @@
 //               mesh-minimal-surface -d debug
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
+#include "../../general/forall.hpp"
 
 using namespace mfem;
 
