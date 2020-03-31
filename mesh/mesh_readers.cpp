@@ -1291,6 +1291,61 @@ void Mesh::ReadGmshMesh(std::istream &input)
          MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
+      else if (buff == "$Periodic") // reading master/slave node pairs
+      {
+         Array<int> v2v(NumOfVertices);
+         for (int i = 0; i < v2v.Size(); i++)
+         {
+            v2v[i] = i;
+         }
+	 int num_per_ent;
+	 int num_nodes;
+	 int slave, master;
+	 input >> num_per_ent;
+	 getline(input, buff); // Read end-of-line
+	 for (int i = 0; i < num_per_ent; i++)
+	 {
+	   getline(input, buff); // Read entity dimension and tags
+	   cout << i << " \"" << buff << "\"" << endl;
+	   getline(input, buff); // Read affine mapping
+	   cout << i << " \"" << buff << "\"" << endl;
+	   input >> num_nodes;
+	   for (int j=0; j<num_nodes; j++)
+	   {
+	     input >> slave >> master;
+	     v2v[slave - 1] = master - 1;
+	   }
+	   getline(input, buff); // Read end-of-line
+	 }
+
+	 // Convert nodes to discontinuous GridFunction
+         this->SetCurvature(1, true);
+
+	 // renumber elements
+	 for (int i = 0; i < this->GetNE(); i++)
+	 {
+            Element *el = this->GetElement(i);
+	    int *v = el->GetVertices();
+	    int nv = el->GetNVertices();
+	    for (int j = 0; j < nv; j++)
+            {
+               v[j] = v2v[v[j]];
+	    }
+	 }
+	 // renumber boundary elements
+	 for (int i = 0; i < this->GetNBE(); i++)
+         {
+            Element *el = this->GetBdrElement(i);
+	    int *v = el->GetVertices();
+	    int nv = el->GetNVertices();
+	    for (int j = 0; j < nv; j++)
+            {
+               v[j] = v2v[v[j]];
+	    }
+	 }
+	 this->RemoveUnusedVertices();
+	 this->RemoveInternalBoundaries();
+      }
    } // we reach the end of the file
 }
 
