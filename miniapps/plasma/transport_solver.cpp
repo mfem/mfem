@@ -1136,7 +1136,6 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
                                        const string & log_prefix)
    : Operator(yGF[0]->ParFESpace()->GetVSize(),
               5*(yGF[0]->ParFESpace()->GetVSize())),
-     dummyCoef_(NULL, INVALID),
      coefGF_(yGF[0]->ParFESpace()),
      mpi_(mpi), dg_(dg),
      logging_(logging), log_prefix_(log_prefix),

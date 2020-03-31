@@ -1977,7 +1977,6 @@ private:
    class NLOperator : public Operator
    {
    private:
-      StateVariableGridFunctionCoef dummyCoef_;
       Array<StateVariableCoef*> coefs_;
       Array<ProductCoefficient*>             dtSCoefs_;
       Array<ProductCoefficient*>             negdtSCoefs_;
