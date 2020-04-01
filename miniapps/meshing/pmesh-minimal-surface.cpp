@@ -39,14 +39,14 @@
 //
 // Compile with: make pmesh-minimal-surface
 //
-// Sample runs:  pmesh-minimal-surface
-//               pmesh-minimal-surface -a
-//               pmesh-minimal-surface -c
-//               pmesh-minimal-surface -c -a
-//               pmesh-minimal-surface -no-pa
-//               pmesh-minimal-surface -no-pa -a
-//               pmesh-minimal-surface -no-pa -a -c
-//               pmesh-minimal-surface -p 1
+// Sample runs:  mpirun -np 4 pmesh-minimal-surface
+//               mpirun -np 4 pmesh-minimal-surface -a
+//               mpirun -np 4 pmesh-minimal-surface -c
+//               mpirun -np 4 pmesh-minimal-surface -c -a
+//               mpirun -np 4 pmesh-minimal-surface -no-pa
+//               mpirun -np 4 pmesh-minimal-surface -no-pa -a
+//               mpirun -np 4 pmesh-minimal-surface -no-pa -a -c
+//               mpirun -np 4 pmesh-minimal-surface -p 1
 //
 // Device sample runs:
 //               mpirun -np 4 pmesh-minimal-surface -d debug
