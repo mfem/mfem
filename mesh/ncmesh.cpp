@@ -1890,6 +1890,12 @@ void NCMesh::CollectLeafElements(int elem, int state)
             if (el.child[i] >= 0) { CollectLeafElements(el.child[i], state); }
          }
       }
+      // in non-leaf elements, the 'rank' member has no meaning; clear it now
+#ifdef MFEM_USE_MPI
+      el.rank = -1; // "invalid" rank, this is technically the correct value
+#else
+      el.rank = 0; // in serial, this looks less confusing in the mesh files
+#endif
    }
    el.index = -1;
 }
@@ -2646,10 +2652,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
 void NCMesh::BuildEdgeList()
 {
    edge_list.Clear();
-   if (Dim <= 2)
-   {
-      boundary_faces.SetSize(0);
-   }
+   if (Dim < 3) { boundary_faces.SetSize(0); }
 
    Array<char> processed_edges(nodes.NumIds());
    processed_edges = 0;
