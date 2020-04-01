@@ -99,7 +99,7 @@ public:
 
       // Scale A by block-diagonal inverse
 #if MFEM_HYPRE_VERSION >= 21800
-      BlockInvScal(A, &A_s, NULL, NULL, blocksize, 0);
+      BlockInverseScale(A, &A_s, NULL, NULL, blocksize, 0);
       AIR_solver = new HypreBoomerAMG(A_s);
       AIR_solver->SetLAIROptions(AIR.distanceR, AIR.prerelax,
                                  AIR.postrelax, AIR.strength_tolC,
@@ -119,7 +119,7 @@ public:
       // scale the rhs by block inverse and solve system
       HypreParVector z_s;
 #if MFEM_HYPRE_VERSION >= 21800
-      BlockInvScal(A, NULL, &x, &z_s, blocksize, 2);
+      BlockInverseScale(A, NULL, &x, &z_s, blocksize, 2);
 #endif
       AIR_solver->Mult(z_s, y);
    }
@@ -127,7 +127,7 @@ public:
    ~AIR_prec()
    {
 #if MFEM_HYPRE_VERSION >= 21800
-      BlockInvScal(NULL, NULL, NULL, NULL, 0, -1);
+      BlockInverseScale(NULL, NULL, NULL, NULL, 0, -1);
 #endif
       delete AIR_solver;
    }
@@ -140,7 +140,6 @@ private:
    SparseMatrix M_diag;
    HypreParMatrix *A;
    GMRESSolver linear_solver;
-   // BlockILU prec;
    Solver *prec;
    double dt;
 public:

@@ -974,12 +974,10 @@ static void MakeWrapper(const hypre_CSRMatrix *mat, SparseMatrix &wrapper)
    wrapper.Swap(tmp);
 }
 
-
 void HypreParMatrix::GetDiag(SparseMatrix &diag) const
 {
    MakeWrapper(A->diag, diag);
 }
-
 
 void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const
 {
@@ -987,12 +985,10 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const
    cmap = A->col_map_offd;
 }
 
-
 void HypreParMatrix::GetProcRows(SparseMatrix &colCSRMat)
 {
    MakeWrapper(hypre_MergeDiagAndOffd(A), colCSRMat);
 }
-
 
 void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
                                bool interleaved_rows,
@@ -1649,14 +1645,13 @@ void HypreParMatrix::Destroy()
  * job =  2, use A to scale b only
  */
 #if MFEM_HYPRE_VERSION >= 21800
-int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
-                 const Vector *b, HypreParVector *d, int block, int job)
+int BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
+                      const Vector *b, HypreParVector *d, int block, int job)
 {
    if (0 == job || 1 == job)
    {
       hypre_ParCSRMatrix *C_hypre;
       hypre_ParcsrBdiagInvScal(*A, block, &C_hypre);
-      /* XXX: FIXME drop in BdiagInvScal */
       hypre_ParCSRMatrixDropSmallEntries(C_hypre, 1e-15, 1);
       (*C).WrapHypreParCSRMatrix(C_hypre);
    }
@@ -3193,15 +3188,6 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
    error_mode = IGNORE_HYPRE_ERRORS;
 }
 
-void HypreBoomerAMG::SetCoord(int coord_dim, float *coord)
-{
-   HYPRE_BoomerAMGSetPlotGrids (amg_precond, 1);
-   //HYPRE_BoomerAMGSetPlotFileName (amg_precond, plot_file_name);
-   HYPRE_BoomerAMGSetCoordDim (amg_precond, coord_dim);
-   HYPRE_BoomerAMGSetCoordinates (amg_precond, coord);
-}
-
-
 #if MFEM_HYPRE_VERSION >= 21800
 
 void HypreBoomerAMG::SetLAIROptions(int distance,
@@ -3276,7 +3262,6 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
       HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    }
 
-   //HYPRE_BoomerAMGSetMaxRowSum(amg_precond, 0.8);
    if (Sabs)
    {
       HYPRE_BoomerAMGSetSabs(amg_precond, Sabs);
@@ -3286,7 +3271,6 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
    {
       HYPRE_BoomerAMGSetNumFunctions(amg_precond, blksize);
       HYPRE_BoomerAMGSetNodal(amg_precond, 1);
-      //HYPRE_BoomerAMGSetNodalLevels(amg_precond, 1);
    }
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
@@ -3317,10 +3301,7 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
       /* type = -1: drop based on row inf-norm */
       HYPRE_BoomerAMGSetADropType(amg_precond, -1);
    }
-
-   //HYPRE_BoomerAMGSetMaxCoarseSize(amg_precond, 1000);
 }
-
 
 void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
                                     std::string prerelax,
@@ -3394,7 +3375,6 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
       HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    }
 
-   //HYPRE_BoomerAMGSetMaxRowSum(amg_precond, 0.8);
    if (Sabs)
    {
       HYPRE_BoomerAMGSetSabs(amg_precond, Sabs);
@@ -3404,7 +3384,6 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
    {
       HYPRE_BoomerAMGSetNumFunctions(amg_precond, blksize);
       HYPRE_BoomerAMGSetNodal(amg_precond, 1);
-      //HYPRE_BoomerAMGSetNodalLevels(amg_precond, 1);
    }
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
@@ -3434,8 +3413,6 @@ void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
       /* type = -1: drop based on row inf-norm */
       HYPRE_BoomerAMGSetADropType(amg_precond, -1);
    }
-
-   //HYPRE_BoomerAMGSetMaxCoarseSize(amg_precond, 1000);
 }
 
 #endif

@@ -253,9 +253,11 @@ public:
       WrapHypreParCSRMatrix(a, owner);
    }
 
-   /** Creates block-diagonal square parallel matrix. Diagonal is given by diag
-       which must be in CSR format (finalized). The new HypreParMatrix does not
-       take ownership of any of the input arrays.
+   /// Creates block-diagonal square parallel matrix.
+   /** Diagonal is given by @a diag which must be in CSR format (finalized). The
+       new HypreParMatrix does not take ownership of any of the input arrays.
+       See @ref hypre_partitioning_descr "here" for a description of the row
+       partitioning array @a row_starts.
 
        @warning The ordering of the columns in each row in @a *diag may be
        changed by this constructor to ensure that the first entry in each row is
@@ -566,8 +568,8 @@ public:
 };
 
 #if MFEM_HYPRE_VERSION >= 21800
-int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
-                 const Vector *b, HypreParVector *d, int block, int job);
+int BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
+                      const Vector *b, HypreParVector *d, int block, int job);
 #endif
 
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
@@ -654,11 +656,12 @@ public:
        4    = truncated l1-scaled block Gauss-Seidel/SSOR
        5    = lumped Jacobi
        6    = Gauss-Seidel
+       10   = On-processor forward solve for matrix w/ triangular structure
        16   = Chebyshev
        1001 = Taubin polynomial smoother
        1002 = FIR polynomial smoother. */
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, TS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
+               GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
 
    HypreSmoother();
@@ -1068,8 +1071,6 @@ public:
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2);
    }
 #endif
-
-   void SetCoord(int dim, float *coord);
 
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
