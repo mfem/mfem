@@ -49,8 +49,22 @@
 //               pmesh-minimal-surface -p 1
 //
 // Device sample runs:
-//               pmesh-minimal-surface -d cuda
 //               pmesh-minimal-surface -d debug
+//               pmesh-minimal-surface -d debug -a
+//               pmesh-minimal-surface -d debug -c
+//               pmesh-minimal-surface -d debug -c -a
+//               pmesh-minimal-surface -d debug -no-pa
+//               pmesh-minimal-surface -d debug -no-pa -a
+//               pmesh-minimal-surface -d debug -no-pa -c
+//               pmesh-minimal-surface -d debug -no-pa -c -a
+//               pmesh-minimal-surface -d  cuda
+//               pmesh-minimal-surface -d  cuda -a
+//               pmesh-minimal-surface -d  cuda -c
+//               pmesh-minimal-surface -d  cuda -c -a
+//               pmesh-minimal-surface -d  cuda -no-pa
+//               pmesh-minimal-surface -d  cuda -no-pa -a
+//               pmesh-minimal-surface -d  cuda -no-pa -c
+//               pmesh-minimal-surface -d  cuda -no-pa -c -a
 
 #include "mfem.hpp"
 #include "../../general/forall.hpp"
