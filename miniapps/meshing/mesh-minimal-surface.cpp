@@ -246,6 +246,7 @@ public:
       glvis << std::flush;
    }
 
+   using Mesh::Print;
    static void Print(const Opt &opt, Mesh *mesh, const GridFunction *sol)
    {
       const char *mesh_file = "surface.mesh";
