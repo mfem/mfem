@@ -43,8 +43,6 @@ namespace mfem
 class PumiMesh : public Mesh
 {
 protected:
-   Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
-                        const int Attr, apf::Numbering* vert_num);
    void CountBoundaryEntity(apf::Mesh2* apf_mesh, const int BcDim, int &NumBC);
 
    // Readers for PUMI mesh formats, used in the Load() method.
@@ -56,7 +54,7 @@ public:
    PumiMesh(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
             bool fix_orientation = true);
 
-   using Mesh::Load;
+   /* using Mesh::Load; */
 
    /// Load a PUMI mesh (following the steps in the MFEM Load function).
    void Load(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
@@ -72,10 +70,6 @@ class ParPumiMesh : public ParMesh
 {
 private:
    apf::Numbering* v_num_loc;
-
-protected:
-   Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
-                        const int Attr, apf::Numbering* vert_num);
 
 public:
    /// Build a parallel MFEM mesh from a parallel PUMI mesh.
