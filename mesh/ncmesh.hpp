@@ -494,8 +494,8 @@ protected: // implementation
 
    virtual void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
 
-   void CollectLeafElements(int elem, int state, bool optimized);
-   void UpdateLeafElements(bool optimized);
+   void CollectLeafElements(int elem, int state);
+   void UpdateLeafElements();
 
    virtual void AssignLeafIndices();
 
