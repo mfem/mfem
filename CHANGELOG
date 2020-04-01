@@ -25,6 +25,9 @@ Meshing improvements
 
 New and updated examples and miniapps
 -------------------------------------
+- Adding a meshing miniapp which solves the Dirichlet problem for the minimal
+  surface equation.
+
 - Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
