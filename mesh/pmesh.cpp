@@ -1323,19 +1323,19 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
 void ParMesh::DistributeAttributes(Array<int> &attr)
 {
    // Determine the largest attribute number across all processors
-   int max_attr = attr.Max();
+   int max_attr = attr.Size() ? attr.Max() : 1 /*allow empty ranks*/;
    int glb_max_attr = -1;
    MPI_Allreduce(&max_attr, &glb_max_attr, 1, MPI_INT, MPI_MAX, MyComm);
 
    // Create marker arrays to indicate which attributes are present
    // assuming attribute numbers are in the range [1,glb_max_attr].
-   bool * attr_marker = new bool[glb_max_attr];
-   bool * glb_attr_marker = new bool[glb_max_attr];
-   for (int i=0; i<glb_max_attr; i++)
+   bool *attr_marker = new bool[glb_max_attr];
+   bool *glb_attr_marker = new bool[glb_max_attr];
+   for (int i = 0; i < glb_max_attr; i++)
    {
       attr_marker[i] = false;
    }
-   for (int i=0; i<attr.Size(); i++)
+   for (int i = 0; i < attr.Size(); i++)
    {
       attr_marker[attr[i] - 1] = true;
    }
@@ -1344,22 +1344,16 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
    delete [] attr_marker;
 
    // Translate from the marker array to a unique, sorted list of attributes
-   Array<int> glb_attr;
-   glb_attr.SetSize(glb_max_attr);
-   glb_attr = glb_max_attr;
-   int o = 0;
-   for (int i=0; i<glb_max_attr; i++)
+   attr.SetSize(0);
+   attr.Reserve(glb_max_attr);
+   for (int i = 0; i < glb_max_attr; i++)
    {
       if (glb_attr_marker[i])
       {
-         glb_attr[o++] = i + 1;
+         attr.Append(i + 1);
       }
    }
    delete [] glb_attr_marker;
-
-   glb_attr.Sort();
-   glb_attr.Unique();
-   glb_attr.Copy(attr);
 }
 
 void ParMesh::SetAttributes()

@@ -308,7 +308,10 @@ void ParNCMesh::BuildFaceList()
    // face ownership and prepares face processor groups.
 
    face_list.Clear();
-   if (Dim < 3) { return; }
+   shared_faces.Clear();
+   boundary_faces.SetSize(0);
+
+   if (Dim < 3 || !leaf_elements.Size()) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
@@ -368,6 +371,12 @@ void ParNCMesh::BuildEdgeList()
 {
    // This is an extension of NCMesh::BuildEdgeList() which also determines
    // edge ownership and prepares edge processor groups.
+
+   edge_list.Clear();
+   shared_edges.Clear();
+   if (Dim < 3) { boundary_faces.SetSize(0); }
+
+   if (!leaf_elements.Size()) { return; }
 
    int nedges = NEdges + NGhostEdges;
 
