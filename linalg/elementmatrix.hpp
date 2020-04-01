@@ -74,17 +74,17 @@ public:
    {
       for (size_t e = 0; e < ne; e++)
       {
-         std::cout << "Element "<< e <<std::endl;
+         mfem::out << "Element "<< e <<std::endl;
          for (size_t i = 0; i < ndofs; i++)
          {
             for (size_t j = 0; j < ndofs; j++)
             {
-               std::cout << data[i+j*ndofs+e*ndofs*ndofs] << ", ";
+               mfem::out << data[i+j*ndofs+e*ndofs*ndofs] << ", ";
             }
-            std::cout << std::endl;
+            mfem::out << std::endl;
          }
-         std::cout << std::endl;
-         std::cout << std::endl;
+         mfem::out << std::endl;
+         mfem::out << std::endl;
       }
    }
 };
@@ -156,26 +156,26 @@ public:
    {
       for (size_t f = 0; f < nf; f++)
       {
-         std::cout << "Face "<<f <<std::endl;
+         mfem::out << "Face "<<f <<std::endl;
          for (size_t i = 0; i < ndofs; i++)
          {
             for (size_t j = 0; j < ndofs; j++)
             {
-               std::cout << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
+               mfem::out << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
             }
-            std::cout << std::endl;
+            mfem::out << std::endl;
          }
-         std::cout << std::endl;
+         mfem::out << std::endl;
          for (size_t i = 0; i < ndofs; i++)
          {
             for (size_t j = 0; j < ndofs; j++)
             {
-               std::cout << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
+               mfem::out << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
             }
-            std::cout << std::endl;
+            mfem::out << std::endl;
          }
-         std::cout << std::endl;
-         std::cout << std::endl;
+         mfem::out << std::endl;
+         mfem::out << std::endl;
       }
    }
 };
@@ -247,26 +247,26 @@ public:
    {
       for (size_t f = 0; f < nf; f++)
       {
-         std::cout << "Face "<<f <<std::endl;
+         mfem::out << "Face "<<f <<std::endl;
          for (size_t i = 0; i < ndofs; i++)
          {
             for (size_t j = 0; j < ndofs; j++)
             {
-               std::cout << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
+               mfem::out << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
             }
-            std::cout << std::endl;
+            mfem::out << std::endl;
          }
-         std::cout << std::endl;
+         mfem::out << std::endl;
          for (size_t i = 0; i < ndofs; i++)
          {
             for (size_t j = 0; j < ndofs; j++)
             {
-               std::cout << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
+               mfem::out << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
             }
-            std::cout << std::endl;
+            mfem::out << std::endl;
          }
-         std::cout << std::endl;
-         std::cout << std::endl;
+         mfem::out << std::endl;
+         mfem::out << std::endl;
       }
    }
 };
@@ -326,17 +326,17 @@ public:
    {
       for (size_t f = 0; f < nf; f++)
       {
-         std::cout << "Face "<<f <<std::endl;
+         mfem::out << "Face "<<f <<std::endl;
          for (size_t i = 0; i < ndofs; i++)
          {
             for (size_t j = 0; j < ndofs; j++)
             {
-               std::cout << data[i+j*ndofs+f*ndofs*ndofs] << ", ";
+               mfem::out << data[i+j*ndofs+f*ndofs*ndofs] << ", ";
             }
-            std::cout << std::endl;
+            mfem::out << std::endl;
          }
-         std::cout << std::endl;
-         std::cout << std::endl;
+         mfem::out << std::endl;
+         mfem::out << std::endl;
       }
    }
 };
