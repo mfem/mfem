@@ -3259,6 +3259,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       ParMesh *pmesh = dynamic_cast<ParMesh*>(this);
       if (pmesh)
       {
+         MFEM_VERIFY(mfem_nc_version >= 10,
+                     "Legacy nonconforming format (MFEM mesh v1.1) cannot be "
+                     "used to load a parallel nonconforming mesh, sorry.");
+
          ncmesh = new ParNCMesh(pmesh->GetComm(),
                                 input, mfem_nc_version, curved);
       }

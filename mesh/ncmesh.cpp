@@ -202,7 +202,7 @@ void NCMesh::InitGeomFlags()
 
 void NCMesh::Update()
 {
-   UpdateLeafElements();
+   UpdateLeafElements(true);
    UpdateVertices();
 
    vertex_list.Clear();
@@ -216,14 +216,8 @@ NCMesh::~NCMesh()
 {
 #ifdef MFEM_DEBUG
 #ifdef MFEM_USE_MPI
-   // in parallel, update 'leaf_elements'
-   for (int i = 0; i < elements.Size(); i++)
-   {
-      elements[i].rank = 0; // make sure all leaves are in leaf_elements
-   }
-   UpdateLeafElements();
+   UpdateLeafElements(false); // make sure all leaves are in leaf_elements
 #endif
-
    // sign off of all faces and nodes
    Array<int> elemFaces;
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -1852,12 +1846,14 @@ void NCMesh::UpdateVertices()
    }
 }
 
-void NCMesh::CollectLeafElements(int elem, int state)
+void NCMesh::CollectLeafElements(int elem, int state, bool optimized)
 {
    Element &el = elements[elem];
    if (!el.ref_type)
    {
-      if (el.rank >= 0) // skip elements beyond ghost layer in parallel
+      // optimized == false: include all leaf elements
+      // optimized == true: skip leaf elements beyond the ghost layer in parallel
+      if (!optimized || el.rank >= 0)
       {
          leaf_elements.Append(elem);
       }
@@ -1871,7 +1867,7 @@ void NCMesh::CollectLeafElements(int elem, int state)
          {
             int ch = quad_hilbert_child_order[state][i];
             int st = quad_hilbert_child_state[state][i];
-            CollectLeafElements(el.child[ch], st);
+            CollectLeafElements(el.child[ch], st, optimized);
          }
       }
       else if (el.Geom() == Geometry::CUBE && el.ref_type == 7)
@@ -1880,14 +1876,17 @@ void NCMesh::CollectLeafElements(int elem, int state)
          {
             int ch = hex_hilbert_child_order[state][i];
             int st = hex_hilbert_child_state[state][i];
-            CollectLeafElements(el.child[ch], st);
+            CollectLeafElements(el.child[ch], st, optimized);
          }
       }
       else
       {
          for (int i = 0; i < 8; i++)
          {
-            if (el.child[i] >= 0) { CollectLeafElements(el.child[i], state); }
+            if (el.child[i] >= 0)
+            {
+               CollectLeafElements(el.child[i], state, optimized);
+            }
          }
       }
       // in non-leaf elements, the 'rank' member has no meaning; clear it now
@@ -1900,13 +1899,13 @@ void NCMesh::CollectLeafElements(int elem, int state)
    el.index = -1;
 }
 
-void NCMesh::UpdateLeafElements()
+void NCMesh::UpdateLeafElements(bool optimized)
 {
    // collect leaf elements from all roots
    leaf_elements.SetSize(0);
    for (int i = 0; i < root_state.Size(); i++)
    {
-      CollectLeafElements(i, root_state[i]);
+      CollectLeafElements(i, root_state[i], optimized);
    }
    AssignLeafIndices();
 }
@@ -5275,7 +5274,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
 
    // create edge nodes and faces
    nodes.UpdateUnused();
-   UpdateLeafElements();
+   UpdateLeafElements(false);
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       int elem = leaf_elements[i];
@@ -5510,7 +5509,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    }
 
    // create edge nodes and faces
-   UpdateLeafElements();
+   UpdateLeafElements(false);
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       int elem = leaf_elements[i];
