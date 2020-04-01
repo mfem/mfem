@@ -98,6 +98,7 @@ struct Opt
    bool vis = true;
    bool amr = false;
    bool wait = false;
+   bool print = false;
    bool radial = false;
    bool by_vdim = false;
    bool vis_mesh = false;
@@ -247,6 +248,18 @@ public:
       glvis << std::flush;
    }
 
+   static void Print(const ParMesh *mesh, const GridFunction *sol)
+   {
+      std::ofstream mesh_ofs("surface.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+      mesh_ofs.close();
+      std::ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
+      sol->Save(sol_ofs);
+      sol_ofs.close();
+   }
+
    // Surface Solver class
    class Solver
    {
@@ -287,6 +300,7 @@ public:
             a.Assemble();
             if (Step() == converged) { break; }
          }
+         if (opt.print) { Surface::Print(S.mesh, S.mesh->GetNodes()); }
       }
 
       virtual bool Step() = 0;
@@ -1219,6 +1233,7 @@ static int Problem1(Opt &opt)
                    << ", area: " << area << std::endl;
       }
       if (opt.vis) { Surface::Visualize(opt, &pmesh, &u); }
+      if (opt.print) { Surface::Print(&pmesh, &u); }
       if (norm < NRM) { break; }
    }
    return 0;
@@ -1261,6 +1276,8 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.by_vdim, "-c", "--solve-byvdim",
                   "-no-c", "--solve-bynodes",
                   "Enable or disable the 'ByVdim' solver");
+   args.AddOption(&opt.print, "-print", "--print", "-no-print", "--no-print",
+                  "Enable or disable result output (files in mfem format).");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(mfem::out); MPI_Finalize(); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
