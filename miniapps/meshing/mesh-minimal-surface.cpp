@@ -53,10 +53,6 @@
 //               mesh-minimal-surface -d debug -a
 //               mesh-minimal-surface -d debug -c
 //               mesh-minimal-surface -d debug -c -a
-//               mesh-minimal-surface -d debug -no-pa
-//               mesh-minimal-surface -d debug -no-pa -a
-//               mesh-minimal-surface -d debug -no-pa -c
-//               mesh-minimal-surface -d debug -no-pa -c -a
 //               mesh-minimal-surface -d  cuda
 //               mesh-minimal-surface -d  cuda -a
 //               mesh-minimal-surface -d  cuda -c
