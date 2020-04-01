@@ -329,8 +329,8 @@ double weight_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
-   const int opt = 2;
-   const double small = 0.001, big = 0.01;
+   const int opt = 1;
+   const double small = 0.005, big = 0.1;
 
    // Sine wave.
    if (opt==1)
@@ -1129,7 +1129,7 @@ int main (int argc, char *argv[])
    if (amr_flag==1)
    {
       int nc_limit = 1;
-      int ni_limit = 3;
+      int ni_limit = 5;
       int newtonstop = 0;
       int amrstop = 0;
 

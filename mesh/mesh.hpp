@@ -1217,6 +1217,8 @@ public:
 
    double GetElementVolume(int i);
 
+   double GetElementAspectRatio(int i, int idir);
+
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
