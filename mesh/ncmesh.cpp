@@ -202,7 +202,7 @@ void NCMesh::InitGeomFlags()
 
 void NCMesh::Update()
 {
-   UpdateLeafElements(true);
+   UpdateLeafElements();
    UpdateVertices();
 
    vertex_list.Clear();
@@ -215,16 +215,16 @@ void NCMesh::Update()
 NCMesh::~NCMesh()
 {
 #ifdef MFEM_DEBUG
-#ifdef MFEM_USE_MPI
-   UpdateLeafElements(false); // make sure all leaves are in leaf_elements
-#endif
    // sign off of all faces and nodes
    Array<int> elemFaces;
-   for (int i = 0; i < leaf_elements.Size(); i++)
+   for (int i = 0; i < elements.Size(); i++)
    {
-      elemFaces.SetSize(0);
-      UnreferenceElement(leaf_elements[i], elemFaces);
-      DeleteUnusedFaces(elemFaces);
+      if (!elements[i].ref_type)
+      {
+         elemFaces.SetSize(0);
+         UnreferenceElement(i, elemFaces);
+         DeleteUnusedFaces(elemFaces);
+      }
    }
    // NOTE: in release mode, we just throw away all faces and nodes at once
 #endif
@@ -1846,14 +1846,12 @@ void NCMesh::UpdateVertices()
    }
 }
 
-void NCMesh::CollectLeafElements(int elem, int state, bool optimized)
+void NCMesh::CollectLeafElements(int elem, int state)
 {
    Element &el = elements[elem];
    if (!el.ref_type)
    {
-      // optimized == false: include all leaf elements
-      // optimized == true: skip leaf elements beyond the ghost layer in parallel
-      if (!optimized || el.rank >= 0)
+      if (el.rank >= 0) // skip elements beyond ghost layer in parallel
       {
          leaf_elements.Append(elem);
       }
@@ -1867,7 +1865,7 @@ void NCMesh::CollectLeafElements(int elem, int state, bool optimized)
          {
             int ch = quad_hilbert_child_order[state][i];
             int st = quad_hilbert_child_state[state][i];
-            CollectLeafElements(el.child[ch], st, optimized);
+            CollectLeafElements(el.child[ch], st);
          }
       }
       else if (el.Geom() == Geometry::CUBE && el.ref_type == 7)
@@ -1876,7 +1874,7 @@ void NCMesh::CollectLeafElements(int elem, int state, bool optimized)
          {
             int ch = hex_hilbert_child_order[state][i];
             int st = hex_hilbert_child_state[state][i];
-            CollectLeafElements(el.child[ch], st, optimized);
+            CollectLeafElements(el.child[ch], st);
          }
       }
       else
@@ -1885,7 +1883,7 @@ void NCMesh::CollectLeafElements(int elem, int state, bool optimized)
          {
             if (el.child[i] >= 0)
             {
-               CollectLeafElements(el.child[i], state, optimized);
+               CollectLeafElements(el.child[i], state);
             }
          }
       }
@@ -1899,13 +1897,13 @@ void NCMesh::CollectLeafElements(int elem, int state, bool optimized)
    el.index = -1;
 }
 
-void NCMesh::UpdateLeafElements(bool optimized)
+void NCMesh::UpdateLeafElements()
 {
    // collect leaf elements from all roots
    leaf_elements.SetSize(0);
    for (int i = 0; i < root_state.Size(); i++)
    {
-      CollectLeafElements(i, root_state[i], optimized);
+      CollectLeafElements(i, root_state[i]);
    }
    AssignLeafIndices();
 }
@@ -4909,11 +4907,12 @@ int NCMesh::PrintBoundary(std::ostream *out) const
    int deg = (Dim == 2) ? 2 : 1; // for degenerate faces in 2D
 
    int count = 0;
-   for (int i = 0; i < leaf_elements.Size(); i++)
+   for (int i = 0; i < elements.Size(); i++)
    {
-      const Element &el = elements[leaf_elements[i]];
-      GeomInfo& gi = GI[el.Geom()];
+      const Element &el = elements[i];
+      if (el.ref_type) { continue; }
 
+      GeomInfo& gi = GI[el.Geom()];
       for (int k = 0; k < gi.nf; k++)
       {
          const int* fv = gi.faces[k];
@@ -5274,12 +5273,13 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
 
    // create edge nodes and faces
    nodes.UpdateUnused();
-   UpdateLeafElements(false);
-   for (int i = 0; i < leaf_elements.Size(); i++)
+   for (int i = 0; i < elements.Size(); i++)
    {
-      int elem = leaf_elements[i];
-      ReferenceElement(elem);
-      RegisterFaces(elem);
+      if (!elements[i].ref_type)
+      {
+         ReferenceElement(i);
+         RegisterFaces(i);
+      }
    }
 
    Update();
@@ -5509,12 +5509,13 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    }
 
    // create edge nodes and faces
-   UpdateLeafElements(false);
-   for (int i = 0; i < leaf_elements.Size(); i++)
+   for (int i = 0; i < elements.Size(); i++)
    {
-      int elem = leaf_elements[i];
-      ReferenceElement(elem);
-      RegisterFaces(elem);
+      if (!elements[i].ref_type)
+      {
+         ReferenceElement(i);
+         RegisterFaces(i);
+      }
    }
 
    // NOTE: InitRootState and InitGeomFlags already called in LoadCoarseElements
