@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid twist \
 	mesh-explorer shaper extruder mesh-optimizer \
 	mesh-minimal-surface
-PAR_MINIAPPS = pmesh-optimizer
+PAR_MINIAPPS = pmesh-optimizer pmesh-minimal-surface
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
