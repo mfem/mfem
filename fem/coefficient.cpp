@@ -780,24 +780,26 @@ void VectorQuadratureFunctionCoefficient::SetLength(int _length)
 {
    MFEM_VERIFY(_length > 0, "Length must be > 0");
 
-   int diff = vdim - index;
+   int diff = QuadF->GetVDim() - index;
    MFEM_VERIFY(_length <= diff,
                "Length must be <= (QuadratureFunction length - index)");
 
    length = _length;
+   vdim = length;
 }
 
 void VectorQuadratureFunctionCoefficient::SetIndex(int _index)
 {
    MFEM_VERIFY(_index >= 0, "Index must be >= 0");
-   MFEM_VERIFY(_index < vdim,
+   MFEM_VERIFY(_index < QuadF->GetVDim(),
                "Index must be < the QuadratureFunction length");
    index = _index;
    // check to see if length needs to be modified
-   int diff = vdim - index;
+   int diff = QuadF->GetVDim() - index;
    if (length > diff)
    {
       length = diff;
+      vdim = length;
    }
 }
 
@@ -807,7 +809,7 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
 {
    QuadF->HostRead();
    int elem_no = T.ElementNo;
-   if (index == 0 && length == vdim)
+   if (index == 0 && length == QuadF->GetVDim())
    {
       QuadF->GetElementValues(elem_no, ip.index, V);
    }
@@ -816,7 +818,7 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
       // This will need to be improved upon...
       Vector temp;
       QuadF->GetElementValues(elem_no, ip.index, temp);
-      double *data = temp.GetData();
+      double *data = temp.HostReadWrite();
       V.NewDataAndSize(data + index, length);
    }
 
