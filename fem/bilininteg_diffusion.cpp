@@ -217,6 +217,7 @@ static void PADiffusionSetup3D(const int Q1D,
 
 static void PADiffusionSetup(const int dim,
                              const int sdim,
+                             const int D1D,
                              const int Q1D,
                              const int NE,
                              const Array<double> &W,
@@ -233,6 +234,8 @@ static void PADiffusionSetup(const int dim,
          OccaPADiffusionSetup2D(D1D, Q1D, NE, W, J, C, D);
          return;
       }
+#else
+      MFEM_CONTRACT_VAR(D1D);
 #endif // MFEM_USE_OCCA
       if (sdim == 2) { PADiffusionSetup2D<2>(Q1D, NE, W, J, C, D); }
       if (sdim == 3) { PADiffusionSetup2D<3>(Q1D, NE, W, J, C, D); }
@@ -306,7 +309,7 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
          }
       }
    }
-   PADiffusionSetup(dim, sdim, quad1D, ne, ir->GetWeights(), geom->J,
+   PADiffusionSetup(dim, sdim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J,
                     coeff, pa_data);
 }
 
