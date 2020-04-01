@@ -246,13 +246,21 @@ public:
       glvis << std::flush;
    }
 
-   static void Print(const Mesh *mesh, const GridFunction *sol)
+   static void Print(const Opt &opt, Mesh *mesh, const GridFunction *sol)
    {
-      std::ofstream mesh_ofs("surface.mesh");
+      const char *mesh_file = "surface.mesh";
+      const char *sol_file = "sol.gf";
+      if (!opt.id)
+      {
+         mfem::out << "Printing " << mesh_file << ", " << sol_file << std::endl;
+      }
+
+      std::ofstream mesh_ofs(mesh_file);
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
       mesh_ofs.close();
-      std::ofstream sol_ofs("sol.gf");
+
+      std::ofstream sol_ofs(sol_file);
       sol_ofs.precision(8);
       sol->Save(sol_ofs);
       sol_ofs.close();
@@ -298,21 +306,13 @@ public:
             a.Assemble();
             if (Step() == converged) { break; }
          }
-         if (opt.print) { Surface::Print(S.mesh, S.mesh->GetNodes()); }
+         if (opt.print) { Surface::Print(opt, S.mesh, S.mesh->GetNodes()); }
       }
 
       virtual bool Step() = 0;
 
    protected:
-      bool Converged(const double rnorm)
-      {
-         if (rnorm < NRM)
-         {
-            if (!opt.id) { mfem::out << "Converged!" << std::endl; }
-            return true;
-         }
-         return false;
-      }
+      bool Converged(const double rnorm) { return rnorm < NRM; }
 
       bool ParAXeqB()
       {
@@ -1222,7 +1222,7 @@ static int Problem1(Opt &opt)
                    << ", area: " << area << std::endl;
       }
       if (opt.vis) { Surface::Visualize(opt, &mesh, &u); }
-      if (opt.print) { Surface::Print(&mesh, &u); }
+      if (opt.print) { Surface::Print(opt, &mesh, &u); }
       if (norm < NRM) { break; }
    }
    return 0;

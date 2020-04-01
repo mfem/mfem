@@ -248,13 +248,25 @@ public:
       glvis << std::flush;
    }
 
-   static void Print(const ParMesh *mesh, const GridFunction *sol)
+   static void Print(const Opt &opt, ParMesh *mesh, const GridFunction *sol)
    {
-      std::ofstream mesh_ofs("surface.mesh");
+      const char *mesh_file = "surface.mesh";
+      const char *sol_file = "sol.gf";
+      if (!opt.id)
+      {
+         mfem::out << "Printing " << mesh_file << ", " << sol_file << std::endl;
+      }
+
+      std::ostringstream mesh_name;
+      mesh_name << mesh_file << "." << std::setfill('0') << std::setw(6) << opt.id;
+      std::ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
       mesh_ofs.close();
-      std::ofstream sol_ofs("sol.gf");
+
+      std::ostringstream sol_name;
+      sol_name << sol_file << "." << std::setfill('0') << std::setw(6) << opt.id;
+      std::ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       sol->Save(sol_ofs);
       sol_ofs.close();
@@ -300,21 +312,13 @@ public:
             a.Assemble();
             if (Step() == converged) { break; }
          }
-         if (opt.print) { Surface::Print(S.mesh, S.mesh->GetNodes()); }
+         if (opt.print) { Surface::Print(opt, S.mesh, S.mesh->GetNodes()); }
       }
 
       virtual bool Step() = 0;
 
    protected:
-      bool Converged(const double rnorm)
-      {
-         if (rnorm < NRM)
-         {
-            if (!opt.id) { mfem::out << "Converged!" << std::endl; }
-            return true;
-         }
-         return false;
-      }
+      bool Converged(const double rnorm) { return rnorm < NRM; }
 
       bool ParAXeqB()
       {
@@ -1233,7 +1237,7 @@ static int Problem1(Opt &opt)
                    << ", area: " << area << std::endl;
       }
       if (opt.vis) { Surface::Visualize(opt, &pmesh, &u); }
-      if (opt.print) { Surface::Print(&pmesh, &u); }
+      if (opt.print) { Surface::Print(opt, &pmesh, &u); }
       if (norm < NRM) { break; }
    }
    return 0;
