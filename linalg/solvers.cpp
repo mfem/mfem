@@ -389,6 +389,18 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << nom << (print_level == 3 ? " ...\n" : "\n");
    }
 
+   if (monitor != nullptr)
+   {
+      if (monitor->monitor_residual_)
+      {
+         monitor->MonitorResidual(0, nom, r);
+      }
+      if (monitor->monitor_solution_)
+      {
+         monitor->MonitorSolution(0, nom, x);
+      }
+   }
+
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
@@ -441,6 +453,18 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
                    << betanom << '\n';
+      }
+
+      if (monitor != nullptr)
+      {
+         if (monitor->monitor_residual_)
+         {
+            monitor->MonitorResidual(i, betanom, r);
+         }
+         if (monitor->monitor_solution_)
+         {
+            monitor->MonitorSolution(i, betanom, x);
+         }
       }
 
       if (betanom < r0)
@@ -511,6 +535,18 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
    final_norm = sqrt(betanom);
+
+   if (monitor != nullptr)
+   {
+      if (monitor->monitor_residual_)
+      {
+         monitor->MonitorResidual(final_iter, final_norm, r);
+      }
+      if (monitor->monitor_solution_)
+      {
+         monitor->MonitorSolution(final_iter, final_norm, x);
+      }
+   }
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -658,6 +694,18 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
    }
 
+   if (monitor != nullptr)
+   {
+      if (monitor->monitor_residual_)
+      {
+         monitor->MonitorResidual(0, beta, r);
+      }
+      if (monitor->monitor_solution_)
+      {
+         monitor->MonitorSolution(0, beta, x);
+      }
+   }
+
    v.SetSize(m+1, NULL);
 
    for (j = 1; j <= max_iter; )
@@ -716,6 +764,18 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
          }
+
+         if (monitor != nullptr)
+         {
+            if (monitor->monitor_residual_)
+            {
+               monitor->MonitorResidual(j, resid, r);
+            }
+            if (monitor->monitor_solution_)
+            {
+               monitor->MonitorSolution(j, resid, x);
+            }
+         }
       }
 
       if (print_level == 1 && j <= max_iter)
@@ -765,6 +825,19 @@ finish:
    {
       mfem::out << "GMRES: No convergence!\n";
    }
+
+   if (monitor != nullptr)
+   {
+      if (monitor->monitor_residual_)
+      {
+         monitor->MonitorResidual(final_iter, final_norm, r);
+      }
+      if (monitor->monitor_solution_)
+      {
+         monitor->MonitorSolution(final_iter, final_norm, x);
+      }
+   }
+
    for (i = 0; i < v.Size(); i++)
    {
       delete v[i];
