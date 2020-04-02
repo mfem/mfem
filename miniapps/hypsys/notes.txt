@@ -6,7 +6,6 @@ next steps
 
 minor tasks:
    -Euler: Implement subsonic in- and outflow.
-   -option to use rescaling in glvis.
    -Change final time by modifying it in the apps/*.cpp files (for non steady examples or generally if it makes sense).
    -visualization of other unknowns / quotients of unknowns, vector valued unknowns
 
