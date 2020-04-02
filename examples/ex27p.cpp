@@ -70,7 +70,7 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 
 Mesh * GenerateSerialMesh(int ref);
 
-double IntegrateBC(ParGridFunction & x, Array<int> &bdr, bool h1);
+double IntegrateBC(ParGridFunction &x, Array<int> &bdr, bool h1);
 double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
                         Array<int> &bdr, bool h1,
                         OperatorHandle &M, double a = 0.0);
@@ -677,7 +677,7 @@ Mesh * GenerateSerialMesh(int ref)
    return mesh;
 }
 
-double IntegrateBC(ParGridFunction & x, Array<int> &bdr, bool h1)
+double IntegrateBC(ParGridFunction &x, Array<int> &bdr, bool h1)
 {
    ParFiniteElementSpace * fespace = x.ParFESpace();
    ConstantCoefficient one(1.0);
