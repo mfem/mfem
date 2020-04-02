@@ -191,6 +191,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient rbcACoef(rbc_a_val);
    ConstantCoefficient rbcBCoef(rbc_b_val);
 
+   // Since the n.Grad(u) terms arise by integrating -Div(m Grad(u)) by parts
+   // we must introduce the coefficient 'm' into the boundary conditions.
+   // Therefore, in the case of the Neumann BC, we actually enforce
+   // m n.Grad(u) = m g rather than simply n.Grad(u) = g.
    ProductCoefficient m_nbcCoef(matCoef, nbcCoef);
    ProductCoefficient m_rbcACoef(matCoef, rbcACoef);
    ProductCoefficient m_rbcBCoef(matCoef, rbcBCoef);
