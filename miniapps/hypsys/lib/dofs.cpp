@@ -748,68 +748,68 @@ void DofInfo::FillSubcellCross()
 
    switch (gtype)
    {
-   case Geometry::SEGMENT:
-   {
-      SubcellCross.SetSize(2,1);
-      SubcellCross(0,0) = 1;
-      SubcellCross(1,0) = 0;
-      break;
-   }
-   case Geometry::TRIANGLE:
-   {
-      SubcellCross.SetSize(3,2);
-      SubcellCross(0,0) = 1;
-      SubcellCross(0,1) = 2;
-      SubcellCross(1,0) = 0;
-      SubcellCross(1,1) = 2;
-      SubcellCross(2,0) = 0;
-      SubcellCross(2,1) = 1;
-      break;
-   }
-   case Geometry::SQUARE:
-   {
-      SubcellCross.SetSize(4,2);
-      SubcellCross(0,0) = 1;
-      SubcellCross(0,1) = 2;
-      SubcellCross(1,0) = 0;
-      SubcellCross(1,1) = 3;
-      SubcellCross(2,0) = 0;
-      SubcellCross(2,1) = 3;
-      SubcellCross(3,0) = 1;
-      SubcellCross(3,1) = 2;
-      break;
-   }
-   case Geometry::CUBE:
-   {
-      SubcellCross.SetSize(8,3);
-      SubcellCross(0,0) = 1;
-      SubcellCross(0,1) = 2;
-      SubcellCross(0,2) = 4;
-      SubcellCross(1,0) = 0;
-      SubcellCross(1,1) = 3;
-      SubcellCross(1,2) = 5;
-      SubcellCross(2,0) = 0;
-      SubcellCross(2,1) = 3;
-      SubcellCross(2,2) = 6;
-      SubcellCross(3,0) = 1;
-      SubcellCross(3,1) = 2;
-      SubcellCross(3,2) = 7;
-      SubcellCross(4,0) = 0;
-      SubcellCross(4,1) = 5;
-      SubcellCross(4,2) = 6;
-      SubcellCross(5,0) = 1;
-      SubcellCross(5,1) = 4;
-      SubcellCross(5,2) = 7;
-      SubcellCross(6,0) = 2;
-      SubcellCross(6,1) = 4;
-      SubcellCross(6,2) = 7;
-      SubcellCross(7,0) = 3;
-      SubcellCross(7,1) = 5;
-      SubcellCross(7,2) = 6;
-      break;
-   }
-   default:
-      MFEM_ABORT("Other gemoetries are not supported.");
+      case Geometry::SEGMENT:
+      {
+         SubcellCross.SetSize(2,1);
+         SubcellCross(0,0) = 1;
+         SubcellCross(1,0) = 0;
+         break;
+      }
+      case Geometry::TRIANGLE:
+      {
+         SubcellCross.SetSize(3,2);
+         SubcellCross(0,0) = 1;
+         SubcellCross(0,1) = 2;
+         SubcellCross(1,0) = 0;
+         SubcellCross(1,1) = 2;
+         SubcellCross(2,0) = 0;
+         SubcellCross(2,1) = 1;
+         break;
+      }
+      case Geometry::SQUARE:
+      {
+         SubcellCross.SetSize(4,2);
+         SubcellCross(0,0) = 1;
+         SubcellCross(0,1) = 2;
+         SubcellCross(1,0) = 0;
+         SubcellCross(1,1) = 3;
+         SubcellCross(2,0) = 0;
+         SubcellCross(2,1) = 3;
+         SubcellCross(3,0) = 1;
+         SubcellCross(3,1) = 2;
+         break;
+      }
+      case Geometry::CUBE:
+      {
+         SubcellCross.SetSize(8,3);
+         SubcellCross(0,0) = 1;
+         SubcellCross(0,1) = 2;
+         SubcellCross(0,2) = 4;
+         SubcellCross(1,0) = 0;
+         SubcellCross(1,1) = 3;
+         SubcellCross(1,2) = 5;
+         SubcellCross(2,0) = 0;
+         SubcellCross(2,1) = 3;
+         SubcellCross(2,2) = 6;
+         SubcellCross(3,0) = 1;
+         SubcellCross(3,1) = 2;
+         SubcellCross(3,2) = 7;
+         SubcellCross(4,0) = 0;
+         SubcellCross(4,1) = 5;
+         SubcellCross(4,2) = 6;
+         SubcellCross(5,0) = 1;
+         SubcellCross(5,1) = 4;
+         SubcellCross(5,2) = 7;
+         SubcellCross(6,0) = 2;
+         SubcellCross(6,1) = 4;
+         SubcellCross(6,2) = 7;
+         SubcellCross(7,0) = 3;
+         SubcellCross(7,1) = 5;
+         SubcellCross(7,2) = 6;
+         break;
+      }
+      default:
+         MFEM_ABORT("Other gemoetries are not supported.");
    }
 }
 

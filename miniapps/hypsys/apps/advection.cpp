@@ -59,7 +59,8 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
-   const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes, NodalQuadRule);
+   const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes,
+                                                                  NodalQuadRule);
    const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes, NodalQuadRule);
    const int nqe = IntRuleElem->GetNPoints();
    nqf = IntRuleFace->GetNPoints();

@@ -146,15 +146,15 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       {
          RefMat = 2.;
          RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) =
-         RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 8.;
+                                                      RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 8.;
          RefMat(0,7) = RefMat(1,6) = RefMat(2,5) = RefMat(3,4) =
-         RefMat(4,3) = RefMat(5,2) = RefMat(6,1) = RefMat(7,0) = 1.;
+                                                      RefMat(4,3) = RefMat(5,2) = RefMat(6,1) = RefMat(7,0) = 1.;
          RefMat(0,1) = RefMat(0,2) = RefMat(1,0) = RefMat(1,3) =
-         RefMat(2,0) = RefMat(2,3) = RefMat(3,1) = RefMat(3,2) =
-         RefMat(4,5) = RefMat(4,6) = RefMat(5,4) = RefMat(5,7) =
-         RefMat(6,4) = RefMat(6,7) = RefMat(7,5) = RefMat(7,6) =
-         RefMat(0,4) = RefMat(1,5) = RefMat(2,6) = RefMat(3,7) =
-         RefMat(4,0) = RefMat(5,1) = RefMat(6,2) = RefMat(7,3) = 4.;
+                                                      RefMat(2,0) = RefMat(2,3) = RefMat(3,1) = RefMat(3,2) =
+                                                                                     RefMat(4,5) = RefMat(4,6) = RefMat(5,4) = RefMat(5,7) =
+                                                                                           RefMat(6,4) = RefMat(6,7) = RefMat(7,5) = RefMat(7,6) =
+                                                                                                 RefMat(0,4) = RefMat(1,5) = RefMat(2,6) = RefMat(3,7) =
+                                                                                                       RefMat(4,0) = RefMat(5,1) = RefMat(6,2) = RefMat(7,3) = 4.;
          RefMat *= 1. / 216.;
          break;
       }
@@ -327,7 +327,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             for (int n = 0; n < hyp->NumEq; n++)
             {
                z(vdofs[n * nd + dofs.BdrDofs(j,i)]) += 0.5 * (
-                  (uNbrEval(n) -uEval(n)) * c_eij + tmp(n) );
+                                                          (uNbrEval(n) -uEval(n)) * c_eij + tmp(n) );
             }
          }
       }

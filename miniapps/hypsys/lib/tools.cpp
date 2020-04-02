@@ -1,6 +1,7 @@
 #include "tools.hpp"
 
-const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes, bool NodalQuadRule)
+const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes,
+                                                 bool NodalQuadRule)
 {
    const FiniteElement *el = fes->GetFE(0);
    if (NodalQuadRule)
@@ -13,7 +14,8 @@ const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes, bool N
 }
 
 // Appropriate quadrature rule for faces according to DGTraceIntegrator.
-const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes, bool NodalQuadRule)
+const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes,
+                                              bool NodalQuadRule)
 {
    int i, order;
    // Use the first mesh face and element as indicator.
