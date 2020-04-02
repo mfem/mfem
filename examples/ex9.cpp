@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   DG_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -369,6 +369,10 @@ int main(int argc, char *argv[])
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m, k, b);
 
+   Vector masses(u.Size());
+   m.SpMat().Mult(u, masses);
+   double mass = masses.Sum();
+
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
@@ -414,6 +418,9 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
+
+   m.SpMat().Mult(u, masses);
+   cout << "Mass difference:" << abs(mass - masses.Sum()) << endl;
 
    // 10. Free the used memory.
    delete ode_solver;

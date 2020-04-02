@@ -570,7 +570,7 @@ void DofInfo::FillSubcell2CellDof()
                case 3: Sub2Ind(m,j) =  aux + p+2; break;
             }
          }
-         else if (dim == 3)
+         else if (dim == 3 && gtype == Geometry::CUBE)
          {
             aux = m + m/p + (p+1)*(m/(p*p));
             switch (j)
@@ -584,6 +584,10 @@ void DofInfo::FillSubcell2CellDof()
                case 6: Sub2Ind(m,j) = aux + (p+1)*(p+1)+p+1; break;
                case 7: Sub2Ind(m,j) = aux + (p+1)*(p+1)+p+2; break;
             }
+         }
+         else
+         {
+            MFEM_ABORT("Tetraheadra are not supported.");
          }
       }
    }
