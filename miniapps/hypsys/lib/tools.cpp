@@ -13,12 +13,18 @@ const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes, bool N
 }
 
 // Appropriate quadrature rule for faces according to DGTraceIntegrator.
-const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes)
+const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes, bool NodalQuadRule)
 {
    int i, order;
    // Use the first mesh face and element as indicator.
    const FaceElementTransformations *Trans =
       fes->GetMesh()->GetFaceElementTransformations(0);
+
+   if  (NodalQuadRule)
+   {
+      return &IntRules.Get(Trans->FaceGeom, 1);
+   }
+
    const FiniteElement *el = fes->GetFE(0);
 
    if (Trans->Elem2No >= 0)
