@@ -142,8 +142,8 @@ int main(int argc, char *argv[])
 //   {
 //      fespace->SetElementOrder(i, order+1);
 //   }
-   fespace->SetElementOrder(1, 2);
-   fespace->Update(false);
+   //fespace->SetElementOrder(1, 2);
+   //fespace->Update(false);
 
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -240,9 +240,9 @@ int main(int argc, char *argv[])
 
 
 
-   x = 0.0;
-   x(8)=1.0;
-
+   //x = 0.0;
+   //x(8)=1.0;
+   x.Print();
    // Prepare solution for visualization
    int max_order = 1;
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -258,8 +258,11 @@ int main(int argc, char *argv[])
    IsoparametricTransformation T;
    DenseMatrix I;
 
-   FiniteElementCollection *visualization_fec = new H1_FECollection(max_order, dim);
+   FiniteElementCollection *visualization_fec = new L2_FECollection(max_order, dim, BasisType::GaussLobatto);
+
    FiniteElementSpace *visualization_space = new FiniteElementSpace(mesh, visualization_fec);
+
+
 
    GridFunction visualization_x(visualization_space);
 
@@ -285,18 +288,9 @@ int main(int argc, char *argv[])
       I.Mult(elemvect, visualization_vect);
       visualization_vect.Print();
       visualization_x.SetSubVector(dofs, visualization_vect);
+
    }
-
-
-
-
-
-
-
-
-
-
-
+   visualization_x.Print();
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -305,6 +299,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
+//      sol_sock << "solution\n" << *mesh << x << flush;
       sol_sock << "solution\n" << *mesh << visualization_x << flush;
    }
 
