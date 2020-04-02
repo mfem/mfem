@@ -40,7 +40,6 @@ class CustomSolverMonitor : public IterativeSolverMonitor
 public:
    CustomSolverMonitor(const ParMesh *m,
                        ParGridFunction *f) :
-      IterativeSolverMonitor(false, true),
       pmesh(m),
       pgf(f) {}
 
