@@ -830,9 +830,9 @@ protected: // implementation
    /// Load the "boundary" section of the mesh file.
    void LoadBoundary(std::istream &input);
 
-   /// Print the "vertices" section of the mesh file.
+   /// Print the "coordinates" section of the mesh file.
    void PrintCoordinates(std::ostream &out) const;
-   /// Load the "vertices" section of the mesh file.
+   /// Load the "coordinates" section of the mesh file.
    void LoadCoordinates(std::istream &input);
 
    /// Count root elements and intialize root_state.
@@ -846,7 +846,7 @@ protected: // implementation
    void LoadCoarseElements(std::istream &input);
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements,
                      Array<int> &index_map);
-   /// Load the deprecated MFEM mesh v1.1 format for backward comapatiblity.
+   /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
    void LoadLegacyFormat(std::istream &input, int &curved);
 
 
