@@ -23,7 +23,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 0:
       {
          ProblemName = "Euler Equations of Gas dynamics - Smooth Vortex";
-         valuerange = "0.493807323 1";
+         glvis_scale = "on";
          SpHeatRatio = 1.4;
          SolutionKnown = true;
          SteadyState = false;
@@ -35,7 +35,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 1:
       {
          ProblemName = "Euler Equations of Gas dynamics - SOD Shock Tube";
-         valuerange = "0 1";
+         glvis_scale = "off valuerange 0 1";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;
@@ -47,7 +47,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 2:
       {
          ProblemName = "Euler Equations of Gas dynamics - Woodward Colella";
-         valuerange = "0 7";
+         glvis_scale = "off valuerange 0 7";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;
@@ -60,7 +60,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 6:
       {
          ProblemName = "Euler Equations of Gas dynamics - Double Mach Reflection";
-         valuerange = "1.4 22";
+         glvis_scale = "off valuerange 1.4 22";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;
@@ -72,7 +72,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 4:
       {
          ProblemName = "Euler Equations of Gas dynamics - Sedov Blast";
-         valuerange = "0 2.5"; // TODO
+         glvis_scale = "off valuerange 0 2.5"; // TODO
          SpHeatRatio = 5.0 / 3.0;
          SolutionKnown = false;
          SteadyState = false;
@@ -84,7 +84,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 5:
       {
          ProblemName = "Euler Equations of Gas dynamics - Noh Problem";
-         valuerange = "1 16";
+         glvis_scale = "off valuerange 1 16";
          SpHeatRatio = 5.0 / 3.0;
          SolutionKnown = true;
          SteadyState = false;

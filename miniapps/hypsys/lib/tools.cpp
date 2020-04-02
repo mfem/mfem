@@ -44,7 +44,7 @@ const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes, bool Noda
 }
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    string ProblemName, GridFunction &gf, string valuerange, bool vec)
+                    string ProblemName, GridFunction &gf, string glvis_scale, bool vec)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
 
@@ -65,7 +65,7 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       sock << "window_title '" << ProblemName << "'\n"
            << "window_geometry "
            << 0 << " " << 0 << " " << 1080 << " " << 1080 << "\n"
-           << "valuerange " << valuerange << "\n" << "autoscale on\n"
+           << "autoscale " << glvis_scale << "\n"
            << "keys mcjlppppppppppppppppppppppppppp66666666666666666666666"
            << "66666666666666666666666666666666666666666666666662222222222";
       if ( vec ) { sock << "vvv"; }

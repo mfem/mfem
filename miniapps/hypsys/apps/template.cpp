@@ -20,7 +20,7 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
       case 0:
       {
          ProblemName = "TEMPLATE - ";
-         valuerange = " ";
+         glvis_scale = "on";
          SolutionKnown = ;
          SteadyState = ;
          TimeDepBC = ;
@@ -30,7 +30,7 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, BlockVector &u_block,
       case 1:
       {
          ProblemName = "TEMPLATE - ";
-         valuerange = " ";
+         glvis_scale = "off valuerange 0 1";
          SolutionKnown = ;
          SteadyState = ;
          TimeDepBC = ;

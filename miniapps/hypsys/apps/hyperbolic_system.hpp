@@ -102,7 +102,7 @@ public:
 
    mutable VectorFunctionCoefficient BdrCond;
 
-   string ProblemName, valuerange;
+   string ProblemName, glvis_scale;
    bool SolutionKnown;
    bool SteadyState;
    bool TimeDepBC;

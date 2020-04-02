@@ -111,6 +111,69 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
          }
       }
    }
+
+   // Construct the P1 subcell mass matrix of the reference element.
+   MassMatLOR.SetSize(nd,nd);
+   MassMatLOR = 0.;
+   DenseMatrix RefMat(dofs.numDofsSubcell, dofs.numDofsSubcell);
+   Geometry::Type gtype = el->GetGeomType();
+
+   switch (gtype)
+   {
+      case Geometry::SEGMENT:
+      {
+         RefMat = 1.;
+         RefMat(0,0) = RefMat(1,1) = 2.;
+         RefMat *= 1. / 6.;
+         break;
+      }
+      case Geometry::TRIANGLE:
+      {
+         RefMat = 1.;
+         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = 2.;
+         RefMat *= 1. / 24.;
+         break;
+      }
+      case Geometry::SQUARE:
+      {
+         RefMat = 2.;
+         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 4.;
+         RefMat(0,3) = RefMat(1,2) = RefMat(2,1) = RefMat(3,0) = 1.;
+         RefMat *= 1. / 36.;
+         break;
+      }
+      case Geometry::CUBE:
+      {
+         RefMat = 2.;
+         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) =
+         RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 8.;
+         RefMat(0,7) = RefMat(1,6) = RefMat(2,5) = RefMat(3,4) =
+         RefMat(4,3) = RefMat(5,2) = RefMat(6,1) = RefMat(7,0) = 1.;
+         RefMat(0,1) = RefMat(0,2) = RefMat(1,0) = RefMat(1,3) =
+         RefMat(2,0) = RefMat(2,3) = RefMat(3,1) = RefMat(3,2) =
+         RefMat(4,5) = RefMat(4,6) = RefMat(5,4) = RefMat(5,7) =
+         RefMat(6,4) = RefMat(6,7) = RefMat(7,5) = RefMat(7,6) =
+         RefMat(0,4) = RefMat(1,5) = RefMat(2,6) = RefMat(3,7) =
+         RefMat(4,0) = RefMat(5,1) = RefMat(6,2) = RefMat(7,3) = 4.;
+         RefMat *= 1. / 216.;
+         break;
+      }
+   }
+
+   RefMat *= 1. / ((double) dofs.numSubcells);
+
+   for (int m = 0; m < dofs.numSubcells; m++)
+   {
+      for (int i = 0; i < dofs.numDofsSubcell; i++)
+      {
+         int I = dofs.Sub2Ind(m,i);
+         for (int j = 0; j < dofs.numDofsSubcell; j++)
+         {
+            int J = dofs.Sub2Ind(m,j);
+            MassMatLOR(I,J) += RefMat(i,j);
+         }
+      }
+   }
 }
 
 void MCL_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
@@ -166,13 +229,11 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          for (int i = 0; i < dofs.numDofsSubcell; i++)
          {
             int I = dofs.Sub2Ind(m,i);
-            ElemEval(uElem, uEval, i);
+            ElemEval(uElem, uEval, I);
 
-            for (int j = 0; j < dofs.numDofsSubcell; j++)
+            for (int j = 0; j < dofs.SubcellCross.Width(); j++)
             {
-               if (i==j) { continue; }
-
-               int J = dofs.Sub2Ind(m,j);
+               int J = dofs.Sub2Ind(m, dofs.SubcellCross(i,j));
                ElemEval(uElem, uNbrEval, J);
 
                double CTildeNorm1 = 0.;
@@ -182,6 +243,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                   CTildeNorm1 += CTilde(I,l,J) * CTilde(I,l,J);
                   CTildeNorm2 += CTilde(J,l,I) * CTilde(J,l,I);
                }
+
                CTildeNorm1 = sqrt(CTildeNorm1);
                CTildeNorm2 = sqrt(CTildeNorm2);
 
@@ -190,18 +252,20 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                CTilde(J).GetRow(I, normal);
                normal /= CTildeNorm1;
 
-               double ws1 = max( hyp->GetWaveSpeed(uEval, normal, e, I, -1),
-                              hyp->GetWaveSpeed(uNbrEval, normal, e, J, -1) );
+               double ws1 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
+                                hyp->GetWaveSpeed(uNbrEval, normal, e, J));
 
                CTilde(I).GetRow(J, normal);
                normal /= CTildeNorm2;
 
-               double ws2 = max( hyp->GetWaveSpeed(uEval, normal, e, I, -1),
-                              hyp->GetWaveSpeed(uNbrEval, normal, e, J, -1) );
-ws1 = ws2 = 1.;
+               double ws2 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
+                                hyp->GetWaveSpeed(uNbrEval, normal, e, J));
                double dij = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
 
-               z(vdofs[I]) += dij * (x(vdofs[J]) - x(vdofs[I]));
+               for (int n = 0; n < hyp->NumEq; n++)
+               {
+                  z(vdofs[n * nd + I]) += dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
+               }
             }
          }
       }
@@ -222,10 +286,10 @@ ws1 = ws2 = 1.;
             }
 
             C_eij *= c_eij;
+            nbr = dofs.NbrDofs(i, j, e);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               nbr = dofs.NbrDofs(i,j,e);
                DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j,i);
 
                if (nbr < 0)
@@ -249,13 +313,13 @@ ws1 = ws2 = 1.;
                hyp->SetBdrCond(uEval, uNbrEval, normal, nbr);
             }
 
-            double ws = max( hyp->GetWaveSpeed(uEval, normal, e, j, i),
-                             hyp->GetWaveSpeed(uNbrEval, normal, e, j, i) );
+            double ws = max( hyp->GetWaveSpeed(uEval, normal, e, 0, i),
+                             hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
 
             c_eij *= ws;
 
-            hyp->EvaluateFlux(uEval, Flux, e, j, i);
-            hyp->EvaluateFlux(uNbrEval, FluxNbr, e, j, i);
+            hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j,i));
+            hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i));
             Flux -= FluxNbr;
             Vector tmp(hyp->NumEq);
             Flux.Mult(C_eij, tmp);

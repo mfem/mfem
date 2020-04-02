@@ -14,6 +14,6 @@ const IntegrationRule* GetElementIntegrationRule(FiniteElementSpace *fes, bool N
 const IntegrationRule *GetFaceIntegrationRule(FiniteElementSpace *fes, bool NodalQuadRule = false);
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    string ProblemName, GridFunction &gf, string valuerange, bool vec = false);
+                    string ProblemName, GridFunction &gf, string glvis_scale, bool vec = false);
 
 #endif

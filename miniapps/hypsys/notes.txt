@@ -1,5 +1,4 @@
 ATTENTION
-   -FluxEval for problems with x-dependent flux (advection) needs to be adjusted to nodal quadrature!
 
 
 next steps

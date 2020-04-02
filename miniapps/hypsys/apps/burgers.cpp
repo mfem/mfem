@@ -20,7 +20,7 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
       case 1:
       {
          ProblemName = "Burgers Equation - Riemann Problem";
-         valuerange = "-1 0.8";
+         glvis_scale = "on";
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = true;

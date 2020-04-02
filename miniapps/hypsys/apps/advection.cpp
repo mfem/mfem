@@ -21,7 +21,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
       case 0:
       {
          ProblemName = "Advection - Smooth Circular Convection";
-         valuerange = "0 1";
+         glvis_scale = "on";
          SolutionKnown = true;
          SteadyState = true;
          TimeDepBC = false;
@@ -32,7 +32,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
       case 1:
       {
          ProblemName = "Advection - Solid Body Rotation";
-         valuerange = "0 1";
+         glvis_scale = "on";
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = false;
@@ -43,7 +43,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
       case 2: // For debugging and having a real conservation law.
       {
          ProblemName = "Advection - Translation";
-         valuerange = "0 1";
+         glvis_scale = "on";
          SolutionKnown = false;
          SteadyState = false;
          TimeDepBC = false;

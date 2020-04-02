@@ -23,7 +23,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
       case 0:
       {
          ProblemName = "Shallow Water Equations - Vorticity Advection";
-         valuerange = "0.98 1";
+         glvis_scale = "on";
          GravConst = 1.0;
          SolutionKnown = true;
          SteadyState = false;
@@ -35,7 +35,7 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
       case 1:
       {
          ProblemName = "Shallow Water Equations - Dam Break";
-         valuerange = "0 1";
+         glvis_scale = "off \n valuerange 0 1";
          GravConst = 1.0;
          SolutionKnown = false;
          SteadyState = false;

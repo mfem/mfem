@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(comm);
       ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk,
-                        hyp->valuerange);
+                        hyp->glvis_scale);
    }
 
    FE_Evolution *evol;
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
          }
 
          ParVisualizeField(sout, vishost, visport, hyp->ProblemName, uk,
-                           hyp->valuerange);
+                           hyp->glvis_scale);
       }
    }
 
