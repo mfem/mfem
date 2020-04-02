@@ -3283,14 +3283,6 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
    }
 }
 
-void RefTrf::Apply(const RefCoord src[3], RefCoord dst[3]) const
-{
-   for (int i = 0; i < 3; i++)
-   {
-      dst[i] = (src[i]*s[i] >> 1) + t[i];
-   }
-}
-
 int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
 {
    while (1)
