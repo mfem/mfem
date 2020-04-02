@@ -991,19 +991,24 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
    (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
+   good_tspec = true;
 }
 
-void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
+void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
+                                                bool use_flag)
 {
+   if (use_flag && good_tspec) { return; }
+
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec);
    tspec_sav = tspec;
+
+   good_tspec = use_flag;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
                                                 Vector &IntData)
 {
-   MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, IntData);
 }
 
@@ -1070,8 +1075,11 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 }
 
 void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
-                                                        const double dx)
+                                                        const double dx,
+                                                        bool use_flag)
 {
+   if (use_flag && good_tspec_grad) { return; }
+
    const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
 
@@ -1091,11 +1099,15 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
 
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= dx; }
    }
+
+   good_tspec_grad = use_flag;
 }
 
 void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
-                                                       const double dx)
+                                                       double dx, bool use_flag)
 {
+   if (use_flag && good_tspec_hess) { return; }
+
    const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
 
@@ -1142,6 +1154,8 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
          idx++;
       }
    }
+
+   good_tspec_hess = use_flag;
 }
 
 void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
@@ -1180,19 +1194,8 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      const GridFunction &dist, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
 {
-   nodes0 = &n0;
-   coeff0 = &w0;
+   EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
-
-   delete lim_func;
-   if (lfunc)
-   {
-      lim_func = lfunc;
-   }
-   else
-   {
-      lim_func = new TMOP_QuadraticLimiter;
-   }
 }
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
