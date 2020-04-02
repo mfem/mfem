@@ -219,7 +219,7 @@ NCMesh::~NCMesh()
    Array<int> elemFaces;
    for (int i = 0; i < elements.Size(); i++)
    {
-      if (!elements[i].ref_type)
+      if (elements[i].IsLeaf())
       {
          elemFaces.SetSize(0);
          UnreferenceElement(i, elemFaces);
@@ -4910,7 +4910,7 @@ int NCMesh::PrintBoundary(std::ostream *out) const
    for (int i = 0; i < elements.Size(); i++)
    {
       const Element &el = elements[i];
-      if (el.ref_type) { continue; }
+      if (!el.IsLeaf()) { continue; }
 
       GeomInfo& gi = GI[el.Geom()];
       for (int k = 0; k < gi.nf; k++)
@@ -4919,6 +4919,7 @@ int NCMesh::PrintBoundary(std::ostream *out) const
          const int nfv = gi.nfv[k];
          const Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
                                        el.node[fv[2]], el.node[fv[3]]);
+         MFEM_ASSERT(face != NULL, "face not found");
          if (face->Boundary())
          {
             if (!out) { count++; continue; }
@@ -5169,16 +5170,17 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       input >> rank >> attr >> geom;
 
       Geometry::Type type = Geometry::Type(geom);
-      CheckSupportedGeom(type);
-      GI[geom].InitGeom(type);
+      elements.Append(Element(type, attr));
 
-      int id = AddElement(Element(type, attr));
-      MFEM_ASSERT(id == i, "");
-      Element &el = elements[id];
+      MFEM_ASSERT(elements.Size() == i+1, "");
+      Element &el = elements[i];
       el.rank = rank;
 
       if (geom >= 0)
       {
+         CheckSupportedGeom(type);
+         GI[geom].InitGeom(type);
+
          input >> ref_type;
          MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
          el.ref_type = ref_type;
@@ -5195,7 +5197,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
             for (int j = 0; j < GI[geom].nv; j++)
             {
                int id;
-               input >> id;
+               input>> id;
                el.node[j] = id;
                nodes.Alloc(id, id, id);
                // NOTE: nodes that won't get parents assigned will
@@ -5206,7 +5208,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       else
       {
          el.parent = -2; // mark as unused
-         free_element_ids.Append(id);
+         free_element_ids.Append(i);
       }
    }
 
@@ -5275,7 +5277,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    nodes.UpdateUnused();
    for (int i = 0; i < elements.Size(); i++)
    {
-      if (!elements[i].ref_type)
+      if (elements[i].IsLeaf())
       {
          ReferenceElement(i);
          RegisterFaces(i);
@@ -5511,7 +5513,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    // create edge nodes and faces
    for (int i = 0; i < elements.Size(); i++)
    {
-      if (!elements[i].ref_type)
+      if (elements[i].IsLeaf())
       {
          ReferenceElement(i);
          RegisterFaces(i);
@@ -5709,21 +5711,22 @@ void NCMesh::DebugDump(std::ostream &out) const
    int nleaves = 0;
    for (int i = 0; i < elements.Size(); i++)
    {
-      const Element &el = elements[i];
-      if (!el.ref_type && el.parent != -2 /*freed*/) { nleaves++; }
+      if (elements[i].IsLeaf()) { nleaves++; }
    }
    out << nleaves << "\n";
    for (int i = 0; i < elements.Size(); i++)
    {
       const Element &el = elements[i];
-      if (el.ref_type || el.parent == -2) { continue; }
-      const GeomInfo& gi = GI[el.Geom()];
-      out << gi.nv << " ";
-      for (int j = 0; j < gi.nv; j++)
+      if (el.IsLeaf())
       {
-         out << el.node[j] << " ";
+         const GeomInfo& gi = GI[el.Geom()];
+         out << gi.nv << " ";
+         for (int j = 0; j < gi.nv; j++)
+         {
+            out << el.node[j] << " ";
+         }
+         out << el.attribute << " " << el.rank << " " << i << "\n";
       }
-      out << el.attribute << " " << el.rank << " " << i << "\n";
    }
    out << "\n";
 

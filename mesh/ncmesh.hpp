@@ -441,6 +441,7 @@ protected: // implementation
       Element(Geometry::Type geom, int attr);
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
+      bool IsLeaf() const { return !ref_type && (parent != -2); }
    };
 
    // primary data
