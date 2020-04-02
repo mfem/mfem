@@ -2,12 +2,13 @@
 #define HYPSYS_ADVECTION
 
 #include "hyperbolic_system.hpp"
+#include "../lib/dofs.hpp"
 
 class Advection : public HyperbolicSystem
 {
 public:
    explicit Advection(FiniteElementSpace *fes_, BlockVector &u_block,
-                      Configuration &config_, bool NodalQuadRule);
+                      Configuration &config_, bool NodalQuadRule, DofInfo &dofs);
    ~Advection() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,

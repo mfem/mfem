@@ -8,7 +8,7 @@ void InflowFunctionAdv(const Vector &x, double t, Vector &u);
 void VelocityFunctionAdv(const Vector &x, Vector &v);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
-                     Configuration &config_, bool NodalQuadRule)
+                     Configuration &config_, bool NodalQuadRule, DofInfo &dofs)
    : HyperbolicSystem(fes_, u_block, 1, config_,
                       VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
@@ -60,38 +60,25 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
    const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes, NodalQuadRule);
-   const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes);
+   const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes, NodalQuadRule);
    const int nqe = IntRuleElem->GetNPoints();
    nqf = IntRuleFace->GetNPoints();
    Vector vec, vval;
    VelocityVector.SetSize(dim);
    DenseMatrix VelEval, mat(dim, nqe);
 
-   int NumBdrs;
-   const FiniteElement *el = fes->GetFE(0);
-   switch (el->GetGeomType())
-   {
-      case Geometry::SEGMENT: NumBdrs = 2; break;
-      case Geometry::TRIANGLE: NumBdrs = 3; break;
-      case Geometry::SQUARE:
-      case Geometry::TETRAHEDRON: NumBdrs = 4; break;
-      case Geometry::CUBE: NumBdrs = 6; break;
-      default:
-         MFEM_ABORT("Invalid Geometry type.");
-   }
-
    VelElem.SetSize(dim, nqe, ne);
-   VelFace.SetSize(dim, NumBdrs, ne*nqf);
+   VelFace.SetSize(dim, dofs.NumBdrs, ne*nqf);
    VectorFunctionCoefficient velocity(dim, VelocityFunctionAdv);
 
    Array<int> bdrs, orientation;
-   Array<IntegrationPoint> eip(nqf*NumBdrs);
+   Array<IntegrationPoint> eip(nqf*dofs.NumBdrs);
 
    if (dim==1)      { mesh->GetElementVertices(0, bdrs); }
    else if (dim==2) { mesh->GetElementEdges(0, bdrs, orientation); }
    else if (dim==3) { mesh->GetElementFaces(0, bdrs, orientation); }
 
-   for (int i = 0; i < NumBdrs; i++)
+   for (int i = 0; i < dofs.NumBdrs; i++)
    {
       FaceElementTransformations *help
          = mesh->GetFaceElementTransformations(bdrs[i]);
@@ -122,29 +109,46 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 
       VelElem(e) = mat;
 
-      if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
-      else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
-      else if (dim==3) { mesh->GetElementFaces(e, bdrs, orientation); }
-
-      for (int i = 0; i < NumBdrs; i++)
+      if (NodalQuadRule)
       {
-         FaceElementTransformations *facetrans
-            = mesh->GetFaceElementTransformations(bdrs[i]);
-
-         for (int k = 0; k < nqf; k++)
+         VelFace(e) = 0.;
+         for (int i = 0; i < dofs.NumBdrs; i++)
          {
-            if (facetrans->Elem1No != e)
+            for (int j = 0; j < dofs.NumFaceDofs; j++)
             {
-               velocity.Eval(vval, *facetrans->Elem2, eip[i*nqf+k]);
+               for (int l = 0; l < dim; l++)
+               {
+                  VelFace(l,i,e) += VelElem(l,dofs.BdrDofs(j,i),e);
+               }
             }
-            else
-            {
-               velocity.Eval(vval, *facetrans->Elem1, eip[i*nqf+k]);
-            }
+         }
+      }
+      else
+      {
+         if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
+         else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
+         else if (dim==3) { mesh->GetElementFaces(e, bdrs, orientation); }
 
-            for (int l = 0; l < dim; l++)
+         for (int i = 0; i < dofs.NumBdrs; i++)
+         {
+            FaceElementTransformations *facetrans
+               = mesh->GetFaceElementTransformations(bdrs[i]);
+
+            for (int k = 0; k < nqf; k++)
             {
-               VelFace(l,i,e*nqf+k) = vval(l);
+               if (facetrans->Elem1No != e)
+               {
+                  velocity.Eval(vval, *facetrans->Elem2, eip[i*nqf+k]);
+               }
+               else
+               {
+                  velocity.Eval(vval, *facetrans->Elem1, eip[i*nqf+k]);
+               }
+
+               for (int l = 0; l < dim; l++)
+               {
+                  VelFace(l,i,e*nqf+k) = vval(l);
+               }
             }
          }
       }
