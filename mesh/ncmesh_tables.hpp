@@ -157,7 +157,13 @@ struct RefTrf
 {
    RefCoord s[3], t[3];
 
-   void Apply(const RefCoord src[3], RefCoord dst[3]) const;
+   void Apply(const RefCoord src[3], RefCoord dst[3]) const
+   {
+      for (int i = 0; i < 3; i++)
+      {
+         dst[i] = (src[i]*s[i] >> 1) + t[i];
+      }
+   }
 };
 
 const RefTrf quad_parent_rt1[2] =
