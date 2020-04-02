@@ -5021,12 +5021,12 @@ bool NCMesh::ZeroRootStates() const
 void NCMesh::Print(std::ostream &out) const
 {
    out << "MFEM nonconforming mesh v1.0\n\n"
-          "# NCMesh supported geometry types:\n"
-          "# TRIANGLE    = 2\n"
-          "# SQUARE      = 3\n"
-          "# TETRAHEDRON = 4\n"
-          "# CUBE        = 5\n"
-          "# PRISM       = 6\n";
+       "# NCMesh supported geometry types:\n"
+       "# TRIANGLE    = 2\n"
+       "# SQUARE      = 3\n"
+       "# TETRAHEDRON = 4\n"
+       "# CUBE        = 5\n"
+       "# PRISM       = 6\n";
 
    out << "\ndimension\n" << Dim << "\n";
 

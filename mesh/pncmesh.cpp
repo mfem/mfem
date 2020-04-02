@@ -46,7 +46,8 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    // branches that only contain someone else's leaves (see Prune())
 }
 
-ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version, int &curved)
+ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
+                     int &curved)
    : NCMesh(input, version, curved)
 {
    MyComm = comm;
