@@ -2025,7 +2025,7 @@ const FiniteElement* L2_FECollection::GetFE(Geometry::Type geom, int p) const
 int L2_FECollection::GetNumDof(Geometry::Type geom, int p) const
 {
    if (!HaveOrder(p)) { InitOrder(p); }
-   if (L2_Elements[geom])
+   if (L2_Elements[geom][p])
    {
       return L2_Elements[geom][p]->GetDof();
    }
