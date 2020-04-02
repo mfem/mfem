@@ -53,6 +53,9 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version, int &curve
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+   bool iso = Iso;
+   MPI_Allreduce(&iso, &Iso, 1, MPI_C_BOOL, MPI_LAND, MyComm);
+
    Update();
 }
 

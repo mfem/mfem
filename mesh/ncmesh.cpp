@@ -5140,6 +5140,7 @@ int NCMesh::CountTopLevelNodes() const
 }
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved)
+   : spaceDim(0), Iso(true)
 {
    if (version == 1) // old MFEM mesh v1.1 format
    {
@@ -5156,7 +5157,6 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
    input >> ident;
    MFEM_VERIFY(ident == "dimension", "invalid mesh file: " << ident);
    input >> Dim;
-   spaceDim = 0; // will be set later
 
    // load elements
    skip_comment_lines(input, '#');
@@ -5185,19 +5185,20 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
          MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
          el.ref_type = ref_type;
 
-         if (ref_type)
+         if (ref_type) // refined element
          {
             for (int j = 0; j < ref_type_num_children[ref_type]; j++)
             {
                input >> el.child[j];
             }
+            if (Dim == 3 && ref_type != 7) { Iso = false; }
          }
-         else
+         else // leaf element
          {
             for (int j = 0; j < GI[geom].nv; j++)
             {
                int id;
-               input>> id;
+               input >> id;
                el.node[j] = id;
                nodes.Alloc(id, id, id);
                // NOTE: nodes that won't get parents assigned will
