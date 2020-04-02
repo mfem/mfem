@@ -103,7 +103,6 @@ struct Opt
    bool by_vdim = false;
    bool snapshot = false;
    bool vis_mesh = false;
-   bool alpha = false;
    double tau = 1.0;
    double lambda = 0.1;
    double amr_threshold = 0.6;
