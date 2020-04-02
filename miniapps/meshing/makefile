@@ -23,8 +23,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid twist \
 	mesh-explorer shaper extruder mesh-optimizer \
-	mesh-minimal-surface
-PAR_MINIAPPS = pmesh-optimizer pmesh-minimal-surface
+	minimal-surface
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -70,9 +70,9 @@ mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
-mesh-minimal-surface-test-seq: mesh-minimal-surface
+minimal-surface-test-seq: minimal-surface
 	@$(call mfem-test,$<,, Meshing miniapp)
-pmesh-minimal-surface-test-par: pmesh-minimal-surface
+pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 
 # Testing: Specific execution options
@@ -93,7 +93,7 @@ clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder
 	rm -f mesh-optimizer pmesh-optimizer
-	rm -f mesh-minimal-surface pmesh-minimal-surface
+	rm -f minimal-surface pminimal-surface
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
