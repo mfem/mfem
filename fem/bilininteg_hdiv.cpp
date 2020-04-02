@@ -47,14 +47,6 @@ void PAHdivSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double c_detJ = W[q] * coeff(q, e) / ((J11*J22)-(J21*J12));
-         /*
-              // (c/detJ) J
-              y(q,0,e) = c_detJ * J11; // 1,1
-              y(q,1,e) = c_detJ * J21; // 2,1
-              y(q,2,e) = c_detJ * J12; // 1,2
-              y(q,3,e) = c_detJ * J22; // 2,2
-         */
-
          // (c/detJ) J^T J
          y(q,0,e) = c_detJ * (J11*J11 + J21*J21); // 1,1
          y(q,1,e) = c_detJ * (J11*J12 + J21*J22); // 1,2
