@@ -6,8 +6,6 @@ ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_sltn,
      pmesh(pfes_sltn->GetParMesh()), pfes(pfes_sltn),
      px_min(pfes_bounds), px_max(pfes_bounds)
 {
-   dim = pmesh->Dimension();
-
    int n = pfes->GetVSize();
    int ne = pmesh->GetNE();
 
@@ -16,13 +14,7 @@ ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_sltn,
    xe_min.SetSize(ne);
    xe_max.SetSize(ne);
 
-   ExtractBdrDofs(pfes->GetFE(0)->GetOrder(),
-                  pfes->GetFE(0)->GetGeomType(), BdrDofs);
-   NumFaceDofs = BdrDofs.Height();
-   NumBdrs = BdrDofs.Width();
-
    FillNeighborDofs();
-   FillSubcell2CellDof();
 }
 
 void ParDofInfo::FillNeighborDofs()

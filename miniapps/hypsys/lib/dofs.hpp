@@ -6,6 +6,7 @@
 using namespace std;
 using namespace mfem;
 
+// NOTE: The mesh is assumed to consist of segments, triangles quads or hexes.
 class DofInfo
 {
 public:
@@ -17,7 +18,7 @@ public:
    Vector xi_min, xi_max; // min/max values for each dof
    Vector xe_min, xe_max; // min/max values for each element
 
-   DenseMatrix BdrDofs, Sub2Ind;
+   DenseMatrix BdrDofs, Sub2Ind, SubcellCross;
    DenseTensor NbrDofs; // Negative values correspond to the boundary attributes.
 
    int dim, NumBdrs, NumFaceDofs, numSubcells, numDofsSubcell;
@@ -31,13 +32,14 @@ public:
    // Assumes that xe_min and xe_max are already computed.
    void ComputeBounds();
 
-   void ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs);
+   void ExtractBdrDofs();
 
    // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs();
 
-   // NOTE: The mesh is assumed to consist of segments, quads or hexes.
    void FillSubcell2CellDof();
+
+   void FillSubcellCross();
 
    // Auxiliary routines.
    int GetLocalFaceDofIndex3D(int loc_face_id, int face_orient,

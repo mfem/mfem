@@ -291,13 +291,13 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
    xe_min.SetSize(ne);
    xe_max.SetSize(ne);
 
-   ExtractBdrDofs(fes->GetFE(0)->GetOrder(),
-                  fes->GetFE(0)->GetGeomType(), BdrDofs);
+   ExtractBdrDofs();
    NumFaceDofs = BdrDofs.Height();
    NumBdrs = BdrDofs.Width();
 
    FillNeighborDofs();
    FillSubcell2CellDof();
+   FillSubcellCross();
 }
 
 void DofInfo::FillNeighborDofs()
@@ -594,46 +594,50 @@ void DofInfo::FillSubcell2CellDof()
 }
 
 // Assuming L2 elements.
-void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
+void DofInfo::ExtractBdrDofs()
 {
+   const FiniteElement *el = fes->GetFE(0);
+   Geometry::Type gtype = el->GetGeomType();
+   int p = el->GetOrder();
+
    switch (gtype)
    {
       case Geometry::SEGMENT:
       {
-         dofs.SetSize(1,2);
-         dofs(0,0) = 0;
-         dofs(0,1) = p;
+         BdrDofs.SetSize(1,2);
+         BdrDofs(0,0) = 0;
+         BdrDofs(0,1) = p;
          break;
       }
       case Geometry::TRIANGLE:
       {
          int ctr = 0;
-         dofs.SetSize(p+1, 3);
+         BdrDofs.SetSize(p+1, 3);
          for (int i = 0; i <= p; i++)
          {
-            dofs(i,0) = i;
-            dofs(i,1) = ctr + p;
-            dofs(i,2) = ctr + i;
+            BdrDofs(i,0) = i;
+            BdrDofs(i,1) = ctr + p;
+            BdrDofs(i,2) = ctr + i;
             ctr += p - i;
          }
          break;
       }
       case Geometry::SQUARE:
       {
-         dofs.SetSize(p+1,4);
+         BdrDofs.SetSize(p+1,4);
          for (int i = 0; i <= p; i++)
          {
-            dofs(i,0) = i;
-            dofs(i,1) = i*(p+1) + p;
-            dofs(i,2) = (p+1)*(p+1) - 1 - i;
-            dofs(i,3) = (p-i)*(p+1);
+            BdrDofs(i,0) = i;
+            BdrDofs(i,1) = i*(p+1) + p;
+            BdrDofs(i,2) = (p+1)*(p+1) - 1 - i;
+            BdrDofs(i,3) = (p-i)*(p+1);
          }
          break;
       }
       case Geometry::TETRAHEDRON:
       {
          int ctr;
-         dofs.SetSize((p+1)*(p+2)/2, 4);
+         BdrDofs.SetSize((p+1)*(p+2)/2, 4);
          for (int bdrID = 0; bdrID < 4; bdrID++)
          {
             int o = 0;
@@ -645,7 +649,7 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
                   {
                      for (int j = 0; j <= p - i; j++)
                      {
-                        dofs(o++,bdrID) = ctr;
+                        BdrDofs(o++,bdrID) = ctr;
                         ctr += p - i - j;
                      }
                      ctr += p - i;
@@ -657,7 +661,7 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
                   {
                      for (int j = 0; j <= p - i; j++)
                      {
-                        dofs(o++,bdrID) = ctr;
+                        BdrDofs(o++,bdrID) = ctr;
                         ctr += p + 1 - i - j;
                      }
                   }
@@ -668,7 +672,7 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
                   {
                      for (int j = 0; j <= p - i; j++)
                      {
-                        dofs(o++,bdrID) = ctr++;
+                        BdrDofs(o++,bdrID) = ctr++;
                      }
                      ctr += - p + i - 1 + (p-i+1)*(p-i+2)/2;
                   }
@@ -676,7 +680,7 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
                case 3:
                   for (int i = 0; i < (p+1)*(p+2)/2; i++)
                   {
-                     dofs(o++,bdrID) = i;
+                     BdrDofs(o++,bdrID) = i;
                   }
                   break;
             }
@@ -685,7 +689,7 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
       }
       case Geometry::CUBE:
       {
-         dofs.SetSize((p+1)*(p+1), 6);
+         BdrDofs.SetSize((p+1)*(p+1), 6);
          for (int bdrID = 0; bdrID < 6; bdrID++)
          {
             int o(0);
@@ -694,39 +698,39 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
                case 0:
                   for (int i = 0; i < (p+1)*(p+1); i++)
                   {
-                     dofs(o++,bdrID) = i;
+                     BdrDofs(o++,bdrID) = i;
                   }
                   break;
                case 1:
                   for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
                      for (int j = 0; j < p+1; j++)
                      {
-                        dofs(o++,bdrID) = i+j;
+                        BdrDofs(o++,bdrID) = i+j;
                      }
                   break;
                case 2:
                   for (int i = p; i < (p+1)*(p+1)*(p+1); i+=p+1)
                   {
-                     dofs(o++,bdrID) = i;
+                     BdrDofs(o++,bdrID) = i;
                   }
                   break;
                case 3:
                   for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
                      for (int j = p*(p+1); j < (p+1)*(p+1); j++)
                      {
-                        dofs(o++,bdrID) = i+j;
+                        BdrDofs(o++,bdrID) = i+j;
                      }
                   break;
                case 4:
                   for (int i = 0; i <= (p+1)*((p+1)*(p+1)-1); i+=p+1)
                   {
-                     dofs(o++,bdrID) = i;
+                     BdrDofs(o++,bdrID) = i;
                   }
                   break;
                case 5:
                   for (int i = p*(p+1)*(p+1); i < (p+1)*(p+1)*(p+1); i++)
                   {
-                     dofs(o++,bdrID) = i;
+                     BdrDofs(o++,bdrID) = i;
                   }
                   break;
             }
@@ -734,6 +738,78 @@ void DofInfo::ExtractBdrDofs(int p, Geometry::Type gtype, DenseMatrix &dofs)
          break;
       }
       default: MFEM_ABORT("Geometry not implemented.");
+   }
+}
+
+void DofInfo::FillSubcellCross()
+{
+   const FiniteElement &el = *fes->GetFE(0);
+   Geometry::Type gtype = el.GetGeomType();
+
+   switch (gtype)
+   {
+   case Geometry::SEGMENT:
+   {
+      SubcellCross.SetSize(2,1);
+      SubcellCross(0,0) = 1;
+      SubcellCross(1,0) = 0;
+      break;
+   }
+   case Geometry::TRIANGLE:
+   {
+      SubcellCross.SetSize(3,2);
+      SubcellCross(0,0) = 1;
+      SubcellCross(0,1) = 2;
+      SubcellCross(1,0) = 0;
+      SubcellCross(1,1) = 2;
+      SubcellCross(2,0) = 0;
+      SubcellCross(2,1) = 1;
+      break;
+   }
+   case Geometry::SQUARE:
+   {
+      SubcellCross.SetSize(4,2);
+      SubcellCross(0,0) = 1;
+      SubcellCross(0,1) = 2;
+      SubcellCross(1,0) = 0;
+      SubcellCross(1,1) = 3;
+      SubcellCross(2,0) = 0;
+      SubcellCross(2,1) = 3;
+      SubcellCross(3,0) = 1;
+      SubcellCross(3,1) = 2;
+      break;
+   }
+   case Geometry::CUBE:
+   {
+      SubcellCross.SetSize(8,3);
+      SubcellCross(0,0) = 1;
+      SubcellCross(0,1) = 2;
+      SubcellCross(0,2) = 4;
+      SubcellCross(1,0) = 0;
+      SubcellCross(1,1) = 3;
+      SubcellCross(1,2) = 5;
+      SubcellCross(2,0) = 0;
+      SubcellCross(2,1) = 3;
+      SubcellCross(2,2) = 6;
+      SubcellCross(3,0) = 1;
+      SubcellCross(3,1) = 2;
+      SubcellCross(3,2) = 7;
+      SubcellCross(4,0) = 0;
+      SubcellCross(4,1) = 5;
+      SubcellCross(4,2) = 6;
+      SubcellCross(5,0) = 1;
+      SubcellCross(5,1) = 4;
+      SubcellCross(5,2) = 7;
+      SubcellCross(6,0) = 2;
+      SubcellCross(6,1) = 4;
+      SubcellCross(6,2) = 7;
+      SubcellCross(7,0) = 3;
+      SubcellCross(7,1) = 5;
+      SubcellCross(7,2) = 6;
+      break;
+   }
+   default:
+      MFEM_ABORT("Other gemoetries are not supported.");
    }
 }
 
