@@ -112,8 +112,7 @@ int main(int argc, char *argv[])
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         //mesh->UniformRefinement();
-         mesh->RandomRefinement(0.5, true);
+         mesh->UniformRefinement();
       }
    }
 
@@ -217,12 +216,12 @@ int main(int argc, char *argv[])
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-/*   ofstream mesh_ofs("refined.mesh");
+   ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
-   x.Save(sol_ofs);*/
+   x.Save(sol_ofs);
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
