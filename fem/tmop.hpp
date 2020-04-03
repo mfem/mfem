@@ -710,7 +710,7 @@ protected:
    // Data is owned, updated by UpdateTargetSpecification.
    Vector tspec;             //eta(x)
    Vector tspec_sav;
-   Vector tspec_perth;       //eta(x+h)
+   Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
    Vector tspec_pertmix;     //eta(x+h,y+h)
 
@@ -729,7 +729,7 @@ protected:
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
-        tspec(), tspec_sav(), tspec_perth(), tspec_pert2h(), tspec_pertmix(),
+        tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
         tspec_fes(NULL),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
         adapt_eval(NULL) { }
@@ -777,7 +777,7 @@ public:
       adapt_eval = ae;
    }
 
-   const Vector &GetTspecPert1H()   { return tspec_perth; }
+   const Vector &GetTspecPert1H()   { return tspec_pert1h; }
    const Vector &GetTspecPert2H()   { return tspec_pert2h; }
    const Vector &GetTspecPertMixH() { return tspec_pertmix; }
 
@@ -980,8 +980,8 @@ public:
 class TMOPComboIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   // Integrators in the combo.
-   Array<TMOP_Integrator *> tmopi; // owned
+   // Integrators in the combination. Owned.
+   Array<TMOP_Integrator *> tmopi;
 
 public:
    TMOPComboIntegrator() : tmopi(0) { }
@@ -991,117 +991,37 @@ public:
       for (int i = 0; i < tmopi.Size(); i++) { delete tmopi[i]; }
    }
 
-   /// Adds new TMOP_Integrator to the combination.
+   /// Adds a new TMOP_Integrator to the combination.
    void AddTMOPIntegrator(TMOP_Integrator *ti) { tmopi.Append(ti); }
-   Array<TMOP_Integrator *> GetTMOPIntegrators() const { return tmopi; }
 
-   /// Sets @a w1 to all integrators in the combo.
-   void SetCoefficient(Coefficient &w1)
-   {
-      for (int i = 0; i < tmopi.Size(); i++) { tmopi[i]->SetCoefficient(w1); }
-   }
+   Array<TMOP_Integrator *> GetTMOPIntegrators() const { return tmopi; }
 
    /// Adds the limiting term to the first integrator. Disables it for the rest.
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
-                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL)
-   {
-      MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
-
-      tmopi[0]->EnableLimiting(n0, dist, w0, lfunc);
-      for (int i = 1; i < tmopi.Size(); i++) { tmopi[i]->DisableLimiting(); }
-   }
+                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
    /** @brief Adds the limiting term to the first integrator. Disables it for
        the rest (@a dist in the general version of the method) equal to 1. */
    void EnableLimiting(const GridFunction &n0, Coefficient &w0,
-                       TMOP_LimiterFunction *lfunc = NULL)
-   {
-      MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
-
-      tmopi[0]->EnableLimiting(n0, w0, lfunc);
-      for (int i = 1; i < tmopi.Size(); i++) { tmopi[i]->DisableLimiting(); }
-   }
+                       TMOP_LimiterFunction *lfunc = NULL);
 
    /// Update the original/reference nodes used for limiting.
-   void SetLimitingNodes(const GridFunction &n0)
-   {
-
-      tmopi[0]->SetLimitingNodes(n0);
-      for (int i = 1; i < tmopi.Size(); i++) { tmopi[i]->DisableLimiting(); }
-   }
+   void SetLimitingNodes(const GridFunction &n0);
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
-                                   const Vector &elfun)
-   {
-      double energy= 0.0;
-      for (int i = 0; i < tmopi.Size(); i++)
-      {
-         energy += tmopi[i]->GetElementEnergy(el, T, elfun);
-      }
-      return energy;
-   }
-
+                                   const Vector &elfun);
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
-                                      const Vector &elfun, Vector &elvect)
-   {
-      MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
-
-      tmopi[0]->AssembleElementVector(el, T, elfun, elvect);
-      for (int i = 1; i < tmopi.Size(); i++)
-      {
-         Vector elvect_i;
-         tmopi[i]->AssembleElementVector(el, T, elfun, elvect_i);
-         elvect += elvect_i;
-      }
-   }
-
+                                      const Vector &elfun, Vector &elvect);
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
-                                    const Vector &elfun, DenseMatrix &elmat)
-   {
-      MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+                                    const Vector &elfun, DenseMatrix &elmat);
 
-      tmopi[0]->AssembleElementGrad(el, T, elfun, elmat);
-      for (int i = 1; i < tmopi.Size(); i++)
-      {
-         DenseMatrix elmat_i;
-         tmopi[i]->AssembleElementGrad(el, T, elfun, elmat_i);
-         elmat += elmat_i;
-      }
-   }
-
-   void EnableNormalization(const GridFunction &x)
-   {
-      const int cnt = tmopi.Size();
-      double total_integral = 0.0;
-      for (int i = 0; i < cnt; i++)
-      {
-         tmopi[i]->EnableNormalization(x);
-         total_integral += 1.0 / tmopi[i]->metric_normal;
-      }
-      for (int i = 0; i < cnt; i++)
-      {
-         tmopi[i]->metric_normal = 1.0 / total_integral;
-      }
-   }
-
+   /// Normalization factor that considers all integrators in the combination.
+   void EnableNormalization(const GridFunction &x);
 #ifdef MFEM_USE_MPI
-   void ParEnableNormalization(const ParGridFunction &x)
-   {
-      int cnt = tmopi.Size();
-      double total_integral = 0.0;
-      for (int i = 0; i < cnt; i++)
-      {
-         tmopi[i]->ParEnableNormalization(x);
-         total_integral += 1.0 / tmopi[i]->metric_normal;
-      }
-      for (int i = 0; i < cnt; i++)
-      {
-         tmopi[i]->metric_normal = 1.0 / total_integral;
-      }
-   }
+   void ParEnableNormalization(const ParGridFunction &x);
 #endif
 };
 

@@ -1082,9 +1082,9 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
    const int dim = tspec_fes->GetFE(0)->GetDim();
    const int cnt = x.Size()/dim;
 
-   if (tspec_perth.Size() != x.Size())
+   if (tspec_pert1h.Size() != x.Size())
    {
-      tspec_perth.SetSize(x.Size());
+      tspec_pert1h.SetSize(x.Size());
    }
 
    Vector TSpecTemp;
@@ -1093,7 +1093,7 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
    {
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += dx; }
 
-      TSpecTemp.SetDataAndSize(tspec_perth.GetData() + j*cnt, cnt);
+      TSpecTemp.SetDataAndSize(tspec_pert1h.GetData() + j*cnt, cnt);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= dx; }
@@ -1808,6 +1808,111 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
       discr_tc->UpdateTargetSpecification(x);
       discr_tc->UpdateGradientTargetSpecification(x, dx);
       discr_tc->UpdateHessianTargetSpecification(x, dx);
+   }
+}
+#endif
+
+void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,
+                                         const GridFunction &dist,
+                                         Coefficient &w0,
+                                         TMOP_LimiterFunction *lfunc)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->EnableLimiting(n0, dist, w0, lfunc);
+   for (int i = 1; i < tmopi.Size(); i++) { tmopi[i]->DisableLimiting(); }
+}
+
+void TMOPComboIntegrator::EnableLimiting(const GridFunction &n0,
+                                         Coefficient &w0,
+                                         TMOP_LimiterFunction *lfunc)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->EnableLimiting(n0, w0, lfunc);
+   for (int i = 1; i < tmopi.Size(); i++) { tmopi[i]->DisableLimiting(); }
+}
+
+void TMOPComboIntegrator::SetLimitingNodes(const GridFunction &n0)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->SetLimitingNodes(n0);
+   for (int i = 1; i < tmopi.Size(); i++) { tmopi[i]->DisableLimiting(); }
+}
+
+double TMOPComboIntegrator::GetElementEnergy(const FiniteElement &el,
+                                             ElementTransformation &T,
+                                             const Vector &elfun)
+{
+   double energy= 0.0;
+   for (int i = 0; i < tmopi.Size(); i++)
+   {
+      energy += tmopi[i]->GetElementEnergy(el, T, elfun);
+   }
+   return energy;
+}
+
+void TMOPComboIntegrator::AssembleElementVector(const FiniteElement &el,
+                                                ElementTransformation &T,
+                                                const Vector &elfun,
+                                                Vector &elvect)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->AssembleElementVector(el, T, elfun, elvect);
+   for (int i = 1; i < tmopi.Size(); i++)
+   {
+      Vector elvect_i;
+      tmopi[i]->AssembleElementVector(el, T, elfun, elvect_i);
+      elvect += elvect_i;
+   }
+}
+
+void TMOPComboIntegrator::AssembleElementGrad(const FiniteElement &el,
+                                              ElementTransformation &T,
+                                              const Vector &elfun,
+                                              DenseMatrix &elmat)
+{
+   MFEM_VERIFY(tmopi.Size() > 0, "No TMOP_Integrators were added.");
+
+   tmopi[0]->AssembleElementGrad(el, T, elfun, elmat);
+   for (int i = 1; i < tmopi.Size(); i++)
+   {
+      DenseMatrix elmat_i;
+      tmopi[i]->AssembleElementGrad(el, T, elfun, elmat_i);
+      elmat += elmat_i;
+   }
+}
+
+void TMOPComboIntegrator::EnableNormalization(const GridFunction &x)
+{
+   const int cnt = tmopi.Size();
+   double total_integral = 0.0;
+   for (int i = 0; i < cnt; i++)
+   {
+      tmopi[i]->EnableNormalization(x);
+      total_integral += 1.0 / tmopi[i]->metric_normal;
+   }
+   for (int i = 0; i < cnt; i++)
+   {
+      tmopi[i]->metric_normal = 1.0 / total_integral;
+   }
+}
+
+#ifdef MFEM_USE_MPI
+void TMOPComboIntegrator::ParEnableNormalization(const ParGridFunction &x)
+{
+   const int cnt = tmopi.Size();
+   double total_integral = 0.0;
+   for (int i = 0; i < cnt; i++)
+   {
+      tmopi[i]->ParEnableNormalization(x);
+      total_integral += 1.0 / tmopi[i]->metric_normal;
+   }
+   for (int i = 0; i < cnt; i++)
+   {
+      tmopi[i]->metric_normal = 1.0 / total_integral;
    }
 }
 #endif
