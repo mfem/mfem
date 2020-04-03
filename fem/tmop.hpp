@@ -793,7 +793,6 @@ public:
 };
 
 class TMOPNewtonSolver;
-class TMOPDescentNewtonSolver;
 
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
@@ -806,7 +805,6 @@ class TMOP_Integrator : public NonlinearFormIntegrator
 {
 protected:
    friend class TMOPNewtonSolver;
-   friend class TMOPDescentNewtonSolver;
    friend class TMOPComboIntegrator;
 
    TMOP_QualityMetric *metric;        // not owned
