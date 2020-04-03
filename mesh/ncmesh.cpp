@@ -5388,7 +5388,6 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    Iso = iso;
 
    InitRootState(root_count);
-   InitGeomFlags();
 }
 
 void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
@@ -5411,7 +5410,6 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    MFEM_VERIFY(ident == "elements", "invalid mesh file");
 
    input >> count;
-   int max_id = -1;
    for (int i = 0; i < count; i++)
    {
       input >> attr >> geom;
@@ -5426,8 +5424,10 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
       Element &el = elements[id];
       for (int j = 0; j < GI[geom].nv; j++)
       {
-         input >> el.node[j];
-         max_id = std::max(max_id, el.node[j]);
+         int id;
+         input >> id;
+         el.node[j] = id;
+         nodes.Alloc(id, id, id); // see comment in NCMesh::NCMesh
       }
    }
 
@@ -5438,15 +5438,6 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    LoadBoundary(input);
 
-   // create top level nodes
-   for (int id = 0; id <= max_id; id++)
-   {
-      // top-level nodes are special: id == p1 == p2 == orig. vertex id
-      int node = nodes.GetId(id, id);
-      MFEM_CONTRACT_VAR(node);
-      MFEM_ASSERT(node == id, "");
-   }
-
    // load vertex hierarchy
    skip_comment_lines(input, '#');
    input >> ident;
@@ -5456,16 +5447,22 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
       skip_comment_lines(input, '#');
       input >> ident;
-
-      // load element hierarchy
-      if (ident == "coarse_elements")
-      {
-         LoadCoarseElements(input);
-
-         skip_comment_lines(input, '#');
-         input >> ident;
-      }
    }
+
+   // load element hierarchy
+   if (ident == "coarse_elements")
+   {
+      LoadCoarseElements(input);
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+   else
+   {
+      // no element hierarchy -> all elements are roots
+      InitRootState(elements.Size());
+   }
+   InitGeomFlags();
 
    // load vertices
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
@@ -5504,6 +5501,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    }
 
    // create edge nodes and faces
+   nodes.UpdateUnused();
    for (int i = 0; i < elements.Size(); i++)
    {
       if (elements[i].IsLeaf())
@@ -5513,7 +5511,6 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
       }
    }
 
-   // NOTE: InitRootState and InitGeomFlags already called in LoadCoarseElements
    Update();
 }
 
