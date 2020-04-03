@@ -37,8 +37,8 @@ private:
    HypreBoomerAMG* amg;
 
 public:
-   /// Constructor for a multigrid diffusion operator for a given SpaceHierarchy. Uses Chebyshev accelerated smoothing.
-   MultigridDiffusionOperator(ParSpaceHierarchy& spaceHierarchy,
+   /// Constructor for a multigrid diffusion operator for a given FiniteElementSpaceHierarchy. Uses Chebyshev accelerated smoothing.
+   MultigridDiffusionOperator(ParFiniteElementSpaceHierarchy& spaceHierarchy,
                               Array<int>& ess_bdr, int chebyshevOrder = 2)
       : one(1.0)
    {
@@ -111,7 +111,8 @@ private:
       form->AddDomainIntegrator(new DiffusionIntegrator(one));
    }
 
-   void ConstructCoarseOperatorAndSolver(ParSpaceHierarchy& spaceHierarchy,
+   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpaceHierarchy&
+                                         spaceHierarchy,
                                          Array<int>& ess_bdr)
    {
       ParFiniteElementSpace& fespace = spaceHierarchy.GetFESpaceAtLevel(0);
@@ -230,8 +231,9 @@ int main(int argc, char *argv[])
 
    Array<FiniteElementCollection*> collections;
    collections.Append(fec);
-   ParSpaceHierarchy* spaceHierarchy = new ParSpaceHierarchy(pmesh, fespace, true,
-                                                             true);
+   ParFiniteElementSpaceHierarchy* spaceHierarchy = new
+   ParFiniteElementSpaceHierarchy(pmesh, fespace, true,
+                                  true);
    for (int level = 0; level < geometricrefinements; ++level)
    {
       spaceHierarchy->AddUniformlyRefinedLevel();
@@ -263,7 +265,7 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    // 10. Create the multigrid operator using the previously created parallel
-   //     SpaceHierarchy and additional boundary information. This operator
+   //     FiniteElementSpaceHierarchy and additional boundary information. This operator
    //     is then used to create the MultigridSolver as a preconditioner in the
    //     iterative solver.
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());

@@ -39,8 +39,8 @@ private:
    ConstantCoefficient one;
 
 public:
-   /// Constructor for a multigrid diffusion operator for a given SpaceHierarchy. Uses Chebyshev accelerated smoothing.
-   MultigridDiffusionOperator(SpaceHierarchy& spaceHierarchy,
+   /// Constructor for a multigrid diffusion operator for a given FiniteElementSpaceHierarchy. Uses Chebyshev accelerated smoothing.
+   MultigridDiffusionOperator(FiniteElementSpaceHierarchy& spaceHierarchy,
                               Array<int>& ess_bdr, int chebyshevOrder = 2)
       : one(1.0)
    {
@@ -108,7 +108,8 @@ private:
       form->AddDomainIntegrator(new DiffusionIntegrator(one));
    }
 
-   void ConstructCoarseOperatorAndSolver(SpaceHierarchy& spaceHierarchy,
+   void ConstructCoarseOperatorAndSolver(FiniteElementSpaceHierarchy&
+                                         spaceHierarchy,
                                          Array<int>& ess_bdr)
    {
       BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
@@ -199,7 +200,7 @@ int main(int argc, char *argv[])
 
    Array<FiniteElementCollection*> collections;
    collections.Append(fec);
-   SpaceHierarchy spaceHierarchy(mesh, fespace, true, true);
+   FiniteElementSpaceHierarchy spaceHierarchy(mesh, fespace, true, true);
    for (int level = 0; level < geometricrefinements; ++level)
    {
       spaceHierarchy.AddUniformlyRefinedLevel();
@@ -228,7 +229,7 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    // 8. Create the multigrid operator using the previously created
-   //    SpaceHierarchy and additional boundary information. This operator
+   //    FiniteElementSpaceHierarchy and additional boundary information. This operator
    //    is then used to create the MultigridSolver as a preconditioner in the
    //    iterative solver.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
