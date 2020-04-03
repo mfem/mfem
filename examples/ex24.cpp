@@ -26,8 +26,8 @@
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces, with two variants:
 //
-//               1) (u, grad p) for u in H(curl) and p in H^1
-//               2) (q, div v) for v in H(div) and q in L_2
+//               1) (grad p, u) for p in H^1 tested against u in H(curl)
+//               2) (div v, q) for v in H(div) tested against q in L_2
 //
 //               Using different approaches, we project the gradient or
 //               divergence to the appropriate space.

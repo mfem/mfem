@@ -203,7 +203,8 @@ void PAHdivMassApply2D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massX[dx] += mass[qy][qx][c] * ((c == 0) ? Bct(dx,qx) : Bot(dx,qx));
+                  massX[dx] += mass[qy][qx][c] * ((c == 0) ? Bct(dx,qx) :
+                                                  Bot(dx,qx));
                }
             }
 
@@ -329,7 +330,8 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
-                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx;
+                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e)
+                     += mass[qx] * wx * wx;
                   }
                }
             }
@@ -497,7 +499,8 @@ void PAHdivMassApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     massX[dx] += mass[qz][qy][qx][c] * ((c == 0) ? Bct(dx,qx) : Bot(dx,qx));
+                     massX[dx] += mass[qz][qy][qx][c] *
+                                  ((c == 0) ? Bct(dx,qx) : Bot(dx,qx));
                   }
                }
                for (int dy = 0; dy < D1Dy; ++dy)
@@ -517,7 +520,8 @@ void PAHdivMassApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += massXY[dy][dx] * wz;
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
+                        massXY[dy][dx] * wz;
                   }
                }
             }
@@ -689,7 +693,7 @@ static void PADivDivApply2D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  gradX[dx] += div[qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                  gradX[dx] += div[qy][qx] * (c == 0 ? Gct(dx,qx) : Bot(dx,qx));
                }
             }
             for (int dy = 0; dy < D1Dy; ++dy)
@@ -850,7 +854,8 @@ static void PADivDivApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                     aX[dx] += div[qz][qy][qx] *
+                               (c == 0 ? Gct(dx,qx) : Bot(dx,qx));
                   }
                }
                for (int dy = 0; dy < D1Dy; ++dy)
@@ -870,7 +875,8 @@ static void PADivDivApply3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += aXY[dy][dx] * wz;
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
+                        aXY[dy][dx] * wz;
                   }
                }
             }
@@ -891,8 +897,8 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
       dynamic_cast<const VectorTensorFiniteElement*>(fel);
    MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const IntegrationRule *ir = IntRule ? IntRule :
-                               &MassIntegrator::GetRule(*el, *el, *mesh->GetElementTransformation(0));
+   const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule
+                               (*el, *el, *mesh->GetElementTransformation(0));
 
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
@@ -1060,7 +1066,8 @@ static void PADivDivAssembleDiagonal3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += a[dx] * wx * wx;
+                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
+                        a[dx] * wx * wx;
                   }
                }
             }
@@ -1129,7 +1136,8 @@ void
 VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                          const FiniteElementSpace &test_fes)
 {
-   // Assumes tensor-product elements, with a vector test space and scalar trial space.
+   // Assumes tensor-product elements, with a vector test space and
+   // scalar trial space.
    Mesh *mesh = trial_fes.GetMesh();
    const FiniteElement *trial_fel = trial_fes.GetFE(0);
    const FiniteElement *test_fel = test_fes.GetFE(0);
@@ -1217,6 +1225,8 @@ static void PAHdivL2Apply3D(const int D1D,
                             const Vector &_x,
                             Vector &_y)
 {
+   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
@@ -1482,6 +1492,8 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
                                      const Vector &_x,
                                      Vector &_y)
 {
+   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
@@ -1598,7 +1610,8 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                     aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx) :
+                                                  Bot(dx,qx));
                   }
                }
                for (int dy = 0; dy < D1Dy; ++dy)
@@ -1618,7 +1631,8 @@ static void PAHdivL2ApplyTranspose3D(const int D1D,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
-                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += aXY[dy][dx] * wz;
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
+                        aXY[dy][dx] * wz;
                   }
                }
             }
@@ -1751,11 +1765,11 @@ void VectorFEDivergenceIntegrator::AddMultTransposePA(const Vector &x,
                                                       Vector &y) const
 {
    if (dim == 3)
-      PAHdivL2ApplyTranspose3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B, mapsC->Gt,
-                               mapsO->Bt, pa_data, x, y);
+      PAHdivL2ApplyTranspose3D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
+                               mapsC->Gt, mapsO->Bt, pa_data, x, y);
    else if (dim == 2)
-      PAHdivL2ApplyTranspose2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B, mapsC->Gt,
-                               mapsO->Bt, pa_data, x, y);
+      PAHdivL2ApplyTranspose2D(dofs1D, quad1D, L2dofs1D, ne, L2mapsO->B,
+                               mapsC->Gt, mapsO->Bt, pa_data, x, y);
    else
    {
       MFEM_ABORT("Unsupported dimension!");
@@ -1773,6 +1787,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                                              const Vector &_D,
                                              Vector &_diag)
 {
+   MFEM_VERIFY(D1D <= HDIV_MAX_D1D, "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= HDIV_MAX_Q1D, "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto L2Bo = Reshape(_L2Bo.Read(), Q1D, L2D1D);
@@ -1790,7 +1806,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
          {
             for (int rx = 0; rx < L2D1D; ++rx)
             {
-               // Compute row (rx,ry,rz), assuming all contributions are from a single element.
+               // Compute row (rx,ry,rz), assuming all contributions are from
+               // a single element.
 
                double row[3*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)*(HDIV_MAX_D1D-1)];
                double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D][HDIV_MAX_Q1D];
@@ -1806,7 +1823,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                   {
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        div[qz][qy][qx] = op(qx,qy,qz,e) * L2Bo(qx,rx) * L2Bo(qy,ry) * L2Bo(qz,rz);
+                        div[qz][qy][qx] = op(qx,qy,qz,e) * L2Bo(qx,rx) *
+                                          L2Bo(qy,ry) * L2Bo(qz,rz);
                      }
                   }
                }
@@ -1840,7 +1858,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                         {
                            for (int dx = 0; dx < D1Dx; ++dx)
                            {
-                              aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                              aX[dx] += div[qz][qy][qx] * ((c == 0) ? Gct(dx,qx)
+                                                           : Bot(dx,qx));
                            }
                         }
                         for (int dy = 0; dy < D1Dy; ++dy)
@@ -1860,7 +1879,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                         {
                            for (int dx = 0; dx < D1Dx; ++dx)
                            {
-                              row[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] += aXY[dy][dx] * wz;
+                              row[dx + ((dy + (dz * D1Dy)) * D1Dx) + osc] +=
+                                 aXY[dy][dx] * wz;
                            }
                         }
                      }
@@ -1905,7 +1925,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
       {
          for (int rx = 0; rx < L2D1D; ++rx)
          {
-            // Compute row (rx,ry), assuming all contributions are from a single element.
+            // Compute row (rx,ry), assuming all contributions are from
+            // a single element.
 
             double row[2*HDIV_MAX_D1D*(HDIV_MAX_D1D-1)];
             double div[HDIV_MAX_Q1D][HDIV_MAX_Q1D];
@@ -1940,7 +1961,8 @@ static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                   {
                      for (int dx = 0; dx < D1Dx; ++dx)
                      {
-                        aX[dx] += div[qy][qx] * ((c == 0) ? Gct(dx,qx) : Bot(dx,qx));
+                        aX[dx] += div[qy][qx] * ((c == 0) ? Gct(dx,qx) :
+                                                 Bot(dx,qx));
                      }
                   }
 
@@ -1981,7 +2003,5 @@ void VectorFEDivergenceIntegrator::AssembleDiagonalPA_ADAt(const Vector &D,
       MFEM_ABORT("Unsupported dimension!");
    }
 }
-
-
 
 } // namespace mfem
