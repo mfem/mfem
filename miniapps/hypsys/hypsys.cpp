@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
       odeSolver->Step(u, t, dt);
       ti++;
 
-      done = (t >= config.tFinal - 1.e-8*config.dt);
+      done = (t >= config.tFinal - 1.e-8 * config.dt);
 
       if (hyp->SteadyState)
       {

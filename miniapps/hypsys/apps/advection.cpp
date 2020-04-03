@@ -40,7 +40,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
-      case 2: // For debugging and having a real conservation law.
+      case 2: // For debugging and to have a real conservation law.
       {
          ProblemName = "Advection - Translation";
          glvis_scale = "on";
@@ -110,46 +110,29 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 
       VelElem(e) = mat;
 
-      if (NodalQuadRule)
+      if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
+      else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
+      else if (dim==3) { mesh->GetElementFaces(e, bdrs, orientation); }
+
+      for (int i = 0; i < dofs.NumBdrs; i++)
       {
-         VelFace(e) = 0.;
-         for (int i = 0; i < dofs.NumBdrs; i++)
+         FaceElementTransformations *facetrans
+            = mesh->GetFaceElementTransformations(bdrs[i]);
+
+         for (int k = 0; k < nqf; k++)
          {
-            for (int j = 0; j < dofs.NumFaceDofs; j++)
+            if (facetrans->Elem1No != e)
             {
-               for (int l = 0; l < dim; l++)
-               {
-                  VelFace(l,i,e) += VelElem(l,dofs.BdrDofs(j,i),e);
-               }
+               velocity.Eval(vval, *facetrans->Elem2, eip[i * nqf + k]);
             }
-         }
-      }
-      else
-      {
-         if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
-         else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
-         else if (dim==3) { mesh->GetElementFaces(e, bdrs, orientation); }
-
-         for (int i = 0; i < dofs.NumBdrs; i++)
-         {
-            FaceElementTransformations *facetrans
-               = mesh->GetFaceElementTransformations(bdrs[i]);
-
-            for (int k = 0; k < nqf; k++)
+            else
             {
-               if (facetrans->Elem1No != e)
-               {
-                  velocity.Eval(vval, *facetrans->Elem2, eip[i*nqf+k]);
-               }
-               else
-               {
-                  velocity.Eval(vval, *facetrans->Elem1, eip[i*nqf+k]);
-               }
+               velocity.Eval(vval, *facetrans->Elem1, eip[i * nqf + k]);
+            }
 
-               for (int l = 0; l < dim; l++)
-               {
-                  VelFace(l,i,e*nqf+k) = vval(l);
-               }
+            for (int l = 0; l < dim; l++)
+            {
+               VelFace(l, i, e * nqf + k) = vval(l);
             }
          }
       }

@@ -15,7 +15,11 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    ShapeEval.SetSize(nd,nd);
    ElemInt.SetSize(dim,dim,ne);
    PrecGrad.SetSize(nd,dim,nd);
+   CTilde.SetSize(nd,dim,nd);
    OuterUnitNormals.SetSize(dim, dofs.NumBdrs, ne);
+   C_eij(dim);
+
+   nscd = nscd = dofs.SubcellCross.Width();
 
    RefMassLumped =  0.;
    RefMass = 0.;
@@ -145,16 +149,16 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       case Geometry::CUBE:
       {
          RefMat = 2.;
-         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) =
-                                                      RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 8.;
-         RefMat(0,7) = RefMat(1,6) = RefMat(2,5) = RefMat(3,4) =
-                                                      RefMat(4,3) = RefMat(5,2) = RefMat(6,1) = RefMat(7,0) = 1.;
-         RefMat(0,1) = RefMat(0,2) = RefMat(1,0) = RefMat(1,3) =
-                                                      RefMat(2,0) = RefMat(2,3) = RefMat(3,1) = RefMat(3,2) =
-                                                                                     RefMat(4,5) = RefMat(4,6) = RefMat(5,4) = RefMat(5,7) =
-                                                                                           RefMat(6,4) = RefMat(6,7) = RefMat(7,5) = RefMat(7,6) =
-                                                                                                 RefMat(0,4) = RefMat(1,5) = RefMat(2,6) = RefMat(3,7) =
-                                                                                                       RefMat(4,0) = RefMat(5,1) = RefMat(6,2) = RefMat(7,3) = 4.;
+         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 8.;
+         RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 8.;
+         RefMat(0,7) = RefMat(1,6) = RefMat(2,5) = RefMat(3,4) = 1.;
+         RefMat(4,3) = RefMat(5,2) = RefMat(6,1) = RefMat(7,0) = 1.;
+         RefMat(0,1) = RefMat(0,2) = RefMat(1,0) = RefMat(1,3) = 4.;
+         RefMat(2,0) = RefMat(2,3) = RefMat(3,1) = RefMat(3,2) = 4.;
+         RefMat(4,5) = RefMat(4,6) = RefMat(5,4) = RefMat(5,7) = 4.;
+         RefMat(6,4) = RefMat(6,7) = RefMat(7,5) = RefMat(7,6) = 4.;
+         RefMat(0,4) = RefMat(1,5) = RefMat(2,6) = RefMat(3,7) = 4.;
+         RefMat(4,0) = RefMat(5,1) = RefMat(6,2) = RefMat(7,3) = 4.;
          RefMat *= 1. / 216.;
          break;
       }
@@ -176,6 +180,11 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    }
 }
 
+void MCL_Evolution::Mult(const Vector &x, Vector &y) const
+{
+   ComputeTimeDerivative(x, y);
+}
+
 void MCL_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
 {
    for (int n = 0; n < hyp->NumEq; n++)
@@ -184,9 +193,61 @@ void MCL_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
    }
 }
 
-void MCL_Evolution::Mult(const Vector &x, Vector &y) const
+void MCL_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
+                             const Vector &xMPI, const Vector &normal,
+                             int e, int i, int j) const
 {
-   ComputeTimeDerivative(x, y);
+   nbr = dofs.NbrDofs(i,j,e);
+
+   for (int n = 0; n < hyp->NumEq; n++)
+   {
+      DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j, i);
+
+      if (nbr < 0)
+      {
+         uNbr = inflow(DofInd);
+      }
+      else
+      {
+         // nbr in different MPI task?
+         uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
+      }
+
+      y1(n) = x(DofInd);
+      y2(n) = uNbr;
+   }
+
+   if (nbr < 0)
+   {
+      hyp->SetBdrCond(y1, y2, normal, nbr);
+   }
+}
+
+void MCL_Evolution::LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
+                                  Vector &y, int e, int j, int i) const
+{
+   double c_eij = 0.;
+   C_eij = normal;
+   for (int k = 0; k < nqf; k++)
+   {
+      c_eij += BdrInt(i,k,e) * ShapeEvalFace(i,j,k);
+   }
+
+   C_eij *= c_eij;
+
+   double ws = max(hyp->GetWaveSpeed(x1, normal, e, 0, i),
+                   hyp->GetWaveSpeed(x2, normal, e, 0, i));
+
+   c_eij *= ws;
+
+   subtract(c_eij, x2, x1, y);
+
+   hyp->EvaluateFlux(x1, Flux, e, dofs.BdrDofs(j, i));
+   hyp->EvaluateFlux(x2, FluxNbr, e, dofs.BdrDofs(j, i));
+   Flux -= FluxNbr;
+   Flux.AddMult(C_eij, y);
+
+   y *= 0.5;
 }
 
 void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
@@ -211,8 +272,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
       mat2 = 0.;
-      DenseTensor CTilde(nd,dim,nd);
 
+      // Volume terms.
       for (int j = 0; j < nd; j++)
       {
          ElemEval(uElem, uEval, j);
@@ -223,7 +284,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
       z.AddElementVector(vdofs, mat2.GetData());
 
-      // Artificial diffusion
+      // Artificial diffusion.
       for (int m = 0; m < dofs.numSubcells; m++)
       {
          for (int i = 0; i < dofs.numDofsSubcell; i++)
@@ -231,13 +292,14 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             int I = dofs.Sub2Ind(m,i);
             ElemEval(uElem, uEval, I);
 
-            for (int j = 0; j < dofs.SubcellCross.Width(); j++)
+            for (int j = 0; j < nscd; j++)
             {
                int J = dofs.Sub2Ind(m, dofs.SubcellCross(i,j));
                ElemEval(uElem, uNbrEval, J);
 
                double CTildeNorm1 = 0.;
                double CTildeNorm2 = 0.;
+
                for (int l = 0; l < dim; l++)
                {
                   CTildeNorm1 += CTilde(I,l,J) * CTilde(I,l,J);
@@ -270,64 +332,19 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          }
       }
 
-      // Here, the use of nodal basis functions is essential, i.e. shape
-      // functions must vanish on faces that their node is not associated with.
+      // DG flux terms and boundary conditions.
       for (int i = 0; i < dofs.NumBdrs; i++)
       {
          OuterUnitNormals(e).GetColumn(i, normal);
 
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
-            double c_eij = 0.;
-            Vector C_eij = normal;
-            for (int k = 0; k < nqf; k++)
-            {
-               c_eij += BdrInt(i,k,e) * ShapeEvalFace(i,j,k);
-            }
-
-            C_eij *= c_eij;
-            nbr = dofs.NbrDofs(i, j, e);
+            FaceEval(x, uEval, uNbrEval, xMPI, normal, e, i, j);
+            LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, j, i);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j,i);
-
-               if (nbr < 0)
-               {
-                  uNbr = inflow(DofInd);
-               }
-               else
-               {
-                  // nbr in different MPI task?
-                  uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) :
-                         xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd +
-                              (nbr - xSizeMPI) % nd);
-               }
-
-               uEval(n) = x(DofInd);
-               uNbrEval(n) = uNbr;
-            }
-
-            if (nbr < 0)
-            {
-               hyp->SetBdrCond(uEval, uNbrEval, normal, nbr);
-            }
-
-            double ws = max( hyp->GetWaveSpeed(uEval, normal, e, 0, i),
-                             hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
-
-            c_eij *= ws;
-
-            hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j,i));
-            hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i));
-            Flux -= FluxNbr;
-            Vector tmp(hyp->NumEq);
-            Flux.Mult(C_eij, tmp);
-
-            for (int n = 0; n < hyp->NumEq; n++)
-            {
-               z(vdofs[n * nd + dofs.BdrDofs(j,i)]) += 0.5 * (
-                                                          (uNbrEval(n) -uEval(n)) * c_eij + tmp(n) );
+               z(vdofs[n * nd + dofs.BdrDofs(j, i)]) += NumFlux(n);
             }
          }
       }

@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
    config.odeSolverType = 3;
    config.VisSteps = 100;
 
-   EvolutionScheme scheme = Galerkin;
+   EvolutionScheme scheme = MonolithicConvexLimiting;
 
    config.precision = 8;
    cout.precision(config.precision);
@@ -53,16 +53,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
+      if (myid == 0) { args.PrintUsage(cout); }
       return -1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   if (myid == 0) { args.PrintOptions(cout); }
 
    ODESolver *odeSolver = NULL;
    switch (config.odeSolverType)
@@ -98,7 +92,7 @@ int main(int argc, char *argv[])
    }
    MPI_Comm comm = pmesh.GetComm();
 
-   int NumEq; // number of scalar unknowns, e.g. 3 for SWE in 2D.
+   int NumEq;
    switch (config.ProblemNum)
    {
       case 0:

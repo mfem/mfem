@@ -12,6 +12,66 @@ void GalerkinEvolution::Mult(const Vector &x, Vector &y) const
    ComputeTimeDerivative(x, y);
 }
 
+void GalerkinEvolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
+{
+   uEval = 0.;
+   for (int n = 0; n < hyp->NumEq; n++)
+   {
+      for (int j = 0; j < nd; j++)
+      {
+         uEval(n) += uElem(n * nd + j) * ShapeEval(j, k);
+      }
+   }
+}
+
+void GalerkinEvolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
+                                 const Vector &xMPI, const Vector &normal,
+                                 int e, int i, int k) const
+{
+   y1 = y2 = 0.;
+   for (int n = 0; n < hyp->NumEq; n++)
+   {
+      for (int j = 0; j < dofs.NumFaceDofs; j++)
+      {
+         nbr = dofs.NbrDofs(i, j, e);
+         DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j, i);
+
+         if (nbr < 0)
+         {
+            uNbr = inflow(DofInd);
+         }
+         else
+         {
+            // nbr in different MPI task?
+            uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
+         }
+
+         y1(n) += x(DofInd) * ShapeEvalFace(i, j, k);
+         y2(n) += uNbr * ShapeEvalFace(i, j, k);
+      }
+   }
+
+   if (nbr < 0) // TODO better distinction
+   {
+      hyp->SetBdrCond(y1, y2, normal, nbr);
+   }
+}
+
+void GalerkinEvolution::LaxFriedrichs(const Vector &x1, const Vector &x2,
+                                      const Vector &normal, Vector &y,
+                                      int e, int k, int i) const
+{
+   hyp->EvaluateFlux(x1, Flux, e, k, i);
+   hyp->EvaluateFlux(x2, FluxNbr, e, k, i);
+   Flux += FluxNbr;
+   double ws = max(hyp->GetWaveSpeed(x1, normal, e, k, i),
+                   hyp->GetWaveSpeed(x2, normal, e, k, i));
+
+   subtract(ws, x1, x2, y);
+   Flux.AddMult(normal, y);
+   y *= 0.5;
+}
+
 void GalerkinEvolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                                               const Vector &xMPI) const
 {

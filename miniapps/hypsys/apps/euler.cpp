@@ -131,7 +131,7 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    {
       ostringstream rho_str;
       rho_str << u(0);
-      string err_msg = "Density too small pho = ";
+      string err_msg = "Density too small rho = ";
       MFEM_ABORT(err_msg << rho_str.str());
    }
 

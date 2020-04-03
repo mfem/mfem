@@ -24,7 +24,10 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
          SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = true;
-         ProjType = 0; // Use L2 projection to get exact initial condition for p > 0.
+
+         // Use L2 projection to get exact initial condition,
+         // but low order projection for boundary condition.
+         ProjType = 1;
          L2_Projection(ic, u0);
          break;
       }
@@ -89,20 +92,20 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
          {
             return X(1) >= 0.5 + 0.15 * t ? -0.2 : 0.5;
          }
-         if (0.5 - 0.6 * t < X(0) && X(0) < 0.5 - 0.25 * t)
+         else if (X(0) < 0.5 - 0.25 * t)
          {
             return X(1) > -8. / 7. * X(0) + 15. / 14. - 15. / 28. * t ? -1. : 0.5;
          }
-         if (0.5 - 0.25 * t < X(0) && X(0) < 0.5 + 0.5 * t)
+         else if (X(0) < 0.5 + 0.5 * t)
          {
             return X(1) > X(0) / 6. + 5. / 12. - 5. / 24. * t ? -1. : 0.5;
          }
-         if (0.5 + 0.5 * t < X(0) && X(0) < 0.5 + 0.8 * t)
+         else if (X(0) < 0.5 + 0.8 * t)
          {
             return X(1) > X(0) - 5. / (18. * t) * (X(0) + t - 0.5)
                    * (X(0) + t - 0.5) ? -1. : (2. * X(0) - 1.) / (2 * t);
          }
-         if (0.5 + 0.8 * t <= X(0))
+         else
          {
             return X(1) >= 0.5 - 0.1 * t ? -1 : 0.8;
          }

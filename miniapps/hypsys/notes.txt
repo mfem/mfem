@@ -1,10 +1,16 @@
 ATTENTION
 
 
+DEBUG
+
+
 next steps
 
 
+If possible: try to make advection with non-constant velocity and MCL work
+
 minor tasks:
+   -Restructure galerkin, fe_evol and mcl (constructors)
    -Euler: Implement subsonic in- and outflow.
    -Change final time by modifying it in the apps/*.cpp files (for non steady examples or generally if it makes sense).
    -visualization of other unknowns / quotients of unknowns, vector valued unknowns
