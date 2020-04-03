@@ -38,7 +38,7 @@
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
 #include "transfer.hpp"
-#include "spacehierarchy.hpp"
+#include "fespacehierarchy.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
