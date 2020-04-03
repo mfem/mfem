@@ -1100,59 +1100,6 @@ FiniteElementSpace::RefinementOperator::~RefinementOperator()
    delete old_elem_dof;
 }
 
-// TODO: choose which version of this method we want to keep: the first one is
-//       the one from master and the second one below is the new implementation.
-#if 1
-void FiniteElementSpace::RefinementOperator
-::Mult(const Vector &x, Vector &y) const
-{
-   Mesh* mesh = fespace->GetMesh();
-   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-
-   Array<int> dofs, old_dofs, old_vdofs;
-
-   Array<char> processed(fespace->GetVSize());
-   processed = 0;
-
-   int vdim = fespace->GetVDim();
-   int old_ndofs = width / vdim;
-
-   for (int k = 0; k < mesh->GetNE(); k++)
-   {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
-      const DenseMatrix &lP = localP[geom](emb.matrix);
-
-      fespace->GetElementDofs(k, dofs);
-      old_elem_dof->GetRow(emb.parent, old_dofs);
-
-      for (int vd = 0; vd < vdim; vd++)
-      {
-         old_dofs.Copy(old_vdofs);
-         fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
-
-         for (int i = 0; i < dofs.Size(); i++)
-         {
-            double rsign, osign;
-            int r = fespace->DofToVDof(dofs[i], vd);
-            r = DecodeDof(r, rsign);
-
-            if (!processed[r])
-            {
-               double value = 0.0;
-               for (int j = 0; j < old_vdofs.Size(); j++)
-               {
-                  int o = DecodeDof(old_vdofs[j], osign);
-                  value += x[o] * lP(i, j) * osign;
-               }
-               y[r] = value * rsign;
-               processed[r] = 1;
-            }
-         }
-      }
-   }
-}
-#else
 void FiniteElementSpace::RefinementOperator
 ::Mult(const Vector &x, Vector &y) const
 {
@@ -1189,7 +1136,6 @@ void FiniteElementSpace::RefinementOperator
       }
    }
 }
-#endif
 
 void FiniteElementSpace::RefinementOperator
 ::MultTranspose(const Vector &x, Vector &y) const
