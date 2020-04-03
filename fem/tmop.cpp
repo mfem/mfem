@@ -991,7 +991,6 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
    (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
-   good_tspec = true;
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
