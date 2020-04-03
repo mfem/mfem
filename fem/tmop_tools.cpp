@@ -422,8 +422,11 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    for (int i = 0; i<integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)  { dtc = ti->GetDiscreteAdaptTC(); }
-      if (dtc) { dtc->ResetUpdateFlags(); }
+      if (ti)
+      {
+         dtc = ti->GetDiscreteAdaptTC();
+         if (dtc) { dtc->ResetUpdateFlags(); }
+      }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
       if (co)
       {
