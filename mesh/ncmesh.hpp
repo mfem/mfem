@@ -461,12 +461,6 @@ protected: // implementation
        the Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
    Array<double> coordinates;
 
-   typedef HashTable<Node>::iterator node_iterator;
-   typedef HashTable<Face>::iterator face_iterator;
-   typedef HashTable<Node>::const_iterator node_const_iterator;
-   typedef HashTable<Face>::const_iterator face_const_iterator;
-   typedef BlockArray<Element>::iterator elem_iterator;
-
 
    // secondary data
 

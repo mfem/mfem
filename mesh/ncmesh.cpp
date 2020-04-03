@@ -1832,7 +1832,7 @@ void NCMesh::UpdateVertices()
 {
    // (overridden in ParNCMesh to assign special indices to ghost vertices)
    NVertices = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex()) { node->vert_index = NVertices++; }
    }
@@ -1840,7 +1840,7 @@ void NCMesh::UpdateVertices()
    vertex_nodeId.SetSize(NVertices);
 
    NVertices = 0;
-   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex()) { vertex_nodeId[NVertices++] = node.index(); }
    }
@@ -4843,7 +4843,7 @@ int NCMesh::PrintVertexParents(std::ostream *out) const
    {
       // count vertex nodes with parents
       int nv = 0;
-      for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+      for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
          if (node->HasVertex() && node->p1 != node->p2) { nv++; }
       }
@@ -4852,7 +4852,7 @@ int NCMesh::PrintVertexParents(std::ostream *out) const
    else
    {
       // print the relations
-      for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+      for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
          if (node->HasVertex() && node->p1 != node->p2)
          {
@@ -5124,7 +5124,7 @@ void NCMesh::InitRootElements()
 int NCMesh::CountTopLevelNodes() const
 {
    int ntop = 0;
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       if (node->p1 == node->p2) { ntop = node.index() + 1; }
    }
@@ -5355,7 +5355,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
    // copy roots, they need to be at the beginning of 'elements'
    int root_count = 0;
-   for (elem_iterator el = tmp_elements.begin(); el != tmp_elements.end(); ++el)
+   for (auto el = tmp_elements.begin(); el != tmp_elements.end(); ++el)
    {
       if (el->parent == -1)
       {
@@ -5372,7 +5372,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    }
 
    // we also need to renumber element links in Face::elem[]
-   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   for (auto face = faces.begin(); face != faces.end(); ++face)
    {
       for (int i = 0; i < 2; i++)
       {
@@ -5685,7 +5685,7 @@ void NCMesh::DebugDump(std::ostream &out) const
    // dump nodes
    tmp_vertex = new TmpVertex[nodes.NumIds()];
    out << nodes.Size() << "\n";
-   for (node_const_iterator node = nodes.cbegin(); node != nodes.cend(); ++node)
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       const double *pos = CalcVertexPos(node.index());
       out << node.index() << " "
@@ -5722,7 +5722,7 @@ void NCMesh::DebugDump(std::ostream &out) const
 
    // dump faces
    out << faces.Size() << "\n";
-   for (face_const_iterator face = faces.cbegin(); face != faces.cend(); ++face)
+   for (auto face = faces.cbegin(); face != faces.cend(); ++face)
    {
       int elem = face->elem[0];
       if (elem < 0) { elem = face->elem[1]; }
