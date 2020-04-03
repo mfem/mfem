@@ -192,27 +192,33 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
+   // 11. Solve the linear system A X = B.
+   if (!pa)
+   {
 #ifndef MFEM_USE_SUITESPARSE
-   // 11. Define a simple symmetric Gauss-Seidel preconditioner in the full
-   //     assembly case or Jacobi for partial assembly, and use it to solve
-   //     the system A X = B with PCG.
-   if (pa)
-   {
-      OperatorJacobiSmoother M(*a, ess_tdof_list);
-      PCG(*A, M, B, X, 1, 10000, 1e-20, 0.0);
-   }
-   else
-   {
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
       PCG(*A, M, B, X, 1, 10000, 1e-20, 0.0);
-   }
 #else
-   // 11. If compiled with SuiteSparse support, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(*A);
-   umf_solver.Mult(B, X);
+      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
 #endif
+   }
+   else // Jacobi preconditioning in partial assembly mode
+   {
+      if (UsesTensorBasis(*fespace))
+      {
+         OperatorJacobiSmoother M(*a, ess_tdof_list);
+         PCG(*A, M, B, X, 1, 10000, 1e-20, 0.0);
+      }
+      else
+      {
+         CG(*A, B, X, 1, 10000, 1e-20, 0.0);
+      }
+   }
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);

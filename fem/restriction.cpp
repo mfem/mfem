@@ -178,19 +178,15 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
+   auto d_gatherMap = gatherMap.Read();
 
-   MFEM_FORALL(i, ndofs,
+   MFEM_FORALL(i, dof*ne,
    {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i+1];
+      const int gid = d_gatherMap[i];
+      const int j = gid >= 0 ? gid : -1-gid;
       for (int c = 0; c < vd; ++c)
       {
-         const double dofValue = d_x(t?c:i,t?i:c);
-         for (int j = offset; j < nextOffset; ++j)
-         {
-            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            d_y(idx_j % nd, c, idx_j / nd) = dofValue;
-         }
+         d_y(i % nd, c, i / nd) = d_x(t?c:j, t?j:c);
       }
    });
 }

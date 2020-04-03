@@ -1828,6 +1828,9 @@ static void PAHcurlH1Apply3D(const int D1D,
                              const Vector &_x,
                              Vector &_y)
 {
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
    constexpr static int VDIM = 3;
 
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
