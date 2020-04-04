@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
    // 4. Create "marker arrays" to define the portions of the boundary
    //    associated with each type of boundary condition.  These arrays
    //    have an entry corresponding to each boundary attribute.
-   //    Placing a '1' in an entry marks that attribute as being
+   //    Placing a '1' in entry i marks attribute i+1 as being
    //    active, '0' is inactive.
    Array<int> nbc_bdr(mesh->bdr_attributes.Max());
    Array<int> rbc_bdr(mesh->bdr_attributes.Max());
@@ -372,8 +372,8 @@ int main(int argc, char *argv[])
                 << " error " << rbc_err << endl;
    }
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 15. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);

@@ -454,6 +454,10 @@ public:
                                        DenseMatrix &elmat);
 
    /// Support for use in BilinearForm. Can be used only when appropriate.
+   /** Appropriate use cases are classes derived from
+       MixedScalarVectorIntegrator where the trial and test spaces can be the
+       same. Examples of such classes are: MixedVectorDivergenceIntegrator,
+       MixedScalarWeakDivergenceIntegrator, etc. */
    virtual void AssembleElementMatrix(const FiniteElement &fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat)
