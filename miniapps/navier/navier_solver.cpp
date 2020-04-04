@@ -101,7 +101,7 @@ void NavierSolver::Setup(double dt)
       }
       else
       {
-         mfem::out << "Using FULL Assembly" << std::endl;
+         mfem::out << "Using Full Assembly" << std::endl;
       }
    }
 
@@ -324,9 +324,6 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
       if (partial_assembly)
       {
-         // @TODO: Do I need to clear the old preconditioner? Because
-         // SetOperator does not do that.
-         // HInv->ClearPreconditioner();
          HInv->SetOperator(*H);
          delete HInvPC;
          Vector diag_pa(vfes->GetTrueVSize());
@@ -1007,7 +1004,7 @@ void NavierSolver::PrintInfo()
    if (pmesh->GetMyRank() == 0)
    {
       out << "NAVIER version: "
-          << "00000" << std::endl
+          << NAVIER_VERSION << std::endl
           << "MFEM version: " << MFEM_VERSION << std::endl
           << "MFEM GIT: " << MFEM_GIT_STRING << std::endl
           << "Velocity #DOFs: " << fes_size0 << std::endl
