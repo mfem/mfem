@@ -15,7 +15,7 @@
 //                -\nu Delta u = f
 //               with Dirichlet boundary conditions, using HDG discretization.
 //
-// The methods approximates the solution u, the diffusive flux q = -\nu \nabla u, 
+// The methods approximates the solution u, the diffusive flux q = -\nu \nabla u,
 // and the restriction of u to the faces, denoted by lambda.
 //
 // The weak form is: seek (q,u,\lambda) such that for all (v, w, \mu)

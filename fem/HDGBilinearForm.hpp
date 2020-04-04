@@ -60,10 +60,14 @@ protected:
    // may be used in the construction of derived classes
    HDGBilinearForm()
    {
-      for(int i =0;i<NInteriorFES; i++)
-               delete fes1[i];
-      for(int i =0;i<NBdrFES; i++)
-               delete fes2[i];
+      for (int i =0; i<NInteriorFES; i++)
+      {
+         delete fes1[i];
+      }
+      for (int i =0; i<NBdrFES; i++)
+      {
+         delete fes2[i];
+      }
       NInteriorFES = 0;
       NBdrFES = 0;
       fes1 = NULL; fes2 = NULL;
@@ -82,12 +86,12 @@ public:
                    bool _parallel = false);
 
    // Advection-reaction test case without FES arrays
-   HDGBilinearForm(FiniteElementSpace *_fes1, 
+   HDGBilinearForm(FiniteElementSpace *_fes1,
                    FiniteElementSpace *_fes2,
                    bool _parallel = false);
 
    // Diffusion test case without FES arrays
-   HDGBilinearForm(FiniteElementSpace *_fes1, 
+   HDGBilinearForm(FiniteElementSpace *_fes1,
                    FiniteElementSpace *_fes2,
                    FiniteElementSpace *_fes3,
                    bool _parallel = false);
@@ -137,12 +141,12 @@ public:
 
    /// Adds new HDG Integrators.
    void AddHDGDomainIntegrator(BilinearFormIntegrator *bfi);
-   
+
    void AddHDGFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /// Allocates the vectors for the part of A and B that will be stored
    void Allocate(const Array<int> &bdr_attr_is_ess,
-		   const double memA = 0.0, const double memB = 0.0);
+                 const double memA = 0.0, const double memB = 0.0);
 
    /// Assembles the Schur complement
    void AssembleSC(Array<GridFunction*> &rhs_F,
@@ -151,12 +155,12 @@ public:
                    const int elimBC,
                    const double memA = 0.0, const double memB = 0.0,
                    int skip_zeros = 1);
-   
+
    /// Assembles the Schur complement - advection-reaction test case
    void AssembleSC(GridFunction *F,
                    const double memA = 0.0, const double memB = 0.0,
                    int skip_zeros = 1);
-   
+
    /// Assembles the Schur complement - diffusion test case
    void AssembleSC(GridFunction *F1,
                    GridFunction *F2,
@@ -164,7 +168,7 @@ public:
                    GridFunction &sol,
                    const double memA = 0.0, const double memB = 0.0,
                    int skip_zeros = 1);
-   
+
    void Eliminate_BC(const Array<int> &vdofs_e1, const int ndof_u,
                      const GridFunction &sol, Vector *rhs_F, Vector *rhs_G,
                      DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local);
@@ -191,12 +195,12 @@ public:
    void Reconstruct(GridFunction *F,
                     const GridFunction *ubar,
                     GridFunction *u);
-   
+
    /// Reconstructs u and q from the facet unknowns - diffusion test case
-   void Reconstruct(GridFunction *R, 
+   void Reconstruct(GridFunction *R,
                     GridFunction *F,
                     const GridFunction *ubar,
-                    GridFunction *q, 
+                    GridFunction *q,
                     GridFunction *u);
 
    /// Updates the spaces

@@ -215,7 +215,8 @@ void LinearForm::Assemble()
          mesh->GetBdrFaceToEdge(i, &face);
          ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
          fes->GetFaceVDofs(face, vdofs);   // the degrees of freedom related to the face
-         face_fe = fes->GetFaceElement(face);   // point face_fe to the FiniteElement over the edge
+         face_fe = fes->GetFaceElement(
+                      face);   // point face_fe to the FiniteElement over the edge
          if (ftr != NULL)
          {
             for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals

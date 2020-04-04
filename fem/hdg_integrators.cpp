@@ -248,7 +248,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
                   }
                   else
                   {
-                     elmat4(i, j) += - w * (1.0 - zeta_L) * (-an_L) * shape_face(i) * shape_face(j);                     
+                     elmat4(i, j) += - w * (1.0 - zeta_L) * (-an_L) * shape_face(i) * shape_face(j);
                   }
                }
                else

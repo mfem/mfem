@@ -185,7 +185,7 @@ private:
 
 public:
    HDGFaceIntegratorDiffusion(double a)
-      { tauD = a; }
+   { tauD = a; }
 
    using BilinearFormIntegrator::AssembleFaceMatrixOneElement2and1FES;
    virtual void AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_qL,
