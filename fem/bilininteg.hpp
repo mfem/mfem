@@ -1875,7 +1875,7 @@ public:
 };
 
 /* HDG */
-/** Class for local mass matrix assembling a(\lamda,\mu) := <\lambda, \mu>
+/** Class for local mass matrix assembling a(lamda,mu) := <lambda, mu>
     It is used for the boundary elimination for skeleton variables */
 class SkeletonMassIntegrator : public BilinearFormIntegrator
 {
