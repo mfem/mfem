@@ -18,7 +18,7 @@
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions
 //               as in example 1. It highlights on the creation of a hierarchy
 //               of discretization spaces with partial assembly and the
-//               construction of an efficient p-multigrid preconditioner for the
+//               construction of an efficient multigrid preconditioner for the
 //               iterative solver.
 
 #include "mfem.hpp"
@@ -28,105 +28,56 @@
 using namespace std;
 using namespace mfem;
 
-class MultigridDiffusionOperator : public MultigridOperator
+class DiffusionMultigrid : public Multigrid
 {
 private:
-   Array<BilinearForm*> bfs;
-   Array<Array<int>*> essentialTrueDofs;
    ConstantCoefficient one;
    HypreBoomerAMG* amg;
 
 public:
-   /// Constructor for a multigrid diffusion operator for a given FiniteElementSpaceHierarchy. Uses Chebyshev accelerated smoothing.
-   MultigridDiffusionOperator(ParFiniteElementSpaceHierarchy& spaceHierarchy,
-                              Array<int>& ess_bdr, int chebyshevOrder = 2)
-      : one(1.0)
+   /// Constructor for a diffusion multigrid for a given ParFiniteElementSpaceHierarchy.
+   /// Uses Chebyshev accelerated smoothing.
+   DiffusionMultigrid(ParFiniteElementSpaceHierarchy& fespaces,
+                      Array<int>& ess_bdr)
+      : Multigrid(fespaces), one(1.0)
    {
-      ConstructCoarseOperatorAndSolver(spaceHierarchy, ess_bdr);
+      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
-      for (int level = 1; level < spaceHierarchy.GetNumLevels(); ++level)
+      for (int level = 1; level < fespaces.GetNumLevels(); ++level)
       {
-         ParFiniteElementSpace& fespace = spaceHierarchy.GetFESpaceAtLevel(
-                                             level);
-         ParBilinearForm* form = new ParBilinearForm(&fespace);
-         form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         AddIntegrators(form);
-         form->Assemble();
-         bfs.Append(form);
-
-         essentialTrueDofs.Append(new Array<int>());
-         spaceHierarchy.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
-            ess_bdr, *essentialTrueDofs.Last());
-
-         OperatorPtr opr;
-         opr.SetType(Operator::ANY_TYPE);
-         form->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
-         opr.SetOperatorOwner(false);
-
-         Vector diag(spaceHierarchy.GetFESpaceAtLevel(level).GetTrueVSize());
-         form->AssembleDiagonal(diag);
-
-         Solver* smoother = new OperatorChebyshevSmoother(
-            opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder,
-            fespace.GetParMesh()->GetComm());
-
-         Operator* P =
-            new TrueTransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
-                                     spaceHierarchy.GetFESpaceAtLevel(level));
-
-         AddLevel(opr.Ptr(), smoother, P, true, true, true);
+         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), ess_bdr);
       }
    }
 
-   virtual ~MultigridDiffusionOperator()
+   virtual ~DiffusionMultigrid()
    {
       delete amg;
-
-      for (int i = 0; i < bfs.Size(); ++i)
-      {
-         delete bfs[i];
-      }
-
-      for (int i = 0; i < essentialTrueDofs.Size(); ++i)
-      {
-         delete essentialTrueDofs[i];
-      }
-   }
-
-   void EliminateBCs(Vector& x, Vector& b, Vector& X, Vector& B)
-   {
-      OperatorPtr oper;
-      bfs.Last()->FormLinearSystem(*essentialTrueDofs.Last(), x, b,
-                                   oper, X, B);
-   }
-
-   void RecoverFEMSolution(const Vector& X, const Vector& b, Vector& x)
-   {
-      bfs.Last()->RecoverFEMSolution(X, b, x);
    }
 
 private:
-   void AddIntegrators(BilinearForm* form)
+   void ConstructBilinearForm(ParFiniteElementSpace& fespace, Array<int>& ess_bdr,
+                              bool partial_assembly)
    {
+      ParBilinearForm* form = new ParBilinearForm(&fespace);
+      if (partial_assembly)
+      {
+         form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
       form->AddDomainIntegrator(new DiffusionIntegrator(one));
-   }
-
-   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpaceHierarchy&
-                                         spaceHierarchy,
-                                         Array<int>& ess_bdr)
-   {
-      ParFiniteElementSpace& fespace = spaceHierarchy.GetFESpaceAtLevel(0);
-      ParBilinearForm* a = new ParBilinearForm(&fespace);
-      AddIntegrators(a);
-      a->UsePrecomputedSparsity();
-      a->Assemble();
-      bfs.Append(a);
+      form->Assemble();
+      bfs.Append(form);
 
       essentialTrueDofs.Append(new Array<int>());
       fespace.GetEssentialTrueDofs(ess_bdr, *essentialTrueDofs.Last());
+   }
+
+   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace,
+                                         Array<int>& ess_bdr)
+   {
+      ConstructBilinearForm(coarse_fespace, ess_bdr, false);
 
       HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
-      a->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
+      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
 
       amg = new HypreBoomerAMG(*hypreCoarseMat);
       amg->SetPrintLevel(-1);
@@ -139,7 +90,26 @@ private:
       pcg->SetOperator(*hypreCoarseMat);
       pcg->SetPreconditioner(*amg);
 
-      AddCoarsestLevel(hypreCoarseMat, pcg, true, true);
+      AddLevel(hypreCoarseMat, pcg, true, true);
+   }
+
+   void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace,
+                                     Array<int>& ess_bdr)
+   {
+      ConstructBilinearForm(fespace, ess_bdr, true);
+
+      OperatorPtr opr;
+      opr.SetType(Operator::ANY_TYPE);
+      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      opr.SetOperatorOwner(false);
+
+      Vector diag(fespace.GetTrueVSize());
+      bfs.Last()->AssembleDiagonal(diag);
+
+      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+                                                       *essentialTrueDofs.Last(), 2, fespace.GetParMesh()->GetComm());
+
+      AddLevel(opr.Ptr(), smoother, true, true);
    }
 };
 
@@ -153,17 +123,17 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int geometricrefinements = 0;
-   int orderrefinements = 2;
+   int geometric_refinements = 0;
+   int order_refinements = 2;
    const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&geometricrefinements, "-gr", "--geometricrefinements",
+   args.AddOption(&geometric_refinements, "-gr", "--geometricrefinements",
                   "Number of geometric refinements done prior to order refinements.");
-   args.AddOption(&orderrefinements, "-or", "--orderrefinements",
+   args.AddOption(&order_refinements, "-or", "--orderrefinements",
                   "Number of order refinements. Finest level in the hierarchy has order 2^{or}.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
@@ -224,27 +194,27 @@ int main(int argc, char *argv[])
 
    // 7. Define a parallel finite element space hierarchy on the parallel mesh.
    //    Here we use continuous Lagrange finite elements. We start with order 1
-   //    on the coarse level and increase the order by of factor of 2 for each
-   //    additional level.
+   //    on the coarse level and geometrically refine the spaces by the specified
+   //    amount. Afterwards, we increase the order of the finite elements by a
+   //    factor of 2 for each additional level.
    FiniteElementCollection *fec = new H1_FECollection(1, dim);
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   ParFiniteElementSpace *coarse_fespace = new ParFiniteElementSpace(pmesh, fec);
 
    Array<FiniteElementCollection*> collections;
    collections.Append(fec);
-   ParFiniteElementSpaceHierarchy* spaceHierarchy = new
-   ParFiniteElementSpaceHierarchy(pmesh, fespace, true,
-                                  true);
-   for (int level = 0; level < geometricrefinements; ++level)
+   ParFiniteElementSpaceHierarchy* fespaces = new ParFiniteElementSpaceHierarchy(
+      pmesh, coarse_fespace, true, true);
+   for (int level = 0; level < geometric_refinements; ++level)
    {
-      spaceHierarchy->AddUniformlyRefinedLevel();
+      fespaces->AddUniformlyRefinedLevel();
    }
-   for (int level = 0; level < orderrefinements; ++level)
+   for (int level = 0; level < order_refinements; ++level)
    {
       collections.Append(new H1_FECollection(std::pow(2, level+1), dim));
-      spaceHierarchy->AddOrderRefinedLevel(collections.Last());
+      fespaces->AddOrderRefinedLevel(collections.Last());
    }
 
-   HYPRE_Int size = spaceHierarchy->GetFinestFESpace().GlobalTrueVSize();
+   HYPRE_Int size = fespaces->GetFinestFESpace().GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -253,7 +223,7 @@ int main(int argc, char *argv[])
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm *b = new ParLinearForm(&spaceHierarchy->GetFinestFESpace());
+   ParLinearForm *b = new ParLinearForm(&fespaces->GetFinestFESpace());
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
@@ -261,7 +231,7 @@ int main(int argc, char *argv[])
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   ParGridFunction x(&spaceHierarchy->GetFinestFESpace());
+   ParGridFunction x(&fespaces->GetFinestFESpace());
    x = 0.0;
 
    // 10. Create the multigrid operator using the previously created parallel
@@ -273,27 +243,24 @@ int main(int argc, char *argv[])
    {
       ess_bdr = 1;
    }
-   MultigridDiffusionOperator* mgOperator = new MultigridDiffusionOperator(
-      *spaceHierarchy, ess_bdr);
-   MultigridSolver* prec = new MultigridSolver(mgOperator,
-                                               MultigridSolver::CycleType::VCYCLE,
-                                               1, 1);
-
+   DiffusionMultigrid* M = new DiffusionMultigrid(*fespaces, ess_bdr);
+   M->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+   OperatorPtr A;
    Vector X, B;
-   mgOperator->EliminateBCs(x, *b, X, B);
+   M->FormFineLinearSystem(x, *b, A, X, B);
 
    // 11. Solve the linear system A X = B.
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
-   cg.SetOperator(*mgOperator);
-   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.SetPreconditioner(*M);
    cg.Mult(B, X);
 
    // 12. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
-   mgOperator->RecoverFEMSolution(X, *b, x);
+   M->RecoverFineFEMSolution(X, *b, x);
 
    // 13. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
@@ -304,7 +271,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      spaceHierarchy->GetFinestFESpace().GetParMesh()->Print(mesh_ofs);
+      fespaces->GetFinestFESpace().GetParMesh()->Print(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
@@ -319,15 +286,14 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *spaceHierarchy->GetFinestFESpace().GetParMesh()
+      sol_sock << "solution\n" << *fespaces->GetFinestFESpace().GetParMesh()
                << x << flush;
    }
 
    // 15. Free the used memory.
-   delete prec;
-   delete mgOperator;
+   delete M;
    delete b;
-   delete spaceHierarchy;
+   delete fespaces;
    for (int level = 0; level < collections.Size(); ++level)
    {
       delete collections[level];
