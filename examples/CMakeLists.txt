@@ -81,6 +81,8 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
     list(APPEND THIS_TEST_OPTIONS "-tf" "5")
   elseif(${TEST_NAME} MATCHES "ex15p*")
     list(APPEND THIS_TEST_OPTIONS "-e" "1")
+  elseif(${TEST_NAME} MATCHES "ex27p*")
+    list(APPEND THIS_TEST_OPTIONS "-dg")
   endif()
 
   if (NOT (${TEST_NAME} MATCHES ".*p$"))
