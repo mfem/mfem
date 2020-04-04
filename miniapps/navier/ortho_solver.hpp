@@ -32,8 +32,9 @@ private:
 
    mutable Vector b_ortho;
 
-   void Orthoganalize(const Vector &v, Vector &v_ortho) const;
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };
 } // namespace navier
 } // namespace mfem
+
 #endif
