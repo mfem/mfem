@@ -17,7 +17,6 @@ list(APPEND SRCS
   densemat.cpp
   handle.cpp
   matrix.cpp
-  multigrid.cpp
   ode.cpp
   operator.cpp
   solvers.cpp
@@ -39,7 +38,6 @@ list(APPEND HDRS
   kernels.hpp
   linalg.hpp
   matrix.hpp
-  multigrid.hpp
   ode.hpp
   operator.hpp
   solvers.hpp
