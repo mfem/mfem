@@ -70,9 +70,10 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 
 Mesh * GenerateSerialMesh(int ref);
 
-double IntegrateBC(GridFunction &x, Array<int> &bdr, bool h1);
+double IntegrateBC(GridFunction &x, Array<int> &bdr,
+                   double normalization, bool h1);
 double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
-                        Array<int> &bdr, bool h1,
+                        Array<int> &bdr, double normalization, bool h1,
                         OperatorHandle &M, double a = 0.0);
 
 int main(int argc, char *argv[])
@@ -310,7 +311,7 @@ int main(int argc, char *argv[])
       // Integrate the solution on the Dirichlet boundary and compare
       // to the expected value. The factor of (2 pi a) divides by the
       // circumference of the hole.
-      double dbc_int = IntegrateBC(u, dbc_bdr, h1) / (2.0 * M_PI * a_);
+      double dbc_int = IntegrateBC(u, dbc_bdr, 2.0 * M_PI * a_, h1);
       double dbc_err = fabs(dbc_int - dbc_val);
 
       bool hom_dbc = (dbc_val == 0.0);
@@ -325,8 +326,8 @@ int main(int argc, char *argv[])
       Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
       VectorConstantCoefficient nCoef(nVec);
 
-      // The factor of 0.5 divides by the length of the boundary.
-      double nbc_int = IntegrateNGradBC(u, nCoef, nbc_bdr, h1, M) * 0.5;
+      // The factor of 2.0 divides by the length of the boundary.
+      double nbc_int = IntegrateNGradBC(u, nCoef, nbc_bdr, 2.0, h1, M);
       double nbc_err = fabs(nbc_int - nbc_val);
 
       bool hom_nbc = (nbc_val == 0.0);
@@ -345,8 +346,8 @@ int main(int argc, char *argv[])
 
       // The factor of (2 pi a) divides by the circumference of the hole.
       VectorFunctionCoefficient n0Coef(2, n4Vec);
-      double nbc_int = IntegrateNGradBC(u, n0Coef, nbc0_bdr, h1, M) /
-                       (2.0 * M_PI * a_);
+      double nbc_int = IntegrateNGradBC(u, n0Coef, nbc0_bdr,
+                                        2.0 * M_PI * a_, h1, M);
       double nbc_err = fabs(nbc_int);
 
       bool hom_nbc = true;
@@ -360,9 +361,9 @@ int main(int argc, char *argv[])
       Vector nVec(2); nVec[0] = 0.0; nVec[1] = 1.0;
       VectorConstantCoefficient nCoef(nVec);
 
-      // The factor of 0.5 divides by the length of the boundary.
-      double rbc_int = IntegrateNGradBC(u, nCoef, rbc_bdr, h1, M, rbc_a_val)
-                       * 0.5;
+      // The factor of 2.0 divides by the length of the boundary.
+      double rbc_int = IntegrateNGradBC(u, nCoef, rbc_bdr,
+                                        2.0, h1, M, rbc_a_val);
       double rbc_err = fabs(rbc_int - rbc_b_val);
 
       bool hom_rbc = (rbc_b_val == 0.0);
@@ -656,7 +657,8 @@ Mesh * GenerateSerialMesh(int ref)
    return mesh;
 }
 
-double IntegrateBC(GridFunction &x, Array<int> &bdr, bool h1)
+double IntegrateBC(GridFunction &x, Array<int> &bdr,
+                   double normalization, bool h1)
 {
    FiniteElementSpace * fespace = x.FESpace();
    ConstantCoefficient one(1.0);
@@ -673,12 +675,20 @@ double IntegrateBC(GridFunction &x, Array<int> &bdr, bool h1)
    }
    lf.Assemble();
 
-   // Compute the integral of x along the given boundary
-   return lf(x);
+   // Compute the absolute value of x (assumes interpolatory basis functions)
+   GridFunction absx(x);
+   for (int i=0; i<absx.Size(); i++)
+   {
+      absx[i] = fabs(absx[i]);
+   }
+
+   // Compute the integral of |x| along the given boundary and normalize by
+   // the length of the boundary.
+   return fabs(lf(absx) / normalization);
 }
 
 double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
-                        Array<int> &bdr, bool h1,
+                        Array<int> &bdr, double normalization, bool h1,
                         OperatorHandle &M, double a)
 {
    FiniteElementSpace * fespace = u.FESpace();
@@ -714,5 +724,5 @@ double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
    }
 
    // Integrate n.Grad(u) + a * u along the given boundary
-   return IntegrateBC(ndu, bdr, h1);
+   return IntegrateBC(ndu, bdr, normalization, h1);
 }
