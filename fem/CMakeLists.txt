@@ -36,6 +36,7 @@ set(SRCS
   intrules.cpp
   linearform.cpp
   lininteg.cpp
+  multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
@@ -70,6 +71,7 @@ set(HDRS
   intrules.hpp
   linearform.hpp
   lininteg.hpp
+  multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
