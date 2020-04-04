@@ -84,6 +84,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    if (v_max == 0.0)
    {
       // No mesh motion --> no need to change the field.
+      delete oper;
       return;
    }
    v_max = std::sqrt(v_max);
