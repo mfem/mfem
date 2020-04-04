@@ -24,16 +24,16 @@ void OrthoSolver::SetOperator(const Operator &op)
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
 {
    // Orthoganlize input.
-   Orthoganalize(b, b_ortho);
+   Orthogonalize(b, b_ortho);
 
    // Apply operator.
    oper->Mult(b_ortho, x);
 
    // Orthoganlize output.
-   Orthoganalize(x, x);
+   Orthogonalize(x, x);
 }
 
-void OrthoSolver::Orthoganalize(const Vector &v, Vector &v_ortho) const
+void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 {
    double loc_sum = v.Sum();
    double global_sum = 0.0;
