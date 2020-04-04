@@ -71,7 +71,7 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 Mesh * GenerateSerialMesh(int ref);
 
 double IntegrateBC(ParGridFunction &x, Array<int> &bdr,
-		   double normalization, bool h1);
+                   double normalization, bool h1);
 double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
                         Array<int> &bdr, double normalization, bool h1,
                         OperatorHandle &M, double a = 0.0);
@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
       // The factor of (2 pi a) divides by the circumference of the hole.
       VectorFunctionCoefficient n0Coef(2, n4Vec);
       double nbc_int = IntegrateNGradBC(u, n0Coef, nbc0_bdr,
-					2.0 * M_PI * a_, h1, M);
+                                        2.0 * M_PI * a_, h1, M);
       double nbc_err = fabs(nbc_int);
 
       bool hom_nbc = true;
@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
 
       // The factor of 0.5 divides by the length of the boundary.
       double rbc_int = IntegrateNGradBC(u, nCoef, rbc_bdr,
-					2.0, h1, M, rbc_a_val);
+                                        2.0, h1, M, rbc_a_val);
       double rbc_err = fabs(rbc_int - rbc_b_val);
 
       bool hom_rbc = (rbc_b_val == 0.0);
@@ -683,26 +683,33 @@ Mesh * GenerateSerialMesh(int ref)
 }
 
 double IntegrateBC(ParGridFunction &x, Array<int> &bdr,
-		   double normalization, bool h1)
+                   double normalization, bool h1)
 {
    ParFiniteElementSpace * fespace = x.ParFESpace();
-   GridFunctionCoefficient xCoef(&x);
-   
+   ConstantCoefficient one(1.0);
+
    // Integrate the basis functions along the given boundary
    ParLinearForm lf(fespace);
    if (h1)
    {
-      lf.AddBoundaryIntegrator(new BoundaryLFIntegrator(xCoef), bdr);
+      lf.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), bdr);
    }
    else
    {
-      lf.AddBdrFaceIntegrator(new BoundaryLFIntegrator(xCoef), bdr);
+      lf.AddBdrFaceIntegrator(new BoundaryLFIntegrator(one), bdr);
    }
    lf.Assemble();
 
-   // Compute the integral of x^2 along the given boundary and normalize by
+   // Compute the absolute value of x (assumes interpolatory basis functions)
+   ParGridFunction absx(x);
+   for (int i=0; i<absx.Size(); i++)
+   {
+      absx[i] = fabs(absx[i]);
+   }
+
+   // Compute the integral of |x| along the given boundary and normalize by
    // the length of the boundary.
-   return sqrt(fabs(lf(x)) / normalization);
+   return fabs(lf(absx) / normalization);
 }
 
 double IntegrateNGradBC(ParGridFunction &u, VectorCoefficient &nCoef,
