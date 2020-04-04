@@ -12,6 +12,8 @@
 #ifndef MFEM_NAVIER_SOLVER_HPP
 #define MFEM_NAVIER_SOLVER_HPP
 
+#define NAVIER_VERSION 0.1
+
 #include "mfem.hpp"
 #include "ortho_solver.hpp"
 
