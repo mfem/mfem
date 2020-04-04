@@ -21,18 +21,19 @@
 namespace mfem
 {
 
-/// Class bundling a hierarchy of meshes and finite element spaces
+/// Class bundling a hierarchy finite element spaces together with the
+/// corresponding prolongation operators
 class FiniteElementSpaceHierarchy
 {
 protected:
    Array<Mesh*> meshes;
    Array<FiniteElementSpace*> fespaces;
+   Array<Operator*> prolongations;
    Array<bool> ownedMeshes;
    Array<bool> ownedFES;
+   Array<bool> ownedProlongations;
 
 public:
-   /// Constructs an empty space hierarchy
-   FiniteElementSpaceHierarchy();
 
    /// Constructs a space hierarchy with the given mesh and space on the coarsest level.
    /// The ownership of the mesh and space may be transferred to the
@@ -50,8 +51,8 @@ public:
    int GetFinestLevelIndex() const;
 
    /// Adds one level to the hierarchy
-   void AddLevel(Mesh* mesh, FiniteElementSpace* fespace, bool ownM,
-                 bool ownFES);
+   void AddLevel(Mesh* mesh, FiniteElementSpace* fespace, Operator* prolongation,
+                 bool ownM, bool ownFES, bool ownP);
 
    /// Adds one level to the hierarchy by uniformly refining the mesh on the
    /// previous level
@@ -74,15 +75,16 @@ public:
 
    /// Returns the finite element space at the finest level
    virtual FiniteElementSpace& GetFinestFESpace();
+
+   /// Returns the prolongation operator from the finite element space at level
+   /// to the finite element space at level + 1
+   Operator* GetProlongationAtLevel(int level) const;
 };
 
 #ifdef MFEM_USE_MPI
 class ParFiniteElementSpaceHierarchy : public FiniteElementSpaceHierarchy
 {
 public:
-   /// Constructs an empty space hierarchy
-   ParFiniteElementSpaceHierarchy();
-
    /// Constructs a parallel space hierarchy with the given mesh and space on
    /// level zero. The ownership of the mesh and space may be transferred to the
    /// ParFiniteElementSpaceHierarchy by setting the according boolean variables.
