@@ -1037,6 +1037,7 @@ NavierSolver::~NavierSolver()
       delete SpInvOrthoPC;
       delete SpInvPC;
    }
+   delete f_form;
    delete pfes_lor;
    delete pfec_lor;
    delete pmesh_lor;
