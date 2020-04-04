@@ -8,6 +8,19 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+// Navier MMS example
+//
+// A manufactured solution is defined as
+//
+// u = [pi * sin(t) * sin(pi * x)^2 * sin(2 * pi * y),
+//      -(pi * sin(t) * sin(2 * pi * x)) * sin(pi * y)^2].
+//
+// p = cos(pi * x) * sin(t) * sin(pi * y)
+//
+// The solution is used to compute the symbolic forcing term (right hand side),
+// of the equation. Then the numerical is computed and compared to the exact
+// manufactured solution to determine the error.
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -20,8 +33,8 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 5;
    double kinvis = 1.0;
-   double t_final = 10 * 0.25e-3;
-   double dt = 0.25e-3;
+   double t_final = 10 * 0.25e-4;
+   double dt = 0.25e-4;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
@@ -146,8 +159,8 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    NavierSolver naviersolver(pmesh, ctx.order, ctx.kinvis);
-   naviersolver.EnablePA(true);
-   naviersolver.EnableNI(false);
+   naviersolver.EnablePA(ctx.pa);
+   naviersolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
    // This is completely user customizeable.
@@ -162,7 +175,6 @@ int main(int argc, char *argv[])
    Array<int> attr(pmesh->bdr_attributes.Max());
    attr = 1;
    naviersolver.AddVelDirichletBC(vel, attr);
-   naviersolver.AddPresDirichletBC(p, attr);
 
    Array<int> domain_attr(pmesh->attributes.Max());
    domain_attr = 1;

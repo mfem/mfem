@@ -8,6 +8,25 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+// Navier double shear layer example
+//
+// Solve the double shear problem in the following configuration.
+//
+//       +-------------------+
+//       |                   |
+//       |      u0 = ua      |
+//       |                   |
+//  -------------------------------- y = 0.5
+//       |                   |
+//       |      u0 = ub      |
+//       |                   |
+//       +-------------------+
+//
+// The initial condition u0 is chosen to be a varying velocity in the y
+// direction. It includes a perturbation at x = 0.5 which leads to an
+// instability and the dynamics of the flow. The boundary conditions are fully
+// periodic.
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -52,9 +71,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
    mesh->EnsureNodes();
    GridFunction *nodes = mesh->GetNodes();
-   nodes->Neg();
-   *nodes -= 1.0;
-   nodes->Neg();
+   *nodes -= -1.0;
    *nodes /= 2.0;
 
    for (int i = 0; i < serial_refinements; ++i)

@@ -8,6 +8,37 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+// Navier Kovasznay example
+//
+// Solve for the steady Kovasznay flow at Re = 40 defined by
+//
+// u = [1 - exp(L * x) * cos(2 * pi * y),
+//      L / (2 * pi) * exp(L * x) * sin(2 * pi * y)],
+//
+// p = 1/2 * (1 - exp(2 * L * x)),
+//
+// with L = Re/2 - sqrt(Re^2/4 + 4 * pi^2).
+//
+// The problem domain is set up like this
+//
+//            +-------------+
+//            |             |
+//            |             |
+//            |             |
+//            |             |
+//  Inflow -> |             | -> Outflow
+//            |             |
+//            |             |
+//            |             |
+//            |             |
+//            |             |
+//            +-------------+
+//
+// and Dirichlet boundary conditions are applied for the velocity on every
+// boundary. The problem, although steady state, is time integrated up to the
+// final time and the solution is compared with the known exact solution.
+
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -183,7 +214,8 @@ int main(int argc, char *argv[])
 
       if (mpi.Root())
       {
-         printf("%.2d %.2E %.2E %.2E %.5E %.5E err\n", ctx.order, cfl, t, dt, err_u, err_p);
+         printf("%.2d %.2E %.2E %.2E %.5E %.5E err\n", ctx.order, cfl, t, dt, err_u,
+                err_p);
          fflush(stdout);
       }
    }
