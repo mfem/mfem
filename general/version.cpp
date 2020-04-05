@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -115,9 +115,6 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_STRUMPACK
       "MFEM_USE_STRUMPACK\n"
 #endif
-#ifdef MFEM_USE_GECKO
-      "MFEM_USE_GECKO\n"
-#endif
 #ifdef MFEM_USE_GNUTLS
       "MFEM_USE_GNUTLS\n"
 #endif
@@ -145,8 +142,14 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_RAJA
       "MFEM_USE_RAJA\n"
 #endif
+#ifdef MFEM_USE_UMPIRE
+      "MFEM_USE_UMPIRE\n"
+#endif
 #ifdef MFEM_USE_OCCA
       "MFEM_USE_OCCA\n"
+#endif
+#ifdef MFEM_USE_ADIOS2
+      "MFEM_USE_ADIOS2\n"
 #endif
       "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
       ;

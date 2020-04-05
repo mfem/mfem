@@ -6,14 +6,13 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_DTENSOR
 #define MFEM_DTENSOR
 
 #include "../general/cuda.hpp"
-#include "../general/mem_manager.hpp"
 
 namespace mfem
 {
@@ -26,7 +25,7 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#ifndef MFEM_USE_CUDA
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
       return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
@@ -42,7 +41,7 @@ public:
    MFEM_HOST_DEVICE
    static inline int result(const int* sizes, T first, Args... args)
    {
-#ifndef MFEM_USE_CUDA
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
 #endif
       return first;

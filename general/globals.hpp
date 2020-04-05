@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_GLOBALS_HPP
@@ -34,6 +34,8 @@ protected:
    // Pointer that stores the tied ostream when output is disabled.
    std::ostream *m_tie;
 
+   void Init();
+
 public:
    /** @brief Construct an OutStream from the given stream @a out, by using its
        `rdbuf()`. */
@@ -43,7 +45,7 @@ public:
        @a out, enabling output. */
    void SetStream(std::ostream &out)
    {
-      rdbuf(m_rdbuf = out.rdbuf()); tie(m_tie = out.tie());
+      rdbuf(m_rdbuf = out.rdbuf()); tie(m_tie = out.tie()); Init();
    }
 
    /// Enable output.

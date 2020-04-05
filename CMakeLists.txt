@@ -50,7 +50,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.0.1)
+set(${PROJECT_NAME}_VERSION 4.1.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -237,14 +237,14 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
-# Gecko
-if (MFEM_USE_GECKO)
-  find_package(Gecko REQUIRED)
-endif()
-
 # GnuTLS
 if (MFEM_USE_GNUTLS)
   find_package(_GnuTLS REQUIRED)
+endif()
+
+# GSLIB
+if (MFEM_USE_GSLIB)
+  find_package(GSLIB REQUIRED)
 endif()
 
 # NetCDF
@@ -305,6 +305,7 @@ if (MFEM_USE_CUDA)
       set(CUDA_CCBIN_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    string(APPEND CMAKE_CUDA_FLAGS " -ccbin ${CUDA_CCBIN_COMPILER}")
+   set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CUDA_CCBIN_COMPILER})
 endif()
 
 # OCCA
@@ -315,6 +316,16 @@ endif()
 # RAJA
 if (MFEM_USE_RAJA)
    find_package(RAJA REQUIRED)
+endif()
+
+# UMPIRE
+if (MFEM_USE_UMPIRE)
+   find_package(UMPIRE REQUIRED)
+endif()
+
+# ADIOS2 for parallel I/O
+if (MFEM_USE_ADIOS2)
+   find_package(ADIOS2 REQUIRED)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -341,8 +352,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO Ginkgo GNUTLS NETCDF MPFR
-    PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT Ginkgo GNUTLS GSLIB NETCDF
+    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")

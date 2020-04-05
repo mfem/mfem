@@ -70,6 +70,11 @@ function(add_mfem_examples EXE_SRCS)
     endif()
   endif()
   foreach(SRC_FILE IN LISTS ${EXE_SRCS})
+    # If CUDA is enabled, tag source files to be compiled with nvcc.
+    if (MFEM_USE_CUDA)
+      set_property(SOURCE ${SRC_FILE} PROPERTY LANGUAGE CUDA)
+    endif()
+
     get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
 
     string(REPLACE ".cpp" "" EXE_NAME "${EXE_PREFIX}${SRC_FILENAME}")
@@ -118,6 +123,13 @@ function(add_mfem_miniapp MFEM_EXE_NAME)
       list(APPEND ${CURRENT_ARG}_LIST ${arg})
     endif()
   endforeach()
+
+  # If CUDA is enabled, tag source files to be compiled with nvcc.
+  if (MFEM_USE_CUDA)
+    set_property(SOURCE ${MAIN_LIST} ${EXTRA_SOURCES_LIST}
+      PROPERTY LANGUAGE CUDA)
+    list(TRANSFORM EXTRA_OPTIONS_LIST PREPEND "-Xcompiler=")
+  endif()
 
   # Actually add the executable
   add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
@@ -718,9 +730,10 @@ function(mfem_export_mk_files)
       MFEM_DEBUG MFEM_USE_EXCEPTIONS MFEM_USE_ZLIB MFEM_USE_LIBUNWIND
       MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP
       MFEM_USE_MEMALLOC MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE
-      MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GECKO MFEM_USE_GNUTLS
-      MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
-      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA)
+      MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS
+      MFEM_USE_GSLIB MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+      MFEM_USE_CONDUIT MFEM_USE_PUMI MFEM_USE_CUDA MFEM_USE_OCCA MFEM_USE_RAJA
+      MFEM_USE_UMPIRE)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)

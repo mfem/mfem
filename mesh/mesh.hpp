@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH
@@ -23,6 +23,9 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/zstr.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include <iostream>
 
 namespace mfem
@@ -31,11 +34,15 @@ namespace mfem
 // Data type mesh
 
 class GeometricFactors;
+class FaceGeometricFactors;
 class KnotVector;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
+
+/** An enum type to specify if interior or boundary faces are desired. */
+enum class FaceType : bool {Interior, Boundary};
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -51,12 +58,21 @@ class Mesh
    friend class NCMesh;
    friend class NURBSExtension;
 
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
+#endif
+
 protected:
    int Dim;
    int spaceDim;
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
+   /** These variables store the number of Interior and Boundary faces. Calling
+       fes->GetMesh()->GetNBE() doesn't return the expected value in 3D because
+       periodic meshes in 3D have some of their faces marked as boundary for
+       visualization purpose in GLVis. */
+   mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
    int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
@@ -182,6 +198,8 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
+   Array<FaceGeometricFactors*>
+   face_geom_factors; ///< Optional face geometric factors.
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -198,7 +216,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
-   void DeleteLazyTables();
+   void ResetLazyData();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -233,8 +251,6 @@ protected:
    /** Compute the Jacobian of the transformation from the perfect
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
-
-   void GetElementCenter(int i, Vector &center);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -355,6 +371,8 @@ protected:
    static int GetTriOrientation (const int * base, const int * test);
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
+   /// Returns the orientation of "test" relative to "base"
+   static int GetTetOrientation (const int * base, const int * test);
 
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
@@ -559,21 +577,29 @@ public:
 
    virtual void SetAttributes();
 
-#ifdef MFEM_USE_GECKO
-   /** This is our integration with the Gecko library.  This will call the
-       Gecko library to find an element ordering that will increase memory
-       coherency by putting elements that are in physical proximity closer in
-       memory. It can also be used to get a space-filling curve ordering for
-       ParNCMesh partitioning.
+   /** This is our integration with the Gecko library. The method finds an
+       element ordering that will increase memory coherency by putting elements
+       that are in physical proximity closer in memory. It can also be used to
+       obtain a space-filling curve ordering for ParNCMesh partitioning.
        @param[out] ordering Output element ordering.
-       @param[in] iterations Number of V cycles (default 1).
-       @param[in] window Initial window size (default 2).
-       @param[in] period Iterations between window increment (default 1).
-       @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementOrdering(Array<int> &ordering,
-                                int iterations = 1, int window = 2,
-                                int period = 1, int seed = 0);
-#endif
+       @param iterations Total number of V cycles. The ordering may improve with
+       more iterations. The best iteration is returned at the end.
+       @param window Initial window size. This determines the number of
+       permutations tested at each multigrid level and strongly influences the
+       quality of the result, but the cost of increasing 'window' is exponential.
+       @param period The window size is incremented every 'period' iterations.
+       @param seed Seed for initial random ordering (0 = skip random reorder).
+       @param verbose Print the progress of the optimization to mfem::out.
+       @param time_limit Optional time limit for the optimization, in seconds.
+       When reached, ordering from the best iteration so far is returned
+       (0 = no limit).
+       @return The final edge product cost of the ordering. The function may be
+       called in an external loop with different seeds, and the best ordering can
+       then be retained. */
+   double GetGeckoElementOrdering(Array<int> &ordering,
+                                  int iterations = 4, int window = 4,
+                                  int period = 2, int seed = 0,
+                                  bool verbose = false, double time_limit = 0);
 
    /** Return an ordering of the elements that approximately follows the Hilbert
        curve. The method performs a spatial (Hilbert) sort on the centers of all
@@ -693,6 +719,14 @@ public:
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
+   /// Returns the number of faces according to the requested type.
+   /** If type==Boundary returns only the "true" number of boundary faces
+       contrary to GetNBE() that returns "fake" boundary faces associated to
+       visualization for GLVis.
+       Similarly, if type==Interior, the "fake" boundary faces associated to
+       visualization are counted as interior faces. */
+   int GetNFbyType(FaceType type) const;
+
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
 
@@ -703,6 +737,12 @@ public:
        integration rule. */
    const GeometricFactors* GetGeometricFactors(const IntegrationRule& ir,
                                                const int flags);
+
+   /** @brief Return the mesh geometric factors for the faces corresponding
+        to the given integration rule. */
+   const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
+                                                       const int flags,
+                                                       FaceType type);
 
    /// Destroy all GeometricFactors stored by the Mesh.
    /** This method can be used to force recomputation of the GeometricFactors,
@@ -1070,8 +1110,8 @@ public:
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
        new space dimension, 'space_dim' (if != -1), and 'ordering'. */
-   void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1);
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
 
    /// Refine all mesh elements.
    /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure
@@ -1168,6 +1208,10 @@ public:
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
+   /// Print the mesh to the given stream using the adios2 bp format
+#ifdef MFEM_USE_ADIOS2
+   virtual void Print(adios2stream &out) const;
+#endif
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
@@ -1230,6 +1274,8 @@ public:
    double GetElementSize(int i, const Vector &dir);
 
    double GetElementVolume(int i);
+
+   void GetElementCenter(int i, Vector &center);
 
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
@@ -1350,6 +1396,59 @@ public:
    Vector detJ;
 };
 
+/** @brief Structure for storing face geometric factors: coordinates, Jacobians,
+    determinants of the Jacobians, and normal vectors. */
+/** Typically objects of this type are constructed and owned by objects of class
+    Mesh. See Mesh::GetFaceGeometricFactors(). */
+class FaceGeometricFactors
+{
+public:
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
+   int computed_factors;
+   FaceType type;
+
+   enum FactorFlags
+   {
+      COORDINATES  = 1 << 0,
+      JACOBIANS    = 1 << 1,
+      DETERMINANTS = 1 << 2,
+      NORMALS      = 1 << 3,
+   };
+
+   FaceGeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags,
+                        FaceType type);
+
+   /// Mapped (physical) coordinates of all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x NF)
+       where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector X;
+
+   /// Jacobians of the element transformations at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
+       NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
+       - DIM = dimension of the mesh = mesh.Dimension(), and
+       - NF = number of faces in the mesh. */
+   Vector J;
+
+   /// Determinants of the Jacobians at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x NF) where
+       - NQ = number of quadrature points per face, and
+       - NF = number of faces in the mesh. */
+   Vector detJ;
+
+   /// Normals at all quadrature points.
+   /** This array uses a column-major layout with dimensions (NQ x DIM x NF) where
+       - NQ = number of quadrature points per face,
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NF = number of faces in the mesh. */
+   Vector normal;
+};
 
 /// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient

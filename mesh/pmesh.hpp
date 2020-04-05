@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_PMESH
@@ -267,6 +267,9 @@ public:
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
+   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                             int ordering = 1);
+
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetFaceNbrGroup(int fn) const { return face_nbr_group[fn]; }
    int GetFaceNbrRank(int fn) const;
@@ -306,6 +309,12 @@ public:
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
 
+#ifdef MFEM_USE_ADIOS2
+   /** Print the part of the mesh in the calling processor using adios2 bp
+       format. */
+   virtual void Print(adios2stream &out) const;
+#endif
+
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
    virtual void PrintXG(std::ostream &out = mfem::out) const;
@@ -344,6 +353,10 @@ public:
    friend class ParNCMesh;
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
+#endif
+
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
 #endif
 };
 

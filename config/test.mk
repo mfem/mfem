@@ -70,9 +70,10 @@ mfem-test = \
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) -no-vis > $(1).stderr 2>&1); \
+   err="$$3"; \
    if [ "$$3" = 0 ] && [ -e $(4) ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
-   rm -f $(1).stderr; exit $$3
+   then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; err=64; fi; \
+   rm -f $(1).stderr; exit $$err
 
 .PHONY: test test-par-YES test-par-NO test-ser test-par test-clean test-print
 
@@ -84,7 +85,8 @@ test-par:     test-par-YES
 test:         all test-par-$(MFEM_USE_MPI) clean-exec
 test-noclean: all test-par-$(MFEM_USE_MPI)
 test-clean: ; @rm -f *.stderr
-test-print: mfem-test=printf "   $(3) [$(2) ./$(1) -no-vis $(if $(4),$(4) )]\n"
+test-print: \
+ mfem-test=printf "   $(3) [$(2) ./$(1) $(if $(5),,-no-vis )$(if $(4),$(4) )]\n"
 test-print: mfem-test-file=printf "   $(3) [$(2) ./$(1) -no-vis ]\n"
 test-print: test-par-$(MFEM_USE_MPI)
 ifeq ($(MAKECMDGOALS),test-print)
