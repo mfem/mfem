@@ -105,8 +105,7 @@ examples/hdg_advectionp
 examples/hdg_poisson
 examples/hdg_poissonp
 examples/sol_*
-
-=== END error log from gitignore.err
+config/user.mk
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
