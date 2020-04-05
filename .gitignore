@@ -99,6 +99,14 @@ examples/Example23*
 examples/ex25.mesh
 examples/ex25-*.gf
 examples/ex25p-*.*
+examples/ex_hdg.mesh
+examples/hdg_advection
+examples/hdg_advectionp
+examples/hdg_poisson
+examples/hdg_poissonp
+examples/sol_*
+
+=== END error log from gitignore.err
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
