@@ -64,6 +64,193 @@
 using namespace mfem;
 using namespace std;
 
+
+class HessianCoefficient : public MatrixCoefficient
+{
+private:
+   int type;
+   int typemod = 1;
+
+public:
+   HessianCoefficient(int dim, int type_)
+      : MatrixCoefficient(dim), typemod(type_) { }
+
+   virtual void SetType(int typemod_) { typemod = typemod_; }
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+      (this)->Eval(K,pos);
+   }
+
+   virtual void Eval(DenseMatrix &K)
+   {
+      Vector pos(3);
+      for (int i=0; i<K.Size(); i++) {pos(i)=K(i,i);}
+      (this)->Eval(K,pos);
+   }
+
+   virtual void Eval(DenseMatrix &K, Vector pos)
+   {
+      if (typemod == 0)
+      {
+         K(0, 0) = 1.0 + 3.0 * std::sin(M_PI*pos(0));
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+      }
+      else if (typemod==1) //size only circle
+      {
+         const double small = 0.001, big = 0.01;
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         const double eps = 0.5;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         //K(0, 0) = eps + 1.0 * (tan1 - tan2);
+         K(0, 0) = 1.0;
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+         K(0,0) *= pow(val,0.5);
+         K(1,1) *= pow(val,0.5);
+      }
+      else if (typemod==2) // size only sine wave
+      {
+         const double small = 0.001, big = 0.01;
+         const double X = pos(0), Y = pos(1);
+         double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+                      std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         K(0, 0) = pow(val,0.5);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = pow(val,0.5);
+      }
+      else if (typemod==3) //circle with size and AR
+      {
+         const double small = 0.001, big = 0.01;
+         const double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         const double rv = xc*xc + yc*yc;
+         double r = 0;
+         if (rv>0.) {r = sqrt(rv);}
+
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         const double szfac = 1;
+         const double asfac = 10;
+         const double eps2 = szfac/asfac;
+         const double eps1 = szfac;
+
+         double tan1 = std::tanh(sf*(r-r1)+1),
+                tan2 = std::tanh(sf*(r-r2)-1);
+         double wgt = 0.5*(tan1-tan2);
+
+         tan1 = std::tanh(sf*(r-r1)),
+         tan2 = std::tanh(sf*(r-r2));
+
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double szval = ind * small + (1.0 - ind) * big;
+
+         double th = std::atan2(yc,xc)*180./M_PI;
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         double maxval = eps2 + eps1*(1-wgt)*(1-wgt);
+         double minval = eps1;
+         double avgval = 0.5*(maxval+minval);
+         double ampval = 0.5*(maxval-minval);
+         double val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
+         double val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
+
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+         K(0,0) = val1;
+         K(1,1) = val2;
+
+         K(0,0) *= pow(szval,0.5);
+         K(1,1) *= pow(szval,0.5);
+      }
+      else if (typemod == 4) //sharp sine wave
+      {
+         const double small = 0.001, big = 0.01;
+         const double xc = pos(0), yc = pos(1);
+         const double r = sqrt(xc*xc + yc*yc);
+
+         double tfac = 40;
+         double yl1 = 0.45;
+         double yl2 = 0.55;
+         double wgt = std::tanh((tfac*(yc-yl1) + 2*std::sin(4.0*M_PI*xc)) + 1) -
+                      std::tanh((tfac*(yc-yl2) + 2*std::sin(4.0*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+         double szval = wgt * small + (1.0 - wgt) * big;
+
+         const double eps2 = 20;
+         const double eps1 = 1;
+         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
+         K(0,0) = eps1;
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+
+         //K(0,0) *= pow(szval,0.5);
+         //K(1,1) *= pow(szval,0.5);
+      }
+      else if (typemod == 5) //sharp rotated sine wave
+      {
+         double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         double th = 15.5*M_PI/180.;
+         double xn =  cos(th)*xc + sin(th)*yc;
+         double yn = -sin(th)*xc + cos(th)*yc;
+         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+         double stretch = 1/cos(th2);
+         xc = xn/stretch;
+         yc = yn;
+         double tfac = 20;
+         double s1 = 3;
+         double s2 = 2;
+         double yl1 = -0.025;
+         double yl2 =  0.025;
+         double wgt = std::tanh((tfac*(yc-yl1) + s2*std::sin(s1*M_PI*xc)) + 1) -
+                      std::tanh((tfac*(yc-yl2) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         const double eps2 = 20;
+         const double eps1 = 1;
+         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
+         K(0,0) = eps1;
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+      }
+      else if (typemod == 6) //BOUNDARY LAYER REFINEMENT
+      {
+         const double szfac = 1;
+         const double asfac = 500;
+         const double eps = szfac;
+         const double eps2 = szfac/asfac;
+         double yscale = 1.5;
+         yscale = 2 - 2/asfac;
+         double yval = 0.25;
+         K(0, 0) = eps;
+         K(1, 1) = eps2 + szfac*yscale*pos(1);
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+      }
+   }
+};
+
 double GetTargetSum(Mesh &mesh, GridFunction &size)
 {
    L2_FECollection avg_fec(0, mesh.Dimension());
@@ -82,22 +269,12 @@ protected:
    Array<int> aniso_flags;
 
    FiniteElementSpace *fespace;
-   GridFunction *size; ///< Not owned.
    MatrixCoefficient *target_spec;
-   GridFunction tarsize;
-   bool discrete_size_flag;
-   GridFunction *aspr; ///< Not owned.
-   MatrixCoefficient *aspr_spec;
-   GridFunction taraspr;
-   bool discrete_aspr_flag;
+   GridFunction *size, tarsize;
+   GridFunction *aspr, taraspr;
+   bool discrete_field_flag;
 
-   Array<int> isorefs;
-   Array<int> anisorefs;
-   Array<int> anisorefst;
-
-   int sizeflag; //USE AMR for Size
-   int asprflag; //USE AMR for Aspect-Ratio
-
+   Vector SizeErr, AspErr;
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -120,35 +297,27 @@ public:
         size(&_size),
         aspr(&_aspr),
         tarsize(),
-        discrete_size_flag(true),
-        sizeflag(0),
-        asprflag(0) {}
+        discrete_field_flag(true)  {}
    /// Return the total error from the last error estimate.
    double GetTotalError() const { return total_error; }
 
    void SetAnalyticTargetSpec(MatrixCoefficient *mspec)
-   {target_spec = mspec; discrete_size_flag=false;}
+   {target_spec = mspec; discrete_field_flag=false;}
 
-   virtual const Vector &GetLocalErrors() {}
+   virtual const Vector &GetLocalErrors() { return SizeErr; }
 
-   virtual const GridFunction &GetLocalSolution() {}
+   virtual const GridFunction &GetLocalSolution() { return tarsize; }
 
-   virtual const Array<int> &GetSizeRefinements()
+   virtual const Vector &GetSizeError()
    {
       if (MeshIsModified()) { ComputeEstimates(); }
-      return isorefs;
+      return SizeErr;
    }
 
-   virtual const Array<int> &GetAsprRefinements()
+   virtual const Vector &GetAsprError()
    {
       if (MeshIsModified()) { ComputeEstimates(); }
-      return anisorefs;
-   }
-
-   virtual const Array<int> &GetAsprRefinementsType()
-   {
-      if (MeshIsModified()) { ComputeEstimates(); }
-      return anisorefst;
+      return AspErr;
    }
 
    virtual void Reset() { current_sequence = -1; }
@@ -162,13 +331,13 @@ void TMOPEstimator::ComputeEstimates()
    // Compute error for each element
    Vector size_sol;
    Vector aspr_sol;
-   if (!discrete_size_flag)
+   const int NE = fespace->GetNE(),
+             dim = fespace->GetMesh()->Dimension();
+
+   if (!discrete_field_flag)
    {
-      const int NE = fespace->GetNE();
-      const int dim = fespace->GetMesh()->Dimension();
       GridFunction *nodes = fespace->GetMesh()->GetNodes();
-      Vector nodesv(nodes->Size());
-      nodesv.SetData(nodes->GetData());
+      Vector nodesv(nodes->GetData(), nodes->Size());
       const int pnt_cnt = nodesv.Size()/dim;
       DenseMatrix K; K.SetSize(dim);
       size_sol.SetSize(pnt_cnt);
@@ -177,96 +346,65 @@ void TMOPEstimator::ComputeEstimates()
       const IntegrationPoint *ip = NULL;
       IsoparametricTransformation *Tpr = NULL;
 
-      for (int i=0; i<pnt_cnt; i++)
+      HessianCoefficient *target_spec_mod = dynamic_cast<HessianCoefficient *>
+                                            (target_spec);
+
+      for (int i = 0; i < pnt_cnt; i++)
       {
-         for (int j=0; j<dim; j++) {K(j,j) = nodesv(i+j*pnt_cnt);}
-         target_spec->Eval(K,*Tpr,*ip);
+         for (int j=0; j<dim; j++) { K(j,j) = nodesv(i+j*pnt_cnt); }
+         target_spec_mod->Eval(K);
          Vector col1, col2;
          K.GetColumn(0, col1);
          K.GetColumn(1, col2);
 
-         size_sol(i) = K.Det(); //col1.Norml2()*col2.Norml2();
-         aspr_sol(i) = col2.Norml2()/col1.Norml2();
+         size_sol(i) = K.Det();
+         aspr_sol(i) = col2.Norml2()/col1.Norml2(); // l2/l1 in 2D
       }
       size->SetDataAndSize(size_sol.GetData(),size_sol.Size());
       aspr->SetDataAndSize(aspr_sol.GetData(),aspr_sol.Size());
    }
+   MFEM_ASSERT(size->Min() > 0,"Target element size should be greater than 0");
+   MFEM_ASSERT(aspr->Min() > 0,
+               "Target element aspect-ratio should be greater than 0");
 
    L2_FECollection avg_fec(0, fespace->GetMesh()->Dimension());
    FiniteElementSpace avg_fes(fespace->GetMesh(), &avg_fec);
    tarsize.SetSpace(&avg_fes);
-   int dim = fespace->GetMesh()->Dimension();
 
    size->GetElementAverages(tarsize);
-   const int NE = tarsize.Size();
-   isorefs.SetSize(NE);
-   for (int i=0; i<NE; i++)
+   SizeErr.SetSize(NE);
+   for (int i = 0; i < NE; i++)
    {
       double curr_size = fespace->GetMesh()->GetElementVolume(i);
       double tar_size  = tarsize(i);
-      MFEM_ASSERT(tar_size>0,"Target element size should be greater than 0");
-      double loc_err   = curr_size - tar_size;
-      double tar_err   = curr_size/(pow(2.,dim)) - tar_size;
-
-//      if (tar_err > 0 && loc_err > tar_err) {
-//          isorefs[i] = 1;
-//      }
-//      else if (tar_err < 0 && loc_err > 0 && loc_err > std::fabs(tar_err))
-//      {
-//          isorefs[i] = 1;
-//      }
-      if (loc_err > 0 && loc_err > std::fabs(tar_err))
-      {
-          isorefs[i] = 1;
-      }
-      else
-      {
-          isorefs[i] = 0;
-      }
+      SizeErr(i) = curr_size/tar_size;
    }
 
    taraspr.SetSpace(&avg_fes);
-   anisorefs.SetSize(NE);
-   anisorefst.SetSize(NE);
-
-   //aspr->GetElementAverages(taraspr);
+   AspErr.SetSize(NE);
 
    Vector pos0V(fespace->GetFE(0)->GetDof());
    Array<int> pos_dofs;
 
-   for (int i=0; i<NE; i++)
+   // Target AspectRatio
+   for (int i = 0; i < NE; i++)
    {
-       aspr->FESpace()->GetElementDofs(i, pos_dofs);
-       aspr->GetSubVector(pos_dofs, pos0V);
-       double prod = 1.;
-       double sum = 1;
-       for (int j=0;j<pos0V.Size();j++)
-       {
-           prod *= pos0V(j);
-       }
+      aspr->FESpace()->GetElementDofs(i, pos_dofs);
+      aspr->GetSubVector(pos_dofs, pos0V);
+      double prod = 1.;
+      for (int j = 0; j < pos0V.Size(); j++)
+      {
+         prod *= pos0V(j);
+      }
 
-       taraspr(i) = pow(prod,1./pos0V.Size());
+      taraspr(i) = pow(prod,1./pos0V.Size());
    }
 
-
-   for (int i=0; i<NE; i++)
+   for (int i = 0; i < NE; i++)
    {
-      double curr_aspr = fespace->GetMesh()->GetElementAspectRatio(i,0);
+      double curr_aspr = fespace->GetMesh()->GetElementAspectRatio(i, 0);
       double tar_aspr  = taraspr(i);
-      double loc_err   = curr_aspr/tar_aspr;
-      anisorefs[i] = 0;
-      anisorefs[i] = 0;
-
-      if (loc_err > 4./3.)
-      {
-          anisorefs[i] = 1;
-          anisorefst[i] = 2;
-      }
-      else if (loc_err < 2./3.)
-      {
-          anisorefs[i] = 1;
-          anisorefst[i] = 1;
-      }
+      AspErr(i) = curr_aspr/tar_aspr;
    }
 
    current_sequence = size->FESpace()->GetMesh()->GetSequence();
@@ -285,6 +423,8 @@ protected:
 
    int non_conforming;
    int nc_limit;
+   int amrmetric; //0-Size, 1-AspectRatio, 2-Size+AspectRatio
+   int dim;
 
    double GetNorm(const Vector &local_err, Mesh &mesh) const;
 
@@ -295,7 +435,7 @@ protected:
 
 public:
    /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPRefiner(TMOPEstimator &est);
+   TMOPRefiner(TMOPEstimator &est, int amrmetric_, int dim_);
 
    // default destructor (virtual)
 
@@ -321,8 +461,8 @@ public:
    virtual void Reset();
 };
 
-TMOPRefiner::TMOPRefiner(TMOPEstimator &est)
-   : estimator(est)
+TMOPRefiner::TMOPRefiner(TMOPEstimator &est, int amrmetric_, int dim_)
+   : estimator(est), amrmetric(amrmetric_), dim(dim_)
 {
    max_elements = std::numeric_limits<long>::max();
 
@@ -343,32 +483,40 @@ int TMOPRefiner::ApplyImpl(Mesh &mesh)
    if (num_elements >= max_elements) { return STOP; }
 
    const int NE = mesh.GetNE();
-   Array<int> isorefs = estimator.GetSizeRefinements();
-   Array<int> anisorefs = estimator.GetAsprRefinements();
-   Array<int> anisorefst = estimator.GetAsprRefinementsType();
-   MFEM_ASSERT(isorefs.Size() == NE, "invalid size of local_err");
-
+   Vector SizeErr = estimator.GetSizeError();
+   Vector AspErr = estimator.GetAsprError();
+   MFEM_ASSERT(SizeErr.Size() == NE, "invalid size of local_err");
 
    int inum=0;
    for (int el = 0; el < NE; el++)
    {
-      if (isorefs[el] > 0 && anisorefs[el] == 0) //SIZE, NO AR
+      if (dim == 2)
       {
-          marked_elements.Append(Refinement(el));
-          marked_elements[inum].ref_type = 3;
-          inum += 1;
+         if ( ( amrmetric == 1 ) || ( amrmetric == 2 && SizeErr(el) > 4./3))
+         {
+            if (AspErr(el)  < 2./3)
+            {
+               marked_elements.Append(Refinement(el));
+               marked_elements[inum].ref_type = 1;
+               inum += 1;
+            }
+            else if (AspErr(el) > 4./3)
+            {
+               marked_elements.Append(Refinement(el));
+               marked_elements[inum].ref_type = 2;
+               inum += 1;
+            }
+         }
+         else if ( ( amrmetric == 0 || amrmetric == 2 ) && SizeErr(el) > 8./5)
+         {
+            marked_elements.Append(Refinement(el));
+            marked_elements[inum].ref_type = 3;
+            inum += 1;
+         }
       }
-      else if (isorefs[el] > 0 && anisorefs[el] > 0) //SIZE AND AR
+      else
       {
-          marked_elements.Append(Refinement(el));
-          marked_elements[inum].ref_type = anisorefst[el];
-          inum += 1;
-      }
-      else if (isorefs[el] == 0 && anisorefs[el] > 0) //AR, NO SIZE
-      {
-          marked_elements.Append(Refinement(el));
-          marked_elements[inum].ref_type = anisorefst[el];
-          inum += 1;
+         MFEM_ABORT(" dim=3 not implement yet");
       }
    }
 
@@ -505,189 +653,6 @@ double ind_values(const Vector &x)
    return 0.0;
 }
 
-class HessianCoefficient : public MatrixCoefficient
-{
-private:
-   int type;
-   int typemod = 5;
-
-public:
-   HessianCoefficient(int dim, int type_)
-      : MatrixCoefficient(dim), type(type_) { }
-
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      if (&T==NULL)
-      {
-         Vector pos(3);
-         for (int i=0; i<K.Size(); i++) {pos(i)=K(i,i);}
-         (this)->Eval(K,pos);
-      }
-      else
-      {
-         Vector pos(3);
-         T.Transform(ip, pos);
-         (this)->Eval(K,pos);
-      }
-   }
-   virtual void Eval(DenseMatrix &K, Vector pos)
-   {
-      if (typemod == 0)
-      {
-         K(0, 0) = 1.0 + 3.0 * std::sin(M_PI*pos(0));
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-      }
-      else if (typemod==1) //size only circle
-      {
-         const double small = 0.0001, big = 0.01;
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-         const double eps = 0.5;
-
-         const double tan1 = std::tanh(sf*(r-r1)),
-                      tan2 = std::tanh(sf*(r-r2));
-
-         double ind = (tan1 - tan2);
-         if (ind > 1.0) {ind = 1.;}
-         if (ind < 0.0) {ind = 0.;}
-         double val = ind * small + (1.0 - ind) * big;
-         //K(0, 0) = eps + 1.0 * (tan1 - tan2);
-         K(0, 0) = 1.0;
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-         K(0,0) *= pow(val,0.5);
-         K(1,1) *= pow(val,0.5);
-      }
-      else if (typemod==2)
-      {
-         const double small = 0.001, big = 0.01;
-         const double X = pos(0), Y = pos(1);
-         double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                      std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-         if (ind > 1.0) {ind = 1.;}
-         if (ind < 0.0) {ind = 0.;}
-         double val = ind * small + (1.0 - ind) * big;
-         K(0, 0) = pow(val,0.5);
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = pow(val,0.5);
-      }
-      else if (typemod==3) //circle with size and AR
-      {
-          const double small = 0.001, big = 0.01;
-          const double xc = pos(0)-0.5, yc = pos(1)-0.5;
-          const double rv = xc*xc + yc*yc;
-          double r = 0;
-          if (rv>0.) {r = sqrt(rv);}
-
-          double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-          const double szfac = 1;
-          const double asfac = 10;
-          const double eps2 = szfac/asfac;
-          const double eps1 = szfac;
-
-          double tan1 = std::tanh(sf*(r-r1)+1),
-                 tan2 = std::tanh(sf*(r-r2)-1);
-          double wgt = 0.5*(tan1-tan2);
-
-          tan1 = std::tanh(sf*(r-r1)),
-          tan2 = std::tanh(sf*(r-r2));
-
-          double ind = (tan1 - tan2);
-          if (ind > 1.0) {ind = 1.;}
-          if (ind < 0.0) {ind = 0.;}
-          double szval = ind * small + (1.0 - ind) * big;
-
-          double th = std::atan2(yc,xc)*180./M_PI;
-          if (wgt > 1) wgt = 1;
-          if (wgt < 0) wgt = 0;
-
-          double maxval = eps2 + eps1*(1-wgt)*(1-wgt);
-          double minval = eps1;
-          double avgval = 0.5*(maxval+minval);
-          double ampval = 0.5*(maxval-minval);
-          double val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
-          double val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
-
-          K(0,1) = 0.0;
-          K(1,0) = 0.0;
-          K(0,0) = val1;
-          K(1,1) = val2;
-
-          K(0,0) *= pow(szval,0.5);
-          K(1,1) *= pow(szval,0.5);
-      }
-      else if (typemod == 4) //sharp sine wave
-      {
-          const double small = 0.001, big = 0.01;
-          const double xc = pos(0), yc = pos(1);
-          const double r = sqrt(xc*xc + yc*yc);
-
-          double tfac = 20;
-          double yl1 = 0.45;
-          double yl2 = 0.55;
-          double wgt = std::tanh((tfac*(yc-yl1) + 2*std::sin(4.0*M_PI*xc)) + 1) -
-             std::tanh((tfac*(yc-yl2) + 2*std::sin(4.0*M_PI*xc)) - 1);
-          if (wgt > 1) wgt = 1;
-          if (wgt < 0) wgt = 0;
-          double szval = wgt * small + (1.0 - wgt) * big;
-
-          const double eps2 = 20;
-          const double eps1 = 1;
-          K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
-          K(0,0) = eps1;
-          K(0,1) = 0.0;
-          K(1,0) = 0.0;
-
-          //K(0,0) *= pow(szval,0.5);
-          //K(1,1) *= pow(szval,0.5);
-      }
-      else if (typemod == 5) //sharp rotated sine wave
-      {
-          double xc = pos(0)-0.5, yc = pos(1)-0.5;
-          double th = 15.5*M_PI/180.;
-          double xn =  cos(th)*xc + sin(th)*yc;
-          double yn = -sin(th)*xc + cos(th)*yc;
-          double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-          double stretch = 1/cos(th2);
-          xc = xn/stretch;
-          yc = yn;
-          double tfac = 20;
-          double s1 = 3;
-          double s2 = 2;
-          double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1) -
-                       std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
-          if (wgt > 1) wgt = 1;
-          if (wgt < 0) wgt = 0;
-
-          const double eps2 = 40;
-          const double eps1 = 1;
-              K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
-              K(0,0) = eps1;
-              K(0,1) = 0.0;
-              K(1,0) = 0.0;
-      }
-      else if (typemod == 6) //BOUNDARY LAYER REFINEMENT
-      {
-         const double szfac = 1;
-         const double asfac = 500;
-         const double eps = szfac;
-         const double eps2 = szfac/asfac;
-         double yscale = 1.5;
-         yscale = 2 - 2/asfac;
-         double yval = 0.25;
-         K(1, 1) = eps2 + szfac*yscale*pos(1);
-         K(0, 0) = eps;
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-      }
-   }
-};
 
 void TMOPupdate(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
                 bool move_bnd)
@@ -768,9 +733,11 @@ int main (int argc, char *argv[])
    bool move_bnd         = true;
    bool combomet         = 0;
    int amr_flag          = 1;
+   int amrmetric         = 2;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
+   int hessiantype       = 1;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -833,6 +800,10 @@ int main (int argc, char *argv[])
                   "Combination of metrics.");
    args.AddOption(&amr_flag, "-amr", "--amr-flag",
                   "1 - AMR after TMOP");
+   args.AddOption(&amrmetric, "-amrm", "--amr-metric",
+                  "0 - Size, 1 - AspectRatio, 2 - Size + AspectRatio");
+   args.AddOption(&hessiantype, "-ht", "--Hessian Target type",
+                  "1-6");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -988,7 +959,7 @@ int main (int argc, char *argv[])
       {
          target_t = TargetConstructor::GIVEN_FULL;
          tca = new AnalyticAdaptTC(target_t);
-         adapt_coeff = new HessianCoefficient(dim, 1);
+         adapt_coeff = new HessianCoefficient(dim, hessiantype);
          tca->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tca;
          break;
@@ -1216,14 +1187,15 @@ int main (int argc, char *argv[])
    // 20. AMR based size refinemenet if a size metric is used
    TMOPEstimator tmope(ind_fes,size,aspr);
    if (target_id==4) {tmope.SetAnalyticTargetSpec(adapt_coeff);}
-   TMOPRefiner tmopr(tmope);
+   TMOPRefiner tmopr(tmope, amrmetric, dim);
    if (amr_flag==1)
    {
-      int nc_limit = 1;
-      int ni_limit = 10;
-      int nic_limit = 4;
+      int ni_limit = 3; //Newton + AMR
+      int nic_limit =
+         4; //Number of iterations with AMR (should be less than equal to ni_limit)
       int newtonstop = 0;
       int amrstop = 0;
+      int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
 
       tmopr.PreferNonconformingRefinement();
       tmopr.SetNCLimit(nc_limit);
@@ -1256,7 +1228,7 @@ int main (int argc, char *argv[])
             if (nc_limit!=0 && amrstop==0) {tmopr.Apply(mesh);}
             //Update stuff
             ind_fes.Update();
-            size.Update();aspr.Update();
+            size.Update(); aspr.Update();
             fespace.Update();
             x.Update(); x.SetTrueVector();
             x0.Update(); x0.SetTrueVector();
@@ -1290,12 +1262,22 @@ int main (int argc, char *argv[])
          //qqvis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
       } //ni_limit
    } //amr_flag==1
-   delete newton;
+   newton->SetOperator(a);
+   newton->Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
    {
       ofstream mesh_ofs("optimized.mesh");
+      mesh_ofs.precision(14);
+      mesh.Print(mesh_ofs);
+   }
+   string namefile;
+   char numstr[1]; // enough to hold all numbers up to 64-bits
+   sprintf(numstr, "%s%d%s", "optimized_ht_", hessiantype, ".mesh");
+   {
+      ofstream mesh_ofs(numstr);
       mesh_ofs.precision(14);
       mesh.Print(mesh_ofs);
    }
@@ -1341,6 +1323,8 @@ int main (int argc, char *argv[])
    }
 
    // 24. Free the used memory.
+
+   delete newton;
    delete S;
    delete target_c2;
    delete metric2;
