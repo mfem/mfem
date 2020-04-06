@@ -358,11 +358,11 @@ void EABilinearFormExtension::Assemble()
 
    faceDofs = trialFes->GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
 
-   nf_int = trialFes->GetNFbyType(FaceType::Interior);
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
    if (intFaceIntegratorCount>0)
    {
+      nf_int = trialFes->GetNFbyType(FaceType::Interior);
       ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_int = 0.0;
@@ -373,11 +373,11 @@ void EABilinearFormExtension::Assemble()
       intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),ea_data_int,ea_data_ext);
    }
 
-   nf_bdr = trialFes->GetNFbyType(FaceType::Boundary);
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
    if (boundFaceIntegratorCount>0)
    {
+      nf_bdr = trialFes->GetNFbyType(FaceType::Boundary);
       ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_bdr = 0.0;
    }
