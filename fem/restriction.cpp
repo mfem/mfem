@@ -174,8 +174,6 @@ void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
    const int nd = dof;
    const int vd = vdim;
    const bool t = byvdim;
-   auto d_offsets = offsets.Read();
-   auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gatherMap = gatherMap.Read();
