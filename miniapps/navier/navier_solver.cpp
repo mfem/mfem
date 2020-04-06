@@ -1034,12 +1034,9 @@ NavierSolver::~NavierSolver()
    delete H_form;
    delete SpInv;
    delete MvInvPC;
-   if (partial_assembly)
-   {
-      delete Sp_form_lor;
-      delete SpInvOrthoPC;
-      delete SpInvPC;
-   }
+   delete Sp_form_lor;
+   delete SpInvOrthoPC;
+   delete SpInvPC;
    delete f_form;
    delete pfes_lor;
    delete pfec_lor;
