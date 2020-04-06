@@ -19,8 +19,8 @@
 // p = cos(pi * x) * sin(t) * sin(pi * y)
 //
 // The solution is used to compute the symbolic forcing term (right hand side),
-// of the equation. Then the numerical is computed and compared to the exact
-// manufactured solution to determine the error.
+// of the equation. Then the numerical solution is computed and compared to the
+// exact manufactured solution to determine the error.
 
 #include "navier_solver.hpp"
 #include <fstream>
