@@ -23,13 +23,13 @@ void OrthoSolver::SetOperator(const Operator &op)
 
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
 {
-   // Orthoganlize input.
+   // Orthoganlize input
    Orthogonalize(b, b_ortho);
 
-   // Apply operator.
+   // Apply operator
    oper->Mult(b_ortho, x);
 
-   // Orthoganlize output.
+   // Orthoganlize output
    Orthogonalize(x, x);
 }
 
