@@ -732,14 +732,12 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
       values(i) = *(q++);
    }
 }
-// fix me: This function should have a more efficient method for doing this operation.
+
 inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
                                                  Vector &values)
 {
-   Vector elem_vec;
-   GetElementValues(idx, elem_vec);
-   int vDim = GetVDim();
-   values.NewDataAndSize(elem_vec + ip_num * vDim, vDim);
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.NewDataAndSize(data + s_offset, vdim);
 }
 
 inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)
