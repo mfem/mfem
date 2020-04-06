@@ -283,6 +283,19 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
 
+   /** Wrap an externally pair of allocated pointer, @a h_ptr and @ d_ptr,
+       of the given host MemoryType @a h_mt. */
+   /** The new memory object will have the device MemoryType set as valid.
+
+       The given @a h_ptr and @a d_ptr must be allocated appropriately for the
+       given host MemoryType and its associated device MemoryType.
+
+       The parameter @a own determines whether both @a h_ptr and @a d_ptr will
+       be deleted when the method Delete() is called.
+
+       @note The current memory is NOT deleted by this method. */
+   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
+
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
 
@@ -680,6 +693,19 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
                                         own, false, flags);
+}
+
+template <typename T>
+inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
+{
+   h_mt = mt;
+   flags = 0;
+   h_ptr = ptr;
+   capacity = size;
+   MFEM_ASSERT(IsHostMemory(h_mt),"");
+   const size_t bytes = size*sizeof(T);
+   const MemoryType d_mt = MemoryManager::GetDualMemoryType_(h_mt);
+   MemoryManager::Register_(d_ptr, h_ptr, bytes, d_mt, own, false, flags);
 }
 
 template <typename T>
