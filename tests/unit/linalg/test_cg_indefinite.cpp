@@ -39,14 +39,17 @@ TEST_CASE("CGSolver", "[Indefinite]")
    Vector x(2);
    x = 0.0;
 
-   // check indefinite operator
+   // check indefinite operator - this particular example
+   // does not make sense with CG and should not converge
    CGSolver cg;
    cg.SetOperator(indefinite);
    cg.SetPrintLevel(1);
    cg.Mult(v, x);
    REQUIRE(!cg.GetConverged());
 
-   // check indefinite preconditioner
+   // check indefinite preconditioner - this particular
+   // example does not make sense with CG and should not
+   // converge
    IdentityOperator identity(2);
    FakeSolver indefprec(indefinite);
    CGSolver cg2;
