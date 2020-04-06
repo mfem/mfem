@@ -961,9 +961,9 @@ public:
    VectorQuadratureFunctionCoefficient(QuadratureFunction *qf);
 
    /// constructor with a null qf
-   VectorQuadratureFunctionCoefficient() : VectorCoefficient(0) { QuadF = NULL; }
+   VectorQuadratureFunctionCoefficient() : VectorCoefficient(0), QuadF(NULL),
+      index(-1), length(0) {}
 
-   /// setter function for the internal quadrature function
    void SetQuadratureFunction(QuadratureFunction *qf);
 
    /// set the starting index within the QuadFunc that'll be used to project outwards
@@ -1004,7 +1004,6 @@ public:
    /// setter function for the internal quadrature function
    void SetQuadratureFunction(QuadratureFunction *qf);
 
-   /// getter function for the internal quadrature function
    QuadratureFunction *GetQuadFunction() const { return QuadF; }
 
    virtual double Eval(ElementTransformation &T,

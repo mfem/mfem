@@ -760,12 +760,8 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 
 VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
    QuadratureFunction *qf)
-   : VectorCoefficient(qf->GetVDim())
-{
-   QuadF = qf;
-   index = 0;
-   length = qf->GetVDim();
-}
+   : VectorCoefficient(qf->GetVDim()), QuadF(qf), index(0),
+     length(qf->GetVDim()) {}
 
 void VectorQuadratureFunctionCoefficient::SetQuadratureFunction(
    QuadratureFunction *qf)
@@ -805,6 +801,8 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
+   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
+
    QuadF->HostRead();
    int elem_no = T.ElementNo;
    if (index == 0 && length == vdim)
@@ -841,6 +839,8 @@ void QuadratureFunctionCoefficient::SetQuadratureFunction(
 double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
+   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
+
    QuadF->HostRead();
    int elem_no = T.ElementNo;
    Vector temp(1);
