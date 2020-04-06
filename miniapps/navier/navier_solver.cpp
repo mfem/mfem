@@ -68,7 +68,9 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    tmp1.SetSize(vfes_truevsize);
 
    pn.SetSize(pfes_truevsize);
+   pn = 0.0;
    resp.SetSize(pfes_truevsize);
+   resp = 0.0;
    FText_bdr.SetSize(pfes_truevsize);
    g_bdr.SetSize(pfes_truevsize);
 
@@ -781,7 +783,11 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
 
    Vector ux, uy, uz;
    Vector ur, us, ut;
-   double cflx, cfly, cflz, cflm, cflmax = 0.0;
+   double cflx = 0.0;
+   double cfly = 0.0;
+   double cflz = 0.0;
+   double cflm = 0.0;
+   double cflmax = 0.0;
 
    for (int e = 0; e < fes->GetNE(); ++e)
    {
