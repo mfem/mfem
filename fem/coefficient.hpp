@@ -1001,7 +1001,6 @@ public:
    /// constructor with a null qf
    QuadratureFunctionCoefficient() : Coefficient() { QuadF = NULL; }
 
-   /// setter function for the internal quadrature function
    void SetQuadratureFunction(QuadratureFunction *qf);
 
    QuadratureFunction *GetQuadFunction() const { return QuadF; }
