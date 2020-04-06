@@ -18,6 +18,13 @@ namespace mfem
 {
 namespace navier
 {
+/// Solver wrapper which orthogonalizes the input and output vector
+/**
+ * OrthoSolver wraps an existing Operator and orthogonalizes the input vector
+ * before passing it to the Mult method of the Operator. This is a convenience
+ * implementation to handle e.g. a Poisson problem with pure Neumann boundary
+ * conditions, where this procedure removes the Nullspace.
+ */
 class OrthoSolver : public Solver
 {
 public:
