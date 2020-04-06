@@ -346,6 +346,12 @@ void EABilinearFormExtension::Assemble()
    {
       bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr);
    }
+
+   bool simplify = false;
+   if (simplify)
+   {
+      // Factorize(ea_data_int, ea_data_bdr, ea_data);
+   }
 }
 
 void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
