@@ -105,7 +105,8 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
-void IterativeSolver::Monitor(int it, double norm, const Vector& r, const Vector& x) const
+void IterativeSolver::Monitor(int it, double norm, const Vector& r,
+                              const Vector& x) const
 {
    if (monitor != nullptr)
    {
