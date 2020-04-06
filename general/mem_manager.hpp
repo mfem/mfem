@@ -283,7 +283,7 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
 
-   /** Wrap an externally pair of allocated pointer, @a h_ptr and @ d_ptr,
+   /** Wrap an externally pair of allocated pointers, @a h_ptr and @ d_ptr,
        of the given host MemoryType @a h_mt. */
    /** The new memory object will have the device MemoryType set as valid.
 
