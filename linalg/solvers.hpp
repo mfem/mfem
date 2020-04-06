@@ -34,27 +34,19 @@ class BilinearForm;
 class IterativeSolverMonitor
 {
 public:
-   IterativeSolverMonitor(bool monitor_residual = true,
-                          bool monitor_solution = true) :
-      monitor_residual_(monitor_residual),
-      monitor_solution_(monitor_solution) {};
+   IterativeSolverMonitor() {}
 
-   virtual ~IterativeSolverMonitor() {};
+   virtual ~IterativeSolverMonitor() {}
 
    /// Monitor the residual vector r
    virtual void MonitorResidual(int it, double norm, const Vector &r)
    {
-      MFEM_ABORT("MonitorResidual() is not implemented!")
    }
 
    /// Monitor the solution vector x
    virtual void MonitorSolution(int it, double norm, const Vector &x)
    {
-      MFEM_ABORT("MonitorSolution() is not implemented!")
    }
-
-   bool monitor_residual_;
-   bool monitor_solution_;
 };
 
 /// Abstract base class for iterative solver
@@ -80,6 +72,7 @@ protected:
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   void Monitor(int it, double norm, const Vector& r, const Vector& x) const;
 
 public:
    IterativeSolver();
