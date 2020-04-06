@@ -66,7 +66,8 @@ void PABilinearFormExtension::SetupRestrictionOperators()
    if (int_face_restrict_lex == NULL && a->GetFBFI()->Size() > 0)
    {
       int_face_restrict_lex = trialFes->GetFaceRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
+                                 ElementDofOrdering::LEXICOGRAPHIC,
+                                 FaceType::Interior);
       faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
@@ -75,7 +76,8 @@ void PABilinearFormExtension::SetupRestrictionOperators()
    if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
    {
       bdr_face_restrict_lex = trialFes->GetFaceRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Boundary);
+                                 ElementDofOrdering::LEXICOGRAPHIC,
+                                 FaceType::Boundary);
       faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
@@ -317,7 +319,8 @@ void EABilinearFormExtension::SetupRestrictionOperators()
    if (int_face_restrict_lex == NULL && a->GetFBFI()->Size() > 0)
    {
       int_face_restrict_lex = trialFes->GetFaceRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC, FaceType::Interior);
+                                 ElementDofOrdering::LEXICOGRAPHIC,
+                                 FaceType::Interior);
       faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
