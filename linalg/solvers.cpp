@@ -388,7 +388,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << nom << (print_level == 3 ? " ...\n" : "\n");
    }
 
-   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom < 0.0)
    {
       if (print_level >= 0)
@@ -401,6 +400,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       final_norm = nom;
       return;
    }
+   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
       converged = 1;
