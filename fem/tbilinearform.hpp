@@ -115,7 +115,7 @@ public:
         solVecLayout(sol_fes),
         int_rule(),
         coeff(integ.coeff),
-        assembled_data(((mesh.GetNE()+TE-1)/TE)*BE, MemoryType::HOST_64),
+        assembled_data(((mesh.GetNE()+TE-1)/TE)*BE, MemoryType::HOST_32),
         in_fes(sol_fes)
    { }
 
