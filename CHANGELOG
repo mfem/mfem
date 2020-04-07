@@ -46,6 +46,14 @@ Improved testing
 
 Miscellaneous
 -------------
+- Added support for explicit vectorization for the high-performance templated
+  code, which can now take advantage of specific intrinsics classes on the
+  following architectures:
+    - x86 (SSE/AVX/AVX2/AVX512),
+    - Power8 & Power9 (VSX),
+    - BG/Q (QPX).
+  It can be enabled with MFEM_USE_SIMD=YES.
+
 - In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
   solver can work with non-SPD preconditioner B.
 

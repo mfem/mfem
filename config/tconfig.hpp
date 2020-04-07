@@ -46,15 +46,6 @@
 #define MFEM_ALIGN_AS(bytes)
 #endif
 
-// --- POSIX MEMALIGN
-#ifdef _WIN32
-#define MFEM_POSIX_MEMALIGN(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
-#define MFEM_POSIX_MEMALIGN_FREE _aligned_free
-#else
-#define MFEM_POSIX_MEMALIGN posix_memalign
-#define MFEM_POSIX_MEMALIGN_FREE free
-#endif
-
 // --- AutoSIMD or intrinsics
 #ifndef MFEM_USE_SIMD
 #include "simd/auto.hpp"
