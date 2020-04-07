@@ -562,6 +562,13 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+
+# Generate export symbols and add to list of header files
+include(GenerateExportHeader)
+set(_export_header ${CMAKE_CURRENT_SOURCE_DIR}/mfem_export.h)
+generate_export_header(mfem EXPORT_FILE_NAME ${_export_header})
+list(APPEND ${HEADERS} ${_export_header})
+
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
@@ -727,7 +734,7 @@ foreach(Header mfem.hpp mfem-performance.hpp)
   install(FILES ${PROJECT_BINARY_DIR}/InstallHeaders/${Header}
     DESTINATION ${INSTALL_INCLUDE_DIR})
 endforeach()
-install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
+install(FILES ${MASTER_HEADERS} ${_export_header} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
 # Install the headers; currently, the miniapps headers are excluded
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
