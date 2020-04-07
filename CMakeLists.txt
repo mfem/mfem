@@ -68,6 +68,7 @@ set(XSDK_ENABLE_C OFF)
 set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
+message(STATUS "CMake Version: ${CMAKE_VERSION}")
 if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
     MFEM_USE_PETSC)
