@@ -582,7 +582,7 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
 	mkdir -p $(PREFIX_INC)/mfem
-	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
+	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp $(SRC)mfem_export.h \
 	   $(PREFIX_INC)/mfem
 	for hdr in mfem.hpp mfem-performance.hpp; do \
 	   printf '// Auto-generated file.\n#include "mfem/'$$hdr'"\n' \
