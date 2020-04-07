@@ -115,9 +115,9 @@ public:
         solVecLayout(sol_fes),
         int_rule(),
         coeff(integ.coeff),
-        assembled_data(((mesh.GetNE()+TE-1)/TE)*BE, MemoryType::HOST_32),
+        assembled_data(),
         in_fes(sol_fes)
-   { }
+   { assembled_data.Reset(); }
 
    virtual ~TBilinearForm()
    {
@@ -133,7 +133,7 @@ public:
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
-      if (assembled_data)
+      if (!assembled_data.Empty())
       {
          MultAssembled(x, y);
       }
@@ -193,6 +193,11 @@ public:
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
+      if (assembled_data.Empty())
+      {
+         const int size = ((NE+TE-1)/TE)*BE;
+         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_64);
+      }
       for (int el = 0; el < NE; el += TE)
       {
          typename T_result::Type F;
@@ -289,11 +294,10 @@ public:
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
-      if (!assembled_data)
+      if (assembled_data.Empty())
       {
-         // TODO: How do we make sure that this array is aligned properly, AND
-         //       the compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
-         assembled_data = new p_assembled_t[((NE+TE-1)/TE)*BE];
+         const int size = ((NE+TE-1)/TE)*BE;
+         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_64);
       }
       const vreal_t *vsNodes = (const vreal_t*)(sNodes.GetData());
       for (int el = 0; el < NE; el += TE)
