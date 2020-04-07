@@ -17,7 +17,7 @@ using namespace navier;
 
 struct s_NavierContext
 {
-   int ser_ref_levels = 1;
+   int element_subdivisions = 1;
    int order = 4;
    double kinvis = 1.0 / 1600.0;
    double t_final = 10 * 1e-3;
@@ -39,10 +39,10 @@ void vel_tgv(const Vector &x, double t, Vector &u)
    u(2) = 0.0;
 }
 
-class QOI
+class QuantitiesOfInterest
 {
 public:
-   QOI(ParMesh *pmesh)
+   QuantitiesOfInterest(ParMesh *pmesh)
    {
       H1_FECollection h1fec(1);
       ParFiniteElementSpace h1fes(pmesh, &h1fec);
@@ -101,7 +101,7 @@ public:
       return 0.5 * global_integral / volume;
    };
 
-   ~QOI() { delete mass_lf; };
+   ~QuantitiesOfInterest() { delete mass_lf; };
 
 private:
    ConstantCoefficient onecoeff;
@@ -114,6 +114,7 @@ T sq(T x)
 {
    return x * x;
 }
+
 
 void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 {
@@ -209,10 +210,10 @@ int main(int argc, char *argv[])
    MPI_Session mpi(argc, argv);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ctx.ser_ref_levels,
-                  "-rs",
-                  "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&ctx.element_subdivisions,
+                  "-es",
+                  "--element-subdivisions",
+                  "Number of uniform subdivisions for each element.");
    args.AddOption(&ctx.order,
                   "-o",
                   "--order",
@@ -251,7 +252,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(mfem::out);
       }
-      MPI_Finalize();
       return 1;
    }
    if (mpi.Root())
@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
 
    Mesh *orig_mesh = new Mesh("../../data/periodic-cube.mesh");
    Mesh *mesh = new Mesh(orig_mesh,
-                         ctx.ser_ref_levels,
+                         ctx.element_subdivisions,
                          BasisType::ClosedUniform);
    delete orig_mesh;
 
@@ -284,7 +284,6 @@ int main(int argc, char *argv[])
    flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
-   // This is completely user customizeable.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_tgv);
    u_ic->ProjectCoefficient(u_excoeff);
@@ -304,7 +303,7 @@ int main(int argc, char *argv[])
    flowsolver.ComputeCurl3D(*u_gf, w_gf);
    ComputeQCriterion(*u_gf, q_gf);
 
-   QOI kin_energy(pmesh);
+   QuantitiesOfInterest kin_energy(pmesh);
 
    ParaViewDataCollection pvdc("shear_output", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
