@@ -92,7 +92,6 @@ int main(int argc, char *argv[])
    flowsolver.EnablePA(true);
 
    // Set the initial condition.
-   // This is completely user customizeable.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_shear_ic);
    u_ic->ProjectCoefficient(u_excoeff);
