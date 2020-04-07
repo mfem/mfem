@@ -93,14 +93,14 @@ struct AutoImplTraits
 
    static const int batch_size = 1;
 
-   static const int simd_size = simd?(MFEM_SIMD_SIZE/sizeof(complex_t)):1;
+   static const int simd_size = simd ? (MFEM_SIMD_SIZE/sizeof(complex_t)) : 1;
 
-   static const int valign_size = simd?simd_size:1;
+   static const int valign_size = simd ? simd_size : 1;
 
-   typedef AutoSIMD<complex_t,simd_size,valign_size> vcomplex_t;
-   typedef AutoSIMD<   real_t,simd_size,valign_size> vreal_t;
+   typedef AutoSIMD<complex_t, simd_size, valign_size> vcomplex_t;
+   typedef AutoSIMD<real_t, simd_size, valign_size> vreal_t;
 #ifndef MFEM_USE_SIMD
-   typedef AutoSIMD<      int,simd_size,valign_size> vint_t;
+   typedef AutoSIMD<int, simd_size, valign_size> vint_t;
 #endif // MFEM_USE_SIMD
 };
 
