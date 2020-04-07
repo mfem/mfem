@@ -113,9 +113,10 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
 }
 
 
-STP::STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrlayers_)
+STP::STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, 
+         double omega_, FunctionCoefficient * ws_,  int nrlayers_)
    : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), 
-     bf(bf_), omega(omega_), nrlayers(nrlayers_)
+     bf(bf_), omega(omega_), ws(ws_), nrlayers(nrlayers_)
 {
    Mesh * mesh = bf->FESpace()->GetMesh();
    dim = mesh->Dimension();
@@ -132,11 +133,12 @@ STP::STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrla
    partition_kind = 3; // Ovelapping partition for the full space
    povlp = new MeshPartition(mesh, partition_kind);
 
-   nrpatch = pnovlp->nrpatch-1;
+   // nrpatch = pnovlp->nrpatch-1;
+   nrpatch = pnovlp->nrpatch;
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
-   SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
+   // SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
    // SaveMeshPartition(pnovlp->patch_mesh, "output/mesh_novlp.", "output/sol_novlp.");
 
    // ------------------Step 2 --------------------
@@ -164,6 +166,11 @@ SparseMatrix * STP::GetPmlSystemMatrix(int ip)
    double h = GetUniformMeshElementSize(ovlp_prob->PmlMeshes[ip]);
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
+   // if (ip == nrpatch-1) length[0][1] = 0.0;
+   // if (ip == 0) length[0][0] = 0.0;
+   // length[1][0] = 0.0;
+   // length[1][1] = 0.0;
+   // length[0][0] = 0.0;
    CartesianPML pml(ovlp_prob->PmlMeshes[ip], length);
    pml.SetOmega(omega);
 
@@ -184,8 +191,11 @@ SparseMatrix * STP::GetPmlSystemMatrix(int ip)
    PmlCoefficient detJ_re(pml_detJ_Re,&pml);
    PmlCoefficient detJ_im(pml_detJ_Im,&pml);
 
-   ProductCoefficient c2_re(sigma, detJ_re);
-   ProductCoefficient c2_im(sigma, detJ_im);
+   ProductCoefficient c2_re0(sigma, detJ_re);
+   ProductCoefficient c2_im0(sigma, detJ_im);
+
+   ProductCoefficient c2_re(c2_re0, *ws);
+   ProductCoefficient c2_im(c2_im0, *ws);
 
    SesquilinearForm a(ovlp_prob->PmlFespaces[ip],ComplexOperator::HERMITIAN);
 
@@ -210,7 +220,13 @@ void STP::SolveHalfSpaceLinearSystem(int ip, Vector &x, Vector & load) const
    double h = GetUniformMeshElementSize(novlp_prob->PmlMeshes[ip]);
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
-   length(0,1) = 0.0;
+   length[0][1] = 0.0;
+   // length[1][1] = 0.0;
+   // length[1][0] = 0.0;
+   // length[0][0] = 0.0;
+   // length[1][1] = 0.0;
+   // if (ip == 0) length[0][0] = 0.0;
+
    CartesianPML pml(novlp_prob->PmlMeshes[ip], length);
    pml.SetOmega(omega);
 
@@ -231,8 +247,11 @@ void STP::SolveHalfSpaceLinearSystem(int ip, Vector &x, Vector & load) const
    PmlCoefficient detJ_re(pml_detJ_Re,&pml);
    PmlCoefficient detJ_im(pml_detJ_Im,&pml);
 
-   ProductCoefficient c2_re(sigma, detJ_re);
-   ProductCoefficient c2_im(sigma, detJ_im);
+   ProductCoefficient c2_re0(sigma, detJ_re);
+   ProductCoefficient c2_im0(sigma, detJ_im);
+
+   ProductCoefficient c2_re(c2_re0, *ws);
+   ProductCoefficient c2_im(c2_im0, *ws);
 
    SesquilinearForm a(novlp_prob->PmlFespaces[ip],ComplexOperator::HERMITIAN);
 
@@ -267,6 +286,10 @@ void STP::Mult(const Vector &r, Vector &z) const
    Vector raux(znew.Size());
    Vector res_local, sol_local;
    znew = 0.0;
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // socketstream subsol_sock(vishost, visport);
+
    // source transfer algorithm
    for (int ip = 0; ip < nrpatch; ip++)
    {
@@ -308,16 +331,22 @@ void STP::Mult(const Vector &r, Vector &z) const
       znew = 0.0;
       znew.SetSubVector(*Dof2GlobalDof,sol_local);
 
+      // PlotSolution(znew, subsol_sock,ip); cin.get();
+
       GetCutOffSolution(znew, ip);
+
+      // PlotSolution(znew, subsol_sock,1); cin.get();
 
       A->Mult(znew, raux);
       rnew -= raux;
+      // PlotSolution(rnew, subsol_sock,ip); cin.get();
+
    }
 
    // solution stage
    // First solve the nrpatch-1 problem (last subdomain)
    // extend residual to all around pml
-   cout << "ip = " << nrpatch-1 << endl;
+   // cout << "ip = " << nrpatch-1 << endl;
    int nrdof_ext = PmlMat[nrpatch-1]->Height();
    Vector res_ext(nrdof_ext); res_ext = 0.0;
    Vector sol_ext(nrdof_ext); sol_ext = 0.0;
@@ -332,13 +361,14 @@ void STP::Mult(const Vector &r, Vector &z) const
    znew.SetSubVector(*Dof2GlobalDof,sol_local);
    z.SetSubVector(*Dof2GlobalDof,sol_local);
 
+   // PlotSolution(z, subsol_sock,0); cin.get();
 
    // backward sweep for half space problems
 
    Vector z_loc(z.Size());
    for (int ip = nrpatch-2; ip >= 0; ip--)
    {
-      cout << "ip = " << ip<< endl;
+      // cout << "ip = " << ip<< endl;
       // Get solution from previous layer
       Array<int> * Dof2GlobalDof = &novlp_prob->Dof2GlobalDof[ip];
       Array<int> * Dof2PmlDof = &novlp_prob->Dof2PmlDof[ip];
@@ -378,6 +408,7 @@ void STP::Mult(const Vector &r, Vector &z) const
       z_loc.SetSubVector(* Dof2GlobalDof, sol_loc);
       znew = z_loc;
       z.SetSubVector(* Dof2GlobalDof, sol_loc);
+      // PlotSolution(z, subsol_sock,1); cin.get();
    }
 
 }

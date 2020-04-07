@@ -22,6 +22,8 @@ using namespace mfem;
 double f_exact_Re(const Vector &x);
 double f_exact_Im(const Vector &x);
 
+double wavespeed(const Vector &x);
+
 
 int dim;
 double omega;
@@ -132,6 +134,10 @@ int main(int argc, char *argv[])
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
+   // lengths[0][1] = 0.0;
+   // lengths[1][1] = 0.0;
+   // lengths[1][0] = 0.0;
+   // lengths[0][0] = 0.0;
    CartesianPML pml(mesh_ext,lengths);
    pml.SetOmega(omega);
    comp_bdr.SetSize(dim,2);
@@ -156,6 +162,7 @@ int main(int argc, char *argv[])
    // 7. Set up the bilinear form (Real and Imaginary part)
    ConstantCoefficient one(1.0);
    ConstantCoefficient sigma(-pow(omega, 2));
+   FunctionCoefficient ws(wavespeed);
 
    PmlMatrixCoefficient c1_re(dim,pml_detJ_JT_J_inv_Re,&pml);
    PmlMatrixCoefficient c1_im(dim,pml_detJ_JT_J_inv_Im,&pml);
@@ -163,8 +170,12 @@ int main(int argc, char *argv[])
    PmlCoefficient detJ_re(pml_detJ_Re,&pml);
    PmlCoefficient detJ_im(pml_detJ_Im,&pml);
 
-   ProductCoefficient c2_re(sigma, detJ_re);
-   ProductCoefficient c2_im(sigma, detJ_im);
+   ProductCoefficient c2_re0(sigma, detJ_re);
+   ProductCoefficient c2_im0(sigma, detJ_im);
+
+   ProductCoefficient c2_re(c2_re0, ws);
+   ProductCoefficient c2_im(c2_im0, ws);
+
 
    SesquilinearForm a(fespace,ComplexOperator::HERMITIAN);
 
@@ -196,7 +207,7 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   STP S(&a,ess_tdof_list, omega,nrlayers);
+   STP S(&a,ess_tdof_list, omega, &ws, nrlayers);
 	S.SetOperator(*A);
    S.SetLoadVector(B);
    
@@ -211,64 +222,59 @@ int main(int argc, char *argv[])
 	gmres.SetPreconditioner(S);
 	gmres.SetOperator(*A);
 	gmres.SetRelTol(1e-12);
-	gmres.SetMaxIter(500);
+	gmres.SetMaxIter(50);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
 
 
 
 
-   // int n= 2;
+   int n= 50;
+   X = 0.0;
 
-   // Vector Ax(X.Size());
-   // for (int i = 0; i<n; i++)
-   // {
-   //    A->Mult(X,Ax); Ax *=-1.0;
-   //    r = b; r+=Ax;
-   //    // A->AddMult(X,r,-1.0); //r = r-Ax
-   //    cout << "residual norm =" << r.Norml2() << endl;
-   //    // S.Mult(r,z); 
-   //    S.Mult(r,z); 
-   //    cout << "correction norm =" << z.Norml2() << endl;
-
-   //    X += z;
-
-   //    cout << "solution norm =" << X.Norml2() << endl;
-
-   //    p_gf = 0.0;
-   //    a.RecoverFEMSolution(X,B,p_gf);
-
-   //       char vishost[] = "localhost";
-   //       int  visport   = 19916;
-   //       string keys;
-   //       if (dim ==2 )
-   //       {
-   //          keys = "keys mrRljc\n";
-   //       }
-   //       else
-   //       {
-   //          keys = "keys mc\n";
-   //       }
-   //       socketstream sol1_sock_re(vishost, visport);
-   //       sol1_sock_re.precision(8);
-   //       sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-   //                   "window_title 'Numerical Pressure (real part)' "
-   //                   << keys << flush;
-   //    cout << "Iteration " << i << endl;
-   //    cin.get();
-   // }
-
-
-   a.RecoverFEMSolution(X,B,p_gf);
+   Vector Ax(X.Size());
+   double tol = 1e-12;
+   cout << endl;
+   
+   for (int i = 0; i<n; i++)
+   {
+      A->Mult(X,Ax); Ax *=-1.0;
+      r = b; r+=Ax;
+      cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
+      if (r.Norml2() < tol) 
+      {
+         // cout << "Convergence in " << i+1 << " iterations" << endl;
+         break;
+      }
+      S.Mult(r,z); 
+      X += z;
+      // p_gf = 0.0;
+      // a.RecoverFEMSolution(X,B,p_gf);
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    string keys;
+      //    if (dim ==2 )
+      //    {
+      //       keys = "keys mrRljc\n";
+      //    }
+      //    else
+      //    {
+      //       keys = "keys mc\n";
+      //    }
+      //    socketstream sol1_sock_re(vishost, visport);
+      //    sol1_sock_re.precision(8);
+      //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+      //                "window_title 'Numerical Pressure (real part)' "
+      //                << keys << flush;
+   }
 
    KLUSolver klu(*A);
    klu.Mult(B,X);
-   ComplexGridFunction p_gf1(fespace);
+   a.RecoverFEMSolution(X,B,p_gf);
 
-   a.RecoverFEMSolution(X,B,p_gf1);
-
-
-   p_gf1 -= p_gf;
+   // ComplexGridFunction p_gf1(fespace);
+   // a.RecoverFEMSolution(X,B,p_gf1);
+   // p_gf1 -= p_gf;
 
    if (visualization)
    {
@@ -288,15 +294,14 @@ int main(int argc, char *argv[])
       sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
                   "window_title 'Numerical Pressure (real part from KLU)' "
                   << keys << flush;
-      socketstream diff_sock_re(vishost, visport);
-      diff_sock_re.precision(8);
-      diff_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
-                  "window_title 'Numerical Pressure (real part from KLU)' "
-                  << keys << flush;
+      // socketstream diff_sock_re(vishost, visport);
+      // diff_sock_re.precision(8);
+      // diff_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
+      //             "window_title 'Numerical Pressure (real part from KLU)' "
+      //             << keys << flush;
 
                                   
    }
-
    delete fespace;
    delete fec;
 	delete mesh_ext;
@@ -312,7 +317,7 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.1;
+   x0 = 0.5;
    x1 = 0.5;
    double alpha,beta;
    double n = 5.0 * omega/M_PI;
@@ -322,12 +327,19 @@ double f_exact_Re(const Vector &x)
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   x0 = 0.9;
-   x1 = 0.5;
-   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
-   alpha = -pow(n,2) * beta;
-   f_re += coeff*exp(alpha);
+   // x0 = 0.9;
+   // x1 = 0.1;
+   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   // if (dim == 3) { beta += pow(x2-x(2),2); }
+   // alpha = -pow(n,2) * beta;
+   // f_re += coeff*exp(alpha);
+
+   // x0 = 0.5;
+   // x1 = 0.8;
+   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   // if (dim == 3) { beta += pow(x2-x(2),2); }
+   // alpha = -pow(n,2) * beta;
+   // f_re += coeff*exp(alpha);
 
    bool in_pml = false;
    for (int i = 0; i<dim; i++)
@@ -348,6 +360,44 @@ double f_exact_Im(const Vector &x)
    double f_im;
    f_im = 0.0;
    return f_im;
+}
+
+double wavespeed(const Vector &x)
+{
+   double ws;
+   // if (x(0) <= 0.25)
+   // {
+   //    ws = 1.0;
+   // }
+   // else if(x(0)<=0.5)
+   // {
+   //    ws = 1.0;
+   // }
+   // else if(x(0)<=0.75)
+   // {
+   //    ws = 0.75;
+   //    // ws = 0.5;
+   // }
+   // else 
+   // {
+   //    ws = 0.75;
+   //    // ws = 1.0;
+   // }
+   // if (x(1) <= 1.0/3.0)
+   // {
+   //    ws = 2.0;
+   // }
+   // else if(x(1)<=2.0/3.0)
+   // {
+   //    ws = 1.0;
+   // }
+   // else 
+   // {
+   //    // ws = 0.75;
+   //    ws = 0.25;
+   // }
+   ws = 1.0;
+   return ws;
 }
 
 

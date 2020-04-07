@@ -61,6 +61,7 @@ private:
    MeshPartition * povlp;
    MeshPartition * pnovlp;
    double omega = 0.5;
+   FunctionCoefficient * ws;
    int nrlayers;
    const Operator * A;
    Vector B;
@@ -76,7 +77,8 @@ private:
    void GetCutOffSolution(Vector & sol, int ip) const;
 
 public:
-   STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, double omega_, int nrlayers_);
+   STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, 
+       double omega_, FunctionCoefficient * ws_, int nrlayers_);
    void SetLoadVector(Vector load) { B = load;}
    virtual void SetOperator(const Operator &op) {A = &op;}
    virtual void Mult(const Vector &r, Vector &z) const;
