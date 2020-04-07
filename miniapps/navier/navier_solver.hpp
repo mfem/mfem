@@ -28,41 +28,42 @@ using ScalarFuncT = double(const Vector &x, double t);
 class VelDirichletBC_T
 {
 public:
-   VelDirichletBC_T(VecFuncT *f,
-                    Array<int> attr,
-                    VectorFunctionCoefficient coeff)
-      : f(f), attr(attr), coeff(coeff)
+   VelDirichletBC_T(Array<int> attr, VectorCoefficient *coeff)
+      : attr(attr), coeff(coeff)
    {}
 
-   VecFuncT *f;
+   ~VelDirichletBC_T() { delete coeff; }
+
    Array<int> attr;
-   VectorFunctionCoefficient coeff;
+   VectorCoefficient *coeff;
 };
 
 /// Container for a Dirichlet boundary condition of the pressure field.
 class PresDirichletBC_T
 {
 public:
-   PresDirichletBC_T(ScalarFuncT *f, Array<int> attr, FunctionCoefficient coeff)
-      : f(f), attr(attr), coeff(coeff)
+   PresDirichletBC_T(Array<int> attr, Coefficient *coeff)
+      : attr(attr), coeff(coeff)
    {}
 
-   ScalarFuncT *f;
+   ~PresDirichletBC_T() { delete coeff; }
+
    Array<int> attr;
-   FunctionCoefficient coeff;
+   Coefficient *coeff;
 };
 
 /// Container for an acceleration term.
 class AccelTerm_T
 {
 public:
-   AccelTerm_T(VecFuncT *f, Array<int> attr, VectorFunctionCoefficient coeff)
-      : f(f), attr(attr), coeff(coeff)
+   AccelTerm_T(Array<int> attr, VectorCoefficient *coeff)
+      : attr(attr), coeff(coeff)
    {}
 
-   VecFuncT *f;
+   ~AccelTerm_T() { delete coeff; }
+
    Array<int> attr;
-   VectorFunctionCoefficient coeff;
+   VectorCoefficient *coeff;
 };
 
 /// Transient incompressible Navier Stokes solver in a split scheme formulation.
@@ -138,9 +139,13 @@ public:
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
    /// Add a Dirichlet boundary condition to the velocity field.
+   void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
+
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
 
    /// Add a Dirichlet boundary condition to the pressure field.
+   void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
+
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
 
    /// Add an accelaration term to the RHS of the equation.
@@ -148,6 +153,8 @@ public:
     * The VecFuncT @a f is evaluated at the current time t and extrapolated
     * together with the nonlinear parts of the Navier Stokes equation.
     */
+   void AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr);
+
    void AddAccelTerm(VecFuncT *f, Array<int> &attr);
 
    /// Enable partial assembly for every operator.

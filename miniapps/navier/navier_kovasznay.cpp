@@ -39,7 +39,6 @@
 // boundary. The problem, although steady state, is time integrated up to the
 // final time and the solution is compared with the known exact solution.
 
-
 #include "navier_solver.hpp"
 #include <fstream>
 
@@ -212,7 +211,19 @@ int main(int argc, char *argv[])
 
       if (mpi.Root())
       {
-         printf("%.2d %.2E %.2E %.2E %.5E %.5E err\n", ctx.order, cfl, t, dt, err_u,
+         printf("%5s %8s %8s %8s %11s %11s\n",
+                "Order",
+                "CFL",
+                "Time",
+                "dt",
+                "err_u",
+                "err_p");
+         printf("%5.2d %8.2E %.2E %.2E %.5E %.5E err\n",
+                ctx.order,
+                cfl,
+                t,
+                dt,
+                err_u,
                 err_p);
          fflush(stdout);
       }
