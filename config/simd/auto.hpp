@@ -12,13 +12,7 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_AUTO
 #define MFEM_TEMPLATE_CONFIG_SIMD_AUTO
 
-template <typename,int,int> struct AutoSIMD;
-#ifndef MFEM_ALWAYS_INLINE
-#define MFEM_ALWAYS_INLINE
-#endif
-#ifndef MFEM_VECTORIZE_LOOP
-#define MFEM_VECTORIZE_LOOP
-#endif
+#include "../tconfig.hpp"
 
 template <typename scalar_t, int S, int align_S>
 struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
@@ -29,9 +23,15 @@ struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
 
    scalar_t vec[size];
 
-   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i) { return vec[i]; }
+   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
+   {
+      return vec[i];
+   }
 
-   inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const { return vec[i]; }
+   inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const
+   {
+      return vec[i];
+   }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const AutoSIMD &v)
    {

@@ -14,7 +14,7 @@
 
 #include "x86intrin.h"
 
-template <typename,int,int> struct AutoSIMD;
+template <typename, int, int> struct AutoSIMD;
 
 #include "m64.hpp"
 

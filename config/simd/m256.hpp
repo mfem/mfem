@@ -12,11 +12,13 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_M256
 #define MFEM_TEMPLATE_CONFIG_SIMD_M256
 
+#include "../tconfig.hpp"
+
 template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
 {
    typedef scalar_t scalar_type;
-   static const int size = 4;
-   static const int align_size = 32;
+   static constexpr int size = 4;
+   static constexpr int align_size = 32;
 
    union
    {
@@ -24,8 +26,15 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       scalar_t vec[size];
    };
 
-   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i) { return vec[i]; }
-   const scalar_t &operator[](int i) const { return vec[i]; }
+   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
+   {
+      return vec[i];
+   }
+
+   inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const
+   {
+      return vec[i];
+   }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const AutoSIMD &v)
    {

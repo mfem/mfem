@@ -14,7 +14,7 @@
 
 #include "builtins.h"
 
-template <typename,int,int> struct AutoSIMD;
+//template <typename,int,int> struct AutoSIMD;
 
 #include "qpx64.hpp"
 

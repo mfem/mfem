@@ -12,11 +12,13 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_QPX_256
 #define MFEM_TEMPLATE_CONFIG_SIMD_QPX_256
 
+#include "../tconfig.hpp"
+
 template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
 {
    typedef scalar_t scalar_type;
-   static const int size = 4;
-   static const int align_size = 32;
+   static constexpr int size = 4;
+   static constexpr int align_size = 32;
 
    union
    {
