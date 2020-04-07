@@ -40,7 +40,7 @@ struct TensorOps<1> // rank = 1
              typename scalar_t>
    MFEM_HOST_DEVICE
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
-                      const scalar_t &value)
+                      const scalar_t value)
    {
       MFEM_STATIC_ASSERT(A_layout_t::rank == 1, "invalid rank");
       for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
@@ -222,7 +222,7 @@ template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename scalar_t>
 MFEM_HOST_DEVICE
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
-                    const scalar_t &value)
+                    const scalar_t value)
 {
    internal::TensorOps<A_layout_t::rank>::
    template Assign<Op>(A_layout, A_data, value);
@@ -260,7 +260,7 @@ public:
    MFEM_HOST_DEVICE const data_t &operator[](int i) const { return data[i]; }
 
    template <AssignOp::Type Op>
-   void Assign(const data_t &d)
+   void Assign(const data_t d)
    {
       TAssign<Op>(layout, data, d);
    }
@@ -294,7 +294,7 @@ public:
       AssignTo<AssignOp::Add>(dest);
    }
 
-   void Scale(const data_t &scale)
+   void Scale(const data_t scale)
    {
       Assign<AssignOp::Mult>(scale);
    }
