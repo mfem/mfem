@@ -125,11 +125,11 @@ int main(int argc, char *argv[])
       test_fec = new L2_FECollection(order - 1, dim);
    }
 
-   FiniteElementSpace *trial_fes = new FiniteElementSpace(mesh, trial_fec);
-   FiniteElementSpace *test_fes = new FiniteElementSpace(mesh, test_fec);
+   FiniteElementSpace trial_fes(mesh, trial_fec);
+   FiniteElementSpace test_fes(mesh, test_fec);
 
-   int trial_size = trial_fes->GetTrueVSize();
-   int test_size = test_fes->GetTrueVSize();
+   int trial_size = trial_fes.GetTrueVSize();
+   int test_size = test_fes.GetTrueVSize();
 
    if (prob == 0)
    {
@@ -145,9 +145,9 @@ int main(int argc, char *argv[])
 
    // 6. Define the solution vector as a finite element grid function
    //    corresponding to the trial fespace.
-   GridFunction gftest(test_fes);
-   GridFunction gftrial(trial_fes);
-   GridFunction x(test_fes);
+   GridFunction gftest(&test_fes);
+   GridFunction gftrial(&trial_fes);
+   GridFunction x(&test_fes);
    FunctionCoefficient p_coef(p_exact);
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
    FunctionCoefficient divgradp_coef(div_gradp_exact);
@@ -165,51 +165,51 @@ int main(int argc, char *argv[])
    gftrial.SetFromTrueVector();
 
    // 7. Set up the bilinear forms for L2 projection.
-   Coefficient *one = new ConstantCoefficient(1.0);
-   BilinearForm *a = new BilinearForm(test_fes);
-   MixedBilinearForm *a_mixed = new MixedBilinearForm(trial_fes, test_fes);
+   ConstantCoefficient one(1.0);
+   BilinearForm a(&test_fes);
+   MixedBilinearForm a_mixed(&trial_fes, &test_fes);
    if (pa)
    {
-      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a_mixed->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a_mixed.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
 
    if (prob == 0)
    {
-      a->AddDomainIntegrator(new VectorFEMassIntegrator(*one));
-      a_mixed->AddDomainIntegrator(new MixedVectorGradientIntegrator(*one));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+      a_mixed.AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
    }
    else
    {
-      a->AddDomainIntegrator(new MassIntegrator(*one));
-      a_mixed->AddDomainIntegrator(new VectorFEDivergenceIntegrator(*one));
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a_mixed.AddDomainIntegrator(new VectorFEDivergenceIntegrator(one));
    }
 
    // 8. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
+   if (static_cond) { a.EnableStaticCondensation(); }
 
-   a->Assemble();
-   if (!pa) { a->Finalize(); }
+   a.Assemble();
+   if (!pa) { a.Finalize(); }
 
-   a_mixed->Assemble();
-   if (!pa) { a_mixed->Finalize(); }
+   a_mixed.Assemble();
+   if (!pa) { a_mixed.Finalize(); }
 
    if (pa)
    {
-      a_mixed->Mult(gftrial, x);
+      a_mixed.Mult(gftrial, x);
    }
    else
    {
-      SparseMatrix& mixed = a_mixed->SpMat();
+      SparseMatrix& mixed = a_mixed.SpMat();
       mixed.Mult(gftrial, x);
    }
 
    // 9. Define and apply a PCG solver for Ax = b with Jacobi preconditioner.
    {
-      GridFunction rhs(test_fes);
+      GridFunction rhs(&test_fes);
       rhs = x;
       x = 0.0;
 
@@ -220,15 +220,15 @@ int main(int argc, char *argv[])
       if (pa)
       {
          Array<int> ess_tdof_list; // empty
-         OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
+         OperatorJacobiSmoother Jacobi(a, ess_tdof_list);
 
-         cg.SetOperator(*a);
+         cg.SetOperator(a);
          cg.SetPreconditioner(Jacobi);
          cg.Mult(rhs, x);
       }
       else
       {
-         SparseMatrix& Amat = a->SpMat();
+         SparseMatrix& Amat = a.SpMat();
          DSmoother Jacobi(Amat);
 
          cg.SetOperator(Amat);
@@ -238,8 +238,8 @@ int main(int argc, char *argv[])
    }
 
    // 10. Compute the same field by applying a DiscreteInterpolator.
-   GridFunction discreteInterpolant(test_fes);
-   DiscreteLinearOperator dlo(trial_fes, test_fes);
+   GridFunction discreteInterpolant(&test_fes);
+   DiscreteLinearOperator dlo(&trial_fes, &test_fes);
    if (prob == 0)
    {
       dlo.AddDomainInterpolator(new GradientInterpolator());
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
    dlo.Mult(gftrial, discreteInterpolant);
 
    // 11. Compute the projection of the exact field.
-   GridFunction exact_proj(test_fes);
+   GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
       exact_proj.ProjectCoefficient(gradp_coef);
@@ -321,11 +321,6 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
-   delete a;
-   delete a_mixed;
-   delete one;
-   delete trial_fes;
-   delete test_fes;
    delete trial_fec;
    delete test_fec;
    delete mesh;

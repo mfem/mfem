@@ -249,28 +249,10 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
                   BilinearForm paform(&fespace);
                   paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-                  if (integrator < 2)
-                  {
-                     paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
-                  }
-                  if (integrator > 0)
-                  {
-                     if (spaceType == 0)
-                     {
-                        paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
-                     }
-                     else
-                     {
-                        paform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
-                     }
-                  }
-                  paform.Assemble();
-                  OperatorHandle paopr;
-                  paform.FormSystemMatrix(ess_tdof_list, paopr);
-
                   BilinearForm assemblyform(&fespace);
                   if (integrator < 2)
                   {
+                     paform.AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
                      assemblyform.AddDomainIntegrator(
                         new VectorFEMassIntegrator(*coeff));
                   }
@@ -278,13 +260,19 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
                   {
                      if (spaceType == 0)
                      {
+                        paform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
                         assemblyform.AddDomainIntegrator(new CurlCurlIntegrator(*coeff2));
                      }
                      else
                      {
+                        paform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
                         assemblyform.AddDomainIntegrator(new DivDivIntegrator(*coeff2));
                      }
                   }
+                  paform.Assemble();
+                  OperatorHandle paopr;
+                  paform.FormSystemMatrix(ess_tdof_list, paopr);
+
                   assemblyform.SetDiagonalPolicy(Matrix::DIAG_ONE);
                   assemblyform.Assemble();
                   assemblyform.Finalize();
