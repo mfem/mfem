@@ -59,80 +59,6 @@ static void EAMassAssemble1D(const int NE,
    });
 }
 
-// template<int T_D1D = 0, int T_Q1D = 0>
-// static void EAMassAssemble2D(const int NE,
-//                              const Array<double> &basis,
-//                              const Vector &padata,
-//                              Vector &eadata,
-//                              const int d1d = 0,
-//                              const int q1d = 0)
-// {
-//    const int D1D = T_D1D ? T_D1D : d1d;
-//    const int Q1D = T_Q1D ? T_Q1D : q1d;
-//    MFEM_VERIFY(D1D <= MAX_D1D, "");
-//    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-//    auto B = Reshape(basis.Read(), Q1D, D1D);
-//    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
-//    auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, NE);
-//    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
-//    {
-//       const int D1D = T_D1D ? T_D1D : d1d;
-//       const int Q1D = T_Q1D ? T_Q1D : q1d;
-//       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-//       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-//       double r_B[MQ1][MD1];
-//       for (int d = 0; d < D1D; d++)
-//       {
-//          for (int q = 0; q < Q1D; q++)
-//          {
-//             r_B[q][d] = B(q,d);
-//          }
-//       }
-//       MFEM_SHARED double s_D[MQ1][MQ1];
-//       MFEM_FOREACH_THREAD(k1,x,Q1D)
-//       {
-//          MFEM_FOREACH_THREAD(k2,y,Q1D)
-//          {
-//             s_D[k1][k2] = D(k1,k2,e);
-//          }
-//       }
-//       MFEM_SYNC_THREAD;
-//       double C[MQ1];
-//       MFEM_FOREACH_THREAD(i1,x,D1D)
-//       {
-//          MFEM_FOREACH_THREAD(j1,y,D1D)
-//          {
-//             for (int k2 = 0; k2 < Q1D; ++k2)
-//             {
-//                C[k2] = 0.0;
-//                for (int k1 = 0; k1 < Q1D; ++k1)
-//                {
-//                   C[k2] += r_B[k1][i1] * r_B[k1][j1] * s_D[k1][k2];
-//                }
-//             }
-//          }
-//       }
-//       MFEM_FOREACH_THREAD(i1,x,D1D)
-//       {
-//          MFEM_FOREACH_THREAD(j1,y,D1D)
-//          {
-//             for (int i2 = 0; i2 < D1D; ++i2)
-//             {
-//                for (int j2 = 0; j2 < D1D; ++j2)
-//                {
-//                   double val = 0.0;
-//                   for (int k2 = 0; k2 < Q1D; ++k2)
-//                   {
-//                      val += r_B[k2][i2] * r_B[k2][j2] * C[k2];
-//                   }
-//                   M(i1, i2, j1, j2, e) = val;
-//                }
-//             }
-//          }
-//       }
-//    });
-// }
-
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAMassAssemble2D(const int NE,
                              const Array<double> &basis,
@@ -198,12 +124,12 @@ static void EAMassAssemble2D(const int NE,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-static void EAMassAssemble3D0D(const int NE,
-                               const Array<double> &basis,
-                               const Vector &padata,
-                               Vector &eadata,
-                               const int d1d = 0,
-                               const int q1d = 0)
+static void EAMassAssemble3D(const int NE,
+                             const Array<double> &basis,
+                             const Vector &padata,
+                             Vector &eadata,
+                             const int d1d = 0,
+                             const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -274,279 +200,6 @@ static void EAMassAssemble3D0D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0>
-static void EAMassAssemble3D1D(const int NE,
-                               const Array<double> &basis,
-                               const Vector &padata,
-                               Vector &eadata,
-                               const int d1d = 0,
-                               const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(basis.Read(), Q1D, D1D);
-   auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
-      for (int d = 0; d < D1D; d++)
-      {
-         for (int q = 0; q < Q1D; q++)
-         {
-            r_B[q][d] = B(q,d);
-         }
-      }
-      MFEM_SHARED double s_D[MQ1][MQ1][MQ1];
-      MFEM_FOREACH_THREAD(k1,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(k2,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(k3,z,Q1D)
-            {
-               s_D[k1][k2][k3] = D(k1,k2,k3,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      double val[MD1];
-      MFEM_FOREACH_THREAD(i1,x,D1D)
-      {
-         MFEM_FOREACH_THREAD(i2,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(i3,z,D1D)
-            {
-               for (int j2 = 0; j2 < D1D; ++j2)
-               {
-                  for (int j3 = 0; j3 < D1D; ++j3)
-                  {
-                     for (int j1 = 0; j1 < D1D; ++j1)
-                     {
-                        val[j1] = 0.0;
-                     }
-                     for (int k1 = 0; k1 < Q1D; ++k1)
-                     {
-                        for (int k2 = 0; k2 < Q1D; ++k2)
-                        {
-                           for (int k3 = 0; k3 < Q1D; ++k3)
-                           {
-                              double tmp = r_B[k1][i1]
-                                         * r_B[k2][i2] * r_B[k2][j2]
-                                         * r_B[k3][i3] * r_B[k3][j3]
-                                         * s_D[k1][k2][k3];
-                              for (int j1 = 0; j1 < D1D; ++j1)
-                              {
-                                 val[j1] += r_B[k1][j1] * tmp;
-                              }
-                           }
-                        }
-                     }
-                     for (int j1 = 0; j1 < D1D; ++j1)
-                     {
-                        M(i1, i2, i3, j1, j2, j3, e) = val[j1];
-                     }
-                  }
-               }
-            }
-         }
-      }
-   });
-}
-
-template<int T_D1D = 0, int T_Q1D = 0>
-static void EAMassAssemble3D2D(const int NE,
-                               const Array<double> &basis,
-                               const Vector &padata,
-                               Vector &eadata,
-                               const int d1d = 0,
-                               const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(basis.Read(), Q1D, D1D);
-   auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
-      for (int d = 0; d < D1D; d++)
-      {
-         for (int q = 0; q < Q1D; q++)
-         {
-            r_B[q][d] = B(q,d);
-         }
-      }
-      MFEM_SHARED double s_D[MQ1][MQ1][MQ1];
-      MFEM_FOREACH_THREAD(k1,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(k2,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(k3,z,Q1D)
-            {
-               s_D[k1][k2][k3] = D(k1,k2,k3,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      double val[MD1][MD1];
-      MFEM_FOREACH_THREAD(i1,x,D1D)
-      {
-         MFEM_FOREACH_THREAD(i2,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(i3,z,D1D)
-            {
-               for (int j3 = 0; j3 < D1D; ++j3)
-               {
-                  for (int j1 = 0; j1 < D1D; ++j1)
-                  {
-                     for (int j2 = 0; j2 < D1D; ++j2)
-                     {
-                        val[j1][j2] = 0.0;
-                     }
-                  }
-                  for (int k1 = 0; k1 < Q1D; ++k1)
-                  {
-                     for (int k2 = 0; k2 < Q1D; ++k2)
-                     {
-                        for (int k3 = 0; k3 < Q1D; ++k3)
-                        {
-                           double tmp = r_B[k1][i1]
-                                      * r_B[k2][i2]
-                                      * r_B[k3][i3] * r_B[k3][j3]
-                                      * s_D[k1][k2][k3];
-                           for (int j1 = 0; j1 < D1D; ++j1)
-                           {
-                              for (int j2 = 0; j2 < D1D; ++j2)
-                              {
-                                 val[j1][j2] += r_B[k1][j1] * r_B[k2][j2] * tmp;
-                              }
-                           }
-                        }
-                     }
-                  }
-                  for (int j1 = 0; j1 < D1D; ++j1)
-                  {
-                     for (int j2 = 0; j2 < D1D; ++j2)
-                     {
-                        M(i1, i2, i3, j1, j2, j3, e) = val[j1][j2];
-                     }
-                  }
-               }
-            }
-         }
-      }
-   });
-}
-
-template<int T_D1D = 0, int T_Q1D = 0>
-static void EAMassAssemble3D3D(const int NE,
-                               const Array<double> &basis,
-                               const Vector &padata,
-                               Vector &eadata,
-                               const int d1d = 0,
-                               const int q1d = 0)
-{
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(basis.Read(), Q1D, D1D);
-   auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
-      for (int d = 0; d < D1D; d++)
-      {
-         for (int q = 0; q < Q1D; q++)
-         {
-            r_B[q][d] = B(q,d);
-         }
-      }
-      MFEM_SHARED double s_D[MQ1][MQ1][MQ1];
-      MFEM_FOREACH_THREAD(k1,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(k2,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(k3,z,Q1D)
-            {
-               s_D[k1][k2][k3] = D(k1,k2,k3,e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      double val[MD1][MD1][MD1];
-      MFEM_FOREACH_THREAD(i1,x,D1D)
-      {
-         MFEM_FOREACH_THREAD(i2,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(i3,z,D1D)
-            {
-               for (int j1 = 0; j1 < D1D; ++j1)
-               {
-                  for (int j2 = 0; j2 < D1D; ++j2)
-                  {
-                     for (int j3 = 0; j3 < D1D; ++j3)
-                     {
-                        val[j1][j2][j3] = 0.0;
-                     }
-                  }
-               }
-               for (int k1 = 0; k1 < Q1D; ++k1)
-               {
-                  for (int k2 = 0; k2 < Q1D; ++k2)
-                  {
-                     for (int k3 = 0; k3 < Q1D; ++k3)
-                     {
-                        double tmp = r_B[k1][i1]
-                                   * r_B[k2][i2]
-                                   * r_B[k3][i3]
-                                   * s_D[k1][k2][k3];
-                        for (int j1 = 0; j1 < D1D; ++j1)
-                        {
-                           for (int j2 = 0; j2 < D1D; ++j2)
-                           {
-                              for (int j3 = 0; j3 < D1D; ++j3)
-                              {
-                                 val[j1][j2][j3] += r_B[k1][j1] * r_B[k2][j2] * r_B[k3][j3] * tmp;
-                              }
-                           }
-                        }
-                     }
-                  }
-               }
-               for (int j1 = 0; j1 < D1D; ++j1)
-               {
-                  for (int j2 = 0; j2 < D1D; ++j2)
-                  {
-                     for (int j3 = 0; j3 < D1D; ++j3)
-                     {
-                        M(i1, i2, i3, j1, j2, j3, e) = val[j1][j2][j3];
-                     }
-                  }
-               }
-            }
-         }
-      }
-   });
-}
-
 void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                          Vector &ea_data)
 {
@@ -587,14 +240,14 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x23: return EAMassAssemble3D0D<2,3>(ne,B,pa_data,ea_data);
-         case 0x34: return EAMassAssemble3D0D<3,4>(ne,B,pa_data,ea_data);
-         case 0x45: return EAMassAssemble3D0D<4,5>(ne,B,pa_data,ea_data);
-         case 0x56: return EAMassAssemble3D0D<5,6>(ne,B,pa_data,ea_data);
-         case 0x67: return EAMassAssemble3D0D<6,7>(ne,B,pa_data,ea_data);
-         case 0x78: return EAMassAssemble3D0D<7,8>(ne,B,pa_data,ea_data);
-         case 0x89: return EAMassAssemble3D0D<8,9>(ne,B,pa_data,ea_data);
-         default:   return EAMassAssemble3D0D(ne,B,pa_data,ea_data,dofs1D,quad1D);
+         case 0x23: return EAMassAssemble3D<2,3>(ne,B,pa_data,ea_data);
+         case 0x34: return EAMassAssemble3D<3,4>(ne,B,pa_data,ea_data);
+         case 0x45: return EAMassAssemble3D<4,5>(ne,B,pa_data,ea_data);
+         case 0x56: return EAMassAssemble3D<5,6>(ne,B,pa_data,ea_data);
+         case 0x67: return EAMassAssemble3D<6,7>(ne,B,pa_data,ea_data);
+         case 0x78: return EAMassAssemble3D<7,8>(ne,B,pa_data,ea_data);
+         case 0x89: return EAMassAssemble3D<8,9>(ne,B,pa_data,ea_data);
+         default:   return EAMassAssemble3D(ne,B,pa_data,ea_data,dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
