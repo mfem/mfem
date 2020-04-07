@@ -126,7 +126,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(mfem::out);
       }
-      MPI_Finalize();
       return 1;
    }
    if (mpi.Root())
@@ -159,7 +158,6 @@ int main(int argc, char *argv[])
    flowsolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
-   // This is completely user customizeable.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_kovasznay);
    u_ic->ProjectCoefficient(u_excoeff);

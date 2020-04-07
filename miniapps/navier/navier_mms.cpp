@@ -130,7 +130,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(mfem::out);
       }
-      MPI_Finalize();
       return 1;
    }
    if (mpi.Root())
@@ -163,7 +162,6 @@ int main(int argc, char *argv[])
    naviersolver.EnableNI(ctx.ni);
 
    // Set the initial condition.
-   // This is completely user customizeable.
    ParGridFunction *u_ic = naviersolver.GetCurrentVelocity();
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel);
    u_ic->ProjectCoefficient(u_excoeff);
