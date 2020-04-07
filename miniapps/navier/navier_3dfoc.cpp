@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("../miniapps/navier/3dfoc.e");
+   Mesh *mesh = new Mesh("3dfoc.mesh");
 
    for (int i = 0; i < serial_refinements; ++i)
    {
@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
    flowsolver.EnablePA(true);
 
    // Set the initial condition.
-   // This is completely user customizeable.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel);
    u_ic->ProjectCoefficient(u_excoeff);
