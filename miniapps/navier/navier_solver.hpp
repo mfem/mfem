@@ -153,7 +153,8 @@ public:
    /// Enable partial assembly for every operator.
    void EnablePA(bool pa) { partial_assembly = pa; }
 
-   /// Enable numerical integration rules.
+   /// Enable numerical integration rules. This means collocated quadrature at
+   /// the nodal points.
    void EnableNI(bool ni) { numerical_integ = ni; }
 
    /// Print timing summary of the solving routine.
