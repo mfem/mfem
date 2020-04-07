@@ -668,7 +668,6 @@ status info:
 
 ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
-ASTYLE_VER = "Artistic Style Version 2.05.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
@@ -701,12 +700,6 @@ mfem_check_command = \
 # not used in the library (use mfem::out and mfem::err instead).
 style:
 	@echo "Applying C++ code style..."
-	@astyle_version="$$($(ASTYLE_BIN) --version)";\
-	 if [ "$$astyle_version" != $(ASTYLE_VER) ]; then\
-	    printf "%s\n" "Invalid astyle version: '$$astyle_version'"\
-	           "Please use: '"$(ASTYLE_VER)"'";\
-	    exit 1;\
-	 fi
 	@err_code=0;\
 	$(call mfem_check_command,\
 	    $(ASTYLE) $(FORMAT_FILES) | grep Formatted,\
