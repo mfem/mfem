@@ -203,7 +203,7 @@ static void EAConvectionAssemble3D(const int NE,
 }
 
 void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                         Vector &ea_data)
+                                      Vector &ea_data)
 {
    AssemblePA(fes);
    const int ne = fes.GetMesh()->GetNE();
