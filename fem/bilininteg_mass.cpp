@@ -1151,8 +1151,8 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   const int id = (D1D << 4) | Q1D;
 #ifndef MFEM_USE_JIT
+   const int id = (D1D << 4) | Q1D;
    if (dim == 2)
    {
       switch (id)

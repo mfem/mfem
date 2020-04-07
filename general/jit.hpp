@@ -11,10 +11,11 @@
 #ifndef MFEM_JIT_HPP
 #define MFEM_JIT_HPP
 
+#include <cassert>
+
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <string.h>
-#include <assert.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <unordered_map>
@@ -29,16 +30,38 @@ namespace mfem
 namespace jit
 {
 
-// default jit::hash ***********************************************************
-template<typename T> struct hash
-{ size_t operator()(const T &o) const noexcept { return std::hash<T> {}(o); } };
+// Forward declaration
+int System(int argc, char *argv[]);
+
+// *****************************************************************************
+// * Hash functions to combine the arguments
+// *****************************************************************************
+#define JIT_HASH_COMBINE_ARGS_SRC                                       \
+   template <typename T> struct hash {                                  \
+      size_t operator()(const T& h) const noexcept {                    \
+         return std::hash<T>{}(h); }                                    \
+   };                                                                   \
+                                                                        \
+   template <class T> inline                                            \
+   size_t hash_combine(const size_t &s, const T &v) noexcept            \
+   { return s ^ (mfem::jit::hash<T>{}(v) + 0x9e3779b9ull + (s<<6) + (s>>2));} \
+                                                                        \
+   template<typename T>                                                 \
+   size_t hash_args(const size_t &seed, const T &that) noexcept         \
+   { return hash_combine(seed, that); }                                 \
+                                                                        \
+   template<typename T, typename... Args>                               \
+   size_t hash_args(const size_t &seed, const T &first, Args... args)   \
+   noexcept { return hash_args(hash_combine(seed, first), args...); }
+
+JIT_HASH_COMBINE_ARGS_SRC;
 
 // const char* specialization **************************************************
 static size_t hash_bytes(const char *s, size_t i) noexcept
 {
    size_t hash = 0xcbf29ce484222325ull;
    constexpr size_t prime = 0x100000001b3ull;
-   for (; i; i--) { hash = (hash*prime)^static_cast<size_t>(s[i]); }
+   for (; i; i--) { hash = (hash * prime) ^ static_cast<size_t>(s[i]); }
    return hash;
 }
 template<> struct hash<const char*>
@@ -47,21 +70,20 @@ template<> struct hash<const char*>
    { return hash_bytes(s, strlen(s)); }
 };
 
-// *****************************************************************************
-// * Hash functions to combine the arguments
-// *****************************************************************************
-template <class T>
-inline size_t hash_combine(const size_t &seed, const T &v) noexcept
-{ return seed^(jit::hash<T> {}(v)+0x9e3779b9ull+(seed<<6)+(seed>>2)); }
-template<typename T>
-size_t hash_args(const size_t &seed, const T &that) noexcept
-{ return hash_combine(seed, that); }
-template<typename T, typename... Args>
-size_t hash_args(const size_t &seed, const T &first, Args... args) noexcept
-{ return hash_args(hash_combine(seed, first), args...); }
+//template <class T>
+//inline size_t hash_combine(const size_t &seed, const T &v) noexcept
+//{ return seed ^ (jit::hash<T> {}(v) + 0x9e3779b9ull + (seed<<6) + (seed>>2)); }
+
+//template<typename T>
+//size_t hash_args(const size_t &seed, const T &that) noexcept
+//{ return hash_combine(seed, that); }
+
+//template<typename T, typename... Args>
+//size_t hash_args(const size_t &seed, const T &first, Args... args) noexcept
+//{ return hash_args(hash_combine(seed, first), args...); }
 
 // *****************************************************************************
-// * Fast uint64 to char*
+// * uint64 to char*
 // *****************************************************************************
 inline void uint32str(uint64_t x, char *s, const size_t offset)
 {
@@ -79,9 +101,8 @@ inline void uint64str(uint64_t num, char *s, const size_t offset =1)
 // *****************************************************************************
 // * compile
 // *****************************************************************************
-int System(int argc, char *argv[]);
 template<typename... Args>
-const char *compile(const bool dbg, const size_t hash, const char *cxx,
+const char *compile(const bool debug, const size_t hash, const char *cxx,
                     const char *src, const char *mfem_build_flags,
                     const char *mfem_install_dir, Args... args)
 {
@@ -106,14 +127,14 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
    const bool clang = strstr(cxx, "clang");
    const bool nvcc = strstr(cxx, "nvcc");
    const char *xflags = nvcc ? NVFLAGS : clang ? CLANG_FLAGS : CCFLAGS;
-   if (snprintf(includes, SZ, "-I%s/include ", INSTALL)<0) { return NULL; }
+   if (snprintf(includes, SZ, "-I%s/include ", INSTALL)<0) { return nullptr; }
    constexpr int argc = 12;
-   const char *argv[argc] = {dbg ? "1" : "0",
+   const char *argv[argc] = {debug ? "1" : "0",
                              cxx, "-fPIC", xflags, "-shared",
                              includes, "-o", so, cc, nullptr
                             };
-   if (mfem::jit::System(argc, const_cast<char**>(argv))<0) { return NULL; }
-   if (!dbg) { unlink(cc); }
+   if (jit::System(argc, const_cast<char**>(argv))<0) { return nullptr; }
+   if (!debug) { unlink(cc); }
    return src;
 }
 
@@ -121,16 +142,16 @@ const char *compile(const bool dbg, const size_t hash, const char *cxx,
 // * lookup
 // *****************************************************************************
 template<typename... Args>
-void *lookup(const bool dbg, const size_t hash, const char *cxx,
+void *lookup(const bool debug, const size_t hash, const char *cxx,
              const char *src, const char *flags, const char *dir, Args... args)
 {
-   char so[21] = "k0000000000000000.so";
-   uint64str(hash, so);
+   char so_file[21] = "k0000000000000000.so";
+   uint64str(hash, so_file);
    const int dlflags = RTLD_LAZY; // | RTLD_LOCAL;
-   void *handle = dlopen(so, dlflags);
-   if (!handle && !compile(dbg, hash, cxx, src, flags, dir, args...))
-   { return NULL; }
-   if (!(handle = dlopen(so, dlflags))) { return NULL; }
+   void *handle = dlopen(so_file, dlflags);
+   if (!handle && !compile(debug, hash, cxx, src, flags, dir, args...))
+   { return nullptr; }
+   if (!(handle = dlopen(so_file, dlflags))) { return nullptr; }
    return handle;
 }
 
@@ -138,12 +159,12 @@ void *lookup(const bool dbg, const size_t hash, const char *cxx,
 // * getSymbol
 // *****************************************************************************
 template<typename kernel_t>
-inline kernel_t getSymbol(const bool dbg, const size_t hash, void *handle)
+inline kernel_t getSymbol(const bool debug, const size_t hash, void *handle)
 {
    char symbol[18] = "k0000000000000000";
    uint64str(hash, symbol);
    kernel_t address = (kernel_t) dlsym(handle, symbol);
-   if (dbg && !address) { printf("\033[31;1m%s\033[m\n",dlerror()); fflush(0); }
+   if (debug && !address) { printf("\033[31;1m%s\033[m\n",dlerror()); fflush(0); }
    assert(address);
    return address;
 }
@@ -154,7 +175,7 @@ inline kernel_t getSymbol(const bool dbg, const size_t hash, void *handle)
 template<typename kernel_t> class kernel
 {
 private:
-   bool dbg;
+   bool debug;
    size_t seed, hash;
    void *handle;
    kernel_t code;
@@ -162,16 +183,14 @@ public:
    template<typename... Args>
    kernel(const char *cxx, const char *src, const char *flags,
           const char* dir, Args... args):
-      dbg(!!getenv("MFEM_DBG")||!!getenv("DBG")||!!getenv("dbg")),
+      debug(!!getenv("MFEM_DBG") || !!getenv("DBG") || !!getenv("dbg")),
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, dir, args...)),
-      handle(lookup(dbg, hash, cxx, src, flags, dir, args...)),
-      code(getSymbol<kernel_t>(dbg, hash, handle)) { }
-   template<typename... Args>
-   void operator_void(Args... args) { code(args...); }
-   template<typename return_t,typename... Args>
-   return_t operator()(const return_t rtn, Args... args)
-   { return code(rtn,args...); }
+      handle(lookup(debug, hash, cxx, src, flags, dir, args...)),
+      code(getSymbol<kernel_t>(debug, hash, handle)) { }
+   template<typename... Args> void operator_void(Args... args) { code(args...); }
+   template<typename T, typename... Args>
+   T operator()(const T type, Args... args) { return code(type, args...); }
    ~kernel() { dlclose(handle); }
 };
 

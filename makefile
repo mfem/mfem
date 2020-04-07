@@ -247,11 +247,10 @@ endif
 
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
-   MPP_EXE = $(BLD)mpp
    JIT_EXE = $(BLD)jit
-	ifneq ($(MFEM_USE_SHARED),YES)
-		LDFLAGS += -ldl
-	endif
+#	ifneq ($(MFEM_USE_SHARED),YES)
+#		LDFLAGS += -ldl
+#	endif
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -403,7 +402,7 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem fem/libceed
-SOURCE_FILES = $(foreach dir,$(DIRS),$(filter-out $(SRC)$(dir)/mpp.cpp, $(wildcard $(SRC)$(dir)/*.cpp)))
+SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 ADIOS2_FILES = $(SRC)general/adios2stream.h $(SRC)general/adios2stream.cpp \
  $(SRC)fem/adios2datacollection.hpp $(SRC)fem/adios2datacollection.cpp
 SOURCE_FILES := $(filter-out $(ADIOS2_FILES),$(SOURCE_FILES))
@@ -432,23 +431,22 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 # Rules for compiling all source files.
 # nvcc needs the MFEM_SOURCE_DIR ('-I.') to compile from stdin
 ifeq ($(MFEM_USE_JIT),YES)
-MPP_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(MPP_EXE)
-	@echo $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
-	@./mpp $(<) | $(MFEM_CXX) $(MPP_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
+JIT_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(JIT_EXE)
+#	@echo $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+	./jit $(<) | $(MFEM_CXX) $(JIT_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
 else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 endif
 
-# Rule for compiling kernel source file generator.
-MPP_MFEM_CONFIG  = -DMFEM_CXX="$(MFEM_CXX)"
-#MPP_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
-MPP_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-$(BLD)mpp: $(BLD)general/mpp.cpp $(BLD)general/jit.hpp #$(THIS_MK)
-	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(MPP_MFEM_CONFIG)
-$(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp #$(THIS_MK) 
-	$(MFEM_CXX) -O3 -std=c++11 -pedantic -DMFEM_INCLUDE_MAIN -o $(BLD)$(@) $(<)
+# Rule for compiling JIT source file generator.
+JIT_MFEM_CONFIG  = -DMFEM_JIT_MAIN
+JIT_MFEM_CONFIG += -DMFEM_CXX="$(MFEM_CXX)"
+#JIT_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
+JIT_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
+$(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp $(THIS_MK)
+	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(JIT_MFEM_CONFIG)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -552,7 +550,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk mpp jit)
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk jit)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
