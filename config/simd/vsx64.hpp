@@ -12,17 +12,25 @@
 #ifndef MFEM_TEMPLATE_CONFIG_SIMD_VSX64
 #define MFEM_TEMPLATE_CONFIG_SIMD_VSX64
 
+#include "../tconfig.hpp"
+
 template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
 {
    typedef scalar_t scalar_type;
-   static const int size = 1;
-   static const int align_size = 8;
+   static constexpr int size = 1;
+   static constexpr int align_size = 8;
 
    scalar_t vec[size];
 
-   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i) { return vec[0]; }
+   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
+   {
+      return vec[0];
+   }
 
-   inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const { return vec[0]; }
+   inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const
+   {
+      return vec[0];
+   }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const AutoSIMD &v)
    {
