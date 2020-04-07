@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -1426,7 +1426,10 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
 {
    if (rows.Size() > 0)
    {
-      internal::hypre_ParCSRMatrixEliminateRows(A, rows.Size(), rows.GetData());
+      Array<HYPRE_Int> r_sorted;
+      get_sorted_rows_cols(rows, r_sorted);
+      internal::hypre_ParCSRMatrixEliminateRows(A, r_sorted.Size(),
+                                                r_sorted.GetData());
    }
 }
 
@@ -1587,6 +1590,8 @@ void HypreParMatrix::Destroy()
    }
 }
 
+#if MFEM_HYPRE_VERSION < 21400
+
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B)
 {
@@ -1604,6 +1609,39 @@ HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
    return C;
 }
 
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
+{
+   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
+
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
+}
+
+#else
+
+HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
+                    double beta,  const HypreParMatrix &B)
+{
+   hypre_ParCSRMatrix *C;
+   hypre_ParcsrAdd(alpha, A, beta, B, &C);
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
+}
+
+HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
+{
+   hypre_ParCSRMatrix *C;
+   hypre_ParcsrAdd(1.0, *A, 1.0, *B, &C);
+
+   hypre_MatvecCommPkgCreate(C);
+
+   return new HypreParMatrix(C);
+}
+
+#endif
+
 HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
                          bool own_matrix)
 {
@@ -1619,15 +1657,6 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
       C->CopyColStarts();
    }
    return C;
-}
-
-HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
-{
-   hypre_ParCSRMatrix * C = internal::hypre_ParCSRMatrixAdd(*A,*B);
-
-   hypre_MatvecCommPkgCreate(C);
-
-   return new HypreParMatrix(C);
 }
 
 HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_HPP
@@ -24,6 +24,9 @@
 #include "general/stable3d.hpp"
 #include "general/table.hpp"
 #include "general/tic_toc.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "general/adios2stream.hpp"
+#endif
 #include "general/isockstream.hpp"
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"
