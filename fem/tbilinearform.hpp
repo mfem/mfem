@@ -115,7 +115,7 @@ public:
         solVecLayout(sol_fes),
         int_rule(),
         coeff(integ.coeff),
-        assembled_data(),
+        assembled_data(((mesh.GetNE()+TE-1)/TE)*BE, MemoryType::HOST_64),
         in_fes(sol_fes)
    { }
 
@@ -193,11 +193,6 @@ public:
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
-      if (!assembled_data)
-      {
-         const int size = ((NE+TE-1)/TE)*BE;
-         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_64);
-      }
       for (int el = 0; el < NE; el += TE)
       {
          typename T_result::Type F;
