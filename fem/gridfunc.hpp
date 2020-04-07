@@ -623,10 +623,9 @@ public:
     */
    inline void GetElementValues(int idx, Vector &values) const;
 
-   /// Return the quadrature function values at an integration point
+   /// Return the quadrature function values at an integration point.
    /** The result is stored in the Vector @a values as a reference to the
-    global values.
-    */
+       global values. */
    inline void GetElementValues(int idx, const int ip_num, Vector &values);
 
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
