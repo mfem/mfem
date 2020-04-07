@@ -153,11 +153,11 @@ int main(int argc, char *argv[])
       test_fec = new L2_FECollection(order - 1, dim);
    }
 
-   ParFiniteElementSpace *trial_fes = new ParFiniteElementSpace(pmesh, trial_fec);
-   ParFiniteElementSpace *test_fes = new ParFiniteElementSpace(pmesh, test_fec);
+   ParFiniteElementSpace trial_fes(pmesh, trial_fec);
+   ParFiniteElementSpace test_fes(pmesh, test_fec);
 
-   HYPRE_Int trial_size = trial_fes->GlobalTrueVSize();
-   HYPRE_Int test_size = test_fes->GlobalTrueVSize();
+   HYPRE_Int trial_size = trial_fes.GlobalTrueVSize();
+   HYPRE_Int test_size = test_fes.GlobalTrueVSize();
 
    if (myid == 0)
    {
@@ -176,9 +176,9 @@ int main(int argc, char *argv[])
 
    // 8. Define the solution vector as a parallel finite element grid function
    //    corresponding to the trial fespace.
-   ParGridFunction gftest(test_fes);
-   ParGridFunction gftrial(trial_fes);
-   ParGridFunction x(test_fes);
+   ParGridFunction gftest(&test_fes);
+   ParGridFunction gftrial(&trial_fes);
+   ParGridFunction x(&test_fes);
    FunctionCoefficient p_coef(p_exact);
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
    FunctionCoefficient divgradp_coef(div_gradp_exact);
@@ -196,53 +196,52 @@ int main(int argc, char *argv[])
    gftrial.SetFromTrueVector();
 
    // 9. Set up the parallel bilinear forms for L2 projection.
-   Coefficient *one = new ConstantCoefficient(1.0);
-   ParBilinearForm *a = new ParBilinearForm(test_fes);
-   ParMixedBilinearForm *a_mixed = new ParMixedBilinearForm(trial_fes, test_fes);
+   ConstantCoefficient one(1.0);
+   ParBilinearForm a(&test_fes);
+   ParMixedBilinearForm a_mixed(&trial_fes, &test_fes);
    if (pa)
    {
-      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a_mixed->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a_mixed.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
 
    if (prob == 0)
    {
-      a->AddDomainIntegrator(new VectorFEMassIntegrator(*one));
-      a_mixed->AddDomainIntegrator(new MixedVectorGradientIntegrator(*one));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+      a_mixed.AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
    }
    else
    {
-      a->AddDomainIntegrator(new MassIntegrator(*one));
-      a_mixed->AddDomainIntegrator(new VectorFEDivergenceIntegrator(*one));
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a_mixed.AddDomainIntegrator(new VectorFEDivergenceIntegrator(one));
    }
 
    // 10. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
+   if (static_cond) { a.EnableStaticCondensation(); }
 
-   a->Assemble();
-   if (!pa) { a->Finalize(); }
+   a.Assemble();
+   if (!pa) { a.Finalize(); }
 
-   a_mixed->Assemble();
-   if (!pa) { a_mixed->Finalize(); }
+   a_mixed.Assemble();
+   if (!pa) { a_mixed.Finalize(); }
 
-   Vector B(test_fes->GetTrueVSize());
-   Vector X(test_fes->GetTrueVSize());
+   Vector B(test_fes.GetTrueVSize());
+   Vector X(test_fes.GetTrueVSize());
 
    if (pa)
    {
-      ParLinearForm *b = new ParLinearForm(test_fes); // used as a vector
-      a_mixed->Mult(gftrial, *b); // process-local multiplication
-      b->ParallelAssemble(B);
-      delete b;
+      ParLinearForm b(&test_fes); // used as a vector
+      a_mixed.Mult(gftrial, b); // process-local multiplication
+      b.ParallelAssemble(B);
    }
    else
    {
-      HypreParMatrix *mixed = a_mixed->ParallelAssemble();
+      HypreParMatrix *mixed = a_mixed.ParallelAssemble();
 
-      Vector P(trial_fes->GetTrueVSize());
+      Vector P(trial_fes.GetTrueVSize());
       gftrial.GetTrueDofs(P);
 
       mixed->Mult(P,B);
@@ -257,9 +256,9 @@ int main(int argc, char *argv[])
       Array<int> ess_tdof_list; // empty
 
       OperatorPtr A;
-      a->FormSystemMatrix(ess_tdof_list, A);
+      a.FormSystemMatrix(ess_tdof_list, A);
 
-      OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
+      OperatorJacobiSmoother Jacobi(a, ess_tdof_list);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
@@ -272,7 +271,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      HypreParMatrix *Amat = a->ParallelAssemble();
+      HypreParMatrix *Amat = a.ParallelAssemble();
       HypreDiagScale Jacobi(*Amat);
       HyprePCG pcg(*Amat);
       pcg.SetTol(1e-12);
@@ -288,8 +287,8 @@ int main(int argc, char *argv[])
    x.SetFromTrueDofs(X);
 
    // 12. Compute the same field by applying a DiscreteInterpolator.
-   ParGridFunction discreteInterpolant(test_fes);
-   ParDiscreteLinearOperator dlo(trial_fes, test_fes);
+   ParGridFunction discreteInterpolant(&test_fes);
+   ParDiscreteLinearOperator dlo(&trial_fes, &test_fes);
    if (prob == 0)
    {
       dlo.AddDomainInterpolator(new GradientInterpolator());
@@ -303,7 +302,7 @@ int main(int argc, char *argv[])
    dlo.Mult(gftrial, discreteInterpolant);
 
    // 13. Compute the projection of the exact field.
-   ParGridFunction exact_proj(test_fes);
+   ParGridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
       exact_proj.ProjectCoefficient(gradp_coef);
@@ -385,11 +384,6 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   delete a;
-   delete a_mixed;
-   delete one;
-   delete trial_fes;
-   delete test_fes;
    delete trial_fec;
    delete test_fec;
    delete pmesh;
