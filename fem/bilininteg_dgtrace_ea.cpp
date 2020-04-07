@@ -74,14 +74,6 @@ static void EADGTraceAssemble2DInt(const int NF,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      // double r_Bi[MQ1];
-      // double r_Bj[MQ1];
-      // for (int q = 0; q < Q1D; q++)
-      // {
-      //    r_Bi[q] = B(q,MFEM_THREAD_ID(x));
-      //    r_Bj[q] = B(q,MFEM_THREAD_ID(y));
-      // }
       MFEM_FOREACH_THREAD(i1,x,D1D)
       {
          MFEM_FOREACH_THREAD(j1,y,D1D)
@@ -92,10 +84,6 @@ static void EADGTraceAssemble2DInt(const int NF,
             double val_ext10 = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
-               // val_int0  += r_Bi[k1] * r_Bj[k1] * D(k1, 0, 0, f);
-               // val_ext01 += r_Bi[k1] * r_Bj[k1] * D(k1, 0, 1, f);
-               // val_ext10 += r_Bi[k1] * r_Bj[k1] * D(k1, 1, 0, f);
-               // val_int1  += r_Bi[k1] * r_Bj[k1] * D(k1, 1, 1, f);
                val_int0  += B(k1,i1) * B(k1,j1) * D(k1, 0, 0, f);
                val_ext01 += B(k1,i1) * B(k1,j1) * D(k1, 0, 1, f);
                val_ext10 += B(k1,i1) * B(k1,j1) * D(k1, 1, 0, f);
@@ -129,14 +117,6 @@ static void EADGTraceAssemble2DBdr(const int NF,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      // double r_Bi[MQ1];
-      // double r_Bj[MQ1];
-      // for (int q = 0; q < Q1D; q++)
-      // {
-      //    r_Bi[q] = B(q,MFEM_THREAD_ID(x));
-      //    r_Bj[q] = B(q,MFEM_THREAD_ID(y));
-      // }
       MFEM_FOREACH_THREAD(i1,x,D1D)
       {
          MFEM_FOREACH_THREAD(j1,y,D1D)
@@ -144,7 +124,6 @@ static void EADGTraceAssemble2DBdr(const int NF,
             double val_bdr = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
-               // val_bdr  += r_Bi[k1] * r_Bj[k1] * D(k1, 0, 0, f);
                val_bdr  += B(k1,i1) * B(k1,j1) * D(k1, 0, 0, f);
             }
             A_bdr(i1, j1, f) += val_bdr;
