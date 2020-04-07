@@ -376,11 +376,11 @@ private:
    int side;
 
 public:
-   int Elem1No, Elem2No;
-   ElementTransformation *Elem1, *Elem2;
+   int Elem1No, Elem2No, FaceGeom;
+   ElementTransformation *Elem1, *Elem2, *Face;
    IntegrationPointTransformation Loc1, Loc2;
 
-   FaceElementTransformations() : side(2) {}
+   FaceElementTransformations() : side(2), Face(this) {}
 
    /** FaceElementTransformations objects are often used when
        performing the surface integrals on the interfaces between
