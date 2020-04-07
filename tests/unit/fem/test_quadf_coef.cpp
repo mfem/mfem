@@ -31,20 +31,27 @@ TEST_CASE("Quadrature Function Coefficients",
    QuadratureFunction quadf_coeff(&qspace, 1);
    QuadratureFunction quadf_vcoeff(&qspace, dim);
 
+   const IntegrationRule ir = qspace.GetElementIntRule(0);
+
+   const GeometricFactors *geom_facts = mesh.GetGeometricFactors(ir,
+                                                                 GeometricFactors::COORDINATES);
+
    {
-      int nelems = quadf_coeff.Size() / quadf_coeff.GetVDim();
-      int vdim = quadf_coeff.GetVDim();
+      int nelems = quadf_coeff.Size() / quadf_coeff.GetVDim() / ir.GetNPoints();
+      int vdim = ir.GetNPoints();
 
       for (int i = 0; i < nelems; i++)
       {
          for (int j = 0; j < vdim; j++)
          {
-            quadf_coeff((i * vdim) + j) = 1.0;
+            //X has dims nqpts x sdim x ne
+            quadf_coeff((i * vdim) + j) = geom_facts->X((i * vdim * dim) + (vdim * 2) + j );
          }
       }
    }
 
    {
+      //More like nelems * nqpts
       int nelems = quadf_vcoeff.Size() / quadf_vcoeff.GetVDim();
       int vdim = quadf_vcoeff.GetVDim();
 
@@ -145,15 +152,18 @@ TEST_CASE("Quadrature Function Coefficients",
          GridFunction g0(&fespace_l2);
          GridFunction gtrue(&fespace_l2);
 
+         // When using an L2 FE space of the same order as the mesh, the below highlights
+         // that the ProjectDiscCoeff method is just taking the quadrature point values and making them node values.
          {
-            int nnodes = gtrue.Size();
-            int vdim = 1;
+            int ne = mesh.GetNE();
+            int int_points = ir.GetNPoints();
 
-            for (int i = 0; i < vdim; i++)
+            for (int i = 0; i < ne; i++)
             {
-               for (int j = 0; j < nnodes; j++)
+               for (int j = 0; j < int_points; j++)
                {
-                  gtrue((i * nnodes) + j) = 1.0;
+                  gtrue((i * int_points) + j) = geom_facts->X((i * int_points * dim) +
+                                                              (2 * int_points) + j);
                }
             }
          }
@@ -176,18 +186,18 @@ TEST_CASE("Quadrature Function Coefficients",
             int nnodes = gtrue.Size();
             int vdim = 1;
 
-            for (int i = 0; i < vdim; i++)
+            Vector nodes;
+            mesh.GetNodes(nodes);
+            for (int i = 0; i < nnodes; i++)
             {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue((i * nnodes) + j) = 1.0;
-               }
+               gtrue(i) = nodes(i * dim + 2);
             }
          }
-
+         //If this was actually doing something akin to an L2 projection these values would be fairly close.
          g0 = 0.0;
          g0.ProjectCoefficient(qfc);
          gtrue -= g0;
+         //This currently fails...
          REQUIRE(gtrue.Norml2() < tol);
       }
    }
