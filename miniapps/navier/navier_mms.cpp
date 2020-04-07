@@ -64,23 +64,23 @@ void accel(const Vector &x, double t, Vector &u)
    double yi = x(1);
 
    u(0) = M_PI * sin(t) * sin(M_PI * xi) * sin(M_PI * yi)
-             * (-1.0
-                + 2.0 * pow(M_PI, 2.0) * sin(t) * sin(M_PI * xi)
-                     * sin(2.0 * M_PI * xi) * sin(M_PI * yi))
+          * (-1.0
+             + 2.0 * pow(M_PI, 2.0) * sin(t) * sin(M_PI * xi)
+             * sin(2.0 * M_PI * xi) * sin(M_PI * yi))
           + M_PI
-               * (2.0 * ctx.kinvis * pow(M_PI, 2.0)
-                     * (1.0 - 2.0 * cos(2.0 * M_PI * xi)) * sin(t)
-                  + cos(t) * pow(sin(M_PI * xi), 2.0))
-               * sin(2.0 * M_PI * yi);
+          * (2.0 * ctx.kinvis * pow(M_PI, 2.0)
+             * (1.0 - 2.0 * cos(2.0 * M_PI * xi)) * sin(t)
+             + cos(t) * pow(sin(M_PI * xi), 2.0))
+          * sin(2.0 * M_PI * yi);
 
    u(1) = M_PI * cos(M_PI * yi) * sin(t)
-             * (cos(M_PI * xi)
-                + 2.0 * ctx.kinvis * pow(M_PI, 2.0) * cos(M_PI * yi)
-                     * sin(2.0 * M_PI * xi))
+          * (cos(M_PI * xi)
+             + 2.0 * ctx.kinvis * pow(M_PI, 2.0) * cos(M_PI * yi)
+             * sin(2.0 * M_PI * xi))
           - M_PI * (cos(t) + 6.0 * ctx.kinvis * pow(M_PI, 2.0) * sin(t))
-               * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0)
+          * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0)
           + 4.0 * pow(M_PI, 3.0) * cos(M_PI * yi) * pow(sin(t), 2.0)
-               * pow(sin(M_PI * xi), 2.0) * pow(sin(M_PI * yi), 3.0);
+          * pow(sin(M_PI * xi), 2.0) * pow(sin(M_PI * yi), 3.0);
 }
 
 int main(int argc, char *argv[])
