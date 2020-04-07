@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH
 #define MFEM_MESH
@@ -22,7 +22,10 @@
 #include "ncmesh.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
-#include "../general/gzstream.hpp"
+#include "../general/zstr.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include <iostream>
 
 namespace mfem
@@ -55,16 +58,20 @@ class Mesh
    friend class NCMesh;
    friend class NURBSExtension;
 
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
+#endif
+
 protected:
    int Dim;
    int spaceDim;
 
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
-   /** These variables store the number of Interior and Boundary faces.
-     * fes->GetMesh()->GetNBE() doesn't return the expected value in 3D
-     * because periodic meshes in 3D have some faces marked as boundary
-     * for vizualization purpose in GLvis. */
+   /** These variables store the number of Interior and Boundary faces. Calling
+       fes->GetMesh()->GetNBE() doesn't return the expected value in 3D because
+       periodic meshes in 3D have some of their faces marked as boundary for
+       visualization purpose in GLVis. */
    mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
@@ -245,8 +252,6 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &center);
-
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
@@ -366,6 +371,8 @@ protected:
    static int GetTriOrientation (const int * base, const int * test);
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
+   /// Returns the orientation of "test" relative to "base"
+   static int GetTetOrientation (const int * base, const int * test);
 
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
@@ -570,21 +577,29 @@ public:
 
    virtual void SetAttributes();
 
-#ifdef MFEM_USE_GECKO
-   /** This is our integration with the Gecko library.  This will call the
-       Gecko library to find an element ordering that will increase memory
-       coherency by putting elements that are in physical proximity closer in
-       memory. It can also be used to get a space-filling curve ordering for
-       ParNCMesh partitioning.
+   /** This is our integration with the Gecko library. The method finds an
+       element ordering that will increase memory coherency by putting elements
+       that are in physical proximity closer in memory. It can also be used to
+       obtain a space-filling curve ordering for ParNCMesh partitioning.
        @param[out] ordering Output element ordering.
-       @param[in] iterations Number of V cycles (default 1).
-       @param[in] window Initial window size (default 2).
-       @param[in] period Iterations between window increment (default 1).
-       @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementOrdering(Array<int> &ordering,
-                                int iterations = 1, int window = 2,
-                                int period = 1, int seed = 0);
-#endif
+       @param iterations Total number of V cycles. The ordering may improve with
+       more iterations. The best iteration is returned at the end.
+       @param window Initial window size. This determines the number of
+       permutations tested at each multigrid level and strongly influences the
+       quality of the result, but the cost of increasing 'window' is exponential.
+       @param period The window size is incremented every 'period' iterations.
+       @param seed Seed for initial random ordering (0 = skip random reorder).
+       @param verbose Print the progress of the optimization to mfem::out.
+       @param time_limit Optional time limit for the optimization, in seconds.
+       When reached, ordering from the best iteration so far is returned
+       (0 = no limit).
+       @return The final edge product cost of the ordering. The function may be
+       called in an external loop with different seeds, and the best ordering can
+       then be retained. */
+   double GetGeckoElementOrdering(Array<int> &ordering,
+                                  int iterations = 4, int window = 4,
+                                  int period = 2, int seed = 0,
+                                  bool verbose = false, double time_limit = 0);
 
    /** Return an ordering of the elements that approximately follows the Hilbert
        curve. The method performs a spatial (Hilbert) sort on the centers of all
@@ -662,7 +677,7 @@ public:
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
        (default) edges are not generated, if 1 edges are generated. */
-   /// \see mfem::igzstream() for on-the-fly decompression of compressed ascii
+   /// \see mfem::ifgzstream() for on-the-fly decompression of compressed ascii
    /// inputs.
    virtual void Load(std::istream &input, int generate_edges = 0,
                      int refine = 1, bool fix_orientation = true)
@@ -707,10 +722,9 @@ public:
    /// Returns the number of faces according to the requested type.
    /** If type==Boundary returns only the "true" number of boundary faces
        contrary to GetNBE() that returns "fake" boundary faces associated to
-       visualization for GLvis.
+       visualization for GLVis.
        Similarly, if type==Interior, the "fake" boundary faces associated to
-       visualization are counted as interior faces.
-   */
+       visualization are counted as interior faces. */
    int GetNFbyType(FaceType type) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
@@ -1185,17 +1199,21 @@ public:
    virtual void PrintXG(std::ostream &out = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
+   /// Print the mesh to the given stream using the adios2 bp format
+#ifdef MFEM_USE_ADIOS2
+   virtual void Print(adios2stream &out) const;
+#endif
    /// Print the mesh in VTK format (linear and quadratic meshes only).
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes). */
@@ -1215,7 +1233,7 @@ public:
    /** @brief Prints the mesh with boundary elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has boundary
        attribute i+1. */
-   /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
                                std::ostream &out, int elem_attr = 0) const;
 
@@ -1250,6 +1268,8 @@ public:
    double GetElementSize(int i, const Vector &dir);
 
    double GetElementVolume(int i);
+
+   void GetElementCenter(int i, Vector &center);
 
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
@@ -1447,18 +1467,6 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy,
 
 /// Extrude a 2D mesh
 Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz);
-
-
-/// Input file stream that remembers the input file name (useful for example
-/// when reading NetCDF meshes) and supports optional gzstream decompression.
-class named_ifgzstream : public mfem::ifgzstream
-{
-public:
-   const char *filename;
-   named_ifgzstream(const char *mesh_name) :
-      mfem::ifgzstream(mesh_name), filename(mesh_name) {}
-};
-
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)

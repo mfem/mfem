@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TMOP_TOOLS_HPP
 #define MFEM_TMOP_TOOLS_HPP
@@ -15,6 +15,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "tmop.hpp"
+#include "gslib.hpp"
 
 namespace mfem
 {
@@ -27,8 +28,12 @@ private:
    Vector nodes0;
    Vector field0;
 
+   const double dt_scale;
+
 public:
-   AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
+   AdvectorCG(double timestep_scale = 0.5)
+      : AdaptivityEvaluator(),
+        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
@@ -36,6 +41,31 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
 };
+
+#ifdef MFEM_USE_GSLIB
+class InterpolatorFP : public AdaptivityEvaluator
+{
+private:
+   Vector nodes0;
+   GridFunction field0_gf;
+   FindPointsGSLIB *finder;
+   Array<uint> el_id_out, code_out, task_id_out;
+   Vector pos_r_out, dist_p_out;
+   int dim;
+public:
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field);
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field);
+
+   ~InterpolatorFP()
+   {
+      finder->FreeData();
+      delete finder;
+   }
+};
+#endif
 
 /// Performs a single remap advection step in serial.
 class SerialAdvectorCGOper : public TimeDependentOperator
@@ -85,17 +115,13 @@ private:
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
 
-   mutable DiscreteAdaptTC *discr_tc;
-
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(comm), parallel(true), ir(irule) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
-
-   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) { discr_tc = tc; }
+      : NewtonSolver(), parallel(false), ir(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
@@ -111,15 +137,13 @@ private:
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
 
-   mutable DiscreteAdaptTC *discr_tc;
-
 public:
 #ifdef MFEM_USE_MPI
    TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(comm), parallel(true), ir(irule) { }
 #endif
    TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(), parallel(false), ir(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 

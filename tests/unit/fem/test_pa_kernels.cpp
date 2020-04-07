@@ -1,13 +1,13 @@
-// Copyright (c) 2019, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "catch.hpp"
 #include "mfem.hpp"
@@ -239,7 +239,7 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 
 double test_nl_convection_nd(int dim)
 {
-   Mesh *mesh;
+   Mesh *mesh = nullptr;
 
    if (dim == 2)
    {
@@ -291,15 +291,10 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
 template <typename INTEGRATOR>
 double test_vector_pa_integrator(int dim)
 {
-   Mesh *mesh;
-   if (dim == 2)
-   {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
-   }
+   Mesh *mesh =
+      (dim == 2) ?
+      new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
+      new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
 
    int order = 2;
    H1_FECollection fec(order, dim);
