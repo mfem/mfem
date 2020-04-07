@@ -69,6 +69,7 @@ private:
    DofMap * novlp_prob = nullptr;
    Array<SparseMatrix *> PmlMat;
    Array<KLUSolver *> PmlMatInv;
+   Array2D<double> Pmllength;
    mutable Array<Vector * > res;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
@@ -77,7 +78,7 @@ private:
    void GetCutOffSolution(Vector & sol, int ip) const;
 
 public:
-   STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, 
+   STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
        double omega_, FunctionCoefficient * ws_, int nrlayers_);
    void SetLoadVector(Vector load) { B = load;}
    virtual void SetOperator(const Operator &op) {A = &op;}

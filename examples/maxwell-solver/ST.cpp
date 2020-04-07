@@ -113,10 +113,10 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
 }
 
 
-STP::STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, 
+STP::STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, FunctionCoefficient * ws_,  int nrlayers_)
    : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), 
-     bf(bf_), omega(omega_), ws(ws_), nrlayers(nrlayers_)
+     bf(bf_), Pmllength(Pmllength_), omega(omega_), ws(ws_), nrlayers(nrlayers_)
 {
    Mesh * mesh = bf->FESpace()->GetMesh();
    dim = mesh->Dimension();
@@ -166,7 +166,14 @@ SparseMatrix * STP::GetPmlSystemMatrix(int ip)
    double h = GetUniformMeshElementSize(ovlp_prob->PmlMeshes[ip]);
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
-   // if (ip == nrpatch-1) length[0][1] = 0.0;
+   if (ip == nrpatch-1 || ip == 0) 
+   {
+      length[0][0] = Pmllength[0][0];
+      length[0][1] = Pmllength[0][1];
+   }
+   length[1][0] = Pmllength[1][0];
+   length[1][1] = Pmllength[1][1];
+
    // if (ip == 0) length[0][0] = 0.0;
    // length[1][0] = 0.0;
    // length[1][1] = 0.0;
@@ -220,6 +227,12 @@ void STP::SolveHalfSpaceLinearSystem(int ip, Vector &x, Vector & load) const
    double h = GetUniformMeshElementSize(novlp_prob->PmlMeshes[ip]);
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
+   if (ip == nrpatch-1 || ip == 0) 
+   {
+      length[0][0] = Pmllength[0][0];
+   }
+   length[1][0] = Pmllength[1][0];
+   length[1][1] = Pmllength[1][1];
    length[0][1] = 0.0;
    // length[1][1] = 0.0;
    // length[1][0] = 0.0;
