@@ -1072,7 +1072,7 @@ static void PADivDivAssembleDiagonal3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                     val += a[dx] * wx * wx;
+                     val += a[qx] * wx * wx;
                   }
                   diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
                }
