@@ -25,11 +25,9 @@ namespace mfem
 namespace internal
 {
 
-template <typename T> struct entry_type
-{ typedef typename T::data_type type; };
+template <typename T> struct entry_type { typedef typename T::data_type type; };
 
-template <typename T> struct entry_type<T*>
-{ typedef T type; };
+template <typename T> struct entry_type<T*> { typedef T type; };
 
 } // namespace mfem::internal
 
@@ -458,8 +456,8 @@ struct MatrixOps<3,3>::Symm<true>
    template <typename A_layout_t, typename A_data_t, typename scalar_t>
    static inline MFEM_ALWAYS_INLINE
    void Set(const A_layout_t &a, A_data_t &A,
-            const scalar_t &a11, const scalar_t &a21, const scalar_t &a31,
-            const scalar_t &a22, const scalar_t &a32, const scalar_t &a33)
+            const scalar_t a11, const scalar_t a21, const scalar_t a31,
+            const scalar_t a22, const scalar_t a32, const scalar_t a33)
    {
       A[a.ind(0)] = a11;
       A[a.ind(1)] = a21;
@@ -476,8 +474,8 @@ struct MatrixOps<3,3>::Symm<false>
    template <typename A_layout_t, typename A_data_t, typename scalar_t>
    static inline MFEM_ALWAYS_INLINE
    void Set(const A_layout_t &a, A_data_t &A,
-            const scalar_t &a11, const scalar_t &a21, const scalar_t &a31,
-            const scalar_t &a22, const scalar_t &a32, const scalar_t &a33)
+            const scalar_t a11, const scalar_t a21, const scalar_t a31,
+            const scalar_t a22, const scalar_t a32, const scalar_t a33)
    {
       A[a.ind(0,0)] = a11;
       A[a.ind(1,0)] = a21;
