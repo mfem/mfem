@@ -269,7 +269,7 @@ void F_exact(const Vector &p, Vector &F)
 
    double x = p(0);
    double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
+   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if F is changed to depend on z
 
    F(0) = cos(kappa*x)*sin(kappa*y);
    F(1) = cos(kappa*y)*sin(kappa*x);
@@ -286,7 +286,7 @@ void f_exact(const Vector &p, Vector &f)
 
    double x = p(0);
    double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
+   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if f is changed to depend on z
 
    double temp = 1 + 2*kappa*kappa;
 
