@@ -35,6 +35,7 @@
 //               ex1 -pa -d ceed-cuda
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
