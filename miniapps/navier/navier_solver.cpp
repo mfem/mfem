@@ -200,14 +200,14 @@ void NavierSolver::Setup(double dt)
    for (auto &vel_dbc : vel_dbcs)
    {
       g_bdr_form->AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(
-                                           vel_dbc.coeff),
+                                           *vel_dbc.coeff),
                                         vel_dbc.attr);
    }
 
    f_form = new ParLinearForm(vfes);
    for (auto &accel_term : accel_terms)
    {
-      auto *vdlfi = new VectorDomainLFIntegrator(accel_term.coeff);
+      auto *vdlfi = new VectorDomainLFIntegrator(*accel_term.coeff);
       // @TODO: This order should always be the same as the nonlinear forms one!
       // const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
       //                                          4 * order);
@@ -295,10 +295,6 @@ void NavierSolver::Setup(double dt)
 
 void NavierSolver::Step(double &time, double dt, int cur_step)
 {
-   if (verbose && pmesh->GetMyRank() == 0)
-   {
-      mfem::out << "Step" << std::endl;
-   }
    sw_step.Start();
 
    time += dt;
@@ -306,13 +302,13 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    // Set current time for velocity dirichlet boundary conditions.
    for (auto &vel_dbc : vel_dbcs)
    {
-      vel_dbc.coeff.SetTime(time);
+      vel_dbc.coeff->SetTime(time);
    }
 
    // Set current time for pressure dirichlet boundary conditons.
    for (auto &pres_dbc : pres_dbcs)
    {
-      pres_dbc.coeff.SetTime(time);
+      pres_dbc.coeff->SetTime(time);
    }
 
    SetTimeIntegrationCoefficients(cur_step);
@@ -342,7 +338,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    // Extrapolated f^{n+1}.
    for (auto &accel_term : accel_terms)
    {
-      accel_term.coeff.SetTime(time);
+      accel_term.coeff->SetTime(time);
    }
 
    f_form->Assemble();
@@ -431,7 +427,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    for (auto &pres_dbc : pres_dbcs)
    {
-      pn_gf.ProjectBdrCoefficient(pres_dbc.coeff, pres_dbc.attr);
+      pn_gf.ProjectBdrCoefficient(*pres_dbc.coeff, pres_dbc.attr);
    }
 
    pfes->GetRestrictionMatrix()->MultTranspose(resp, resp_gf);
@@ -474,7 +470,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    for (auto &vel_dbc : vel_dbcs)
    {
-      un_gf.ProjectBdrCoefficient(vel_dbc.coeff, vel_dbc.attr);
+      un_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
    }
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
@@ -506,24 +502,27 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
+      mfem::out << std::setw(7) << "" << std::setw(3) << "It" << std::setw(8)
+                << "Resid" << std::setw(12) << "Reltol"
+                << "\n";
       // If numerical integration is active, there is no solve (thus no
       // iterations), on the inverse velocity mass application.
       if (!numerical_integ)
       {
-         mfem::out << std::setw(5) << "MVIN " << std::setw(3) << std::fixed
-                   << iter_mvsolve << " " << std::setw(3)
+         mfem::out << std::setw(5) << "MVIN " << std::setw(5) << std::fixed
+                   << iter_mvsolve << "   " << std::setw(3)
                    << std::setprecision(2) << std::scientific << res_mvsolve
-                   << " " << 1e-12 << "\n";
+                   << "   " << 1e-12 << "\n";
       }
-      mfem::out << std::setw(5) << "PRES " << std::setw(3) << std::fixed
-                << iter_spsolve << " " << std::setw(3) << std::setprecision(2)
-                << std::scientific << res_spsolve << " " << rtol_spsolve
+      mfem::out << std::setw(5) << "PRES " << std::setw(5) << std::fixed
+                << iter_spsolve << "   " << std::setw(3) << std::setprecision(2)
+                << std::scientific << res_spsolve << "   " << rtol_spsolve
                 << "\n";
-      mfem::out << std::setw(5) << "HELM " << std::setw(3) << std::fixed
-                << iter_hsolve << " " << std::setw(3) << std::setprecision(2)
-                << std::scientific << res_hsolve << " " << rtol_hsolve << "\n";
+      mfem::out << std::setw(5) << "HELM " << std::setw(5) << std::fixed
+                << iter_hsolve << "   " << std::setw(3) << std::setprecision(2)
+                << std::scientific << res_hsolve << "   " << rtol_hsolve
+                << "\n";
       mfem::out << std::setprecision(8);
-
       mfem::out << std::fixed;
    }
 }
@@ -855,24 +854,21 @@ double NavierSolver::ComputeCFL(ParGridFunction &u, double dt)
    return cflmax_global;
 }
 
-void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
+void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 {
-   vel_dbcs.emplace_back(
-      VelDirichletBC_T(f,
-                       attr,
-                       VectorFunctionCoefficient(pmesh->Dimension(), f)));
+   vel_dbcs.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      out << "Adding Velocity Dirichlet BC to attributes ";
+      mfem::out << "Adding Velocity Dirichlet BC to attributes ";
       for (int i = 0; i < attr.Size(); ++i)
       {
          if (attr[i] == 1)
          {
-            out << i << " ";
+            mfem::out << i << " ";
          }
       }
-      out << std::endl;
+      mfem::out << std::endl;
    }
 
    for (int i = 0; i < attr.Size(); ++i)
@@ -886,21 +882,26 @@ void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
    }
 }
 
-void NavierSolver::AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr)
+void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
-   pres_dbcs.emplace_back(PresDirichletBC_T(f, attr, FunctionCoefficient(f)));
+   AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
+}
+
+void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
+{
+   pres_dbcs.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      out << "Adding Pressure Dirichlet BC to attributes ";
+      mfem::out << "Adding Pressure Dirichlet BC to attributes ";
       for (int i = 0; i < attr.Size(); ++i)
       {
          if (attr[i] == 1)
          {
-            out << i << " ";
+            mfem::out << i << " ";
          }
       }
-      out << std::endl;
+      mfem::out << std::endl;
    }
 
    for (int i = 0; i < attr.Size(); ++i)
@@ -914,23 +915,32 @@ void NavierSolver::AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr)
    }
 }
 
-void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
+void NavierSolver::AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr)
 {
-   accel_terms.emplace_back(
-      AccelTerm_T(f, attr, VectorFunctionCoefficient(pmesh->Dimension(), f)));
+   AddPresDirichletBC(new FunctionCoefficient(f), attr);
+}
+
+void NavierSolver::AddAccelTerm(VectorCoefficient *coeff, Array<int> &attr)
+{
+   accel_terms.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      out << "Adding Acceleration term to attributes ";
+      mfem::out << "Adding Acceleration term to attributes ";
       for (int i = 0; i < attr.Size(); ++i)
       {
          if (attr[i] == 1)
          {
-            out << i << " ";
+            mfem::out << i << " ";
          }
       }
-      out << std::endl;
+      mfem::out << std::endl;
    }
+}
+
+void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
+{
+   AddAccelTerm(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
 void NavierSolver::SetTimeIntegrationCoefficients(int step)
@@ -1009,12 +1019,11 @@ void NavierSolver::PrintInfo()
 
    if (pmesh->GetMyRank() == 0)
    {
-      out << "NAVIER version: "
-          << NAVIER_VERSION << std::endl
-          << "MFEM version: " << MFEM_VERSION << std::endl
-          << "MFEM GIT: " << MFEM_GIT_STRING << std::endl
-          << "Velocity #DOFs: " << fes_size0 << std::endl
-          << "Pressure #DOFs: " << fes_size1 << std::endl;
+      mfem::out << "NAVIER version: " << NAVIER_VERSION << std::endl
+                << "MFEM version: " << MFEM_VERSION << std::endl
+                << "MFEM GIT: " << MFEM_GIT_STRING << std::endl
+                << "Velocity #DOFs: " << fes_size0 << std::endl
+                << "Pressure #DOFs: " << fes_size1 << std::endl;
    }
 }
 

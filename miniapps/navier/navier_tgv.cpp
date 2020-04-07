@@ -9,6 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// 3d Taylor-Green vortex benchmark example at Re=1600
+// Unsteady flow of a decaying vortex is computed and compared against a known,
+// analytical solution.
+
 #include "navier_solver.hpp"
 #include <fstream>
 
@@ -71,7 +75,7 @@ public:
          fe = fes->GetFE(i);
          double intorder = 2 * fe->GetOrder();
          const IntegrationRule *ir = &(
-                                        IntRules.Get(fe->GetGeomType(), intorder));
+            IntRules.Get(fe->GetGeomType(), intorder));
 
          v.GetValues(i, *ir, velx, 1);
          v.GetValues(i, *ir, vely, 2);
@@ -115,7 +119,7 @@ T sq(T x)
    return x * x;
 }
 
-
+// Computes Q = 0.5*(tr(\nabla u)^2 - tr(\nabla u \cdot \nabla u))
 void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 {
    FiniteElementSpace *v_fes = u.FESpace();
@@ -213,7 +217,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.element_subdivisions,
                   "-es",
                   "--element-subdivisions",
-                  "Number of uniform subdivisions for each element.");
+                  "Number of 1d uniform subdivisions for each element.");
    args.AddOption(&ctx.order,
                   "-o",
                   "--order",
@@ -330,6 +334,7 @@ int main(int argc, char *argv[])
    {
       int nel1d = std::round(pow(nel, 1.0 / 3.0));
       int ngridpts = p_gf->ParFESpace()->GlobalVSize();
+      printf("%11s %11s %11s %11s %11s\n", "Time", "dt", "u_inf", "p_inf", "ke");
       printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
 
       f = fopen(fname.c_str(), "w");

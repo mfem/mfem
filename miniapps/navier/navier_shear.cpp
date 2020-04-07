@@ -139,6 +139,7 @@ int main(int argc, char *argv[])
 
       if (mpi.Root())
       {
+         printf("%11s %11s\n", "Time", "dt");
          printf("%.5E %.5E\n", t, dt);
          fflush(stdout);
       }
