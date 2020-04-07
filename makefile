@@ -707,7 +707,8 @@ FORMAT_FILES += "tests/unit/*.cpp"
 FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
+ '^general/jit\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
