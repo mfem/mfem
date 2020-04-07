@@ -28,7 +28,7 @@ private:
 
 public:
    ElementMatrix(const Vector &vec, const int ne, const int ndofs)
-   : ne(ne), ndofs(ndofs), data(vec)
+      : ne(ne), ndofs(ndofs), data(vec)
    {
    }
 
@@ -98,7 +98,7 @@ private:
 
 public:
    FaceMatrixInt(const Vector &vec, const int nf, const int ndofs)
-   : nf(nf), ndofs(ndofs), data(vec)
+      : nf(nf), ndofs(ndofs), data(vec)
    {
    }
 
@@ -189,7 +189,7 @@ private:
 
 public:
    FaceMatrixExt(const Vector &vec, const int nf, const int ndofs)
-   : nf(nf), ndofs(ndofs), data(vec)
+      : nf(nf), ndofs(ndofs), data(vec)
    {
    }
 
@@ -280,7 +280,7 @@ private:
 
 public:
    FaceMatrixBdr(const Vector &vec, const int nf, const int ndofs)
-   : nf(nf), ndofs(ndofs), data(vec)
+      : nf(nf), ndofs(ndofs), data(vec)
    {
    }
 

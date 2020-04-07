@@ -201,7 +201,7 @@ static void EAMassAssemble3D(const int NE,
 }
 
 void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                         Vector &ea_data)
+                                Vector &ea_data)
 {
    AssemblePA(fes);
    const int ne = fes.GetMesh()->GetNE();

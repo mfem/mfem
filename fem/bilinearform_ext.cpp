@@ -356,7 +356,8 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data);
    }
 
-   faceDofs = trialFes->GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+   faceDofs = trialFes->GetTraceElement(0,
+      trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
@@ -370,7 +371,9 @@ void EABilinearFormExtension::Assemble()
    }
    for (int i = 0; i < intFaceIntegratorCount; ++i)
    {
-      intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),ea_data_int,ea_data_ext);
+      intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
+                                                     ea_data_int,
+                                                     ea_data_ext);
    }
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
