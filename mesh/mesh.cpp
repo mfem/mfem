@@ -63,12 +63,12 @@ void Mesh::GetElementJacobian(int i, DenseMatrix &J)
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
-void Mesh::GetElementCenter(int i, Vector &cent)
+void Mesh::GetElementCenter(int i, Vector &center)
 {
-   cent.SetSize(spaceDim);
+   center.SetSize(spaceDim);
    int geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
-   eltransf->Transform(Geometries.GetCenter(geom), cent);
+   eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
 double Mesh::GetElementSize(int i, int type)
@@ -369,6 +369,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    DenseMatrix &pm = ElTr->GetPointMat();
+   nodes.HostRead();
    if (Nodes == NULL)
    {
       MFEM_ASSERT(nodes.Size() == spaceDim*GetNV(), "");
@@ -1049,7 +1050,8 @@ void Mesh::Destroy()
 
    // TODO:
    // IsoparametricTransformations
-   // Transformation, Transformation2, BdrTransformation, FaceTransformation, EdgeTransformation;
+   // Transformation, Transformation2, BdrTransformation, FaceTransformation,
+   // EdgeTransformation;
    // FaceElementTransformations FaceElemTr;
 
    CoarseFineTr.Clear();
@@ -1127,6 +1129,11 @@ void Mesh::AddVertex(const double *x)
       y[i] = x[i];
    }
    NumOfVertices++;
+}
+
+void Mesh::AddSegment(const int *vi, int attr)
+{
+   elements[NumOfElements++] = new Segment(vi, attr);
 }
 
 void Mesh::AddTri(const int *vi, int attr)
@@ -1345,9 +1352,9 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 
 #ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering,
-                                     int iterations, int window,
-                                     int period, int seed)
+void Mesh::GetGeckoElementOrdering(Array<int> &ordering,
+                                   int iterations, int window,
+                                   int period, int seed)
 {
    Gecko::Graph graph;
 
@@ -1385,6 +1392,181 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
    delete functional;
 }
 #endif
+
+
+struct HilbertCmp
+{
+   int coord;
+   bool dir;
+   const Array<double> &points;
+   double mid;
+
+   HilbertCmp(int coord, bool dir, const Array<double> &points, double mid)
+      : coord(coord), dir(dir), points(points), mid(mid) {}
+
+   bool operator()(int i) const
+   {
+      return (points[3*i + coord] < mid) != dir;
+   }
+};
+
+static void HilbertSort2D(int coord1, // major coordinate to sort points by
+                          bool dir1,  // sort coord1 ascending/descending?
+                          bool dir2,  // sort coord2 ascending/descending?
+                          const Array<double> &points, int *beg, int *end,
+                          double xmin, double ymin, double xmax, double ymax)
+{
+   if (end - beg <= 1) { return; }
+
+   double xmid = (xmin + xmax)*0.5;
+   double ymid = (ymin + ymax)*0.5;
+
+   int coord2 = (coord1 + 1) % 2; // the 'other' coordinate
+
+   // sort (partition) points into four quadrants
+   int *p0 = beg, *p4 = end;
+   int *p2 = std::partition(p0, p4, HilbertCmp(coord1,  dir1, points, xmid));
+   int *p1 = std::partition(p0, p2, HilbertCmp(coord2,  dir2, points, ymid));
+   int *p3 = std::partition(p2, p4, HilbertCmp(coord2, !dir2, points, ymid));
+
+   if (p1 != p4)
+   {
+      HilbertSort2D(coord2, dir2, dir1, points, p0, p1,
+                    ymin, xmin, ymid, xmid);
+   }
+   if (p1 != p0 || p2 != p4)
+   {
+      HilbertSort2D(coord1, dir1, dir2, points, p1, p2,
+                    xmin, ymid, xmid, ymax);
+   }
+   if (p2 != p0 || p3 != p4)
+   {
+      HilbertSort2D(coord1, dir1, dir2, points, p2, p3,
+                    xmid, ymid, xmax, ymax);
+   }
+   if (p3 != p0)
+   {
+      HilbertSort2D(coord2, !dir2, !dir1, points, p3, p4,
+                    ymid, xmax, ymin, xmid);
+   }
+}
+
+static void HilbertSort3D(int coord1, bool dir1, bool dir2, bool dir3,
+                          const Array<double> &points, int *beg, int *end,
+                          double xmin, double ymin, double zmin,
+                          double xmax, double ymax, double zmax)
+{
+   if (end - beg <= 1) { return; }
+
+   double xmid = (xmin + xmax)*0.5;
+   double ymid = (ymin + ymax)*0.5;
+   double zmid = (zmin + zmax)*0.5;
+
+   int coord2 = (coord1 + 1) % 3;
+   int coord3 = (coord1 + 2) % 3;
+
+   // sort (partition) points into eight octants
+   int *p0 = beg, *p8 = end;
+   int *p4 = std::partition(p0, p8, HilbertCmp(coord1,  dir1, points, xmid));
+   int *p2 = std::partition(p0, p4, HilbertCmp(coord2,  dir2, points, ymid));
+   int *p6 = std::partition(p4, p8, HilbertCmp(coord2, !dir2, points, ymid));
+   int *p1 = std::partition(p0, p2, HilbertCmp(coord3,  dir3, points, zmid));
+   int *p3 = std::partition(p2, p4, HilbertCmp(coord3, !dir3, points, zmid));
+   int *p5 = std::partition(p4, p6, HilbertCmp(coord3,  dir3, points, zmid));
+   int *p7 = std::partition(p6, p8, HilbertCmp(coord3, !dir3, points, zmid));
+
+   if (p1 != p8)
+   {
+      HilbertSort3D(coord3, dir3, dir1, dir2, points, p0, p1,
+                    zmin, xmin, ymin, zmid, xmid, ymid);
+   }
+   if (p1 != p0 || p2 != p8)
+   {
+      HilbertSort3D(coord2, dir2, dir3, dir1, points, p1, p2,
+                    ymin, zmid, xmin, ymid, zmax, xmid);
+   }
+   if (p2 != p0 || p3 != p8)
+   {
+      HilbertSort3D(coord2, dir2, dir3, dir1, points, p2, p3,
+                    ymid, zmid, xmin, ymax, zmax, xmid);
+   }
+   if (p3 != p0 || p4 != p8)
+   {
+      HilbertSort3D(coord1, dir1, !dir2, !dir3, points, p3, p4,
+                    xmin, ymax, zmid, xmid, ymid, zmin);
+   }
+   if (p4 != p0 || p5 != p8)
+   {
+      HilbertSort3D(coord1, dir1, !dir2, !dir3, points, p4, p5,
+                    xmid, ymax, zmid, xmax, ymid, zmin);
+   }
+   if (p5 != p0 || p6 != p8)
+   {
+      HilbertSort3D(coord2, !dir2, dir3, !dir1, points, p5, p6,
+                    ymax, zmid, xmax, ymid, zmax, xmid);
+   }
+   if (p6 != p0 || p7 != p8)
+   {
+      HilbertSort3D(coord2, !dir2, dir3, !dir1, points, p6, p7,
+                    ymid, zmid, xmax, ymin, zmax, xmid);
+   }
+   if (p7 != p0)
+   {
+      HilbertSort3D(coord3, !dir3, !dir1, dir2, points, p7, p8,
+                    zmid, xmax, ymin, zmin, xmid, ymid);
+   }
+}
+
+void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
+{
+   MFEM_VERIFY(spaceDim <= 3, "");
+
+   Vector min, max, center;
+   GetBoundingBox(min, max);
+
+   Array<int> indices(GetNE());
+   Array<double> points(3*GetNE());
+
+   if (spaceDim < 3) { points = 0.0; }
+
+   // calculate element centers
+   for (int i = 0; i < GetNE(); i++)
+   {
+      GetElementCenter(i, center);
+      for (int j = 0; j < spaceDim; j++)
+      {
+         points[3*i + j] = center(j);
+      }
+      indices[i] = i;
+   }
+
+   if (spaceDim == 1)
+   {
+      indices.Sort([&](int a, int b)
+      { return points[3*a] < points[3*b]; });
+   }
+   else if (spaceDim == 2)
+   {
+      // recursively partition the points in 2D
+      HilbertSort2D(0, false, false,
+                    points, indices.begin(), indices.end(),
+                    min(0), min(1), max(0), max(1));
+   }
+   else
+   {
+      // recursively partition the points in 3D
+      HilbertSort3D(0, false, false, false,
+                    points, indices.begin(), indices.end(),
+                    min(0), min(1), min(2), max(0), max(1), max(2));
+   }
+
+   // return ordering in the format required by ReorderElements
+   ordering.SetSize(GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      ordering[indices[i]] = i;
+   }
+}
 
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
@@ -2256,7 +2438,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
                ind[4] = VTX(x  , y  , z+1);
                ind[5] = VTX(x+1, y  , z+1);
                ind[6] = VTX(x+1, y+1, z+1);
-               ind[7] = VTX(x  , y+1, z+1);
+               ind[7] = VTX(  x, y+1, z+1);
                if (type == Element::TETRAHEDRON)
                {
                   AddHexAsTets(ind, 1);
@@ -3847,9 +4029,11 @@ int Mesh::CheckElementOrientation(bool fix_it)
    }
 #if (!defined(MFEM_USE_MPI) || defined(MFEM_DEBUG))
    if (wo > 0)
+   {
       mfem::out << "Elements with wrong orientation: " << wo << " / "
                 << NumOfElements << " (" << fixed_or_not[(wo == fo) ? 0 : 1]
                 << ")" << endl;
+   }
 #endif
    return wo;
 }
@@ -5092,6 +5276,21 @@ int *Mesh::CartesianPartitioning(int nxyz[])
 int *Mesh::GeneratePartitioning(int nparts, int part_method)
 {
 #ifdef MFEM_USE_METIS
+
+   int print_messages = 1;
+   // If running in parallel, print messages only from rank 0.
+#ifdef MFEM_USE_MPI
+   int init_flag, fin_flag;
+   MPI_Initialized(&init_flag);
+   MPI_Finalized(&fin_flag);
+   if (init_flag && !fin_flag)
+   {
+      int rank;
+      MPI_Comm_rank(GetGlobalMPI_Comm(), &rank);
+      if (rank != 0) { print_messages = 0; }
+   }
+#endif
+
    int i, *partitioning;
 
    ElementToElementTable();
@@ -5201,8 +5400,10 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                         &edgecut,
                                         mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphRecursive!");
+         }
 #endif
       }
 
@@ -5237,8 +5438,10 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    &edgecut,
                                    mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
@@ -5274,19 +5477,27 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    &edgecut,
                                    mpartitioning);
          if (err != 1)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
 #ifdef MFEM_DEBUG
-      mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
-                << edgecut << endl;
+      if (print_messages)
+      {
+         mfem::out << "Mesh::GeneratePartitioning(...): edgecut = "
+                   << edgecut << endl;
+      }
 #endif
       nparts = (int) mparts;
       if (mpartitioning != (idx_t*)partitioning)
       {
-         for (int k = 0; k<NumOfElements; k++) { partitioning[k] = mpartitioning[k]; }
+         for (int k = 0; k<NumOfElements; k++)
+         {
+            partitioning[k] = mpartitioning[k];
+         }
       }
       if (freedata)
       {
@@ -5296,10 +5507,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
       }
    }
 
-   if (el_to_el)
-   {
-      delete el_to_el;
-   }
+   delete el_to_el;
    el_to_el = NULL;
 
    // Check for empty partitionings (a "feature" in METIS)
@@ -5318,17 +5526,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 
       int empty_parts = 0;
       for (i = 0; i < nparts; i++)
-         if (psize[i].one == 0)
-         {
-            empty_parts++;
-         }
+      {
+         if (psize[i].one == 0) { empty_parts++; }
+      }
 
       // This code just split the largest partitionings in two.
       // Do we need to replace it with something better?
       if (empty_parts)
       {
-         mfem::err << "Mesh::GeneratePartitioning returned " << empty_parts
-                   << " empty parts!" << endl;
+         if (print_messages)
+         {
+            mfem::err << "Mesh::GeneratePartitioning(...): METIS returned "
+                      << empty_parts << " empty parts!"
+                      << " Applying a simple fix ..." << endl;
+         }
 
          SortPairs<int,int>(psize, nparts);
 
@@ -5338,7 +5549,9 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          }
 
          for (int j = 0; j < NumOfElements; j++)
+         {
             for (i = nparts-1; i > nparts-1-empty_parts; i--)
+            {
                if (psize[i].one == 0 || partitioning[j] != psize[i].two)
                {
                   continue;
@@ -5348,6 +5561,8 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                   partitioning[j] = psize[nparts-1-i].two;
                   psize[i].one--;
                }
+            }
+         }
       }
    }
 
@@ -5988,7 +6203,7 @@ void Mesh::UpdateNodes()
    }
 }
 
-void Mesh::UniformRefinement2D()
+void Mesh::UniformRefinement2D_base(bool update_nodes)
 {
    DeleteLazyTables();
 
@@ -6131,10 +6346,13 @@ void Mesh::UniformRefinement2D()
    last_operation = Mesh::REFINE;
    sequence++;
 
-   UpdateNodes();
+   if (update_nodes) { UpdateNodes(); }
 
 #ifdef MFEM_DEBUG
-   CheckElementOrientation(false);
+   if (!Nodes || update_nodes)
+   {
+      CheckElementOrientation(false);
+   }
    CheckBdrElementOrientation(false);
 #endif
 }
@@ -6144,7 +6362,8 @@ static inline double sqr(const double &x)
    return x*x;
 }
 
-void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
+void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
+                                    bool update_nodes)
 {
    DeleteLazyTables();
 
@@ -6732,7 +6951,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    last_operation = Mesh::REFINE;
    sequence++;
 
-   UpdateNodes();
+   if (update_nodes) { UpdateNodes(); }
 }
 
 void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
@@ -7089,11 +7308,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    last_operation = Mesh::DEREFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate mesh curvature
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 
    return true;
 }
@@ -7243,39 +7458,35 @@ void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
    }
 }
 
+static Array<int>& AllElements(Array<int> &list, int nelem)
+{
+   list.SetSize(nelem);
+   for (int i = 0; i < nelem; i++) { list[i] = i; }
+   return list;
+}
+
 void Mesh::UniformRefinement(int ref_algo)
 {
+   Array<int> list;
+
    if (NURBSext)
    {
       NURBSUniformRefinement();
    }
-   else if (ref_algo == 0 && Dim == 3 && meshgen == 1)
+   else if (ncmesh)
    {
-      UniformRefinement3D();
+      GeneralRefinement(AllElements(list, GetNE()));
    }
-   else if (meshgen == 1 || ncmesh)
+   else if (ref_algo == 1 && meshgen == 1 && Dim == 3)
    {
-      Array<int> elem_to_refine(GetNE());
-      for (int i = 0; i < elem_to_refine.Size(); i++)
-      {
-         elem_to_refine[i] = i;
-      }
-
-      if (Conforming())
-      {
-         // In parallel we should set the default 2nd argument to -3 to indicate
-         // uniform refinement.
-         LocalRefinement(elem_to_refine);
-      }
-      else
-      {
-         GeneralRefinement(elem_to_refine, 1);
-      }
+      // algorithm "B" for an all-tet mesh
+      LocalRefinement(AllElements(list, GetNE()));
    }
    else
    {
       switch (Dim)
       {
+         case 1: LocalRefinement(AllElements(list, GetNE())); break;
          case 2: UniformRefinement2D(); break;
          case 3: UniformRefinement3D(); break;
          default: MFEM_ABORT("internal error");
@@ -7351,7 +7562,7 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
    GeneralRefinement(refinements, nonconforming, nc_limit);
 }
 
-void Mesh::EnsureNCMesh(bool triangles_nonconforming)
+void Mesh::EnsureNCMesh(bool simplices_nonconforming)
 {
    MFEM_VERIFY(!NURBSext, "Cannot convert a NURBS mesh to an NC mesh. "
                "Project the NURBS to Nodes first.");
@@ -7360,10 +7571,8 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
    {
       if ((meshgen & 0x2) /* quads/hexes */ ||
           (meshgen & 0x4) /* wedges */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
+          (simplices_nonconforming && (meshgen & 0x1)) /* simplices */)
       {
-         MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
-                     "mixed meshes are not supported");
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();
@@ -8343,6 +8552,166 @@ void Mesh::PrintVTK(std::ostream &out)
    }
    out.flush();
 }
+
+void Mesh::PrintVTU(std::string fname)
+{
+   fname = fname + ".vtu";
+   std::fstream out(fname.c_str(),std::ios::out);
+   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">"
+       << std::endl;
+   out << "<UnstructuredGrid>" << std::endl;
+   PrintVTU(out,1);
+   out << "</Piece>" <<
+       std::endl; // needed to close the piece open in the PrintVTU method
+   out << "</UnstructuredGrid>" << std::endl;
+   out << "</VTKFile>" << std::endl;
+
+   out.close();
+}
+
+void Mesh::PrintVTU(std::ostream &out, int ref)
+{
+   int np, nc, size;
+   RefinedGeometry *RefG;
+   DenseMatrix pmat;
+
+   // count the points, cells, size
+   np = nc = size = 0;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      np += RefG->RefPts.GetNPoints();
+      nc += RefG->RefGeoms.Size() / nv;
+      size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
+   }
+
+   out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\"" << nc << "\">"
+       << std::endl;
+
+   // print out the points
+   out << "<Points>" << std::endl;
+   out << "<DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">"
+       << std::endl;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      RefG = GlobGeometryRefiner.Refine(
+                GetElementBaseGeometry(i), ref, 1);
+
+      GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
+
+      for (int j = 0; j < pmat.Width(); j++)
+      {
+         out << pmat(0, j) << ' ';
+         if (pmat.Height() > 1)
+         {
+            out << pmat(1, j) << ' ';
+            if (pmat.Height() > 2)
+            {
+               out << pmat(2, j);
+            }
+            else
+            {
+               out << 0.0;
+            }
+         }
+         else
+         {
+            out << 0.0 << ' ' << 0.0;
+         }
+         out << '\n';
+      }
+   }
+   out << "</DataArray>" << std::endl;
+   out << "</Points>" << std::endl;
+
+   out << "<Cells>" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">" <<
+       std::endl;
+   // connectivity
+   std::vector<int> offset;
+   int coff = 0;
+   np = 0;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      Array<int> &RG = RefG->RefGeoms;
+
+      for (int j = 0; j < RG.Size(); )
+      {
+         // out << nv;
+         coff = coff+nv;
+         offset.push_back(coff);
+
+         for (int k = 0; k < nv; k++, j++)
+         {
+            out << ' ' << np + RG[j];
+         }
+         out << '\n';
+      }
+      np += RefG->RefPts.GetNPoints();
+   }
+   out << "</DataArray>" << std::endl;
+
+   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">" <<
+       std::endl;
+   // offsets
+   for (size_t ii=0; ii<offset.size(); ii++) { out<<offset[ii]<<std::endl;}
+   out << "</DataArray>" << std::endl;
+   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">" <<
+       std::endl;
+   // cell types
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      Array<int> &RG = RefG->RefGeoms;
+      int vtk_cell_type = 5;
+
+      switch (geom)
+      {
+         case Geometry::POINT:        vtk_cell_type = 1;   break;
+         case Geometry::SEGMENT:      vtk_cell_type = 3;   break;
+         case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
+         case Geometry::SQUARE:       vtk_cell_type = 9;   break;
+         case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
+         case Geometry::CUBE:         vtk_cell_type = 12;  break;
+         case Geometry::PRISM:        vtk_cell_type = 13;  break;
+         default:
+            MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
+            break;
+      }
+
+      for (int j = 0; j < RG.Size(); j += nv)
+      {
+         out << vtk_cell_type << '\n';
+      }
+   }
+   out << "</DataArray>" << std::endl;
+   out << "</Cells>" << std::endl;
+
+   out << "<CellData Scalars=\"material\">" << std::endl;
+   out << "<DataArray type=\"Int32\" Name=\"material\" format=\"ascii\">" <<
+       std::endl;
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Geometry::Type geom = GetElementBaseGeometry(i);
+      int nv = Geometries.GetVertices(geom)->GetNPoints();
+      RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
+      int attr = GetAttribute(i);
+      for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
+      {
+         out << attr << '\n';
+      }
+   }
+   out << "</DataArray>" << std::endl;
+   out << "</CellData>" << std::endl;
+}
+
 
 void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
 {

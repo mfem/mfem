@@ -1,28 +1,114 @@
-sudo: false
-
 language: cpp
 
-matrix:
+sudo: false
+
+stages:
+  - checks
+  - tests
+  - optional
+
+jobs:
   include:
-    #
-    # Linux
-    #
-    - os: linux
+
+    # ========================
+    #         Checks
+    # ========================
+    # - code-style
+    # - documentation
+    # - gitignore
+
+    - stage: checks
+      os: linux
+      name: "code-style"
+      addons:
+        apt:
+          packages:
+            - astyle=2.05.1-0ubuntu1
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - cd tests/scripts
+        - ./runtest code-style
+
+    - stage: checks
+      os: linux
+      name: "documentation"
+      addons:
+        apt:
+          packages:
+            - doxygen
+            - graphviz
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - cd tests/scripts
+        - ./runtest documentation
+
+    - stage: checks
+      os: linux
+      name: "gitignore"
+      addons:
+        apt:
+          packages:
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
+        - make all -j3
+        - make test-noclean
+        - cd tests/scripts
+        - ./runtest gitignore
+
+    # ========================
+    #  Optional Checks/Tests
+    # ========================
+    # - branch-history
+
+    - stage: optional
+      name: "branch-history"
+      # need full git history for the binary/big files check
+      git:
+        depth: false
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        # update master
+        - git fetch origin master:master
+        # checkout a branch (otherwise Travis works in detached head)
+        - git checkout -b travis_tests
+        - cd tests/scripts
+        - ./runtest branch-history
+
+    # ========================
+    #       Linux tests
+    # ========================
+    # - serial + debug
+    # - serial
+    # - parallel + debug
+    # - parallel
+
+    - stage: tests
+      os: linux
       compiler: gcc
+      name: "Linux: Serial + Debug"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
-    #
+
     - os: linux
       compiler: gcc
+      name: "Linux: Serial"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
-    #
+
     - os: linux
       compiler: gcc
+      name: "Linux: Parallel + Debug"
       addons:
         apt:
           # sources:
@@ -49,9 +135,10 @@ matrix:
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
+
     - os: linux
       compiler: gcc
+      name: "Linux: Parallel"
       addons:
         apt:
           # sources:
@@ -78,28 +165,37 @@ matrix:
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
-    # Mac OS X
-    #
+
+    # ========================
+    #      Mac OS X tests
+    # ========================
+    # - serial + debug
+    # - serial
+    # - parallel + debug
+    # - parallel
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      name: "Mac: Serial + Debug"
       env: DEBUG=YES
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=check
-    #
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      name: "Mac: Serial"
       env: DEBUG=NO
            MPI=NO
            CODECOV=NO
            MFEM_TEST_TARGET=test
-    #
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      name: "Mac: Parallel + Debug"
       env: DEBUG=YES
            MPI=YES
            CODECOV=NO
@@ -115,10 +211,11 @@ matrix:
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
           mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
+
     - os: osx
       # osx_image: xcode7.3
       compiler: clang
+      name: "Mac: Parallel"
       env: DEBUG=NO
            MPI=YES
            CODECOV=YES

@@ -202,7 +202,7 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
    // go assign existing edge/face indices
    NCMesh::OnMeshUpdated(mesh);
 
-   // assign ghost edge indices
+   // count ghost edges and assign their indices
    NEdges = mesh->GetNEdges();
    NGhostEdges = 0;
    for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
@@ -213,12 +213,12 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       }
    }
 
-   // assign ghost face indices
+   // count ghost faces
    NFaces = mesh->GetNumFaces();
    NGhostFaces = 0;
    for (face_iterator face = faces.begin(); face != faces.end(); ++face)
    {
-      if (face->index < 0) { face->index = NFaces + (NGhostFaces++); }
+      if (face->index < 0) { NGhostFaces++; }
    }
 
    if (Dim == 2)
@@ -228,8 +228,12 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
       MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
    }
 
-   // update face_geom for ghost faces
-   face_geom.SetSize(NFaces + NGhostFaces, Geometry::SQUARE);
+   // resize face_geom (default_geom is for slave faces beyond the ghost layer)
+   Geometry::Type default_geom = Geometry::SQUARE;
+   face_geom.SetSize(NFaces + NGhostFaces, default_geom);
+
+   // update 'face_geom' for ghost faces, assign ghost face indices
+   int nghosts = 0;
    for (int i = 0; i < NGhostElements; i++)
    {
       Element &el = elements[leaf_elements[NElements + i]]; // ghost element
@@ -242,15 +246,27 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
                                  el.node[fv[2]], el.node[fv[3]]);
          MFEM_ASSERT(face, "face not found!");
 
-         static const Geometry::Type types[5] =
+         if (face->index < 0)
          {
-            Geometry::INVALID, Geometry::INVALID,
-            Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
-         };
+            face->index = NFaces + (nghosts++);
 
-         face_geom[face->index] = types[gi.nfv[j]];
+            // store the face geometry
+            static const Geometry::Type types[5] =
+            {
+               Geometry::INVALID, Geometry::INVALID,
+               Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
+            };
+            face_geom[face->index] = types[gi.nfv[j]];
+         }
       }
    }
+
+   // assign valid indices also to faces beyond the ghost layer
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   {
+      if (face->index < 0) { face->index = NFaces + (nghosts++); }
+   }
+   MFEM_ASSERT(nghosts == NGhostFaces, "");
 }
 
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
@@ -281,8 +297,8 @@ void ParNCMesh::BuildFaceList()
    // This is an extension of NCMesh::BuildFaceList() which also determines
    // face ownership and prepares face processor groups.
 
-   // (special case for prisms: to be able to handle edge-face constraints)
-   if (HavePrisms()) { GetEdgeList(); }
+   face_list.Clear();
+   if (Dim < 3) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
@@ -1356,6 +1372,7 @@ void ParNCMesh::Prune()
    {
       if (PruneTree(i)) { DerefineElement(i); }
    }
+
    Update();
 }
 
@@ -2271,9 +2288,31 @@ void ParNCMesh::ElementSet::Encode(const Array<int> &elements)
    FlagElements(elements, 0);
 }
 
+#ifdef MFEM_DEBUG
+std::string ParNCMesh::ElementSet::RefPath() const
+{
+   std::ostringstream oss;
+   for (int i = 0; i < ref_path.Size(); i++)
+   {
+      oss << "     elem " << ref_path[i] << " (";
+      const Element &el = ncmesh->elements[ref_path[i]];
+      for (int j = 0; j < GI[el.Geom()].nv; j++)
+      {
+         if (j) { oss << ", "; }
+         oss << ncmesh->RetrieveNode(el, j);
+      }
+      oss << ")\n";
+   }
+   return oss.str();
+}
+#endif
+
 void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
                                        Array<int> &elements) const
 {
+#ifdef MFEM_DEBUG
+   ref_path.Append(elem);
+#endif
    int mask = data[pos++];
    if (!mask)
    {
@@ -2291,7 +2330,11 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
          else { MFEM_ASSERT(ref_type == el.ref_type, "") }
       }
-      else { MFEM_ASSERT(el.ref_type != 0, ""); }
+      else
+      {
+         MFEM_ASSERT(el.ref_type != 0, "Path not found:\n"
+                     << RefPath() << "     mask = " << mask);
+      }
 
       for (int i = 0; i < 8; i++)
       {
@@ -2301,6 +2344,9 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
          }
       }
    }
+#ifdef MFEM_DEBUG
+   ref_path.DeleteLast();
+#endif
 }
 
 void ParNCMesh::ElementSet::Decode(Array<int> &elements) const

@@ -379,6 +379,11 @@ protected: // implementation
       void WriteInt(int value);
       int  GetInt(int pos) const;
       void FlagElements(const Array<int> &elements, char flag);
+
+#ifdef MFEM_DEBUG
+      mutable Array<int> ref_path;
+      std::string RefPath() const;
+#endif
    };
 
    /** Adjust some of the MeshIds before encoding for recipient 'rank', so that

@@ -430,6 +430,10 @@ PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B);
 /// Returns the matrix Rt^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
+/// Returns the matrix R * A * P
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A,
+                                     PetscParMatrix *P);
+
 /// Returns the matrix P^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);
 
@@ -494,6 +498,12 @@ public:
 
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
    void FixResidualBC(const Vector& x, Vector& y);
+
+   /// Replace boundary dofs with 0
+   void Zero(Vector &x);
+
+   /// y = x on ess_tdof_list_c and y = 0 on ess_tdof_list
+   void ZeroBC(const Vector &x, Vector &y);
 
 private:
    enum Type bctype;

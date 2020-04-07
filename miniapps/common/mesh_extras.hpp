@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 class ElementMeshStream : public std::stringstream
@@ -27,7 +27,10 @@ public:
    ElementMeshStream(Element::Type e);
 };
 
-} // namespace miniapps
+/// Merges vertices which lie at the same location
+void MergeMeshNodes(Mesh * mesh, int logging);
+
+} // namespace common
 
 } // namespace mfem
 

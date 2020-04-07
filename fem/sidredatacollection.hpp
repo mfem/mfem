@@ -17,6 +17,8 @@
 #ifdef MFEM_USE_SIDRE
 
 #include "datacollection.hpp"
+
+// Ignore warnings from the axom/sidre header (GCC + Clang versions)
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 # pragma GCC diagnostic push
 # if defined(__clang__)

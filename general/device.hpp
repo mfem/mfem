@@ -54,7 +54,14 @@ struct Backend
       OCCA_OMP = 1 << 8,
       /** @brief [device] OCCA CUDA backend. Enabled when MFEM_USE_OCCA = YES
           and MFEM_USE_CUDA = YES. */
-      OCCA_CUDA = 1 << 9
+      OCCA_CUDA = 1 << 9,
+      /** @brief [host] CEED CPU backend. GPU backends can still be used, but
+          with expensive memory transfers. Enabled when MFEM_USE_CEED = YES. */
+      CEED_CPU  = 1 << 10,
+      /** @brief [device] CEED CUDA backend working in colaboration with the
+          CUDA backend. Enabled when MFEM_USE_CEED = YES and
+          MFEM_USE_CUDA = YES. */
+      CEED_CUDA = 1 << 11
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -62,16 +69,18 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 10,
+      NUM_BACKENDS = 12,
 
       /// Biwise-OR of all CPU backends
-      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU,
+      CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
       /// Biwise-OR of all CUDA backends
-      CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA,
+      CUDA_MASK = CUDA | RAJA_CUDA | OCCA_CUDA | CEED_CUDA,
       /// Biwise-OR of all HIP backends
       HIP_MASK = HIP,
       /// Biwise-OR of all OpenMP backends
       OMP_MASK = OMP | RAJA_OMP | OCCA_OMP,
+      /// Bitwise-OR of all CEED backends
+      CEED_MASK = CEED_CPU | CEED_CUDA,
       /// Biwise-OR of all device backends
       DEVICE_MASK = CUDA_MASK | HIP_MASK,
 
@@ -116,6 +125,7 @@ private:
    MemoryType mem_type;    ///< Current Device MemoryType
    MemoryClass mem_class;  ///< Current Device MemoryClass
 
+   char *ceed_option = NULL;
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { return device_singleton; }
@@ -181,13 +191,19 @@ public:
          Backend::Id enumeration constant with '_' replaced by '-', e.g. the
          string name of 'RAJA_CPU' is 'raja-cpu'.
        * The 'cpu' backend is always enabled with lowest priority.
-       * The current backend priority from highest to lowest is: 'occa-cuda',
-         'raja-cuda', 'cuda', 'hip', 'occa-omp', 'raja-omp', 'omp', 'occa-cpu',
-         'raja-cpu', 'cpu'.
+       * The current backend priority from highest to lowest is: 'ceed-cuda',
+         'occa-cuda', 'raja-cuda', 'cuda', 'hip', 'occa-omp', 'raja-omp', 'omp',
+         'ceed-cpu', 'occa-cpu', 'raja-cpu', 'cpu'.
        * Multiple backends can be configured at the same time.
        * Only one 'occa-*' backend can be configured at a time.
        * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
-         is already enabled. */
+         is already enabled.
+       * The backend 'ceed-cpu' delegates to a libCEED CPU backend the setup and
+         evaluation of the operator.
+       * The backend 'ceed-cuda' delegates to a libCEED CUDA backend the setup
+         and evaluation of the operator and enables the 'cuda' backend to avoid
+         transfer between host and device.
+   */
    void Configure(const std::string &device, const int dev = 0);
 
    /// Print the configuration of the MFEM virtual device object.

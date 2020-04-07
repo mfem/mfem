@@ -814,7 +814,7 @@ function(mfem_export_mk_files)
   foreach(lib ${TPL_LIBRARIES})
     get_filename_component(suffix ${lib} EXT)
     # handle interfaces (e.g., SCOREC::apf)
-    if ("${lib}" MATCHES "SCOREC::.*")
+    if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*")
     elseif (NOT "${lib}" MATCHES "SCOREC::.*" AND "${lib}" MATCHES ".*::.*")
       message(FATAL_ERROR "***** interface lib found ... exiting *****")
       # handle static and shared libs

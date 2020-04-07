@@ -233,7 +233,7 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &c);
+   void GetElementCenter(int i, Vector &center);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -285,14 +285,17 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
+   void UniformRefinement2D_base(bool update_nodes = true);
+
    /// Refine a mixed 2D mesh uniformly.
-   virtual void UniformRefinement2D();
+   virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
 
    /* If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
       represents a "face-to-quad-face" index map. When all faces are quads, the
       array @a f2qf is kept empty since it is not needed. */
    void UniformRefinement3D_base(Array<int> *f2qf = NULL,
-                                 DSTable *v_to_v_p = NULL);
+                                 DSTable *v_to_v_p = NULL,
+                                 bool update_nodes = true);
 
    /// Refine a mixed 3D mesh uniformly.
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
@@ -487,6 +490,7 @@ public:
    Element *NewElement(int geom);
 
    void AddVertex(const double *);
+   void AddSegment(const int *vi, int attr = 1);
    void AddTri(const int *vi, int attr = 1);
    void AddTriangle(const int *vi, int attr = 1);
    void AddQuad(const int *vi, int attr = 1);
@@ -552,7 +556,7 @@ public:
        Mesh vertices or nodes are set. */
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
-   void SetAttributes();
+   virtual void SetAttributes();
 
 #ifdef MFEM_USE_GECKO
    /** This is our integration with the Gecko library.  This will call the
@@ -565,14 +569,20 @@ public:
        @param[in] window Initial window size (default 2).
        @param[in] period Iterations between window increment (default 1).
        @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementReordering(Array<int> &ordering,
-                                  int iterations = 1, int window = 2,
-                                  int period = 1, int seed = 0);
+   void GetGeckoElementOrdering(Array<int> &ordering,
+                                int iterations = 1, int window = 2,
+                                int period = 1, int seed = 0);
 #endif
 
-   /** Rebuilds the mesh with a different order of elements.  The ordering
-       vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements. */
+   /** Return an ordering of the elements that approximately follows the Hilbert
+       curve. The method performs a spatial (Hilbert) sort on the centers of all
+       elements and returns the resulting sequence, which can then be passed to
+       ReorderElements. This is a cheap alternative to GetGeckoElementOrdering.*/
+   void GetHilbertElementOrdering(Array<int> &ordering);
+
+   /** Rebuilds the mesh with a different order of elements. For each element i,
+       the array ordering[i] contains its desired new index. Note that the method
+       reorders vertices, edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -1124,9 +1134,9 @@ public:
    ///@}
 
    /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,
-       has an associated NCMesh object). Triangles meshes can be both conforming
+       has an associated NCMesh object). Simplex meshes can be both conforming
        (default) or non-conforming. */
-   void EnsureNCMesh(bool triangles_nonconforming = false);
+   void EnsureNCMesh(bool simplices_nonconforming = false);
 
    bool Conforming() const { return ncmesh == NULL; }
    bool Nonconforming() const { return ncmesh != NULL; }
@@ -1154,13 +1164,17 @@ public:
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out);
-
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintVTK(std::ostream &out, int ref, int field_data=0);
+   /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
+       subdivision number (useful for high order fields and curved meshes). */
+   void PrintVTU(std::ostream &out, int ref=1);
+   /** Print the mesh in VTU format with file name fname. */
+   void PrintVTU(std::string fname);
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 

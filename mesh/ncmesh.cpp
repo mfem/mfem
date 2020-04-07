@@ -27,11 +27,6 @@ namespace mfem
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
-NCMesh::GeomInfo& NCMesh::gi_hex   = NCMesh::GI[Geometry::CUBE];
-NCMesh::GeomInfo& NCMesh::gi_wedge = NCMesh::GI[Geometry::PRISM];
-NCMesh::GeomInfo& NCMesh::gi_quad  = NCMesh::GI[Geometry::SQUARE];
-NCMesh::GeomInfo& NCMesh::gi_tri   = NCMesh::GI[Geometry::TRIANGLE];
-
 void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 {
    if (initialized) { return; }
@@ -124,14 +119,10 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       const mfem::Element *elem = mesh->GetElement(i);
 
       Geometry::Type geom = elem->GetGeometryType();
-      if (geom != Geometry::TRIANGLE &&
-          geom != Geometry::SQUARE &&
-          geom != Geometry::CUBE &&
-          geom != Geometry::PRISM)
-      {
-         MFEM_ABORT("Only triangles, quads, hexes and prisms are supported "
-                    "by NCMesh.");
-      }
+      MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
+                  geom == Geometry::CUBE || geom == Geometry::PRISM ||
+                  geom == Geometry::TETRAHEDRON,
+                  "Element type " << geom << " not supported by NCMesh.");
 
       // initialize edge/face tables for this type of element
       GI[geom].Initialize(elem);
@@ -448,8 +439,8 @@ int NCMesh::Face::GetSingleElement() const
 //// Refinement ////////////////////////////////////////////////////////////////
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
-   : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
-   , parent(-1)
+   : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
+   , rank(0), attribute(attr), parent(-1)
 {
    for (int i = 0; i < 8; i++) { node[i] = -1; }
 
@@ -474,6 +465,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
 
    // get faces and assign face attributes
    Face* f[6];
+   const GeomInfo &gi_hex = GI[Geometry::CUBE];
    for (int i = 0; i < gi_hex.nf; i++)
    {
       const int* fv = gi_hex.faces[i];
@@ -503,6 +495,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
 
    // get faces and assign face attributes
    Face* f[5];
+   const GeomInfo &gi_wedge = GI[Geometry::PRISM];
    for (int i = 0; i < gi_wedge.nf; i++)
    {
       const int* fv = gi_wedge.faces[i];
@@ -519,6 +512,32 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
    return new_id;
 }
 
+int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+                           int fattr0, int fattr1, int fattr2, int fattr3)
+{
+   // create new unrefined element, initialize nodes
+   int new_id = AddElement(Element(Geometry::TETRAHEDRON, attr));
+   Element &el = elements[new_id];
+
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
+
+   // get faces and assign face attributes
+   Face* f[4];
+   const GeomInfo &gi_tet = GI[Geometry::TETRAHEDRON];
+   for (int i = 0; i < gi_tet.nf; i++)
+   {
+      const int* fv = gi_tet.faces[i];
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]]);
+   }
+
+   f[0]->attribute = fattr0;
+   f[1]->attribute = fattr1;
+   f[2]->attribute = fattr2;
+   f[3]->attribute = fattr3;
+
+   return new_id;
+}
+
 int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
                              int attr,
                              int eattr0, int eattr1, int eattr2, int eattr3)
@@ -531,6 +550,7 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
 
    // get (degenerate) faces and assign face attributes
    Face* f[4];
+   const GeomInfo &gi_quad = GI[Geometry::SQUARE];
    for (int i = 0; i < gi_quad.nf; i++)
    {
       const int* fv = gi_quad.faces[i];
@@ -554,6 +574,7 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
 
    // get (degenerate) faces and assign face attributes
    Face* f[3];
+   const GeomInfo &gi_tri = GI[Geometry::TRIANGLE];
    for (int i = 0; i < gi_tri.nf; i++)
    {
       const int* fv = gi_tri.faces[i];
@@ -1147,13 +1168,13 @@ void NCMesh::RefineElement(int elem, char ref_type)
       // Wedge vertex numbering:
       //
       //          5
-      //          +
-      //        / | \                     Faces: 0 bottom
+      //         _+_
+      //       _/ | \_                    Faces: 0 bottom
       //    3 /   |   \ 4                        1 top
       //     +---------+                         2 front
       //     |    |    |                         3 right (1 2 5 4)
-      //     |    +    |                         4 left (2 0 3 5)
-      //     |  / 2 \  |           Z  Y
+      //     |   _+_   |                         4 left (2 0 3 5)
+      //     | _/ 2 \_ |           Z  Y
       //     |/       \|           | /
       //     +---------+           *--X
       //    0           1
@@ -1270,6 +1291,94 @@ void NCMesh::RefineElement(int elem, char ref_type)
       }
 
       if (ref_type != 7) { Iso = false; }
+   }
+   else if (el.Geom() == Geometry::TETRAHEDRON)
+   {
+      // Tetrahedron vertex numbering:
+      //
+      //    3
+      //     +                         Faces: 0 back (1, 2, 3)
+      //     |\\_                             1 left (0, 3, 2)
+      //     ||  \_                           2 front (0, 1, 3)
+      //     | \   \_                         3 bottom (0, 1, 2)
+      //     |  +__  \_
+      //     | /2  \__ \_       Z  Y
+      //     |/       \__\      | /
+      //     +------------+     *--X
+      //    0              1
+
+      ref_type = 7; // for consistence
+
+      int mid01 = GetMidEdgeNode(no[0], no[1]);
+      int mid12 = GetMidEdgeNode(no[1], no[2]);
+      int mid02 = GetMidEdgeNode(no[2], no[0]);
+
+      int mid03 = GetMidEdgeNode(no[0], no[3]);
+      int mid13 = GetMidEdgeNode(no[1], no[3]);
+      int mid23 = GetMidEdgeNode(no[2], no[3]);
+
+      child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
+                                -1, fa[1], fa[2], fa[3]);
+
+      child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
+                                fa[0], -1, fa[2], fa[3]);
+
+      child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
+                                fa[0], fa[1], -1, fa[3]);
+
+      child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
+                                fa[0], fa[1], fa[2], -1);
+
+      // There are three ways to split the inner octahedron. A good strategy is
+      // to use the shortest diagonal. At the moment we don't have the geometric
+      // information in this class to determine which diagonal is the shortest,
+      // but it seems that with reasonable shapes of the coarse tets and MFEM's
+      // default tet orientation, always using tet_type == 0 produces stable
+      // refinements. Types 1 and 2 are unused for now.
+      el.tet_type = 0;
+
+      if (el.tet_type == 0) // shortest diagonal mid01--mid23
+      {
+         child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
+                                   fa[1], -1, -1, -1);
+
+         child[5] = NewTetrahedron(mid01, mid23, mid03, mid13, attr,
+                                   -1, fa[2], -1, -1);
+
+         child[6] = NewTetrahedron(mid01, mid23, mid13, mid12, attr,
+                                   fa[0], -1, -1, -1);
+
+         child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
+                                   -1, fa[3], -1, -1);
+      }
+      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+      {
+         child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
+                                   fa[3], -1, -1, -1);
+
+         child[5] = NewTetrahedron(mid03, mid02, mid23, mid12, attr,
+                                   -1, -1, -1, fa[1]);
+
+         child[6] = NewTetrahedron(mid03, mid23, mid13, mid12, attr,
+                                   fa[0], -1, -1, -1);
+
+         child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
+                                   -1, -1, -1, fa[2]);
+      }
+      else // el.tet_type == 2, shortest diagonal mid02--mid13
+      {
+         child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
+                                   fa[2], -1, -1, -1);
+
+         child[5] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
+                                   -1, -1, fa[1], -1);
+
+         child[6] = NewTetrahedron(mid02, mid23, mid13, mid12, attr,
+                                   fa[0], -1, -1, -1);
+
+         child[7] = NewTetrahedron(mid02, mid12, mid13, mid01, attr,
+                                   -1, -1, fa[3], -1);
+      }
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
@@ -1449,6 +1558,7 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          ch = el.child[quad_deref_table[el.ref_type - 1][index]];
          break;
 
+      case Geometry::TETRAHEDRON:
       case Geometry::TRIANGLE:
          ch = el.child[index];
          break;
@@ -1481,6 +1591,8 @@ void NCMesh::DerefineElement(int elem)
    int fa[6];
    int rt1 = el.ref_type - 1;
 
+   for (int i = 0; i < 8; i++) { el.node[i] = -1; }
+
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
    {
@@ -1492,7 +1604,7 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < 6; i++)
       {
          Element &ch = elements[child[hex_deref_table[rt1][i + 8]]];
-         const int* fv = gi_hex.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
@@ -1510,9 +1622,21 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < 5; i++)
       {
          Element &ch = elements[child[prism_deref_table[rt1][i + 6]]];
-         const int* fv = gi_wedge.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
+      }
+   }
+   else if (el.Geom() == Geometry::TETRAHEDRON)
+   {
+      for (int i = 0; i < 4; i++)
+      {
+         Element& ch1 = elements[child[i]];
+         Element& ch2 = elements[child[(i+1) & 0x3]];
+         el.node[i] = ch1.node[i];
+         const int* fv = GI[el.Geom()].faces[i];
+         fa[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
+                            ch2.node[fv[2]], ch2.node[fv[3]])->attribute;
       }
    }
    else if (el.Geom() == Geometry::SQUARE)
@@ -1525,7 +1649,7 @@ void NCMesh::DerefineElement(int elem)
       for (int i = 0; i < 4; i++)
       {
          Element &ch = elements[child[quad_deref_table[rt1][i + 4]]];
-         const int* fv = gi_quad.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
@@ -1536,7 +1660,7 @@ void NCMesh::DerefineElement(int elem)
       {
          Element& ch = elements[child[i]];
          el.node[i] = ch.node[i];
-         const int* fv = gi_tri.faces[i];
+         const int* fv = GI[el.Geom()].faces[i];
          fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
@@ -1787,9 +1911,6 @@ void NCMesh::UpdateLeafElements()
    for (int i = 0; i < root_state.Size(); i++)
    {
       CollectLeafElements(i, root_state[i]);
-      // TODO: root state should not always be 0, we need a precomputed array
-      // with root element states to ensure continuity where possible, also
-      // optimized ordering of the root elements themselves (Gecko?)
    }
    AssignLeafIndices();
 }
@@ -1872,6 +1993,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    {
       case Geometry::CUBE: return new mfem::Hexahedron;
       case Geometry::PRISM: return new mfem::Wedge;
+      case Geometry::TETRAHEDRON: return new mfem::Tetrahedron;
       case Geometry::SQUARE: return new mfem::Quadrilateral;
       case Geometry::TRIANGLE: return new mfem::Triangle;
    }
@@ -1970,7 +2092,8 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
                }
                mboundary.Append(quad);
             }
-            else if (nc_elem.geom == Geometry::PRISM)
+            else if (nc_elem.geom == Geometry::PRISM ||
+                     nc_elem.geom == Geometry::TETRAHEDRON)
             {
                MFEM_ASSERT(nfv == 3, "");
                Triangle* tri = new Triangle;
@@ -2016,7 +2139,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       node->edge_index = i;
    }
 
-   // get face enumeration from the Mesh
+   // get face enumeration from the Mesh, initialize 'face_geom'
    face_geom.SetSize(NFaces);
    for (int i = 0; i < NFaces; i++)
    {
@@ -2251,13 +2374,13 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    Face *ef[2][4];
    if (split == 1) // "X" split face
    {
-      Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
+      Point pmid0(pm(0), pm(1)), pmid2(pm(2), pm(3));
 
       TraverseQuadFace(vn0, mid[0], mid[2], vn3,
-                       PointMatrix(pm(0), mid0, mid2, pm(3)), level+1, ef[0]);
+                       PointMatrix(pm(0), pmid0, pmid2, pm(3)), level+1, ef[0]);
 
       TraverseQuadFace(mid[0], vn1, vn2, mid[2],
-                       PointMatrix(mid0, pm(1), pm(2), mid2), level+1, ef[1]);
+                       PointMatrix(pmid0, pm(1), pm(2), pmid2), level+1, ef[1]);
 
       eface[1] = ef[1][1];
       eface[3] = ef[0][3];
@@ -2265,13 +2388,13 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    }
    else if (split == 2) // "Y" split face
    {
-      Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
+      Point pmid1(pm(1), pm(2)), pmid3(pm(3), pm(0));
 
       TraverseQuadFace(vn0, vn1, mid[1], mid[3],
-                       PointMatrix(pm(0), pm(1), mid1, mid3), level+1, ef[0]);
+                       PointMatrix(pm(0), pm(1), pmid1, pmid3), level+1, ef[0]);
 
       TraverseQuadFace(mid[3], mid[1], vn2, vn3,
-                       PointMatrix(mid3, mid1, pm(2), pm(3)), level+1, ef[1]);
+                       PointMatrix(pmid3, pmid1, pm(2), pm(3)), level+1, ef[1]);
 
       eface[0] = ef[0][0];
       eface[2] = ef[1][2];
@@ -2327,7 +2450,43 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    }
 }
 
-void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
+void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1)
+{
+   int mid = nodes.FindId(vn0, vn1);
+   if (mid < 0) { return; }
+
+   const Node &nd = nodes[mid];
+   if (nd.HasEdge())
+   {
+      // check if the edge is already a master in 'edge_list'
+      int type;
+      const MeshId &eid = edge_list.LookUp(nd.edge_index, &type);
+      if (type == 1)
+      {
+         // in this case we need to add an edge-face constraint, because the
+         // master edge is really a (face-)slave itself
+
+         face_list.slaves.push_back(
+            Slave(-1 - eid.index, eid.element, eid.local, eid.geom));
+
+         DenseMatrix &mat = face_list.slaves.back().point_matrix;
+
+         int v0index = nodes[vn0].vert_index;
+         int v1index = nodes[vn1].vert_index;
+         ((v0index < v1index) ? PointMatrix(p0, p1, p0)
+          /*               */ : PointMatrix(p1, p0, p1)).GetMatrix(mat);
+
+         return; // no need to continue deeper
+      }
+   }
+
+   // recurse deeper
+   Point pmid(p0, p1);
+   TraverseTetEdge(vn0, mid, p0, pmid);
+   TraverseTetEdge(mid, vn1, pmid, p1);
+}
+
+bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
                              const PointMatrix& pm, int level)
 {
    if (level > 0)
@@ -2348,35 +2507,48 @@ void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
          int local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, mat);
          face_list.slaves.back().local = local;
 
-         return;
+         return true;
       }
    }
 
    int mid[3];
    if (TriFaceSplit(vn0, vn1, vn2, mid))
    {
-      Point mid0(pm(0), pm(1)), mid1(pm(1), pm(2)), mid2(pm(2), pm(0));
+      Point pmid0(pm(0), pm(1)), pmid1(pm(1), pm(2)), pmid2(pm(2), pm(0));
+      bool b[4];
 
-      TraverseTriFace(vn0, mid[0], mid[2],
-                      PointMatrix(pm(0), mid0, mid2), level+1);
+      b[0] = TraverseTriFace(vn0, mid[0], mid[2],
+                             PointMatrix(pm(0), pmid0, pmid2), level+1);
 
-      TraverseTriFace(mid[0], vn1, mid[1],
-                      PointMatrix(mid0, pm(1), mid1), level+1);
+      b[1] = TraverseTriFace(mid[0], vn1, mid[1],
+                             PointMatrix(pmid0, pm(1), pmid1), level+1);
 
-      TraverseTriFace(mid[2], mid[1], vn2,
-                      PointMatrix(mid2, mid1, pm(2)), level+1);
+      b[2] = TraverseTriFace(mid[2], mid[1], vn2,
+                             PointMatrix(pmid2, pmid1, pm(2)), level+1);
 
-      TraverseTriFace(mid[1], mid[2], mid[0],
-                      PointMatrix(mid1, mid2, mid0), level+1);
+      b[3] = TraverseTriFace(mid[1], mid[2], mid[0],
+                             PointMatrix(pmid1, pmid2, pmid0), level+1);
+
+      // traverse possible tet edges constrained by the master face
+      if (HaveTets() && !b[3])
+      {
+         if (!b[1]) { TraverseTetEdge(mid[0], mid[1], pmid0, pmid1); }
+         if (!b[2]) { TraverseTetEdge(mid[1], mid[2], pmid1, pmid2); }
+         if (!b[0]) { TraverseTetEdge(mid[2], mid[0], pmid2, pmid0); }
+      }
    }
+
+   return false;
 }
 
 void NCMesh::BuildFaceList()
 {
    face_list.Clear();
-   boundary_faces.SetSize(0);
-
    if (Dim < 3) { return; }
+
+   if (HaveTets()) { GetEdgeList(); } // needed by TraverseTetEdge()
+
+   boundary_faces.SetSize(0);
 
    Array<char> processed_faces(faces.NumIds());
    processed_faces = 0;
@@ -2702,10 +2874,20 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 
    MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
    int key = inv_index[index];
-   MFEM_VERIFY(key >= 0, "entity not found.");
 
-   if (type) { *type = key & 0x3; }
+   if (!type)
+   {
+      MFEM_VERIFY(key >= 0, "entity not found.");
+   }
+   else // return entity type if requested, don't abort when not found
+   {
+      *type = (key >= 0) ? (key & 0x3) : -1;
 
+      static MeshId invalid;
+      if (*type < 0) { return invalid; } // not found
+   }
+
+   // return found entity MeshId
    switch (key & 0x3)
    {
       case 0: return conforming[key >> 2];
@@ -2739,10 +2921,18 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
       {
          indices.Append(mid[i]);
       }
+
       CollectTriFaceVertices(v0, mid[0], mid[2], indices);
       CollectTriFaceVertices(mid[0], v1, mid[1], indices);
       CollectTriFaceVertices(mid[2], mid[1], v2, indices);
       CollectTriFaceVertices(mid[0], mid[1], mid[2], indices);
+
+      if (HaveTets()) // possible edge-face contact
+      {
+         CollectEdgeVertices(mid[0], mid[1], indices);
+         CollectEdgeVertices(mid[1], mid[2], indices);
+         CollectEdgeVertices(mid[2], mid[0], indices);
+      }
    }
 }
 
@@ -2759,7 +2949,7 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
          CollectQuadFaceVertices(v0, mid[0], mid[2], v3, indices);
          CollectQuadFaceVertices(mid[0], v1, v2, mid[2], indices);
 
-         if (HavePrisms())
+         if (HavePrisms()) // possible edge-face contact
          {
             CollectEdgeVertices(mid[0], mid[2], indices);
          }
@@ -2772,7 +2962,7 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
          CollectQuadFaceVertices(v0, v1, mid[1], mid[3], indices);
          CollectQuadFaceVertices(mid[3], mid[1], v2, v3, indices);
 
-         if (HavePrisms())
+         if (HavePrisms()) // possible edge-face contact
          {
             CollectEdgeVertices(mid[1], mid[3], indices);
          }
@@ -3219,6 +3409,9 @@ NCMesh::PointMatrix NCMesh::pm_tri_identity(
 NCMesh::PointMatrix NCMesh::pm_quad_identity(
    Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)
 );
+NCMesh::PointMatrix NCMesh::pm_tet_identity(
+   Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0), Point(0, 0, 1)
+);
 NCMesh::PointMatrix NCMesh::pm_prism_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(0, 1, 1)
@@ -3232,10 +3425,11 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
 {
    switch (geom)
    {
-      case Geometry::TRIANGLE: return pm_tri_identity;
-      case Geometry::SQUARE:   return pm_quad_identity;
-      case Geometry::PRISM:    return pm_prism_identity;
-      case Geometry::CUBE:     return pm_hex_identity;
+      case Geometry::TRIANGLE:    return pm_tri_identity;
+      case Geometry::SQUARE:      return pm_quad_identity;
+      case Geometry::TETRAHEDRON: return pm_tet_identity;
+      case Geometry::PRISM:       return pm_prism_identity;
+      case Geometry::CUBE:        return pm_hex_identity;
       default:
          MFEM_ABORT("unsupported geometry " << geom);
          return pm_tri_identity;
@@ -3539,6 +3733,44 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             }
          }
       }
+      else if (geom == Geometry::TETRAHEDRON)
+      {
+         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid02(pm(2), pm(0));
+         Point mid03(pm(0), pm(3)), mid13(pm(1), pm(3)), mid23(pm(2), pm(3));
+
+         if (child == 0)
+         {
+            pm = PointMatrix(pm(0), mid01, mid02, mid03);
+         }
+         else if (child == 1)
+         {
+            pm = PointMatrix(mid01, pm(1), mid12, mid13);
+         }
+         else if (child == 2)
+         {
+            pm = PointMatrix(mid02, mid12, pm(2), mid23);
+         }
+         else if (child == 3)
+         {
+            pm = PointMatrix(mid03, mid13, mid23, pm(3));
+         }
+         else if (child == 4)
+         {
+            pm = PointMatrix(mid01, mid23, mid02, mid03);
+         }
+         else if (child == 5)
+         {
+            pm = PointMatrix(mid01, mid23, mid03, mid13);
+         }
+         else if (child == 6)
+         {
+            pm = PointMatrix(mid01, mid23, mid13, mid12);
+         }
+         else if (child == 7)
+         {
+            pm = PointMatrix(mid01, mid23, mid12, mid02);
+         }
+      }
       else if (geom == Geometry::SQUARE)
       {
          if (ref_type == 1) // X split
@@ -3653,6 +3885,8 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
    }
    else
    {
+      MFEM_ASSERT(el.tet_type == 0, "not implemented");
+
       ref_path.push_back(el.ref_type);
       ref_path.push_back(0);
 
@@ -3758,14 +3992,16 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
             .SetSize(Dim, identity.np, mat_no[geom].size());
 
             // calculate point matrices
-            std::map<int, int>::iterator it;
-            for (it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
+            for (auto it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
             {
-               char path[3];
+               char path[3] = { 0, 0, 0 };
+
                int code = it->first;
-               path[0] = code >> 4;  // ref_type (see SetDerefMatrixCodes())
-               path[1] = code & 0xf; // child
-               path[2] = 0;
+               if (code)
+               {
+                  path[0] = code >> 4;  // ref_type (see SetDerefMatrixCodes())
+                  path[1] = code & 0xf; // child
+               }
 
                GetPointMatrix(geom, path,
                               transforms.point_matrices[geom](it->second-1));
@@ -4546,6 +4782,16 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
 
       splits[2] = max6(flevel[2][1], flevel[3][1], flevel[4][1],
                        elevel[6], elevel[7], elevel[8]);
+   }
+   else if (el.Geom() == Geometry::TETRAHEDRON)
+   {
+      splits[0] = std::max(
+                     max4(flevel[0][0], flevel[1][0], flevel[2][0], flevel[3][0]),
+                     max6(elevel[0], elevel[1], elevel[2],
+                          elevel[3], elevel[4], elevel[5]));
+
+      splits[1] = splits[0];
+      splits[2] = splits[0];
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
