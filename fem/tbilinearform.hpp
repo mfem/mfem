@@ -100,7 +100,7 @@ protected:
 
    coeff_t coeff;
 
-   p_assembled_t *assembled_data;
+   Memory<p_assembled_t> assembled_data;
 
    const FiniteElementSpace &in_fes;
 
@@ -115,13 +115,13 @@ public:
         solVecLayout(sol_fes),
         int_rule(),
         coeff(integ.coeff),
-        assembled_data(NULL),
+        assembled_data(),
         in_fes(sol_fes)
    { }
 
    virtual ~TBilinearForm()
    {
-      MFEM_POSIX_MEMALIGN_FREE(assembled_data);
+      assembled_data.Delete();
    }
 
    /// Get the input finite element space prolongation matrix
@@ -195,11 +195,8 @@ public:
       const int NE = mesh.GetNE();
       if (!assembled_data)
       {
-         void* result;
-         const int size = ((NE+TE-1)/TE)*BE*sizeof(p_assembled_t);
-         MFEM_POSIX_MEMALIGN(&result, 32, size);
-         if (!result) { throw ::std::bad_alloc(); }
-         assembled_data = (p_assembled_t*) result;
+         const int size = ((NE+TE-1)/TE)*BE;
+         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_64);
       }
       for (int el = 0; el < NE; el += TE)
       {
