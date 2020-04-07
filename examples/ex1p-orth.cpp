@@ -186,9 +186,9 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&coords, "-c", "--coord-sys",
                   "Coordinate system: 1 - POLAR, 2 - PARABOLIC_CYL, "
-		  "3 - ELLIPTIC, 4 - BIPOLAR, 5 - CYLINDRICAL, 6 - SPHERICAL, "
-		  "7 - PARABOLIC, 8 - PROLATE_SPHEROIDAL, "
-		  "9 - OBLATE_SPHEROIDAL, 10 - TOROIDAL, 11 - BISPHERICAL");
+                  "3 - ELLIPTIC, 4 - BIPOLAR, 5 - CYLINDRICAL, 6 - SPHERICAL, "
+                  "7 - PARABOLIC, 8 - PROLATE_SPHEROIDAL, "
+                  "9 - OBLATE_SPHEROIDAL, 10 - TOROIDAL, 11 - BISPHERICAL");
    args.AddOption(&n1, "-n1", "--num-elements-1",
                   "Number of elements in q1-direction.");
    args.AddOption(&n2, "-n2", "--num-elements-2",
