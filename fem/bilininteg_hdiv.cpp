@@ -263,11 +263,13 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
+               double val = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
-                  diag(dx + (dy * D1Dx) + osc, e) += mass[qx] * wx * wx;
+                  val += mass[qx] * wx * wx;
                }
+               diag(dx + (dy * D1Dx) + osc, e) += val;
             }
          }
 
@@ -327,12 +329,13 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
+                  double val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
-                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e)
-                     += mass[qx] * wx * wx;
+                     val += mass[qx] * wx * wx;
                   }
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
                }
             }
          }
@@ -1000,11 +1003,13 @@ static void PADivDivAssembleDiagonal2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
+               double val = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                  diag(dx + (dy * D1Dx) + osc, e) += div[qx] * wx * wx;
+                  val += div[qx] * wx * wx;
                }
+               diag(dx + (dy * D1Dx) + osc, e) += val;
             }
          }
 
@@ -1063,12 +1068,13 @@ static void PADivDivAssembleDiagonal3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
+                  double val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      const double wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                     diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
-                        a[dx] * wx * wx;
+                     val += a[dx] * wx * wx;
                   }
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
                }
             }
          }
@@ -1889,10 +1895,12 @@ static void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                   }  // loop c
                }  // loop qz
 
+               double val = 0.0;
                for (int i=0; i<3*D1D*(D1D - 1)*(D1D - 1); ++i)
                {
-                  diag(rx,ry,rz,e) += row[i] * row[i] * D(i,e);
+                  val += row[i] * row[i] * D(i,e);
                }
+               diag(rx,ry,rz,e) += val;
             }  // loop rx
          }  // loop ry
       }  // loop rz
@@ -1980,10 +1988,12 @@ static void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                }  // loop c
             }  // loop qy
 
+            double val = 0.0;
             for (int i=0; i<2*D1D*(D1D - 1); ++i)
             {
-               diag(rx,ry,e) += row[i] * row[i] * D(i,e);
+               val += row[i] * row[i] * D(i,e);
             }
+            diag(rx,ry,e) += val;
          }  // loop rx
       }  // loop ry
    }); // end of element loop
