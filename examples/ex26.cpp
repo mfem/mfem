@@ -21,7 +21,7 @@
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions
 //               as in example 1. It highlights on the creation of a hierarchy
 //               of discretization spaces with partial assembly and the
-//               construction of an efficient p-multigrid preconditioner for the
+//               construction of an efficient multigrid preconditioner for the
 //               iterative solver.
 
 #include "mfem.hpp"
@@ -31,99 +31,46 @@
 using namespace std;
 using namespace mfem;
 
-class MultigridDiffusionOperator : public MultigridOperator
+class DiffusionMultigrid : public Multigrid
 {
 private:
-   Array<BilinearForm*> bfs;
-   Array<Array<int>*> essentialTrueDofs;
    ConstantCoefficient one;
 
 public:
-   /// Constructor for a multigrid diffusion operator for a given SpaceHierarchy. Uses Chebyshev accelerated smoothing.
-   MultigridDiffusionOperator(SpaceHierarchy& spaceHierarchy,
-                              Array<int>& ess_bdr, int chebyshevOrder = 2)
-      : one(1.0)
+   /// Constructor for a diffusion multigrid for a given FiniteElementSpaceHierarchy.
+   /// Uses Chebyshev accelerated smoothing.
+   DiffusionMultigrid(FiniteElementSpaceHierarchy& fespaces, Array<int>& ess_bdr)
+      : Multigrid(fespaces), one(1.0)
    {
-      ConstructCoarseOperatorAndSolver(spaceHierarchy, ess_bdr);
+      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
-      for (int level = 1; level < spaceHierarchy.GetNumLevels(); ++level)
+      for (int level = 1; level < fespaces.GetNumLevels(); ++level)
       {
-         BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(level));
-         form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         AddIntegrators(form);
-         form->Assemble();
-         bfs.Append(form);
-
-         essentialTrueDofs.Append(new Array<int>());
-         spaceHierarchy.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
-            ess_bdr, *essentialTrueDofs.Last());
-
-         OperatorPtr opr;
-         opr.SetType(Operator::ANY_TYPE);
-         form->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
-         opr.SetOperatorOwner(false);
-
-         Vector diag(spaceHierarchy.GetFESpaceAtLevel(level).GetTrueVSize());
-         form->AssembleDiagonal(diag);
-
-         Solver* smoother = new OperatorChebyshevSmoother(
-            opr.Ptr(), diag, *essentialTrueDofs.Last(), chebyshevOrder);
-
-         Operator* P =
-            new TransferOperator(spaceHierarchy.GetFESpaceAtLevel(level - 1),
-                                 spaceHierarchy.GetFESpaceAtLevel(level));
-
-         AddLevel(opr.Ptr(), smoother, P, true, true, true);
+         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), ess_bdr);
       }
-   }
-
-   virtual ~MultigridDiffusionOperator()
-   {
-      for (int i = 0; i < bfs.Size(); ++i)
-      {
-         delete bfs[i];
-      }
-
-      for (int i = 0; i < essentialTrueDofs.Size(); ++i)
-      {
-         delete essentialTrueDofs[i];
-      }
-   }
-
-   void EliminateBCs(Vector& x, Vector& b, Vector& X, Vector& B)
-   {
-      OperatorPtr oper;
-      bfs.Last()->FormLinearSystem(*essentialTrueDofs.Last(), x, b,
-                                   oper, X, B);
-   }
-
-   void RecoverFEMSolution(const Vector& X, const Vector& b, Vector& x)
-   {
-      bfs.Last()->RecoverFEMSolution(X, b, x);
    }
 
 private:
-   void AddIntegrators(BilinearForm* form)
+   void ConstructBilinearForm(FiniteElementSpace& fespace, Array<int>& ess_bdr)
    {
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
-   }
-
-   void ConstructCoarseOperatorAndSolver(SpaceHierarchy& spaceHierarchy,
-                                         Array<int>& ess_bdr)
-   {
-      BilinearForm* form = new BilinearForm(&spaceHierarchy.GetFESpaceAtLevel(0));
+      BilinearForm* form = new BilinearForm(&fespace);
       form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      AddIntegrators(form);
+      form->AddDomainIntegrator(new DiffusionIntegrator(one));
       form->Assemble();
       bfs.Append(form);
 
       essentialTrueDofs.Append(new Array<int>());
-      spaceHierarchy.GetFESpaceAtLevel(0).GetEssentialTrueDofs(
-         ess_bdr, *essentialTrueDofs.Last());
+      fespace.GetEssentialTrueDofs(ess_bdr, *essentialTrueDofs.Last());
+   }
+
+   void ConstructCoarseOperatorAndSolver(FiniteElementSpace& coarse_fespace,
+                                         Array<int>& ess_bdr)
+   {
+      ConstructBilinearForm(coarse_fespace, ess_bdr);
 
       OperatorPtr opr;
       opr.SetType(Operator::ANY_TYPE);
-      form->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
       opr.SetOperatorOwner(false);
 
       CGSolver* pcg = new CGSolver();
@@ -133,7 +80,25 @@ private:
       pcg->SetAbsTol(0.0);
       pcg->SetOperator(*opr.Ptr());
 
-      AddCoarsestLevel(opr.Ptr(), pcg, true, true);
+      AddLevel(opr.Ptr(), pcg, true, true);
+   }
+
+   void ConstructOperatorAndSmoother(FiniteElementSpace& fespace,
+                                     Array<int>& ess_bdr)
+   {
+      ConstructBilinearForm(fespace, ess_bdr);
+
+      OperatorPtr opr;
+      opr.SetType(Operator::ANY_TYPE);
+      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      opr.SetOperatorOwner(false);
+
+      Vector diag(fespace.GetTrueVSize());
+      bfs.Last()->AssembleDiagonal(diag);
+
+      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+                                                       *essentialTrueDofs.Last(), 2);
+      AddLevel(opr.Ptr(), smoother, true, true);
    }
 };
 
@@ -141,17 +106,17 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int geometricrefinements = 0;
-   int orderrefinements = 2;
+   int geometric_refinements = 0;
+   int order_refinements = 2;
    const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&geometricrefinements, "-gr", "--geometricrefinements",
+   args.AddOption(&geometric_refinements, "-gr", "--geometricrefinements",
                   "Number of geometric refinements done prior to order refinements.");
-   args.AddOption(&orderrefinements, "-or", "--orderrefinements",
+   args.AddOption(&order_refinements, "-or", "--orderrefinements",
                   "Number of order refinements. Finest level in the hierarchy has order 2^{or}.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
@@ -192,31 +157,32 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space hierarchy on the mesh. Here we use
    //    continuous Lagrange finite elements. We start with order 1 on the
-   //    coarse level and increase the order by of factor of 2 for each
-   //    additional level.
+   //    coarse level and geometrically refine the spaces by the specified
+   //    amount. Afterwards, we increase the order of the finite elements
+   //    by a factor of 2 for each additional level.
    FiniteElementCollection *fec = new H1_FECollection(1, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   FiniteElementSpace *coarse_fespace = new FiniteElementSpace(mesh, fec);
+   FiniteElementSpaceHierarchy fespaces(mesh, coarse_fespace, true, true);
 
    Array<FiniteElementCollection*> collections;
    collections.Append(fec);
-   SpaceHierarchy spaceHierarchy(mesh, fespace, true, true);
-   for (int level = 0; level < geometricrefinements; ++level)
+   for (int level = 0; level < geometric_refinements; ++level)
    {
-      spaceHierarchy.AddUniformlyRefinedLevel();
+      fespaces.AddUniformlyRefinedLevel();
    }
-   for (int level = 0; level < orderrefinements; ++level)
+   for (int level = 0; level < order_refinements; ++level)
    {
       collections.Append(new H1_FECollection(std::pow(2, level+1), dim));
-      spaceHierarchy.AddOrderRefinedLevel(collections.Last());
+      fespaces.AddOrderRefinedLevel(collections.Last());
    }
 
    cout << "Number of finite element unknowns: "
-        << spaceHierarchy.GetFinestFESpace().GetTrueVSize() << endl;
+        << fespaces.GetFinestFESpace().GetTrueVSize() << endl;
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   LinearForm *b = new LinearForm(&spaceHierarchy.GetFinestFESpace());
+   LinearForm *b = new LinearForm(&fespaces.GetFinestFESpace());
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
@@ -224,35 +190,33 @@ int main(int argc, char *argv[])
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   GridFunction x(&spaceHierarchy.GetFinestFESpace());
+   GridFunction x(&fespaces.GetFinestFESpace());
    x = 0.0;
 
    // 8. Create the multigrid operator using the previously created
-   //    SpaceHierarchy and additional boundary information. This operator
+   //    FiniteElementSpaceHierarchy and additional boundary information. This operator
    //    is then used to create the MultigridSolver as a preconditioner in the
    //    iterative solver.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
-   MultigridDiffusionOperator mgOperator(spaceHierarchy, ess_bdr);
-   MultigridSolver M(&mgOperator, MultigridSolver::CycleType::VCYCLE, 1, 1);
-
-   cout << "Size of linear system: " <<
-        mgOperator.GetOperatorAtFinestLevel()->Height() << endl;
-
+   DiffusionMultigrid M(fespaces, ess_bdr);
+   M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+   OperatorPtr A;
    Vector B, X;
-   mgOperator.EliminateBCs(x, *b, X, B);
+   M.FormFineLinearSystem(x, *b, A, X, B);
+   cout << "Size of linear system: " << A->Height() << endl;
 
    // 9. Solve the linear system A X = B.
-   PCG(mgOperator, M, B, X, 1, 2000, 1e-12, 0.0);
+   PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
 
    // 10. Recover the solution as a finite element grid function.
-   mgOperator.RecoverFEMSolution(X, *b, x);
+   M.RecoverFineFEMSolution(X, *b, x);
 
    // 11. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
-   spaceHierarchy.GetFinestFESpace().GetMesh()->Print(mesh_ofs);
+   fespaces.GetFinestFESpace().GetMesh()->Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
@@ -264,8 +228,8 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *spaceHierarchy.GetFinestFESpace().GetMesh()
-               << x << flush;
+      sol_sock << "solution\n" << *fespaces.GetFinestFESpace().GetMesh() << x <<
+               flush;
    }
 
    // 13. Free the used memory.

@@ -36,10 +36,11 @@ set(SRCS
   intrules.cpp
   linearform.cpp
   lininteg.cpp
+  multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
-  spacehierarchy.cpp
+  fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -70,13 +71,14 @@ set(HDRS
   intrules.hpp
   linearform.hpp
   lininteg.hpp
+  multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
-  spacehierarchy.hpp
+  fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
