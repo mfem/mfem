@@ -12,6 +12,7 @@
 #ifndef MFEM_FE_BASE
 #define MFEM_FE_BASE
 
+#include "../../mfem_export.h"
 #include "../intrules.hpp"
 #include "../geom.hpp"
 
@@ -1177,7 +1178,7 @@ public:
    ~Poly_1D();
 };
 
-extern Poly_1D poly1d;
+MFEM_EXPORT extern Poly_1D poly1d;
 
 
 /// An element defined as an ND tensor product of 1D elements on a segment,

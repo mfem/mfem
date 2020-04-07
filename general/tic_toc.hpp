@@ -13,6 +13,7 @@
 #define MFEM_TIC_TOC
 
 #include "../config/config.hpp"
+#include "../mfem_export.h"
 
 #ifndef MFEM_TIMER_TYPE
 #ifndef _WIN32
@@ -66,7 +67,7 @@ public:
 };
 
 
-extern StopWatch tic_toc;
+MFEM_EXPORT extern StopWatch tic_toc;
 
 /// Start the tic_toc timer
 extern void tic();

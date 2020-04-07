@@ -13,6 +13,7 @@
 #define MFEM_SOCKETSTREAM
 
 #include "../config/config.hpp"
+#include "../mfem_export.h"
 #include "error.hpp"
 #include "globals.hpp"
 
@@ -32,7 +33,7 @@ class socketbuf : public std::streambuf
 {
 protected:
    int socket_descriptor;
-   static const int buflen = 1024;
+   static MFEM_EXPORT const int buflen = 1024;
    char ibuf[buflen], obuf[buflen];
 
 public:
