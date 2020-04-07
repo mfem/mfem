@@ -844,9 +844,8 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
 
    QuadF->HostRead();
-   int elem_no = T.ElementNo;
    Vector temp(1);
-   QuadF->GetElementValues(elem_no, ip.index, temp);
+   QuadF->GetElementValues(T.ElementNo, ip.index, temp);
    return temp[0];
 }
 
