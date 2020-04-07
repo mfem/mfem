@@ -14,7 +14,7 @@
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
-/mfem_export.h
+mfem_export.h
 
 # Backup files
 *~
