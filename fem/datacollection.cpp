@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "fem.hpp"
 #include "../mesh/nurbs.hpp"
@@ -165,8 +165,8 @@ void DataCollection::SetFormat(int fmt)
 void DataCollection::SetCompression(bool comp)
 {
    compression = comp;
-#ifndef MFEM_USE_GZSTREAM
-   MFEM_ASSERT(!compression, "GZStream not enabled in MFEM build.");
+#ifndef MFEM_USE_ZLIB
+   MFEM_VERIFY(!compression, "ZLib not enabled in MFEM build.");
 #endif
 }
 
@@ -228,8 +228,7 @@ void DataCollection::SaveMesh()
    }
 
    std::string mesh_name = GetMeshFileName();
-   const char *mode = (compression) ? "zwb6" : "w";
-   ofgzstream mesh_file(mesh_name.c_str(), mode);
+   mfem::ofgzstream mesh_file(mesh_name, compression);
    mesh_file.precision(precision);
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
@@ -277,8 +276,7 @@ const
 
 void DataCollection::SaveOneField(const FieldMapIterator &it)
 {
-   const char *mode = (compression) ? "zwb6" : "w";
-   ofgzstream field_file(GetFieldFileName(it->first).c_str(), mode);
+   mfem::ofgzstream field_file(GetFieldFileName(it->first), compression);
 
    field_file.precision(precision);
    (it->second)->Save(field_file);
@@ -291,8 +289,8 @@ void DataCollection::SaveOneField(const FieldMapIterator &it)
 
 void DataCollection::SaveOneQField(const QFieldMapIterator &it)
 {
-   const char *mode = (compression) ? "zwb6" : "w";
-   ofgzstream q_field_file(GetFieldFileName(it->first).c_str(), mode);
+   mfem::ofgzstream q_field_file(GetFieldFileName(it->first), compression);
+
    q_field_file.precision(precision);
    (it->second)->Save(q_field_file);
    if (!q_field_file)
@@ -548,7 +546,7 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 void VisItDataCollection::LoadMesh()
 {
    std::string mesh_fname = GetMeshFileName();
-   named_ifgzstream file(mesh_fname.c_str());
+   named_ifgzstream file(mesh_fname);
    // TODO: in parallel, check for errors on all processors
    if (!file)
    {
@@ -589,7 +587,7 @@ void VisItDataCollection::LoadFields()
         it != field_info_map.end(); ++it)
    {
       std::string fname = path_left + it->first + path_right;
-      ifgzstream file(fname.c_str());
+      mfem::ifgzstream file(fname);
       // TODO: in parallel, check for errors on all processors
       if (!file)
       {
@@ -734,7 +732,7 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
      pv_data_format(VTKFormat::BINARY),
      high_order_output(false)
 {
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
    compression = -1; // default zlib compression level, equivalent to 6
 #else
    compression = 0;

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-<a href="https://github.com/mfem/mfem/blob/master/COPYRIGHT"><img alt="License" src="https://img.shields.io/badge/License-LGPL--2.1-brightgreen.svg"></a>
+<a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-brightgreen.svg"></a>
 <a href="https://travis-ci.org/mfem/mfem"><img alt="Build Status" src="https://travis-ci.org/mfem/mfem.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="http://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
@@ -15,6 +15,9 @@
 The MFEM team welcomes contributions at all levels: bugfixes; code improvements;
 simplifications; new mesh, discretization or solver capabilities; improved
 documentation; new examples and miniapps; HPC performance improvements; etc.
+
+MFEM is distributed under the terms of the BSD-3 license. All new contributions
+must be made under this license.
 
 If you plan on contributing to MFEM, consider reviewing the
 [issue tracker](https://github.com/mfem/mfem/issues) first to check if a thread
@@ -367,6 +370,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   checks in Travis enforce MFEM-specific rules which are explained in the
   error messages and the `tests/scripts` directory.
 
+- If triggered, track the status of the LLNL GitLab tests. If failing, ask
+  one of the _LLNL developers_ for details.
+
 ### Pull Request Checklist
 
 Before a PR can be merged, it should satisfy the following:
@@ -377,7 +383,7 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Is this a new feature users need to be aware of? New or updated example or miniapp?
     - [ ] Does it make sense to create a new section in the `CHANGELOG` to group with other related features?
 - [ ] Update `INSTALL`:
-    - [ ] Had a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
+    - [ ] Had a new optional library been added? (*Make sure the external library is compatible with our BSD license, e.g. it is not licensed under GPL!*)
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
 - [ ] Update `.gitignore`:
@@ -533,6 +539,17 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
 
+### Mirroring on GitLab
+
+- MFEM repository is also mirrored on the LLNL GitLab instance, in a
+  semi-automated manner.
+
+- This instance is meant to complete CI testing with tests on Livermore
+  Computing systems. Gitlab pipeline status is reported in the corresponding
+  GitHub pull request.
+
+- No change can be made on this instance.
+
 ## Automated Testing
 
 MFEM has several levels of automated testing running on GitHub, as well as on
@@ -560,10 +577,14 @@ and debug build is performed with a simple run of `ex1` to verify the executable
 
 ### Tests at LLNL
 
-- We mirror the `master` and `next` branches internally (to `gh-master`
-and `gh-next`) and run longer nightly tests via cron. On the weekends, a more
-extensive test is run which extracts and executes all the different sample runs
-from each example.
+- We mirror the `master` and `next` branches internally (to `gh-master` and
+  `gh-next`) and run longer nightly tests via cron. On the weekends, a more
+  extensive test is run which extracts and executes all the different sample
+  runs from each example.
+
+- We also mirror PRs on the LLNL GitLab instance. PR mirroring can only be
+  triggered by _LLNL developers_, but test status is publicly available. Only
+  _LLNL developers_ can access the detailed test report.
 
 ## Contact Information
 

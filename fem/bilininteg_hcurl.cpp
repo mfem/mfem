@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
@@ -747,7 +747,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      //pa_data_2.SetSize(6 * nq * ne, Device::GetMemoryType());
+      // pa_data_2.SetSize(6 * nq * ne, Device::GetMemoryType());
 
       PACurlCurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
                         coeff, pa_data);
@@ -997,7 +997,7 @@ static void PACurlCurlApply3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-                     curl[qz][qy][qx][1] += gradXY[qy][qx][1] * wDz;  // (u_0)_{x_2}
+                     curl[qz][qy][qx][1] += gradXY[qy][qx][1] * wDz; // (u_0)_{x_2}
                      curl[qz][qy][qx][2] -= gradXY[qy][qx][0] * wz;  // -(u_0)_{x_1}
                   }
                }
@@ -1066,7 +1066,7 @@ static void PACurlCurlApply3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-                     curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz;  // -(u_1)_{x_2}
+                     curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz; // -(u_1)_{x_2}
                      curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
                   }
                }
@@ -1137,7 +1137,7 @@ static void PACurlCurlApply3D(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      curl[qz][qy][qx][0] += gradYZ[qz][qy][1] * wx;  // (u_2)_{x_1}
-                     curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx;  // -(u_2)_{x_0}
+                     curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx; // -(u_2)_{x_0}
                   }
                }
             }

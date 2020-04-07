@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
       cg.SetPreconditioner(Jacobi);
-
+      X = 0.0;
       cg.Mult(B, X);
    }
    else
@@ -242,7 +242,8 @@ int main(int argc, char *argv[])
 
    x.SetFromTrueDofs(X);
 
-   // 12. Compute the same solution by applying GradientInterpolator in H(curl).
+   // 12. Second approach: compute the same solution by applying
+   //     GradientInterpolator in H(curl).
    ParDiscreteLinearOperator grad(H1fespace, fespace);
    grad.AddDomainInterpolator(new GradientInterpolator());
    grad.Assemble();
