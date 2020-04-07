@@ -141,31 +141,37 @@ public:
    /// Returns the values in the vertices of i'th element for dimension vdim.
    void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
 
-   ///@{
-   /** GetValue methods taking an integer element index.
+   /** @name Element index Get Value Methods
 
        These methods take an element index and return the interpolated
        value of the field at a given reference point within the
        element.
    */
+   ///@{
+   /** Return a scalar value from within the given element. */
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
 
+   /** Return a vector value from within the given element. */
    void GetVectorValue(int i, const IntegrationPoint &ip, Vector &val) const;
    ///@}
 
-   ///@{
-   /** GetValues method taking an integer element index.
+   /** @name Element Index Get Values Methods
 
        These are convenience methods for repeatedly calling GetValue
        for multiple points within a given element.  The GetValues
        methods are optimized and should perform better than repeatedly
        calling GetValue.  The GetVectorValues method simply calls
        GetVectorValue repeatedly.
-    */
+   */
+   ///@{
+   /** Compute a collection of scalar values from within the element
+       indicated by the index i. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   int vdim = 1) const;
 
+   /** Compute a collection of vector values from within the element
+       indicated by the index i. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
 
@@ -173,8 +179,7 @@ public:
                         DenseMatrix &vals, DenseMatrix &tr) const;
    ///@}
 
-   ///@{
-   /** GetValue methods taking a ElementTransformation argument.
+   /** @name ElementTransformation Get Value Methods
 
        These member functions are designed for use within
        GridFunctionCoefficient objects.  These can be used with
@@ -182,15 +187,21 @@ public:
        Mesh::GetElementTransformation() or
        Mesh::GetBdrElementTransformation().
    */
+   ///@{
+   /** Return a scalar value from within the element indicated by the
+       ElementTransformation Object.
+   */
    double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                    int comp = 0, Vector *tr = NULL) const;
 
+   /** Return a vector value from within the element indicated by the
+       ElementTransformation Object.
+   */
    void GetVectorValue(ElementTransformation &T, const IntegrationPoint &ip,
                        Vector &val, Vector *tr = NULL) const;
    ///@}
 
-   ///@{
-   /** GetValue methods taking a FaceElementTransformations argument.
+   /** @name FaceElementTransformations Get Value Methods
 
        These member functions are designed for use within
        GridFunctionCoefficient objects.  These can be used with
@@ -199,16 +210,22 @@ public:
        Mesh::GetInteriorFaceElementTransformations(), or
        Mesh::GetBdrFaceElementTransformations().
    */
+   ///@{
+   /** Return a scalar value from within the face indicated by the
+       FaceElementTransformations object.
+   */
    double GetValue(FaceElementTransformations &T, const IntegrationPoint &ip,
                    int comp = 0, Vector *tr = NULL) const;
 
+   /** Return a vector value from within the face indicated by the
+       FaceElementTransformations object.
+   */
    void GetVectorValue(FaceElementTransformations &T,
                        const IntegrationPoint &ip,
                        Vector &val, Vector *tr = NULL) const;
    ///@}
 
-   ///@{
-   /** GetValues methods taking a ElementTransformation argument.
+   /** ElementTransformation Get Values Methods
 
        These are convenience methods for repeatedly calling GetValue
        for multiple points within a given element.  They work by
@@ -217,15 +234,19 @@ public:
        Consequently, these methods should not be expected to run
        faster than calling the above methods in an external loop.
     */
+   ///@{
+   /** Compute a collection of scalar values from within the element
+       indicated by the ElementTransformation object. */
    void GetValues(ElementTransformation &T, const IntegrationRule &ir,
                   Vector &vals, int comp = 0, DenseMatrix *tr = NULL) const;
 
+   /** Compute a collection of vector values from within the element
+       indicated by the ElementTransformation object. */
    void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
                         DenseMatrix &vals, DenseMatrix *tr = NULL) const;
    ///@}
 
-   ///@{
-   /** GetFaceValues methods take a face index argument.
+   /** @name Face Index Get Values Methods
 
        These methods are designed to work with Discontinuous Galerkin
        basis functions.  They compute field values on the interface
@@ -236,9 +257,14 @@ public:
        documentation in eltrans.hpp for more information on the \a
        side parameter.
     */
+   ///@{
+   /** Compute a collection of scalar values from within the face
+       indicated by the index i. */
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
+   /** Compute a collection of vector values from within the face
+       indicated by the index i. */
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
    ///@}
