@@ -293,6 +293,11 @@ public:
        The parameter @a own determines whether both @a h_ptr and @a d_ptr will
        be deleted when the method Delete() is called.
 
+       @note Ownership can also be controled by using the folowing methods:
+         - ClearOwnerFlags,
+         - SetHostPtrOwner,
+         - SetDevicePtrOwner.
+
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
 
