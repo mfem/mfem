@@ -13,7 +13,7 @@
 #include <fstream>
 #include <iostream>
 #include "pml.hpp"
-#include "ST.hpp"
+#include "PST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -162,6 +162,7 @@ int main(int argc, char *argv[])
    // 7. Set up the bilinear form (Real and Imaginary part)
    ConstantCoefficient one(1.0);
    ConstantCoefficient sigma(-pow(omega, 2));
+
    FunctionCoefficient ws(wavespeed);
 
    PmlMatrixCoefficient c1_re(dim,pml_detJ_JT_J_inv_Re,&pml);
@@ -207,7 +208,8 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   STP S(&a,ess_tdof_list, omega, &ws, nrlayers);
+   PSTP S(&a,lengths, omega, &ws, nrlayers);
+
 	S.SetOperator(*A);
    S.SetLoadVector(B);
    
@@ -317,7 +319,7 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.5;
+   x0 = 0.1;
    x1 = 0.5;
    double alpha,beta;
    double n = 5.0 * omega/M_PI;
@@ -396,6 +398,22 @@ double wavespeed(const Vector &x)
    //    // ws = 0.75;
    //    ws = 0.25;
    // }
+
+   // if (x(0) <= 0.33)
+   // {
+   //    ws = 1.0;
+   // }
+   // else if(x(0)<=0.66)
+   // {
+   //    ws = -0.65 + 5.0*x(0);
+   // }
+   // else 
+   // {
+   //    ws = 2.65;
+   //    // ws = 0.5;
+   // }
+
+
    ws = 1.0;
    return ws;
 }

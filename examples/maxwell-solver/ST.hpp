@@ -61,28 +61,33 @@ private:
    MeshPartition * povlp;
    MeshPartition * pnovlp;
    double omega = 0.5;
-   FunctionCoefficient * ws;
+   Coefficient * ws;
    int nrlayers;
    const Operator * A;
    Vector B;
    DofMap * ovlp_prob = nullptr;
    DofMap * novlp_prob = nullptr;
+   Array<SesquilinearForm *> HalfSpaceForms;
    Array<SparseMatrix *> PmlMat;
+   Array<SparseMatrix *> HalfSpaceMat;
    Array<KLUSolver *> PmlMatInv;
+   Array<KLUSolver *> HalfSpaceMatInv;
+   Array2D<double> Pmllength;
    mutable Array<Vector * > res;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
+   SparseMatrix * GetHalfSpaceSystemMatrix(int ip);
    void SolveHalfSpaceLinearSystem(int ip, Vector & x, Vector & load) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
    void GetCutOffSolution(Vector & sol, int ip) const;
 
 public:
-   STP(SesquilinearForm * bf_, Array<int> & ess_tdofs, 
-       double omega_, FunctionCoefficient * ws_, int nrlayers_);
+   STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+       double omega_, Coefficient * ws_, int nrlayers_);
    void SetLoadVector(Vector load) { B = load;}
    virtual void SetOperator(const Operator &op) {A = &op;}
    virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~STP(){};
+   virtual ~STP();
 };
 
 
