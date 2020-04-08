@@ -197,7 +197,7 @@ static void EADGTraceAssemble3DInt(const int NF,
                         val_int0 += r_B[k1][i1] * r_B[k1][j1]
                                     * r_B[k2][i2] * r_B[k2][j2]
                                     * s_D[k1][k2][0][0];
-                        val_int1 +  = r_B[k1][i1] * r_B[k1][j1]
+                        val_int1 += r_B[k1][i1] * r_B[k1][j1]
                                     * r_B[k2][i2] * r_B[k2][j2]
                                     * s_D[k1][k2][1][1];
                         val_ext01+= r_B[k1][i1] * r_B[k1][j1]
