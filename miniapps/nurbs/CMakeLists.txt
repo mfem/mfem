@@ -25,16 +25,31 @@ add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
 
-add_test(NAME nurbs_ex1_ser
-  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis)
+add_test(NAME nurbs_ex1_r0_o4_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis -r 0 -o 4)
+
+add_test(NAME nurbs_ex1_r2_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis -r 2)
 
 add_test(NAME nurbs_ex1_per_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
   -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2)
 
-add_test(NAME nurbs_ex1_lap_ser
+add_test(NAME nurbs_ex1_lap_r0_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
-  -m pipe-nurbs-2d.mesh -o 2 -no-ibp)
+  -m pipe-nurbs-2d.mesh -o 2 -no-ibp -r 0)
+
+add_test(NAME nurbs_ex1_lap_r2_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2)
+
+add_test(NAME nurbs_ex1_weak_r0_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m pipe-nurbs-2d.mesh -o 2 --weak-bc -r 0)
+
+add_test(NAME nurbs_ex1_weak_r2_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m pipe-nurbs-2d.mesh -o 2 --weak-bc -r 2)
 
 
 if (MFEM_USE_MPI)
