@@ -1,6 +1,5 @@
 //Source Transfer Preconditioner
 
-
 #include "ST.hpp"
 
 DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers) 
@@ -112,7 +111,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
 
 
 STP::STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-         double omega_, FunctionCoefficient * ws_,  int nrlayers_)
+         double omega_, Coefficient * ws_,  int nrlayers_)
    : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), ws(ws_), nrlayers(nrlayers_)
 {
@@ -181,10 +180,6 @@ SparseMatrix * STP::GetPmlSystemMatrix(int ip)
    length[1][0] = Pmllength[1][0];
    length[1][1] = Pmllength[1][1];
 
-   // if (ip == 0) length[0][0] = 0.0;
-   // length[1][0] = 0.0;
-   // length[1][1] = 0.0;
-   // length[0][0] = 0.0;
    CartesianPML pml(ovlp_prob->PmlMeshes[ip], length);
    pml.SetOmega(omega);
 

@@ -134,8 +134,8 @@ int main(int argc, char *argv[])
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
-   lengths[0][1] = 0.0;
-   lengths[1][1] = 0.0;
+   // lengths[0][1] = 0.0;
+   // lengths[1][1] = 0.0;
    // lengths[1][0] = 0.0;
    // lengths[0][0] = 0.0;
    CartesianPML pml(mesh_ext,lengths);
@@ -208,12 +208,8 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-<<<<<<< HEAD
    PSTP S(&a,lengths, omega, &ws, nrlayers);
 
-=======
-   STP S(&a,lengths, omega, &ws, nrlayers);
->>>>>>> 33f664fed5ed5e86763e4a3a8874ded87d0c1c48
 	S.SetOperator(*A);
    S.SetLoadVector(B);
    
