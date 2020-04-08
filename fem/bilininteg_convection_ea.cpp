@@ -118,8 +118,8 @@ static void EAConvectionAssemble2D(const int NE,
                      for (int k2 = 0; k2 < Q1D; ++k2)
                      {
                         val += (r_G[k1][i1] * r_B[k2][i2] * s_D[k1][k2][0]
-                              + r_B[k1][i1] * r_G[k2][i2] * s_D[k1][k2][1])
-                              * r_B[k1][j1]* r_B[k2][j2];
+                                + r_B[k1][i1] * r_G[k2][i2] * s_D[k1][k2][1])
+                               * r_B[k1][j1]* r_B[k2][j2];
                      }
                   }
                   A(i1, i2, j1, j2, e) = val;
@@ -186,9 +186,9 @@ static void EAConvectionAssemble3D(const int NE,
                                  double D1 = D(k1,k2,k3,1,e);
                                  double D2 = D(k1,k2,k3,2,e);
                                  val += (r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3] * D0
-                                       + r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3] * D1
-                                       + r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3] * D2)
-                                       * r_B[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
+                                         + r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3] * D1
+                                         + r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3] * D2)
+                                        * r_B[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
                               }
                            }
                         }

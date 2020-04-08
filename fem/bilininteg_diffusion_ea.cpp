@@ -116,9 +116,9 @@ static void EADiffusionAssemble2D(const int NE,
                         double D01 = D10;
                         double D11 = D(k1,k2,2,e);
                         val += bgi * D00 * bgj
-                             + gbi * D01 * bgj
-                             + bgi * D10 * gbj
-                             + gbi * D11 * gbj;
+                               + gbi * D01 * bgj
+                               + bgi * D10 * gbj
+                               + gbi * D11 * gbj;
                      }
                   }
                   A(i1, i2, j1, j2, e) = val;
@@ -198,14 +198,14 @@ static void EADiffusionAssemble3D(const int NE,
                                  double D12 = D21;
                                  double D22 = D(k1,k2,k3,5,e);
                                  val += bbgi * D00 * bbgj
-                                      + bgbi * D10 * bbgj
-                                      + gbbi * D20 * bbgj
-                                      + bbgi * D01 * bgbj
-                                      + bgbi * D11 * bgbj
-                                      + gbbi * D21 * bgbj
-                                      + bbgi * D02 * gbbj
-                                      + bgbi * D12 * gbbj
-                                      + gbbi * D22 * gbbj;
+                                        + bgbi * D10 * bbgj
+                                        + gbbi * D20 * bbgj
+                                        + bbgi * D01 * bgbj
+                                        + bgbi * D11 * bgbj
+                                        + gbbi * D21 * bgbj
+                                        + bbgi * D02 * gbbj
+                                        + bgbi * D12 * gbbj
+                                        + gbbi * D22 * gbbj;
                               }
                            }
                         }
