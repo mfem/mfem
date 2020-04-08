@@ -2640,9 +2640,11 @@ SparseMatrix &SparseMatrix::operator=(double a)
 {
    if (Rows == NULL)
    {
-      for (int i = 0, nnz = I[height]; i < nnz; i++)
+      const int nnz = J.Capacity();
+      double *h_A = HostWrite(A, nnz);
+      for (int i = 0; i < nnz; i++)
       {
-         A[i] = a;
+         h_A[i] = a;
       }
    }
    else

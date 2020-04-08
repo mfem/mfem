@@ -132,8 +132,12 @@ public:
                             required));
    }
 
+   /** @brief Parse the command-line options. 
 
-   /// Perse the command line options and pass the values to the registered variables.
+       Note that this function expects all the
+       options provided through the command line to have a corresponding
+       AddOption. In particular, this function cannot be used for partial
+       parsing. */
    void Parse();
 
    /// Return true if the command line options were parsed sucessfully.

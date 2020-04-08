@@ -350,7 +350,6 @@ void VectorFEDomainLFIntegrator::AssembleDeltaElementVect(
    vshape.Mult(vec, elvect);
 }
 
-
 void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -397,19 +396,26 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();  // <----------
+      if (F == NULL)
+      {
+         intorder -= el.GetOrder() + 1;
+      }
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
-      Tr.SetIntPoint (&ip);
-      double val = ip.weight*F.Eval(Tr, ip);
-
       el.CalcShape(ip, shape);
 
-      add(elvect, val, shape, elvect);
+      double val = ip.weight;
+      if (F)
+      {
+         Tr.SetIntPoint (&ip);
+         val *= F->Eval(Tr, ip);
+      }
+
+      elvect.Add(val, shape);
    }
 }
 

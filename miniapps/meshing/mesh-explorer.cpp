@@ -206,7 +206,6 @@ int main (int argc, char *argv[])
       print_char = 0;
       cout << endl;
       cout << "What would you like to do?\n"
-           "q) Quit\n"
            "r) Refine\n"
            "c) Change curvature\n"
            "s) Scale\n"
@@ -221,8 +220,10 @@ int main (int argc, char *argv[])
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
+           "o) Reorder elements\n"
            "S) Save in MFEM format\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+           "q) Quit\n"
 #ifdef MFEM_USE_GZSTREAM
            "Z) Save in MFEM format with compression\n"
 #endif
@@ -506,6 +507,23 @@ int main (int argc, char *argv[])
          }
       }
 
+      if (mk == 'o')
+      {
+         cout << "What type of reordering?\n"
+              "h) Hilbert spatial sort\n"
+              //"g) Gecko edge-product minimization\n" // TODO future
+              "--> " << flush;
+         char rk;
+         cin >> rk;
+
+         Array<int> ordering;
+         if (rk == 'h')
+         {
+            mesh->GetHilbertElementOrdering(ordering);
+            mesh->ReorderElements(ordering);
+         }
+      }
+
       // These are the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
@@ -516,10 +534,12 @@ int main (int argc, char *argv[])
          GridFunction attr(attr_fespace);
 
          if (mk == 'm')
+         {
             for (int i = 0; i < mesh->GetNE(); i++)
             {
                part[i] = (attr(i) = mesh->GetAttribute(i)) - 1;
             }
+         }
 
          if (mk == 'b' || mk == 'v')
          {
@@ -590,9 +610,10 @@ int main (int argc, char *argv[])
 
          if (mk == 'p')
          {
-            int *partitioning = NULL, n;
+            int *partitioning = NULL, np;
             cout << "What type of partitioning?\n"
                  "c) Cartesian\n"
+                 "s) Simple 1D split of the element sequence\n"
                  "0) METIS_PartGraphRecursive (sorted neighbor lists)\n"
                  "1) METIS_PartGraphKway      (sorted neighbor lists)"
                  " (default)\n"
@@ -607,18 +628,29 @@ int main (int argc, char *argv[])
             {
                int nxyz[3];
                cout << "Enter nx: " << flush;
-               cin >> nxyz[0]; n = nxyz[0];
+               cin >> nxyz[0]; np = nxyz[0];
                if (mesh->Dimension() > 1)
                {
                   cout << "Enter ny: " << flush;
-                  cin >> nxyz[1]; n *= nxyz[1];
+                  cin >> nxyz[1]; np *= nxyz[1];
                   if (mesh->Dimension() > 2)
                   {
                      cout << "Enter nz: " << flush;
-                     cin >> nxyz[2]; n *= nxyz[2];
+                     cin >> nxyz[2]; np *= nxyz[2];
                   }
                }
                partitioning = mesh->CartesianPartitioning(nxyz);
+            }
+            else if (pk == 's')
+            {
+               cout << "Enter number of processors: " << flush;
+               cin >> np;
+
+               partitioning = new int[mesh->GetNE()];
+               for (int i = 0; i < mesh->GetNE(); i++)
+               {
+                  partitioning[i] = i * np / mesh->GetNE();
+               }
             }
             else
             {
@@ -628,29 +660,29 @@ int main (int argc, char *argv[])
                   continue;
                }
                cout << "Enter number of processors: " << flush;
-               cin >> n;
-               partitioning = mesh->GeneratePartitioning(n, part_method);
+               cin >> np;
+               partitioning = mesh->GeneratePartitioning(np, part_method);
             }
             if (partitioning)
             {
                const char part_file[] = "partitioning.txt";
                ofstream opart(part_file);
                opart << "number_of_elements " << mesh->GetNE() << '\n'
-                     << "number_of_processors " << n << '\n';
+                     << "number_of_processors " << np << '\n';
                for (int i = 0; i < mesh->GetNE(); i++)
                {
                   opart << partitioning[i] << '\n';
                }
                cout << "Partitioning file: " << part_file << endl;
 
-               Array<int> proc_el(n);
+               Array<int> proc_el(np);
                proc_el = 0;
                for (int i = 0; i < mesh->GetNE(); i++)
                {
                   proc_el[partitioning[i]]++;
                }
                int min_el = proc_el[0], max_el = proc_el[0];
-               for (int i = 1; i < n; i++)
+               for (int i = 1; i < np; i++)
                {
                   if (min_el > proc_el[i])
                   {
@@ -669,7 +701,7 @@ int main (int argc, char *argv[])
                     << setw(12) << "total" << '\n';
                cout << " elements  "
                     << setw(12) << min_el
-                    << setw(12) << double(mesh->GetNE())/n
+                    << setw(12) << double(mesh->GetNE())/np
                     << setw(12) << max_el
                     << setw(12) << mesh->GetNE() << endl;
             }

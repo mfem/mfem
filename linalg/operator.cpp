@@ -135,6 +135,76 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
 }
 
 
+void TimeDependentOperator::ExplicitMult(const Vector &, Vector &) const
+{
+   mfem_error("TimeDependentOperator::ExplicitMult() is not overridden!");
+}
+
+void TimeDependentOperator::ImplicitMult(const Vector &, const Vector &,
+                                         Vector &) const
+{
+   mfem_error("TimeDependentOperator::ImplicitMult() is not overridden!");
+}
+
+void TimeDependentOperator::Mult(const Vector &, Vector &) const
+{
+   mfem_error("TimeDependentOperator::Mult() is not overridden!");
+}
+
+void TimeDependentOperator::ImplicitSolve(const double, const Vector &,
+                                          Vector &)
+{
+   mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+}
+
+Operator &TimeDependentOperator::GetImplicitGradient(
+   const Vector &, const Vector &, double) const
+{
+   mfem_error("TimeDependentOperator::GetImplicitGradient() is "
+              "not overridden!");
+   return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+}
+
+Operator &TimeDependentOperator::GetExplicitGradient(const Vector &) const
+{
+   mfem_error("TimeDependentOperator::GetExplicitGradient() is "
+              "not overridden!");
+   return const_cast<Operator &>(dynamic_cast<const Operator &>(*this));
+}
+
+int TimeDependentOperator::SUNImplicitSetup(const Vector &,
+                                            const Vector &,
+                                            int, int *, double)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSetup() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, double)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSolve() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassSetup()
+{
+   mfem_error("TimeDependentOperator::SUNMassSetup() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, double)
+{
+   mfem_error("TimeDependentOperator::SUNMassSolve() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
+{
+   mfem_error("TimeDependentOperator::SUNMassMult() is not overridden!");
+   return (-1);
+}
+
+
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
    : Operator(A->Height(), B->Width()),
@@ -143,6 +213,15 @@ ProductOperator::ProductOperator(const Operator *A, const Operator *B,
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
                << ", B->Height() = " << B->Height());
+
+   {
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a ProductOperator should not be in iterative mode");
+      }
+   }
 }
 
 ProductOperator::~ProductOperator()
@@ -162,6 +241,22 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
    MFEM_VERIFY(A.Width() == P.Height(),
                "incompatible Operators: A.Width() = " << A.Width()
                << ", P.Height() = " << P.Height());
+
+   {
+      const Solver* SolverA = dynamic_cast<const Solver*>(&A);
+      if (SolverA)
+      {
+         MFEM_VERIFY(!(SolverA->iterative_mode),
+                     "Operator A of an RAPOperator should not be in iterative mode");
+      }
+
+      const Solver* SolverP = dynamic_cast<const Solver*>(&P);
+      if (SolverP)
+      {
+         MFEM_VERIFY(!(SolverP->iterative_mode),
+                     "Operator P of an RAPOperator should not be in iterative mode");
+      }
+   }
 
    mem_class = Rt.GetMemoryClass()*P.GetMemoryClass();
    MemoryType mem_type = GetMemoryType(A.GetMemoryClass()*mem_class);
@@ -183,6 +278,22 @@ TripleProductOperator::TripleProductOperator(
    MFEM_VERIFY(B->Width() == C->Height(),
                "incompatible Operators: B->Width() = " << B->Width()
                << ", C->Height() = " << C->Height());
+
+   {
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a TripleProductOperator should not be in iterative mode");
+      }
+
+      const Solver* SolverC = dynamic_cast<const Solver*>(C);
+      if (SolverC)
+      {
+         MFEM_VERIFY(!(SolverC->iterative_mode),
+                     "Operator C of a TripleProductOperator should not be in iterative mode");
+      }
+   }
 
    mem_class = A->GetMemoryClass()*C->GetMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class*B->GetMemoryClass());

@@ -83,6 +83,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   │   └── web
   │       └── examples
   ├── examples
+  │   ├── ginkgo
+  │   ├── hiop
   │   ├── petsc
   │   ├── pumi
   │   └── sundials
@@ -93,6 +95,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   ├── miniapps
   │   ├── common
   │   ├── electromagnetics
+  │   ├── gslib
   │   ├── meshing
   │   ├── nurbs
   │   ├── performance
@@ -350,6 +353,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Add the example code to the `ALL_EXE_SRCS` variable.
       - [ ] Make sure `THIS_TEST_OPTIONS` is set correctly for the new example.
    - [ ] List the new example in `doc/CodeDocumentation.dox`.
+   - [ ] If new examples directory (e.g.`examples/pumi`), list it in `doc/CodeDocumentation.conf.in`
    - [ ] Companion pull request for documentation in [mfem/web](https://github.com/mfem/web) repo:
       - [ ] Update or add example-specific documentation, see e.g. the `src/examples.md`.
       - [ ] Add the description, labels and screenshots in `src/examples.md` and `src/img`.
@@ -364,6 +368,7 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Add/update the `CMakeLists.txt` file in the new miniapp directory.
       - [ ] Consider adding a new test for the new miniapp.
    - [ ] List the new miniapp in `doc/CodeDocumentation.dox`
+   - [ ] If new miniapps directory (e.g.`miniapps/nurbs`), list it in `doc/CodeDocumentation.conf.in`
    - [ ] Companion pull request for documentation in [mfem/web](https://github.com/mfem/web) repo:
      - [ ] Update or add miniapp-specific documentation, see e.g. the `src/meshing.md` and `src/electromagnetics.md` files.
      - [ ] Add the description, labels and screenshots in `src/examples.md` and `src/img`.

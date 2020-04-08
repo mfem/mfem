@@ -434,6 +434,8 @@ public:
    /** The GridFunction is resized using the SetSize() method. */
    virtual void SetSpace(FiniteElementSpace *f);
 
+   using Vector::MakeRef;
+
    /** @brief Make the GridFunction reference external data on a new
        FiniteElementSpace. */
    /** This method changes the FiniteElementSpace associated with the

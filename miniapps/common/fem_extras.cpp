@@ -16,7 +16,7 @@ using namespace std;
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 H1_FESpace::H1_FESpace(Mesh *m,
@@ -129,6 +129,6 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
    while (connection_failed);
 }
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
