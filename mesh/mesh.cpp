@@ -2294,11 +2294,12 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    {
       NumOfEdges = 0;
    }
-
    if (Dim == 1)
    {
       GenerateFaces();
    }
+
+   if (NURBSext) GenerateFaceBdrMap();
 
    if (ncmesh)
    {
@@ -2311,6 +2312,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
+
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
@@ -3784,6 +3786,8 @@ void Mesh::UpdateNURBS()
       GetElementToFaceTable();
       GenerateFaces();
    }
+
+   GenerateFaceBdrMap();
 }
 
 void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
@@ -4631,6 +4635,34 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
       default: mfem_error("Mesh::GetBdrElementEdgeIndex: invalid dimension!");
    }
    return -1;
+}
+
+int Mesh::GetBdrFace(int i) const
+{
+   switch (Dim)
+   {
+      case 1: return boundary[i]->GetVertices()[0];
+      case 2: return be_to_edge[i];
+      case 3: return be_to_face[i];
+      default: mfem_error("Mesh::GetBdrFace: invalid dimension!");
+   }
+   return -1;
+}
+
+void Mesh::GenerateFaceBdrMap()
+{
+   int fm = NumOfFaces;
+   for (int j = 0; j < NumOfBdrElements; j++)
+   {
+      fm = std::max(GetBdrFace(j),fm);
+   }
+
+   face_to_be.SetSize(fm+1);
+   face_to_be = -1;
+   for (int j = 0; j < NumOfBdrElements; j++)
+   {
+      face_to_be[GetBdrFace(j)] = j;
+   }
 }
 
 void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
@@ -10756,20 +10788,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
 }
 
 
-   int Mesh::face2be(int i)
-   {
-      if (face2be_array.Size() == 0)
-      {
-         face2be_array.SetSize(40000);
-         face2be_array = -1;
-         for (int j = 0; j < NumOfBdrElements; j++)
-         {
-           face2be_array[be2face(j)] = j;
-         }
-      }
 
-      return face2be_array[i];
-   }
 
 
 
