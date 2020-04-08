@@ -357,7 +357,7 @@ void EABilinearFormExtension::Assemble()
    }
 
    faceDofs = trialFes->GetTraceElement(0,
-      trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+                                        trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();

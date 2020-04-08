@@ -111,8 +111,8 @@ static void EAMassAssemble2D(const int NE,
                      for (int k2 = 0; k2 < Q1D; ++k2)
                      {
                         val += r_B[k1][i1] * r_B[k1][j1]
-                              * r_B[k2][i2] * r_B[k2][j2]
-                              * s_D[k1][k2];
+                               * r_B[k2][i2] * r_B[k2][j2]
+                               * s_D[k1][k2];
                      }
                   }
                   M(i1, i2, j1, j2, e) = val;
@@ -184,9 +184,9 @@ static void EAMassAssemble3D(const int NE,
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
                                  val += r_B[k1][i1] * r_B[k1][j1]
-                                      * r_B[k2][i2] * r_B[k2][j2]
-                                      * r_B[k3][i3] * r_B[k3][j3]
-                                      * s_D[k1][k2][k3];
+                                        * r_B[k2][i2] * r_B[k2][j2]
+                                        * r_B[k3][i3] * r_B[k3][j3]
+                                        * s_D[k1][k2][k3];
                               }
                            }
                         }
