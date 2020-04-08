@@ -898,8 +898,15 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    }
 
    // setup the face transformation
-   GetFaceTransformation(FaceNo, &FaceElemTr);
-
+   if (mask & 16)
+   {
+      GetFaceTransformation(FaceNo, &FaceElemTr);
+   }
+   else
+   {
+      FaceElemTr.FaceGeom = GetFaceGeometryType(FaceNo);
+   }
+   
    // setup Loc1 & Loc2
    int face_type = GetFaceElementType(FaceNo);
    if (mask & 4)
