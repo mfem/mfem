@@ -19,6 +19,7 @@
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
+//    mpirun -np 4 ex9p -ea
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
 //
