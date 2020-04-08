@@ -644,7 +644,6 @@ double GridFunction::GetValue(ElementTransformation &T,
    }
    else if (T.ElementType == ElementTransformation::BDR_ELEMENT)
    {
-      fes->GetBdrElementDofs(T.ElementNo, dofs);
       fe = fes->GetBE(T.ElementNo);
 
       if (fe == NULL)
@@ -658,6 +657,11 @@ double GridFunction::GetValue(ElementTransformation &T,
             FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
          }
          return GetValue(*FET, ip, comp);
+      }
+      else
+      {
+         /// Not a DG field so we can simply grab the DoFs.
+         fes->GetBdrElementDofs(T.ElementNo, dofs);
       }
    }
    else if (T.ElementType == ElementTransformation::FACE)
