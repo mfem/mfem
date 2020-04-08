@@ -1748,7 +1748,7 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }*/
    if (NURBSext)
    {
-     GetBdrElementDofs(mesh->face2be(i),dofs);
+      GetBdrElementDofs(mesh->GetFaceBdr(i),dofs);
    }
    else
    {
@@ -1939,7 +1939,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 
    if (NURBSext)
    {
-      NURBSext->LoadBE(mesh->face2be(i), fe);
+      NURBSext->LoadBE(mesh->GetFaceBdr(i), fe);
    }
 
    return fe;
