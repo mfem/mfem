@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_PNCMESH
@@ -90,7 +90,7 @@ public:
        elements) so that each processor owns the same number of leaves (+-1).
        The default partitioning strategy is based on equal splitting of the
        space-filling sequence of leaf elements (custom_partition == NULL).
-       Alternatively, a used-defined element-rank assignemnt array can be
+       Alternatively, a used-defined element-rank assignment array can be
        passed. */
    void Rebalance(const Array<int> *custom_partition = NULL);
 
@@ -521,7 +521,7 @@ protected: // implementation
        owners, keeping the ghost layer up to date. Used by Rebalance() and
        Derefine(). 'target_elements' is the number of elements this rank
        is supposed to own after the exchange. If this number is not known
-       apriori, the parameter can be set to -1, but more expensive communication
+       a priori, the parameter can be set to -1, but more expensive communication
        (synchronous sends and a barrier) will be used in that case. */
    void RedistributeElements(Array<int> &new_ranks, int target_elements,
                              bool record_comm);
