@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HIP_HPP
 #define MFEM_HIP_HPP
@@ -23,6 +23,8 @@
 #define MFEM_HIP_BLOCKS 256
 
 #ifdef MFEM_USE_HIP
+#define MFEM_DEVICE __device__
+#define MFEM_HOST_DEVICE __host__ __device__
 // Define a HIP error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'hipError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
@@ -36,6 +38,8 @@
       } \
    } \
    while (0)
+#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
+#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
 #endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
@@ -59,6 +63,9 @@ void mfem_hip_error(hipError_t err, const char *expr, const char *func,
 /// Allocates device memory
 void* HipMemAlloc(void **d_ptr, size_t bytes);
 
+/// Allocates managed device memory
+void* HipMallocManaged(void **d_ptr, size_t bytes);
+
 /// Frees device memory
 void* HipMemFree(void *d_ptr);
 
@@ -79,6 +86,12 @@ void* HipMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 /// Copies memory from Device to Host
 void* HipMemcpyDtoHAsync(void *h_dst, const void *d_src, size_t bytes);
+
+/// Check the error code returned by hipGetLastError(), aborting on error.
+void HipCheckLastError();
+
+/// Get the number of HIP devices
+int HipGetDeviceCount();
 
 } // namespace mfem
 
