@@ -2335,7 +2335,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       GenerateFaces();
    }
 
-   if (NURBSext) GenerateFaceBdrMap();
+   if (NURBSext) { GenerateFaceBdrMap(); }
 
    if (ncmesh)
    {

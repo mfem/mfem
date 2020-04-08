@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
       if (ref_levels < 0)
       {
          ref_levels =
-           (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+            (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       }
 
       for (int l = 0; l < ref_levels; l++)
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    if (!strongBC)
-     b->AddBdrFaceIntegrator(
+      b->AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
 
@@ -348,7 +348,9 @@ int main(int argc, char *argv[])
    }
 
    if (!strongBC)
+   {
       a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
+   }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary

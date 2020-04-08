@@ -889,7 +889,7 @@ public:
        Return the edge index of boundary element i. (2D)
        Return the face index of boundary element i. (3D) */
    int GetBdrElementEdgeIndex(int i) const;   // Strange name
-   int GetBdrFace(int i) const;               // Does the same as above better name??
+   int GetBdrFace(int i)const;            // Does the same as above
 
    /// Generates the face to bdr mapping. (-1 if no match).
    void GenerateFaceBdrMap();

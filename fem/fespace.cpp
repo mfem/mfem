@@ -1751,61 +1751,61 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
    else
    {
-   int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
-   Array<int> V, E, Eo;
-   const int *ind;
+      int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
+      Array<int> V, E, Eo;
+      const int *ind;
 
-   // for 1D, 2D and 3D faces
-   nv = fec->DofForGeometry(Geometry::POINT);
-   ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
-   if (nv > 0)
-   {
-      mesh->GetFaceVertices(i, V);
-   }
-   if (ne > 0)
-   {
-      mesh->GetFaceEdges(i, E, Eo);
-   }
-   nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
-   nd = V.Size() * nv + E.Size() * ne + nf;
-   dofs.SetSize(nd);
-   if (nv > 0)
-   {
-      for (k = 0; k < V.Size(); k++)
+      // for 1D, 2D and 3D faces
+      nv = fec->DofForGeometry(Geometry::POINT);
+      ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
+      if (nv > 0)
       {
-         for (j = 0; j < nv; j++)
-         {
-            dofs[k*nv+j] = V[k]*nv+j;
-         }
+         mesh->GetFaceVertices(i, V);
       }
-   }
-   nv *= V.Size();
-   if (ne > 0)
-   {
-      for (k = 0; k < E.Size(); k++)
+      if (ne > 0)
       {
-         ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
-         for (j = 0; j < ne; j++)
+         mesh->GetFaceEdges(i, E, Eo);
+      }
+      nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
+      nd = V.Size() * nv + E.Size() * ne + nf;
+      dofs.SetSize(nd);
+      if (nv > 0)
+      {
+         for (k = 0; k < V.Size(); k++)
          {
-            if (ind[j] < 0)
+            for (j = 0; j < nv; j++)
             {
-               dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
-            }
-            else
-            {
-               dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+               dofs[k*nv+j] = V[k]*nv+j;
             }
          }
       }
-   }
-   ne = nv + ne * E.Size();
-   if (nf > 0)
-   {
-      for (j = nvdofs+nedofs+fdofs[i], k = 0; k < nf; j++, k++)
+      nv *= V.Size();
+      if (ne > 0)
       {
-         dofs[ne+k] = j;
+         for (k = 0; k < E.Size(); k++)
+         {
+            ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
+            for (j = 0; j < ne; j++)
+            {
+               if (ind[j] < 0)
+               {
+                  dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
+               }
+               else
+               {
+                  dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
+               }
+            }
+         }
       }
-   }
+      ne = nv + ne * E.Size();
+      if (nf > 0)
+      {
+         for (j = nvdofs+nedofs+fdofs[i], k = 0; k < nf; j++, k++)
+         {
+            dofs[ne+k] = j;
+         }
+      }
    }
 }
 
