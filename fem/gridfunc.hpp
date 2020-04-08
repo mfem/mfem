@@ -146,6 +146,14 @@ public:
        These methods take an element index and return the interpolated
        value of the field at a given reference point within the
        element.
+
+       @warning These methods retrieve and use the
+       ElementTransformation object from the mfem::Mesh.  This can
+       alter the state of the ElementTransformation object.  This can
+       lead to unexpected results when the ElementTransformation
+       object is already in use such as when these methods are called
+       from within an integration loop.  Consider using
+       GetValue(ElementTransformation &T, ...)  instead.
    */
    ///@{
    /** Return a scalar value from within the given element. */
@@ -163,6 +171,14 @@ public:
        methods are optimized and should perform better than repeatedly
        calling GetValue.  The GetVectorValues method simply calls
        GetVectorValue repeatedly.
+
+       @warning These methods retrieve and use the
+       ElementTransformation object from the mfem::Mesh.  This can
+       alter the state of the ElementTransformation object.  This can
+       lead to unexpected results when the ElementTransformation
+       object is already in use such as when these methods are called
+       from within an integration loop. Consider using
+       GetValues(ElementTransformation &T, ...) instead.
    */
    ///@{
    /** Compute a collection of scalar values from within the element
@@ -186,6 +202,11 @@ public:
        ElementTransformation objects coming from either
        Mesh::GetElementTransformation() or
        Mesh::GetBdrElementTransformation().
+
+       @note These methods do not reset the ElementTransformation
+       object so they should be safe to use within integration loops
+       or other contexts where the ElementTransformation is already in
+       use.
    */
    ///@{
    /** Return a scalar value from within the element indicated by the
@@ -209,6 +230,11 @@ public:
        Mesh::GetFaceElementTransformations(),
        Mesh::GetInteriorFaceElementTransformations(), or
        Mesh::GetBdrFaceElementTransformations().
+
+       @note These methods do not reset the FaceElementTransformations
+       object so they should be safe to use within integration loops
+       or other contexts where the FaceElementTransformations is
+       already in use.
    */
    ///@{
    /** Return a scalar value from within the face indicated by the
@@ -225,7 +251,7 @@ public:
                        Vector &val, Vector *tr = NULL) const;
    ///@}
 
-   /** ElementTransformation Get Values Methods
+   /** @name ElementTransformation Get Values Methods
 
        These are convenience methods for repeatedly calling GetValue
        for multiple points within a given element.  They work by
@@ -233,6 +259,14 @@ public:
        FaceElementTransformations versions described above.
        Consequently, these methods should not be expected to run
        faster than calling the above methods in an external loop.
+
+       @note These methods do not reset the ElementTransformation
+       object so they should be safe to use within integration loops
+       or other contexts where the ElementTransformation is already in
+       use.
+
+       @note These methods can also be used wtih
+       FaceElementTransformations objects.
     */
    ///@{
    /** Compute a collection of scalar values from within the element
@@ -256,6 +290,15 @@ public:
        (automatically chosen).  See the FaceElementTransformations
        documentation in eltrans.hpp for more information on the \a
        side parameter.
+
+       @warning These methods retrieve and use the
+       FaceElementTransformations object from the mfem::Mesh.  This
+       can alter the state of the FaceElementTransformations object.
+       This can lead to unexpected results when the
+       FaceElementTransformations object is already in use such as
+       when these methods are called from within an integration loop.
+       Consider using GetValues(ElementTransformation &T, ...)
+       instead.
     */
    ///@{
    /** Compute a collection of scalar values from within the face
