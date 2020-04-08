@@ -1741,6 +1741,17 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
+
+   /*if (face_dof)
+   {
+     face_dof->GetRow(i, dofs);
+   }*/
+   if (NURBSext)
+   {
+     GetBdrElementDofs(mesh->face2be(i),dofs);
+   }
+   else
+   {
    int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
    Array<int> V, E, Eo;
    const int *ind;
@@ -1795,6 +1806,7 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
       {
          dofs[ne+k] = j;
       }
+   }
    }
 }
 
@@ -1924,6 +1936,11 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 
    // if (NURBSext)
    //    NURBSext->LoadFaceElement(i, fe);
+
+   if (NURBSext)
+   {
+      NURBSext->LoadBE(mesh->face2be(i), fe);
+   }
 
    return fe;
 }
