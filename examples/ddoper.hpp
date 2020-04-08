@@ -82,7 +82,7 @@ using namespace std;
 //#define TEST_DECOUPLED_FOSLS_PROJ_FULL
 //#define TEST_DECOUPLED_FOSLS_PROJ_FULL_EXT
 
-// For FOSLS-DD, define SDFOSLS, IFFOSLS, IFFOSLS_H, SD_ITERATIVE_GMG, and do not define ZERO_IFND_BC. With PA, define SDFOSLS_PA, undefine FOSLS_DIRECT_SOLVER.
+// For FOSLS-DD, define SDFOSLS, IFFOSLS, IFFOSLS_H, SD_ITERATIVE_GMG, and do not define ZERO_IFND_BC. With PA, define SDFOSLS_PA and SD_ITERATIVE_GMG_PA, undefine FOSLS_DIRECT_SOLVER.
 
 void test1_E_exact(const Vector &x, Vector &E);
 void test1_RHS_exact(const Vector &x, Vector &f);
@@ -1663,12 +1663,12 @@ private:
 
 #ifdef SDFOSLS
   // Create operator C_{sd0,sd1} in the block space corresponding to [E_m^s, H_m^s, f_i, \rho_i] x [E_m^s, f_i, \rho_i].
-  Operator* CreateCij_FOSLS(const int localInterfaceIndex, const int orientation);
+  Operator* CreateCij_FOSLS(const int localInterfaceIndex, const int orientation, const bool fullAssembly);
 #endif
   
   // Create operator C_{sd0,sd1} R_{sd1}^T. The operator returned here is of size n_{sd0} by n_{sd1}, where n_{sd} is the sum of
   // tdofsBdry[sd].size() and ifespace[interfaceIndex]->GetTrueVSize() and iH1fespace[interfaceIndex]->GetTrueVSize() for all interfaces of subdomain sd.
-  Operator* CreateInterfaceOperator(const int sd0, const int sd1, const int localInterfaceIndex, const int interfaceIndex, const int orientation);
+  Operator* CreateInterfaceOperator(const int sd0, const int sd1, const int localInterfaceIndex, const int interfaceIndex, const int orientation, const bool fullAssembly);
 
   void CreateSubdomainMatrices(const int subdomain, const bool fullAssembly);
 
@@ -1931,16 +1931,6 @@ public:
 
 	diag_PA_EE.SetSize(fespace->GetTrueVSize());
 	diag_PA_HH.SetSize(fespace->GetTrueVSize());
-      
-	ParGridFunction diag_gf(fespace);
-
-	diag_gf = 0.0;
-	a_EE->AssembleDiagonal(diag_gf);
-	diag_gf.GetTrueDofs(diag_PA_EE);
-
-	diag_gf = 0.0;
-	a_HH->AssembleDiagonal(diag_gf);
-	diag_gf.GetTrueDofs(diag_PA_HH);
 
 	diag_pa.resize(4);
 	diag_pa[0] = &diag_PA_EE;
@@ -1970,7 +1960,7 @@ public:
     //HypreParMatrix *A_EE = new HypreParMatrix;
     //a_EE->FormSystemMatrix(ess_tdof_list_E, *A_EE);
     //HypreParMatrix *A_EE = NULL;
-    OperatorPtr A_EE;
+    //OperatorPtr A_EE;
     {
       ParLinearForm b_E(fespace);
 #ifndef AIRY_TEST
@@ -1994,8 +1984,12 @@ public:
       
       b_E.Assemble();
       //OperatorPtr Aptr;
-      Vector X;
-      a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, A_EE, X, rhs_E);
+      Vector X, B;
+      //a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, A_EE, X, rhs_E);
+      a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, A_EE, X, B);
+      MFEM_VERIFY(rhs_E.Size() == B.Size(), "");
+      rhs_E = B; // necessary since B uses data from b_E and both go out of scope
+      
       //a_EE->FormLinearSystem(ess_tdof_list_E, Eexact, b_E, Aptr, X, rhs_E);
       //A_EE = Aptr.As<HypreParMatrix>();
     }
@@ -2066,9 +2060,23 @@ public:
     a_HH->Assemble();
     if (!pa) a_HH->Finalize();
     //HypreParMatrix *A_HH = new HypreParMatrix;
-    OperatorPtr A_HH;
+    //OperatorPtr A_HH;
     //a_HH->FormSystemMatrix(ess_tdof_list_empty, *A_HH);
     a_HH->FormSystemMatrix(ess_tdof_list_empty, A_HH);
+
+#ifdef SDFOSLS_PA
+    if (pa)
+      {
+	ParGridFunction diag_gf(fespace);
+	diag_gf = 0.0;
+	a_EE->AssembleDiagonal(diag_gf);
+	diag_gf.GetTrueDofs(diag_PA_EE);
+
+	diag_gf = 0.0;
+	a_HH->AssembleDiagonal(diag_gf);
+	diag_gf.GetTrueDofs(diag_PA_HH);
+      }
+#endif
 
 #ifndef IFFOSLS
     ParBilinearForm *a_tang = new ParBilinearForm(fespace);
@@ -2230,13 +2238,14 @@ public:
 #endif
 #else
 #ifdef IFFOSLS
-    Operator *a_mix2_tr = pa ? new TransposeOperator(a_mix2) : NULL;
+    //Operator *a_mix2_tr = pa ? new TransposeOperator(a_mix2) : NULL;  // TODO: AddMultTransposePA not implemented for the BilinearFormIntegrators in a_mix2. Instead, use mix1.
     
     //LS_Maxwellop->SetBlock(0, 0, A_EE);
     LS_Maxwellop->SetBlock(0, 0, A_EE.Ptr());
     LS_Maxwellop->SetBlock(1, 0, pa ? (Operator*) a_mix2 : (Operator*) A_mix2, -1.0); // no bc
     //LS_Maxwellop->SetBlock(3, 0, A_tang_Ecol, -omega);
-    LS_Maxwellop->SetBlock(0, 1, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
+    //LS_Maxwellop->SetBlock(0, 1, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(0, 1, pa ? a_mix1 : (Operator*) A_mix1_E, -1.0);  // no bc
     LS_Maxwellop->SetBlock(1, 1, A_HH.Ptr());
     //LS_Maxwellop->SetBlock(2, 1, A_tang_Erow, omega);  // other rotation
     //LS_Maxwellop->SetBlock(1, 2, A_tang_Ecol, omega);
@@ -2244,7 +2253,8 @@ public:
     LS_Maxwellop->SetBlock(2, 2, A_EE.Ptr());
     LS_Maxwellop->SetBlock(3, 2, pa ? (Operator*) a_mix2 : (Operator*) A_mix2, -1.0);  // no bc
     //LS_Maxwellop->SetBlock(0, 3, A_tang_Erow, -omega);  // other rotation
-    LS_Maxwellop->SetBlock(2, 3, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
+    //LS_Maxwellop->SetBlock(2, 3, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
+    LS_Maxwellop->SetBlock(2, 3, pa ? a_mix1 : (Operator*) A_mix1_E, -1.0);  // no bc
     LS_Maxwellop->SetBlock(3, 3, A_HH.Ptr());
 
     /*
@@ -2356,8 +2366,11 @@ public:
     invLSH = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*LSH), comm);
 #else
 #ifdef SDFOSLS_PA
-    blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, blockCoarseA, P, diag_pa, ess_tdof_list_empty);
-    LSpcg.SetPreconditioner(*precMG);
+    if (!fullAssembly)
+      {
+	blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, blockCoarseA, P, diag_pa, ess_tdof_list_empty);
+	LSpcg.SetPreconditioner(*precMG);
+      }
 #else
     blockgmg::BlockMGSolver *precMG = new blockgmg::BlockMGSolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
     LSpcg.SetPreconditioner(*precMG);
@@ -2449,7 +2462,12 @@ public:
 
     for (int i=0; i<n; ++i)
       for (int j=0; j<n; ++j)
-	A(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+	{
+	  if (LS_Maxwellop->IsZeroBlock(i,j))
+	    A(i,j) = NULL;
+	  else
+	    A(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
+	}
   }
   
   Vector rhs_E;  // real part
@@ -2488,6 +2506,8 @@ private:
   Vector diag_PA_EE, diag_PA_HH;
 #endif
   
+  OperatorPtr A_EE, A_HH;
+  
   const double omega;
 };
 
@@ -2496,7 +2516,7 @@ class LowerBlockTriangularSubdomainSolver : public Operator
 {
 public:
 #ifdef IFFOSLS_H
-  LowerBlockTriangularSubdomainSolver(HypreParMatrix *fullMat_, FOSLSSolver *sdInv_, STRUMPACKSolver *auxInv_,
+  LowerBlockTriangularSubdomainSolver(HypreParMatrix *fullMat_, FOSLSSolver *sdInv_, Operator *auxInv_,
 				      Operator *tdofsBdryInjectionTranspose_, std::set<int> *allGlobalSubdomainInterfaces_,
 				      std::vector<InjectionOperator*> *InterfaceToSurfaceInjection_, std::vector<int> *ifNDtrue_,
 				      std::vector<int> *ifH1true_)
@@ -2504,7 +2524,7 @@ public:
       tdofsBdryInjectionTranspose(tdofsBdryInjectionTranspose_), InterfaceToSurfaceInjection(InterfaceToSurfaceInjection_),
       ifNDtrue(ifNDtrue_), ifH1true(ifH1true_)
 #else
-  LowerBlockTriangularSubdomainSolver(HypreParMatrix *fullMat_, FOSLSSolver *sdInv_, STRUMPACKSolver *auxInv_)
+  LowerBlockTriangularSubdomainSolver(HypreParMatrix *fullMat_, FOSLSSolver *sdInv_, Operator *auxInv_)
     : fullMat(fullMat_), sdInv(sdInv_), auxInv(auxInv_)
 #endif
   {
@@ -2677,7 +2697,8 @@ public:
   }
   
 private:
-  STRUMPACKSolver *auxInv;
+  //STRUMPACKSolver *auxInv;
+  Operator *auxInv;
   FOSLSSolver *sdInv;
   int nSD, nSDhalf, nAux, nAuxHalf;
 

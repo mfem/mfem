@@ -1288,6 +1288,8 @@ int main(int argc, char *argv[])
 			      pmeshInterfaces_C
 #endif
 			      );
+
+	std::vector<Array2D<HypreParMatrix*> > dummyCoarseFOSLS(numSubdomains);
 	
 	DDMInterfaceOperator ddiC(numSubdomains, numInterfaces_C, pmesh, &fespace_C, pmeshSD_C,
 #ifdef SERIAL_INTERFACES
@@ -1304,14 +1306,14 @@ int main(int argc, char *argv[])
 				  sdP, NULL, NULL,  // not used here
 #endif
 #ifdef SDFOSLS_PA
-				  NULL,  // not used here
+				  &dummyCoarseFOSLS,  // not used here
 #endif
 				  1.0, true);  // hmin value not relevant here
 
-	ddiC.CopySDMatrices(sdcRe, sdcIm);
-
 #ifdef SDFOSLS_PA
 	ddiC.CopyFOSLSMatrices(coarseFOSLS);
+#else
+	ddiC.CopySDMatrices(sdcRe, sdcIm);
 #endif
 	
 	for (int i=0; i<numInterfaces_C; ++i)

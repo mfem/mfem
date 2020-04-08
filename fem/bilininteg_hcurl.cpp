@@ -113,6 +113,58 @@ static void PAHcurlSetup3D(const int Q1D,
    });
 }
 
+static void PAHcurlSetup2Din3D(const int Q1D,
+			       const int NE,
+			       const Array<double> &w,
+			       const Vector &j,
+			       Vector &_coeff,
+			       Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+
+   auto J = Reshape(j.Read(), NQ, 3, 2, NE);
+   auto coeff = Reshape(_coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, 3, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J31 = J(q,2,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double J32 = J(q,2,1,e);
+	 // Following DenseMatrix::Weight() in the 3x2 case.
+	 double E = J11 * J11 + J21 * J21 + J31 * J31;
+	 double G = J12 * J12 + J22 * J22 + J32 * J32;
+	 double F = J11 * J12 + J21 * J22 + J31 * J32;
+	 const double t = (E*G - F*F);
+	 const double det = sqrt(t);
+         const double c_detJ = W[q] * coeff(q, e) * det;
+ 
+	 // Following CalcInverse in densemat.cpp in the 3x2 case.
+	 E /= t;
+	 G /= t;
+	 F /= t;
+	 
+	 const double invJ11 = J11*G - J12*F;
+	 const double invJ21 = J12*E - J11*F;
+	 const double invJ12 = J21*G - J22*F;
+	 const double invJ22 = J22*E - J21*F;
+	 const double invJ13 = J31*G - J32*F;
+	 const double invJ23 = J32*E - J31*F;
+	 
+	 // Compute detJ J^{-1} J^{-T} as a symmetric 2x2 matrix.
+         y(q,0,e) = c_detJ * (invJ11*invJ11 + invJ12*invJ12 + invJ13*invJ13); // 1,1
+         y(q,1,e) = c_detJ * (invJ11*invJ21 + invJ12*invJ22 + invJ13*invJ23); // 1,2
+         y(q,2,e) = c_detJ * (invJ21*invJ21 + invJ22*invJ22 + invJ23*invJ23); // 2,2
+      }
+   });
+}
+  
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -185,8 +237,18 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
+     if (mesh->SpaceDimension() == 3)
+       {
+	 MFEM_VERIFY(coeffDim == 1, "");  // Vector coefficient not implemented in this case
+	 MFEM_VERIFY(geom->J.Size() == 9 * ne * nq, "");  // J is 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
+	 PAHcurlSetup2Din3D(quad1D, ne, ir->GetWeights(), geom->J,
+			    coeff, pa_data);
+       }
+     else
+       {
+	 PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
+			coeff, pa_data);
+       }
    }
    else
    {

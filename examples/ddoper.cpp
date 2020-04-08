@@ -4975,6 +4975,8 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 
 #ifdef SDFOSLS
   cfosls.resize(numSubdomains);
+  for (int m=0; m<numSubdomains; ++m)
+    cfosls[m] = NULL;
   injSD2 = new BlockOperator*[numSubdomains];
   injComplexSD2 = new BlockOperator*[numSubdomains];
 #ifdef SERIAL_INTERFACES
@@ -5857,8 +5859,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   if (m_rank == 0)
     cout << m_rank << ": DDM constructor SD loop 2 timing " << chronoSD.RealTime() << endl;
 
+#ifndef SDFOSLS_PA
   if (partialConstructor)
     return;
+#endif
   
   /*
   MPI_Allreduce(sdnp.data(), gsdnp.data(), numSubdomains, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -6296,17 +6300,17 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  // Real part
 	  SetToRealParameters();
 	  
-	  globalInterfaceOpRe->SetBlock(sd0, sd1, CreateInterfaceOperator(sd0, sd1, ili, i, 0));
+	  globalInterfaceOpRe->SetBlock(sd0, sd1, CreateInterfaceOperator(sd0, sd1, ili, i, 0, partialConstructor));
 #ifndef ELIMINATE_REDUNDANT_VARS
-	  globalInterfaceOpRe->SetBlock(sd1, sd0, CreateInterfaceOperator(sd1, sd0, ili, i, 1));
+	  globalInterfaceOpRe->SetBlock(sd1, sd0, CreateInterfaceOperator(sd1, sd0, ili, i, 1, partialConstructor));
 #endif
 	
 	  // Imaginary part
 	  SetToImaginaryParameters();
 	
-	  globalInterfaceOpIm->SetBlock(sd0, sd1, CreateInterfaceOperator(sd0, sd1, ili, i, 0));
+	  globalInterfaceOpIm->SetBlock(sd0, sd1, CreateInterfaceOperator(sd0, sd1, ili, i, 0, partialConstructor));
 #ifndef ELIMINATE_REDUNDANT_VARS
-	  globalInterfaceOpIm->SetBlock(sd1, sd0, CreateInterfaceOperator(sd1, sd0, ili, i, 1));
+	  globalInterfaceOpIm->SetBlock(sd1, sd0, CreateInterfaceOperator(sd1, sd0, ili, i, 1, partialConstructor));
 #endif
 	}
 
@@ -6834,11 +6838,13 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      }
 
 	    // TODO: this should just be a combination of serial sparse blocks, which could be factorized by UMFPACK on the subdomain root process.
+#ifndef SDFOSLS_PA
 	    HypreParMatrix *HypreDsdComplexRe = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsAuxSD[m], DsdRe_HypreBlocks[m], DsdRe_SparseBlocks[m],
 									       DsdRe_HypreBlockCoef[m], blockGI, blockProcOffsetsAux, all_block_num_loc_rows_Aux);
 									       
 	    HypreParMatrix *HypreDsdComplexIm = CreateHypreParMatrixFromBlocks(sd_com[m], trueOffsetsAuxSD[m], DsdIm_HypreBlocks[m], DsdIm_SparseBlocks[m],
 									       DsdIm_HypreBlockCoef[m], blockGI, blockProcOffsetsAux, all_block_num_loc_rows_Aux);
+#endif
 #endif
 #endif
 #endif
@@ -6933,6 +6939,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    
 #ifdef SD_ITERATIVE
 #ifndef IF_ITERATIVE
+#ifndef SDFOSLS_PA
 	    {
 	      ComplexHypreParMatrix tmpDiagComplex(HypreDsdComplexRe, HypreDsdComplexIm, false, false);
 	      HypreDsdComplex[m] = tmpDiagComplex.GetSystemMatrix();
@@ -6940,6 +6947,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      delete HypreDsdComplexRe;
 	      delete HypreDsdComplexIm;
 	    }
+#endif
 #endif
 #endif
 	    
@@ -7008,8 +7016,10 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      GMRESSolver *gmres = new GMRESSolver(sd_com[m]);
 
 #ifdef SD_ITERATIVE_GMG_PA
+#ifndef SDFOSLS
 	      ComplexOperator *AsdPA = new ComplexOperator(AsdPARe[m], AsdPAIm[m], false, false);
 	      gmres->SetOperator(*AsdPA);
+#endif
 #else
 #ifndef SDFOSLS
 	      gmres->SetOperator(*(HypreAsdComplex[m]));
@@ -7065,7 +7075,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		  if (m == -10)
 		    sdP[0][0]->Print("P0.txt");
 #else
+#ifndef SDFOSLS_PA
 		  cgmg = new ComplexGMGPASolver(sd_com[m], &(AsdPARe[m]->GetBlock(0,0)), &(AsdPAIm[m]->GetBlock(0,0)), diagSDND, sd_ess_tdof_list[m], sdP[m], (*sdcRe)[m], (*sdcIm)[m]); //, (m == 0));
+#endif
 #endif
 		}
 #else
@@ -7214,7 +7226,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	      DDAuxSolver *auxInv = new DDAuxSolver(&(allGlobalSubdomainInterfaces[m]), ifNDmassSp, alphaIm, &ifH1true);
 #endif
 #else
+#ifdef SDFOSLS_PA
+	      IdentityOperator *auxInv = new IdentityOperator(2*trueOffsetsAuxSD[m][trueOffsetsAuxSD[m].Size() - 1]);
+#else
 	      STRUMPACKSolver *auxInv = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreDsdComplex[m])), sd_com[m]);
+#endif
 #endif
 #ifndef SDFOSLS
 #ifdef SD_ITERATIVE_GMG_PA
@@ -7529,6 +7545,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   chronoSD.Stop();
   if (m_rank == 0)
     cout << m_rank << ": DDM constructor SD loop 3 timing " << chronoSD.RealTime() << endl;
+
+#ifdef SDFOSLS_PA
+  if (partialConstructor)
+    return;
+#endif
 
   // Create operators R_{sd0} A_{sd0}^{-1} C_{sd0,sd1} R_{sd1}^T by multiplying globalInterfaceOp on the left by globalSubdomainOp. Then add identity.
 
@@ -8805,10 +8826,14 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex, con
 	ifNDmassInv[interfaceIndex] = cg;
       }
 #else
+#ifdef SDFOSLS_PA
+    ifNDmassInv[interfaceIndex] = NULL;
+#else
     UMFPackSolver *massInv = new UMFPackSolver();
     massInv->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
     massInv->SetOperator(*(ifNDmassSp[interfaceIndex]));
     ifNDmassInv[interfaceIndex] = massInv;
+#endif
 #endif
 
     ifH1massSp[interfaceIndex] = new SparseMatrix();
@@ -8972,7 +8997,7 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex, con
 
 #ifdef SDFOSLS
 #ifdef SERIAL_INTERFACES
-Operator* DDMInterfaceOperator::CreateCij_FOSLS(const int localInterfaceIndex, const int orientation)
+Operator* DDMInterfaceOperator::CreateCij_FOSLS(const int localInterfaceIndex, const int orientation, const bool fullAssembly)
 {
   const int sd0 = (orientation == 0) ? (*localInterfaces)[localInterfaceIndex].FirstSubdomain() : (*localInterfaces)[localInterfaceIndex].SecondSubdomain();
   const int sd1 = (orientation == 0) ? (*localInterfaces)[localInterfaceIndex].SecondSubdomain() : (*localInterfaces)[localInterfaceIndex].FirstSubdomain();
@@ -9013,7 +9038,14 @@ Operator* DDMInterfaceOperator::CreateCij_FOSLS(const int localInterfaceIndex, c
       // E row
 #ifndef TEST_DECOUPLED_FOSLS
 #ifndef TEST_DECOUPLED_FOSLS_PROJ
+#ifdef SDFOSLS_PA
+      if (fullAssembly)
+	op->SetBlock(0, 0, ifNDmassSp[interfaceIndex], alphaIm);
+      else
+	op->SetBlock(0, 0, oppa_ifNDmass[interfaceIndex].Ptr(), alphaIm);
+#else
       op->SetBlock(0, 0, ifNDmassSp[interfaceIndex], alphaIm);
+#endif
 #endif
 #endif
       // H row
@@ -9029,7 +9061,14 @@ Operator* DDMInterfaceOperator::CreateCij_FOSLS(const int localInterfaceIndex, c
 #endif
 
 #ifdef IFFOSLS_H
+#ifdef SDFOSLS_PA
+      if (fullAssembly)
+	op->SetBlock(1, 1, ifNDmassSp[interfaceIndex], alphaIm);  // (f,R)
+      else
+	op->SetBlock(1, 1, oppa_ifNDmass[interfaceIndex].Ptr(), alphaIm);  // (f,R)
+#else
       op->SetBlock(1, 1, ifNDmassSp[interfaceIndex], alphaIm);  // (f,R)
+#endif
 #endif
     }
   else
@@ -9828,7 +9867,7 @@ Operator* DDMInterfaceOperator::CreateInterfaceMassRestriction(const int sd, con
 #endif
 
 Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int sd1, const int localInterfaceIndex,
-							const int interfaceIndex, const int orientation)
+							const int interfaceIndex, const int orientation, const bool fullAssembly)
 {
   /*
   const int sd0 = (orientation == 0) ? (*localInterfaces)[localInterfaceIndex].FirstSubdomain() : (*localInterfaces)[localInterfaceIndex].SecondSubdomain();
@@ -9910,7 +9949,7 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
     MFEM_VERIFY(localInterfaceIndex >= 0, "");
 
 #ifdef SDFOSLS
-  Operator *Cij = (ifNDtrue[interfaceIndex] > 0) ? CreateCij_FOSLS(localInterfaceIndex, orientation) : new EmptyOperator();
+  Operator *Cij = (ifNDtrue[interfaceIndex] > 0) ? CreateCij_FOSLS(localInterfaceIndex, orientation, fullAssembly) : new EmptyOperator();
   //Operator *Cij = (ifNDtrue[interfaceIndex] > 0) ? CreateCij(localInterfaceIndex, orientation) : new EmptyOperator();  // TODO
 #else
   Operator *Cij = (ifNDtrue[interfaceIndex] > 0) ? CreateCij(localInterfaceIndex, orientation) : new EmptyOperator();
@@ -12737,7 +12776,8 @@ void DDMInterfaceOperator::CopyFOSLSMatrices(std::vector<Array2D<HypreParMatrix*
   A.resize(numSubdomains);
   for (int m=0; m<numSubdomains; ++m)
     {
-      cfosls[m]->GetMatrixPointers(A[m]);
+      if (cfosls[m] != NULL)
+	cfosls[m]->GetMatrixPointers(A[m]);
     }
 }
 #endif

@@ -370,6 +370,17 @@ void QuadratureInterpolator::Mult(
          }
       }
    }
+   else if (vdim == 3 && dim == 2)
+     {
+       switch (100*nd + nq)
+         {
+	   // Q1
+	 case 404: eval_func = &Eval2D<3,4,4>; break;
+	 case 409: eval_func = &Eval2D<3,4,9>; break;
+	   // Q2
+	 case 416: eval_func = &Eval2D<3,4,16>; break;
+	 }
+     }
    if (eval_func)
    {
       eval_func(ne, vdim, maps, e_vec, q_val, q_der, q_det, eval_flags);
