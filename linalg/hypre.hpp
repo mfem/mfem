@@ -325,6 +325,10 @@ public:
                   double *data, HYPRE_Int *rows,
                   HYPRE_Int *cols); // constructor with 9 arguments
 
+   /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
+       structure and data from @a P. */
+   HypreParMatrix(const HypreParMatrix &P);
+
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);
 
@@ -731,8 +735,14 @@ class HyprePCG : public HypreSolver
 private:
    HYPRE_Solver pcg_solver;
 
+   HypreSolver * precond;
+
 public:
+   HyprePCG(MPI_Comm comm);
+
    HyprePCG(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -780,8 +790,17 @@ class HypreGMRES : public HypreSolver
 private:
    HYPRE_Solver gmres_solver;
 
+   HypreSolver * precond;
+
+   /// Default, generally robust, GMRES options
+   void SetDefaultOptions();
+
 public:
+   HypreGMRES(MPI_Comm comm);
+
    HypreGMRES(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -834,6 +853,8 @@ public:
    explicit HypreDiagScale(HypreParMatrix &A) : HypreSolver(&A) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
+   virtual void SetOperator(const Operator &op);
+
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScaleSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
@@ -849,8 +870,20 @@ class HypreParaSails : public HypreSolver
 private:
    HYPRE_Solver sai_precond;
 
+   /// Default, generally robust, ParaSails options
+   void SetDefaultOptions();
+
+   // If sai_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from sai_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
+   void ResetSAIPrecond(MPI_Comm comm);
+
 public:
+   HypreParaSails(MPI_Comm comm);
+
    HypreParaSails(HypreParMatrix &A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetSymmetry(int sym);
 
@@ -878,8 +911,20 @@ class HypreEuclid : public HypreSolver
 private:
    HYPRE_Solver euc_precond;
 
+   /// Default, generally robust, Euclid options
+   void SetDefaultOptions();
+
+   // If euc_precond is NULL, this method allocates it and sets default options.
+   // Otherwise the method saves the options from euc_precond, destroys it,
+   // allocates a new object, and sets its options to the saved values.
+   void ResetEuclidPrecond(MPI_Comm comm);
+
 public:
+   HypreEuclid(MPI_Comm comm);
+
    HypreEuclid(HypreParMatrix &A);
+
+   virtual void SetOperator(const Operator &op);
 
    /// The typecast to HYPRE_Solver returns the internal euc_precond
    virtual operator HYPRE_Solver() const { return euc_precond; }
@@ -959,6 +1004,9 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 class HypreAMS : public HypreSolver
 {
 private:
+   /// Constuct AMS solver from finite element space
+   void Init(ParFiniteElementSpace *edge_space);
+
    HYPRE_Solver ams;
 
    /// Vertex coordinates
@@ -969,7 +1017,11 @@ private:
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
 public:
+   HypreAMS(ParFiniteElementSpace *edge_fespace);
+
    HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetPrintLevel(int print_lvl);
 
@@ -991,6 +1043,9 @@ public:
 class HypreADS : public HypreSolver
 {
 private:
+   /// Constuct ADS solver from finite element space
+   void Init(ParFiniteElementSpace *face_fespace);
+
    HYPRE_Solver ads;
 
    /// Vertex coordinates
@@ -1005,7 +1060,11 @@ private:
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
 public:
+   HypreADS(ParFiniteElementSpace *face_fespace);
+
    HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetPrintLevel(int print_lvl);
 

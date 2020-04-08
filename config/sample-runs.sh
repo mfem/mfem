@@ -152,6 +152,15 @@ function extract_sample_runs()
    fi
    if [ "$device_runs" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep ".* -d .*"`
+      if [ "$have_occa" == "no" ]; then
+         runs=`printf "%s" "$runs" | grep -v ".* -d occa-.*"`
+      fi
+      if [ "$have_raja" == "no" ]; then
+         runs=`printf "%s" "$runs" | grep -v ".* -d raja-.*"`
+      fi
+      if [ "$have_ceed" == "no" ]; then
+         runs=`printf "%s" "$runs" | grep -v ".* -d ceed-.*"`
+      fi
    else
       runs=`printf "%s" "$runs" | grep -v ".* -d .*"`
    fi
@@ -276,7 +285,8 @@ case "$1" in
       ;;
    -dev)
        device_runs="yes"
-       mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES MFEM_USE_OPENMP=YES"
+       mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_OPENMP=YES"
+       # OCCA, RAJA, libCEED are enabled below, if available
       ;;
    -v)
       valgrind="yes"
@@ -456,6 +466,30 @@ if [ ! -z "$output_dir" ]; then
 fi
 
 TIMEFORMAT="${base_timeformat}"
+
+# Setup optional libraries when not using externally built MFEM:
+if [ "${built}" == "no" ]; then
+   have_occa="no"
+   have_raja="no"
+   have_ceed="no"
+   if [ "${device_runs}" == "yes" ]; then
+      if [ -n "${CUDA_ARCH}" ]; then
+         mfem_config+=" CUDA_ARCH=${CUDA_ARCH}"
+      fi
+      if [ -d "${mfem_dir}/../occa" ]; then
+         mfem_config+=" MFEM_USE_OCCA=YES"
+         have_occa="yes"
+      fi
+      if [ -d "${mfem_dir}/../raja" ]; then
+         mfem_config+=" MFEM_USE_RAJA=YES"
+         have_raja="yes"
+      fi
+      if [ -d "${mfem_dir}/../libCEED" ]; then
+         mfem_config+=" MFEM_USE_CEED=YES"
+         have_ceed="yes"
+      fi
+   fi
+fi
 
 function set_echo_log()
 {

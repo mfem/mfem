@@ -582,9 +582,19 @@ void NURBSPatch::KnotInsert(int dir, const KnotVector &newkv)
    }
 }
 
+void NURBSPatch::KnotInsert(Array<Vector *> &newkv)
+{
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      KnotInsert(dir, *newkv[dir]);
+   }
+}
+
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void NURBSPatch::KnotInsert(int dir, const Vector &knot)
 {
+   if (knot.Size() == 0 ) { return; }
+
    if (dir >= kv.Size() || dir < 0)
    {
       mfem_error("NURBSPatch::KnotInsert : Incorrect direction!");
@@ -2981,6 +2991,34 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
       patches[p]->KnotInsert(pkv);
    }
 }
+
+void NURBSExtension::KnotInsert(Array<Vector *> &kv)
+{
+   Array<int> edges;
+   Array<int> orient;
+
+   Array<Vector *> pkv(Dimension());
+
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patchTopo->GetElementEdges(p, edges, orient);
+
+      if (Dimension()==2)
+      {
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[1])];
+      }
+      else
+      {
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[3])];
+         pkv[2] = kv[KnotInd(edges[8])];
+      }
+
+      patches[p]->KnotInsert(pkv);
+   }
+}
+
 
 void NURBSExtension::GetPatchNets(const Vector &coords, int vdim)
 {

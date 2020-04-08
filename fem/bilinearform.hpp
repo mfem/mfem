@@ -241,7 +241,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication:  \f$ y = M x \f$
-   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Matrix vector multiplication with the original uneliminated 
        matrix.  The original matrix is \f$ M + M_e \f$ so we have: 
@@ -354,7 +354,15 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
-   /// Get the finite element space prolongation operator
+   /** @brief Assemble the diagonal of the bilinear form into diag
+
+       For adaptively refined meshes, this returns P^T d_e, where d_e is the
+       locally assembled diagonal on each element and P^T is the transpose of
+       the conforming prolongation. In general this is not the correct diagonal
+       for an AMR mesh. */
+   void AssembleDiagonal(Vector &diag) const;
+
+   /// Get the finite element space prolongation operator.
    virtual const Operator *GetProlongation() const
    { return fes->GetConformingProlongation(); }
    /// Get the finite element space restriction operator
@@ -448,20 +456,50 @@ public:
    void FreeElementMatrices()
    { delete element_matrices; element_matrices = NULL; }
 
-   /// Compute the matrix for element @a i and store it in @a elmat.
+   /// Compute the element matrix of the given element
+   /** The element matrix is computed by calling the domain integrators
+       or the one stored internally by a prior call of ComputeElementMatrices()
+       is returned when available.
+   */
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
 
-   /** @brief Take the element  matrix @a elmat for element @a i and add the 
-       values into the proper global @a vdof locations.  */
-   /** The @a vdofs array is overwritten with the proper locations by this 
-       method. */
+   /// Compute the boundary element matrix of the given boundary element
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The flag @a skip_zeros skips the zero
+       elements of the matrix, unless they are breaking the symmetry of
+       the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              int skip_zeros = 1);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The vdofs of the element are returned
+       in @a vdofs. The flag @a skip_zeros skips the zero elements of the
+       matrix, unless they are breaking the symmetry of the system matrix.
+   */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
 
-   /** @brief Take the boundary element matrix @a elmat for element @a i and  
-       add the values into the proper global @a vdof locations.  */
-   /** The @a vdofs array is overwritten with the proper locations by this 
-       method. */   
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The vdofs of the element
+       are returned in @a vdofs. The flag @a skip_zeros skips the zero elements
+       of the matrix, unless they are breaking the symmetry of the system matrix.
+   */
+
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &vdofs, int skip_zeros = 1);
 
@@ -569,16 +607,26 @@ protected:
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #dom, #bdr, and
-       #skt are owned by another MixedBilinearForm. */
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
+       #tfbfi and #btfbfi are owned by another MixedBilinearForm. */
    int extern_bfs;
 
    /// Domain integrators.
-   Array<BilinearFormIntegrator*> dom;
+   Array<BilinearFormIntegrator*> dbfi;
+
    /// Boundary integrators.
-   Array<BilinearFormIntegrator*> bdr;
+   Array<BilinearFormIntegrator*> bbfi;
+   Array<Array<int>*>             bbfi_marker;///< Entries are not owned.
+
    /// Trace face (skeleton) integrators.
-   Array<BilinearFormIntegrator*> skt;
+   Array<BilinearFormIntegrator*> tfbfi;
+
+   /// Boundary trace face (skeleton) integrators.
+   Array<BilinearFormIntegrator*> btfbfi;
+   Array<Array<int>*>             btfbfi_marker;///< Entries are not owned.
+
+   DenseMatrix elemmat;
+   Array<int>  trial_vdofs, test_vdofs;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -655,6 +703,10 @@ public:
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
+   /// Adds a boundary integrator. Assumes ownership of @a bfi.
+   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
+                               Array<int> &bdr_marker);
+
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
        This type of integrator assembles terms over all faces of the mesh using
@@ -662,14 +714,32 @@ public:
        test space. */
    void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi);
 
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
+                                   Array<int> &bdr_marker);
+
    /// Access all integrators added with AddDomainIntegrator().
-   Array<BilinearFormIntegrator*> *GetDBFI() { return &dom; }
+   Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
    /// Access all integrators added with AddBoundaryIntegrator().
-   Array<BilinearFormIntegrator*> *GetBBFI() { return &bdr; }
+   Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
+   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
+   Array<BilinearFormIntegrator*> *GetTFBFI() { return &tfbfi; }
+
+   /// Access all integrators added with AddBdrTraceFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBTFBFI() { return &btfbfi; }
+   /** @brief Access all boundary markers added with AddBdrTraceFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBTFBFI_Marker() { return &btfbfi_marker; }
 
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }
@@ -684,24 +754,60 @@ public:
        MixedBilinearForm becomes an operator on the conforming FE spaces. */
    void ConformingAssemble();
 
+   /// Compute the element matrix of the given element
+   void ComputeElementMatrix(int i, DenseMatrix &elmat);
 
-   /// Eliminate essential boundary trial DOFs from the system.
-   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary. */
-   void EliminateTrialDofs(Array<int> &bdr_attr_is_ess,
+   /// Compute the boundary element matrix of the given boundary element
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The flag @a skip_zeros skips the zero
+       elements of the matrix, unless they are breaking the symmetry of
+       the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              int skip_zeros = 1);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The vdofs of the element are returned
+       in @a trial_vdofs and @a test_vdofs. The flag @a skip_zeros skips
+       the zero elements of the matrix, unless they are breaking the symmetry
+       of the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                              int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The vdofs of the element
+       are returned in @a trial_vdofs and @a test_vdofs. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                                 int skip_zeros = 1);
+
+   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
                            const Vector &sol, Vector &rhs);
 
-
-   /** @brief Emiminate essential boundary trial DOFs where 
-       @a marked_vdofs is a marker (boolean) array on all vector-dofs
-       where true represents a DOF to eliminate. */
-   void EliminateEssentialBCFromTrialDofs(Array<int> &marked_vdofs,
+   void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
                                           const Vector &sol, Vector &rhs);
 
-   /// Eliminate essential boundary test DOFs from the system.
-   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary. */   
-   virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
+   virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+
 
    /** @brief Delete the internal matrix and resize it to accommodate any changes 
        in the underlying finite element spaces. */
@@ -768,7 +874,7 @@ public:
    { AddTraceFaceIntegrator(di); }
 
    /// Access all interpolators added with AddDomainInterpolator().
-   Array<BilinearFormIntegrator*> *GetDI() { return &dom; }
+   Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */

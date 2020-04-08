@@ -52,7 +52,8 @@ public:
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    /// Initialize the vertex indices and the attribute of a Tetrahedron.
-   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1);
+   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1,
+             int ref_flag = 0);
 
    /// Return element's type.
    virtual Type GetType() const { return Element::TETRAHEDRON; }
@@ -99,8 +100,13 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
 
+   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
    virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 3; return 4; }
+
+   virtual int GetNFaces() const { return 4; }
+
+   virtual int GetNFaceVertices(int) const { return 3; }
 
    virtual const int *GetFaceVertices(int fi) const
    { MFEM_ABORT("not implemented"); return NULL; }
