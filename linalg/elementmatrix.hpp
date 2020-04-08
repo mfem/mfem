@@ -15,6 +15,7 @@
 #include "../general/cuda.hpp"
 #include "../general/forall.hpp"
 #include "vector.hpp"
+#include <iostream>
 
 namespace mfem
 {
@@ -70,24 +71,27 @@ public:
       });
    }
 
-   void Print()
-   {
-      for (size_t e = 0; e < ne; e++)
-      {
-         mfem::out << "Element "<< e <<std::endl;
-         for (size_t i = 0; i < ndofs; i++)
-         {
-            for (size_t j = 0; j < ndofs; j++)
-            {
-               mfem::out << data[i+j*ndofs+e*ndofs*ndofs] << ", ";
-            }
-            mfem::out << std::endl;
-         }
-         mfem::out << std::endl;
-         mfem::out << std::endl;
-      }
-   }
+   friend std::ostream& operator<<(std::ostream& os, const ElementMatrix& data);
 };
+
+std::ostream& operator<<(std::ostream& os, const ElementMatrix& mat)
+{
+   for (size_t e = 0; e < mat.ne; e++)
+   {
+      os << "Element "<< e <<std::endl;
+      for (size_t i = 0; i < mat.ndofs; i++)
+      {
+         for (size_t j = 0; j < mat.ndofs; j++)
+         {
+            os << mat.data[i+j*mat.ndofs+e*mat.ndofs*mat.ndofs] << ", ";
+         }
+         os << std::endl;
+      }
+      os << std::endl;
+      os << std::endl;
+   }
+   return os;
+}
 
 class FaceMatrixInt
 {
@@ -152,33 +156,36 @@ public:
       });
    }
 
-   void Print()
-   {
-      for (size_t f = 0; f < nf; f++)
-      {
-         mfem::out << "Face "<<f <<std::endl;
-         for (size_t i = 0; i < ndofs; i++)
-         {
-            for (size_t j = 0; j < ndofs; j++)
-            {
-               mfem::out << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
-            }
-            mfem::out << std::endl;
-         }
-         mfem::out << std::endl;
-         for (size_t i = 0; i < ndofs; i++)
-         {
-            for (size_t j = 0; j < ndofs; j++)
-            {
-               mfem::out << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
-            }
-            mfem::out << std::endl;
-         }
-         mfem::out << std::endl;
-         mfem::out << std::endl;
-      }
-   }
+   friend std::ostream& operator<<(std::ostream& os, const FaceMatrixInt& mat);
 };
+
+std::ostream& operator<<(std::ostream& os, const FaceMatrixInt& mat)
+{
+   for (size_t f = 0; f < mat.nf; f++)
+   {
+      os << "Face "<<f <<std::endl;
+      for (size_t i = 0; i < mat.ndofs; i++)
+      {
+         for (size_t j = 0; j < mat.ndofs; j++)
+         {
+            os << mat.data[i+j*mat.ndofs+2*f*mat.ndofs*mat.ndofs] << ", ";
+         }
+         os << std::endl;
+      }
+      os << std::endl;
+      for (size_t i = 0; i < mat.ndofs; i++)
+      {
+         for (size_t j = 0; j < mat.ndofs; j++)
+         {
+            os << mat.data[i+j*mat.ndofs+(2*f+1)*mat.ndofs*mat.ndofs] << ", ";
+         }
+         os << std::endl;
+      }
+      os << std::endl;
+      os << std::endl;
+   }   
+   return os;
+}
 
 class FaceMatrixExt
 {
@@ -243,33 +250,36 @@ public:
       });
    }
 
-   void Print()
-   {
-      for (size_t f = 0; f < nf; f++)
-      {
-         mfem::out << "Face "<<f <<std::endl;
-         for (size_t i = 0; i < ndofs; i++)
-         {
-            for (size_t j = 0; j < ndofs; j++)
-            {
-               mfem::out << data[i+j*ndofs+2*f*ndofs*ndofs] << ", ";
-            }
-            mfem::out << std::endl;
-         }
-         mfem::out << std::endl;
-         for (size_t i = 0; i < ndofs; i++)
-         {
-            for (size_t j = 0; j < ndofs; j++)
-            {
-               mfem::out << data[i+j*ndofs+(2*f+1)*ndofs*ndofs] << ", ";
-            }
-            mfem::out << std::endl;
-         }
-         mfem::out << std::endl;
-         mfem::out << std::endl;
-      }
-   }
+   friend std::ostream& operator<<(std::ostream& os, const FaceMatrixExt& mat);
 };
+
+std::ostream& operator<<(std::ostream& os, const FaceMatrixExt& mat)
+{
+   for (size_t f = 0; f < mat.nf; f++)
+   {
+      os << "Face "<<f <<std::endl;
+      for (size_t i = 0; i < mat.ndofs; i++)
+      {
+         for (size_t j = 0; j < mat.ndofs; j++)
+         {
+            os << mat.data[i+j*mat.ndofs+2*f*mat.ndofs*mat.ndofs] << ", ";
+         }
+         os << std::endl;
+      }
+      os << std::endl;
+      for (size_t i = 0; i < mat.ndofs; i++)
+      {
+         for (size_t j = 0; j < mat.ndofs; j++)
+         {
+            os << mat.data[i+j*mat.ndofs+(2*f+1)*mat.ndofs*mat.ndofs] << ", ";
+         }
+         os << std::endl;
+      }
+      os << std::endl;
+      os << std::endl;
+   }   
+   return os;
+}
 
 class FaceMatrixBdr
 {
@@ -322,24 +332,27 @@ public:
       });
    }
 
-   void Print()
-   {
-      for (size_t f = 0; f < nf; f++)
-      {
-         mfem::out << "Face "<<f <<std::endl;
-         for (size_t i = 0; i < ndofs; i++)
-         {
-            for (size_t j = 0; j < ndofs; j++)
-            {
-               mfem::out << data[i+j*ndofs+f*ndofs*ndofs] << ", ";
-            }
-            mfem::out << std::endl;
-         }
-         mfem::out << std::endl;
-         mfem::out << std::endl;
-      }
-   }
+   friend std::ostream& operator<<(std::ostream& os, const FaceMatrixBdr& mat);
 };
+
+std::ostream& operator<<(std::ostream& os, const FaceMatrixBdr& mat)
+{
+   for (size_t f = 0; f < mat.nf; f++)
+   {
+      os << "Face "<<f <<std::endl;
+      for (size_t i = 0; i < mat.ndofs; i++)
+      {
+         for (size_t j = 0; j < mat.ndofs; j++)
+         {
+            os << mat.data[i+j*mat.ndofs+f*mat.ndofs*mat.ndofs] << ", ";
+         }
+         os << std::endl;
+      }
+      os << std::endl;
+      os << std::endl;
+   }   
+   return os;
+}
 
 }
 
