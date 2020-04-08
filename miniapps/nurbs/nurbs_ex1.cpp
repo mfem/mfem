@@ -14,6 +14,7 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
+//               The boundary conditions can be enforced either strongly or weakly.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
 //               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
