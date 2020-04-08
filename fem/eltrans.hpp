@@ -377,11 +377,9 @@ private:
 
 public:
    int Elem1No, Elem2No;
-   /// @deprecated Use GetGeometryType instead
-   Geometry::Type &FaceGeom;
+   Geometry::Type &FaceGeom; ///< @deprecated Use GetGeometryType instead
    ElementTransformation *Elem1, *Elem2;
-   /// @deprecated No longer necessary
-   ElementTransformation *Face;
+   ElementTransformation *Face; ///< @deprecated No longer necessary
    IntegrationPointTransformation Loc1, Loc2;
 
    FaceElementTransformations() : side(2), FaceGeom(geom), Face(this) {}
