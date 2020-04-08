@@ -10755,6 +10755,24 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    return mesh3d;
 }
 
+
+   int Mesh::face2be(int i)
+   {
+      if (face2be_array.Size() == 0)
+      {
+         face2be_array.SetSize(40000);
+         face2be_array = -1;
+         for (int j = 0; j < NumOfBdrElements; j++)
+         {
+           face2be_array[be2face(j)] = j;
+         }
+      }
+
+      return face2be_array[i];
+   }
+
+
+
 #ifdef MFEM_DEBUG
 void Mesh::DebugDump(std::ostream &out) const
 {
