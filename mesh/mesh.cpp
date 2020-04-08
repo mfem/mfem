@@ -2329,6 +2329,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    {
       NumOfEdges = 0;
    }
+
    if (Dim == 1)
    {
       GenerateFaces();
@@ -2347,7 +2348,6 @@ void Mesh::FinalizeTopology(bool generate_bdr)
 
    // generate the arrays 'attributes' and 'bdr_attributes'
    SetAttributes();
-
 }
 
 void Mesh::Finalize(bool refine, bool fix_orientation)
@@ -10960,11 +10960,6 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    }
    return mesh3d;
 }
-
-
-
-
-
 
 #ifdef MFEM_DEBUG
 void Mesh::DebugDump(std::ostream &out) const
