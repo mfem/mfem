@@ -117,7 +117,7 @@ public:
         coeff(integ.coeff),
         assembled_data(),
         in_fes(sol_fes)
-   { assembled_data.Reset(); }
+   { assembled_data.Reset(MemoryType::HOST_32); }
 
    virtual ~TBilinearForm()
    {
@@ -196,7 +196,7 @@ public:
       if (assembled_data.Empty())
       {
          const int size = ((NE+TE-1)/TE)*BE;
-         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_64);
+         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_32);
       }
       for (int el = 0; el < NE; el += TE)
       {
@@ -297,7 +297,7 @@ public:
       if (assembled_data.Empty())
       {
          const int size = ((NE+TE-1)/TE)*BE;
-         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_64);
+         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_32);
       }
       const vreal_t *vsNodes = (const vreal_t*)(sNodes.GetData());
       for (int el = 0; el < NE; el += TE)
