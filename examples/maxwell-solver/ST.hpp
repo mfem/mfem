@@ -71,7 +71,6 @@ private:
    Array<SparseMatrix *> PmlMat;
    Array<SparseMatrix *> HalfSpaceMat;
    Array<KLUSolver *> PmlMatInv;
-   Array<KLUSolver *> HalfSpaceMatInv;
    Array2D<double> Pmllength;
    mutable Array<Vector * > res;
 
@@ -83,7 +82,7 @@ private:
 
 public:
    STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, Coefficient * ws_, int nrlayers_);
+       double omega_, FunctionCoefficient * ws_, int nrlayers_);
    void SetLoadVector(Vector load) { B = load;}
    virtual void SetOperator(const Operator &op) {A = &op;}
    virtual void Mult(const Vector &r, Vector &z) const;
