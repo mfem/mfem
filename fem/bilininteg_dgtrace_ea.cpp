@@ -306,32 +306,32 @@ void DGTraceIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
       switch ((dofs1D << 4 ) | quad1D)
       {
          case 0x22:
-         return EADGTraceAssemble2DInt<2,2>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<2,2>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x33:
-         return EADGTraceAssemble2DInt<3,3>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<3,3>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x44:
-         return EADGTraceAssemble2DInt<4,4>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<4,4>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x55:
-         return EADGTraceAssemble2DInt<5,5>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<5,5>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x66:
-         return EADGTraceAssemble2DInt<6,6>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<6,6>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x77:
-         return EADGTraceAssemble2DInt<7,7>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<7,7>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x88:
-         return EADGTraceAssemble2DInt<8,8>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<8,8>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x99:
-         return EADGTraceAssemble2DInt<9,9>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble2DInt<9,9>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          default:
-         return EADGTraceAssemble2DInt(nf,B,pa_data,ea_data_int,
-                                       ea_data_ext,dofs1D,quad1D);
+            return EADGTraceAssemble2DInt(nf,B,pa_data,ea_data_int,
+                                          ea_data_ext,dofs1D,quad1D);
       }
    }
    else if (dim == 3)
@@ -339,29 +339,29 @@ void DGTraceIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
       switch ((dofs1D << 4 ) | quad1D)
       {
          case 0x23:
-         return EADGTraceAssemble3DInt<2,3>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble3DInt<2,3>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x34:
-         return EADGTraceAssemble3DInt<3,4>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble3DInt<3,4>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x45:
-         return EADGTraceAssemble3DInt<4,5>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble3DInt<4,5>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x56:
-         return EADGTraceAssemble3DInt<5,6>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble3DInt<5,6>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x67:
-         return EADGTraceAssemble3DInt<6,7>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble3DInt<6,7>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x78:
-         return EADGTraceAssemble3DInt<7,8>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble3DInt<7,8>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          case 0x89:
-         return EADGTraceAssemble3DInt<8,9>(nf,B,pa_data,ea_data_int,
-                                            ea_data_ext);
+            return EADGTraceAssemble3DInt<8,9>(nf,B,pa_data,ea_data_int,
+                                               ea_data_ext);
          default:
-         return EADGTraceAssemble3DInt(nf,B,pa_data,ea_data_int,
-                                       ea_data_ext,dofs1D,quad1D);
+            return EADGTraceAssemble3DInt(nf,B,pa_data,ea_data_int,
+                                          ea_data_ext,dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
@@ -391,7 +391,7 @@ void DGTraceIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
          case 0x88: return EADGTraceAssemble2DBdr<8,8>(nf,B,pa_data,ea_data_bdr);
          case 0x99: return EADGTraceAssemble2DBdr<9,9>(nf,B,pa_data,ea_data_bdr);
          default:
-         return EADGTraceAssemble2DBdr(nf,B,pa_data,ea_data_bdr,dofs1D,quad1D);
+            return EADGTraceAssemble2DBdr(nf,B,pa_data,ea_data_bdr,dofs1D,quad1D);
       }
    }
    else if (dim == 3)
@@ -406,7 +406,7 @@ void DGTraceIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
          case 0x78: return EADGTraceAssemble3DBdr<7,8>(nf,B,pa_data,ea_data_bdr);
          case 0x89: return EADGTraceAssemble3DBdr<8,9>(nf,B,pa_data,ea_data_bdr);
          default:
-         return EADGTraceAssemble3DBdr(nf,B,pa_data,ea_data_bdr,dofs1D,quad1D);
+            return EADGTraceAssemble3DBdr(nf,B,pa_data,ea_data_bdr,dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
