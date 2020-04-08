@@ -484,12 +484,6 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
    FTr->Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
    FTr->ElementNo = FaceNo;
    FTr->ElementType = ElementTransformation::FACE;
-   FaceElementTransformations * FETr =
-      dynamic_cast<FaceElementTransformations*>(FTr);
-   if (FETr)
-   {
-      FETr->FaceGeom = GetFaceGeometryType(FaceNo);
-   }
    DenseMatrix &pm = FTr->GetPointMat();
    if (Nodes == NULL)
    {
