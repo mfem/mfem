@@ -27,6 +27,7 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
+//               mpirun -np 4 ex1p -ea -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu

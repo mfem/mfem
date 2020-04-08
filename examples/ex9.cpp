@@ -19,6 +19,7 @@
 //
 // Device sample runs:
 //    ex9 -pa
+//    ex9 -ea
 //    ex9 -pa -m ../data/periodic-cube.mesh
 //    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
 //
