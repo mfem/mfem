@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_MESH
@@ -64,7 +64,7 @@ protected:
    /** These variables store the number of Interior and Boundary faces. Calling
        fes->GetMesh()->GetNBE() doesn't return the expected value in 3D because
        periodic meshes in 3D have some of their faces marked as boundary for
-       vizualization purpose in GLVis. */
+       visualization purpose in GLVis. */
    mutable int nbInteriorFaces, nbBoundaryFaces;
 
    int meshgen; // see MeshGenerator()
@@ -246,8 +246,6 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
-   void GetElementCenter(int i, Vector &center);
-
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
@@ -367,6 +365,8 @@ protected:
    static int GetTriOrientation (const int * base, const int * test);
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
+   /// Returns the orientation of "test" relative to "base"
+   static int GetTetOrientation (const int * base, const int * test);
 
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
@@ -571,21 +571,29 @@ public:
 
    virtual void SetAttributes();
 
-#ifdef MFEM_USE_GECKO
-   /** This is our integration with the Gecko library.  This will call the
-       Gecko library to find an element ordering that will increase memory
-       coherency by putting elements that are in physical proximity closer in
-       memory. It can also be used to get a space-filling curve ordering for
-       ParNCMesh partitioning.
+   /** This is our integration with the Gecko library. The method finds an
+       element ordering that will increase memory coherency by putting elements
+       that are in physical proximity closer in memory. It can also be used to
+       obtain a space-filling curve ordering for ParNCMesh partitioning.
        @param[out] ordering Output element ordering.
-       @param[in] iterations Number of V cycles (default 1).
-       @param[in] window Initial window size (default 2).
-       @param[in] period Iterations between window increment (default 1).
-       @param[in] seed Random number seed (default 0). */
-   void GetGeckoElementOrdering(Array<int> &ordering,
-                                int iterations = 1, int window = 2,
-                                int period = 1, int seed = 0);
-#endif
+       @param iterations Total number of V cycles. The ordering may improve with
+       more iterations. The best iteration is returned at the end.
+       @param window Initial window size. This determines the number of
+       permutations tested at each multigrid level and strongly influences the
+       quality of the result, but the cost of increasing 'window' is exponential.
+       @param period The window size is incremented every 'period' iterations.
+       @param seed Seed for initial random ordering (0 = skip random reorder).
+       @param verbose Print the progress of the optimization to mfem::out.
+       @param time_limit Optional time limit for the optimization, in seconds.
+       When reached, ordering from the best iteration so far is returned
+       (0 = no limit).
+       @return The final edge product cost of the ordering. The function may be
+       called in an external loop with different seeds, and the best ordering can
+       then be retained. */
+   double GetGeckoElementOrdering(Array<int> &ordering,
+                                  int iterations = 4, int window = 4,
+                                  int period = 2, int seed = 0,
+                                  bool verbose = false, double time_limit = 0);
 
    /** Return an ordering of the elements that approximately follows the Hilbert
        curve. The method performs a spatial (Hilbert) sort on the centers of all
@@ -1257,6 +1265,8 @@ public:
    double GetElementSize(int i, const Vector &dir);
 
    double GetElementVolume(int i);
+
+   void GetElementCenter(int i, Vector &center);
 
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */

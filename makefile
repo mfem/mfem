@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40001
+MFEM_VERSION = 40101
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -259,7 +259,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
+ SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC MPFR PUMI HIOP GSLIB\
  OCCA CEED RAJA UMPIRE
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
@@ -319,7 +319,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_ZLIB MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
  MFEM_USE_OPENMP MFEM_USE_LEGACY_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE\
  MFEM_USE_SUNDIALS MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GINKGO\
- MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
+ MFEM_USE_SUPERLU MFEM_USE_STRUMPACK MFEM_USE_GNUTLS\
  MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
  MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_SOURCE_DIR\
@@ -625,7 +625,6 @@ status info:
 	$(info MFEM_USE_SUITESPARSE   = $(MFEM_USE_SUITESPARSE))
 	$(info MFEM_USE_SUPERLU       = $(MFEM_USE_SUPERLU))
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
-	$(info MFEM_USE_GECKO         = $(MFEM_USE_GECKO))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
@@ -695,8 +694,8 @@ mfem_check_command = \
     printf $$red"%s"$$end"\n"   "[FAILED] "$(strip $(3)); err_code=1;\
   fi
 
-# Verify C++ code styling in MFEM and that std::cout and std::cerr are not used
-# in the library (use mfem::out and mfem::err instead)
+# Verify the C++ code styling in MFEM and check that std::cout and std::cerr are
+# not used in the library (use mfem::out and mfem::err instead).
 style:
 	@echo "Applying C++ code style..."
 	@astyle_version="$$($(ASTYLE_BIN) --version)";\
