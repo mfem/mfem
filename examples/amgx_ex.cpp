@@ -60,45 +60,214 @@
 using namespace std;
 using namespace mfem;
 
-/* parse parameters */
-int findParamIndex(char **argv, int argc, const char *parm)
+/**
+   The dream is that this becomes almost a replacement for
+   HypreAMG, like with an NvidiaAMGX(SparseMatrix) constructor.
+*/
+class NvidiaAMGX : public Solver
 {
-    int count = 0;
-    int index = -1;
+public:
+   NvidiaAMGX();
 
-    for (int i = 0; i < argc; i++)
-    {
-        if (strncmp(argv[i], parm, 100) == 0)
-        {
-            index = i;
-            count++;
-        }
-    }
+   void ConfigureAsSolver(bool verbose=false);
+   void ConfigureAsPreconditioner(bool verbose=false);
 
-    if (count == 0 || count == 1)
-    {
-        return index;
-    }
-    else
-    {
-        printf("Error, parameter %s has been specified more than once, exiting\n", parm);
-        exit(1);
-    }
+   void Configure(const char * amgx_json_file,
+                  const char * amgx_parameter);
 
-    return -1;
+   ~NvidiaAMGX();
+
+   void SetOperator(const Operator& op);
+
+   void Mult(const Vector& x, Vector& y) const;
+
+private:
+   bool configured;
+
+   // library handles
+   AMGX_Mode mode;
+   AMGX_config_handle cfg;
+   AMGX_resources_handle rsrc;
+   AMGX_matrix_handle amgx_A;
+   AMGX_vector_handle amgx_b, amgx_x;
+   AMGX_solver_handle solver;
+
+   // status handling
+   // AMGX_SOLVE_STATUS status;
+
+   SparseMatrix * spop;
+};
+
+NvidiaAMGX::NvidiaAMGX()
+   : configured(false)
+{
 }
 
-/* print error message and exit */
-void errAndExit(const char *err)
+void NvidiaAMGX::ConfigureAsSolver(bool verbose)
 {
-    printf("%s\n", err);
-    fflush(stdout);
-    exit(1);
+   std::string configs = "{\n"
+      "    \"config_version\": 2, \n"
+      "    \"solver\": {\n"
+      "        \"max_uncolored_percentage\": 0.15, \n"
+      "        \"algorithm\": \"AGGREGATION\", \n"
+      "        \"solver\": \"AMG\", \n"
+      "        \"smoother\": \"MULTICOLOR_GS\", \n"
+      "        \"presweeps\": 1, \n"
+      "        \"symmetric_GS\": 1, \n"
+      "        \"selector\": \"SIZE_2\", \n"
+      "        \"coarsest_sweeps\": 10, \n"
+      "        \"max_iters\": 1000, \n"
+      "        \"postsweeps\": 1, \n"
+      "        \"scope\": \"main\", \n"
+      "        \"max_levels\": 1000, \n"
+      "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
+      "        \"tolerance\": 0.0000001, \n"
+      "        \"norm\": \"L2\", \n"
+      "        \"cycle\": \"V\"";
+
+   if (verbose)
+   {
+      configs = configs + ",\n"
+         "        \"obtain_timings\": 1, \n"
+         "        \"monitor_residual\": 1, \n"
+         "        \"print_grid_stats\": 1, \n"
+         "        \"print_solve_stats\": 1 \n";
+   }
+   else
+   {
+      configs = configs + "\n";
+   }
+   configs = configs + "    }\n" + "}\n";
+
+   AMGX_SAFE_CALL(AMGX_config_create(&cfg, configs.c_str()));
+   configured = true;
+}
+
+void NvidiaAMGX::ConfigureAsPreconditioner(bool verbose)
+{
+   std::string configs = "{\n"
+      "    \"config_version\": 2, \n"
+      "    \"solver\": {\n"
+      "        \"max_uncolored_percentage\": 0.15, \n"
+      "        \"algorithm\": \"AGGREGATION\", \n"
+      "        \"solver\": \"AMG\", \n"
+      "        \"smoother\": \"MULTICOLOR_GS\", \n"
+      "        \"presweeps\": 1, \n"
+      "        \"symmetric_GS\": 1, \n"
+      "        \"selector\": \"SIZE_2\", \n"
+      "        \"coarsest_sweeps\": 10, \n"
+      "        \"max_iters\": 2, \n"
+      "        \"postsweeps\": 1, \n"
+      "        \"scope\": \"main\", \n"
+      "        \"max_levels\": 1000, \n"
+      "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
+      "        \"tolerance\": 0.0, \n"
+      "        \"norm\": \"L2\", \n"
+      "        \"cycle\": \"V\"";
+
+   if (verbose)
+   {
+      configs = configs + ",\n"
+         "        \"obtain_timings\": 1, \n"
+         "        \"monitor_residual\": 1, \n"
+         "        \"print_grid_stats\": 1, \n"
+         "        \"print_solve_stats\": 1 \n";
+   }
+   else
+   {
+      configs = configs + "\n";
+   }
+   configs = configs + "    }\n" + "}\n";
+
+   AMGX_SAFE_CALL(AMGX_config_create(&cfg, configs.c_str()));
+   configured = true;
+}
+
+void NvidiaAMGX::Configure(const char * amgx_json_file,
+                           const char * amgx_parameter)
+{
+   if (strcmp(amgx_json_file, "") != 0 && strcmp(amgx_parameter, "") != 0)
+   {
+      std::cout << "Using file " << amgx_json_file << " AND config "
+                << amgx_parameter << std::endl;
+      AMGX_SAFE_CALL(AMGX_config_create_from_file_and_string(&cfg, amgx_json_file,
+                                                             amgx_parameter));
+      configured = true;
+   }
+   else if (strcmp(amgx_json_file, "") != 0)
+   {
+      std::cout << "Using file " << amgx_json_file << std::endl;
+      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, amgx_json_file));
+      configured = true;
+   }
+   else if (strcmp(amgx_parameter, "") != 0)
+   {
+      std::cout << "Using config " << amgx_parameter << std::endl;
+      AMGX_SAFE_CALL(AMGX_config_create(&cfg, amgx_parameter));
+      configured = true;
+   }
+   else
+   {
+      configured = false;  // no-op is fine but this is the intent
+   }
+}
+
+NvidiaAMGX::~NvidiaAMGX()
+{
+   AMGX_solver_destroy(solver);
+   AMGX_matrix_destroy(amgx_A);
+   AMGX_vector_destroy(amgx_x);
+   AMGX_vector_destroy(amgx_b);
+   AMGX_resources_destroy(rsrc);
+}
+
+void NvidiaAMGX::SetOperator(const Operator& op)
+{
+   if (!configured)
+   {
+      ConfigureAsSolver();
+   }
+
+   // data is assumed to be one device
+   // (d)evice (D)ouble mat (D)ouble vec (I)nt32
+   mode = AMGX_mode_dDDI;
+
+   AMGX_resources_create_simple(&rsrc, cfg);
+   AMGX_solver_create(&solver, rsrc, mode, cfg);
+   AMGX_matrix_create(&amgx_A, rsrc, mode);
+   AMGX_vector_create(&amgx_x, rsrc, mode);
+   AMGX_vector_create(&amgx_b, rsrc, mode);
+
+   spop = const_cast<SparseMatrix*>(dynamic_cast<const SparseMatrix*>(&op));
+   MFEM_VERIFY(spop, "Operator is not of correct type!");
+
+   AMGX_matrix_upload_all(amgx_A, spop->Height(),
+                          spop->NumNonZeroElems(),
+                          1, 1,
+                          spop->ReadWriteI(),
+                          spop->ReadWriteJ(),
+                          spop->ReadWriteData(), NULL);
+
+   AMGX_solver_setup(solver, amgx_A);
+}
+
+void NvidiaAMGX::Mult(const Vector& b, Vector& x) const
+{
+   AMGX_vector_upload(amgx_b, b.Size(), 1, b.Read());
+
+   AMGX_vector_set_zero(amgx_x, x.Size(), 1);
+   // AMGX_vector_upload(amgx_x, x.Size(), 1, x.Read()); // leads to nans...
+
+   AMGX_solver_solve(solver, amgx_b, amgx_x);
+
+   AMGX_vector_download(amgx_x, x.Write());
+
+   //x.HostReadWrite();
+   //x.Print();
 }
 
 int main(int argc, char *argv[])
 {
-
    AMGX_initialize();
    AMGX_initialize_plugins();
 
@@ -110,8 +279,10 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cuda";
    bool visualization = true;
-   const char* c = 0; //jason file for amgx
-   const char* amg = 0; //parameter for amgx
+   bool amgx_solver = false;
+   bool amgx_verbose = false;
+   const char* amgx_json_file = ""; // jason file for amgx
+   const char* amgx_parameter = ""; // command line config for amgx
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -123,7 +294,16 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&c, "-c","--c","AMGX solver file");
+   args.AddOption(&amgx_json_file, "--amgx-file", "--amgx-file",
+                  "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
+   args.AddOption(&amgx_parameter, "--amgx-config", "--amgx-config",
+                  "AMGX solver config as string (overrides --amgx-solver, --amgx-verbose)");
+   args.AddOption(&amgx_solver, "--amgx-solver", "--amgx-solver", "--amgx-preconditioner",
+                  "--amgx-preconditioner",
+                  "Configure AMGX as solver or preconditioner.");
+   args.AddOption(&amgx_verbose, "--amgx-verbose", "--amgx-verbose",
+                  "--amgx-no-verbose", "--amgx-no-verbose",
+                  "Print verbose information from AMGX.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -136,65 +316,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
-   // 1.5 AMGX parameter parsing
-   //library handles
-   AMGX_Mode mode;
-   AMGX_config_handle cfg;
-   AMGX_resources_handle rsrc;
-   AMGX_matrix_handle amgx_A;
-   AMGX_vector_handle amgx_b, amgx_x;
-   AMGX_solver_handle solver;
-   //status handling
-   //AMGX_SOLVE_STATUS status;
-
-   //versions
-   int major, minor;
-   char *ver, *date, *time;   
-
-   //parameter parsing
-   int pidx = 0;
-   int pidy = 0;
-
-   //Create config//
-    pidx = findParamIndex(argv, argc, "-amg");
-    pidy = findParamIndex(argv, argc, "-c");
-
-    if ((pidx != -1) && (pidy != -1))
-    {
-        printf("%s\n", argv[pidx + 1]);
-        AMGX_SAFE_CALL(AMGX_config_create_from_file_and_string(&cfg, argv[pidy + 1], argv[pidx + 1]));
-    }
-    else if (pidy != -1)
-    {
-        AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, argv[pidy + 1]));
-    }
-    else if (pidx != -1)
-    {
-        printf("%s\n", argv[pidx + 1]);
-        AMGX_SAFE_CALL(AMGX_config_create(&cfg, argv[pidx + 1]));
-    }
-    else
-    {
-        errAndExit("ERROR: no config was specified");
-    }
-
-    /* get api and build info */
-    if ((pidx = findParamIndex(argv, argc, "--version")) != -1)
-    {
-        AMGX_get_api_version(&major, &minor);
-        printf("amgx api version: %d.%d\n", major, minor);
-        AMGX_get_build_info_strings(&ver, &date, &time);
-        printf("amgx build version: %s\nBuild date and time: %s %s\n", ver, date, time);
-        AMGX_SAFE_CALL(AMGX_finalize_plugins());
-        AMGX_SAFE_CALL(AMGX_finalize());
-        /* close the library (if it was dynamically loaded) */
-#ifdef AMGX_DYNAMIC_LOADING
-        amgx_libclose(lib_handle);
-#endif
-        exit(0);
-    }
-
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -279,42 +400,28 @@ int main(int argc, char *argv[])
    // 10. Solve the linear system A X = B.
    if (!pa)
    {
-
-   //data is assumed to be one device
-    mode = AMGX_mode_dDDI;
-    
-    AMGX_resources_create_simple(&rsrc, cfg);
-    AMGX_solver_create(&solver, rsrc, mode, cfg);
-    AMGX_matrix_create(&amgx_A, rsrc, mode);
-    AMGX_vector_create(&amgx_x, rsrc, mode);
-    AMGX_vector_create(&amgx_b, rsrc, mode);
-    
-    SparseMatrix &myASp = a->SpMat();
-    myASp.NumNonZeroElems();
-    AMGX_matrix_upload_all(amgx_A, myASp.Height(),
-                           myASp.NumNonZeroElems(),
-                           1,1,
-                           myASp.ReadWriteI(),
-                           myASp.ReadWriteJ(),
-                           myASp.ReadWriteData(), NULL);
-    
-    AMGX_vector_upload(amgx_b, b->Size(), 1, b->Read());
-
-    AMGX_vector_set_zero(amgx_x, x.Size(), 1);
-
-    AMGX_solver_setup(solver, amgx_A);
-
-    AMGX_solver_solve(solver, amgx_b, amgx_x);
-
-    AMGX_vector_download(amgx_x, x.Write());
-
-    AMGX_solver_destroy(solver);
-    AMGX_vector_destroy(amgx_x);
-    AMGX_vector_destroy(amgx_b);
-    AMGX_matrix_destroy(amgx_A);
-    AMGX_resources_destroy(rsrc);
-    //x.HostReadWrite();
-    //x.Print();
+      NvidiaAMGX amgx;
+      if (strcmp(amgx_json_file, "") != 0 || strcmp(amgx_parameter, "") != 0)
+      {
+         amgx.Configure(amgx_json_file, amgx_parameter);
+      }
+      else if (amgx_solver)
+      {
+         amgx.ConfigureAsSolver(amgx_verbose);
+         amgx.SetOperator(a->SpMat());
+         amgx.Mult(*b, x);
+      }
+      else
+      {
+         amgx.ConfigureAsPreconditioner(amgx_verbose);
+         SparseMatrix A;
+         Vector B, X;
+         Array<int> ess_tdof_list(0);
+         a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+         amgx.SetOperator(A);
+         X = 0.0;
+         PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
+      }
    }
    else // Jacobi preconditioning in partial assembly mode
    {
@@ -337,7 +444,6 @@ int main(int argc, char *argv[])
       //x.HostReadWrite();
       //x.Print();
    }
-
 
    // 11. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -365,6 +471,8 @@ int main(int argc, char *argv[])
    if (order > 0) { delete fec; }
    delete mesh;
 
+   // NvidiaAMGX destructor has to be called before these
+   // (could use a context or something)
    AMGX_finalize_plugins();
    AMGX_finalize();
 
