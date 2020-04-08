@@ -87,8 +87,7 @@ std::ostream& operator<<(std::ostream& os, const ElementMatrix& mat)
          }
          os << std::endl;
       }
-      os << std::endl;
-      os << std::endl;
+      os << std::endl << std::endl;
    }
    return os;
 }
@@ -181,9 +180,8 @@ std::ostream& operator<<(std::ostream& os, const FaceMatrixInt& mat)
          }
          os << std::endl;
       }
-      os << std::endl;
-      os << std::endl;
-   }   
+      os << std::endl << std::endl;
+   }
    return os;
 }
 
@@ -275,9 +273,8 @@ std::ostream& operator<<(std::ostream& os, const FaceMatrixExt& mat)
          }
          os << std::endl;
       }
-      os << std::endl;
-      os << std::endl;
-   }   
+      os << std::endl << std::endl;
+   }
    return os;
 }
 
@@ -348,9 +345,8 @@ std::ostream& operator<<(std::ostream& os, const FaceMatrixBdr& mat)
          }
          os << std::endl;
       }
-      os << std::endl;
-      os << std::endl;
-   }   
+      os << std::endl << std::endl;
+   }
    return os;
 }
 
