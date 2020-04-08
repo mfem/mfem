@@ -861,6 +861,28 @@ public:
       }
    }
 
+   /// Returns the indices of the vertices of face i.
+   int be2face(int i) const
+   {
+      if (Dim == 1)
+      {
+         return (i==0)? 0:NumOfFaces-1; // NEEDS checking !!!
+      }
+      else if (Dim == 2)
+      {
+         return be_to_edge[i];
+      }
+      else
+      {
+         return be_to_face[i];
+      }
+
+   }
+
+   Array<int> face2be_array;
+   int face2be(int i);
+
+
    /// Returns the indices of the vertices of edge i.
    void GetEdgeVertices(int i, Array<int> &vert) const;
 
