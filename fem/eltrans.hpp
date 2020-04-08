@@ -376,11 +376,15 @@ private:
    int side;
 
 public:
-   int Elem1No, Elem2No, FaceGeom;
-   ElementTransformation *Elem1, *Elem2, *Face;
+   int Elem1No, Elem2No;
+   /// @deprecated Use GetGeometryType instead
+   Geometry::Type &FaceGeom;
+   ElementTransformation *Elem1, *Elem2;
+   /// @deprecated No longer necessary
+   ElementTransformation *Face;
    IntegrationPointTransformation Loc1, Loc2;
 
-   FaceElementTransformations() : side(2), Face(this) {}
+   FaceElementTransformations() : side(2), FaceGeom(geom), Face(this) {}
 
    /** FaceElementTransformations objects are often used when
        performing the surface integrals on the interfaces between
