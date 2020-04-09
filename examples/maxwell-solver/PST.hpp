@@ -22,19 +22,14 @@ private:
    Vector B;
    DofMap * ovlp_prob = nullptr;
    DofMap * novlp_prob = nullptr;
-   Array<SesquilinearForm *> HalfSpaceForms;
    Array<SparseMatrix *> PmlMat;
-   Array<SparseMatrix *> HalfSpaceMat;
    Array<KLUSolver *> PmlMatInv;
-   Array<KLUSolver *> HalfSpaceMatInv;
    Array2D<double> Pmllength;
    mutable Array<Vector * > res;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
-   SparseMatrix * GetHalfSpaceSystemMatrix(int ip);
-   void SolveHalfSpaceLinearSystem(int ip, Vector & x, Vector & load) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
-   void GetCutOffSolution(Vector & sol, int ip) const;
+   void GetCutOffSolution(Vector & sol, int ip, int direction) const;
 
 public:
    PSTP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 

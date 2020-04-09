@@ -330,7 +330,7 @@ double f_exact_Re(const Vector &x)
    f_re = coeff*exp(alpha);
 
    // x0 = 0.9;
-   // x1 = 0.1;
+   // x1 = 0.5;
    // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    // if (dim == 3) { beta += pow(x2-x(2),2); }
    // alpha = -pow(n,2) * beta;
