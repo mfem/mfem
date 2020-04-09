@@ -2753,6 +2753,15 @@ void GridFunction::Save(std::ostream &out) const
    out.flush();
 }
 
+#ifdef MFEM_USE_ADIOS2
+void GridFunction::Save(adios2stream &out,
+                        const std::string& variable_name,
+                        const adios2stream::data_type type) const
+{
+   out.Save(*this, variable_name, type);
+}
+#endif
+
 void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
                            int ref)
 {
