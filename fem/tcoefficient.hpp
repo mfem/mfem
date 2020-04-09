@@ -178,7 +178,7 @@ public:
    }
 };
 
-/// GridFunction coefficient class. 
+/// GridFunction coefficient class.
 template <typename FieldEval>
 class TGridFunctionCoefficient : public TCoefficient
 {

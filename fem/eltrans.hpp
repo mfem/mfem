@@ -39,7 +39,7 @@ protected:
    Geometry::Type geom;
    int space_dim;
 
-   /** @brief Evaluate the Jacobian of the transformation at the IntPoint and 
+   /** @brief Evaluate the Jacobian of the transformation at the IntPoint and
        store it in dFdx. */
    virtual const DenseMatrix &EvalJacobian() = 0;
    virtual const DenseMatrix &EvalHessian() = 0;
@@ -53,7 +53,7 @@ public:
 
    ElementTransformation();
 
-   /** @brief Set the integration point @a ip that weights and jacobians will 
+   /** @brief Set the integration point @a ip that weights and jacobians will
        be evaluated at. */
    void SetIntPoint(const IntegrationPoint *ip)
    { IntPoint = ip; EvalState = 0; }
@@ -61,7 +61,7 @@ public:
    /// Get a const reference to the currently set integration point.
    const IntegrationPoint &GetIntPoint() { return *IntPoint; }
 
-   /** @brief Transform integration point from reference coordinates to 
+   /** @brief Transform integration point from reference coordinates to
        physical coordinates and store them in the vector. */
    virtual void Transform(const IntegrationPoint &, Vector &) = 0;
 
@@ -90,7 +90,7 @@ public:
    { return (EvalState & HESSIAN_MASK) ? d2Fdx2 : EvalHessian(); }
 
    /** @brief Return the weight of the Jacobian matrix of the transformation
-       at the currently set IntegrationPoint, using the metion SetIntPoint().  
+       at the currently set IntegrationPoint, using the metion SetIntPoint().
        The Weight evaluates to \f$ \sqrt{\lvert J^T J \rvert} \f$. */
    double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
@@ -321,7 +321,7 @@ private:
    const FiniteElement *FElem;
    DenseMatrix PointMat; // dim x dof
 
-   /** @brief Evaluate the Jacobian of the transformation at the IntPoint and 
+   /** @brief Evaluate the Jacobian of the transformation at the IntPoint and
        store it in dFdx. */
    virtual const DenseMatrix &EvalJacobian();
    // Evaluate the Hessian of the transformation at the IntPoint and store it
@@ -341,22 +341,22 @@ public:
 
            \f$ x = F( \hat x ) = P \phi( \hat x ) \f$
 
-       where \f$ \hat x \f$  is the reference point, @a x is the corresponding 
-       physical point, @a P is the point matrix, and \f$ \phi( \hat x ) \f$ is 
-       the column-vector of all basis functions evaluated at xh. The columns of 
-       @a P represent the control points in physical space defining the 
+       where \f$ \hat x \f$  is the reference point, @a x is the corresponding
+       physical point, @a P is the point matrix, and \f$ \phi( \hat x ) \f$ is
+       the column-vector of all basis functions evaluated at xh. The columns of
+       @a P represent the control points in physical space defining the
        transformation. */
    DenseMatrix &GetPointMat() { return PointMat; }
 
-   /** @brief Sets up the correct dimensions for the Jacobian computations.  This 
-       must be called after SetIdentityTransformation(), but before and calls to 
+   /** @brief Sets up the correct dimensions for the Jacobian computations.  This
+       must be called after SetIdentityTransformation(), but before and calls to
        EvalJacobian(). */
    void FinalizeTransformation() { space_dim = PointMat.Height(); }
 
    /// Set the FiniteElement Geometry for the reference elements being used.
    void SetIdentityTransformation(Geometry::Type GeomType);
 
-   /** @brief Transform integration point from reference coordinates to 
+   /** @brief Transform integration point from reference coordinates to
        physical coordinates and store them in the vector. */
    virtual void Transform(const IntegrationPoint &, Vector &);
 
@@ -367,7 +367,7 @@ public:
 
    /** @brief Transform all the integration points from the column vectors
        of @a matrix from reference coordinates to physical
-       coordinates and store them as column vectors in @a result. */   
+       coordinates and store them as column vectors in @a result. */
    virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
 
    virtual int Order() { return FElem->GetOrder(); }

@@ -132,7 +132,7 @@ public:
                             required));
    }
 
-   /** @brief Parse the command-line options. 
+   /** @brief Parse the command-line options.
 
        Note that this function expects all the
        options provided through the command line to have a corresponding

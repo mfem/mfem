@@ -239,7 +239,7 @@ public:
    template<class Compare>
    void Sort(Compare cmp) { std::sort((T*)data, data + size, cmp); }
 
-   /** @brief Removes duplicities from a sorted array. This requires 
+   /** @brief Removes duplicities from a sorted array. This requires
        operator== to be defined for T. */
    void Unique()
    {

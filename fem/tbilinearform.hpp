@@ -87,7 +87,7 @@ protected:
 
    /** @brief Contains matrix sizes, type of kernel (ElementMatrix is templated on
        a kernel, eg. ElementMatrix::Compute may be AssembleGradGrad()).
-       @tparam BE batch size of elements */           
+       @tparam BE batch size of elements */
    template <int BE> struct S_spec
    {
       typedef typename solFieldEval::template Spec<kernel_t,BE> Spec;

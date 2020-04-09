@@ -67,12 +67,12 @@ public:
 /** @brief The ZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure.
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery 
-    and a posteriori error estimates. Part 1: The recovery technique. 
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 1: The recovery technique.
     Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
 
-    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery 
-    and a posteriori error estimates. Part 2: Error estimates and adaptivity. 
+    Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 2: Error estimates and adaptivity.
     Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
 
     The required BilinearFormIntegrator must implement the methods
