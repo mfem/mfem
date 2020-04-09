@@ -192,6 +192,7 @@ MFEM_STATIC ?= $(STATIC)
 MFEM_SHARED ?= $(SHARED)
 
 # Internal shortcuts
+override jit = $(if $(MFEM_USE_JIT:YES=),,YES)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
@@ -246,9 +247,7 @@ ifeq ($(MFEM_USE_HIP),YES)
 endif
 
 # JIT configuration
-ifeq ($(MFEM_USE_JIT),YES)
-   JIT_EXE = $(BLD)mjit
-endif
+MFEM_JIT = mjit
 
 DEP_CXX ?= $(MFEM_CXX)
 
@@ -419,30 +418,29 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(JIT_EXE)
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+     $(if $(jit),$(BLD)$(MFEM_JIT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
-# nvcc needs the MFEM_SOURCE_DIR ('-I.') to compile from stdin
-ifeq ($(MFEM_USE_JIT),YES)
-JIT_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) #$(JIT_EXE)
-#	@echo $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
-	./mjit $(<) | $(MFEM_CXX) $(JIT_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
-else
+ifneq ($(MFEM_USE_JIT),YES)
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+else
+MFEM_JIT_DEFS  = -DMFEM_JIT_MAIN
+MFEM_JIT_DEFS += -DMFEM_CXX="$(MFEM_CXX)"
+MFEM_JIT_DEFS += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
+$(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
+						 $(SRC)general/$(MFEM_JIT).hpp #$(THIS_MK)
+	$(MFEM_CXX) -O3 -Wall -std=c++11 -pedantic -o $(@) $(<) $(MFEM_JIT_DEFS)
+MFEM_JIT_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
+MFEM_JIT_FLAGS += -x c++ -I. -I$(patsubst %/,%,$(<D))
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
+	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
 endif
-
-# Rule for compiling JIT source file generator.
-JIT_MFEM_CONFIG  = -DMFEM_JIT_MAIN
-JIT_MFEM_CONFIG += -DMFEM_CXX="$(MFEM_CXX)"
-JIT_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-$(JIT_EXE): $(BLD)general/mjit.cpp $(BLD)general/mjit.hpp $(THIS_MK)
-	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(JIT_MFEM_CONFIG)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -546,7 +544,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk mjit)
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk $(MFEM_JIT))
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -555,11 +553,11 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
-install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(JIT_EXE)
-ifeq ($(MFEM_USE_JIT),YES)
+install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+			$(if $(jit),$(BLD)$(MFEM_JIT))
+# install binaries
 	mkdir -p $(PREFIX_BIN)
-	$(INSTALL) -m 750 $(JIT_EXE) $(PREFIX_BIN)
-endif
+	$(if $(jit),$(INSTALL) -m 750 $(MFEM_JIT) $(PREFIX_BIN))
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
@@ -704,7 +702,7 @@ FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/jit\.cpp'
+ '^general/$(MFEM_JIT)\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
