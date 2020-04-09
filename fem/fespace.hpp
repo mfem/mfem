@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_FESPACE
@@ -111,6 +111,8 @@ protected:
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
+   Table *face_dof; // used only with NURBS FE spaces;
+   Array<int> face_to_be; // used only with NURBS FE spaces;
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -523,6 +525,8 @@ public:
 
    const Table &GetElementToDofTable() const { return *elem_dof; }
    const Table &GetBdrElementToDofTable() const { return *bdrElem_dof; }
+   const Table &GetFaceToDofTable() const { return *face_dof; }
+
 
    int GetElementForDof(int i) const { return dof_elem_array[i]; }
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
@@ -669,6 +673,8 @@ public:
    FiniteElementCollection *Load(Mesh *m, std::istream &input);
 
    virtual ~FiniteElementSpace();
+
+   void GenerateFaceDofs();
 };
 
 
