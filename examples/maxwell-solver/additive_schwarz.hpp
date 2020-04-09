@@ -52,8 +52,8 @@ private:
    Mesh *mesh=nullptr;
 public:
    int nrpatch;
-   std::vector<Array<int>>
-                        element_map; // map local (patch) element to global (original mesh) element
+   // map local (patch) element to global (original mesh) element
+   std::vector<Array<int>> element_map; 
    // constructor
    VertexMeshPartition(Mesh * mesh_);
    ~VertexMeshPartition() {};

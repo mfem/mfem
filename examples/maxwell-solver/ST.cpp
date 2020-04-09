@@ -2,6 +2,59 @@
 
 #include "ST.hpp"
 
+DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_) 
+               : bf(bf_), partition(partition_)
+{
+   int partition_kind = partition->partition_kind;
+   MFEM_VERIFY(partition_kind == 1, "Check Partition kind");
+   fespace = bf->FESpace();
+   Mesh * mesh = fespace->GetMesh();
+   const FiniteElementCollection * fec = fespace->FEColl();
+   nrpatch = partition->nrpatch;
+   fespaces.SetSize(nrpatch);
+
+   Dof2GlobalDof.resize(nrpatch);
+
+   for (int ip=0; ip<nrpatch; ++ip)
+   {
+      // create finite element spaces for each patch 
+      fespaces[ip] = new FiniteElementSpace(partition->patch_mesh[ip],fec);
+
+      // construct the patch tdof to global tdof map
+      int nrdof = fespaces[ip]->GetTrueVSize();
+      Dof2GlobalDof[ip].SetSize(2*nrdof);
+
+      // loop through the elements in the patch
+      for (int iel = 0; iel<partition->element_map[ip].Size(); ++iel)
+      {
+         // index in the global mesh
+         int iel_idx = partition->element_map[ip][iel];
+         // get the dofs of this element
+         Array<int> ElemDofs;
+         Array<int> GlobalElemDofs;
+         fespaces[ip]->GetElementDofs(iel,ElemDofs);
+         fespace->GetElementDofs(iel_idx,GlobalElemDofs);
+         // the sizes have to match
+         MFEM_VERIFY(ElemDofs.Size() == GlobalElemDofs.Size(),
+                     "Size inconsistency");
+         // loop through the dofs and take into account the signs;
+         int ndof = ElemDofs.Size();
+         for (int i = 0; i<ndof; ++i)
+         {
+            int pdof_ = ElemDofs[i];
+            int gdof_ = GlobalElemDofs[i];
+            int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
+            int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
+            Dof2GlobalDof[ip][pdof] = gdof;
+            Dof2GlobalDof[ip][pdof+nrdof] = gdof+fespace->GetTrueVSize();
+         }
+      }
+   }
+}
+
+
+
+
 DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers) 
                : bf(bf_), partition(partition_)
 {
@@ -129,9 +182,8 @@ STP::STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // 2. Overlapping to the right
    partition_kind = 3; // Ovelapping partition for the full space
    povlp = new MeshPartition(mesh, partition_kind);
-
-   nrpatch = pnovlp->nrpatch-1;
-   // nrpatch = pnovlp->nrpatch;
+   nrpatch = pnovlp->nrpatch;
+   cout << "nrpatch = " << nrpatch << endl;
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
@@ -503,10 +555,6 @@ STP::~STP()
    PmlMat.DeleteAll();
    PmlMatInv.DeleteAll();
 }
-
-
-
-
 
 
 double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const Array2D<double> & h_)

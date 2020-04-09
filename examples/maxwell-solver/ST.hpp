@@ -47,6 +47,9 @@ public:
    Array<FiniteElementSpace *> fespaces;
    Array<FiniteElementSpace *> PmlFespaces;
    // constructor
+   // Non PML contructor dof map
+   DofMap(SesquilinearForm * bf_, MeshPartition * partition_);
+   // PML
    DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers);
    ~DofMap();
 };
