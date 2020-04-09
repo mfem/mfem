@@ -1474,22 +1474,22 @@ void FiniteElementSpace::UpdateNURBS()
 
 void FiniteElementSpace::GenerateFaceDofs()
 {
-   if (face_dof) return;
+   if (face_dof) { return; }
 
    Array<Connection> face_dof_list;
    Array<int> row;
    face_to_be.SetSize(mesh->GetNumFaces());
    for (int b = 0; b < bdrElem_dof->Size(); b++)
    {
-       bdrElem_dof->GetRow(b, row);
-       int f = mesh->GetBdrElementEdgeIndex(b);
-       face_to_be[f] = b;
-       Connection conn(f,0);
-       for (int i = 0; i < row.Size(); i++)
-       {
-          conn.to = row[i];
-          face_dof_list.Append(conn);
-       }
+      bdrElem_dof->GetRow(b, row);
+      int f = mesh->GetBdrElementEdgeIndex(b);
+      face_to_be[f] = b;
+      Connection conn(f,0);
+      for (int i = 0; i < row.Size(); i++)
+      {
+         conn.to = row[i];
+         face_dof_list.Append(conn);
+      }
    }
    face_dof_list.Sort();
    face_dof_list.Unique();
@@ -1769,7 +1769,8 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 
    if (NURBSext)
    {
-      const_cast<FiniteElementSpace*>(this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
+      const_cast<FiniteElementSpace*>
+      (this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
    }
 
    if (face_dof)
@@ -1962,7 +1963,8 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 
    if (NURBSext)
    {
-      const_cast<FiniteElementSpace*>(this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
+      const_cast<FiniteElementSpace*>
+      (this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
       NURBSext->LoadBE(face_to_be[i], fe);
    }
 
