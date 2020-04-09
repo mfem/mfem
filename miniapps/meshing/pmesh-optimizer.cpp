@@ -31,6 +31,9 @@
 //
 // Compile with: make pmesh-optimizer
 //
+//   Adaptive limiting test:
+//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 1 -fd -al
+//
 // Sample runs:
 //   Adapted analytic Hessian:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -308,6 +311,7 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int verbosity_level   = 0;
    bool fdscheme         = false;
+   bool adapt_lim        = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -375,6 +379,8 @@ int main (int argc, char *argv[])
                   "Make all terms in the optimization functional unitless.");
    args.AddOption(&fdscheme, "-fd", "--fd_approximation", "no-fd", "no-fd-app",
                   "Enable finite difference based derivative computations.");
+   args.AddOption(&adapt_lim, "-al", "--adapt-limit", "no-ad", "no-adapt-limit",
+                  "Enable adaptive limiting.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -616,12 +622,17 @@ int main (int argc, char *argv[])
 
    // Adaptive limiting.
    ParGridFunction xi_0;
+   ParGridFunction zeta(&ind_fes);
    xi_0.SetSpace(&ind_fes);
    FunctionCoefficient alim_coeff(adapt_lim_fun);
+   zeta.ProjectCoefficient(alim_coeff);
    xi_0.ProjectCoefficient(alim_coeff);
-   he_nlf_integ->EnableAnalyticAdaptiveLimiting(xi_0, alim_coeff);
-   socketstream vis1;
-   common::VisualizeField(vis1, "localhost", 19916, xi_0, "Xi 0", 300, 600, 300, 300);
+   if (adapt_lim)
+   {
+      he_nlf_integ->EnableDiscrAdaptiveLimiting(xi_0, zeta);
+      socketstream vis1;
+      common::VisualizeField(vis1, "localhost", 19916, zeta, "Zeta 0", 300, 600, 300, 300);
+   }
 
    // 15. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -851,8 +862,11 @@ int main (int argc, char *argv[])
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
 
-   socketstream vis0;
-   common::VisualizeField(vis0, "localhost", 19916, xi_0, "Xi 0", 600, 600, 300, 300);
+   if (adapt_lim)
+   {
+      socketstream vis0;
+      common::VisualizeField(vis0, "localhost", 19916, xi_0, "Xi 0", 600, 600, 300, 300);
+   }
 
    // 23. Visualize the mesh displacement.
    if (visualization)
@@ -903,9 +917,11 @@ double weight_fun(const Vector &x)
 
 double adapt_lim_fun(const Vector &x)
 {
-   const double X = x(0), Y = x(1);
-   double val = std::tanh((10*(Y-0.5) + std::cos(3.0*M_PI*X)) + 1) -
-                std::tanh((10*(Y-0.5) + std::cos(3.0*M_PI*X)) - 1);
+   const double xc = x(0) - 0.1, yc = x(1) - 0.2;
+   const double r = sqrt(xc*xc + yc*yc);
+   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+
    val = std::max(0.,val);
    val = std::min(1.,val);
    return val;

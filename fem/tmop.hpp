@@ -812,6 +812,8 @@ protected:
 
    // Adaptive limiting.
    const GridFunction *xi_0;
+   GridFunction *zeta;
+   AdaptivityEvaluator *adapt_eval;
    Coefficient *xi;
 
    DiscreteAdaptTC *discr_tc;
@@ -869,6 +871,8 @@ protected:
 #endif
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
+   void UpdateAfterMeshChange(const Vector &new_x);
+
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
@@ -877,7 +881,7 @@ public:
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
-        xi_0(NULL), xi(NULL),
+        xi_0(NULL), zeta(NULL), xi(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3)
    { }
@@ -925,6 +929,12 @@ public:
       xi_0 = &xi0_gf;
       xi = &xi_coeff;
    }
+   void EnableDiscrAdaptiveLimiting(const GridFunction &xi0_gf,
+                                    GridFunction &zeta_gf);
+   #ifdef MFEM_USE_MPI
+   void EnableDiscrAdaptiveLimiting(const ParGridFunction &xi0_gf,
+                                    ParGridFunction &zeta_gf);
+   #endif
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }

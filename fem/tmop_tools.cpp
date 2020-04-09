@@ -424,6 +424,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          tmopi->ComputeFDh(x_loc, *pfesc);
+         tmopi->UpdateAfterMeshChange(x_loc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x_loc);
@@ -459,6 +460,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          TMOP_Integrator *tmopi = dynamic_cast<TMOP_Integrator *>(integs[i]);
          DiscreteAdaptTC *discrtc = tmopi->GetDiscreteAdaptTC();
          tmopi->ComputeFDh(x_loc, *fesc);
+         tmopi->UpdateAfterMeshChange(x_loc);
          if (discrtc)
          {
             discrtc->UpdateTargetSpecification(x);

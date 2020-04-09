@@ -1212,11 +1212,35 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    }
 }
 
+void TMOP_Integrator::EnableDiscrAdaptiveLimiting(const GridFunction &xi0_gf,
+                                                  GridFunction &zeta_gf)
+{
+   xi_0 = &xi0_gf;
+   zeta = &zeta_gf;
+   adapt_eval = new AdvectorCG;
+   adapt_eval->SetSerialMetaInfo(*zeta->FESpace()->GetMesh(),
+                                 *zeta->FESpace()->FEColl(), 1);
+   adapt_eval->SetInitialField
+   (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
+}
+
+void TMOP_Integrator::EnableDiscrAdaptiveLimiting(const ParGridFunction &xi0_gf,
+                                                  ParGridFunction &zeta_gf)
+{
+   xi_0 = &xi0_gf;
+   zeta = &zeta_gf;
+   adapt_eval = new AdvectorCG;
+   adapt_eval->SetParMetaInfo(*zeta_gf.ParFESpace()->GetParMesh(),
+                              *zeta_gf.ParFESpace()->FEColl(), 1);
+   adapt_eval->SetInitialField
+   (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
+}
+
 double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &elfun)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   const int dof = el.GetDof(), dim = el.GetDim();
    double energy;
 
    DSh.SetSize(dof, dim);
@@ -1300,11 +1324,11 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                 lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
       }
 
-      if (xi_0)
+      if (zeta)
       {
          // Adaptive limiting.
          const double diff =
-               xi_0->GetValue(T.ElementNo, ip) - xi->Eval(*Tpr, ip);
+            xi_0->GetValue(T.ElementNo, ip) - zeta->GetValue(T.ElementNo, ip);
          val += 10.0 * lim_normal * diff * diff;
       }
 
@@ -1771,6 +1795,16 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
       detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
    dx = detv_avg_min / dxscale;
+}
+
+void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
+{
+   std::cout << "Update 1 " << zeta->Norml2() << std::endl;
+   // Update zeta if adaptive limiting is enabled.
+
+   if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
+
+   std::cout << "Update 2 " << zeta->Norml2() << std::endl;
 }
 
 void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
