@@ -36,7 +36,7 @@ using std::ostream;
                    fflush(0); }
 
 // Implementation of mfem::jit::System used in the jit header for compilation.
-// that will run on one core and use MPI to broadcast the compilation output.
+// This will run on one core and use MPI to broadcast the compilation output.
 #ifndef MFEM_USE_MPI
 
 namespace mfem
@@ -248,6 +248,7 @@ struct kernel_t
    bool __single_source;
    string mfem_cxx;           // holds MFEM_CXX
    string mfem_build_flags;   // holds MFEM_BUILD_FLAGS
+   string mfem_source_dir;    // holds MFEM_SOURCE_DIR
    string mfem_install_dir;   // holds MFEM_INSTALL_DIR
    string name;               // kernel name
    string space;              // kernel namespace
@@ -604,7 +605,7 @@ void jitArgs(context_t &pp)
    if (! pp.ker.__jit) { return; }
    pp.ker.mfem_cxx = JIT_STRINGIFY(MFEM_CXX);
    pp.ker.mfem_build_flags = JIT_STRINGIFY(MFEM_BUILD_FLAGS);
-   //pp.ker.mfem_install_dir = JIT_STRINGIFY(MFEM_INSTALL_DIR);
+   pp.ker.mfem_source_dir = MFEM_SOURCE_DIR;
    pp.ker.mfem_install_dir = MFEM_INSTALL_DIR;
    pp.ker.Targs.clear();
    pp.ker.Tparams.clear();
@@ -811,8 +812,8 @@ void jitPrefix(context_t &pp)
    pp.out << "\n#include <limits>";
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
-   pp.out << "\n//#include \"mfem.hpp\"";
-   pp.out << "\n#include \"mfem/general/forall.hpp\"";
+   pp.out << "\n#include \"mfem.hpp\"";
+   pp.out << "\n//#include \"mfem/general/forall.hpp\"";
    if (not pp.ker.embed.empty())
    {
       // push to suppress 'declared but never referenced' warnings
@@ -849,6 +850,8 @@ void jitPostfix(context_t &pp)
    pp.out << "\n\tconst char *cxx = \"" << pp.ker.mfem_cxx << "\";";
    pp.out << "\n\tconst char *mfem_build_flags = \""
           << pp.ker.mfem_build_flags <<  "\";";
+   pp.out << "\n\tconst char *mfem_source_dir = \""
+          << pp.ker.mfem_source_dir <<  "\";";
    pp.out << "\n\tconst char *mfem_install_dir = \""
           << pp.ker.mfem_install_dir <<  "\";";
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
@@ -856,7 +859,7 @@ void jitPostfix(context_t &pp)
           << pp.ker.Targs << ");";
    pp.out << "\n\tif (!ks[args_hash]){";
    pp.out << "\n\t\tks[args_hash] = new jit::kernel<kernel_t>"
-          << "(cxx, src, mfem_build_flags, mfem_install_dir, "
+          << "(cxx, src, mfem_build_flags, mfem_source_dir, mfem_install_dir, "
           << pp.ker.Targs << ");";
    pp.out << "\n\t}";
    pp.out << "\n\tks[args_hash]->operator_void(" << pp.ker.args << ");\n";

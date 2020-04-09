@@ -39,6 +39,7 @@
 #endif
 #ifdef MFEM_USE_JIT
 #include "general/mjit.hpp"
+#include "general/forall.hpp"
 #endif
 
 

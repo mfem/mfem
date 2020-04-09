@@ -100,6 +100,7 @@ inline int argn(const char *argv[], int argc = 0)
 template<typename... Args>
 const char *compile(const bool debug, const size_t hash, const char *cxx,
                     const char *src, const char *mfem_build_flags,
+                    const char *mfem_source_dir,
                     const char *mfem_install_dir, Args... args)
 {
    char co[21] = "k0000000000000000.co";
@@ -111,9 +112,8 @@ const char *compile(const bool debug, const size_t hash, const char *cxx,
    dprintf(fd, src, hash, args...);
    close(fd);
    constexpr size_t SZ = 4096;
-   char includes[SZ];
+   char I_mfem_source[SZ], I_mfem_install[SZ];
    const char *CCFLAGS = mfem_build_flags;
-   const char *INSTALL = mfem_install_dir;
 #if defined(__clang__) && (__clang_major__ > 6)
    const char *CLANG_FLAGS = "-Wno-gnu-designator -L.. -lmfem";
 #else
@@ -122,11 +122,15 @@ const char *compile(const bool debug, const size_t hash, const char *cxx,
    const char *debug_arg = debug ? "1" : "0";
    const bool clang = strstr(cxx, "clang");
    const char *xflags = clang ? CLANG_FLAGS : CCFLAGS;
-   if (snprintf(includes, SZ, "-I%s/include ", INSTALL) < 0) { return nullptr; }
+   if (snprintf(I_mfem_source, SZ, "-I%s ", mfem_source_dir) < 0)
+   { return nullptr; }
+   if (snprintf(I_mfem_install, SZ, "-I%s/include ", mfem_install_dir) < 0)
+   { return nullptr; }
    // Prepare command line to compile the co file
    const char *argv_co[] = { debug_arg,
                              cxx, xflags, "-fPIC", "-c",
-                             includes, "-o", co, cc, nullptr
+                             I_mfem_source, I_mfem_install,
+                             "-o", co, cc, nullptr
                            };
    if (jit::System(argn(argv_co), const_cast<char**>(argv_co)) < 0)
    {
@@ -200,7 +204,8 @@ const char *compile(const bool debug, const size_t hash, const char *cxx,
 // *****************************************************************************
 template<typename... Args>
 void *lookup(const bool debug, const size_t hash, const char *cxx,
-             const char *src, const char *flags, const char *dir, Args... args)
+             const char *src, const char *flags,
+             const char *mfem_source_dir, const char *mfem_install_dir, Args... args)
 {
    const int mode = RTLD_LAZY;
    const char *path = "libmjit.so";
@@ -208,7 +213,8 @@ void *lookup(const bool debug, const size_t hash, const char *cxx,
 
    if (!handle)
    {
-      if (!compile(debug, hash, cxx, src, flags, dir, args...))
+      if (!compile(debug, hash, cxx, src, flags,
+                   mfem_source_dir, mfem_install_dir, args...))
       {
          return nullptr;
       }
@@ -222,7 +228,8 @@ void *lookup(const bool debug, const size_t hash, const char *cxx,
    if (!dlsym(handle, symbol))
    {
       dlclose(handle);
-      if (!compile(debug, hash, cxx, src, flags, dir, args...))
+      if (!compile(debug, hash, cxx, src, flags,
+                   mfem_source_dir, mfem_install_dir, args...))
       {
          printf("\033[31m[lookup] Error in compilation!\n\033[m"); fflush(0);
          return nullptr;
@@ -261,11 +268,12 @@ private:
 public:
    template<typename... Args>
    kernel(const char *cxx, const char *src, const char *flags,
-          const char* dir, Args... args):
+          const char *mfem_source, const char* mfem_install, Args... args):
       debug(!!getenv("MFEM_DBG") || !!getenv("DBG") || !!getenv("dbg")),
       seed(jit::hash<const char*>()(src)),
-      hash(hash_args(seed, cxx, flags, dir, args...)),
-      handle(lookup(debug, hash, cxx, src, flags, dir, args...)),
+      hash(hash_args(seed, cxx, flags, mfem_source, mfem_install, args...)),
+      handle(lookup(debug, hash, cxx, src, flags, mfem_source, mfem_install,
+                    args...)),
       code(symbol<kernel_t>(debug, hash, handle)) { }
    template<typename... Args> void operator_void(Args... args) { code(args...); }
    template<typename T, typename... Args>
