@@ -487,8 +487,13 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
+   if (face_dof)
+   {
+      face_dof->GetRow(i, dofs);
+      return;
+   }
    FiniteElementSpace::GetFaceDofs(i, dofs);
-   if (Conforming() & !NURBSext)
+   if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
