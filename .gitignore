@@ -6,6 +6,9 @@
 # Also ignore OS-specific files like .DS_Store on Mac
 # ------------------------------------------------------------------------------
 
+# Binaries
+mjit
+
 # Object and library files
 *.o
 /libmfem.*

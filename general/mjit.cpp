@@ -26,24 +26,27 @@ using std::ostream;
 #include "mjit.hpp"
 #include "globals.hpp"
 
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#include <sys/mman.h>
+#endif
+
 // *****************************************************************************
-#define JIT_STR(...) #__VA_ARGS__
-#define JIT_STRINGIFY(...) JIT_STR(__VA_ARGS__)
-
-#define dbg(...) { printf("\033[33m");  \
-                   printf(__VA_ARGS__); \
-                   printf(" \n\033[m"); \
-                   fflush(0); }
-
-// Implementation of mfem::jit::System used in the jit header for compilation.
-// This will run on one core and use MPI to broadcast the compilation output.
-#ifndef MFEM_USE_MPI
+#define MFEM_JIT_STR(...) #__VA_ARGS__
+#define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
 
 namespace mfem
 {
 
 namespace jit
 {
+
+// Implementation of mfem::jit::System used in the mjit header for compilation.
+// The serial implementation does nothing special but launching the =system=
+// command.
+// The parallel implementation will spawn the mjit binary on one mpi rank to
+// be able to run on one core and use MPI to broadcast the compilation output.
+#ifndef MFEM_USE_MPI
 
 int System(int argc = 1, char *argv[] = nullptr)
 {
@@ -69,107 +72,73 @@ int System(int argc = 1, char *argv[] = nullptr)
 
 #else
 
-#include <mpi.h>
-#include <cassert>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/mman.h>
-
-#include "communication.hpp"
-
-using namespace std;
-
-namespace mfem
-{
-
-namespace jit
-{
-
-// *****************************************************************************
 constexpr size_t SIZE = 4096;
 constexpr int SUCCESS = EXIT_SUCCESS;
 constexpr int FAILURE = EXIT_FAILURE;
 constexpr const char *INSTALL = MFEM_INSTALL_DIR;
 constexpr uint32_t RUN_COMPILATION = 0x12345678ul;
 
-// *****************************************************************************
 int System(int argc = 1, char *argv[] = MPI_ARGV_NULL)
 {
    const bool debug = argc == 1;
    assert(!debug);
-   char command[SIZE];
-   if (snprintf(command, SIZE,  "%s/bin/mjit", INSTALL) < 0) { return FAILURE; }
-   dbg("command: %s", command);
+   char mjit[SIZE];
+   argv[0] = strdup("-c");
+   if (snprintf(mjit, SIZE, "%s/bin/mjit", INSTALL) < 0) { return FAILURE; }
    const int root = 0;
    MPI_Info info = MPI_INFO_NULL;
    MPI_Comm comm = MPI_COMM_WORLD, intercomm = MPI_COMM_NULL;
    int errcode = SUCCESS;
+   constexpr int one_proc = 1;
    int spawned =
-      MPI_Comm_spawn(command, argv, 1, info, root, comm, &intercomm, &errcode);
+      MPI_Comm_spawn(mjit, argv, one_proc,
+                     info, root, comm, &intercomm, &errcode);
    if (spawned != SUCCESS || errcode != SUCCESS) { return FAILURE; }
-   dbg("MPI_Bcast");
+   free(argv[0]);
    int status = FAILURE;
+   // Broadcast 'FAILURE' status
    MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, intercomm);
-   // Wait for return
-   MPI_Bcast(&status, 1, MPI_INT, 0, intercomm);
+   // And wait for return from the =system= rank
+   MPI_Bcast(&status, 1, MPI_INT, root, intercomm);
    assert(status == SUCCESS);
    MPI_Barrier(MPI_COMM_WORLD);
    MPI_Comm_free(&intercomm);
-   dbg("done");
    return SUCCESS;
 }
 
-} // namespace jit
-
-} // namespace mfem
-
-// *****************************************************************************
 int MPISpawn(int argc, char *argv[], int *cookie)
 {
    const bool debug = argc == 1;
-   dbg("[MPISpawn] %s", debug?"debug":"");
    MPI_Init(&argc, &argv);
    MPI_Comm parent = MPI_COMM_NULL;
    MPI_Comm_get_parent(&parent);
-
    // debug mode where 'jit' has been launched directly, without any arguments
    if (debug && parent == MPI_COMM_NULL)
    {
-      constexpr int argc = 4;
-      const char *argv[argc] = {"1", "uname", "-a", nullptr};
-      mfem::jit::System(argc, const_cast<char**>(argv));
+      const char *argv[] = {"1", "uname", "-a", nullptr};
+      mfem::jit::System(mfem::jit::argn(argv), const_cast<char**>(argv));
       MPI_Finalize();
       return EXIT_SUCCESS;
    }
-
    // This case should not happen
    if (parent == MPI_COMM_NULL) { return EXIT_FAILURE; }
-
    // MPI child
-   dbg("\033[32m[MPI child] Waiting initial Bcast...");
-
    int status = EXIT_SUCCESS;
    MPI_Bcast(&status, 1, MPI_INT, 0, parent);
    assert(status == EXIT_FAILURE);
-
-   dbg("\033[32m[MPI child] Now telling compile process to work!");
    for (*cookie  = mfem::jit::RUN_COMPILATION;
         *cookie == mfem::jit::RUN_COMPILATION;
-        usleep(100)) {}
-   dbg("\033[32m[MPI child] done");
+        usleep(1000));
    status = *cookie;
    MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, parent);
    MPI_Finalize();
    return EXIT_SUCCESS;
 }
 
-// *****************************************************************************
 int ProcessFork(int argc, char *argv[])
 {
    int *shared_return_value = nullptr;
    const bool debug = argc == 1;
-   dbg("[ProcessFork] %s", debug ? "debug" : "");
-
    if (!debug)
    {
       constexpr int SIZE = sizeof(int);
@@ -194,8 +163,7 @@ int ProcessFork(int argc, char *argv[])
       command.append(argv[k]);
    }
    const char * command_c_str = command.c_str();
-   const bool command_debug = (argc > 1) && (argv[1][0] == 0x31);
-   if (command_debug) { dbg("\033[31m%s", command_c_str); }
+   //const bool command_debug = (argc > 1) && (argv[1][0] == 0x31);
    while (*shared_return_value != mfem::jit::RUN_COMPILATION) { usleep(1000); }
    const int return_value = system(command_c_str);
    *shared_return_value = return_value == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
@@ -203,9 +171,6 @@ int ProcessFork(int argc, char *argv[])
 }
 
 #endif // MFEM_USE_MPI
-
-namespace mfem
-{
 
 // *****************************************************************************
 // * STRUCTS: argument_t, template_t, kernel_t, context_t and error_t
@@ -584,7 +549,7 @@ void jitHeader(context_t &pp)
    pp.out << "#include \"general/mjit.hpp\"\n";
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
-   pp.out << JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
+   pp.out << MFEM_JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
    pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
@@ -603,8 +568,8 @@ void ppKerDbg(context_t &pp)
 void jitArgs(context_t &pp)
 {
    if (! pp.ker.__jit) { return; }
-   pp.ker.mfem_cxx = JIT_STRINGIFY(MFEM_CXX);
-   pp.ker.mfem_build_flags = JIT_STRINGIFY(MFEM_BUILD_FLAGS);
+   pp.ker.mfem_cxx = MFEM_JIT_STRINGIFY(MFEM_CXX);
+   pp.ker.mfem_build_flags = MFEM_JIT_STRINGIFY(MFEM_BUILD_FLAGS);
    pp.ker.mfem_source_dir = MFEM_SOURCE_DIR;
    pp.ker.mfem_install_dir = MFEM_INSTALL_DIR;
    pp.ker.Targs.clear();
@@ -1501,26 +1466,27 @@ int preprocess(context_t &pp)
    return 0;
 }
 
+} // namespace jit
+
 } // namespace mfem
 
-// *****************************************************************************
 #ifdef MFEM_JIT_MAIN
 int main(const int argc, char* argv[])
 {
    string input, output, file;
 
-   if (argc <= 1) { return mfem::help(argv); }
+   if (argc <= 1) { return mfem::jit::help(argv); }
 
    for (int i = 1; i < argc; i++)
    {
       // -h lauches help
-      if (argv[i] == string("-h")) { return mfem::help(argv); }
+      if (argv[i] == string("-h")) { return mfem::jit::help(argv); }
 
       // -c wil launch ProcessFork in parallel mode, nothing otherwise
       if (argv[i] == string("-c"))
       {
 #ifdef MFEM_USE_MPI
-         return ProcessFork(argc, argv);
+         return mfem::jit::ProcessFork(argc, argv);
 #else
          return 0;
 #endif
@@ -1532,7 +1498,7 @@ int main(const int argc, char* argv[])
          continue;
       }
       // should give input file
-      const char* last_dot = mfem::strrnc(argv[i],'.');
+      const char* last_dot = mfem::jit::strrnc(argv[i],'.');
       const size_t ext_size = last_dot?strlen(last_dot):0;
       if (last_dot && ext_size>0)
       {
@@ -1549,9 +1515,9 @@ int main(const int argc, char* argv[])
    assert(in.is_open());
    if (output_file) {assert(out.is_open());}
    ostream &mfem_out(std::cout);
-   mfem::context_t pp(in, output_file ? out : mfem_out, file);
-   try { mfem::preprocess(pp); }
-   catch (mfem::error_t err)
+   mfem::jit::context_t pp(in, output_file ? out : mfem_out, file);
+   try { mfem::jit::preprocess(pp); }
+   catch (mfem::jit::error_t err)
    {
       std::cerr << std::endl << err.file << ":" << err.line << ":"
                 << " mpp error" << (err.msg?": ":"") << (err.msg?err.msg:"")
@@ -1563,5 +1529,6 @@ int main(const int argc, char* argv[])
    out.close();
    return 0;
 }
+
 #endif // MFEM_JIT_MAIN
 
