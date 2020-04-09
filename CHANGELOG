@@ -18,13 +18,22 @@ Meshing improvements
   always available. The interface has also been improved, see for example the
   mesh-explorer miniapp.
 
+- Added support for finite difference-based gradient and Hessian approximation
+  in the TMOP mesh optimization algorithms. This improves the accuracy of the
+  Hessian for r-adaptivity using discrete fields, and allows use of skewness
+  and orientation based metrics.
+
 New and updated examples and miniapps
 -------------------------------------
-- Adding a simple meshing miniapp, Twist, which demonstates MFEM's strategy of
+- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
 
 - Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
+
+- Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
+  Matched Layer (PML) for the simulation of electromagnetic wave propagation.
+  The example defines and solves several indefinite Maxwell problems.
 
 Discretization improvements
 ---------------------------
@@ -43,6 +52,12 @@ Miscellaneous
 -------------
 - In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
   solver can work with non-SPD preconditioner B.
+
+- Added support for ADIOS2 for parallel I/O with ParaView visualization. The
+  classes adios2stream and ADIOS2DataCollection are introduced in mfem as the
+  interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
+  entire spatial and temporal data. In addition, ADIOS2 allows for setting a
+  user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
 
 
 Version 4.1, released on March 10, 2020

@@ -148,6 +148,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_OCCA
       "MFEM_USE_OCCA\n"
 #endif
+#ifdef MFEM_USE_ADIOS2
+      "MFEM_USE_ADIOS2\n"
+#endif
       "MFEM_TIMER_TYPE = " EXPAND_AND_QUOTE(MFEM_TIMER_TYPE)
       ;
 
