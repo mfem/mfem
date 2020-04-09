@@ -199,8 +199,10 @@ int main(int argc, char *argv[])
    //    iterative solver.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
+
    DiffusionMultigrid M(fespaces, ess_bdr);
    M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+
    OperatorPtr A;
    Vector B, X;
    M.FormFineLinearSystem(x, *b, A, X, B);
