@@ -72,7 +72,7 @@ public:
    /// Return a random value from the ith set in the list.
    int PickRandomElementInSet(int i) { return TheList[i]->PickRandomElement(); }
 
-   /** @brief Check to see if set 's' is in the list.  If not append it to the end of the 
+   /** @brief Check to see if set 's' is in the list.  If not append it to the end of the
        list.  Returns the index of the list where set 's' can be found. */
    int Insert(IntegerSet &s);
 

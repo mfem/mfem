@@ -1143,7 +1143,7 @@ public:
    };
 
    /** @brief  Auxiliary templated struct AData, used by the Eval() and Assemble()
-       methods. 
+       methods.
 
        The template parameter IOData is "bitwise or" of constants from
        the enum InOutData. The parameter NE is the number of elements to be

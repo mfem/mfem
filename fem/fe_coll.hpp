@@ -71,7 +71,7 @@ public:
    | :------: | :---: | :---: | :-------: | :-----: | :---: |
    | H1_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
    | H1@[BTYPE]_[DIM]_[ORDER] | H1 | * | * | VALUE | H1 nodal elements |
-   | H1Pos_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |   
+   | H1Pos_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
    | H1Pos_Trace_[DIM]_[ORDER] | H^{1/2} | * | 2 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
    | H1_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
    | H1_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
@@ -95,7 +95,7 @@ public:
    | DG_IntIface@[BTYPE]_[DIM]_[ORDER] | - | * | 0 | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |
    | NURBS[ORDER] | - | * | - | VALUE | Non-Uniform Rational B-Splines (NURBS) elements |
    | LinearNonConf3D | - | 1 | 1 | VALUE | Piecewise-linear nonconforming finite elements in 3D |
-   | CrouzeixRaviart | - | - | - | - | Crouzeix-Raviart nonconforming elements in 2D |      
+   | CrouzeixRaviart | - | - | - | - | Crouzeix-Raviart nonconforming elements in 2D |
    | Local_[FENAME] | - | - | - | - | Special collection that builds a local version out of the FENAME collection |
    |-|-|-|-|-|-|
    | Linear | H1 | 1 | 1 | VALUE | Left in for backward compatibility, consider using H1_ |
@@ -103,13 +103,13 @@ public:
    | QuadraticPos | H1 | 2 | 2 | VALUE | Left in for backward compatibility, consider using H1_ |
    | Cubic | H1 | 2 | 1 | VALUE | Left in for backward compatibility, consider using H1_ |
    | Const2D | L2 | 0 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
-   | Const3D | L2 | 0 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |   
+   | Const3D | L2 | 0 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
    | LinearDiscont2D | L2 | 1 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
    | GaussLinearDiscont2D | L2 | 1 | 0 | VALUE | Left in for backward compatibility, consider using L2_ |
    | P1OnQuad | H1 | 1 | 1 | VALUE | Linear P1 element with 3 nodes on a square |
-   | QuadraticDiscont2D | L2 | 2 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |   
+   | QuadraticDiscont2D | L2 | 2 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
    | QuadraticPosDiscont2D | L2 | 2 | 2 | VALUE | Left in for backward compatibility, consider using L2_ |
-   | GaussQuadraticDiscont2D | L2 | 2 | 0 | VALUE | Left in for backward compatibility, consider using L2_ |   
+   | GaussQuadraticDiscont2D | L2 | 2 | 0 | VALUE | Left in for backward compatibility, consider using L2_ |
    | CubicDiscont2D | L2 | 3 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
    | LinearDiscont3D | L2 | 1 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
    | QuadraticDiscont3D | L2 | 2 | 1 | VALUE | Left in for backward compatibility, consider using L2_ |
@@ -129,7 +129,7 @@ public:
    | [CBTYPE] | Closed BasisType of the element for elements which have both types |
 
    [FENAME]  Is a special case for the Local FEC which generates a local version of a given
-   FEC.  It is selected from one of (BiCubic2DFiniteElement, Quad_Q3, Nedelec1HexFiniteElement, 
+   FEC.  It is selected from one of (BiCubic2DFiniteElement, Quad_Q3, Nedelec1HexFiniteElement,
       Hex_ND1, H1_[DIM]_[ORDER],H1Pos_[DIM]_[ORDER], L2_[DIM]_[ORDER] )
    */
    static FiniteElementCollection *New(const char *name);

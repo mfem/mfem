@@ -52,7 +52,7 @@ struct TMassKernel
    static const bool in_gradients  = false;
    static const bool out_values    = true;
    static const bool out_gradients = false;
-   ///@}   
+   ///@}
 
    /** Partially assembled data type for one element with the given number of
        quadrature points. This type is used in partial assembly, and partially

@@ -61,8 +61,8 @@ public:
    /// Detatch the current socket descriptor from the socketbuf.
    int detach() { return attach(-1); }
 
-   /** @brief Open a socket on the 'port' at 'hostname' and store the 
-       socket descriptor.  Returns 0 if there is no error, 
+   /** @brief Open a socket on the 'port' at 'hostname' and store the
+       socket descriptor.  Returns 0 if there is no error,
        otherwise returns -1. */
    virtual int open(const char hostname[], int port);
 
@@ -72,7 +72,7 @@ public:
    /// Returns the attached socket descriptor.
    int getsocketdescriptor() { return socket_descriptor; }
 
-   /** @brief Returns true of the socket is open and has a valid 
+   /** @brief Returns true of the socket is open and has a valid
        socket descriptor.  Otherwise returns false. */
    bool is_open() { return (socket_descriptor >= 0); }
 

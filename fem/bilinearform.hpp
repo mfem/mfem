@@ -45,7 +45,7 @@ enum class AssemblyLevel
 
 
 /** Class for bilinear form - "Matrix" with associated FE space and
-    BLFIntegrators.  The sum of all the BLFIntegrators will be used 
+    BLFIntegrators.  The sum of all the BLFIntegrators will be used
     form the matrix/operator M.  */
 class BilinearForm : public Matrix
 {
@@ -53,7 +53,7 @@ protected:
    /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
    SparseMatrix *mat;
 
-   /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations 
+   /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
         from the b.c.  Owned.
        \f$ M + M_e = M_{original} \f$ */
    SparseMatrix *mat_e;
@@ -150,7 +150,7 @@ public:
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }
 
-   /// Set the desired assembly level. 
+   /// Set the desired assembly level.
    /** Valid choices are:
 
        - AssemblyLevel::FULL  (default)
@@ -171,7 +171,7 @@ public:
        condensation is not reduced, it is not enabled. */
    void EnableStaticCondensation();
 
-   /** @brief Check if static condensation was actually enabled by a previous 
+   /** @brief Check if static condensation was actually enabled by a previous
        call to EnableStaticCondensation(). */
    bool StaticCondensationIsEnabled() const { return static_cond; }
 
@@ -207,7 +207,7 @@ public:
    void UseSparsity(SparseMatrix &A);
 
    /// Pre-allocate the internal SparseMatrix before assembly.
-   /**  If the flag 'precompute sparsity' 
+   /**  If the flag 'precompute sparsity'
        is set, the matrix is allocated in CSR format (i.e.
        finalized) and the entries are initialized with zeros. */
    void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
@@ -244,8 +244,8 @@ public:
    /// Matrix vector multiplication:  \f$ y = M x \f$
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   /** @brief Matrix vector multiplication with the original uneliminated 
-       matrix.  The original matrix is \f$ M + M_e \f$ so we have: 
+   /** @brief Matrix vector multiplication with the original uneliminated
+       matrix.  The original matrix is \f$ M + M_e \f$ so we have:
        \f$ y = M x + M_e x \f$ */
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -254,8 +254,8 @@ public:
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
    { mat -> AddMult (x, y, a); }
 
-   /** @brief Add the original uneliminated matrix vector multiple to a vector.  
-       The original matrix is \f$ M + Me \f$ so we have: 
+   /** @brief Add the original uneliminated matrix vector multiple to a vector.
+       The original matrix is \f$ M + Me \f$ so we have:
        \f$ y += M x + M_e x \f$ */
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
@@ -265,8 +265,8 @@ public:
                                  const double a = 1.0) const
    { mat->AddMultTranspose(x, y, a); }
 
-   /** @brief Add the original uneliminated matrix transpose vector   
-       multiple to a vector. The original matrix is \f$ M + M_e \f$ 
+   /** @brief Add the original uneliminated matrix transpose vector
+       multiple to a vector. The original matrix is \f$ M + M_e \f$
        so we have: \f$ y += M^T x + {M_e}^T x \f$ */
    void FullAddMultTranspose(const Vector & x, Vector & y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
@@ -299,7 +299,7 @@ public:
       return *mat;
    }
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer 
+   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
         to it.  Used for transfering ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
@@ -706,7 +706,7 @@ public:
    /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat() { return *mat; }
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer 
+   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
         to it.  Used for transfering ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 

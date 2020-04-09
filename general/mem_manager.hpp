@@ -416,7 +416,7 @@ public:
 };
 
 
-/** The memory manager class.  Host side pointers are inserted into this 
+/** The memory manager class.  Host side pointers are inserted into this
     manager which keeps track of the associated device pointer, and where
     the data currently resides. */
 class MemoryManager

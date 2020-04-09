@@ -256,25 +256,26 @@ public:
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
 
-       A reference function \f$ \hat u(\hat x) \f$ can be mapped to a function 
+       A reference function \f$ \hat u(\hat x) \f$ can be mapped to a function
       \f$ u(x) \f$ on a general physical element in following where:
        - \f$ x = T(\hat x) \f$ is the image of the reference point \f$ \hat x \f$
        - \f$ J = J(\hat x) \f$ is the Jacobian matrix of the transformation T
        - \f$ w = w(\hat x) = det(J) \f$ is the transformation weight factor for square J
        - \f$ w = w(\hat x) = det(J^t J)^{1/2} \f$ is the transformation weight factor in general
    */
-   enum MapT { 
-          VALUE,     /**< For scalar fields; preserves point values
+   enum MapT
+   {
+      VALUE,     /**< For scalar fields; preserves point values
                           \f$ u(x) = \hat u(\hat x) \f$ */
-          INTEGRAL,  /**< For scalar fields; preserves volume integrals
+      INTEGRAL,  /**< For scalar fields; preserves volume integrals
                           \f$ u(x) = (1/w) \hat u(\hat x) \f$ */
-          H_DIV,     /**< For vector fields; preserves surface integrals of the
+      H_DIV,     /**< For vector fields; preserves surface integrals of the
                           normal component \f$ u(x) = (J/w) \hat u(\hat x) \f$ */
-          H_CURL     /**< For vector fields; preserves line integrals of the
-                          tangential component 
-                          \f$ u(x) = J^{-t} \hat u(\hat x) \f$ (square J), 
+      H_CURL     /**< For vector fields; preserves line integrals of the
+                          tangential component
+                          \f$ u(x) = J^{-t} \hat u(\hat x) \f$ (square J),
                           \f$ u(x) = J(J^t J)^{-1} \hat u(\hat x) \f$ (general J) */
-        };
+   };
 
    /** @brief Enumeration for DerivType: defines which derivative method
        is implemented.
@@ -283,12 +284,13 @@ public:
        value returned by GetDerivType() indicates which derivative method is
        implemented.
    */
-   enum DerivT { 
-          NONE, ///< No derivatives implemented
-          GRAD, ///< Implements CalcDShape methods
-          DIV,  ///< Implements CalcDivShape methods
-          CURL  ///< Implements CalcCurlShape methods
-        };
+   enum DerivT
+   {
+      NONE, ///< No derivatives implemented
+      GRAD, ///< Implements CalcDShape methods
+      DIV,  ///< Implements CalcDivShape methods
+      CURL  ///< Implements CalcCurlShape methods
+   };
 
    /** @brief Construct FiniteElement with given
        @param D    Reference space dimension
@@ -326,23 +328,23 @@ public:
    /// Returns the FiniteElement::RangeT of the element, one of {SCALAR, VECTOR}.
    int GetRangeType() const { return RangeType; }
 
-   /** @brief Returns the FiniteElement::RangeT of the element derivative, either 
+   /** @brief Returns the FiniteElement::RangeT of the element derivative, either
        SCALAR or VECTOR. */
    int GetDerivRangeType() const { return DerivRangeType; }
 
-   /** @brief Returns the FiniteElement::MapT of the element describing how reference 
-       functions are mapped to physical space, one of {VALUE, INTEGRAL  
+   /** @brief Returns the FiniteElement::MapT of the element describing how reference
+       functions are mapped to physical space, one of {VALUE, INTEGRAL
        H_DIV, H_CURL}. */
    int GetMapType() const { return MapType; }
 
 
-   /** @brief Returns the FiniteElement::MapT of the element describing how reference 
-       functions are mapped to physical space, one of {VALUE, INTEGRAL  
+   /** @brief Returns the FiniteElement::MapT of the element describing how reference
+       functions are mapped to physical space, one of {VALUE, INTEGRAL
        H_DIV, H_CURL}. */
    int GetDerivType() const { return DerivType; }
 
-   /** @brief Returns the FiniteElement::MapT of the element describing how reference 
-       function derivatives are mapped to physical space, one of {VALUE,   
+   /** @brief Returns the FiniteElement::MapT of the element describing how reference
+       function derivatives are mapped to physical space, one of {VALUE,
        INTEGRAL, H_DIV, H_CURL}. */
    int GetDerivMapType() const { return DerivMapType; }
 
@@ -430,8 +432,8 @@ public:
    void CalcPhysCurlShape(ElementTransformation &Trans,
                           DenseMatrix &curl_shape) const;
 
-   /** @brief Get the dofs associated with the given @a face.  
-       @a *dofs is set to an internal array of the local dofc on the 
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
    */
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
@@ -554,7 +556,7 @@ public:
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
 
-   /** @brief Return true if the BasisType of @a b_type is closed 
+   /** @brief Return true if the BasisType of @a b_type is closed
        (has Quadrature1D points on the boundary). */
    static bool IsClosedType(int b_type)
    {
@@ -563,7 +565,7 @@ public:
               (Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid));
    }
 
-   /** @brief Return true if the BasisType of @a b_type is open 
+   /** @brief Return true if the BasisType of @a b_type is open
        (doesn't have Quadrature1D points on the boundary). */
    static bool IsOpenType(int b_type)
    {
@@ -572,7 +574,7 @@ public:
               (Quadrature1D::CheckOpen(q_type) != Quadrature1D::Invalid));
    }
 
-   /** @brief Ensure that the BasisType of @a b_type is closed 
+   /** @brief Ensure that the BasisType of @a b_type is closed
        (has Quadrature1D points on the boundary). */
    static int VerifyClosed(int b_type)
    {
@@ -581,16 +583,16 @@ public:
       return b_type;
    }
 
-   /** @brief Ensure that the BasisType of @a b_type is open 
-       (doesn't have Quadrature1D points on the boundary). */   
+   /** @brief Ensure that the BasisType of @a b_type is open
+       (doesn't have Quadrature1D points on the boundary). */
    static int VerifyOpen(int b_type)
    {
       MFEM_VERIFY(IsOpenType(b_type), "invalid open basis type: " << b_type);
       return b_type;
    }
 
-   /** @brief Ensure that the BasisType of @a b_type nodal 
-       (satisfies the interpolation property). */ 
+   /** @brief Ensure that the BasisType of @a b_type nodal
+       (satisfies the interpolation property). */
    static int VerifyNodal(int b_type)
    {
       return BasisType::CheckNodal(b_type);
@@ -622,7 +624,7 @@ public:
        @param Do   Number of degrees of freedom in the FiniteElement
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
-    */  
+    */
    ScalarFiniteElement(int D, Geometry::Type G, int Do, int O,
                        int F = FunctionSpace::Pk)
 #ifdef MFEM_THREAD_SAFE
@@ -643,13 +645,13 @@ public:
    }
 
 
-   /** @brief Get the matrix @a I that defines nodal interpolation  
+   /** @brief Get the matrix @a I that defines nodal interpolation
        @a between this element and the refined element @a fine_fe. */
    void NodalLocalInterpolation(ElementTransformation &Trans,
                                 DenseMatrix &I,
                                 const ScalarFiniteElement &fine_fe) const;
 
-   /** @brief Get matrix @a I "Interpolation" defined through local 
+   /** @brief Get matrix @a I "Interpolation" defined through local
        L2-projection in the space defined by the @a fine_fe.  */
    /** If the "fine" elements cannot represent all basis functions of the
        "coarse" element, then boundary values from different sub-elements are
@@ -725,7 +727,7 @@ public:
        @param Do   Number of degrees of freedom in the FiniteElement
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
-   */  
+   */
    PositiveFiniteElement(int D, Geometry::Type G, int Do, int O,
                          int F = FunctionSpace::Pk) :
       ScalarFiniteElement(D, G, Do, O, F)
@@ -969,7 +971,7 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
-/** @brief A  2D linear element on a square with 3 nodes at the 
+/** @brief A  2D linear element on a square with 3 nodes at the
     vertices of the lower left triangle */
 class P1OnQuadFiniteElement : public NodalFiniteElement
 {
@@ -1007,7 +1009,7 @@ public:
 class QuadPos1DFiniteElement : public PositiveFiniteElement
 {
 public:
-  /// Construct the FiniteElement
+   /// Construct the FiniteElement
    QuadPos1DFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1200,7 +1202,7 @@ public:
 };
 
 
-/** @brief A 3D linear element on a tetrahedron with nodes at the 
+/** @brief A 3D linear element on a tetrahedron with nodes at the
     vertices of the tetrahedron */
 class Linear3DFiniteElement : public NodalFiniteElement
 {
@@ -1223,8 +1225,8 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const
    { dofs = 0.0; dofs(vertex) = 1.0; }
 
-   /** @brief Get the dofs associated with the given @a face.  
-       @a *dofs is set to an internal array of the local dofc on the 
+   /** @brief Get the dofs associated with the given @a face.
+       @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
    */
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
@@ -1543,7 +1545,7 @@ public:
    { dofs(0) = 1.0; }
 };
 
-/** @brief Tensor products of 1D Lagrange1DFiniteElement 
+/** @brief Tensor products of 1D Lagrange1DFiniteElement
     (only degree 2 is functional) */
 class LagrangeHexFiniteElement : public NodalFiniteElement
 {
@@ -1745,7 +1747,7 @@ private:
    static const double nk[36][3];
 
 public:
-   /// Construct the FiniteElement   
+   /// Construct the FiniteElement
    RT1HexFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1929,12 +1931,12 @@ public:
        and store them in the allready allocated @a u array. */
    static void CalcBinomTerms(const int p, const double x, const double y,
                               double *u);
-   /** @brief Compute the terms in the expansion of the binomial (x + y)^p and 
+   /** @brief Compute the terms in the expansion of the binomial (x + y)^p and
        their derivatives with respect to x assuming that dy/dx = -1.  Store the
        results in the already allocated @a u and @a d arrays.*/
    static void CalcBinomTerms(const int p, const double x, const double y,
                               double *u, double *d);
-   /** @brief Compute the derivatives (w.r.t. x) of the terms in the expansion 
+   /** @brief Compute the derivatives (w.r.t. x) of the terms in the expansion
        of the binomial (x + y)^p assuming that dy/dx = -1.  Store the results
        in the already allocated @a d array.*/
    static void CalcDBinomTerms(const int p, const double x, const double y,
@@ -1946,9 +1948,9 @@ public:
    static void CalcBernstein(const int p, const double x, double *u)
    { CalcBinomTerms(p, x, 1. - x, u); }
 
-   /** @brief Compute the values and derivatives of the Bernstein basis functions 
+   /** @brief Compute the values and derivatives of the Bernstein basis functions
        of order @a p at coordinate @a x and store the results in the already allocated
-       @a u and @a d arrays. */   
+       @a u and @a d arrays. */
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
 
@@ -2689,7 +2691,7 @@ class RT_HexahedronElement : public VectorFiniteElement
 
 public:
    /** @brief Construct the FiniteElement of order @a p and closed and open
-       BasisType @a cb_type and @a ob_type */   
+       BasisType @a cb_type and @a ob_type */
    RT_HexahedronElement(const int p,
                         const int cb_type = BasisType::GaussLobatto,
                         const int ob_type = BasisType::GaussLegendre);
@@ -2916,7 +2918,7 @@ class ND_QuadrilateralElement : public VectorTensorFiniteElement
 
 public:
    /** @brief Construct the FiniteElement of order @a p and closed and open
-       BasisType @a cb_type and @a ob_type */   
+       BasisType @a cb_type and @a ob_type */
    ND_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
                            const int ob_type = BasisType::GaussLegendre);
@@ -3072,7 +3074,7 @@ class ND_SegmentElement : public VectorFiniteElement
 
 public:
    /** @brief Construct the FiniteElement of order @a p and open
-       BasisType @a ob_type */   
+       BasisType @a ob_type */
    ND_SegmentElement(const int p, const int ob_type = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const
    { obasis1d.Eval(ip.x, shape); }
@@ -3127,7 +3129,7 @@ public:
        @param Do   Number of degrees of freedom in the FiniteElement
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
-    */   
+    */
    NURBSFiniteElement(int D, Geometry::Type G, int Do, int O, int F)
       : ScalarFiniteElement(D, G, Do, O, F)
    {

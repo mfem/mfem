@@ -25,12 +25,12 @@ public:
    int Column, Floor, Number;
 };
 
-/** @brief Symmetric 3D Table stored an array of rows each of which has 
+/** @brief Symmetric 3D Table stored an array of rows each of which has
     a stack of column, floor, number nodes.  The number of the node
-    is assigned by counting the nodes from zero as they are pushed 
+    is assigned by counting the nodes from zero as they are pushed
     into the table.  Diagonals of any kind are not so the row, column
-    and floor must all be different for each node.  Only one node is 
-    stored for all 6 symmetric entries that are indexable by unique 
+    and floor must all be different for each node.  Only one node is
+    stored for all 6 symmetric entries that are indexable by unique
     triplets of row, column, and floor.
 */
 class STable3D
@@ -47,7 +47,7 @@ public:
    /// Construct the table with a total of 'nr' rows.
    explicit STable3D (int nr);
 
-   /** @brief Check to see if this entry is in the table and add it to 
+   /** @brief Check to see if this entry is in the table and add it to
        the table if it is not there.  Returns the number assigned to the
        table entry. */
    int Push (int r, int c, int f);
@@ -58,13 +58,13 @@ public:
    /// Return the number assigned to the table entry.  Return -1 if it's not there.
    int Index (int r, int c, int f) const;
 
-   /** @brief Check to see if this entry is in the table and add it to 
-       the table if it is not there.  The entry is addressed by the three 
+   /** @brief Check to see if this entry is in the table and add it to
+       the table if it is not there.  The entry is addressed by the three
        smallest values of (r,c,f,t).  Returns the number assigned to the
        table entry. */
    int Push4 (int r, int c, int f, int t);
 
-   /** Return the number assigned to the table entry.  The entry is 
+   /** Return the number assigned to the table entry.  The entry is
        addressed by the three smallest values of (r,c,f,t).  Return -1 if
        it is not there. */
    int operator() (int r, int c, int f, int t) const;
