@@ -24,7 +24,7 @@ New and updated examples and miniapps
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
 
-- Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp 
+- Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
 
 Discretization improvements
 ---------------------------

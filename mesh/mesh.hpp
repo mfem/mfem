@@ -147,7 +147,6 @@ protected:
    Array<int> be_to_edge;  // for 2D
    Table *bel_to_edge;     // for 3D
    Array<int> be_to_face;
-   Array<int> face_to_be;
    mutable Table *face_edge;
    mutable Table *edge_vertex;
 
@@ -888,14 +887,7 @@ public:
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
        Return the face index of boundary element i. (3D) */
-   int GetBdrElementEdgeIndex(int i) const;   // Strange name
-   int GetBdrFace(int i)const;            // Does the same as above
-
-   /// Generates the face to bdr mapping. (-1 if no match).
-   void GenerateFaceBdrMap();
-
-   /// Return the bdr indices of a face i. (-1 if no match).
-   int GetFaceBdr(int i) { return face_to_be[i]; }
+   int GetBdrElementEdgeIndex(int i) const;
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
        element and its info, i.e. 64*local_bdr_index+bdr_orientation. */
