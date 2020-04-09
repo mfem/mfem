@@ -247,10 +247,7 @@ endif
 
 # JIT configuration
 ifeq ($(MFEM_USE_JIT),YES)
-   JIT_EXE = $(BLD)jit
-#	ifneq ($(MFEM_USE_SHARED),YES)
-#		LDFLAGS += -ldl
-#	endif
+   JIT_EXE = $(BLD)mjit
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -432,9 +429,9 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 # nvcc needs the MFEM_SOURCE_DIR ('-I.') to compile from stdin
 ifeq ($(MFEM_USE_JIT),YES)
 JIT_LANG = $(if $(MFEM_USE_CUDA:YES=),-x c++)
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(JIT_EXE)
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) #$(JIT_EXE)
 #	@echo $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
-	./jit $(<) | $(MFEM_CXX) $(JIT_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
+	./mjit $(<) | $(MFEM_CXX) $(JIT_LANG) $(strip $(MFEM_BUILD_FLAGS)) -I. -I$(patsubst %/,%,$(<D)) -c -o $(@) -
 else
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
@@ -443,9 +440,8 @@ endif
 # Rule for compiling JIT source file generator.
 JIT_MFEM_CONFIG  = -DMFEM_JIT_MAIN
 JIT_MFEM_CONFIG += -DMFEM_CXX="$(MFEM_CXX)"
-#JIT_MFEM_CONFIG += -DMFEM_INSTALL_DIR="$(MFEM_INSTALL_DIR)"
 JIT_MFEM_CONFIG += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-$(BLD)jit: $(BLD)general/jit.cpp $(BLD)general/jit.hpp $(THIS_MK)
+$(JIT_EXE): $(BLD)general/mjit.cpp $(BLD)general/mjit.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -pedantic -o $(BLD)$(@) $(<) $(JIT_MFEM_CONFIG)
 
 all: examples miniapps $(TEST_DIRS)
@@ -550,7 +546,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk jit)
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk mjit)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/

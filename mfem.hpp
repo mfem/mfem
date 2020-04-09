@@ -38,7 +38,7 @@
 #include "general/communication.hpp"
 #endif
 #ifdef MFEM_USE_JIT
-#include "general/jit.hpp"
+#include "general/mjit.hpp"
 #endif
 
 

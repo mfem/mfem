@@ -23,7 +23,7 @@ using std::string;
 using std::istream;
 using std::ostream;
 
-#include "jit.hpp"
+#include "mjit.hpp"
 #include "globals.hpp"
 
 // *****************************************************************************
@@ -34,7 +34,6 @@ using std::ostream;
                    printf(__VA_ARGS__); \
                    printf(" \n\033[m"); \
                    fflush(0); }
-
 
 // Implementation of mfem::jit::System used in the jit header for compilation.
 // that will run on one core and use MPI to broadcast the compilation output.
@@ -48,11 +47,15 @@ namespace jit
 
 int System(int argc = 1, char *argv[] = nullptr)
 {
+   dbg("argc:%d", argc);
+   dbg("argv[0]:%s", argv[0]);
+   dbg("argv[1]:%s", argv[1]);
    string command(argv[1]);
    for (int k = 2; argv[k]; k++)
    {
       command.append(" ");
       command.append(argv[k]);
+      dbg("%d:%s ", k, argv[k]);
    }
    const char *command_c_str = command.c_str();
    const bool command_debug = (argc > 1) && (argv[0][0] == 0x31);
@@ -86,7 +89,7 @@ namespace jit
 constexpr size_t SIZE = 4096;
 constexpr int SUCCESS = EXIT_SUCCESS;
 constexpr int FAILURE = EXIT_FAILURE;
-constexpr const char *install = MFEM_INSTALL_DIR;
+constexpr const char *INSTALL = MFEM_INSTALL_DIR;
 constexpr uint32_t RUN_COMPILATION = 0x12345678ul;
 
 // *****************************************************************************
@@ -95,7 +98,7 @@ int System(int argc = 1, char *argv[] = MPI_ARGV_NULL)
    const bool debug = argc == 1;
    assert(!debug);
    char command[SIZE];
-   if (snprintf(command, SIZE,  "%s/../jit", install) < 0) { return FAILURE; }
+   if (snprintf(command, SIZE,  "%s/bin/mjit", INSTALL) < 0) { return FAILURE; }
    dbg("command: %s", command);
    const int root = 0;
    MPI_Info info = MPI_INFO_NULL;
@@ -205,11 +208,6 @@ namespace mfem
 {
 
 // *****************************************************************************
-// * Dump the hashing source here to be able to use it
-// *****************************************************************************
-//JIT_HASH_COMBINE_ARGS_SRC
-
-// *****************************************************************************
 // * STRUCTS: argument_t, template_t, kernel_t, context_t and error_t
 // *****************************************************************************
 struct argument_t
@@ -295,7 +293,7 @@ struct error_t
 // *****************************************************************************
 int help(char* argv[])
 {
-   std::cout << "MFEM preprocessor:";
+   std::cout << "MFEM mjit: ";
    std::cout << argv[0] << " -o output input" << std::endl;
    return ~0;
 }
@@ -582,7 +580,7 @@ bool is_eq(context_t &pp)
 // *****************************************************************************
 void jitHeader(context_t &pp)
 {
-   pp.out << "#include \"general/jit.hpp\"\n";
+   pp.out << "#include \"general/mjit.hpp\"\n";
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
    pp.out << JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
@@ -1515,8 +1513,8 @@ int main(const int argc, char* argv[])
       // -h lauches help
       if (argv[i] == string("-h")) { return mfem::help(argv); }
 
-      // -f wil launch ProcessFork in parallel mode, nothing otherwise
-      if (argv[i] == string("-f"))
+      // -c wil launch ProcessFork in parallel mode, nothing otherwise
+      if (argv[i] == string("-c"))
       {
 #ifdef MFEM_USE_MPI
          return ProcessFork(argc, argv);
