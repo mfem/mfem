@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// terms of the BSD-3 license.  We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Implementation of FiniteElementSpace
@@ -60,7 +60,7 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
-     elem_dof(NULL), bdrElem_dof(NULL),
+     elem_dof(NULL), bdrElem_dof(NULL), face_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
@@ -1469,6 +1469,31 @@ void FiniteElementSpace::UpdateNURBS()
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
+   face_dof = NULL;// NURBSext->GetFaceDofTable();
+}
+
+void FiniteElementSpace::GenerateFaceDofs()
+{
+   if (face_dof) return;
+
+   Array<Connection> face_dof_list;
+   Array<int> row;
+   face_to_be.SetSize(mesh->GetNumFaces());
+   for (int b = 0; b < bdrElem_dof->Size(); b++)
+   {
+       bdrElem_dof->GetRow(b, row);
+       int f = mesh->GetBdrElementEdgeIndex(b);
+       face_to_be[f] = b;
+       Connection conn(f,0);
+       for (int i = 0; i < row.Size(); i++)
+       {
+          conn.to = row[i];
+          face_dof_list.Append(conn);
+       }
+   }
+   face_dof_list.Sort();
+   face_dof_list.Unique();
+   face_dof = new Table(mesh->GetNumFaces(), face_dof_list);
 }
 
 void FiniteElementSpace::Construct()
@@ -1478,6 +1503,7 @@ void FiniteElementSpace::Construct()
 
    elem_dof = NULL;
    bdrElem_dof = NULL;
+   face_dof = NULL;
 
    ndofs = 0;
    nedofs = nfdofs = nbdofs = 0;
@@ -1741,13 +1767,14 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
 
-   /*if (face_dof)
-   {
-     face_dof->GetRow(i, dofs);
-   }*/
    if (NURBSext)
    {
-      GetBdrElementDofs(mesh->GetFaceBdr(i),dofs);
+      const_cast<FiniteElementSpace*>(this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
+   }
+
+   if (face_dof)
+   {
+      face_dof->GetRow(i, dofs);
    }
    else
    {
@@ -1933,13 +1960,10 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
    }
 
-   // if (NURBSext)
-   //    NURBSext->LoadFaceElement(i, fe);
-
    if (NURBSext)
    {
-      mesh->GenerateFaceBdrMap();
-      NURBSext->LoadBE(mesh->GetFaceBdr(i), fe);
+      const_cast<FiniteElementSpace*>(this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
+      NURBSext->LoadBE(face_to_be[i], fe);
    }
 
    return fe;
@@ -1994,11 +2018,13 @@ void FiniteElementSpace::Destroy()
    if (NURBSext)
    {
       if (own_ext) { delete NURBSext; }
+      delete face_dof;
    }
    else
    {
       delete elem_dof;
       delete bdrElem_dof;
+      delete face_dof;
 
       delete [] bdofs;
       delete [] fdofs;
