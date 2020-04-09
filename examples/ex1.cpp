@@ -57,6 +57,8 @@
 using namespace std;
 using namespace mfem;
 
+GridFunction* ProlongToMaxOrder(GridFunction *x);
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -142,8 +144,8 @@ int main(int argc, char *argv[])
 //   {
 //      fespace->SetElementOrder(i, order+1);
 //   }
-   //fespace->SetElementOrder(1, 2);
-   //fespace->Update(false);
+   fespace->SetElementOrder(1, 2);
+   fespace->Update(false);
 
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -238,69 +240,19 @@ int main(int argc, char *argv[])
    x.Save(sol_ofs);
 
 
-
-
-   //x = 0.0;
-   //x(8)=1.0;
-   x.Print();
-   // Prepare solution for visualization
-   int max_order = 1;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      int o = fespace->GetElementOrder(i);
-      if (o > max_order)
-      {
-         max_order = o;
-      }
-   }
-   cout << "Max order: " << max_order << endl;
-
-   IsoparametricTransformation T;
-   DenseMatrix I;
-
-   FiniteElementCollection *visualization_fec = new L2_FECollection(max_order, dim, BasisType::GaussLobatto);
-
-   FiniteElementSpace *visualization_space = new FiniteElementSpace(mesh, visualization_fec);
-
-
-
-   GridFunction visualization_x(visualization_space);
-
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Geometry::Type geometry = mesh->GetElementGeometry(i);
-      T.SetIdentityTransformation(geometry);
-
-      fespace->GetElementDofs(i, dofs);
-      Vector elemvect, visualization_vect;
-      x.GetSubVector(dofs, elemvect);
-
-      cout << "Element order: " << fespace->GetElementOrder(i) << endl;
-      const auto *fe = fec->GetFE(geometry, fespace->GetElementOrder(i));
-      const auto *visualization_fe = visualization_fec->GetFE(geometry, max_order);
-
-      visualization_fe->GetTransferMatrix(*fe, T, I);
-      I.Print();
-      elemvect.Print();
-
-      visualization_space->GetElementDofs(i, dofs);
-      visualization_vect.SetSize(dofs.Size());
-      I.Mult(elemvect, visualization_vect);
-      visualization_vect.Print();
-      visualization_x.SetSubVector(dofs, visualization_vect);
-
-   }
-   visualization_x.Print();
-
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
+      // Prolong the solution vector onto L2 space of max order (for GLVis)
+      GridFunction *visualization_x = ProlongToMaxOrder(&x);
+
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-//      sol_sock << "solution\n" << *mesh << x << flush;
-      sol_sock << "solution\n" << *mesh << visualization_x << flush;
+      sol_sock << "solution\n" << *mesh << *visualization_x << flush;
+
+      delete visualization_x;
    }
 
    // 15. Free the used memory.
@@ -313,4 +265,54 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+GridFunction* ProlongToMaxOrder(GridFunction *x)
+{
+    FiniteElementSpace *fespace = x->FESpace();
+    Mesh *mesh = fespace->GetMesh();
+    const FiniteElementCollection *fec = fespace->FEColl();
 
+    // Find the max order in the space
+    int max_order = 1;
+    for (int i = 0; i < mesh->GetNE(); i++)
+    {
+       int o = fespace->GetElementOrder(i);
+       if (o > max_order)
+       {
+          max_order = o;
+       }
+    }
+
+    // Create a visualization space of max order for all elements (needed for GLVIS)
+    FiniteElementCollection *visualization_fec = new L2_FECollection(max_order, mesh->Dimension(), BasisType::GaussLobatto);
+    FiniteElementSpace *visualization_space = new FiniteElementSpace(mesh, visualization_fec);
+
+    IsoparametricTransformation T;
+    DenseMatrix I;
+
+    GridFunction *visualization_x = new GridFunction(visualization_space);
+
+    // Project solution vector onto visualization space
+    for (int i = 0; i < mesh->GetNE(); i++)
+    {
+       Geometry::Type geometry = mesh->GetElementGeometry(i);
+       T.SetIdentityTransformation(geometry);
+
+       Array<int> dofs;
+       fespace->GetElementDofs(i, dofs);
+       Vector elemvect, visualization_vect;
+       x->GetSubVector(dofs, elemvect);
+
+       const auto *fe = fec->GetFE(geometry, fespace->GetElementOrder(i));
+       const auto *visualization_fe = visualization_fec->GetFE(geometry, max_order);
+
+       visualization_fe->GetTransferMatrix(*fe, T, I);
+       visualization_space->GetElementDofs(i, dofs);
+       visualization_vect.SetSize(dofs.Size());
+
+       I.Mult(elemvect, visualization_vect);
+       visualization_x->SetSubVector(dofs, visualization_vect);
+    }
+
+    visualization_x->MakeOwner(visualization_fec);
+    return visualization_x;
+}

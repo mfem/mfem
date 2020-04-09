@@ -711,7 +711,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
    // variable order spaces: handle edge interpolation
-   if (edge_dof.Size())
+   if (edge_dof.Size() > 0)
    {
       T.SetIdentityTransformation(Geometry::SEGMENT);
 
@@ -728,7 +728,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          {
             int q = GetEdgeDofs(edge, slave_dofs, var);
             if (q < 0) { break; }
-            cout << "order = " << q << endl;
             const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
             slave_fe->GetTransferMatrix(*master_fe, T, I);
 
@@ -830,7 +829,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
    cP->Finalize();
-   cP->Print();
+
    if (vdim > 1)
    {
       MakeVDimMatrix(*cP);
@@ -1895,7 +1894,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
 
    dofs.SetSize(0);
    dofs.Reserve(2*nv + ne);
-   cout << base << endl;
+
    for (int i = 0; i < 2; i++)
    {
       for (int j = 0; j < nv; j++)
