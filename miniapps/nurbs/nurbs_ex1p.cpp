@@ -329,9 +329,8 @@ int main(int argc, char *argv[])
    if (!strongBC)
       b->AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
-std::cout<<333<<std::endl;
    b->Assemble();
-std::cout<<334<<std::endl;
+
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -354,7 +353,7 @@ std::cout<<334<<std::endl;
    {
       a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
    }
-std::cout<<355<<std::endl;
+
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
