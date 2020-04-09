@@ -10,9 +10,10 @@ class MassMatrixDG : public Operator
    friend class InverseMassMatrixDG;
 
    const FiniteElementSpace *fes;
-   DenseTensor M;
 
 public:
+   DenseTensor M;
+
    MassMatrixDG(const FiniteElementSpace *fes_);
    ~MassMatrixDG() {};
    void Mult(const Vector &x, Vector &y) const;
@@ -22,9 +23,10 @@ class InverseMassMatrixDG : public Operator
 {
    const MassMatrixDG *mass;
    const FiniteElementSpace *fes;
-   DenseTensor Minv;
 
 public:
+   DenseTensor Minv;
+
    InverseMassMatrixDG(const MassMatrixDG *mass_);
    ~InverseMassMatrixDG() { };
    virtual void Mult(const Vector &x, Vector &y) const;

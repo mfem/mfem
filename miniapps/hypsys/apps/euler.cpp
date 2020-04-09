@@ -35,13 +35,13 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 1:
       {
          ProblemName = "Euler Equations of Gas dynamics - SOD Shock Tube";
-         glvis_scale = "off valuerange 0 1";
+         glvis_scale = "on";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;
          TimeDepBC = false;
          ProjType = 1;
-         u0.ProjectCoefficient(ic);
+         L2_Projection(ic, u0);
          break;
       }
       case 2:
@@ -141,47 +141,57 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    {
       case 1:
       {
+         double vx = u(1) / u(0);
          FluxEval(0,0) = u(1);
-         FluxEval(1,0) = u(1) * u(1) / u(0) + pressure;
-         FluxEval(2,0) = u(1) * u(2) / u(0) + pressure * u(1) / u(0);
+         FluxEval(1,0) = u(1) * vx + pressure;
+         FluxEval(2,0) = (u(2) + pressure) * vx;
          break;
       }
       case 2:
       {
+         double vx = u(1) / u(0);
+         double vy = u(2) / u(0);
+         double energy = u(3) + pressure;
+
          FluxEval(0,0) = u(1);
          FluxEval(0,1) = u(2);
 
-         FluxEval(1,0) = u(1) * u(1) / u(0) + pressure;
-         FluxEval(1,1) = u(1) * u(2) / u(0);
+         FluxEval(1,0) = u(1) * vx + pressure;
+         FluxEval(1,1) = u(1) * vy;
 
-         FluxEval(2,0) = u(2) * u(1) / u(0);
-         FluxEval(2,1) = u(2) * u(2) / u(0) + pressure;
+         FluxEval(2,0) = u(2) * vx;
+         FluxEval(2,1) = u(2) * vy + pressure;
 
-         FluxEval(3,0) = (u(3) + pressure) * u(1) / u(0);
-         FluxEval(3,1) = (u(3) + pressure) * u(2) / u(0);
+         FluxEval(3,0) = energy * vx;
+         FluxEval(3,1) = energy * vy;
          break;
       }
       case 3:
       {
+         double vx = u(1) / u(0);
+         double vy = u(2) / u(0);
+         double vz = u(3) / u(0);
+         double energy = u(4) + pressure;
+
          FluxEval(0,0) = u(1);
          FluxEval(0,1) = u(2);
          FluxEval(0,2) = u(3);
 
-         FluxEval(1,0) = u(1) * u(1) / u(0) + pressure;
-         FluxEval(1,1) = u(1) * u(2) / u(0);
-         FluxEval(1,2) = u(1) * u(3) / u(0);
+         FluxEval(1,0) = u(1) * vx + pressure;
+         FluxEval(1,1) = u(1) * vy;
+         FluxEval(1,2) = u(1) * vz;
 
-         FluxEval(2,0) = u(2) * u(1) / u(0);
-         FluxEval(2,1) = u(2) * u(2) / u(0) + pressure;
-         FluxEval(2,2) = u(2) * u(3) / u(0);
+         FluxEval(2,0) = u(2) * vx;
+         FluxEval(2,1) = u(2) * vy + pressure;
+         FluxEval(2,2) = u(2) * vz;
 
-         FluxEval(3,0) = u(3) * u(1) / u(0);
-         FluxEval(3,1) = u(3) * u(2) / u(0);
-         FluxEval(3,2) = u(3) * u(3) / u(0) + pressure;
+         FluxEval(3,0) = u(3) * vx;
+         FluxEval(3,1) = u(3) * vy;
+         FluxEval(3,2) = u(3) * vz + pressure;
 
-         FluxEval(4,0) = (u(4) + pressure) * u(1) / u(0);
-         FluxEval(4,1) = (u(4) + pressure) * u(2) / u(0);
-         FluxEval(4,2) = (u(4) + pressure) * u(3) / u(0);
+         FluxEval(4,0) = energy * vx;
+         FluxEval(4,1) = energy * vy;
+         FluxEval(4,2) = energy * vz;
          break;
       }
       default:

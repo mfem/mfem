@@ -163,7 +163,14 @@ int main(int argc, char *argv[])
          MFEM_ABORT("Unknown evolution scheme");
    }
 
-   double InitialMass = evol->LumpedMassMat * u;
+   Vector LumpedMassMat(fes.GetVSize());
+   BilinearForm ml(&fes);
+   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator()));
+   ml.Assemble();
+   ml.Finalize();
+   ml.SpMat().GetDiag(LumpedMassMat);
+
+   double InitialMass = LumpedMassMat * uk;
 
    odeSolver->Init(*evol);
    if (hyp->SteadyState)
@@ -215,7 +222,7 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
 
-   double DomainSize = evol->LumpedMassMat.Sum();
+   double DomainSize = LumpedMassMat.Sum();
    if (hyp->SolutionKnown)
    {
       Array<double> errors;
@@ -227,8 +234,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   cout << "Difference in solution mass: "
-        << abs(InitialMass - evol->LumpedMassMat * u) / DomainSize << "\n\n";
+   cout << "Difference in solution mass: " << InitialMass << " "
+        << abs(InitialMass - LumpedMassMat * uk) / DomainSize << "\n\n";
 
    if (hyp->FileOutput)
    {

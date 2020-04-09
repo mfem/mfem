@@ -72,19 +72,23 @@ void ShallowWater::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
       case 1:
       {
          FluxEval(0,0) = u(1);
-         FluxEval(1,0) = u(1)*u(1)/u(0) + GravConst / 2. * u(0)*u(0);
+         FluxEval(1,0) = u(1) * u(1) / u(0) + 0.5 * GravConst * u(0) * u(0);
          break;
       }
       case 2:
       {
+         double vx = u(1) / u(0);
+         double vy = u(2) / u(0);
+         double gravitation = 0.5 * GravConst * u(0) * u(0);
+
          FluxEval(0,0) = u(1);
          FluxEval(0,1) = u(2);
 
-         FluxEval(1,0) = u(1)*u(1)/u(0) + 0.5 * GravConst * u(0)*u(0);
-         FluxEval(1,1) = u(1)*u(2)/u(0);
+         FluxEval(1,0) = u(1) * vx + gravitation;
+         FluxEval(1,1) = u(1) * vy;
 
-         FluxEval(2,0) = u(2)*u(1)/u(0);
-         FluxEval(2,1) = u(2)*u(2)/u(0) + 0.5 * GravConst * u(0)*u(0);
+         FluxEval(2,0) = u(2) * vx;
+         FluxEval(2,1) = u(2) * vy + gravitation;
          break;
       }
       default:
