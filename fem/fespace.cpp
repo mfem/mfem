@@ -1938,6 +1938,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 
    if (NURBSext)
    {
+      mesh->GenerateFaceBdrMap();
       NURBSext->LoadBE(mesh->GetFaceBdr(i), fe);
    }
 
