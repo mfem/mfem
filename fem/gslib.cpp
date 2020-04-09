@@ -159,17 +159,19 @@ void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
    Vector node_vals;
 
    const int ncomp      = field_in.FESpace()->GetVDim(),
-             points_cnt = field_in.Size() / ncomp;
+             points_fld = field_in.Size() / ncomp,
+             points_cnt = codes.Size();
 
    for (int i = 0; i < ncomp; i++)
    {
-      int dataptr = i*points_cnt;
-      field_in_scalar.SetData(field_in.GetData()+dataptr);
+      const int dataptrin  = i*points_fld,
+                dataptrout = i*points_cnt;
+      field_in_scalar.SetData(field_in.GetData()+dataptrin);
       GetNodeValues(field_in_scalar, node_vals);
 
       if (dim==2)
       {
-         findpts_eval_2(field_out.GetData()+dataptr, sizeof(double),
+         findpts_eval_2(field_out.GetData()+dataptrout, sizeof(double),
                         codes.GetData(),       sizeof(unsigned int),
                         proc_ids.GetData(),    sizeof(unsigned int),
                         elem_ids.GetData(),    sizeof(unsigned int),
@@ -178,7 +180,7 @@ void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
       }
       else
       {
-         findpts_eval_3(field_out.GetData()+dataptr, sizeof(double),
+         findpts_eval_3(field_out.GetData()+dataptrout, sizeof(double),
                         codes.GetData(),       sizeof(unsigned int),
                         proc_ids.GetData(),    sizeof(unsigned int),
                         elem_ids.GetData(),    sizeof(unsigned int),
