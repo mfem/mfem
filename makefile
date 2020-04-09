@@ -392,6 +392,9 @@ endif
 # Source dirs in logical order
 DIRS = general linalg mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+ADIOS2_FILES = $(SRC)general/adios2stream.h $(SRC)general/adios2stream.cpp \
+ $(SRC)fem/adios2datacollection.hpp $(SRC)fem/adios2datacollection.cpp
+SOURCE_FILES := $(filter-out $(ADIOS2_FILES),$(SOURCE_FILES))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
