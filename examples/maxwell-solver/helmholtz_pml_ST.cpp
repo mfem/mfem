@@ -122,8 +122,8 @@ int main(int argc, char *argv[])
    {
       for (int comp=0; comp<dim; ++comp)
       {
-         directions.Append(comp+1);
-         directions.Append(-comp-1);
+         // directions.Append(comp+1);
+         // directions.Append(-comp-1);
       }
    }
    // Find uniform h size of the original mesh
@@ -210,13 +210,13 @@ int main(int argc, char *argv[])
 
    PSTP S(&a,lengths, omega, &ws, nrlayers);
 
-	S.SetOperator(*A);
-   S.SetLoadVector(B);
+	// S.SetOperator(*A);
+   // S.SetLoadVector(B);
    
-   X = 0.0;
-   Vector z(X.Size()); z = 0.0;
-   Vector r(B);
-   Vector ztemp(r.Size());
+   // X = 0.0;
+   // Vector z(X.Size()); z = 0.0;
+   // Vector r(B);
+   // Vector ztemp(r.Size());
 
 
    X = 0.0;
@@ -231,52 +231,49 @@ int main(int argc, char *argv[])
 
 
 
-   int n= 50;
-   X = 0.0;
+   // int n= 50;
+   // X = 0.0;
 
-   Vector Ax(X.Size());
-   double tol = 1e-12;
-   cout << endl;
+   // Vector Ax(X.Size());
+   // double tol = 1e-12;
+   // cout << endl;
    
-   for (int i = 0; i<n; i++)
-   {
-      A->Mult(X,Ax); Ax *=-1.0;
-      r = b; r+=Ax;
-      cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
-      if (r.Norml2() < tol) 
-      {
-         // cout << "Convergence in " << i+1 << " iterations" << endl;
-         break;
-      }
-      S.Mult(r,z); 
-      X += z;
-      // p_gf = 0.0;
-      // a.RecoverFEMSolution(X,B,p_gf);
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
-      //    string keys;
-      //    if (dim ==2 )
-      //    {
-      //       keys = "keys mrRljc\n";
-      //    }
-      //    else
-      //    {
-      //       keys = "keys mc\n";
-      //    }
-      //    socketstream sol1_sock_re(vishost, visport);
-      //    sol1_sock_re.precision(8);
-      //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-      //                "window_title 'Numerical Pressure (real part)' "
-      //                << keys << flush;
-   }
+   // for (int i = 0; i<n; i++)
+   // {
+   //    A->Mult(X,Ax); Ax *=-1.0;
+   //    r = b; r+=Ax;
+   //    cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
+   //    if (r.Norml2() < tol) 
+   //    {
+   //       // cout << "Convergence in " << i+1 << " iterations" << endl;
+   //       break;
+   //    }
+   //    S.Mult(r,z); 
+   //    X += z;
+   //    // p_gf = 0.0;
+   //    // a.RecoverFEMSolution(X,B,p_gf);
+   //    //    char vishost[] = "localhost";
+   //    //    int  visport   = 19916;
+   //    //    string keys;
+   //    //    if (dim ==2 )
+   //    //    {
+   //    //       keys = "keys mrRljc\n";
+   //    //    }
+   //    //    else
+   //    //    {
+   //    //       keys = "keys mc\n";
+   //    //    }
+   //    //    socketstream sol1_sock_re(vishost, visport);
+   //    //    sol1_sock_re.precision(8);
+   //    //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+   //    //                "window_title 'Numerical Pressure (real part)' "
+   //    //                << keys << flush;
+   // }
 
    KLUSolver klu(*A);
    klu.Mult(B,X);
    a.RecoverFEMSolution(X,B,p_gf);
 
-   // ComplexGridFunction p_gf1(fespace);
-   // a.RecoverFEMSolution(X,B,p_gf1);
-   // p_gf1 -= p_gf;
 
    if (visualization)
    {
@@ -322,7 +319,8 @@ double f_exact_Re(const Vector &x)
    x0 = 0.1;
    x1 = 0.5;
    double alpha,beta;
-   double n = 5.0 * omega/M_PI;
+   double n = 5.0*omega/M_PI;
+   // double n = 1.0;
    double coeff = pow(n,2)/M_PI;
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }

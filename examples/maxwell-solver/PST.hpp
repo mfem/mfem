@@ -29,7 +29,9 @@ private:
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
+   void PlotLocalSolution(Vector & sol, socketstream & sol_sock, int ip) const;
    void GetCutOffSolution(Vector & sol, int ip, int direction) const;
+   void GetCutOffSol(Vector & sol, int ip, int direction) const;
 
 public:
    PSTP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
