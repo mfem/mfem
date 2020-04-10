@@ -169,18 +169,11 @@ int main (int argc, char *argv[])
       }
    }
 
-   Array<unsigned int> el_id_out(pts_cnt), code_out(pts_cnt),
-         task_id_out(pts_cnt);
-   Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
-
-   // Finds points stored in vxyz.
-   finder.FindPoints(vxyz, code_out, task_id_out,
-                     el_id_out, pos_r_out, dist_p_out);
-
-   // Interpolate FE function values on the found points.
+   // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt);
-   finder.Interpolate(code_out, task_id_out, el_id_out,
-                      pos_r_out, field_vals, interp_vals);
+   finder.Interpolate(vxyz, field_vals, interp_vals);
+   Array<unsigned int> code_out = finder.GetCode();
+   Vector dist_p_out = finder.GetDist2();
 
    // Free the internal gslib data.
    finder.FreeData();

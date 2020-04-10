@@ -29,10 +29,12 @@ class FindPointsGSLIB
 protected:
    Mesh *mesh;
    IntegrationRule *ir_simplex;
-   Vector gsl_mesh;
    struct findpts_data_2 *fdata2D;
    struct findpts_data_3 *fdata3D;
    int dim;
+   Array<unsigned int> gsl_code, gsl_proc, gsl_elem;
+   Vector gsl_mesh, gsl_ref, gsl_dist;
+   bool setupflag;
 
    struct comm *gsl_comm;
 
@@ -78,6 +80,7 @@ public:
    void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
                    Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
                    Vector &ref_pos, Vector &dist);
+   void FindPoints(const Vector &point_pos);
 
    /** Interpolation of field values at prescribed reference space positions.
 
@@ -96,11 +99,21 @@ public:
    void Interpolate(Array<unsigned int> &codes, Array<unsigned int> &proc_ids,
                     Array<unsigned int> &elem_ids, Vector &ref_pos,
                     const GridFunction &field_in, Vector &field_out);
+   void Interpolate(const GridFunction &field_in, Vector &field_out);
+   /** Search positions and Interpolate */
+   void Interpolate(const Vector &point_pos, const GridFunction &field_in,
+                    Vector &field_out);
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as
        it calls MPI_Comm_free() for internal gslib communicators. */
    void FreeData();
+
+   const Array<unsigned int> &GetCode()   { return gsl_code; }
+   const Array<unsigned int> &GetElem()   { return gsl_elem; }
+   const Array<unsigned int> &GetProc()   { return gsl_proc; }
+   const Vector &GetReferencePosition()   { return gsl_ref;  }
+   const Vector &GetDist2()               { return gsl_dist; }
 };
 
 } // namespace mfem
