@@ -194,15 +194,15 @@ void MCL_Evolution::Mult(const Vector &x, Vector &y) const
    ComputeTimeDerivative(x, y);
 }
 
-void MCL_Evolution::ElemEval(const Vector &uElem, Vector &uEval, int k) const
+void MCL_Evolution::GetNodeVal(const Vector &uElem, Vector &uEval, int j) const
 {
    for (int n = 0; n < hyp->NumEq; n++)
    {
-      uEval(n) = uElem(n*nd+k);
+      uEval(n) = uElem(n*nd+j);
    }
 }
 
-void MCL_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
+void MCL_Evolution::FaceTerm(const Vector &x, Vector &y1, Vector &y2,
                              const Vector &xMPI, const Vector &normal,
                              int e, int i, int j) const
 {
@@ -232,8 +232,8 @@ void MCL_Evolution::FaceEval(const Vector &x, Vector &y1, Vector &y2,
    }
 }
 
-void MCL_Evolution::LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
-                                  Vector &y, int e, int j, int i) const
+void MCL_Evolution::LinearFluxLumping(const Vector &x1, const Vector &x2, const Vector &normal,
+                                      Vector &y, int e, int j, int i) const
 {
    double c_eij = 0.;
    C_eij = normal;
@@ -314,7 +314,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       // Volume terms.
       for (int j = 0; j < nd; j++)
       {
-         ElemEval(uElem, uEval, j);
+         GetNodeVal(uElem, uEval, j);
          hyp->EvaluateFlux(uEval, Flux, e, j);
          MultABt(PrecGradOp(j), ElemInt(e), CTilde(j));
          AddMultABt(CTilde(j), Flux, mat2);
@@ -336,12 +336,12 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          for (int i = 0; i < dofs.numDofsSubcell; i++)
          {
             int I = dofs.Sub2Ind(m,i);
-            ElemEval(uElem, uEval, I);
+            GetNodeVal(uElem, uEval, I);
 
             for (int j = 0; j < nscd; j++)
             {
                int J = dofs.Sub2Ind(m, dofs.SubcellCross(i,j));
-               ElemEval(uElem, uNbrEval, J);
+               GetNodeVal(uElem, uNbrEval, J);
 
                double CTildeNorm1 = 0.;
                double CTildeNorm2 = 0.;
@@ -387,8 +387,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
-            FaceEval(x, uEval, uNbrEval, xMPI, normal, e, i, j);
-            LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, j, i);
+            FaceTerm(x, uEval, uNbrEval, xMPI, normal, e, i, j);
+            LinearFluxLumping(uEval, uNbrEval, normal, NumFlux, e, j, i);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {

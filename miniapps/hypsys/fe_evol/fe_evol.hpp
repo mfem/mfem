@@ -58,12 +58,13 @@ public:
    }
 
    virtual void Mult(const Vector &x, Vector &y) const = 0;
-   virtual void ElemEval(const Vector &uElem, Vector &uEval, int k) const = 0;
+
+   virtual void ElemEval(const Vector &uElem, Vector &uEval, int k) const;
    virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
                          const Vector &xMPI, const Vector &normal,
-                         int e, int i, int k) const = 0;
+                         int e, int i, int k) const;
    virtual void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
-                              Vector &y, int e, int k, int i) const = 0;
+                              Vector &y, int e, int k, int i) const;
    virtual double ConvergenceCheck(double dt, double tol, const Vector &u) const;
 };
 

@@ -24,12 +24,13 @@ public:
    virtual ~MCL_Evolution() { }
 
    void Mult(const Vector&x, Vector &y) const override;
-   virtual void ElemEval(const Vector &uElem, Vector &uEval, int k) const override;
-   virtual void FaceEval(const Vector &x, Vector &y1, Vector &y2,
+
+   virtual void GetNodeVal(const Vector &uElem, Vector &uEval, int ) const;
+   virtual void FaceTerm(const Vector &x, Vector &y1, Vector &y2,
                          const Vector &xMPI, const Vector &normal,
-                         int e, int i, int k) const override;
-   virtual void LaxFriedrichs(const Vector &x1, const Vector &x2, const Vector &normal,
-                              Vector &y, int e, int j, int i) const override;
+                         int e, int i, int k) const;
+   virtual void LinearFluxLumping(const Vector &x1, const Vector &x2, const Vector &normal,
+                                  Vector &y, int e, int j, int i) const;
    void ComputeTimeDerivative(const Vector &x, Vector &y,
                               const Vector &xMPI = serial) const;
 };

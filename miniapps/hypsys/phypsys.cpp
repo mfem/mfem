@@ -187,7 +187,14 @@ int main(int argc, char *argv[])
          MFEM_ABORT("Unknown evolution scheme");
    }
 
-   double InitialMass, MassMPI = evol->LumpedMassMat * u;
+   Vector LumpedMassMat(pfes.GetVSize());
+   ParBilinearForm ml(&pfes);
+   ml.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator()));
+   ml.Assemble();
+   ml.Finalize();
+   ml.SpMat().GetDiag(LumpedMassMat);
+
+   double InitialMass, MassMPI = LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &InitialMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    odeSolver->Init(*evol);
@@ -249,7 +256,7 @@ int main(int argc, char *argv[])
       cout << "Time stepping loop done in " << tic_toc.RealTime() << " seconds.\n\n";
    }
 
-   double FinalMass, DomainSize, DomainSizeMPI = evol->LumpedMassMat.Sum();
+   double FinalMass, DomainSize, DomainSizeMPI = LumpedMassMat.Sum();
    MPI_Allreduce(&DomainSizeMPI, &DomainSize, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (hyp->SolutionKnown)
@@ -266,7 +273,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   MassMPI = evol->LumpedMassMat * u;
+   MassMPI = LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (myid == 0)
