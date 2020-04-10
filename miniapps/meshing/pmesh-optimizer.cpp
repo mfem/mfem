@@ -32,7 +32,7 @@
 // Compile with: make pmesh-optimizer
 //
 //   Adaptive limiting test:
-//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 1 -fd -al
+//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 1 -al
 //
 // Sample runs:
 //   Adapted analytic Hessian:

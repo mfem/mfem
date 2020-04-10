@@ -1284,7 +1284,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0 || xi_0)
+   if (coeff1 || coeff0 || zeta)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -1417,13 +1417,30 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0)
+   if (coeff1 || coeff0 || zeta)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
       Tpr->ElementNo = T.ElementNo;
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
+   }
+
+   Vector z_e_vals, z_q_vals, grad_z_vec;
+   DenseMatrix grad_phys, grad_z;
+   Array<int> dofs;
+   if (zeta)
+   {
+      shape.SetSize(dof);
+      z_q_vals.SetSize(ir->GetNPoints());
+      zeta->GetValues(T.ElementNo, *ir, z_q_vals);
+
+      zeta->FESpace()->GetElementDofs(T.ElementNo, dofs);
+      zeta->GetSubVector(dofs, z_e_vals);
+      el.ProjectGrad(el, *Tpr, grad_phys);
+      grad_z_vec.SetSize(dof*dim);
+      grad_phys.Mult(z_e_vals, grad_z_vec);
+      grad_z.UseExternalData(grad_z_vec.GetData(), dof, dim);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1455,6 +1472,17 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
          pos0.MultTranspose(shape, p0);
          lim_func->Eval_d1(p, p0, d_vals(i), grad);
          grad *= weight * lim_normal * coeff0->Eval(*Tpr, ip);
+         AddMultVWt(shape, grad, PMatO);
+      }
+
+      if (zeta)
+      {
+         // Adaptive limiting.
+         grad.SetSize(dim);
+         grad_z.MultTranspose(z_e_vals, grad);
+         el.CalcShape(ip, shape);
+         grad *= 2.0 * (xi_0->GetValue(T.ElementNo, ip) - z_q_vals(i));
+         grad *= 10.0 * weight * lim_normal;
          AddMultVWt(shape, grad, PMatO);
       }
    }
@@ -1799,12 +1827,8 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
 
 void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
 {
-   std::cout << "Update 1 " << zeta->Norml2() << std::endl;
    // Update zeta if adaptive limiting is enabled.
-
    if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
-
-   std::cout << "Update 2 " << zeta->Norml2() << std::endl;
 }
 
 void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
