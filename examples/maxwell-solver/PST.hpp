@@ -7,6 +7,22 @@ using namespace std;
 using namespace mfem;
 
 
+class LocalDofMap // Constructs dof mapbetween two partitions
+{
+   const FiniteElementCollection *fec=nullptr;
+   MeshPartition * part1=nullptr;
+   MeshPartition * part2=nullptr;
+public:
+   int nrpatch, nx, ny, nz;
+   vector<Array<int>> map1;
+   vector<Array<int>> map2;
+   // constructor
+   LocalDofMap(const FiniteElementCollection * fec_, MeshPartition * part1_, 
+               MeshPartition * part2_);
+   ~LocalDofMap();
+};
+
+
 class PSTP : public Solver//
 {
 private:
@@ -22,6 +38,7 @@ private:
    Vector B;
    DofMap * ovlp_prob = nullptr;
    DofMap * novlp_prob = nullptr;
+   LocalDofMap * lmap=nullptr;
    Array<SparseMatrix *> PmlMat;
    Array<KLUSolver *> PmlMatInv;
    Array2D<double> Pmllength;

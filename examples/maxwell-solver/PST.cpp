@@ -1,5 +1,4 @@
 // Pure Source Transfer Preconditioner
-
 #include "PST.hpp"
 
 PSTP::PSTP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
@@ -24,6 +23,14 @@ PSTP::PSTP(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    nrpatch = povlp->nrpatch;
    MFEM_VERIFY(povlp->nrpatch+1 == pnovlp->nrpatch,"Check nrpatch");
+
+
+   lmap = new LocalDofMap(bf->FESpace()->FEColl(),pnovlp,povlp);
+
+   // Given the two partitions create a dof map between the non-ovelapping 
+   // subdomain dofs and the overlapping ones
+
+
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
@@ -36,6 +43,8 @@ PSTP::PSTP(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // The overlapping is extended left and right by pml (unbounded domain problem)
    novlp_prob = new DofMap(bf,pnovlp);
    ovlp_prob  = new DofMap(bf,povlp,nrlayers); 
+
+   // Given 
 
    // ------------------Step 3 --------------------
    // Assemble the PML Problem matrices and factor them
@@ -113,7 +122,6 @@ void PSTP::Mult(const Vector &r, Vector &z) const
 
    // Initialize correction
    z = 0.0; 
-   Vector faux(z.Size()); faux=0.0;
    Vector fpml;
    Vector zpml;
 
@@ -131,27 +139,22 @@ void PSTP::Mult(const Vector &r, Vector &z) const
 
    // source transfer algorithm 1 (forward sweep)
    Vector f;
-
    for (int ip = 0; ip < nrpatch; ip++)
    {
-      Array<int> *Dof2GDof1 = &novlp_prob->Dof2GlobalDof[ip];
-      Array<int> *Dof2GDof2 = &novlp_prob->Dof2GlobalDof[ip+1];
-      faux = 0.0;
       // construct the source in the overlapping PML problem
       if (ip == 0) ftransf[ip] = fn[ip];
-      faux.AddElementVector(*Dof2GDof1, ftransf[ip]);
-      faux.AddElementVector(*Dof2GDof2, fn[ip+1]);
 
-      Array<int> *Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
-      f.SetSize(Dof2GlobalDof->Size());
-      faux.GetSubVector(*Dof2GlobalDof,f);
+      int ndof = ovlp_prob->Dof2GlobalDof[ip].Size();
+      f.SetSize(ndof); f = 0.0;
+      f.AddElementVector(lmap->map1[ip],ftransf[ip]);
+      f.AddElementVector(lmap->map2[ip],fn[ip+1]);
 
       // Extend to the pml problem and solve for the local pml solution
       Array<int> * Dof2PmlDof = &ovlp_prob->Dof2PmlDof[ip];
       int ndof_pml = PmlMat[ip]->Height();
       fpml.SetSize(ndof_pml); fpml=0.0;
       zpml.SetSize(ndof_pml); zpml=0.0;
-      fpml.SetSubVector(* Dof2PmlDof,f);
+      fpml.SetSubVector(*Dof2PmlDof,f);
       // Solve the pml problem
       PmlMatInv[ip]->Mult(fpml, zpml);
       PlotLocalSolution(zpml,subsol_sock,ip); cin.get();
@@ -162,19 +165,16 @@ void PSTP::Mult(const Vector &r, Vector &z) const
       GetCutOffSol(zpml, ip, direction);
       // PlotLocalSolution(zpml,subsol_sock,ip); cin.get();
 
-      // Calculate source 2 be trasfered source on the pml mesh
+      // Calculate source to be trasfered to the pml mesh
       Vector respml(zpml.Size());
       PmlMat[ip]->Mult(zpml,respml);
 
       // PlotLocalSolution(respml,subsol_sock,ip); cin.get();
       // restrict to non-pml problem
-      Vector res(Dof2PmlDof->Size()); 
+      Vector res(ndof); 
       respml.GetSubVector(*Dof2PmlDof, res);
-
-      // Through the global dofs overwrite fn[ip+1]
-      faux = 0.0;
-      faux.SetSubVector(*Dof2GlobalDof, res);
-      faux.GetSubVector(*Dof2GDof2,ftransf[ip+1]);
+      // source to be transfered
+      res.GetSubVector(lmap->map2[ip],ftransf[ip+1]);
    }
 
 
@@ -395,13 +395,9 @@ PSTP::~PSTP()
    PmlMatInv.DeleteAll();
 }
 
-
-
 void PSTP::GetCutOffSol(Vector & sol, int ip, int direction) const
 {
-
    int l,k;
-
    l=(direction == 1)? ip+1: ip;
    k=(direction == 1)? ip: ip+1;
 
@@ -447,4 +443,89 @@ void PSTP::GetCutOffSol(Vector & sol, int ip, int direction) const
    gf.ProjectCoefficient(prod_re,prod_im);
 
    sol = gf;
+}
+
+
+
+LocalDofMap::LocalDofMap(const FiniteElementCollection * fec_, MeshPartition * part1_, 
+               MeshPartition * part2_):fec(fec_), part1(part1_), part2(part2_)
+{
+   // Each overlapping patch has 2 non-overlapping subdomains
+   // Thre are n non-overlapping and and n-1 overlapping subdomains
+   int nrpatch = part2->nrpatch;
+   MFEM_VERIFY(part1->nrpatch-1 == part2->nrpatch, "Check number of subdomains");
+
+   cout << "Constructing local dof maps" << endl; 
+   map1.resize(nrpatch);
+   map2.resize(nrpatch);
+   for (int ip=0; ip<nrpatch; ip++)
+   {
+      // Get the 3 meshes involved
+      Mesh * mesh = part2->patch_mesh[ip];
+      Mesh * mesh1 = part1->patch_mesh[ip];
+      Mesh * mesh2 = part1->patch_mesh[ip+1];
+
+      // Define the fespaces
+      FiniteElementSpace fespace(mesh, fec);
+      FiniteElementSpace fespace1(mesh1, fec);
+      FiniteElementSpace fespace2(mesh2, fec);
+
+      int ndof1 = fespace1.GetTrueVSize();
+      int ndof2 = fespace2.GetTrueVSize();
+
+      map1[ip].SetSize(2*ndof1); // times 2 because it's complex
+      map2[ip].SetSize(2*ndof2); // times 2 because it's complex
+
+      // loop through the elements in the patches
+      // map 1 is constructed by the first half of elements
+      // map 2 is constructed by the second half of elements
+
+      for (int iel = 0; iel<part1->element_map[ip].Size(); ++iel)
+      {
+         // index in the overlapping mesh
+         int iel_idx = iel;
+         Array<int> ElemDofs;
+         Array<int> GlobalElemDofs;
+         fespace1.GetElementDofs(iel,ElemDofs);
+         fespace.GetElementDofs(iel_idx,GlobalElemDofs);
+         // the sizes have to match
+         MFEM_VERIFY(ElemDofs.Size() == GlobalElemDofs.Size(),
+                     "Size inconsistency");
+         // loop through the dofs and take into account the signs;
+         int ndof = ElemDofs.Size();
+         for (int i = 0; i<ndof; ++i)
+         {
+            int pdof_ = ElemDofs[i];
+            int gdof_ = GlobalElemDofs[i];
+            int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
+            int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
+            map1[ip][pdof] = gdof;
+            map1[ip][pdof+ndof1] = gdof+fespace.GetTrueVSize();
+         }
+      }
+      for (int iel = 0; iel<part1->element_map[ip+1].Size(); ++iel)
+      {
+         // index in the overlapping mesh
+         int k = part1->element_map[ip].Size();
+         int iel_idx = iel+k;
+         Array<int> ElemDofs;
+         Array<int> GlobalElemDofs;
+         fespace2.GetElementDofs(iel,ElemDofs);
+         fespace.GetElementDofs(iel_idx,GlobalElemDofs);
+         // the sizes have to match
+         MFEM_VERIFY(ElemDofs.Size() == GlobalElemDofs.Size(),
+                     "Size inconsistency");
+         // loop through the dofs and take into account the signs;
+         int ndof = ElemDofs.Size();
+         for (int i = 0; i<ndof; ++i)
+         {
+            int pdof_ = ElemDofs[i];
+            int gdof_ = GlobalElemDofs[i];
+            int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
+            int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
+            map2[ip][pdof] = gdof;
+            map2[ip][pdof+ndof2] = gdof+fespace.GetTrueVSize();
+         }
+      }
+   }
 }
