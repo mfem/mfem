@@ -197,21 +197,12 @@ int main (int argc, char *argv[])
       }
    }
 
-   Array<unsigned int> el_id_out(pts_cnt), code_out(pts_cnt),
-         task_id_out(pts_cnt);
-   Vector pos_r_out(pts_cnt * dim), dist_p_out(pts_cnt);
-
-   // Finds points stored in vxyz.
-   finder.FindPoints(vxyz, code_out, task_id_out,
-                     el_id_out, pos_r_out, dist_p_out);
-
-   // Interpolate FE function values on the found points.
+   // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt);
-   finder.Interpolate(code_out, task_id_out, el_id_out,
-                      pos_r_out, field_vals, interp_vals);
-
-   // Free the internal gslib data.
-   finder.FreeData();
+   finder.Interpolate(vxyz, field_vals, interp_vals);
+   Array<unsigned int> code_out    = finder.GetCode();
+   Array<unsigned int> task_id_out = finder.GetProc();
+   Vector dist_p_out = finder.GetDist2();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double max_err = 0.0, max_dist = 0.0;
@@ -246,6 +237,8 @@ int main (int argc, char *argv[])
            << "\nPoints on faces:      " << face_pts << endl;
    }
 
+   // Free the internal gslib data.
+   finder.FreeData();
    MPI_Finalize();
    return 0;
 }
