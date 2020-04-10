@@ -434,7 +434,7 @@ MFEM_JIT_DEFS  = -DMFEM_JIT_MAIN
 MFEM_JIT_DEFS += -DMFEM_CXX="$(MFEM_CXX)"
 MFEM_JIT_DEFS += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
 $(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
-						 $(SRC)general/$(MFEM_JIT).hpp #$(THIS_MK)
+						 $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -Wall -std=c++11 -pedantic -o $(@) $(<) $(MFEM_JIT_DEFS)
 MFEM_JIT_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
 MFEM_JIT_FLAGS += -x c++ -I. -I$(patsubst %/,%,$(<D))
@@ -702,7 +702,7 @@ FORMAT_FILES += $(foreach dir,general linalg mesh fem,"tests/unit/$(dir)/*.?pp")
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/$(MFEM_JIT)\.[ch]pp'
+ '^general/$(MFEM_JIT)\.[ch]pp' '^general/debug\.hpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

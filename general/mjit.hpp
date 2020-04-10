@@ -205,7 +205,8 @@ const char *compile(const bool debug, const size_t hash, const char *cxx,
 template<typename... Args>
 void *lookup(const bool debug, const size_t hash, const char *cxx,
              const char *src, const char *flags,
-             const char *mfem_source_dir, const char *mfem_install_dir, Args... args)
+             const char *mfem_source_dir, const char *mfem_install_dir,
+             Args... args)
 {
    const int mode = RTLD_LAZY;
    const char *path = "libmjit.so";
@@ -269,7 +270,7 @@ public:
    template<typename... Args>
    kernel(const char *cxx, const char *src, const char *flags,
           const char *mfem_source, const char* mfem_install, Args... args):
-      debug(!!getenv("MFEM_DBG") || !!getenv("DBG") || !!getenv("dbg")),
+      debug(!!getenv("MFEM_DBG") || !!getenv("DBG")),
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, mfem_source, mfem_install, args...)),
       handle(lookup(debug, hash, cxx, src, flags, mfem_source, mfem_install,

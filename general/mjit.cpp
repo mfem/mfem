@@ -23,6 +23,8 @@ using std::string;
 using std::istream;
 using std::ostream;
 
+#define MFEM_DEBUG_COLOR 198
+#include "debug.hpp"
 #include "mjit.hpp"
 #include "globals.hpp"
 
@@ -44,31 +46,23 @@ namespace jit
 // Implementation of mfem::jit::System used in the mjit header for compilation.
 // The serial implementation does nothing special but launching the =system=
 // command.
-// The parallel implementation will spawn the mjit binary on one mpi rank to
+// The parallel implementation will spawn the =mjit= binary on one mpi rank to
 // be able to run on one core and use MPI to broadcast the compilation output.
 #ifndef MFEM_USE_MPI
-
 int System(int argc = 1, char *argv[] = nullptr)
 {
-   dbg("argc:%d", argc);
-   dbg("argv[0]:%s", argv[0]);
-   dbg("argv[1]:%s", argv[1]);
+   assert(argc > 1);
    string command(argv[1]);
-   for (int k = 2; argv[k]; k++)
+   for (int k = 2; k < argc && argv[k]; k++)
    {
       command.append(" ");
       command.append(argv[k]);
-      dbg("%d:%s ", k, argv[k]);
    }
    const char *command_c_str = command.c_str();
    const bool command_debug = (argc > 1) && (argv[0][0] == 0x31);
-   if (command_debug) { dbg("%s", command_c_str); }
+   if (command_debug) { dbg(command_c_str); }
    return system(command_c_str);
 }
-
-} // namespace jit
-
-} // namespace mfem
 
 #else
 
@@ -80,9 +74,20 @@ constexpr uint32_t RUN_COMPILATION = 0x12345678ul;
 
 int System(int argc = 1, char *argv[] = MPI_ARGV_NULL)
 {
-   const bool debug = argc == 1;
-   assert(!debug);
+   dbg();
+   assert(argc > 1);
+   string command(argv[1]);
+   for (int k = 2; k < argc && argv[k]; k++)
+   {
+      command.append(" ");
+      command.append(argv[k]);
+   }
+   const char *command_c_str = command.c_str();
+   const bool command_debug = (argc > 1) && (argv[0][0] == 0x31);
+   if (command_debug) { dbg(command_c_str); }
+
    char mjit[SIZE];
+   // Forcing first argument given to =mjit= to trigger compilation
    argv[0] = strdup("-c");
    if (snprintf(mjit, SIZE, "%s/bin/mjit", INSTALL) < 0) { return FAILURE; }
    const int root = 0;
@@ -108,20 +113,23 @@ int System(int argc = 1, char *argv[] = MPI_ARGV_NULL)
 
 int MPISpawn(int argc, char *argv[], int *cookie)
 {
-   const bool debug = argc == 1;
+   dbg();
+   const bool debug = argc == 2;
+   if (debug) { dbg("DEBUG"); }
    MPI_Init(&argc, &argv);
    MPI_Comm parent = MPI_COMM_NULL;
    MPI_Comm_get_parent(&parent);
    // debug mode where 'jit' has been launched directly, without any arguments
    if (debug && parent == MPI_COMM_NULL)
    {
+      dbg("uname -a");
       const char *argv[] = {"1", "uname", "-a", nullptr};
       mfem::jit::System(mfem::jit::argn(argv), const_cast<char**>(argv));
       MPI_Finalize();
       return EXIT_SUCCESS;
    }
    // This case should not happen
-   if (parent == MPI_COMM_NULL) { return EXIT_FAILURE; }
+   if (parent == MPI_COMM_NULL) { dbg("ERROR"); return EXIT_FAILURE; }
    // MPI child
    int status = EXIT_SUCCESS;
    MPI_Bcast(&status, 1, MPI_INT, 0, parent);
@@ -137,8 +145,9 @@ int MPISpawn(int argc, char *argv[], int *cookie)
 
 int ProcessFork(int argc, char *argv[])
 {
+   dbg();
    int *shared_return_value = nullptr;
-   const bool debug = argc == 1;
+   const bool debug = argc == 2;
    if (!debug)
    {
       constexpr int SIZE = sizeof(int);
@@ -147,6 +156,7 @@ int ProcessFork(int argc, char *argv[])
       shared_return_value = static_cast<int*>(mmap(0, SIZE, PROT, FLAG, -1, 0));
       *shared_return_value = 0;
    }
+   else { dbg("DEBUG"); }
 
    const pid_t child_pid = fork();
 
@@ -198,10 +208,7 @@ struct template_t
 };
 
 // *****************************************************************************
-struct forall_t
-{
-   string e,N,X,Y,Z,body;
-};
+struct forall_t { string e, N, X, Y, Z, body; };
 
 // *****************************************************************************
 struct kernel_t
@@ -1287,7 +1294,7 @@ void templatePostfix(context_t &pp)
       size_t i=1;
       const size_t n = range.size();
       size_t hash = 0;
-      for (int r : range) { hash = jit::hash_args(hash,r); }
+      for (int r : range) { hash = mfem::jit::hash_args(hash,r); }
       pp.out << std::hex << "0x" << hash;
       pp.out << ",&__"<<pp.ker.name<<"<";
       for (int r : range)
@@ -1486,6 +1493,7 @@ int main(const int argc, char* argv[])
       if (argv[i] == string("-c"))
       {
 #ifdef MFEM_USE_MPI
+         dbg("Compilation requested, forking...");
          return mfem::jit::ProcessFork(argc, argv);
 #else
          return 0;
