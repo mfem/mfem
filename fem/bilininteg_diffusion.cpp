@@ -1510,11 +1510,13 @@ static void PADiffusionApply(const int dim,
                              const Vector &vX,
                              Vector &vY)
 {
-   const double *B = aB.Read();
-   const double *G = aG.Read();
-   const double *D = vD.Read();
-   const double *X = vX.Read();
-   double *Y = vY.ReadWrite();
+   const auto B = aB.Read();
+   const auto G = aG.Read();
+   const auto Bt = aBt.Read();
+   const auto Gt = aGt.Read();
+   const auto D = vD.Read();
+   const auto X = vX.Read();
+   auto Y = vY.ReadWrite();
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
@@ -1530,6 +1532,9 @@ static void PADiffusionApply(const int dim,
       }
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
+#else
+   MFEM_CONTRACT_VAR(Bt);
+   MFEM_CONTRACT_VAR(Gt);
 #endif // MFEM_USE_OCCA
 
 #ifndef MFEM_USE_JIT

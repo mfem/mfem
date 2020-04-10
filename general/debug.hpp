@@ -12,6 +12,7 @@
 #ifndef MFEM_DEBUG_HPP
 #define MFEM_DEBUG_HPP
 
+#include <string>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -56,12 +57,10 @@ struct Debug
 
    ~Debug()
    {
+      if (operator!()) { return; }
       std::cout << "\033[m";
       std::cout << std::endl;
    }
-
-   template <typename T>
-   inline void operator<<(const T &arg) noexcept { std::cout << arg;}
 
    inline bool operator!() noexcept
    {
@@ -70,23 +69,23 @@ struct Debug
       return false;
    }
 
-   template<typename T, typename... Args>
-   inline void operator()(const T &arg, Args... args) noexcept
+   template <typename T>
+   inline void operator<<(const T &arg) noexcept
    {
       if (operator!()) { return; }
-      operator<<(arg);
-      operator()(args...);
-   }
-
-   template<typename T>
-   inline void operator()(const T &arg) noexcept
-   {
-      if (operator!()) { return; }
-      operator<<(arg);
+      std::cout << arg;
    }
 
    inline void operator()() { }
 
+   template<typename T, typename... Args>
+   inline void operator()(const T &arg, Args... args) noexcept
+   { (operator<<(arg), operator()(args...)); }
+
+   template<typename T>
+   inline void operator()(const T &arg) noexcept { operator<<(arg); }
+
+private:
    inline uint8_t Checksum8(const char *bfr)
    {
       unsigned int chk = 0;
@@ -98,15 +97,15 @@ struct Debug
    inline const char *Strrnchr(const char *s, const unsigned char c, int n)
    {
       size_t len = strlen(s);
-      char *p = const_cast<char*>(s)+len-1;
+      char *p = const_cast<char*>(s) + len - 1;
       for (; n; n--,p--,len--)
       {
          for (; len; p--,len--)
-            if (*p==c) { break; }
-         if (!len) { return NULL; }
-         if (n==1) { return p; }
+            if (*p == c) { break; }
+         if (!len) { return nullptr; }
+         if (n == 1) { return p; }
       }
-      return NULL;
+      return nullptr;
    }
 
 };
