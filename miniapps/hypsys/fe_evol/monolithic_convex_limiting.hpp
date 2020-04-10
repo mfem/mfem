@@ -9,13 +9,14 @@ using namespace mfem;
 class MCL_Evolution : public FE_Evolution
 {
 public:
-   DenseTensor PrecGrad;
+   DenseTensor PrecGradOp, GradProd;
    DenseMatrix MassMatLOR;
 
    int nscd; // nscd: NumSubcellCrossDofs
 
-   mutable DenseTensor CTilde;
+   mutable DenseTensor CTilde, CFull;
    mutable Vector C_eij;
+   mutable Array<int> eldofs;
 
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                           DofInfo &dofs_);

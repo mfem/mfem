@@ -9,22 +9,25 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    const FiniteElement *el = fes->GetFE(0);
    IntegrationRule nodes =  el->GetNodes();
    Vector shape(nd), dx_shape(nd), RefMassLumped(nd);
-   DenseMatrix dshape(nd,dim), GradOp(nd,nd), RefMass(nd,nd), InvRefMass(nd,nd);
-   DenseTensor Grad_aux(nd,nd,dim);
+   DenseMatrix dshape(nd,dim), GradAux(nd,nd), RefMass(nd,nd), InvRefMass(nd,nd);
+   DenseTensor GradOp(nd,nd,dim);
 
    ShapeEval.SetSize(nd,nd);
    ElemInt.SetSize(dim,dim,ne);
-   PrecGrad.SetSize(nd,dim,nd);
+   PrecGradOp.SetSize(nd,dim,nd);
+   GradProd.SetSize(nd,dim,nd);
    CTilde.SetSize(nd,dim,nd);
+   CFull.SetSize(nd,dim,nd);
    OuterUnitNormals.SetSize(dim, dofs.NumBdrs, ne);
-   C_eij(dim);
+   C_eij.SetSize(dim); // TODO rename
+   eldofs.SetSize(hyp->NumEq*nd);
 
    nscd = nscd = dofs.SubcellCross.Width();
 
    RefMassLumped =  0.;
    RefMass = 0.;
-   PrecGrad = 0.;
-   Grad_aux = 0.;
+   PrecGradOp = 0.;
+   GradOp = 0.;
 
    Array <int> bdrs, orientation;
 
@@ -33,6 +36,11 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       const IntegrationPoint &ip = nodes.IntPoint(j);
       el->CalcShape(ip, shape);
       ShapeEval.SetCol(j, shape);
+
+      for (int n = 0; n < hyp->NumEq; n++)
+      {
+         eldofs[n*nd + j] = n*nd + j;
+      }
    }
 
    for (int k = 0; k < nqe; k++)
@@ -46,7 +54,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       for (int l = 0; l < dim; l++)
       {
          dshape.GetColumn(l, dx_shape);
-         AddMult_a_VWt(ip.weight, shape, dx_shape, Grad_aux(l));
+         AddMult_a_VWt(ip.weight, shape, dx_shape, GradOp(l));
       }
    }
 
@@ -56,15 +64,16 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 
    for (int l = 0; l < dim; l++)
    {
-      GradOp = 0.;
-      AddMult(InvRefMass, Grad_aux(l), GradOp);
-      GradOp.LeftScaling(RefMassLumped);
+      GradAux = 0.;
+      AddMult(InvRefMass, GradOp(l), GradAux);
+      GradAux.LeftScaling(RefMassLumped);
 
       for (int i = 0; i < nd; i++)
       {
          for (int j = 0; j < nd; j++)
          {
-            PrecGrad(i,l,j) -= GradOp(i,j);
+            PrecGradOp(i,l,j) += GradAux(i,j);
+            GradProd(i,l,j) += GradOp(i,j,l) + GradOp(j,i,l);
          }
       }
    }
@@ -267,22 +276,59 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
    }
 
    z = 0.;
+
+   DenseMatrix mat3(nd, hyp->NumEq);
+   Vector ElFlux(hyp->NumEq*nd);
+   DenseMatrix galerkin(nd, hyp->NumEq);
+   DenseMatrix uDot(nd, hyp->NumEq);
+
+
+
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
-      mat2 = 0.;
+
+      mat2 = uDot = 0.;
+
+      for (int k = 0; k < nqe; k++)
+      {
+         ElemEval(uElem, uEval, k);
+         hyp->EvaluateFlux(uEval, Flux, e, k); // TODO
+         MultABt(ElemInt(e * nqe + k), Flux, mat1);
+         AddMult(DShapeEval(k), mat1, mat2);
+      }
+
+      galerkin = mat2;
+
+      // TODO flux terms
+
+      // Using the fact that mass matrices are the same for all components.
+      AddMult(InvMassMat->Minv(e), galerkin, uDot);
+
+
+
+      mat2 = mat3 = 0.;
+      ElFlux = 0.;
 
       // Volume terms.
       for (int j = 0; j < nd; j++)
       {
          ElemEval(uElem, uEval, j);
          hyp->EvaluateFlux(uEval, Flux, e, j);
-         MultABt(PrecGrad(j), ElemInt(e), CTilde(j));
+         MultABt(PrecGradOp(j), ElemInt(e), CTilde(j));
          AddMultABt(CTilde(j), Flux, mat2);
+
+         MultABt(GradProd(j), ElemInt(e), CFull(j));
+         AddMultABt(CFull(j), Flux, mat3);
       }
 
-      z.AddElementVector(vdofs, mat2.GetData());
+      Vector ElTerms(mat2.GetData(), hyp->NumEq*nd);
+      z.AddElementVector(vdofs, -1., ElTerms);
+      ElFlux += ElTerms;
+
+      ElTerms = mat3.GetData();
+      ElFlux -= ElTerms;
 
       // Artificial diffusion.
       for (int m = 0; m < dofs.numSubcells; m++)
@@ -326,7 +372,9 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
                for (int n = 0; n < hyp->NumEq; n++)
                {
-                  z(vdofs[n * nd + I]) += dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
+                  double rus = dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
+                  ElFlux(n * nd + I) -= rus;
+                  z(vdofs[n * nd + I]) += rus;
                }
             }
          }
