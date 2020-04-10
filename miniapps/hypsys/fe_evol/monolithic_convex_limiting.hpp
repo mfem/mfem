@@ -9,7 +9,7 @@ using namespace mfem;
 class MCL_Evolution : public FE_Evolution
 {
 public:
-   DenseTensor PrecGradOp, GradProd;
+   DenseTensor PrecGradOp, GradProd, Adjugates;
    DenseMatrix MassMatLOR;
 
    int nscd; // nscd: NumSubcellCrossDofs

@@ -12,8 +12,8 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    DenseMatrix dshape(nd,dim), GradAux(nd,nd), RefMass(nd,nd), InvRefMass(nd,nd);
    DenseTensor GradOp(nd,nd,dim);
 
-   ShapeEval.SetSize(nd,nd);
-   ElemInt.SetSize(dim,dim,ne);
+   // ShapeNodes.SetSize(nd,nd); // TODO unnecessary?
+   Adjugates.SetSize(dim,dim,ne);
    PrecGradOp.SetSize(nd,dim,nd);
    GradProd.SetSize(nd,dim,nd);
    CTilde.SetSize(nd,dim,nd);
@@ -31,17 +31,12 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 
    Array <int> bdrs, orientation;
 
-   for (int j = 0; j < nd; j++)
-   {
-      const IntegrationPoint &ip = nodes.IntPoint(j);
-      el->CalcShape(ip, shape);
-      ShapeEval.SetCol(j, shape);
-
-      for (int n = 0; n < hyp->NumEq; n++)
-      {
-         eldofs[n*nd + j] = n*nd + j;
-      }
-   }
+   // for (int j = 0; j < nd; j++)
+   // {
+   //    const IntegrationPoint &ip = nodes.IntPoint(j);
+   //    el->CalcShape(ip, shape);
+   //    ShapeNodes.SetCol(j, shape);
+   // }
 
    for (int k = 0; k < nqe; k++)
    {
@@ -73,7 +68,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
          for (int j = 0; j < nd; j++)
          {
             PrecGradOp(i,l,j) += GradAux(i,j);
-            GradProd(i,l,j) += GradOp(i,j,l) + GradOp(j,i,l);
+            GradProd(i,l,j) = GradOp(i,j,l) + GradOp(j,i,l);
          }
       }
    }
@@ -86,7 +81,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       DenseMatrix mat_aux(dim,dim);
       CalcAdjugate(eltrans->Jacobian(), mat_aux);
       mat_aux.Transpose();
-      ElemInt(e) = mat_aux;
+      Adjugates(e) = mat_aux;
 
       if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
       else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
@@ -275,60 +270,85 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       }
    }
 
-   z = 0.;
-
    DenseMatrix mat3(nd, hyp->NumEq);
    Vector ElFlux(hyp->NumEq*nd);
    DenseMatrix galerkin(nd, hyp->NumEq);
    DenseMatrix uDot(nd, hyp->NumEq);
 
-
-
+   z = 0.;
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
-
       mat2 = uDot = 0.;
 
       for (int k = 0; k < nqe; k++)
       {
          ElemEval(uElem, uEval, k);
-         hyp->EvaluateFlux(uEval, Flux, e, k); // TODO
+         hyp->EvaluateFlux(uEval, Flux, e, k);
          MultABt(ElemInt(e * nqe + k), Flux, mat1);
          AddMult(DShapeEval(k), mat1, mat2);
       }
 
       galerkin = mat2;
 
-      // TODO flux terms
+      for (int i = 0; i < dofs.NumBdrs; i++)
+      {
+         for (int k = 0; k < nqf; k++)
+         {
+            OuterUnitNormals(e).GetColumn(i, normal);
+            FaceEval(x, uEval, uNbrEval, xMPI, normal, e, i, k);
+
+            LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
+            NumFlux *= BdrInt(i, k, e);
+
+            for (int n = 0; n < hyp->NumEq; n++)
+            {
+               for (int j = 0; j < dofs.NumFaceDofs; j++)
+               {
+                  galerkin(dofs.BdrDofs(j,i), n) -= ShapeEvalFace(i,j,k)
+                                                    * NumFlux(n);
+               }
+            }
+         }
+      }
 
       // Using the fact that mass matrices are the same for all components.
       AddMult(InvMassMat->Minv(e), galerkin, uDot);
 
+      mat2 -= galerkin; // TODO: Optimization possible by just using flux terms
+      ElFlux = mat2.GetData(); // ElFlux = int f(u_h) \nabla \phi - M_C uDot
 
+
+      // ElFlux = uDot.GetData();
+      // // y.SetSubVector(vdofs, ElFlux);
 
       mat2 = mat3 = 0.;
-      ElFlux = 0.;
 
       // Volume terms.
       for (int j = 0; j < nd; j++)
       {
          GetNodeVal(uElem, uEval, j);
          hyp->EvaluateFlux(uEval, Flux, e, j);
-         MultABt(PrecGradOp(j), ElemInt(e), CTilde(j));
+         MultABt(PrecGradOp(j), Adjugates(e), CTilde(j));
          AddMultABt(CTilde(j), Flux, mat2);
 
-         MultABt(GradProd(j), ElemInt(e), CFull(j));
+         MultABt(GradProd(j), Adjugates(e), CFull(j));
          AddMultABt(CFull(j), Flux, mat3);
+
+         // ElFlux += M_L uDot
+         for (int n = 0; n < hyp->NumEq; n++)
+         {
+            ElFlux(n*nd + j) += LumpedMassMat(n*ne*nd + e*nd + j) * uDot(j,n);
+         }
       }
 
-      Vector ElTerms(mat2.GetData(), hyp->NumEq*nd);
+      Vector ElTerms(mat2.GetData(), nd*hyp->NumEq);
       z.AddElementVector(vdofs, -1., ElTerms);
-      ElFlux += ElTerms;
+      ElFlux += ElTerms; // ElFlux_i += sum_j f_j cTilde_ij
 
       ElTerms = mat3.GetData();
-      ElFlux -= ElTerms;
+      ElFlux -= ElTerms; // ElFlux_i -= sum_j f_j (c_ij + c_ji)
 
       // Artificial diffusion.
       for (int m = 0; m < dofs.numSubcells; m++)
@@ -379,6 +399,20 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             }
          }
       }
+
+      // for (int n = 0; n < hyp->NumEq; n++)
+      // {
+      //    double test = 0.;
+      //    for (int j = 0; j < nd; j++)
+      //    {
+      //       test += ElFlux(n*nd+j);
+      //    }
+      //    if (abs(test) > 1.E-12)
+      //    {
+      //       cout << abs(test) << endl;
+      //       MFEM_ABORT("non-zero sum.");
+      //    }
+      // }
 
       // DG flux terms and boundary conditions.
       for (int i = 0; i < dofs.NumBdrs; i++)

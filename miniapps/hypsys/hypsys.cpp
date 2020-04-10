@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   cout << "Difference in solution mass: " << InitialMass << " "
+   cout << "Difference in solution mass: "
         << abs(InitialMass - LumpedMassMat * uk) / DomainSize << "\n\n";
 
    if (hyp->FileOutput)
