@@ -811,10 +811,10 @@ protected:
    double lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *xi_0;
+   const GridFunction *zeta_0;
    GridFunction *zeta;
+   Coefficient *coeff_zeta;
    AdaptivityEvaluator *adapt_eval;
-   Coefficient *xi;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -881,7 +881,7 @@ public:
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
-        xi_0(NULL), zeta(NULL), xi(NULL),
+        zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3)
    { }
@@ -923,17 +923,13 @@ public:
    void EnableLimiting(const GridFunction &n0,
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
-   void EnableAnalyticAdaptiveLimiting(const GridFunction &xi0_gf,
-                                       Coefficient &xi_coeff)
-   {
-      xi_0 = &xi0_gf;
-      xi = &xi_coeff;
-   }
-   void EnableDiscrAdaptiveLimiting(const GridFunction &xi0_gf,
-                                    GridFunction &zeta_gf);
+   void EnableDiscrAdaptiveLimiting(const GridFunction &zeta0_gf,
+                                    GridFunction &zeta_gf,
+                                    Coefficient &coeff);
    #ifdef MFEM_USE_MPI
-   void EnableDiscrAdaptiveLimiting(const ParGridFunction &xi0_gf,
-                                    ParGridFunction &zeta_gf);
+   void EnableDiscrAdaptiveLimiting(const ParGridFunction &zeta0_gf,
+                                    ParGridFunction &zeta_gf,
+                                    Coefficient &coeff);
    #endif
 
    /// Update the original/reference nodes used for limiting.
