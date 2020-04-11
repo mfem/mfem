@@ -1589,6 +1589,7 @@ static void PADiffusionApply(const int dim,
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   dbg();
 #ifdef MFEM_USE_CEED
    if (DeviceCanUseCeed())
    {

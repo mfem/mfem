@@ -9,13 +9,22 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+/** @file mjit.cpp
+ *  This file has multiple purposes:
+ *      - Implements the serial and parallel @c mfem::System call.
+ *      - Produces the @c mjit executable, which can:
+ *          - preprocess source files,
+ *          - spawn & fork in parallel to be able to @c system calls.
+ */
+
 #include <list>
+#include <cmath>
 #include <string>
 #include <cstring>
 #include <ciso646>
 #include <cassert>
 #include <fstream>
-#include <iostream>
+#include <climits>
 #include <algorithm>
 
 using std::list;
@@ -66,11 +75,8 @@ int System(int argc = 1, char *argv[] = nullptr)
 
 #else
 
-constexpr size_t SIZE = 4096;
-constexpr int SUCCESS = EXIT_SUCCESS;
-constexpr int FAILURE = EXIT_FAILURE;
-constexpr const char *INSTALL = MFEM_INSTALL_DIR;
-constexpr uint32_t RUN_COMPILATION = 0x12345678ul;
+// Hash["MFEM_MAGIC_CXX", "CRC32", "HexString"]
+constexpr uint32_t MFEM_MAGIC_CXX = 0x4DB1CFC8ul;
 
 int System(int argc = 1, char *argv[] = MPI_ARGV_NULL)
 {
@@ -86,37 +92,43 @@ int System(int argc = 1, char *argv[] = MPI_ARGV_NULL)
    const bool command_debug = (argc > 1) && (argv[0][0] == 0x31);
    if (command_debug) { dbg(command_c_str); }
 
-   char mjit[SIZE];
+   char mjit[PATH_MAX];
    // Forcing first argument given to =mjit= to trigger compilation
    argv[0] = strdup("-c");
-   if (snprintf(mjit, SIZE, "%s/bin/mjit", INSTALL) < 0) { return FAILURE; }
+   if (snprintf(mjit, PATH_MAX, "%s/bin/mjit", MFEM_INSTALL_DIR) < 0)
+   {
+      return EXIT_FAILURE;
+   }
+   const int one = 1;
    const int root = 0;
    MPI_Info info = MPI_INFO_NULL;
    MPI_Comm comm = MPI_COMM_WORLD, intercomm = MPI_COMM_NULL;
-   int errcode = SUCCESS;
-   constexpr int one_proc = 1;
-   int spawned =
-      MPI_Comm_spawn(mjit, argv, one_proc,
-                     info, root, comm, &intercomm, &errcode);
-   if (spawned != SUCCESS || errcode != SUCCESS) { return FAILURE; }
+   int errcode = EXIT_FAILURE;
+   int spawned = // Now spawn one =mjit= binary
+      MPI_Comm_spawn(mjit, argv, one, info, root, comm, &intercomm, &errcode);
+   if (spawned != EXIT_SUCCESS || errcode != EXIT_SUCCESS)
+   {
+      dbg("EXIT_FAILURE");
+      return EXIT_FAILURE;
+   }
    free(argv[0]);
-   int status = FAILURE;
-   // Broadcast 'FAILURE' status
+   int status = EXIT_FAILURE;
+   // Broadcast failure status through intercomm
    MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, intercomm);
    // And wait for return from the =system= rank
    MPI_Bcast(&status, 1, MPI_INT, root, intercomm);
-   assert(status == SUCCESS);
-   MPI_Barrier(MPI_COMM_WORLD);
+   assert(status == EXIT_SUCCESS);
+   MPI_Barrier(comm);
    MPI_Comm_free(&intercomm);
-   return SUCCESS;
+   return EXIT_SUCCESS;
 }
 
 int MPISpawn(int argc, char *argv[], int *cookie)
 {
-   dbg();
+   MPI_Init(&argc, &argv);
    const bool debug = argc == 2;
    if (debug) { dbg("DEBUG"); }
-   MPI_Init(&argc, &argv);
+   dbg();
    MPI_Comm parent = MPI_COMM_NULL;
    MPI_Comm_get_parent(&parent);
    // debug mode where 'jit' has been launched directly, without any arguments
@@ -134,8 +146,8 @@ int MPISpawn(int argc, char *argv[], int *cookie)
    int status = EXIT_SUCCESS;
    MPI_Bcast(&status, 1, MPI_INT, 0, parent);
    assert(status == EXIT_FAILURE);
-   for (*cookie  = mfem::jit::RUN_COMPILATION;
-        *cookie == mfem::jit::RUN_COMPILATION;
+   for (*cookie  = mfem::jit::MFEM_MAGIC_CXX;
+        *cookie == mfem::jit::MFEM_MAGIC_CXX;
         usleep(1000));
    status = *cookie;
    MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, parent);
@@ -174,7 +186,7 @@ int ProcessFork(int argc, char *argv[])
    }
    const char * command_c_str = command.c_str();
    //const bool command_debug = (argc > 1) && (argv[1][0] == 0x31);
-   while (*shared_return_value != mfem::jit::RUN_COMPILATION) { usleep(1000); }
+   while (*shared_return_value != mfem::jit::MFEM_MAGIC_CXX) { usleep(1000); }
    const int return_value = system(command_c_str);
    *shared_return_value = return_value == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
    return return_value;
@@ -192,11 +204,11 @@ struct argument_t
    bool is_ptr = false, is_amp = false, is_const = false,
         is_restrict = false, is_tpl = false, has_default_value = false;
    std::list<int> range;
-   bool operator==(const argument_t &a) { return name == a.name; }
+   bool operator==(const argument_t &arg) { return name == arg.name; }
    argument_t() {}
    argument_t(string id): name(id) {}
 };
-typedef std::list<argument_t>::iterator argument_it;
+typedef list<argument_t>::iterator argument_it;
 
 // *****************************************************************************
 struct template_t
@@ -224,13 +236,14 @@ struct kernel_t
    string mfem_install_dir;   // holds MFEM_INSTALL_DIR
    string name;               // kernel name
    string space;              // kernel namespace
-   // format, arguments and parameter strings for the template
+   // Templates: format, arguments and parameter strings
    string Tformat;            // template format, as in printf
    string Targs;              // template arguments, for hash and call
    string Tparams;            // template parameter, for the declaration
    string Tparams_src;        // template parameter from original source
    // arguments and parameter strings for the standard calls
    // we need two kind of arguments because of the '& <=> *' transformation
+   // This might be no more the case as we are getting rid of Array/Vector
    string params;
    string args;
    string args_wo_amp;
@@ -240,7 +253,7 @@ struct kernel_t
    struct forall_t forall;    // source of the lambda forall
 };
 
-// *****************************************************************************
+///
 struct context_t
 {
    kernel_t ker;

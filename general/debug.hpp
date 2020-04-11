@@ -17,34 +17,31 @@
 #include <iomanip>
 #include <iostream>
 
+#include "../config/config.hpp"
+
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
 
+#define DBG(...) { printf("\033[33m");  \
+                   printf(__VA_ARGS__); \
+                   printf(" \n\033[m"); \
+                   fflush(0); }
+
 namespace mfem
 {
 
-static int mpi_dbg = 0, mpi_rank = 0;
-static bool mpi = false, env_dbg = false;
-
-struct Debug
+class Debug
 {
-   inline void Init(bool &init_debug)
-   {
-      mpi = getenv("DBG_MPI");
-#ifdef MFEM_USE_MPI
-      if (mpi) { MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank); }
-#endif
-      env_dbg = getenv("DBG");
-      mpi_dbg = atoi(mpi?getenv("DBG_MPI"):"0");
-      init_debug = true;
-   }
+   const bool debug = false;
+public:
+   inline Debug() {}
 
-   Debug(const char *FILE, const int LINE, const char *FUNC, int COLOR = 0)
+   inline Debug(const int mpi_rank,
+                const char *FILE, const int LINE,
+                const char *FUNC, int COLOR): debug(true)
    {
-      static bool init_debug = false;
-      if (!init_debug) { Init(init_debug); }
-      if (operator!()) { return; }
+      if (!debug) { return; }
       const char *base = Strrnchr(FILE,'/', 2);
       const char *file = base ? base + 1 : FILE;
       const uint8_t color = COLOR ? COLOR : 20 + Checksum8(FILE) % 210;
@@ -57,33 +54,82 @@ struct Debug
 
    ~Debug()
    {
-      if (operator!()) { return; }
+      if (!debug) { return; }
       std::cout << "\033[m";
       std::cout << std::endl;
    }
 
-   inline bool operator!() noexcept
-   {
-      if (!env_dbg) { return true; }
-      if (mpi_rank != mpi_dbg) { return true; }
-      return false;
-   }
-
    template <typename T>
-   inline void operator<<(const T &arg) noexcept
-   {
-      if (operator!()) { return; }
-      std::cout << arg;
-   }
-
-   inline void operator()() { }
+   inline void operator<<(const T &arg) const noexcept { std::cout << arg; }
 
    template<typename T, typename... Args>
-   inline void operator()(const T &arg, Args... args) noexcept
-   { (operator<<(arg), operator()(args...)); }
+   inline void operator()(const char *fmt, const T &arg,
+                          Args... args) const noexcept
+   {
+      if (!debug) { return; }
+      for (; *fmt != '\0'; fmt++ )
+      {
+         if ( *fmt == '%' )
+         {
+            fmt++;
+            const char c = *fmt;
+            if (c == 's' || c == 'd' || c == 'f') { operator<<(arg); }
+            if (c == '.')
+            {
+               fmt++;
+               char num[8] = { 0 };
+               for (int k = 0; *fmt != '\0'; fmt++, k++)
+               {
+                  if (*fmt == 'e' || *fmt == 'f') { break; }
+                  if (*fmt < 0x30 || *fmt > 0x39) { break; }
+                  num[k] = *fmt;
+               }
+               const int fx = std::atoi(num);
+               if (*fmt=='e') { std::cout << std::scientific; }
+               if (*fmt=='f') { std::cout << std::fixed; }
+               std::cout << std::setprecision(fx);
+               operator<<(arg);
+               std::cout << std::setprecision(6);
+            }
+            return operator()(fmt + 1, args...);
+         }
+         operator<<(*fmt);
+      }
+   }
 
    template<typename T>
-   inline void operator()(const T &arg) noexcept { operator<<(arg); }
+   inline void operator()(const T &arg) const noexcept
+   {
+      if (!debug) { return; }
+      operator<<(arg);
+   }
+
+   inline void operator()() const noexcept { }
+
+public:
+   static const Debug Set(const char *FILE, const int LINE, const char *FUNC,
+                          int COLOR = 0)
+   {
+      static int mpi_dbg = 0, mpi_rank = 0;
+      static bool env_mpi = false, env_dbg = false;
+      static bool ini_dbg = false;
+      if (!ini_dbg)
+      {
+         const char *DBG = getenv("DBG");
+         const char *MPI = getenv("MPI");
+         env_dbg = DBG != nullptr;
+         env_mpi = MPI != nullptr;
+#ifdef MFEM_USE_MPI
+         int mpi_ini = false;
+         MPI_Initialized(&mpi_ini);
+         if (mpi_ini) { MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank); }
+         mpi_dbg = atoi(env_mpi ? MPI : "0");
+#endif
+         ini_dbg = true;
+      }
+      const bool debug = (env_dbg && (!env_mpi || mpi_rank == mpi_dbg));
+      return debug ? Debug(mpi_rank, FILE, LINE, FUNC, COLOR) : Debug();
+   }
 
 private:
    inline uint8_t Checksum8(const char *bfr)
@@ -114,9 +160,9 @@ private:
 #define MFEM_DEBUG_COLOR 0
 #endif
 
-#define F_L_F __FILE__,__LINE__,__FUNCTION__
-
-#define dbg(...) mfem::Debug(F_L_F,MFEM_DEBUG_COLOR).operator()(__VA_ARGS__)
+#define dbg(...) \
+    mfem::Debug::Set(__FILE__,__LINE__,__FUNCTION__,MFEM_DEBUG_COLOR).\
+    operator()(__VA_ARGS__)
 
 } // mfem namespace
 

@@ -58,8 +58,8 @@ namespace jit
    { return hash_combine(seed, that); }                                 \
                                                                         \
    template<typename T, typename... Args>                               \
-   size_t hash_args(const size_t &seed, const T &first, Args... args)   \
-   noexcept { return hash_args(hash_combine(seed, first), args...); }
+   size_t hash_args(const size_t &seed, const T &arg, Args... args)     \
+   noexcept { return hash_args(hash_combine(seed, arg), args...); }
 
 JIT_HASH_COMBINE_ARGS_SRC;
 
