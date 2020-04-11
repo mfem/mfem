@@ -91,7 +91,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
 CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
-   nx = 4;
+   nx = 5;
    ny = 1;
    nz = 1;
    int nxyz[3] = {nx,ny,nz};
@@ -139,11 +139,11 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
-   nx = 4;
+   nx = 5;
    ny = 1;
    nz = 1;
    int nxyz[3] = {nx,ny,nz};
-   int npatch = nx*ny*nz;
+   // nrpatch = nx*ny*nz;
 
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
@@ -174,7 +174,22 @@ STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh 
       }
       partitioning[el] = part;
    }
+   
+   // element_map.resize(nrpatch);
+   // for (int iel = 0; iel < nrelem; iel++)
+   // {
+   //    int ip = partitioning[iel];
+   //    element_map[ip].Append(iel);
+   // }
+   // // Append the next subdomain to the previous
+   // for (int ip = 0; ip<nrpatch-1; ip++)
+   // {
+   //    element_map[ip].Append(element_map[ip+1]);
+   // }
+
+
    std::vector<Array<int>> elem_map;
+   int npatch = nx*ny*nz;
    elem_map.resize(npatch);
    for (int iel = 0; iel < nrelem; iel++)
    {
@@ -189,6 +204,9 @@ STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh 
       element_map[ip].Append(elem_map[ip]);
       element_map[ip].Append(elem_map[ip+1]);
    }
+
+
+
 }
 
 // constructor
@@ -558,7 +576,6 @@ double GetUniformMeshElementSize(Mesh * mesh)
    int dim = mesh->Dimension();
    int nrelem = mesh->GetNE();
 
-   // cout << "nrelem = " << nrelem << endl; 
    DenseMatrix J(dim);
    double hmin, hmax;
    hmin = infinity();

@@ -66,7 +66,7 @@ private:
    double omega = 0.5;
    Coefficient * ws;
    int nrlayers;
-   const Operator * A;
+   const Operator * A=nullptr;
    Vector B;
    DofMap * ovlp_prob = nullptr;
    DofMap * novlp_prob = nullptr;
@@ -82,7 +82,7 @@ private:
    SparseMatrix * GetHalfSpaceSystemMatrix(int ip);
    void SolveHalfSpaceLinearSystem(int ip, Vector & x, Vector & load) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
-   void GetCutOffSolution(Vector & sol, int ip) const;
+   void GetCutOffSolution(Vector & sol, int ip, int direction) const;
 
 public:
    STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 

@@ -11,6 +11,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_)
    Mesh * mesh = fespace->GetMesh();
    const FiniteElementCollection * fec = fespace->FEColl();
    nrpatch = partition->nrpatch;
+
    fespaces.SetSize(nrpatch);
 
    Dof2GlobalDof.resize(nrpatch);
@@ -53,8 +54,6 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_)
 }
 
 
-
-
 DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers) 
                : bf(bf_), partition(partition_)
 {
@@ -63,6 +62,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
    Mesh * mesh = fespace->GetMesh();
    const FiniteElementCollection * fec = fespace->FEColl();
    nrpatch = partition->nrpatch;
+
    fespaces.SetSize(nrpatch);
    PmlMeshes.SetSize(nrpatch);
    // Extend patch meshes to include pml
@@ -76,7 +76,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
             directions.Append(-1);
          }
       }
-      if (ip < nrpatch-2)
+      if (ip < nrpatch-1)
       {
          for (int i=0; i<nrlayers; i++)
          {
@@ -183,7 +183,6 @@ STP::STP(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    partition_kind = 3; // Ovelapping partition for the full space
    povlp = new MeshPartition(mesh, partition_kind);
    nrpatch = pnovlp->nrpatch;
-   cout << "nrpatch = " << nrpatch << endl;
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
@@ -356,12 +355,14 @@ void STP::Mult(const Vector &r, Vector &z) const
    res.SetSize(nrpatch);
    Vector rnew(r);
    Vector znew(z);
+   Vector z1(z);
    Vector raux(znew.Size());
    Vector res_local, sol_local;
    znew = 0.0;
-   // char vishost[] = "localhost";
-   // int  visport   = 19916;
-   // socketstream subsol_sock(vishost, visport);
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   // socketstream subsol_sock1(vishost, visport);
+   socketstream subsol_sock(vishost, visport);
 
    // source transfer algorithm
    for (int ip = 0; ip < nrpatch; ip++)
@@ -406,9 +407,12 @@ void STP::Mult(const Vector &r, Vector &z) const
 
       // PlotSolution(znew, subsol_sock,ip); cin.get();
 
-      GetCutOffSolution(znew, ip);
+      // z.AddElementVector(*Dof2GlobalDof,sol_local);
+      int direction = 1;
+      GetCutOffSolution(znew, ip, direction);
 
-      // PlotSolution(znew, subsol_sock,1); cin.get();
+      z1+=znew;
+      // PlotSolution(z, subsol_sock,1); cin.get();
 
       A->Mult(znew, raux);
       rnew -= raux;
@@ -419,7 +423,6 @@ void STP::Mult(const Vector &r, Vector &z) const
    // solution stage
    // First solve the nrpatch-1 problem (last subdomain)
    // extend residual to all around pml
-   // cout << "ip = " << nrpatch-1 << endl;
    int nrdof_ext = PmlMat[nrpatch-1]->Height();
    Vector res_ext(nrdof_ext); res_ext = 0.0;
    Vector sol_ext(nrdof_ext); sol_ext = 0.0;
@@ -433,15 +436,15 @@ void STP::Mult(const Vector &r, Vector &z) const
    znew = 0.0;
    znew.SetSubVector(*Dof2GlobalDof,sol_local);
    z.SetSubVector(*Dof2GlobalDof,sol_local);
+   z1+=znew;
 
-   // PlotSolution(z, subsol_sock,0); cin.get();
+   // PlotSolution(z1, subsol_sock1,0); cin.get();
 
    // backward sweep for half space problems
 
    Vector z_loc(z.Size());
    for (int ip = nrpatch-2; ip >= 0; ip--)
    {
-      // cout << "ip = " << ip<< endl;
       // Get solution from previous layer
       Array<int> * Dof2GlobalDof = &novlp_prob->Dof2GlobalDof[ip];
       Array<int> * Dof2PmlDof = &novlp_prob->Dof2PmlDof[ip];
@@ -481,8 +484,8 @@ void STP::Mult(const Vector &r, Vector &z) const
       z_loc.SetSubVector(* Dof2GlobalDof, sol_loc);
       znew = z_loc;
       z.SetSubVector(* Dof2GlobalDof, sol_loc);
-      // PlotSolution(z, subsol_sock,1); cin.get();
    }
+      // PlotSolution(z, subsol_sock,1); cin.get();
 
 }
 
@@ -499,33 +502,43 @@ void STP::PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const
    sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
 
-void STP::GetCutOffSolution(Vector & sol, int ip) const
+void STP::GetCutOffSolution(Vector & sol, int ip, int direction) const
 {
-   Mesh * novlp_mesh = novlp_prob->fespaces[ip+1]->GetMesh();
-   Mesh * ovlp_mesh = ovlp_prob->fespaces[ip]->GetMesh();
-   Vector novlpmin, novlpmax;
-   Vector ovlpmin, ovlpmax;
-   novlp_mesh->GetBoundingBox(novlpmin, novlpmax);
-   ovlp_mesh->GetBoundingBox(ovlpmin, ovlpmax);
+   int l,k;
+   l=(direction == 1)? ip+1: ip;
+   k=(direction == 1)? ip: ip+1;
+
+   Mesh * mesh1 = ovlp_prob->fespaces[l]->GetMesh();
+   Mesh * mesh2 = ovlp_prob->fespaces[k]->GetMesh();
+   
+   Vector pmin1, pmax1;
+   Vector pmin2, pmax2;
+   mesh1->GetBoundingBox(pmin1, pmax1);
+   mesh2->GetBoundingBox(pmin2, pmax2);
 
    Array2D<double> h(dim,2);
-   h[0][0] = 0.0;
-   h[0][1] = ovlpmax[0] - novlpmin[0];
-   h[1][0] = ovlpmin[1] - novlpmin[1];
-   h[1][1] = ovlpmax[1] - novlpmax[1];
+   
+   h[0][0] = pmin2[0] - pmin1[0];
+   h[0][1] = pmax2[0] - pmin1[0];
+   h[1][0] = pmin2[1] - pmin1[1];
+   h[1][1] = pmax2[1] - pmax1[1];
 
-
-   CutOffFnCoefficient cf(CutOffFncn, ovlpmin, ovlpmax, h);
-
+   if (direction == 1)
+   {
+      h[0][0] = 0.0;
+   }
+   else if (direction == -1)
+   {
+      h[0][1] = 0.0;
+   }
+   CutOffFnCoefficient cf(CutOffFncn, pmin2, pmax2, h);
    double * data = sol.GetData();
 
-   
    FiniteElementSpace * fespace = bf->FESpace();
    int n = fespace->GetTrueVSize();
 
    GridFunction solgf_re(fespace, data);
    GridFunction solgf_im(fespace, &data[n]);
-
 
    GridFunctionCoefficient coeff1_re(&solgf_re);
    GridFunctionCoefficient coeff1_im(&solgf_im);
