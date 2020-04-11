@@ -28,6 +28,12 @@
 using namespace std;
 using namespace mfem;
 
+/// Class for constructing a multigrid preconditioner for the diffusion operator.
+/// This example multigrid preconditioner class demonstrates the creation of the
+/// parallel diffusion bilinear forms and operators using partial assembly for
+/// all spaces except the coarsest one in the ParFiniteElementSpaceHierarchy.
+/// The multigrid uses a PCG solver preconditioned with AMG on the coarsest level
+/// and second order Chebyshev accelerated smoothers on the other levels.
 class DiffusionMultigrid : public Multigrid
 {
 private:
@@ -35,8 +41,8 @@ private:
    HypreBoomerAMG* amg;
 
 public:
-   /// Constructor for a diffusion multigrid for a given ParFiniteElementSpaceHierarchy.
-   /// Uses Chebyshev accelerated smoothing.
+   /// Constructs a diffusion multigrid for the given ParFiniteElementSpaceHierarchy
+   /// and the array of essential boundaries
    DiffusionMultigrid(ParFiniteElementSpaceHierarchy& fespaces,
                       Array<int>& ess_bdr)
       : Multigrid(fespaces), one(1.0)
@@ -112,6 +118,7 @@ private:
       AddLevel(opr.Ptr(), smoother, true, true);
    }
 };
+
 
 int main(int argc, char *argv[])
 {
@@ -243,8 +250,10 @@ int main(int argc, char *argv[])
    {
       ess_bdr = 1;
    }
+
    DiffusionMultigrid* M = new DiffusionMultigrid(*fespaces, ess_bdr);
    M->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+
    OperatorPtr A;
    Vector X, B;
    M->FormFineLinearSystem(x, *b, A, X, B);

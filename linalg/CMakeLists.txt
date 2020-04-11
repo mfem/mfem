@@ -32,7 +32,6 @@ list(APPEND HDRS
   complex_operator.hpp
   densemat.hpp
   dtensor.hpp
-  eigenvalue.hpp
   handle.hpp
   invariants.hpp
   kernels.hpp
