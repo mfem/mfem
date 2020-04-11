@@ -1212,11 +1212,12 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    }
 }
 
-void TMOP_Integrator::EnableDiscrAdaptiveLimiting(const GridFunction &xi0_gf,
-                                                  GridFunction &zeta_gf)
+void TMOP_Integrator::EnableDiscrAdaptiveLimiting(
+   const GridFunction &zeta0_gf, GridFunction &zeta_gf, Coefficient &coeff)
 {
-   xi_0 = &xi0_gf;
+   zeta_0 = &zeta0_gf;
    zeta = &zeta_gf;
+   coeff_zeta = &coeff;
    adapt_eval = new AdvectorCG;
    adapt_eval->SetSerialMetaInfo(*zeta->FESpace()->GetMesh(),
                                  *zeta->FESpace()->FEColl(), 1);
@@ -1224,11 +1225,12 @@ void TMOP_Integrator::EnableDiscrAdaptiveLimiting(const GridFunction &xi0_gf,
    (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
 }
 
-void TMOP_Integrator::EnableDiscrAdaptiveLimiting(const ParGridFunction &xi0_gf,
-                                                  ParGridFunction &zeta_gf)
+void TMOP_Integrator::EnableDiscrAdaptiveLimiting(
+   const ParGridFunction &zeta0_gf, ParGridFunction &zeta_gf, Coefficient &coeff)
 {
-   xi_0 = &xi0_gf;
+   zeta_0 = &zeta0_gf;
    zeta = &zeta_gf;
+   coeff_zeta = &coeff;
    adapt_eval = new AdvectorCG;
    adapt_eval->SetParMetaInfo(*zeta_gf.ParFESpace()->GetParMesh(),
                               *zeta_gf.ParFESpace()->FEColl(), 1);
@@ -1328,8 +1330,8 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       {
          // Adaptive limiting.
          const double diff =
-            xi_0->GetValue(T.ElementNo, ip) - zeta->GetValue(T.ElementNo, ip);
-         val += 10.0 * lim_normal * diff * diff;
+            zeta->GetValue(T.ElementNo, ip) - zeta_0->GetValue(T.ElementNo, ip);
+         val += coeff_zeta->Eval(*Tpr, ip) * lim_normal * diff * diff;
       }
 
       energy += weight * val;
@@ -1426,27 +1428,32 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
 
-   Vector z_e_vals, z_q_vals, grad_z_vec;
-   DenseMatrix grad_phys, grad_z;
-   Array<int> dofs;
+   Vector zeta_e, zeta_q;
+   DenseMatrix zeta_grad_e;
+   Vector zeta_grad_q;
    if (zeta)
    {
       shape.SetSize(dof);
-      z_q_vals.SetSize(ir->GetNPoints());
-      zeta->GetValues(T.ElementNo, *ir, z_q_vals);
-
+      Array<int> dofs;
       zeta->FESpace()->GetElementDofs(T.ElementNo, dofs);
-      zeta->GetSubVector(dofs, z_e_vals);
+      zeta->GetSubVector(dofs, zeta_e);
+      zeta->GetValues(T.ElementNo, *ir, zeta_q);
+
+      // Project the gradient of zeta in the same space.
+      // The FE coefficients of the gradient go in zeta_grad_e.
+      DenseMatrix grad_phys; // This will be (dof x dim, dof).
       el.ProjectGrad(el, *Tpr, grad_phys);
-      grad_z_vec.SetSize(dof*dim);
-      grad_phys.Mult(z_e_vals, grad_z_vec);
-      grad_z.UseExternalData(grad_z_vec.GetData(), dof, dim);
+      zeta_grad_e.SetSize(dof, dim);
+      Vector grad_ptr(zeta_grad_e.GetData(), dof*dim);
+      grad_phys.Mult(zeta_e, grad_ptr);
+
+      zeta_grad_q.SetSize(dim);
    }
 
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int q = 0; q < ir->GetNPoints(); q++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-      const DenseMatrix &Jtr_i = Jtr(i);
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      const DenseMatrix &Jtr_i = Jtr(q);
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
@@ -1470,20 +1477,18 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         lim_func->Eval_d1(p, p0, d_vals(i), grad);
+         lim_func->Eval_d1(p, p0, d_vals(q), grad);
          grad *= weight * lim_normal * coeff0->Eval(*Tpr, ip);
          AddMultVWt(shape, grad, PMatO);
       }
 
       if (zeta)
       {
-         // Adaptive limiting.
-         grad.SetSize(dim);
-         grad_z.MultTranspose(z_e_vals, grad);
          el.CalcShape(ip, shape);
-         grad *= 2.0 * (xi_0->GetValue(T.ElementNo, ip) - z_q_vals(i));
-         grad *= 10.0 * weight * lim_normal;
-         AddMultVWt(shape, grad, PMatO);
+         zeta_grad_e.MultTranspose(shape, zeta_grad_q);
+         zeta_grad_q *= 2.0 * (zeta_q(q) - zeta_0->GetValue(T.ElementNo, ip));
+         zeta_grad_q *= coeff_zeta->Eval(*Tpr, ip) * weight * lim_normal;
+         AddMultVWt(shape, zeta_grad_q, PMatO);
       }
    }
    delete Tpr;
@@ -1494,7 +1499,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                                                const Vector &elfun,
                                                DenseMatrix &elmat)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   const int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
@@ -1538,7 +1543,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0)
+   if (coeff1 || coeff0 || zeta)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -1547,13 +1552,44 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI);
    }
 
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   Vector zeta_e, zeta_q;
+   DenseMatrix zeta_grad_e, zeta_grad_grad_e;
+   Vector zeta_grad_q;
+   DenseMatrix zeta_grad_grad_q;
+   if (zeta)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-      const DenseMatrix &Jtr_i = Jtr(i);
-      metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
+      shape.SetSize(dof);
+      Array<int> dofs;
+      zeta->FESpace()->GetElementDofs(T.ElementNo, dofs);
+      zeta->GetSubVector(dofs, zeta_e);
+      zeta->GetValues(T.ElementNo, *ir, zeta_q);
+
+      // Project the gradient of zeta in the same space.
+      // The FE coefficients of the gradient go in zeta_grad_e.
+      DenseMatrix grad_phys; // This will be (dof x dim, dof).
+      el.ProjectGrad(el, *Tpr, grad_phys);
+      zeta_grad_e.SetSize(dof, dim);
+      Vector grad_ptr(zeta_grad_e.GetData(), dof*dim);
+      grad_phys.Mult(zeta_e, grad_ptr);
+
+      // Project the gradient of each gradient of zeta in the same space.
+      // The FE coefficients of the second derivatives go in zeta_grad_grad_e.
+      zeta_grad_grad_e.SetSize(dof*dim, dim);
+      Mult(grad_phys, zeta_grad_e, zeta_grad_grad_e);
+      // Reshape to be more convenient later (no change in the data).
+      zeta_grad_grad_e.SetSize(dof, dim*dim);
+
+      zeta_grad_q.SetSize(dim);
+      zeta_grad_grad_q.SetSize(dim, dim);
+   }
+
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      const DenseMatrix &Jtr_q = Jtr(q);
+      metric->SetTargetJacobian(Jtr_q);
+      CalcInverse(Jtr_q, Jrt);
+      const double weight = ip.weight * Jtr_q.Det();
       double weight_m = weight * metric_normal;
 
       el.CalcDShape(ip, DSh);
@@ -1566,13 +1602,14 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
       // TODO: derivatives of adaptivity-based targets.
 
+      // TODO optimize by symmetry.
       if (coeff0)
       {
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          weight_m = weight * lim_normal * coeff0->Eval(*Tpr, ip);
-         lim_func->Eval_d2(p, p0, d_vals(i), grad_grad);
+         lim_func->Eval_d2(p, p0, d_vals(q), grad_grad);
          for (int i = 0; i < dof; i++)
          {
             const double w_shape_i = weight_m * shape(i);
@@ -1584,6 +1621,33 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                   for (int d2 = 0; d2 < dim; d2++)
                   {
                      elmat(d1*dof + i, d2*dof + j) += w * grad_grad(d1, d2);
+                  }
+               }
+            }
+         }
+      }
+
+      if (zeta)
+      {
+         el.CalcShape(ip, shape);
+         zeta_grad_e.MultTranspose(shape, zeta_grad_q);
+         Vector gg_ptr(zeta_grad_grad_q.GetData(), dim*dim);
+         zeta_grad_grad_e.MultTranspose(shape, gg_ptr);
+
+         weight_m = coeff_zeta->Eval(*Tpr, ip) * weight * lim_normal;
+         for (int i = 0; i < dof; i++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               for (int d1 = 0; d1 < dim; d1++)
+               {
+                  for (int d2 = 0; d2 < dim; d2++)
+                  {
+                     elmat(d1*dof + i, d2*dof + j) += weight_m *
+                        ( 2.0 * zeta_grad_q(d1) * shape(i) *
+                                zeta_grad_q(d2) * shape(j) +
+                          2.0 * (zeta_q(q) - zeta_0->GetValue(T.ElementNo, ip)) *
+                                zeta_grad_grad_q(d1, d2) * shape(i) * shape(j));
                   }
                }
             }

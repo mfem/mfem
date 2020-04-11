@@ -621,17 +621,17 @@ int main (int argc, char *argv[])
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
-   ParGridFunction xi_0;
-   ParGridFunction zeta(&ind_fes);
-   xi_0.SetSpace(&ind_fes);
-   FunctionCoefficient alim_coeff(adapt_lim_fun);
-   zeta.ProjectCoefficient(alim_coeff);
-   xi_0.ProjectCoefficient(alim_coeff);
+   ParGridFunction zeta_0(&ind_fes), zeta(&ind_fes);
+   ConstantCoefficient coeff_zeta(10.0);
    if (adapt_lim)
    {
-      he_nlf_integ->EnableDiscrAdaptiveLimiting(xi_0, zeta);
+      FunctionCoefficient alim_coeff(adapt_lim_fun);
+      zeta.ProjectCoefficient(alim_coeff);
+      zeta_0.ProjectCoefficient(alim_coeff);
+      he_nlf_integ->EnableDiscrAdaptiveLimiting(zeta_0, zeta, coeff_zeta);
       socketstream vis1;
-      common::VisualizeField(vis1, "localhost", 19916, zeta, "Zeta 0", 300, 600, 300, 300);
+      common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
+                             300, 600, 300, 300);
    }
 
    // 15. Setup the final NonlinearForm (which defines the integral of interest,
@@ -865,7 +865,7 @@ int main (int argc, char *argv[])
    if (adapt_lim)
    {
       socketstream vis0;
-      common::VisualizeField(vis0, "localhost", 19916, xi_0, "Xi 0", 600, 600, 300, 300);
+      common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0", 600, 600, 300, 300);
    }
 
    // 23. Visualize the mesh displacement.
