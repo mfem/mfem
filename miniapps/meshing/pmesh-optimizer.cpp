@@ -628,7 +628,7 @@ int main (int argc, char *argv[])
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta.ProjectCoefficient(alim_coeff);
       zeta_0.ProjectCoefficient(alim_coeff);
-      he_nlf_integ->EnableDiscrAdaptiveLimiting(zeta_0, zeta, coeff_zeta);
+      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coeff_zeta);
       socketstream vis1;
       common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
                              300, 600, 300, 300);
