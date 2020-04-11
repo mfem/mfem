@@ -923,11 +923,11 @@ public:
    void EnableLimiting(const GridFunction &n0,
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
-   void EnableDiscrAdaptiveLimiting(const GridFunction &zeta0_gf,
+   void EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
                                     GridFunction &zeta_gf,
                                     Coefficient &coeff);
    #ifdef MFEM_USE_MPI
-   void EnableDiscrAdaptiveLimiting(const ParGridFunction &zeta0_gf,
+   void EnableAdaptiveLimiting(const ParGridFunction &zeta0_gf,
                                     ParGridFunction &zeta_gf,
                                     Coefficient &coeff);
    #endif

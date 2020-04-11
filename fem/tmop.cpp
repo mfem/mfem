@@ -1212,7 +1212,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    }
 }
 
-void TMOP_Integrator::EnableDiscrAdaptiveLimiting(
+void TMOP_Integrator::EnableAdaptiveLimiting(
    const GridFunction &zeta0_gf, GridFunction &zeta_gf, Coefficient &coeff)
 {
    zeta_0 = &zeta0_gf;
@@ -1225,7 +1225,7 @@ void TMOP_Integrator::EnableDiscrAdaptiveLimiting(
    (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
 }
 
-void TMOP_Integrator::EnableDiscrAdaptiveLimiting(
+void TMOP_Integrator::EnableAdaptiveLimiting(
    const ParGridFunction &zeta0_gf, ParGridFunction &zeta_gf, Coefficient &coeff)
 {
    zeta_0 = &zeta0_gf;
@@ -1635,21 +1635,19 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          zeta_grad_grad_e.MultTranspose(shape, gg_ptr);
 
          weight_m = coeff_zeta->Eval(*Tpr, ip) * weight * lim_normal;
-         for (int i = 0; i < dof; i++)
+         for (int i = 0; i < dof * dim; i++)
          {
-            for (int j = 0; j < dof; j++)
+            const int idof = i % dof, idim = i / dof;
+            for (int j = 0; j <= i; j++)
             {
-               for (int d1 = 0; d1 < dim; d1++)
-               {
-                  for (int d2 = 0; d2 < dim; d2++)
-                  {
-                     elmat(d1*dof + i, d2*dof + j) += weight_m *
-                        ( 2.0 * zeta_grad_q(d1) * shape(i) *
-                                zeta_grad_q(d2) * shape(j) +
-                          2.0 * (zeta_q(q) - zeta_0->GetValue(T.ElementNo, ip)) *
-                                zeta_grad_grad_q(d1, d2) * shape(i) * shape(j));
-                  }
-               }
+               const int jdof = j % dof, jdim = j / dof;
+               const double entry = weight_m *
+                  ( 2.0 * zeta_grad_q(idim) * shape(idof) *
+                      zeta_grad_q(jdim) * shape(jdof) +
+                    2.0 * (zeta_q(q) - zeta_0->GetValue(T.ElementNo, ip)) *
+                      zeta_grad_grad_q(idim, jdim) * shape(idof) * shape(jdof));
+               elmat(i, j) += entry;
+               if (i != j) { elmat(j, i) += entry; }
             }
          }
       }
