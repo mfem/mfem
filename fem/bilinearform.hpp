@@ -151,7 +151,7 @@ public:
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
-   /** Returns the assembly level */
+   /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
    /** Enable the use of static condensation. For details see the description
