@@ -216,6 +216,13 @@ int main(int argc, char *argv[])
    darcyOp->SetBlock(0,1, BT);
    darcyOp->SetBlock(1,0, B);
 
+   Array2D<HypreParMatrix*> hmatblocks(2,2);
+   hmatblocks(0,0) = M;
+   hmatblocks(0,1) = BT;
+   hmatblocks(1,0) = B;
+   hmatblocks(1,1) = NULL;
+   HypreParMatrix *darcyMat = HypreParMatrixFromBlocks(hmatblocks);
+
    // 11. Construct the operators for preconditioner
    //
    //                 P = [ diag(M)         0         ]
@@ -255,7 +262,8 @@ int main(int argc, char *argv[])
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxIter);
-   solver.SetOperator(*darcyOp);
+   //solver.SetOperator(*darcyOp);
+   solver.SetOperator(*darcyMat);
    solver.SetPreconditioner(*darcyPr);
    solver.SetPrintLevel(verbose);
    trueX = 0.0;
