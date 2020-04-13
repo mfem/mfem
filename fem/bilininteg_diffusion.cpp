@@ -1,17 +1,18 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "libceed/diffusion.hpp"
 
 using namespace std;
 
@@ -198,12 +199,25 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
-void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
+void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
+                                  const bool force)
 {
-   // Assumes tensor-product elements
+   // Assuming the same element type
+   fespace = &fes;
    Mesh *mesh = fes.GetMesh();
+   if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed() && !force)
+   {
+      if (ceedDataPtr) { delete ceedDataPtr; }
+      CeedData* ptr = new CeedData();
+      ceedDataPtr = ptr;
+      InitCeedCoeff(Q, ptr);
+      return CeedPADiffusionAssemble(fes, *ir, *ptr);
+   }
+#endif
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -213,7 +227,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
    Vector coeff;
    if (Q == nullptr)
    {
@@ -240,6 +254,11 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    PADiffusionSetup(dim, dofs1D, quad1D, ne, ir->GetWeights(), geom->J, coeff,
                     pa_data);
+}
+
+void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   SetupPA(fes);
 }
 
 
@@ -658,8 +677,9 @@ static void PADiffusionAssembleDiagonal(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
-void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag) const
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
+   if (pa_data.Size()==0) { SetupPA(*fespace, true); }
    PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne,
                                maps->B, maps->G, pa_data, diag);
 }
@@ -1523,7 +1543,9 @@ static void PADiffusionApply(const int dim,
          case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
+         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
+         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
@@ -1536,9 +1558,40 @@ static void PADiffusionApply(const int dim,
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   PADiffusionApply(dim, dofs1D, quad1D, ne,
-                    maps->B, maps->G, maps->Bt, maps->Gt,
-                    pa_data, x, y);
+#ifdef MFEM_USE_CEED
+   if (DeviceCanUseCeed())
+   {
+      const CeedScalar *x_ptr;
+      CeedScalar *y_ptr;
+      CeedMemType mem;
+      CeedGetPreferredMemType(internal::ceed, &mem);
+      if ( Device::Allows(Backend::CUDA) && mem==CEED_MEM_DEVICE )
+      {
+         x_ptr = x.Read();
+         y_ptr = y.ReadWrite();
+      }
+      else
+      {
+         x_ptr = x.HostRead();
+         y_ptr = y.HostReadWrite();
+         mem = CEED_MEM_HOST;
+      }
+      CeedVectorSetArray(ceedDataPtr->u, mem, CEED_USE_POINTER,
+                         const_cast<CeedScalar*>(x_ptr));
+      CeedVectorSetArray(ceedDataPtr->v, mem, CEED_USE_POINTER, y_ptr);
+
+      CeedOperatorApplyAdd(ceedDataPtr->oper, ceedDataPtr->u, ceedDataPtr->v,
+                           CEED_REQUEST_IMMEDIATE);
+
+      CeedVectorSyncArray(ceedDataPtr->v, mem);
+   }
+   else
+#endif
+   {
+      PADiffusionApply(dim, dofs1D, quad1D, ne,
+                       maps->B, maps->G, maps->Bt, maps->Gt,
+                       pa_data, x, y);
+   }
 }
 
 } // namespace mfem

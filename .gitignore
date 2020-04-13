@@ -9,6 +9,7 @@
 # Object and library files
 *.o
 /libmfem.*
+/miniapps/common/libmfem-common.*
 
 # CMake generated files
 CMakeCache.txt
@@ -53,7 +54,7 @@ examples/displaced.mesh
 examples/mesh.*
 examples/ex5.mesh
 examples/Example5*
-examples/PVExample*
+examples/ParaView
 examples/Example9*
 examples/Example15*
 examples/Example16*
@@ -71,6 +72,10 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/ex5-p-*.bp
+examples/ex9-p-*.bp
+examples/ex12-p-*.bp
+examples/ex16-p-*.bp
 examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
@@ -88,6 +93,12 @@ examples/gnuplot_ex20p.inp
 examples/ex21*.mesh
 examples/ex21*.sol
 examples/ex21p_*.*
+examples/ex23-*.gf
+examples/ex23*.mesh
+examples/Example23*
+examples/ex25.mesh
+examples/ex25-*.gf
+examples/ex25p-*.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -152,6 +163,7 @@ miniapps/electromagnetics/Joule_*
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
 miniapps/meshing/toroid
+miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
@@ -161,6 +173,7 @@ miniapps/meshing/pmesh-optimizer
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
+miniapps/meshing/twist-*.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
@@ -179,10 +192,33 @@ miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
+miniapps/tools/get-values
 
-miniapps/nurbs/ex1
-miniapps/nurbs/ex1p
-miniapps/nurbs/ex11p
+miniapps/toys/automata
+miniapps/toys/life
+miniapps/toys/mandel
+miniapps/toys/rubik
+miniapps/toys/snake
+miniapps/toys/lissajous
+miniapps/toys/mondrian
+
+miniapps/toys/snake-init.mesh
+miniapps/toys/snake-user.mesh
+miniapps/toys/snake-joined.mesh
+miniapps/toys/snake-c*.mesh
+miniapps/toys/automata.gf
+miniapps/toys/automata.mesh
+miniapps/toys/rubik-init.mesh
+miniapps/toys/mandel.mesh
+miniapps/toys/life.gf
+miniapps/toys/life.mesh
+miniapps/toys/lissajous.mesh
+miniapps/toys/lissajous.gf
+miniapps/toys/mondrian.mesh
+
+miniapps/nurbs/nurbs_ex1
+miniapps/nurbs/nurbs_ex1p
+miniapps/nurbs/nurbs_ex11p
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
@@ -196,6 +232,14 @@ miniapps/gslib/pfindpts
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
+tests/unit/punit_tests
+tests/unit/sedov_tests_*
+tests/unit/psedov_tests_*
+
+# Test script output
+tests/scripts/*.err
+tests/scripts/*.out
+tests/scripts/*.msg
 
 # VPATH builds
 build-*/*
