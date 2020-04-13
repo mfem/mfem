@@ -570,6 +570,13 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P);
 HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
                      const HypreParMatrix *P);
 
+/// Returns the matrix constructed from blocks.
+/** It is assumed that all block matrices use the same communicator, and the
+    block sizes are consistent in rows and columns. Some blocks can be null.
+    Each block and the entire system can be rectangular.
+*/
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks);
+
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that
     (A+Ae) is the original (Neumann) matrix before elimination. */
