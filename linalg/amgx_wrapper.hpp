@@ -28,15 +28,15 @@ namespace mfem
 class NvidiaAMGX
 {
 
-private: 
-    
+private:
+
   //Only first instance will setup/teardown AMGX
   static int count;
 
-  bool isEnabled{false};  
+  bool isEnabled{false};
 
   //Number of gpus - assume same as MPI procs
-  int nDevs, deviceId; 
+  int nDevs, deviceId;
 
   int MPI_SZ, MPI_RANK;
 
@@ -54,28 +54,28 @@ private:
 
   static AMGX_resources_handle   rsrc;
 
-//Reference PETSc MatMPIAIJGetLocalMat method
+//Reference impl: PETSc MatMPIAIJGetLocalMat method
 //used to merge Diagonal and OffDiagonal blocks in a ParCSR matrix
 void GetLocalA(const HypreParMatrix &in_A, Array<int> &I,
                Array<int64_t> &J, Array<double> &Aloc);
-               
 
-public: 
+
+public:
 
   NvidiaAMGX() = default;
 
   //Constructor
   NvidiaAMGX(const MPI_Comm &comm,
              const std::string &modeStr, const std::string &cfgFile);
-  
+
   void Init(const MPI_Comm &comm,
             const std::string &modeStr, const std::string &cfgFile);
 
   void SetA(const HypreParMatrix &A);
 
   void Solve(Vector &x, Vector &b);
-  
-  //Destructor 
+
+  //Destructor
   ~NvidiaAMGX();
 };
 

@@ -29,6 +29,7 @@
 #include "handle.hpp"
 #include "invariants.hpp"
 
+//Need ifdef MEM_USE_AMGX
 #include "amgx_wrapper.hpp"
 
 #ifdef MFEM_USE_SUNDIALS
