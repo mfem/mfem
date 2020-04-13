@@ -29,6 +29,8 @@
 #include "handle.hpp"
 #include "invariants.hpp"
 
+#include "amgx_wrapper.hpp"
+
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"
 #endif
