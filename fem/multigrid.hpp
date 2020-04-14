@@ -59,9 +59,9 @@ public:
    /// Destructor
    virtual ~Multigrid();
 
-   /// Adds a level to the multigrid operator hierarchy. The ownership of the
-   /// operators and solvers/smoothers may be transferred to the Multigrid by
-   /// setting the according boolean variables.
+   /// Adds a level to the multigrid operator hierarchy.
+   /** The ownership of the operators and solvers/smoothers may be transferred
+       to the Multigrid by setting the according boolean variables. */
    void AddLevel(Operator* opr, Solver* smoother, bool ownOperator,
                  bool ownSmoother);
 

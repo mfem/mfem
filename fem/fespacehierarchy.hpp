@@ -35,9 +35,10 @@ protected:
 
 public:
 
-   /// Constructs a space hierarchy with the given mesh and space on the coarsest level.
-   /// The ownership of the mesh and space may be transferred to the
-   /// FiniteElementSpaceHierarchy by setting the according boolean variables.
+   /// @brief Constructs a space hierarchy with the given mesh and space on the
+   /// coarsest level.
+   /** The ownership of the mesh and space may be transferred to the
+       FiniteElementSpaceHierarchy by setting the according boolean variables. */
    FiniteElementSpaceHierarchy(Mesh* mesh, FiniteElementSpace* fespace, bool ownM,
                                bool ownFES);
 
@@ -54,13 +55,13 @@ public:
    void AddLevel(Mesh* mesh, FiniteElementSpace* fespace, Operator* prolongation,
                  bool ownM, bool ownFES, bool ownP);
 
-   /// Adds one level to the hierarchy by uniformly refining the mesh on the
+   /// @brief Adds one level to the hierarchy by uniformly refining the mesh on the
    /// previous level
    virtual void AddUniformlyRefinedLevel(int dim = 1,
                                          int ordering = Ordering::byVDIM);
 
-   /// Adds one level to the hierarchy by using a different finite element order
-   /// defined through FiniteElementCollection
+   /// @brief Adds one level to the hierarchy by using a different finite element
+   /// order defined through FiniteElementCollection
    virtual void AddOrderRefinedLevel(FiniteElementCollection* fec, int dim = 1,
                                      int ordering = Ordering::byVDIM);
 
@@ -76,8 +77,8 @@ public:
    /// Returns the finite element space at the finest level
    virtual FiniteElementSpace& GetFinestFESpace();
 
-   /// Returns the prolongation operator from the finite element space at level
-   /// to the finite element space at level + 1
+   /// @brief Returns the prolongation operator from the finite element space at
+   /// level to the finite element space at level + 1
    Operator* GetProlongationAtLevel(int level) const;
 };
 
@@ -85,20 +86,21 @@ public:
 class ParFiniteElementSpaceHierarchy : public FiniteElementSpaceHierarchy
 {
 public:
-   /// Constructs a parallel space hierarchy with the given mesh and space on
-   /// level zero. The ownership of the mesh and space may be transferred to the
-   /// ParFiniteElementSpaceHierarchy by setting the according boolean variables.
+   /// @brief Constructs a parallel space hierarchy with the given mesh and spaces
+   /// on level zero.
+   /** The ownership of the mesh and space may be transferred to the
+       ParFiniteElementSpaceHierarchy by setting the according boolean variables. */
    ParFiniteElementSpaceHierarchy(ParMesh* mesh, ParFiniteElementSpace* fespace,
                                   bool ownM,
                                   bool ownFES);
 
-   /// Adds one level to the hierarchy by uniformly refining the mesh on the
+   /// @brief Adds one level to the hierarchy by uniformly refining the mesh on the
    /// previous level
    void AddUniformlyRefinedLevel(int dim = 1,
                                  int ordering = Ordering::byVDIM) override;
 
-   /// Adds one level to the hierarchy by using a different finite element order
-   /// defined through FiniteElementCollection
+   /// @brief Adds one level to the hierarchy by using a different finite element
+   /// order defined through FiniteElementCollection
    void AddOrderRefinedLevel(FiniteElementCollection* fec, int dim = 1,
                              int ordering = Ordering::byVDIM) override;
 
