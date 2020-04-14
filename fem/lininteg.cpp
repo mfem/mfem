@@ -688,8 +688,8 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       double wL, wM, jcoef;
       {
          const double w = ip.weight / Tr.Elem1->Weight();
-         wL = w * lambda->Eval(Tr, ip);
-         wM = w * mu->Eval(Tr, ip);
+         wL = w * lambda->Eval(*Tr.Elem1, eip);
+         wM = w * mu->Eval(*Tr.Elem1, eip);
          jcoef = kappa * (wL + 2.0*wM) * (nor*nor);
          dshape_ps.Mult(nor, dshape_dn);
          dshape_ps.Mult(u_dir, dshape_du);
