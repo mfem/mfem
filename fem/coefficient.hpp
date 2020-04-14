@@ -138,7 +138,7 @@ public:
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a f, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*f)(Vector &))
+   MFEM_DEPRECATED FunctionCoefficient(double (*f)(Vector &))
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
@@ -147,7 +147,7 @@ public:
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a tdf, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*tdf)(Vector &, double))
+   MFEM_DEPRECATED FunctionCoefficient(double (*tdf)(Vector &, double))
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
