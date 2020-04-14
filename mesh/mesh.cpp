@@ -5762,6 +5762,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
    // Check for empty partitionings (a "feature" in METIS)
    {
       Array< Pair<int,int> > psize(nparts);
+      int empty_parts;
       for (i = 0; i < nparts; i++)
       {
          psize[i].one = 0;
@@ -5773,7 +5774,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          psize[partitioning[i]].one++;
       }
 
-      int empty_parts = 0;
+      empty_parts = 0;
       for (i = 0; i < nparts; i++)
       {
          if (psize[i].one == 0) { empty_parts++; }
@@ -5781,7 +5782,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 
       // This code just split the largest partitionings in two.
       // Do we need to replace it with something better?
-      if (empty_parts)
+      while (empty_parts)
       {
          if (print_messages)
          {
@@ -5812,6 +5813,24 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                }
             }
          }
+
+         // Check for empty partitionings again
+         for (i = 0; i < nparts; i++)
+         {
+            psize[i].one = 0;
+         }
+
+         for (i = 0; i < NumOfElements; i++)
+         {
+            psize[partitioning[i]].one++;
+         }
+
+         empty_parts = 0;
+         for (i = 0; i < nparts; i++)
+         {
+            if (psize[i].one == 0) { empty_parts++; }
+         }
+
       }
    }
 
