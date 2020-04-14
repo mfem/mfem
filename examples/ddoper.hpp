@@ -1915,6 +1915,7 @@ public:
     // A11 = (curl H, curl G) + \omega^2 (H,G)
 
     ParBilinearForm *a_EE = new ParBilinearForm(fespace);
+    //a_EE = new ParBilinearForm(fespace);
     ParBilinearForm *a_HH = new ParBilinearForm(fespace);
     ParMixedBilinearForm *a_mix1 = new ParMixedBilinearForm(fespace,fespace);
     ParMixedBilinearForm *a_mix2 = new ParMixedBilinearForm(fespace,fespace);
@@ -1941,7 +1942,7 @@ public:
 #else
     const bool pa = false;
 #endif
-    
+
     a_EE->AddDomainIntegrator(new CurlCurlIntegrator());
     a_EE->AddDomainIntegrator(new VectorFEMassIntegrator(coeff2));
 #ifndef TEST_DECOUPLED_FOSLS
@@ -1949,7 +1950,12 @@ public:
 #ifdef IFFOSLS_ESS
     a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
 #else
-    a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker_everywhere);
+    {
+      //a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker_everywhere);//???
+      VectorFEMassIntegrator *binteg = new VectorFEMassIntegrator(pos);
+      binteg->isBdryInteg = true;
+      a_EE->AddBoundaryIntegrator(binteg, bdr_marker_everywhere);
+    }
 #endif
 #else
     a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
@@ -2053,7 +2059,12 @@ public:
     a_HH->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
 #ifndef ZERO_ORDER_FOSLS
 #ifdef IFFOSLS_H
-    a_HH->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+    {
+      //a_HH->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
+      VectorFEMassIntegrator *binteg = new VectorFEMassIntegrator(pos);
+      binteg->isBdryInteg = true;
+      a_HH->AddBoundaryIntegrator(binteg, bdr_marker);
+    }
 #endif
 #endif
     
@@ -2242,6 +2253,12 @@ public:
     
     //LS_Maxwellop->SetBlock(0, 0, A_EE);
     LS_Maxwellop->SetBlock(0, 0, A_EE.Ptr());
+    /*
+    LS_Maxwellop->SetBlock(1, 1, A_HH.Ptr());
+    LS_Maxwellop->SetBlock(2, 2, A_EE.Ptr());
+    LS_Maxwellop->SetBlock(3, 3, A_HH.Ptr());
+    */
+    ///* 1234
     LS_Maxwellop->SetBlock(1, 0, pa ? (Operator*) a_mix2 : (Operator*) A_mix2, -1.0); // no bc
     //LS_Maxwellop->SetBlock(3, 0, A_tang_Ecol, -omega);
     //LS_Maxwellop->SetBlock(0, 1, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
@@ -2256,7 +2273,7 @@ public:
     //LS_Maxwellop->SetBlock(2, 3, pa ? a_mix2_tr : (Operator*) A_mix1_E, -1.0);  // no bc
     LS_Maxwellop->SetBlock(2, 3, pa ? a_mix1 : (Operator*) A_mix1_E, -1.0);  // no bc
     LS_Maxwellop->SetBlock(3, 3, A_HH.Ptr());
-
+    //*/
     /*
     // TODO: If BC are defined for E, then for A_bM put 0 on diagonal for eliminated entries. 
     LS_Maxwellop->SetBlock(2, 0, A_bM, -1.0);  // Er
@@ -2318,7 +2335,7 @@ public:
 
     LSpcg.SetAbsTol(1.0e-12);
     LSpcg.SetRelTol(1.0e-8);
-    LSpcg.SetMaxIter(2000);
+    LSpcg.SetMaxIter(400);
     LSpcg.SetOperator(*LS_Maxwellop);
     LSpcg.SetPrintLevel(0);
 
@@ -2472,6 +2489,8 @@ public:
   
   Vector rhs_E;  // real part
   
+  BlockOperator *LS_Maxwellop;
+  
 private:
 
   BlockVector *trueRhs, *trueSol;
@@ -2494,8 +2513,6 @@ private:
   
   CGSolver LSpcg;
   
-  BlockOperator *LS_Maxwellop;
-  
   STRUMPACKSolver *invLSH;
   HypreParMatrix *LSH;
 
@@ -2505,6 +2522,8 @@ private:
   std::vector<Vector*> diag_pa;
   Vector diag_PA_EE, diag_PA_HH;
 #endif
+
+  //ParBilinearForm *a_EE;
   
   OperatorPtr A_EE, A_HH;
   
@@ -2528,6 +2547,8 @@ public:
     : fullMat(fullMat_), sdInv(sdInv_), auxInv(auxInv_)
 #endif
   {
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
 #ifdef IFFOSLS_H
     MFEM_VERIFY(tdofsBdryInjectionTranspose != NULL, "");
 
@@ -2577,7 +2598,31 @@ public:
 	xSD[nSD + i] = x[widthHalf + i];  // E and H imaginary parts
       }
 
+    /*
+    {
+      Vector t(nSDhalf);
+      Vector At(nSDhalf);
+      //t = 0.0;
+      //t[0] = 1.0;
+      t = 1.0;
+      At = 0.0;
+      sdInv->LS_Maxwellop->GetBlock(0,0).Mult(t, At);
+      cout << rank << ": LBTS A_EE * 1 norm " << At.Norml2() << endl;
+      if (rank == 0)
+	{
+	  std::string filename = "Atpa6.txt";
+	  std::ofstream sfile(filename, std::ofstream::out);
+	  At.Print(sfile);
+	  sfile.close();
+	}
+    }
+    */
+    
+    //cout << rank << ": LBTS xSD norm " << xSD.Norml2() << endl;
+    
     sdInv->Mult(xSD, ySD);  // Solve (0,0) block
+
+    //cout << rank << ": LBTS ySD norm " << ySD.Norml2() << endl;
 
     y = 0.0;
     for (int i=0; i<nSDhalf; ++i)
@@ -2701,7 +2746,8 @@ private:
   Operator *auxInv;
   FOSLSSolver *sdInv;
   int nSD, nSDhalf, nAux, nAuxHalf;
-
+  int rank;
+  
 #ifdef IFFOSLS_H
   std::set<int> *allGlobalSubdomainInterfaces;
   Operator *tdofsBdryInjectionTranspose;  // TODO: remove?

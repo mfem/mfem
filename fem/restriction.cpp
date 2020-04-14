@@ -66,6 +66,90 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
    });
 }
 
+  /*
+// TODO: implement this based on PABilinearFormExtension::FormLinearSystem
+BoundaryElementRestriction::BoundaryElementRestriction(const FiniteElementSpace &f,
+                                       ElementDofOrdering e_ordering)
+   : fes(f),
+     nbe(fes.GetNBE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(nbe > 0 ? fes.GetBE(0)->GetDof() : 0),
+     nbedofs(nbe*dof),
+     offsets(ndofs+1),
+     indices(nbe*dof),
+     gatherMap(nbe*dof)
+{
+   // Assuming all finite elements are the same.
+   height = vdim*nbe*dof;
+   width = fes.GetVSize();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   const int *dof_map = NULL;
+   if (dof_reorder && nbe > 0)
+   {
+      for (int e = 0; e < nbe; ++e)
+      {
+         const FiniteElement *fe = fes.GetBE(e);
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(fe);
+         if (el) { continue; }
+         mfem_error("Finite element not suitable for lexicographic ordering");
+      }
+      const FiniteElement *fe = fes.GetBE(0);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+      dof_map = fe_dof_map.GetData();
+   }
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   // We will be keeping a count of how many local nodes point to its global dof
+   for (int i = 0; i <= ndofs; ++i)
+   {
+      offsets[i] = 0;
+   }
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int sgid = elementMap[dof*e + d];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+         ++offsets[gid + 1];
+      }
+   }
+   // Aggregate to find offsets for each global dof
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+   // For each global dof, fill in all local nodes that point to it
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int d = 0; d < dof; ++d)
+      {
+         const int sdid = dof_reorder ? dof_map[d] : 0;  // signed
+         const int did = (!dof_reorder)?d:(sdid >= 0 ? sdid : -1-sdid);
+         const int sgid = elementMap[dof*e + did];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1-sgid;
+         const int lid = dof*e + d;
+         const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
+         gatherMap[lid] = plus ? gid : -1-gid;
+         indices[offsets[gid]++] = plus ? lid : -1-lid;
+      }
+   }
+   // We shifted the offsets vector by 1 by using it as a counter.
+   // Now we shift it back.
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
+
+}
+  */
+  
 ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
                                        ElementDofOrdering e_ordering)
    : fes(f),

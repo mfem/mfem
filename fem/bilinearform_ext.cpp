@@ -92,6 +92,13 @@ void PABilinearFormExtension::Assemble()
       integrators[i]->AssemblePA(*a->FESpace());
    }
 
+   Array<BilinearFormIntegrator*> &bdryIntegrators = *a->GetBBFI();
+   const int bdryIntegratorCount = bdryIntegrators.Size();
+   for (int i = 0; i < bdryIntegratorCount; ++i)
+   {
+     bdryIntegrators[i]->AssemblePA(*a->FESpace());
+   }
+
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
    for (int i = 0; i < intFaceIntegratorCount; ++i)
@@ -197,6 +204,107 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       elem_restrict->MultTranspose(localY, y);
    }
 
+   Array<BilinearFormIntegrator*> &bdryIntegrators = *a->GetBBFI();
+
+   const int biSz = bdryIntegrators.Size();
+   if (DeviceCanUseCeed() || !elem_restrict)
+   {
+     MFEM_ABORT("Not implemented");
+   }
+   else if (biSz > 0)
+   {
+     FiniteElementSpace *fes = a->GetFES();
+
+     const int nbe = fes->GetNBE();
+     const int bedofs = nbe > 0 ? nbe * fes->GetVDim() * fes->GetBE(0)->GetDof() : 0;
+     bdryX.SetSize(bedofs);
+     bdryY.SetSize(bedofs);
+     bdryX = 0.0;
+     bdryY = 0.0;
+
+      int os = 0;
+      for (int i = 0; i < nbe; i++)
+      {
+	// TODO: this implementation assumes boundary marker is 1 everywhere (all boundary elements are included). This should be generalized to allow for an input boundary marker, as in BilinearForm::Assemble.
+
+         const FiniteElement &be = *fes->GetBE(i);
+	 Array<int> vdofs;
+         fes -> GetBdrElementVDofs (i, vdofs);
+
+	 const TensorBasisElement* el =
+	   dynamic_cast<const TensorBasisElement*>(&be);
+
+	 MFEM_VERIFY(el != NULL, "");
+	 
+	 const Array<int> &fe_dof_map = el->GetDofMap();
+
+	 MFEM_VERIFY(fe_dof_map.Size() == fes->GetBE(i)->GetDof(), "");
+	 MFEM_VERIFY(vdofs.Size() == fes->GetBE(i)->GetDof(), "");
+
+	 for (int j=0; j<vdofs.Size(); ++j)
+	   {
+	     const int sidj = fe_dof_map[j];
+	     const int idj = sidj >= 0 ? sidj : -1 - sidj;
+	     const int dof_j = vdofs[idj];
+	     //const bool plus = (dof_j >= 0);
+	     //const int d = plus ? dof_j : -1-dof_j;
+	     //const bool plus = (sidj >= 0);
+	     const bool plus = (sidj >= 0 && dof_j >= 0) || (sidj < 0 && dof_j < 0);
+	     const int d = dof_j >= 0 ? dof_j : -1-dof_j;
+	     //std::cout << "sidj " << sidj << ", dof_j " << dof_j << std::endl;
+	     bdryX[os + j] = plus ? x[d] : -x[d];
+	     //bdryX[os + j] = x[d];
+	   }
+
+	 os += vdofs.Size();
+      }
+
+      MFEM_VERIFY(os == bedofs, "");
+     
+      for (int i = 0; i < biSz; ++i)
+      {
+	bdryIntegrators[i]->AddMultPA(bdryX, bdryY);
+      }
+      //elem_restrict->MultTranspose(bdryY, y);
+
+      // bdryY contains quantities on all boundary elements. Now add them to y.
+
+      os = 0;
+      for (int i = 0; i < nbe; i++)
+      {
+	// TODO: this implementation assumes boundary marker is 1 everywhere (all boundary elements are included). This should be generalized to allow for an input boundary marker, as in BilinearForm::Assemble.
+
+         const FiniteElement &be = *fes->GetBE(i);
+	 Array<int> vdofs;
+         fes -> GetBdrElementVDofs (i, vdofs);
+
+	 const TensorBasisElement* el =
+	   dynamic_cast<const TensorBasisElement*>(&be);
+
+	 MFEM_VERIFY(el != NULL, "");
+	 
+	 const Array<int> &fe_dof_map = el->GetDofMap();
+
+	 for (int j=0; j<vdofs.Size(); ++j)
+	   {
+	     const int sidj = fe_dof_map[j];
+	     const int idj = sidj >= 0 ? sidj : -1 - sidj;
+	     const int dof_j = vdofs[idj];
+	     //const bool plus = (dof_j >= 0);
+	     //const int d = plus ? dof_j : -1-dof_j;
+	     //const bool plus = (sidj >= 0);
+	     const bool plus = (sidj >= 0 && dof_j >= 0) || (sidj < 0 && dof_j < 0);
+	     const int d = dof_j >= 0 ? dof_j : -1-dof_j;
+	     y[d] += plus ? bdryY[os + j] : -bdryY[os + j];
+	     //y[d] += bdryY[os + j];
+	   }
+
+	 os += vdofs.Size();
+      }
+
+      MFEM_VERIFY(os == bedofs, "");
+   }
+
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
@@ -253,7 +361,11 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          integrators[i]->AddMultTransposePA(x, y);
       }
    }
-
+   
+   Array<BilinearFormIntegrator*> &bdryIntegrators = *a->GetBBFI();
+   const int biSz = bdryIntegrators.Size();
+   MFEM_VERIFY(biSz == 0, "TODO");
+   
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)

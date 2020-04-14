@@ -104,6 +104,7 @@ class PABilinearFormExtension : public BilinearFormExtension
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
+   mutable Vector bdryX, bdryY;
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
    const Operator *elem_restrict; // Not owned

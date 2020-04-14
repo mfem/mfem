@@ -169,12 +169,23 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fel = fes.GetFE(0);
+   dim = mesh->Dimension();
 
+   const bool bdryInteg = isBdryInteg;
+
+   // TODO: this implementation assumes boundary marker is 1 everywhere (all boundary elements are included). This should be generalized to allow for an input boundary marker, as in BilinearForm::Assemble.
+   
+   const FiniteElement *fel = bdryInteg ? fes.GetBE(0) : fes.GetFE(0);
+   
    const VectorTensorFiniteElement *el =
       dynamic_cast<const VectorTensorFiniteElement*>(fel);
    MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
 
+   if (bdryInteg)
+     {
+       MFEM_VERIFY(el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3 && mesh->SpaceDimension() == 3 && el->GetDim() == 2, "");
+     }
+   
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
                                                      *mesh->GetElementTransformation(0));
@@ -183,10 +194,9 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
-   ne = fes.GetNE();
+   ne = bdryInteg ? fes.GetNBE() : fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
@@ -199,6 +209,11 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const int coeffDim = VQ ? VQ->GetVDim() : 1;
 
+   if (bdryInteg)
+     {
+       MFEM_VERIFY(coeffDim == 1 && dims == 2, "");
+     }
+   
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
    if (Q || VQ)
@@ -230,13 +245,22 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
    }
 
-   if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
+   if (isBdryInteg || (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2 && mesh->SpaceDimension() == 3))
+     {
+       MFEM_VERIFY(coeffDim == 1, "");  // Vector coefficient not implemented in this case
+       MFEM_VERIFY(geom->J.Size() == 9 * ne * nq, "");  // J is 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
+       PAHcurlSetup2Din3D(quad1D, ne, ir->GetWeights(), geom->J,
+			  coeff, pa_data);
+
+     }
+   else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
       PAHcurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
+     /*
      if (mesh->SpaceDimension() == 3)
        {
 	 MFEM_VERIFY(coeffDim == 1, "");  // Vector coefficient not implemented in this case
@@ -245,6 +269,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 			    coeff, pa_data);
        }
      else
+     */
        {
 	 PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
 			coeff, pa_data);
@@ -705,7 +730,7 @@ static void PAHcurlMassApply3D(const int D1D,
 
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (dim == 3)
+   if (dim == 3 && !isBdryInteg)
    {
       PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
                          mapsC->Bt, pa_data, x, y);
