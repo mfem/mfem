@@ -440,6 +440,11 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja);
 /// Calculate the transposed adjugate of a matrix (for NxN matrices, N=1,2,3)
 void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat);
 
+/// Reverse-mode sensitivities of adj(A) with respect to the entries in A
+/// \warning implemented only for square matrices
+void RevDiffAdjugate(const DenseMatrix &a, const DenseMatrix &adja_bar,
+                     DenseMatrix &a_bar);
+
 /** Calculate the inverse of a matrix (for NxN matrices, N=1,2,3) or the
     left inverse (A^t.A)^{-1}.A^t (for 2x1, 3x1, or 3x2 matrices) */
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva);

@@ -2194,6 +2194,60 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
    }
 }
 
+void RevDiffAdjugate(const DenseMatrix &a, const DenseMatrix &adja_bar,
+                     DenseMatrix &a_bar)
+{
+#ifdef MFEM_DEBUG
+   if (a.Width() != a.Height())
+   {
+      mfem_error("RevDiffAdjugate(...)");
+   }
+   if (a.Width() != a_bar.Width() ||
+       a.Height() != a_bar.Height() ||
+       a_bar.Width() != adja_bar.Height() ||
+       a_bar.Height() != adja_bar.Width())
+   {
+      mfem_error("RevDiffAdjugate(...)");
+   }
+#endif
+
+   if (adja_bar.Width() == 1)
+   {
+      // adja(0,0) = 1.0;
+      a_bar(0,0) = 0.0;
+   }
+   else if (adja_bar.Width() == 2)
+   {
+      // adja(0,0) =  a(1,1);
+      a_bar(1,1) = adja_bar(0,0);
+      // adja(0,1) = -a(0,1);
+      a_bar(0,1) = -adja_bar(0,1);
+      // adja(1,0) = -a(1,0);
+      a_bar(1,0) = -adja_bar(1,0);
+      // adja(1,1) =  a(0,0);
+      a_bar(0,0) = adja_bar(1,1);
+   }
+   else
+   {
+      a_bar = 0.0;
+      for (int di1 = 0; di1 < 3; ++di1)
+      {
+         int it11 = (di1 + 1) % 3;
+         int it12 = (di1 + 2) % 3;
+         for (int di2 = 0; di2 < 3; ++di2)
+         {
+            int it21 = (di2 + 1) % 3;
+            int it22 = (di2 + 2) % 3;
+            // adja(di2,di1) = a(it11,it21)*a(it12,it22) - a(it11,it22)*a(it12,it21);
+            a_bar(it11,it21) += a(it12,it22)*adja_bar(di2,di1);
+            a_bar(it12,it22) += a(it11,it21)*adja_bar(di2,di1);
+            a_bar(it11,it22) -= a(it12,it21)*adja_bar(di2,di1);
+            a_bar(it12,it21) -= a(it11,it22)*adja_bar(di2,di1);
+         }
+      }
+   }
+}
+
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
 {
    MFEM_ASSERT(a.Width() <= a.Height() && a.Width() >= 1 && a.Height() <= 3, "");

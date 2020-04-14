@@ -245,3 +245,114 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 
    REQUIRE(C.MaxMaxNorm() < tol);
 }
+
+TEST_CASE("RevDiffAdjugate", "[DenseMatrix]")
+{
+   constexpr double eps_fd = 1e-5; // 2nd-order finite-difference step size
+
+   SECTION("1x1 matrix")
+   {
+      double A_data[1] = { 3.1415926};
+      double adjA_bar_data[1] = {-2.0};
+
+      DenseMatrix A(A_data, 1, 1);
+      DenseMatrix adjA_bar(adjA_bar_data, 1, 1);
+      DenseMatrix A_bar(1, 1), adjA_fd(1, 1);
+      DenseMatrix A_pert(1, 1), adjA_pert(1, 1);
+
+      // Compute the derivative using reverse mode
+      RevDiffAdjugate(A, adjA_bar, A_bar);
+
+      // Compute the derivative using central finite-difference approximation
+      A_pert = A;
+      A_pert(1, 1) += eps_fd;
+      CalcAdjugate(A_pert, adjA_fd);
+      A_pert(1, 1) -= 2.0 * eps_fd;
+      CalcAdjugate(A_pert, adjA_pert);
+      adjA_fd -= adjA_pert;
+      adjA_fd *= 1/(2.0 * eps_fd);
+      // sum up derivative with weights
+      double A_bar_fd = adjA_fd(1, 1) * adjA_bar(1, 1);
+      REQUIRE(A_bar(1, 1) == Approx(A_bar_fd));
+   }
+
+   SECTION("2x2 matrix")
+   {
+      double A_data[4] = {2.0, -3.0, 4.0, -1.0};
+      double adjA_bar_data[4] = {1.0, 4.0, 2.0, -3.0};
+
+      DenseMatrix A(A_data, 2, 2);
+      DenseMatrix adjA_bar(adjA_bar_data, 2, 2);
+      DenseMatrix A_bar(2,2), adjA_fd(2,2);
+      DenseMatrix A_pert(2,2), adjA_pert(2,2);
+
+      // Compute the derivatives using reverse mode
+      RevDiffAdjugate(A, adjA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 2; ++i)
+      {
+         for (int j = 0; j < 2; ++j)
+         {
+            // Pertrub A(i,j) and evaluate derivative of adjugate 
+            A_pert = A;
+            A_pert(i,j) += eps_fd;
+            CalcAdjugate(A_pert, adjA_fd);
+            A_pert(i,j) -= 2.0*eps_fd;
+            CalcAdjugate(A_pert, adjA_pert);
+            adjA_fd -= adjA_pert;
+            adjA_fd *= 1/(2.0*eps_fd);
+            // sum up derivative with weights 
+            double A_bar_fd = 0.0;
+            for (int k = 0; k < 2; ++k)
+            {
+               for (int l = 0; l < 2; ++l)
+               {
+                  A_bar_fd += adjA_fd(k,l)*adjA_bar(k,l);
+               }
+            }
+            REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
+         }
+      }
+   }
+
+   SECTION("3x3 matrix")
+   {
+      double A_data[9] = {1.0, 5.0, 3.0, -2.0, 6.0, -9.0, 4.0, -7.0, 8.0};
+      double adjA_bar_data[9] = {3.0, 6.0, -8.0, 1.0, -7.0, 5.0, 2.0, 4.0, -9.0};
+
+      DenseMatrix A(A_data, 3, 3);
+      DenseMatrix adjA_bar(adjA_bar_data, 3, 3);
+      DenseMatrix A_bar(3,3), adjA_fd(3,3);
+      DenseMatrix A_pert(3,3), adjA_pert(3,3);
+
+      // Compute the derivatives using reverse mode
+      RevDiffAdjugate(A, adjA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 3; ++i)
+      {
+         for (int j = 0; j < 3; ++j)
+         {
+            // Pertrub A(i,j) and evaluate derivative of adjugate 
+            A_pert = A;
+            A_pert(i,j) += eps_fd;
+            CalcAdjugate(A_pert, adjA_fd);
+            A_pert(i,j) -= 2.0*eps_fd;
+            CalcAdjugate(A_pert, adjA_pert);
+            adjA_fd -= adjA_pert;
+            adjA_fd *= 1/(2.0*eps_fd);
+            // sum up derivative with weights 
+            double A_bar_fd = 0.0;
+            for (int k = 0; k < 3; ++k)
+            {
+               for (int l = 0; l < 3; ++l)
+               {
+                  A_bar_fd += adjA_fd(k,l)*adjA_bar(k,l);
+               }
+            }
+            REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
+         }
+      }
+   }
+}
