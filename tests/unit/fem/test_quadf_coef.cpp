@@ -71,20 +71,16 @@ TEST_CASE("Quadrature Function Coefficients",
    {
       std::cout << "Testing VecQuadFuncCoeff: " << std::endl;
 #ifdef MFEM_USE_EXCEPTIONS
-      std::cout << " Setting Index" << std::endl;
-      REQUIRE_THROWS(qfvc.SetIndex(3));
-      REQUIRE_THROWS(qfvc.SetIndex(-1));
-      REQUIRE_NOTHROW(qfvc.SetIndex(1));
-      qfvc.SetIndex(0);
-      std::cout << " Setting Length" << std::endl;
-      REQUIRE_THROWS(qfvc.SetLength(4));
-      qfvc.SetIndex(1);
-      REQUIRE_THROWS(qfvc.SetLength(3));
-      REQUIRE_NOTHROW(qfvc.SetLength(2));
-      REQUIRE_THROWS(qfvc.SetLength(0));
+      std::cout << " Setting Component" << std::endl;
+      REQUIRE_THROWS(qfvc.SetComponent(3, 1));
+      REQUIRE_THROWS(qfvc.SetComponent(-1, 1));
+      REQUIRE_NOTHROW(qfvc.SetComponent(1, 2));
+      REQUIRE_THROWS(qfvc.SetComponent(0, 4));
+      REQUIRE_THROWS(qfvc.SetComponent(1, 3));
+      REQUIRE_NOTHROW(qfvc.SetComponent(0, 2));
+      REQUIRE_THROWS(qfvc.SetComponent(0, 0));
 #endif
-      qfvc.SetIndex(0);
-      qfvc.SetLength(3);
+      qfvc.SetComponent(0, 3);
 
       SECTION("Gridfunction L2 tests")
       {

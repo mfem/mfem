@@ -766,14 +766,21 @@ VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
 void VectorQuadratureFunctionCoefficient::SetQuadratureFunction(
    QuadratureFunction *qf)
 {
+   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
+
    index = 0;
    length = qf->GetVDim();
    vdim = length;
    QuadF = qf;
 }
 
-void VectorQuadratureFunctionCoefficient::SetLength(int _length)
+void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
 {
+   MFEM_VERIFY(_index >= 0, "Index must be >= 0");
+   MFEM_VERIFY(_index < QuadF->GetVDim(),
+               "Index must be < QuadratureFunction length");
+   index = _index;
+   
    MFEM_VERIFY(_length > 0, "Length must be > 0");
 
    int diff = QuadF->GetVDim() - index;
@@ -782,21 +789,6 @@ void VectorQuadratureFunctionCoefficient::SetLength(int _length)
 
    length = _length;
    vdim = length;
-}
-
-void VectorQuadratureFunctionCoefficient::SetIndex(int _index)
-{
-   MFEM_VERIFY(_index >= 0, "Index must be >= 0");
-   MFEM_VERIFY(_index < QuadF->GetVDim(),
-               "Index must be < the QuadratureFunction length");
-   index = _index;
-   // check to see if length needs to be modified
-   int diff = QuadF->GetVDim() - index;
-   if (length > diff)
-   {
-      length = diff;
-      vdim = length;
-   }
 }
 
 void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
@@ -824,15 +816,16 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
 }
 
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
-   QuadratureFunction *qf)
+   QuadratureFunction *qf) : QuadF(qf)
 {
    MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
-   QuadF = qf;
 }
 
 void QuadratureFunctionCoefficient::SetQuadratureFunction(
    QuadratureFunction *qf)
 {
+   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
+
    MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
    QuadF = qf;
 }

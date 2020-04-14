@@ -948,7 +948,8 @@ public:
 
 class QuadratureFunction;
 
-/// Quadrature function vector coefficient
+/// Vector quadrature function coefficient which requires that the quadrature rules used for this
+/// vector coefficient be the same as those that live within the supplied QuadratureFunction.
 class VectorQuadratureFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -957,27 +958,16 @@ private:
    int length;
 
 public:
-   /// constructor with a quadrature function as input
+   /// Constructor with a quadrature function as input
    VectorQuadratureFunctionCoefficient(QuadratureFunction *qf);
-
-   /// constructor with a null qf
-   VectorQuadratureFunctionCoefficient() : VectorCoefficient(0), QuadF(NULL),
-      index(-1), length(0) {}
 
    void SetQuadratureFunction(QuadratureFunction *qf);
 
-   /// set the starting index within the QuadFunc that'll be used to project outwards
-   /// if length is set to a value which will go out of bounds after this is changed than
-   /// it will be changed so that things still work. You should always change length right
-   /// after this is changed.
-   void SetIndex(int _index);
+   /// Set the starting index within the QuadFunc that'll be used to project outwards as well
+   /// as the corresponding length. The projected length should have the bounds of 
+   /// 1 <= length <= (length QuadFunc - index).
+   void SetComponent(int _index, int _length);
 
-   /// set the length of the function that you want to project
-   /// the projected length should have the bounds of 1 <= len <= (length QuadFunc - index)
-   /// where index is the starting location within the QuadFunc that you want projected
-   void SetLength(int _length);
-
-   /// getter function for the internal quadrature function
    QuadratureFunction *GetQuadFunction() const { return QuadF; }
 
    using VectorCoefficient::Eval;
@@ -987,19 +977,16 @@ public:
    virtual ~VectorQuadratureFunctionCoefficient() { };
 };
 
-/// Generic quadrature function coefficient class for using
-/// coefficients which only live at integration points
+/// Quadrature function coefficient which requires that the quadrature rules used for this
+/// coefficient be the same as those that live within the supplied QuadratureFunction.
 class QuadratureFunctionCoefficient : public Coefficient
 {
 private:
    QuadratureFunction *QuadF;
 
 public:
-   /// constructor with a quadrature function as input
+   /// Constructor with a quadrature function as input
    QuadratureFunctionCoefficient(QuadratureFunction *qf);
-
-   /// constructor with a null qf
-   QuadratureFunctionCoefficient() : Coefficient() { QuadF = NULL; }
 
    void SetQuadratureFunction(QuadratureFunction *qf);
 
