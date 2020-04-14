@@ -84,12 +84,12 @@ public:
 
    /** Setup the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int ImplicitSetup(const double t, const Vector &x, const Vector &fx,
-                             int jok, int *jcur, double gamma);
+   virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
+                                int jok, int *jcur, double gamma);
 
    /** Solve the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int ImplicitSolve(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
@@ -147,8 +147,8 @@ int main(int argc, char *argv[])
                   "7  - SDIRK 3,\n\t"
                   "8  - CVODE (implicit Adams),\n\t"
                   "9  - CVODE (implicit BDF),\n\t"
-                  "10 - ARKODE (default explicit)\n\t,"
-                  "11 - ARKODE (explicit Fehlberg-6-4-5)\n\t,"
+                  "10 - ARKODE (default explicit),\n\t"
+                  "11 - ARKODE (explicit Fehlberg-6-4-5),\n\t"
                   "12 - ARKODE (default impicit).");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
@@ -312,15 +312,13 @@ int main(int argc, char *argv[])
       // CVODE
       case 8:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
-         cvode->Init(oper, t, u);
-         cvode->SetLinearSolver();
+         cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
       case 9:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_BDF);
-         cvode->Init(oper, t, u);
-         cvode->SetLinearSolver();
+         cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = cvode; break;
@@ -328,15 +326,14 @@ int main(int argc, char *argv[])
       case 10:
       case 11:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT);
-         arkode->Init(oper, t, u);
+         arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 11) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
          ode_solver = arkode; break;
       case 12:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
-         arkode->Init(oper, t, u);
-         arkode->SetLinearSolver();
+         arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          ode_solver = arkode; break;
@@ -351,7 +348,7 @@ int main(int argc, char *argv[])
    if (arkode) { arkode->SetStepMode(ARK_ONE_STEP); }
 
    // 10. Perform time-integration (looping over the time iterations, ti, with a
-   //    time-step dt).
+   //     time-step dt).
    if (myid == 0)
    {
       cout << "Integrating the ODE ..." << endl;
@@ -482,9 +479,9 @@ void ConductionOperator::ImplicitSolve(const double dt,
    T_solver.Mult(z, du_dt);
 }
 
-int ConductionOperator::ImplicitSetup(const double t, const Vector &x,
-                                      const Vector &fx, int jok, int *jcur,
-                                      double gamma)
+int ConductionOperator::SUNImplicitSetup(const Vector &x,
+                                         const Vector &fx, int jok, int *jcur,
+                                         double gamma)
 {
    // Setup the ODE Jacobian T = M + gamma K.
    if (T) { delete T; }
@@ -494,7 +491,7 @@ int ConductionOperator::ImplicitSetup(const double t, const Vector &x,
    return (0);
 }
 
-int ConductionOperator::ImplicitSolve(Vector &x, const Vector &b, double tol)
+int ConductionOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 {
    // Solve the system A x = z => (M - gamma K) x = M b.
    Mmat.Mult(b, z);

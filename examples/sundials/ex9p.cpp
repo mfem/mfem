@@ -330,14 +330,15 @@ int main(int argc, char *argv[])
       case 6: ode_solver = new RK6Solver; break;
       case 7:
          cvode = new CVODESolver(MPI_COMM_WORLD, CV_ADAMS);
-         cvode->Init(adv, t, *U);
+         cvode->Init(adv);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
+         cvode->UseSundialsLinearSolver();
          ode_solver = cvode; break;
       case 8:
       case 9:
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::EXPLICIT);
-         arkode->Init(adv, t, *U);
+         arkode->Init(adv);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 9) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
