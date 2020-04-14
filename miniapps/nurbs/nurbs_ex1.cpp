@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
    }
    if (!strongBC & (kappa < 0))
    {
-      kappa = (order.Max()+1)*(order.Max()+1);
+      kappa = 4*(order.Max()+1)*(order.Max()+1);
    }
    args.PrintOptions(cout);
 
