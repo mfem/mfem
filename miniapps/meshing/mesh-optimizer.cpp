@@ -145,9 +145,9 @@ public:
          double r = 0;
          if (rv>0.) {r = sqrt(rv);}
 
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         double r1 = 0.25; double r2 = 0.30; double sf=30.0;
          const double szfac = 1;
-         const double asfac = 10;
+         const double asfac = 40;
          const double eps2 = szfac/asfac;
          const double eps1 = szfac;
 
@@ -334,24 +334,22 @@ void TMOPEstimator::ComputeEstimates()
    const int NE = fespace->GetNE(),
              dim = fespace->GetMesh()->Dimension();
 
+   GridFunction *nodes = fespace->GetMesh()->GetNodes();
+   Vector nodesv(nodes->GetData(), nodes->Size());
+   const int pnt_cnt = nodesv.Size()/dim;
+
    if (!discrete_field_flag)
    {
-      GridFunction *nodes = fespace->GetMesh()->GetNodes();
-      Vector nodesv(nodes->GetData(), nodes->Size());
-      const int pnt_cnt = nodesv.Size()/dim;
       DenseMatrix K; K.SetSize(dim);
       size_sol.SetSize(pnt_cnt);
       aspr_sol.SetSize(pnt_cnt);
-      Vector posv(dim);
-      const IntegrationPoint *ip = NULL;
-      IsoparametricTransformation *Tpr = NULL;
 
       HessianCoefficient *target_spec_mod = dynamic_cast<HessianCoefficient *>
                                             (target_spec);
 
       for (int i = 0; i < pnt_cnt; i++)
       {
-         for (int j=0; j<dim; j++) { K(j,j) = nodesv(i+j*pnt_cnt); }
+         for (int j = 0; j < dim; j++) { K(j,j) = nodesv(i+j*pnt_cnt); }
          target_spec_mod->Eval(K);
          Vector col1, col2;
          K.GetColumn(0, col1);
@@ -369,8 +367,9 @@ void TMOPEstimator::ComputeEstimates()
 
    L2_FECollection avg_fec(0, fespace->GetMesh()->Dimension());
    FiniteElementSpace avg_fes(fespace->GetMesh(), &avg_fec);
-   tarsize.SetSpace(&avg_fes);
 
+   // Target and current Size
+   tarsize.SetSpace(&avg_fes);
    size->GetElementAverages(tarsize);
    SizeErr.SetSize(NE);
    for (int i = 0; i < NE; i++)
@@ -380,13 +379,11 @@ void TMOPEstimator::ComputeEstimates()
       SizeErr(i) = curr_size/tar_size;
    }
 
+   // Target AspectRatio
    taraspr.SetSpace(&avg_fes);
    AspErr.SetSize(NE);
-
    Vector pos0V(fespace->GetFE(0)->GetDof());
    Array<int> pos_dofs;
-
-   // Target AspectRatio
    for (int i = 0; i < NE; i++)
    {
       aspr->FESpace()->GetElementDofs(i, pos_dofs);
@@ -396,13 +393,54 @@ void TMOPEstimator::ComputeEstimates()
       {
          prod *= pos0V(j);
       }
-
       taraspr(i) = pow(prod,1./pos0V.Size());
+   }
+
+   // Current AspectRatio
+   Vector curr_aspr_vec(NE);
+   const FiniteElement *fe;
+   fe = fespace->GetFE(0);
+   const IntegrationRule *ir = NULL;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3)); // <---
+   }
+   int dof = fe->GetDof();
+   DenseMatrix Dsh, Jpr, PMatI;
+   Dsh.SetSize(dof, dim), PMatI.SetSize(dof, dim), Jpr.SetSize(dim);
+   Array<int> vdofs;
+
+   for (int i = 0; i < NE; i++)
+   {
+      fe = fespace->GetFE(i);
+      fespace->GetElementVDofs(i, vdofs);
+      for (int j = 0; j < dof; j++)
+      {
+         int nodidx = vdofs[j];
+         for (int k = 0; k < dim; k++)
+         {
+            PMatI(j,k) = nodesv(nodidx+k*pnt_cnt);
+         }
+      }
+      double prod = 1;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         fe->CalcDShape(ip, Dsh);
+         MultAtB(PMatI, Dsh, Jpr);
+         Vector col1, col2;
+         Jpr.GetColumn(0, col1);
+         Jpr.GetColumn(1, col2);
+         prod *= col2.Norml2()/col1.Norml2();
+      }
+      prod = pow(prod,1./ir->GetNPoints());
+      curr_aspr_vec(i) = prod;
    }
 
    for (int i = 0; i < NE; i++)
    {
-      double curr_aspr = fespace->GetMesh()->GetElementAspectRatio(i, 0);
+      //double curr_aspr = fespace->GetMesh()->GetElementAspectRatio(i, 0);
+      double curr_aspr = curr_aspr_vec(i);
       double tar_aspr  = taraspr(i);
       AspErr(i) = curr_aspr/tar_aspr;
    }
@@ -1188,12 +1226,12 @@ int main (int argc, char *argv[])
    TMOPEstimator tmope(ind_fes,size,aspr);
    if (target_id==4) {tmope.SetAnalyticTargetSpec(adapt_coeff);}
    TMOPRefiner tmopr(tmope, amrmetric, dim);
+   int newtonstop = 0;
+
    if (amr_flag==1)
    {
       int ni_limit = 3; //Newton + AMR
-      int nic_limit =
-         4; //Number of iterations with AMR (should be less than equal to ni_limit)
-      int newtonstop = 0;
+      int nic_limit = std::max(ni_limit, 4); //Number of iterations with AMR
       int amrstop = 0;
       int nc_limit = 1; //AMR per iteration - FIXED FOR NOW
 
@@ -1215,6 +1253,7 @@ int main (int argc, char *argv[])
          }
          if (amrstop==1)
          {
+            newtonstop = 1;
             cout << it << " Newton and AMR have converged" << endl;
             break;
          }
@@ -1227,11 +1266,11 @@ int main (int argc, char *argv[])
             tmopr.Reset();
             if (nc_limit!=0 && amrstop==0) {tmopr.Apply(mesh);}
             //Update stuff
-            ind_fes.Update();
+            ind_fes.Update(); fespace.Update();
             size.Update(); aspr.Update();
-            fespace.Update();
             x.Update(); x.SetTrueVector();
             x0.Update(); x0.SetTrueVector();
+            ind_fes.UpdatesFinished();
             fespace.UpdatesFinished();
             if (target_id == 5)
             {
@@ -1262,9 +1301,12 @@ int main (int argc, char *argv[])
          //qqvis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
       } //ni_limit
    } //amr_flag==1
-   newton->SetOperator(a);
-   newton->Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
+   if (newtonstop == 0)
+   {
+      newton->SetOperator(a);
+      newton->Mult(b, x.GetTrueVector());
+      x.SetFromTrueVector();
+   }
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
