@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
    }
    if (!strongBC & (kappa < 0))
    {
-      kappa = (order.Max()+1)*(order.Max()+1);
+      kappa = 4*(order.Max()+1)*(order.Max()+1);
    }
    if (myid == 0)
    {
@@ -313,7 +313,14 @@ int main(int argc, char *argv[])
    if (pmesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      if (strongBC)
+      {
+         ess_bdr    = 1;
+      }
+      else
+      {
+         ess_bdr    = 0;
+      }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
