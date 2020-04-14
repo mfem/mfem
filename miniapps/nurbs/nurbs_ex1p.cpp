@@ -214,8 +214,10 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
-
-      mesh->PrintInfo();
+      if (myid == 0)
+      {
+         mesh->PrintInfo();
+      }
    }
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
