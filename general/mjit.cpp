@@ -11,10 +11,24 @@
 
 /** @file mjit.cpp
  *  This file has multiple purposes:
+ *
  *      - Implements the serial and parallel @c mfem::System call.
+ *
  *      - Produces the @c mjit executable, which can:
  *          - preprocess source files,
  *          - spawn & fork in parallel to be able to @c system calls.
+ *
+ *  MFEM run which calls mfem::jit::System: { MPI Parents }
+ *  #root of { MPI Parents } calls the binary =mjit= through =MPI_Comm_spawn=,
+ *  which calls =fork= to create one { THREAD Worker } and { MPI Spawned }.
+ *  The { THREAD Worker } is created before =MPI_Init= of the { MPI Spawned }.
+ *  The { MPI Spawned } wait for MFEM_MAGIC_RDY check through the intercomm.
+ *  The { MPI Spawned } triggers the { THREAD Worker } through mapped memory.
+ *  The { THREAD Worker } waits for the MFEM_MAGIC_CXX order and calls the
+ *  =system= which passes the command to the shell.
+ *  The return status goes back through mapped memory and then back to
+ *  { MPI Parents } with a broadcast.
+ *
  */
 
 #include <list>
@@ -33,6 +47,7 @@ using std::istream;
 using std::ostream;
 
 #define MFEM_DEBUG_COLOR 198
+#include "error.hpp"
 #include "debug.hpp"
 #include "mjit.hpp"
 #include "globals.hpp"
@@ -52,15 +67,23 @@ namespace mfem
 namespace jit
 {
 
+inline int argn(char *argv[], int argc = 0)
+{
+   while (argv[argc]) { argc += 1; }
+   return argc;
+}
+
 // Implementation of mfem::jit::System used in the mjit header for compilation.
 // The serial implementation does nothing special but launching the =system=
 // command.
 // The parallel implementation will spawn the =mjit= binary on one mpi rank to
 // be able to run on one core and use MPI to broadcast the compilation output.
-#ifndef MFEM_USE_MPI
-int System(int argc = 1, char *argv[] = nullptr)
+#if !defined(MFEM_USE_MPI) || 0
+int System(char *argv[])
 {
-   assert(argc > 1);
+   dbg();
+   const int argc = argn(argv);
+   if (argc < 2) { return EXIT_FAILURE; }
    string command(argv[1]);
    for (int k = 2; k < argc && argv[k]; k++)
    {
@@ -68,129 +91,128 @@ int System(int argc = 1, char *argv[] = nullptr)
       command.append(argv[k]);
    }
    const char *command_c_str = command.c_str();
-   const bool command_debug = (argc > 1) && (argv[0][0] == 0x31);
-   if (command_debug) { dbg(command_c_str); }
+   dbg(command_c_str);
    return system(command_c_str);
 }
 
 #else
 
-// Hash["MFEM_MAGIC_CXX", "CRC32", "HexString"]
-constexpr uint32_t MFEM_MAGIC_CXX = 0x4DB1CFC8ul;
+enum Command
+{
+   READY,
+   SYSTEM_CALL,
+   TIMEOUT = 4000
+};
 
-int System(int argc = 1, char *argv[] = MPI_ARGV_NULL)
+int System(char *argv[])
 {
    dbg();
-   assert(argc > 1);
-   string command(argv[1]);
-   for (int k = 2; k < argc && argv[k]; k++)
-   {
-      command.append(" ");
-      command.append(argv[k]);
-   }
-   const char *command_c_str = command.c_str();
-   const bool command_debug = (argc > 1) && (argv[0][0] == 0x31);
-   if (command_debug) { dbg(command_c_str); }
-
+   const int argc = argn(argv);
+   if (argc < 2) { return EXIT_FAILURE; }
+   // Point to the 'mjit' binary
    char mjit[PATH_MAX];
-   // Forcing first argument given to =mjit= to trigger compilation
-   argv[0] = strdup("-c");
    if (snprintf(mjit, PATH_MAX, "%s/bin/mjit", MFEM_INSTALL_DIR) < 0)
-   {
-      return EXIT_FAILURE;
-   }
-   const int one = 1;
-   const int root = 0;
-   MPI_Info info = MPI_INFO_NULL;
-   MPI_Comm comm = MPI_COMM_WORLD, intercomm = MPI_COMM_NULL;
+   { return EXIT_FAILURE; }
+   dbg(mjit);
+   // Debug our command
+   string command(argv[0]);
+   for (int k = 1; k < argc && argv[k]; k++)
+   { command.append(" "); command.append(argv[k]); }
+   dbg(command.c_str());
+   // Spawn the sub MPI group
+   constexpr int root = 0;
    int errcode = EXIT_FAILURE;
-   int spawned = // Now spawn one =mjit= binary
-      MPI_Comm_spawn(mjit, argv, one, info, root, comm, &intercomm, &errcode);
-   if (spawned != EXIT_SUCCESS || errcode != EXIT_SUCCESS)
-   {
-      dbg("EXIT_FAILURE");
-      return EXIT_FAILURE;
-   }
-   free(argv[0]);
-   int status = EXIT_FAILURE;
-   // Broadcast failure status through intercomm
+   const MPI_Info info = MPI_INFO_NULL;
+   MPI_Comm comm = MPI_COMM_WORLD, intercomm = MPI_COMM_NULL;
+   MPI_Barrier(comm);
+   const int spawned = // Now spawn one binary
+      MPI_Comm_spawn(mjit, argv, 1, info, root, comm, &intercomm, &errcode);
+   if (spawned != MPI_SUCCESS) { return EXIT_FAILURE; }
+   if (errcode != EXIT_SUCCESS) { return EXIT_FAILURE; }
+   // Broadcast READY through intercomm, and wait for return
+   int status = mfem::jit::READY;
    MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, intercomm);
-   // And wait for return from the =system= rank
    MPI_Bcast(&status, 1, MPI_INT, root, intercomm);
-   assert(status == EXIT_SUCCESS);
    MPI_Barrier(comm);
    MPI_Comm_free(&intercomm);
-   return EXIT_SUCCESS;
+   return status;
 }
 
-int MPISpawn(int argc, char *argv[], int *cookie)
+#if defined(MFEM_JIT_MAIN) || 0
+
+inline int nsleep(const long us)
 {
-   MPI_Init(&argc, &argv);
-   const bool debug = argc == 2;
-   if (debug) { dbg("DEBUG"); }
-   dbg();
-   MPI_Comm parent = MPI_COMM_NULL;
-   MPI_Comm_get_parent(&parent);
-   // debug mode where 'jit' has been launched directly, without any arguments
-   if (debug && parent == MPI_COMM_NULL)
-   {
-      dbg("uname -a");
-      const char *argv[] = {"1", "uname", "-a", nullptr};
-      mfem::jit::System(mfem::jit::argn(argv), const_cast<char**>(argv));
-      MPI_Finalize();
-      return EXIT_SUCCESS;
-   }
-   // This case should not happen
-   if (parent == MPI_COMM_NULL) { dbg("ERROR"); return EXIT_FAILURE; }
-   // MPI child
-   int status = EXIT_SUCCESS;
-   MPI_Bcast(&status, 1, MPI_INT, 0, parent);
-   assert(status == EXIT_FAILURE);
-   for (*cookie  = mfem::jit::MFEM_MAGIC_CXX;
-        *cookie == mfem::jit::MFEM_MAGIC_CXX;
-        usleep(1000));
-   status = *cookie;
-   MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, parent);
-   MPI_Finalize();
-   return EXIT_SUCCESS;
+   const long ns = us *1000L;
+   const struct timespec rqtp = { 0, ns };
+   return nanosleep(&rqtp, nullptr);
 }
 
-int ProcessFork(int argc, char *argv[])
+static int THREAD_Worker(char *argv[], int *status)
 {
    dbg();
-   int *shared_return_value = nullptr;
-   const bool debug = argc == 2;
-   if (!debug)
-   {
-      constexpr int SIZE = sizeof(int);
-      constexpr int PROT = PROT_READ | PROT_WRITE;
-      constexpr int FLAG = MAP_SHARED | MAP_ANONYMOUS;
-      shared_return_value = static_cast<int*>(mmap(0, SIZE, PROT, FLAG, -1, 0));
-      *shared_return_value = 0;
-   }
-   else { dbg("DEBUG"); }
-
-   const pid_t child_pid = fork();
-
-   // MPI parent stuff
-   if (child_pid != 0 ) { return MPISpawn(argc, argv, shared_return_value); }
-
-   // Thread child stuff
-   if (debug) { return EXIT_SUCCESS; }
-
    string command(argv[2]);
    for (int k = 3; argv[k]; k++)
    {
       command.append(" ");
       command.append(argv[k]);
    }
-   const char * command_c_str = command.c_str();
-   //const bool command_debug = (argc > 1) && (argv[1][0] == 0x31);
-   while (*shared_return_value != mfem::jit::MFEM_MAGIC_CXX) { usleep(1000); }
-   const int return_value = system(command_c_str);
-   *shared_return_value = return_value == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+   const char *command_c_str = command.c_str();
+   dbg("command_c_str: %s", command_c_str);
+   dbg("Waiting for the cookie from parent...");
+   int timeout = TIMEOUT;
+   while (*status != SYSTEM_CALL && timeout > 0) { nsleep(timeout--); }
+   dbg("Got it, now system call");
+   const int return_value = std::system(command_c_str);
+   dbg("return_value: %d", return_value);
+   *status = return_value == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
    return return_value;
 }
+
+static int MPI_Spawned(int argc, char *argv[], int *status)
+{
+   MPI_Init(&argc, &argv);
+   dbg();
+   MPI_Comm intercomm = MPI_COMM_NULL;
+   MPI_Comm_get_parent(&intercomm);
+   // This case should not happen
+   if (intercomm == MPI_COMM_NULL) { dbg("ERROR"); return EXIT_FAILURE; }
+   // MPI child
+   int ready = 0;
+   // Waiting for the parent MPI to set 'READY'
+   MPI_Bcast(&ready, 1, MPI_INT, 0, intercomm);
+   assert(ready == READY);
+   // Now inform the thread worker to launch the system call
+   int timeout = TIMEOUT;
+   for (*status  = mfem::jit::SYSTEM_CALL;
+        *status == mfem::jit::SYSTEM_CALL && timeout>0;
+        nsleep(timeout--));
+   assert(timeout>0);
+   // Broadcast back the result to the MPI parents
+   MPI_Bcast(status, 1, MPI_INT, MPI_ROOT, intercomm);
+   MPI_Finalize();
+   return EXIT_SUCCESS;
+}
+
+static int ProcessFork(int argc, char *argv[])
+{
+   dbg();
+   constexpr void *addr = 0;
+   constexpr int len = sizeof(int);
+   constexpr int prot = PROT_READ | PROT_WRITE;
+   constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
+   int *status = (int*) mmap(addr, len, prot, flags, -1, 0);
+   if (!status) { return EXIT_FAILURE; }
+   *status = 0;
+   const pid_t child_pid = fork();
+   if (child_pid != 0 )
+   {
+      if (MPI_Spawned(argc, argv, status)!=0) { return EXIT_FAILURE; }
+      if (munmap(addr, len) != 0) { dbg("munmap error"); return EXIT_FAILURE; }
+      return EXIT_SUCCESS;
+   }
+   return THREAD_Worker(argv, status);
+}
+#endif // MFEM_JIT_MAIN
 
 #endif // MFEM_USE_MPI
 
@@ -199,7 +221,7 @@ int ProcessFork(int argc, char *argv[])
 // *****************************************************************************
 struct argument_t
 {
-   int default_value;
+   int default_value = 0;
    string type, name;
    bool is_ptr = false, is_amp = false, is_const = false,
         is_restrict = false, is_tpl = false, has_default_value = false;
@@ -570,6 +592,7 @@ void jitHeader(context_t &pp)
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";
    pp.out << MFEM_JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
+   pp.out << "typedef union {double d; uint64_t u;} union_du;\n";
    pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
@@ -797,8 +820,9 @@ void jitPrefix(context_t &pp)
    pp.out << "\n#include <limits>";
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
-   pp.out << "\n#include \"mfem.hpp\"";
+   pp.out << "\n//#include \"mfem.hpp\"";
    pp.out << "\n//#include \"mfem/general/forall.hpp\"";
+   pp.out << "\n#include \"general/forall.hpp\"";
    if (not pp.ker.embed.empty())
    {
       // push to suppress 'declared but never referenced' warnings
@@ -1503,7 +1527,7 @@ int main(const int argc, char* argv[])
       if (argv[i] == string("-h")) { return mfem::jit::help(argv); }
 
       // -c wil launch ProcessFork in parallel mode, nothing otherwise
-      if (argv[i] == string("-c"))
+      if (argv[i] == string(MFEM_JIT_SHELL_COMMAND))
       {
 #ifdef MFEM_USE_MPI
          dbg("Compilation requested, forking...");

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2020, Lawrece Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -248,6 +248,9 @@ endif
 
 # JIT configuration
 MFEM_JIT = mjit
+#ifeq ($(MFEM_USE_JIT),YES)
+#	LDFLAGS += -ldl
+#endif
 
 DEP_CXX ?= $(MFEM_CXX)
 
