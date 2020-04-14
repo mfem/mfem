@@ -387,10 +387,9 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Have the version ranges for any required or optional libraries changed?
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
-- [ ] Update `.travis.yml` and `.appveyor.yml`:
-    - [ ] Had a new optional library (with required versions) been
-          added to `INSTALL`?
-    - [ ] Have version ranges for any required or optional libraries changed?
+- [ ] Update continuous integration server configurations if necessary (e.g. with new version requirements for each of MFEM's dependencies)
+    - [ ] `.travis.yml`
+    - [ ] `.appveyor.yml`
 - [ ] Update `.gitignore`:
     - [ ] Check if `make distclean; git status` shows any files that were generated from the source by the project (not an IDE) but we don't want to track in the repository.
     - [ ] Add new patterns (just for the new files above) and re-run the above test.
@@ -504,10 +503,8 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - [ ] `makefile`
     - [ ] `CMakeLists.txt`
     - [ ] `doc/CodeDocumentation.conf.in`
-- [ ] Check that version requirements for each of MFEM's dependencies
-      are documented in `INSTALL` and up-to-date
-- [ ] Check that continuous integration server configurations reflect
-      the dependency version requirements of the new release
+- [ ] Check that version requirements for each of MFEM's dependencies are documented in `INSTALL` and up-to-date
+- [ ] Check that continuous integration server configurations reflect the dependency version requirements of the new release
     - [ ] `.travis.yml`
     - [ ] `.appveyor.yml`
 - [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
