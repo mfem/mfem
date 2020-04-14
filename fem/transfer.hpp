@@ -29,27 +29,27 @@ private:
    Operator* opr;
 
 public:
-   /// Constructs a transfer operator from \p lFESpace to \p hFESpace. No
-   /// matrices are assembled, only the action to a vector is being computed. If
-   /// both spaces' FE collection pointers are pointing to the same collection
-   /// we assume that the grid was refined while keeping the order constant. If
-   /// the FE collections are different, it is assumed that both spaces have are
-   /// using the same mesh. If the first element of the high-order space is a
-   /// `TensorBasisElement`, the optimized tensor-product transfers are used. If
-   /// not, the general transfers used.
+   /// Constructs a transfer operator from \p lFESpace to \p hFESpace.
+   /** No matrices are assembled, only the action to a vector is being computed.
+       If both spaces' FE collection pointers are pointing to the same collection
+       we assume that the grid was refined while keeping the order constant. If
+       the FE collections are different, it is assumed that both spaces have are
+       using the same mesh. If the first element of the high-order space is a
+       `TensorBasisElement`, the optimized tensor-product transfers are used. If
+       not, the general transfers used. */
    TransferOperator(const FiniteElementSpace& lFESpace,
                     const FiniteElementSpace& hFESpace);
 
    /// Destructor
    virtual ~TransferOperator();
 
-   /// Interpolation or prolongation of a vector \p x corresponding to the
+   /// @brief Interpolation or prolongation of a vector \p x corresponding to the
    /// coarse space to the vector \p y corresponding to the fine space.
    virtual void Mult(const Vector& x, Vector& y) const override;
 
-   /// Restriction by applying the transpose of the Mult method. The vector \p x
-   /// corresponding to the fine space is restricted to the vector \p y
-   /// corresponding to the coarse space.
+   /// Restriction by applying the transpose of the Mult method.
+   /** The vector \p x corresponding to the fine space is restricted to the vector
+       \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
@@ -61,28 +61,29 @@ private:
    const FiniteElementSpace& hFESpace;
 
 public:
-   /// Constructs a transfer operator from \p lFESpace to \p hFESpace which
-   /// have different FE collections. No matrices are assembled, only the action
-   /// to a vector is being computed. The underlying finite elements need to
-   /// implement the GetTransferMatrix methods.
+   /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
+   /// which have different FE collections.
+   /** No matrices are assembled, only the action to a vector is being computed.
+       The underlying finite elements need to implement the GetTransferMatrix
+       methods. */
    PRefinementTransferOperator(const FiniteElementSpace& lFESpace_,
                                const FiniteElementSpace& hFESpace_);
 
    /// Destructor
    virtual ~PRefinementTransferOperator();
 
-   /// Interpolation or prolongation of a vector \p x corresponding to the
+   /// @brief Interpolation or prolongation of a vector \p x corresponding to the
    /// coarse space to the vector \p y corresponding to the fine space.
    virtual void Mult(const Vector& x, Vector& y) const override;
 
-   /// Restriction by applying the transpose of the Mult method. The vector \p x
-   /// corresponding to the fine space is restricted to the vector \p y
-   /// corresponding to the coarse space.
+   /// Restriction by applying the transpose of the Mult method.
+   /** The vector \p x corresponding to the fine space is restricted to the vector
+   \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
-/// Matrix-free transfer operator between finite element spaces on the same mesh
-/// exploiting the tensor product structure of the finite elements
+/// @brief Matrix-free transfer operator between finite element spaces on the same
+/// mesh exploiting the tensor product structure of the finite elements
 class TensorProductPRefinementTransferOperator : public Operator
 {
 private:
@@ -101,11 +102,11 @@ private:
    mutable Vector localH;
 
 public:
-   /// Constructs a transfer operator from \p lFESpace to \p hFESpace which
-   /// have different FE collections. No matrices are assembled, only the action
-   /// to a vector is being computed. The underlying finite elements need to be
-   /// of the type `TensorBasisElement`. It is also assumed that all the
-   /// elements in the spaces are of the same type.
+   /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace which
+   /// have different FE collections.
+   /** No matrices are assembled, only the action to a vector is being computed.
+   The underlying finite elements need to be of the type `TensorBasisElement`. It
+   is also assumed that all the elements in the spaces are of the same type. */
    TensorProductPRefinementTransferOperator(
       const FiniteElementSpace& lFESpace_,
       const FiniteElementSpace& hFESpace_);
@@ -113,19 +114,19 @@ public:
    /// Destructor
    virtual ~TensorProductPRefinementTransferOperator();
 
-   /// Interpolation or prolongation of a vector \p x corresponding to the
+   /// @brief Interpolation or prolongation of a vector \p x corresponding to the
    /// coarse space to the vector \p y corresponding to the fine space.
    virtual void Mult(const Vector& x, Vector& y) const override;
 
-   /// Restriction by applying the transpose of the Mult method. The vector \p x
-   /// corresponding to the fine space is restricted to the vector \p y
-   /// corresponding to the coarse space.
+   /// Restriction by applying the transpose of the Mult method.
+   /** The vector \p x corresponding to the fine space is restricted to the vector
+   \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 #ifdef MFEM_USE_MPI
-/// Matrix-free transfer operator between finite element spaces working on true
-/// degrees of freedom
+/// @brief Matrix-free transfer operator between finite element spaces working on
+/// true degrees of freedom
 class TrueTransferOperator : public Operator
 {
 private:
@@ -136,22 +137,23 @@ private:
    mutable Vector tmpH;
 
 public:
-   /// Constructs a transfer operator working on true degrees of freedom from \p
-   /// lFESpace to \p hFESpace
+   /// @brief Constructs a transfer operator working on true degrees of freedom from
+   /// from \p lFESpace to \p hFESpace
    TrueTransferOperator(const ParFiniteElementSpace& lFESpace_,
                         const ParFiniteElementSpace& hFESpace_);
 
    /// Destructor
    ~TrueTransferOperator();
 
-   /// Interpolation or prolongation of a true dof vector \p x corresponding to
-   /// the coarse space to the true dof vector \p y corresponding to the fine
-   /// space.
+   /// @brief Interpolation or prolongation of a true dof vector \p x to a true dof
+   /// vector \p y.
+   /** The true dof vector \p x corresponding to the coarse space is restricted to
+       the true dof vector \p y corresponding to the fine space. */
    virtual void Mult(const Vector& x, Vector& y) const override;
 
-   /// Restriction by applying the transpose of the Mult method. The true dof
-   /// vector \p x corresponding to the fine space is restricted to the true dof
-   /// vector \p y corresponding to the coarse space.
+   /// Restriction by applying the transpose of the Mult method.
+   /** The true dof vector \p x corresponding to the fine space is restricted to
+       the true dof vector \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 #endif

@@ -783,12 +783,13 @@ public:
    PowerMethod(MPI_Comm _comm) : comm(_comm) {}
 #endif
 
-   /// Returns an estimate of the largest eigenvalue of the operator \p opr
-   /// using the iterative power method. \p v0 is being used as the vector for the
-   /// iterative process and will contain the eigenvector corresponding to the
-   /// largest eigenvalue after convergence. The maximum number of iterations may set
-   /// with \p numSteps, the relative tolerance with \p tolerance and the seed of the
-   /// random initialization of \p v0 with \p seed.
+   /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr
+   /// using the iterative power method.
+   /** \p v0 is being used as the vector for the iterative process and will contain
+       the eigenvector corresponding to the largest eigenvalue after convergence.
+       The maximum number of iterations may set with \p numSteps, the relative
+       tolerance with \p tolerance and the seed of the random initialization of
+       \p v0 with \p seed. */
    double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                     int numSteps = 10, double tolerance = 1e-8,
                                     int seed = 12345);
