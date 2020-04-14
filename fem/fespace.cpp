@@ -1432,6 +1432,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
          own_ext = 1;
       }
       UpdateNURBS();
+      GenerateFaceDofsFromBdr();
       cP = cR = NULL;
       cP_is_set = false;
    }
@@ -1469,10 +1470,11 @@ void FiniteElementSpace::UpdateNURBS()
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
-   face_dof = NULL;// NURBSext->GetFaceDofTable();
+   face_dof = NULL;
+
 }
 
-void FiniteElementSpace::GenerateFaceDofs()
+void FiniteElementSpace::GenerateFaceDofsFromBdr()
 {
    if (face_dof) { return; }
 
@@ -1766,13 +1768,6 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
-
-   if (NURBSext)
-   {
-      const_cast<FiniteElementSpace*>
-      (this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
-   }
-
    if (face_dof)
    {
       face_dof->GetRow(i, dofs);
@@ -1963,8 +1958,6 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 
    if (NURBSext)
    {
-      const_cast<FiniteElementSpace*>
-      (this)->GenerateFaceDofs();   // NEED_BETTER_PLACEMENT
       NURBSext->LoadBE(face_to_be[i], fe);
    }
 

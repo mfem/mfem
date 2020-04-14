@@ -3824,6 +3824,7 @@ void Mesh::UpdateNURBS()
       GetElementToFaceTable();
       GenerateFaces();
    }
+   Nodes->FESpace()->GenerateFaceDofsFromBdr();
 }
 
 void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
