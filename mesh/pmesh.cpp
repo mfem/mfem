@@ -1276,6 +1276,13 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    group_squad.ShiftUpI();
 
    FinalizeParTopo();
+
+   if (Nodes != NULL)
+   {
+      // This call will turn the Nodes into a ParGridFunction
+      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
+                   GetNodalFESpace()->GetOrdering());
+   }
 }
 
 void ParMesh::Finalize(bool refine, bool fix_orientation)
@@ -1647,7 +1654,6 @@ void ParMesh::GetFaceNbrElementTransformation(
 
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
-   ElTr->ElementType = ElementTransformation::ELEMENT;
 
    if (Nodes == NULL)
    {
@@ -1689,7 +1695,6 @@ void ParMesh::GetFaceNbrElementTransformation(
          MFEM_ABORT("Nodes are not ParGridFunction!");
       }
    }
-   ElTr->FinalizeTransformation();
 }
 
 void ParMesh::DeleteFaceNbrData()
@@ -2322,16 +2327,16 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-void ParMesh::GetGhostFaceTransformation(
+ElementTransformation* ParMesh::GetGhostFaceTransformation(
    FaceElementTransformations* FETr, Element::Type face_type,
    Geometry::Type face_geom)
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
-   DenseMatrix &face_pm = FETr->GetPointMat();
+   DenseMatrix &face_pm = FaceTransformation.GetPointMat();
    if (Nodes == NULL)
    {
       FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
-      FETr->SetFE(GetTransformationFEforElementType(face_type));
+      FaceTransformation.SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
@@ -2347,9 +2352,9 @@ void ParMesh::GetGhostFaceTransformation(
       FETr->Loc1.Transform(face_el->GetNodes(), eir);
       Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
 #endif
-      FETr->SetFE(face_el);
+      FaceTransformation.SetFE(face_el);
    }
-   FETr->FinalizeTransformation();
+   return &FaceTransformation;
 }
 
 FaceElementTransformations *ParMesh::
@@ -2387,10 +2392,10 @@ GetSharedFaceTransformations(int sf, bool fill2)
    }
 
    // setup the face transformation if the face is not a ghost
-   // FaceElemTr.FaceGeom = face_geom;
+   FaceElemTr.FaceGeom = face_geom;
    if (!is_ghost)
    {
-      GetFaceTransformation(FaceNo, &FaceElemTr);
+      FaceElemTr.Face = GetFaceTransformation(FaceNo);
       // NOTE: The above call overwrites FaceElemTr.Loc1
    }
 
@@ -2431,7 +2436,8 @@ GetSharedFaceTransformations(int sf, bool fill2)
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      FaceElemTr.Face =
+         GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
    }
 
    return &FaceElemTr;
@@ -4214,6 +4220,13 @@ void ParMesh::Print(std::ostream &out) const
       Nodes->Save(out);
    }
 }
+
+#ifdef MFEM_USE_ADIOS2
+void ParMesh::Print(adios2stream &out) const
+{
+   Mesh::Print(out);
+}
+#endif
 
 static void dump_element(const Element* elem, Array<int> &data)
 {
