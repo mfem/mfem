@@ -670,7 +670,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
-            T.FinalizeTransformation();
             fe->GetLocalInterpolation(T, I);
 
             // make each slave DOF dependent on all master DOFs
@@ -834,8 +833,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
    // Check if we have a discontinuous space using the FE collection:
-   const L2_FECollection *dg_space = dynamic_cast<const L2_FECollection*>(fec);
-   if (dg_space)
+   if (IsDGSpace())
    {
       if (L2E_nat.Ptr() == NULL)
       {
@@ -862,7 +860,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 const Operator *FiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
-   const bool is_dg_space = dynamic_cast<const L2_FECollection*>(fec)!=nullptr;
+   const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
    key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
@@ -1027,8 +1025,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    localP.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pmats(i);
-      isotr.FinalizeTransformation();
+      isotr.SetPointMat(pmats(i));
       fe->GetLocalInterpolation(isotr, localP(i));
    }
 }
@@ -1172,8 +1169,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
       emb_tr.SetIdentityTransformation(geom);
       for (int i = 0; i < pmats.SizeK(); i++)
       {
-         emb_tr.GetPointMat() = pmats(i);
-         emb_tr.FinalizeTransformation();
+         emb_tr.SetPointMat(pmats(i));
          // Get the local interpolation matrix for this refinement type
          fine_fe->GetTransferMatrix(*coarse_fe, emb_tr, lP(i));
          // Get the local mass matrix for this refinement type
@@ -1293,9 +1289,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
    localR.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pmats(i);
-      isotr.FinalizeTransformation();
-
+      isotr.SetPointMat(pmats(i));
       fe->GetLocalRestriction(isotr, localR(i));
    }
 }
@@ -1393,8 +1387,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    localP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pmats(i);
-      isotr.FinalizeTransformation();
+      isotr.SetPointMat(pmats(i));
       fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
    }
 }
@@ -2651,8 +2644,7 @@ L2ProjectionGridTransfer::L2Projection::L2Projection(
 
          // Create the transformation that embeds the fine low-order element
          // within the coarse high-order element in reference space
-         emb_tr.GetPointMat() = pmats(cf_tr.embeddings[ilor].matrix);
-         emb_tr.FinalizeTransformation();
+         emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
          int order = fe_lor->GetOrder() + fe_ho->GetOrder() + el_tr->OrderW();
          const IntegrationRule *ir = &IntRules.Get(geom, order);

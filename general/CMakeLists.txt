@@ -15,6 +15,7 @@ list(APPEND SRCS
   cuda.cpp
   device.cpp
   error.cpp
+  gecko.cpp
   globals.cpp
   isockstream.cpp
   mem_manager.cpp
@@ -35,6 +36,7 @@ list(APPEND HDRS
   cuda.hpp
   device.hpp
   error.hpp
+  gecko.hpp
   globals.hpp
   zstr.hpp
   hash.hpp
@@ -61,6 +63,11 @@ if (MFEM_USE_MPI)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # header added all the time.
   list(APPEND HDRS communication.hpp)
+endif()
+
+if (MFEM_USE_ADIOS2)
+  list(APPEND SRCS adios2stream.cpp)
+  list(APPEND HDRS adios2stream.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
