@@ -1481,6 +1481,7 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    Array<Connection> face_dof_list;
    Array<int> row;
    face_to_be.SetSize(mesh->GetNumFaces());
+   face_to_be = -1;
    for (int b = 0; b < bdrElem_dof->Size(); b++)
    {
       bdrElem_dof->GetRow(b, row);
