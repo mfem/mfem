@@ -246,7 +246,7 @@ bool Compile(const char *cc,const char *co,
    const char *argv_so[] =
    { opt, cxx, "-shared", "-o", lib_so, lib_ar, load, nullptr };
    if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
-   unlink(cc);
+   if (!getenv("DBG")) { unlink(cc); }
    unlink(co);
    return true;
 }
@@ -624,10 +624,10 @@ bool is_eq(context_t &pp)
 void jitHeader(context_t &pp)
 {
    pp.out << "#include \"general/mjit.hpp\"\n";
-   pp.out << "#include <cstddef>\n";
-   pp.out << "#include <functional>\n";
-   pp.out << MFEM_JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
-   pp.out << "typedef union {double d; uint64_t u;} union_du;\n";
+   //pp.out << "#include <cstddef>\n";
+   //pp.out << "#include <functional>\n";
+   //pp.out << MFEM_JIT_STRINGIFY(JIT_HASH_COMBINE_ARGS_SRC) << "\n";
+   //pp.out << "typedef union {double d; uint64_t u;} union_du;\n";
    pp.out << "#line 1 \"" << pp.file <<"\"\n";
 }
 
@@ -706,9 +706,9 @@ void jitArgs(context_t &pp)
          if (is_double)
          {
             {
-               pp.ker.d2u += "\n\tconst union_du union_";
+               pp.ker.d2u += "\n\tconst union_du_t union_";
                pp.ker.d2u += name;
-               pp.ker.d2u += " = (union_du){u:t";
+               pp.ker.d2u += " = (union_du_t){u:t";
                pp.ker.d2u += is_pointer?"_":"";
                pp.ker.d2u += name;
                pp.ker.d2u += "};";
@@ -724,7 +724,7 @@ void jitArgs(context_t &pp)
                pp.ker.u2d += "\n\tconst uint64_t u";
                pp.ker.u2d += is_pointer?"_":"";
                pp.ker.u2d += name;
-               pp.ker.u2d += " = (union_du){";
+               pp.ker.u2d += " = (union_du_t){";
                pp.ker.u2d += is_pointer?"_":"";
                pp.ker.u2d += name;
                pp.ker.u2d += "}.u;";
