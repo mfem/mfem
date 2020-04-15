@@ -79,7 +79,7 @@ inline int argn(char *argv[], int argc = 0)
 // The parallel implementation will spawn the =mjit= binary on one mpi rank to
 // be able to run on one core and use MPI to broadcast the compilation output.
 #if !defined(MFEM_USE_MPI) || 0
-int System(char *argv[])
+static int System(char *argv[])
 {
    dbg();
    const int argc = argn(argv);
@@ -95,6 +95,8 @@ int System(char *argv[])
    return system(command_c_str);
 }
 
+bool Root() { return true; }
+
 #else
 
 enum Command
@@ -103,6 +105,13 @@ enum Command
    SYSTEM_CALL,
    TIMEOUT = 4000
 };
+
+bool Root()
+{
+   int world_rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+   return world_rank == 0;
+}
 
 int System(char *argv[])
 {
@@ -215,6 +224,32 @@ static int ProcessFork(int argc, char *argv[])
 #endif // MFEM_JIT_MAIN
 
 #endif // MFEM_USE_MPI
+
+/// Compile the source file with PIC flags, updating the cache library.
+bool Compile(const char *cc,const char *co,
+             const char *cxx, const char *cxxflags,
+             const char *msrc, const char *mins)
+{
+   constexpr const char *lib_ar = MFEM_JIT_CACHE_LIBRARY ".a";
+   constexpr const char *lib_so = MFEM_JIT_CACHE_LIBRARY ".so";
+   constexpr int PM = PATH_MAX;
+   char Imsrc[PM], Imbin[PM];
+   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
+   if (snprintf(Imbin, PM, "-I%s/include ", mins) < 0) { return false; }
+   constexpr const char *opt = MFEM_JIT_SHELL_COMMAND;
+   const char *argv_co[] =
+   { opt, cxx, cxxflags, "-fPIC", "-c", Imsrc, Imbin, "-o", co, cc, nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
+   const char *argv_ar[] = { opt, "ar", "-r", lib_ar, co, nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
+   constexpr const char *load = "-all_load";
+   const char *argv_so[] =
+   { opt, cxx, "-shared", "-o", lib_so, lib_ar, load, nullptr };
+   if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
+   unlink(cc);
+   unlink(co);
+   return true;
+}
 
 // *****************************************************************************
 // * STRUCTS: argument_t, template_t, kernel_t, context_t and error_t
@@ -844,10 +879,11 @@ void jitPrefix(context_t &pp)
 void jitPostfix(context_t &pp)
 {
    if (not pp.ker.__jit) { return; }
-   if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
-   if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
-   if (pp.block!=-1) { return; }
-   pp.out << "}\nextern \"C\"\nvoid k%016lx(" << pp.ker.params << "){";
+   if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
+   if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
+   if (pp.block != -1) { return; }
+   pp.out << "}\nextern \"C\"\nvoid "
+          << MFEM_JIT_SYMBOL_PREFIX << "%016lx(" << pp.ker.params << "){";
    pp.out << "ker_" << pp.ker.name
           << "<" << pp.ker.Tformat << ">"
           << "(" << pp.ker.args_wo_amp << ");";
@@ -1230,12 +1266,12 @@ void templateGetArgs(context_t &pp)
       assert(not pp.in.eof());
       if (c == '(') { p+=1; }
       if (c == ')') { p-=1; }
-      if (p<0) { break; }
+      if (p < 0) { break; }
       skip_space(pp,current_arg);
       comments(pp);
       check(pp,pp.in.peek()==',',"no coma while in args");
       get(pp);
-      if (nargs>0) { current_arg += ","; }
+      if (nargs > 0) { current_arg += ","; }
    }
 }
 

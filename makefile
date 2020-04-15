@@ -441,7 +441,7 @@ $(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
 	$(MFEM_CXX) -O3 -Wall -std=c++11 -pedantic -o $(@) $(<) $(MFEM_JIT_DEFS)
 MFEM_JIT_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
 MFEM_JIT_FLAGS += -x c++ -I. -I$(patsubst %/,%,$(<D))
-$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
+$(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) #$(BLD)$(MFEM_JIT)
 	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(MFEM_JIT_FLAGS) -c -o $(@) -
 endif
 
