@@ -1768,13 +1768,21 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    }
 }
 
-HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks)
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
+                                          Array2D<double> *blockCoeff)
 {
    const int numBlockRows = blocks.NumRows();
    const int numBlockCols = blocks.NumCols();
 
    MFEM_VERIFY(numBlockRows > 0 &&
                numBlockCols > 0, "Invalid input to HypreParMatrixFromBlocks");
+
+   if (blockCoeff != NULL)
+   {
+      MFEM_VERIFY(numBlockRows == blockCoeff->NumRows() &&
+                  numBlockCols == blockCoeff->NumCols(),
+                  "Invalid input to HypreParMatrixFromBlocks");
+   }
 
    Array<int> rowOffsets(numBlockRows+1);
    Array<int> colOffsets(numBlockCols+1);
@@ -1926,6 +1934,7 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks)
          if (csr_blocks(i, j) != NULL)
          {
             const int nrows = csr_blocks(i, j)->num_rows;
+            const double cij = blockCoeff ? (*blockCoeff)(i, j) : 1.0;
 
             for (int k = 0; k < nrows; ++k)
             {
@@ -1956,7 +1965,7 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks)
                                                procBlockColOffsets[bcolproc][j]
                                                + bcol
                                                - blockColProcOffsets[j][bcolproc];
-                  data[opI[rowg] + cnt[rowg]] = csr_blocks(i, j)->data[osk + l];
+                  data[opI[rowg] + cnt[rowg]] = cij * csr_blocks(i, j)->data[osk + l];
                   cnt[rowg]++;
                }
             }
@@ -1979,11 +1988,15 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks)
    rowStarts2[0] = first_loc_row;
    rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
 
+   std::vector<HYPRE_Int> colStarts2(2);
+   colStarts2[0] = first_loc_col;
+   colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
+
    return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
                              (int *)opI.data(), (HYPRE_Int *)opJ.data(),
                              (double *)data.data(),
                              (HYPRE_Int *)rowStarts2.data(),
-                             (HYPRE_Int *)rowStarts2.data());
+                             (HYPRE_Int *)colStarts2.data());
 }
 
 void EliminateBC(HypreParMatrix &A, HypreParMatrix &Ae,
