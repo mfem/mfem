@@ -726,3 +726,88 @@ double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
    // Integrate n.Grad(u) + a * u along the given boundary
    return IntegrateBC(ndu, bdr, normalization, h1);
 }
+
+// Compute the Lp norm of: a.grad(sol).n + b.sol - g, over the boundary
+// attributes marked in bdr_attr_marker. Note: p = infinity() returns the
+// maximum norm.
+double ComputeBdrLpError(double p, const GridFunction &sol, Coefficient &a,
+                         Coefficient &b, Coefficient &g,
+                         Array<int> &bdr_attr_marker)
+{
+   double err = 0.0;
+
+   ConstantCoefficient *ca_ptr = dynamic_cast<ConstantCoefficient*>(&a);
+   const bool a_is_zero = (ca_ptr != nullptr) && (ca_ptr->constant == 0.0);
+
+   ConstantCoefficient *cb_ptr = dynamic_cast<ConstantCoefficient*>(&b);
+   const bool b_is_zero = (cb_ptr != nullptr) && (cb_ptr->constant == 0.0);
+
+   const FiniteElementSpace &fes = *sol.FESpace();
+   MFEM_ASSERT(fes.GetVDim() == 1, "");
+   Mesh &mesh = *fes.GetMesh();
+   Vector shape, loc_dofs, w_nor;
+   DenseMatrix dshape;
+   Array<int> dof_ids;
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      if (bdr_attr_marker[mesh.GetBdrAttribute(i)-1] == 0) { continue; }
+
+      FaceElementTransformations *FTr = mesh.GetBdrFaceTransformations(i);
+      if (FTr == nullptr) { continue; }
+
+      const FiniteElement &fe = *fes.GetFE(FTr->Elem1No);
+      MFEM_ASSERT(fe.GetMapType() == FiniteElement::VALUE, "");
+      const int int_order = 2*fe.GetOrder() + 3;
+      const IntegrationRule &ir = IntRules.Get(FTr->FaceGeom, int_order);
+
+      fes.GetElementDofs(FTr->Elem1No, dof_ids);
+      if (!b_is_zero)
+      {
+         sol.GetSubVector(dof_ids, loc_dofs);
+         shape.SetSize(fe.GetDof());
+      }
+      if (!a_is_zero)
+      {
+         const int sdim = FTr->Face->GetSpaceDim();
+         w_nor.SetSize(sdim);
+         dshape.SetSize(fe.GetDof(), sdim);
+      }
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         IntegrationPoint eip;
+         FTr->Loc1.Transform(ip, eip);
+         FTr->Face->SetIntPoint(&ip);
+         double face_weight = FTr->Face->Weight();
+         double val = 0.0;
+         if (!b_is_zero)
+         {
+            fe.CalcShape(eip, shape);
+            val += b.Eval(*FTr->Face, ip) * (shape * loc_dofs);
+         }
+         if (!a_is_zero)
+         {
+            FTr->Elem1->SetIntPoint(&eip);
+            fe.CalcPhysDShape(*FTr->Elem1, dshape);
+            CalcOrtho(FTr->Face->Jacobian(), w_nor);
+            val += a.Eval(*FTr->Elem1, eip) *
+                   dshape.InnerProduct(w_nor, loc_dofs) / face_weight;
+         }
+         val -= g.Eval(*FTr->Face, ip);
+         val = std::abs(val);
+         if (p != infinity())
+         {
+            err += (val*val) * ip.weight * face_weight;
+         }
+         else
+         {
+            err = std::max(err, val);
+         }
+      }
+   }
+
+   if (p == infinity()) { return err; }
+
+   // negative quadrature weights may produce negative 'err'
+   return (err >= 0.0) ? pow(err, 1.0/p) : -pow(-err, 1.0/p);
+}
