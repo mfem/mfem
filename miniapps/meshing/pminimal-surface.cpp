@@ -186,13 +186,23 @@ public:
    }
 
    virtual void Refine()
-   { for (int l = 0; l < opt.refine; l++) { UniformRefinement(); } }
+   {
+      for (int l = 0; l < opt.refine; l++)
+      {
+         UniformRefinement();
+      }
+   }
 
    virtual void Snap()
    {
       GridFunction &nodes = *GetNodes();
       for (int i = 0; i < nodes.Size(); i++)
-      { if (std::abs(nodes(i)) < EPS) { nodes(i) = 0.0; } }
+      {
+         if (std::abs(nodes(i)) < EPS)
+         {
+            nodes(i) = 0.0;
+         }
+      }
    }
 
    void SnapNodesToUnitSphere()
@@ -202,10 +212,14 @@ public:
       for (int i = 0; i < nodes.FESpace()->GetNDofs(); i++)
       {
          for (int d = 0; d < SDIM; d++)
-         { node(d) = nodes(nodes.FESpace()->DofToVDof(i, d)); }
+         {
+            node(d) = nodes(nodes.FESpace()->DofToVDof(i, d));
+         }
          node /= node.Norml2();
          for (int d = 0; d < SDIM; d++)
-         { nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d); }
+         {
+            nodes(nodes.FESpace()->DofToVDof(i, d)) = node(d);
+         }
       }
    }
 
@@ -349,7 +363,7 @@ public:
          if (opt.radial)
          {
             GridFunction delta(S.fes);
-            subtract(x, *nodes, delta); // Δ = x - nodes
+            subtract(x, *nodes, delta); // delta = x - nodes
             // position and Δ vectors at point i
             Vector ni(SDIM), di(SDIM);
             for (int i = 0; i < delta.Size()/SDIM; i++)
@@ -369,7 +383,7 @@ public:
             }
             add(*nodes, delta, *nodes);
          }
-         // x = λ*nodes + (1-λ)*x
+         // x = lambda*nodes + (1-lambda)*x
          add(lambda, *nodes, (1.0-lambda), x, x);
          return Converged(rnorm);
       }
@@ -397,10 +411,10 @@ public:
                Jadjt = Jadj;
                Jadjt.Transpose();
                const double w = Jadjt.Weight();
-               minW = fmin(minW, w);
-               maxW = fmax(maxW, w);
+               minW = std::fmin(minW, w);
+               maxW = std::fmax(maxW, w);
             }
-            if (fabs(maxW) != 0.0)
+            if (std::fabs(maxW) != 0.0)
             {
                const double rho = minW / maxW;
                MFEM_VERIFY(rho <= 1.0, "");
@@ -507,7 +521,9 @@ struct Catenoid: public Surface
          int *v = el->GetVertices();
          const int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
-         { v[j] = v2v[v[j]]; }
+         {
+            v[j] = v2v[v[j]];
+         }
       }
       // renumber boundary elements
       for (int i = 0; i < GetNBE(); i++)
@@ -516,7 +532,9 @@ struct Catenoid: public Surface
          int *v = el->GetVertices();
          const int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
-         { v[j] = v2v[v[j]]; }
+         {
+            v[j] = v2v[v[j]];
+         }
       }
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
@@ -592,7 +610,9 @@ struct Hold: public Surface
          int *v = el->GetVertices();
          const int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
-         { v[j] = v2v[v[j]]; }
+         {
+            v[j] = v2v[v[j]];
+         }
       }
       // renumber boundary elements
       for (int i = 0; i < GetNBE(); i++)
@@ -601,7 +621,9 @@ struct Hold: public Surface
          int *v = el->GetVertices();
          const int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
-         { v[j] = v2v[v[j]]; }
+         {
+            v[j] = v2v[v[j]];
+         }
       }
       RemoveUnusedVertices();
       RemoveInternalBoundaries();
@@ -805,9 +827,9 @@ struct Costa: public Surface
       if (x_top) { p[0] *= -1.0; }
       const bool nan = std::isnan(p[0]) || std::isnan(p[1]) || std::isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
-      ALPHA[0] = fmax(p[0], ALPHA[0]);
-      ALPHA[1] = fmax(p[1], ALPHA[1]);
-      ALPHA[2] = fmax(p[2], ALPHA[2]);
+      ALPHA[0] = std::fmax(p[0], ALPHA[0]);
+      ALPHA[1] = std::fmax(p[1], ALPHA[1]);
+      ALPHA[2] = std::fmax(p[2], ALPHA[2]);
    }
 
    void Snap()
@@ -922,8 +944,8 @@ struct FullPeach: public Surface
             const int k = dofs[dof];
             MFEM_ASSERT(k >= 0, "");
             PointMat.Mult(one, X);
-            const bool halfX = fabs(X[0]) < EPS && X[1] <= 0.0;
-            const bool halfY = fabs(X[2]) < EPS && X[1] >= 0.0;
+            const bool halfX = std::fabs(X[0]) < EPS && X[1] <= 0.0;
+            const bool halfY = std::fabs(X[2]) < EPS && X[1] >= 0.0;
             const bool is_on_bc = halfX || halfY;
             for (int c = 0; c < SDIM; c++)
             { ess_vdofs[fes->DofToVDof(k, c)] = is_on_bc; }
@@ -990,7 +1012,7 @@ struct QuarterPeach: public Surface
                if (d < 2) { R[v] += x*x; }
             }
          }
-         if (fabs(X[0][1])<=EPS && fabs(X[1][1])<=EPS &&
+         if (std::fabs(X[0][1])<=EPS && std::fabs(X[1][1])<=EPS &&
              (R[0]>0.1 || R[1]>0.1))
          { el->SetAttribute(1); }
          else { el->SetAttribute(2); }
@@ -1125,8 +1147,10 @@ static int Problem0(Opt &opt)
 
 // Problem 1: solve the Dirichlet problem for the minimal surface equation
 //            of the form z=f(x,y), using Picard iterations.
-static double u0(Vector &x) { return sin(3.0 * PI * (x[1] + x[0])); }
+static double u0(const Vector &x) { return sin(3.0 * PI * (x[1] + x[0])); }
+
 enum {NORM, AREA};
+
 static double qf(const int order, const int ker, Mesh &m,
                  FiniteElementSpace &fes, GridFunction &u)
 {
