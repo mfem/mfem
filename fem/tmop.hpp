@@ -854,10 +854,17 @@ protected:
                                 ElementTransformation &T,
                                 const Vector &elfun, Vector &elvect);
 
-   /** Assumes that AssembleElementVectorFD has been called. */
+   // Assumes that AssembleElementVectorFD has been called.
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
+
+   void AssembleElemVecAdaptLim(const FiniteElement &el, const Vector &weights,
+                                IsoparametricTransformation &Tpr,
+                                const IntegrationRule &ir, DenseMatrix &m);
+   void AssembleElemGradAdaptLim(const FiniteElement &el, const Vector &weights,
+                                 IsoparametricTransformation &Tpr,
+                                 const IntegrationRule &ir, DenseMatrix &m);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
