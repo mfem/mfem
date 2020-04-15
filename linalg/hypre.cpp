@@ -1892,6 +1892,7 @@ HypreSmoother::HypreSmoother() : Solver()
 
    l1_norms = NULL;
    pos_l1_norms = false;
+   eig_est_cg_iter = 10;
    B = X = V = Z = NULL;
    X0 = X1 = NULL;
    fir_coeffs = NULL;
