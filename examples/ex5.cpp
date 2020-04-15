@@ -211,14 +211,16 @@ int main(int argc, char *argv[])
    if (pa)
    {
       mVarf->AssembleDiagonal(Md);
+      Md.HostReadWrite();
       Vector invMd(mVarf->Height());
       for (int i=0; i<mVarf->Height(); ++i)
       {
-         invMd[i] = 1.0 / Md[i];
+         invMd(i) = 1.0 / Md(i);
       }
 
       Vector BMBt_diag(bVarf->Height());
       bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+      BMBt_diag.HostReadWrite();
 
       Array<int> ess_tdof_list;  // empty
 
