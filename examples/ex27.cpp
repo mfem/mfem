@@ -70,11 +70,12 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 
 Mesh * GenerateSerialMesh(int ref);
 
-double IntegrateBC(GridFunction &x, Array<int> &bdr,
-                   double normalization, bool h1);
-double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
-                        Array<int> &bdr, double normalization, bool h1,
-                        OperatorHandle &M, double a = 0.0);
+// Compute the average value of alpha*n.Grad(sol) + beta*sol over the boundary
+// attributes marked in bdr_marker.  Also computes the L2 norm of
+// alpha*n.Grad(sol) + beta*sol - gamma  over the same boundary.
+double IntegrateBC(const GridFunction &sol, const Array<int> &bdr_marker,
+                   double alpha, double beta, double gamma,
+                   double &err);
 
 int main(int argc, char *argv[])
 {
@@ -306,71 +307,59 @@ int main(int argc, char *argv[])
    m.FormSystemMatrix(ess_tdof_list, M);
 
    // 14. Compute the various boundary integrals.
-   mfem::out << endl << "Verifying boundary conditions:" << endl;
+   mfem::out << endl
+             << "Verifying boundary conditions" << endl
+             << "=============================" << endl;
    {
       // Integrate the solution on the Dirichlet boundary and compare
-      // to the expected value. The factor of (2 pi a) divides by the
-      // circumference of the hole.
-      double dbc_int = IntegrateBC(u, dbc_bdr, 2.0 * M_PI * a_, h1);
-      double dbc_err = fabs(dbc_int - dbc_val);
+      // to the expected value.
+      double err, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, err);
 
       bool hom_dbc = (dbc_val == 0.0);
-      dbc_err /=  hom_dbc ? 1.0 : fabs(dbc_val);
-      mfem::out << "dbc " << dbc_int << ", "
+      err /=  hom_dbc ? 1.0 : fabs(dbc_val);
+      mfem::out << "Average of solution on Gamma_dbc:\t"
+                << avg << ", \t"
                 << (hom_dbc ? "absolute" : "relative")
-                << " error " << dbc_err << endl;
+                << " error " << err << endl;
    }
    {
-      // Integrate n.Grad(u) with n = (0, -1) on the inhomogeneous
-      // Neumann boundary and compare to the expected value.
-      Vector nVec(2); nVec[0] = 0.0; nVec[1] = -1.0;
-      VectorConstantCoefficient nCoef(nVec);
-
-      // The factor of 2.0 divides by the length of the boundary.
-      double nbc_int = IntegrateNGradBC(u, nCoef, nbc_bdr, 2.0, h1, M);
-      double nbc_err = fabs(nbc_int - nbc_val);
+      // Integrate n.Grad(u) on the inhomogeneous Neumann boundary and
+      // compare to the expected value.
+      double err, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, err);
 
       bool hom_nbc = (nbc_val == 0.0);
-      nbc_err /=  hom_nbc ? 1.0 : fabs(nbc_val);
-      mfem::out << "nbc " << nbc_int << ", "
+      err /=  hom_nbc ? 1.0 : fabs(nbc_val);
+      mfem::out << "Average of n.Grad(u) on Gamma_nbc:\t"
+                << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << nbc_err << endl;
+                << " error " << err << endl;
    }
    {
-      // Integrate n.Grad(u) with n given by the function n4Vec on the
-      // homogeneous Neumann boundary and compare to the expected
-      // value of zero.
+      // Integrate n.Grad(u) on the homogeneous Neumann boundary and compare
+      // to the expected value of zero.
       Array<int> nbc0_bdr(mesh->bdr_attributes.Max());
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      // The factor of (2 pi a) divides by the circumference of the hole.
-      VectorFunctionCoefficient n0Coef(2, n4Vec);
-      double nbc_int = IntegrateNGradBC(u, n0Coef, nbc0_bdr,
-                                        2.0 * M_PI * a_, h1, M);
-      double nbc_err = fabs(nbc_int);
+      double err, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, err);
 
       bool hom_nbc = true;
-      mfem::out << "nbc0 " << nbc_int << ", "
+      mfem::out << "Average of n.Grad(u) on Gamma_nbc0:\t"
+                << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << nbc_err << endl;
+                << " error " << err << endl;
    }
    {
-      // Integrate n.Grad(u) + a * u with n = (0, 1) on the Robin
-      // boundary and compare to the expected value.
-      Vector nVec(2); nVec[0] = 0.0; nVec[1] = 1.0;
-      VectorConstantCoefficient nCoef(nVec);
-
-      // The factor of 2.0 divides by the length of the boundary.
-      double rbc_int = IntegrateNGradBC(u, nCoef, rbc_bdr,
-                                        2.0, h1, M, rbc_a_val);
-      double rbc_err = fabs(rbc_int - rbc_b_val);
+      // Integrate n.Grad(u) + a * u on the Robin boundary and compare to
+      // the expected value.
+      double err, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, err);
 
       bool hom_rbc = (rbc_b_val == 0.0);
-      rbc_err /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
-      mfem::out << "rbc " << rbc_int << ", "
+      err /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
+      mfem::out << "Average of n.Grad(u)+a*u on Gamma_rbc:\t"
+                << avg << ", \t"
                 << (hom_rbc ? "absolute" : "relative")
-                << " error " << rbc_err << endl;
+                << " error " << err << endl;
    }
 
    // 15. Save the refined mesh and the solution. This output can be viewed
@@ -657,92 +646,18 @@ Mesh * GenerateSerialMesh(int ref)
    return mesh;
 }
 
-double IntegrateBC(GridFunction &x, Array<int> &bdr,
-                   double normalization, bool h1)
+double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
+                   double alpha, double beta, double gamma,
+                   double &err)
 {
-   FiniteElementSpace * fespace = x.FESpace();
-   ConstantCoefficient one(1.0);
+   double nrm = 0.0;
+   double avg = 0.0;
+   err = 0.0;
 
-   // Integrate the basis functions along the given boundary
-   LinearForm lf(fespace);
-   if (h1)
-   {
-      lf.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), bdr);
-   }
-   else
-   {
-      lf.AddBdrFaceIntegrator(new BoundaryLFIntegrator(one), bdr);
-   }
-   lf.Assemble();
+   const bool a_is_zero = alpha == 0.0;
+   const bool b_is_zero = beta == 0.0;
 
-   // Compute the absolute value of x (assumes interpolatory basis functions)
-   GridFunction absx(x);
-   for (int i=0; i<absx.Size(); i++)
-   {
-      absx[i] = fabs(absx[i]);
-   }
-
-   // Compute the integral of |x| along the given boundary and normalize by
-   // the length of the boundary.
-   return fabs(lf(absx) / normalization);
-}
-
-double IntegrateNGradBC(GridFunction &u, VectorCoefficient &nCoef,
-                        Array<int> &bdr, double normalization, bool h1,
-                        OperatorHandle &M, double a)
-{
-   FiniteElementSpace * fespace = u.FESpace();
-
-   // Compute the operator n.Grad
-   BilinearForm nd(fespace);
-   nd.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(nCoef));
-   nd.Assemble();
-
-   // Apply the operator to the solution vector
-   LinearForm b(fespace);
-   nd.Mult(u, b);
-
-   // Solve for n.Grad(u)
-   Vector X;
-   X.SetSize(fespace->GetTrueVSize());
-   X = 0.0;
-
-   CGSolver mcg;
-   mcg.SetRelTol(1e-12);
-   mcg.SetMaxIter(2000);
-   mcg.SetPrintLevel(0);
-   mcg.SetOperator(*M);
-   mcg.Mult(b, X);
-
-   GridFunction ndu(fespace);
-   ndu.SetFromTrueDofs(X);
-
-   // For Robin BCs we add a * u
-   if (a != 0.0)
-   {
-      ndu.Add(a, u);
-   }
-
-   // Integrate n.Grad(u) + a * u along the given boundary
-   return IntegrateBC(ndu, bdr, normalization, h1);
-}
-
-// Compute the Lp norm of: a.grad(sol).n + b.sol - g, over the boundary
-// attributes marked in bdr_attr_marker. Note: p = infinity() returns the
-// maximum norm.
-double ComputeBdrLpError(double p, const GridFunction &sol, Coefficient &a,
-                         Coefficient &b, Coefficient &g,
-                         Array<int> &bdr_attr_marker)
-{
-   double err = 0.0;
-
-   ConstantCoefficient *ca_ptr = dynamic_cast<ConstantCoefficient*>(&a);
-   const bool a_is_zero = (ca_ptr != nullptr) && (ca_ptr->constant == 0.0);
-
-   ConstantCoefficient *cb_ptr = dynamic_cast<ConstantCoefficient*>(&b);
-   const bool b_is_zero = (cb_ptr != nullptr) && (cb_ptr->constant == 0.0);
-
-   const FiniteElementSpace &fes = *sol.FESpace();
+   const FiniteElementSpace &fes = *x.FESpace();
    MFEM_ASSERT(fes.GetVDim() == 1, "");
    Mesh &mesh = *fes.GetMesh();
    Vector shape, loc_dofs, w_nor;
@@ -750,7 +665,7 @@ double ComputeBdrLpError(double p, const GridFunction &sol, Coefficient &a,
    Array<int> dof_ids;
    for (int i = 0; i < mesh.GetNBE(); i++)
    {
-      if (bdr_attr_marker[mesh.GetBdrAttribute(i)-1] == 0) { continue; }
+      if (bdr[mesh.GetBdrAttribute(i)-1] == 0) { continue; }
 
       FaceElementTransformations *FTr = mesh.GetBdrFaceTransformations(i);
       if (FTr == nullptr) { continue; }
@@ -761,16 +676,16 @@ double ComputeBdrLpError(double p, const GridFunction &sol, Coefficient &a,
       const IntegrationRule &ir = IntRules.Get(FTr->FaceGeom, int_order);
 
       fes.GetElementDofs(FTr->Elem1No, dof_ids);
-      if (!b_is_zero)
-      {
-         sol.GetSubVector(dof_ids, loc_dofs);
-         shape.SetSize(fe.GetDof());
-      }
+      x.GetSubVector(dof_ids, loc_dofs);
       if (!a_is_zero)
       {
          const int sdim = FTr->Face->GetSpaceDim();
          w_nor.SetSize(sdim);
          dshape.SetSize(fe.GetDof(), sdim);
+      }
+      if (!b_is_zero)
+      {
+         shape.SetSize(fe.GetDof());
       }
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
@@ -780,34 +695,42 @@ double ComputeBdrLpError(double p, const GridFunction &sol, Coefficient &a,
          FTr->Face->SetIntPoint(&ip);
          double face_weight = FTr->Face->Weight();
          double val = 0.0;
-         if (!b_is_zero)
-         {
-            fe.CalcShape(eip, shape);
-            val += b.Eval(*FTr->Face, ip) * (shape * loc_dofs);
-         }
          if (!a_is_zero)
          {
             FTr->Elem1->SetIntPoint(&eip);
             fe.CalcPhysDShape(*FTr->Elem1, dshape);
             CalcOrtho(FTr->Face->Jacobian(), w_nor);
-            val += a.Eval(*FTr->Elem1, eip) *
-                   dshape.InnerProduct(w_nor, loc_dofs) / face_weight;
+            val += alpha * dshape.InnerProduct(w_nor, loc_dofs) / face_weight;
          }
-         val -= g.Eval(*FTr->Face, ip);
-         val = std::abs(val);
-         if (p != infinity())
+         if (!b_is_zero)
          {
-            err += (val*val) * ip.weight * face_weight;
+            fe.CalcShape(eip, shape);
+            val += beta * (shape * loc_dofs);
          }
-         else
-         {
-            err = std::max(err, val);
-         }
+
+         // Measure the length of the boundary
+         nrm += ip.weight * face_weight;
+
+         // Integrate alpha * n.Grad(x) + beta * x
+         avg += val * ip.weight * face_weight;
+
+         // Integrate |alpha * n.Grad(x) + beta * x - gamma|^2
+         val -= gamma;
+         err += (val*val) * ip.weight * face_weight;
       }
    }
 
-   if (p == infinity()) { return err; }
+   // Normalize by the length of the boundary
+   if (std::abs(nrm) > 0.0)
+   {
+      err /= nrm;
+      avg /= nrm;
+   }
 
-   // negative quadrature weights may produce negative 'err'
-   return (err >= 0.0) ? pow(err, 1.0/p) : -pow(-err, 1.0/p);
+   // Compute l2 norm of the error in the boundary condition
+   // (negative quadrature weights may produce negative 'err')
+   err = (err >= 0.0) ? sqrt(err) : -sqrt(-err);
+
+   // Return the average value of alpha * n.Grad(x) + beta * x
+   return avg;
 }
