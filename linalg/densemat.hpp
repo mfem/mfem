@@ -182,6 +182,12 @@ public:
 
    double Weight() const;
 
+   /// Evaluate the derivative of Det() w.r.t. the matrix entries
+   void DetRevDiff(DenseMatrix &A_bar) const;
+
+   /// Evaluate the derivative of Weight() w.r.t. the matrix entries
+   void WeightRevDiff(DenseMatrix &A_bar) const;
+
    /** @brief Set the matrix to alpha * A, assuming that A has the same
        dimensions as the matrix and uses column-major layout. */
    void Set(double alpha, const double *A);
@@ -442,8 +448,8 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat);
 
 /// Reverse-mode sensitivities of adj(A) with respect to the entries in A
 /// \warning implemented only for square matrices
-void RevDiffAdjugate(const DenseMatrix &a, const DenseMatrix &adja_bar,
-                     DenseMatrix &a_bar);
+void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
+                         DenseMatrix &a_bar);
 
 /** Calculate the inverse of a matrix (for NxN matrices, N=1,2,3) or the
     left inverse (A^t.A)^{-1}.A^t (for 2x1, 3x1, or 3x2 matrices) */

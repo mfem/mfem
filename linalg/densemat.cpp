@@ -530,6 +530,119 @@ double DenseMatrix::Weight() const
    return 0.0;
 }
 
+void DenseMatrix::DetRevDiff(DenseMatrix &A_bar) const
+{
+   MFEM_ASSERT(Height() == Width() && Height() > 0,
+               "The matrix must be square and "
+               << "sized larger than zero to compute the determinant."
+               << "  Height() = " << Height()
+               << ", Width() = " << Width());
+
+   switch (Height())
+   {
+      case 1:
+         // return data[0];
+         A_bar(0,0) = 1.0;
+         return;
+
+      case 2:
+         // return data[0] * data[3] - data[1] * data[2];
+         A_bar(0,0) = data[3]; // data[0]
+         A_bar(1,1) = data[0]; // data[3]
+         A_bar(1,0) = -data[2]; // data[1]
+         A_bar(0,1) = -data[1]; // data[2]
+         return;
+
+      case 3:
+      {
+         const double *d = data;
+         // return
+         //   d[0] * (d[4] * d[8] - d[5] * d[7]) +
+         //   d[3] * (d[2] * d[7] - d[1] * d[8]) +
+         //   d[6] * (d[1] * d[5] - d[2] * d[4]);
+         A_bar(0,0) = d[4]*d[8] - d[5]*d[7]; // d[0]
+         A_bar(1,0) = d[6]*d[5] - d[3]*d[8]; // d[1]
+         A_bar(2,0) = d[3]*d[7] - d[6]*d[4]; // d[2]
+         A_bar(0,1) = d[2]*d[7] - d[1]*d[8]; // d[3]
+         A_bar(1,1) = d[0]*d[8] - d[6]*d[2]; // d[4]
+         A_bar(2,1) = d[6]*d[1] - d[0]*d[7]; // d[5]
+         A_bar(0,2) = d[1]*d[5] - d[2]*d[4]; // d[6]
+         A_bar(1,2) = d[3]*d[2] - d[0]*d[5]; // d[7]
+         A_bar(2,2) = d[0]*d[4] - d[3]*d[1]; // d[8]
+         return;
+
+      }
+      default:
+      {
+         // In the general case we compute the gradient of the determinant
+         // using the relation from Mike Giles document:
+         // "An extended collection of matrix derivative results for forward
+         // and reverse mode algorithmic differentiation"
+         DenseMatrixInverse lu_factors(*this);
+         lu_factors.GetInverseMatrix(A_bar);
+         A_bar.Transpose();
+         A_bar *= lu_factors.Det();
+         return;
+
+      }
+   }
+   // not reachable
+}
+
+void DenseMatrix::WeightRevDiff(DenseMatrix &A_bar) const
+{
+#ifdef MFEM_DEBUG
+   if (Height() != A_bar.Height() || Width() != A_bar.Width())
+   {
+      mfem_error("DenseMatrix::WeightRevDiff()");
+   }
+#endif
+   if (Height() == Width())
+   {
+      // return Det();
+      DetRevDiff(A_bar);
+      return;
+   }
+   else if ((Height() == 2) && (Width() == 1))
+   {
+      // return sqrt(data[0] * data[0] + data[1] * data[1]);
+      double wgt = sqrt(data[0] * data[0] + data[1] * data[1]);
+      A_bar(0,0) = data[0]/wgt;
+      A_bar(1,0) = data[1]/wgt;
+      return;
+   }
+   else if ((Height() == 3) && (Width() == 1))
+   {
+      // return sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
+      double wgt = sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
+      for (int i = 0; i < 3; ++i)
+      {
+         A_bar(i,0) = data[i]/wgt;
+      }
+      return;
+   }
+   else if ((Height() == 3) && (Width() == 2))
+   {
+      const double *d = data;
+      double E = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+      double G = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
+      double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
+      double wgt = sqrt(E * G - F * F);
+      // start reverse sweep
+      double E_bar = 0.5*G/wgt;
+      double G_bar = 0.5*E/wgt;
+      double F_bar = -F/wgt;
+      A_bar(0,0) = F_bar*d[3] + 2.0*E_bar*d[0]; // d[0]
+      A_bar(1,0) = F_bar*d[4] + 2.0*E_bar*d[1]; // d[1]
+      A_bar(2,0) = F_bar*d[5] + 2.0*E_bar*d[2]; // d[2]
+      A_bar(0,1) = F_bar*d[0] + 2.0*G_bar*d[3]; // d[3]
+      A_bar(1,1) = F_bar*d[1] + 2.0*G_bar*d[4]; // d[4]
+      A_bar(2,1) = F_bar*d[2] + 2.0*G_bar*d[5]; // d[5]
+      return;
+   }
+   mfem_error("DenseMatrix::WeightRevDiff()");
+}
+
 void DenseMatrix::Set(double alpha, const double *A)
 {
    const int s = Width()*Height();
@@ -2194,20 +2307,20 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
    }
 }
 
-void RevDiffAdjugate(const DenseMatrix &a, const DenseMatrix &adja_bar,
-                     DenseMatrix &a_bar)
+void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
+                         DenseMatrix &a_bar)
 {
 #ifdef MFEM_DEBUG
    if (a.Width() != a.Height())
    {
-      mfem_error("RevDiffAdjugate(...)");
+      mfem_error("CalcAdjugateRevDiff(...)");
    }
    if (a.Width() != a_bar.Width() ||
        a.Height() != a_bar.Height() ||
        a_bar.Width() != adja_bar.Height() ||
        a_bar.Height() != adja_bar.Width())
    {
-      mfem_error("RevDiffAdjugate(...)");
+      mfem_error("CalcAdjugateRefDiff(...)");
    }
 #endif
 

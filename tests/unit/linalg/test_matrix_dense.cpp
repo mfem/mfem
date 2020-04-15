@@ -246,7 +246,7 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    REQUIRE(C.MaxMaxNorm() < tol);
 }
 
-TEST_CASE("RevDiffAdjugate", "[DenseMatrix]")
+TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
 {
    constexpr double eps_fd = 1e-5; // 2nd-order finite-difference step size
 
@@ -261,19 +261,19 @@ TEST_CASE("RevDiffAdjugate", "[DenseMatrix]")
       DenseMatrix A_pert(1, 1), adjA_pert(1, 1);
 
       // Compute the derivative using reverse mode
-      RevDiffAdjugate(A, adjA_bar, A_bar);
+      CalcAdjugateRevDiff(A, adjA_bar, A_bar);
 
       // Compute the derivative using central finite-difference approximation
       A_pert = A;
-      A_pert(1, 1) += eps_fd;
+      A_pert(0, 0) += eps_fd;
       CalcAdjugate(A_pert, adjA_fd);
-      A_pert(1, 1) -= 2.0 * eps_fd;
+      A_pert(0, 0) -= 2.0 * eps_fd;
       CalcAdjugate(A_pert, adjA_pert);
       adjA_fd -= adjA_pert;
       adjA_fd *= 1/(2.0 * eps_fd);
       // sum up derivative with weights
       double A_bar_fd = adjA_fd(1, 1) * adjA_bar(1, 1);
-      REQUIRE(A_bar(1, 1) == Approx(A_bar_fd));
+      REQUIRE(A_bar(0, 0) == Approx(A_bar_fd));
    }
 
    SECTION("2x2 matrix")
@@ -287,7 +287,7 @@ TEST_CASE("RevDiffAdjugate", "[DenseMatrix]")
       DenseMatrix A_pert(2,2), adjA_pert(2,2);
 
       // Compute the derivatives using reverse mode
-      RevDiffAdjugate(A, adjA_bar, A_bar);
+      CalcAdjugateRevDiff(A, adjA_bar, A_bar);
 
       // Compute the derivatives using central finite-difference approximation
       for (int i = 0; i < 2; ++i)
@@ -327,7 +327,7 @@ TEST_CASE("RevDiffAdjugate", "[DenseMatrix]")
       DenseMatrix A_pert(3,3), adjA_pert(3,3);
 
       // Compute the derivatives using reverse mode
-      RevDiffAdjugate(A, adjA_bar, A_bar);
+      CalcAdjugateRevDiff(A, adjA_bar, A_bar);
 
       // Compute the derivatives using central finite-difference approximation
       for (int i = 0; i < 3; ++i)
@@ -352,6 +352,42 @@ TEST_CASE("RevDiffAdjugate", "[DenseMatrix]")
                }
             }
             REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
+         }
+      }
+   }
+}
+
+TEST_CASE("DenseMatrix WeightRevDiff", "[DenseMatrix]")
+{
+   // This also tests DenseMatrix::DetRevDiff indirectly
+   constexpr double eps_fd = 1e-5; // 2nd-order finite-difference step size
+   double A_data[9] = {1.0, 5.0, 3.0, -2.0, 6.0, -9.0, 4.0, -7.0, 8.0};
+
+   for (int height = 1; height <= 3; ++height)
+   {
+      for (int width = 1; width <= height; ++width)
+      {
+         DenseMatrix A(A_data, height, width);
+         DenseMatrix weight_bar(height, width);
+         DenseMatrix A_pert(height, width);
+
+         // Compute the gradient of A.Weight() using reverse mode AD
+         A.WeightRevDiff(weight_bar);
+
+         // Compute the gradient of A.Weight using 2nd order finite-difference
+         for (int i = 0; i < height; ++i)
+         {
+            for (int j = 0; j < width; ++j)
+            {
+               // Perturb A(i,j) in + and - directions and evaluate Weight()
+               A_pert = A;
+               A_pert(i,j) += eps_fd;
+               double dweight = A_pert.Weight();
+               A_pert(i,j) -= 2.0*eps_fd;
+               dweight -= A_pert.Weight();
+               dweight /= (2.0*eps_fd);
+               REQUIRE(weight_bar(i,j) == Approx(dweight));
+            }
          }
       }
    }
