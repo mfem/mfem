@@ -1156,7 +1156,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   blf.Finalize();
 
                   blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
-                  PCG(m_ndp, s_nd, tmp_ndp, g_ndp, 0, 200,
+                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
                       cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_ndp.ComputeL2Error(qF3_coef) < tol );
@@ -1238,7 +1238,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   blf.Finalize();
 
                   blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
-                  PCG(m_ndp, s_nd, tmp_ndp, g_ndp, 0, 200,
+                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
                       cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_ndp.ComputeL2Error(MF3_coef) < tol );
@@ -1651,7 +1651,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   blf.Finalize();
 
                   blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
-                  PCG(m_rtp, s_rt, tmp_rtp, g_rtp, 0, 200,
+                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
                       cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_rtp.ComputeL2Error(qF3_coef) < tol );
@@ -1733,7 +1733,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   blf.Finalize();
 
                   blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
-                  PCG(m_rtp, s_rt, tmp_rtp, g_rtp, 0, 200,
+                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
                       cg_rtol * cg_rtol, 0.0);
 
                   REQUIRE( g_rtp.ComputeL2Error(MF3_coef) < tol );
