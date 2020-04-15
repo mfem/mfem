@@ -101,6 +101,9 @@ struct Opt
    bool print = false;
    bool radial = false;
    bool by_vdim = false;
+   bool snapshot = false;
+   // bool vis_mesh = false; // Not supported by GLVis
+   double tau = 1.0;
    double lambda = 0.1;
    double amr_threshold = 0.6;
    const char *keys = "gAm";
@@ -162,6 +165,11 @@ public:
       else
       {
          ByNodes(*this, opt).Solve();
+      }
+      if (opt.vis && opt.snapshot)
+      {
+         opt.keys = "Sq";
+         Visualize(opt, mesh, mesh->GetNodes());
       }
       return 0;
    }
@@ -234,7 +242,7 @@ public:
    }
 
    // Initialize visualization of some given mesh
-   static void Visualize(const Opt &opt, const Mesh *mesh,
+   static void Visualize(Opt &opt, const Mesh *mesh,
                          const int w, const int h,
                          const GridFunction *sol = nullptr)
    {
@@ -244,6 +252,7 @@ public:
       glvis.precision(8);
       glvis << "window_size " << w << " " << h << "\n";
       glvis << "keys " << opt.keys << "\n";
+      opt.keys = nullptr;
       if (opt.wait) { glvis << "pause\n"; }
       glvis << std::flush;
    }
@@ -256,6 +265,7 @@ public:
       const GridFunction &solution = sol ? *sol : *mesh->GetNodes();
       glvis << "solution\n" << *mesh << solution;
       if (opt.wait) { glvis << "pause\n"; }
+      if (opt.snapshot && opt.keys) { glvis << "keys " << opt.keys << "\n"; }
       glvis << std::flush;
    }
 
@@ -749,13 +759,14 @@ cdouble WeierstrassZeta(const cdouble z,
 }
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
-static double ALPHA[3] {0.0};
+static double ALPHA[4] {0.0};
 struct Costa: public Surface
 {
    Costa(Opt &opt): Surface((opt.Tptr = Parametrization, opt), false) { }
 
    void Prefix()
    {
+      ALPHA[3] = opt.tau;
       const int nx = opt.nx, ny = opt.ny;
       MFEM_VERIFY(nx>2 && ny>2, "");
       const int nXhalf = (nx%2)==0 ? 4 : 2;
@@ -801,8 +812,14 @@ struct Costa: public Surface
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
-   static void Parametrization(const Vector &x, Vector &p)
+   static void Parametrization(const Vector &X, Vector &p)
    {
+      const double tau = ALPHA[3];
+      Vector x = X;
+      x -= +0.5;
+      x *= tau;
+      x -= -0.5;
+
       p.SetSize(3);
       const bool y_top = x[1] > 0.5;
       const bool x_top = x[0] > 0.5;
@@ -1210,16 +1227,16 @@ static double qf(const int order, const int ker, Mesh &m,
 static int Problem1(Opt &opt)
 {
    const int order = opt.order;
-   Mesh mesh(opt.nx, opt.ny, QUAD);
-   mesh.SetCurvature(opt.order, false, DIM, Ordering::byNODES);
-   for (int l = 0; l < opt.refine; l++) { mesh.UniformRefinement(); }
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   Mesh smesh(opt.nx, opt.ny, QUAD);
+   smesh.SetCurvature(opt.order, false, DIM, Ordering::byNODES);
+   for (int l = 0; l < opt.refine; l++) { smesh.UniformRefinement(); }
+   ParMesh mesh(MPI_COMM_WORLD, smesh);
    const H1_FECollection fec(order, DIM);
-   ParFiniteElementSpace fes(&pmesh, &fec);
+   ParFiniteElementSpace fes(&mesh, &fec);
    Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
+   if (mesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -1227,7 +1244,7 @@ static int Problem1(Opt &opt)
    FunctionCoefficient u0_fc(u0);
    u.ProjectCoefficient(u0_fc);
    if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
-   if (opt.vis) { Surface::Visualize(opt, &pmesh, GLVIZ_W, GLVIZ_H, &u); }
+   if (opt.vis) { Surface::Visualize(opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
    Vector B, X;
    OperatorPtr A;
    CGSolver cg(MPI_COMM_WORLD);
@@ -1241,8 +1258,8 @@ static int Problem1(Opt &opt)
       uold = u;
       ParBilinearForm a(&fes);
       if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      const double q_uold = qf(order, AREA, pmesh, fes, uold);
-      MFEM_VERIFY(fabs(q_uold) > EPS,"");
+      const double q_uold = qf(order, AREA, mesh, fes, uold);
+      MFEM_VERIFY(std::fabs(q_uold) > EPS,"");
       ConstantCoefficient q_uold_cc(1.0/sqrt(q_uold));
       a.AddDomainIntegrator(new DiffusionIntegrator(q_uold_cc));
       a.Assemble();
@@ -1251,15 +1268,15 @@ static int Problem1(Opt &opt)
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, u);
       subtract(u, uold, eps);
-      const double norm = sqrt(fabs(qf(order, NORM, pmesh, fes, eps)));
-      const double area = qf(order, AREA, pmesh, fes, u);
+      const double norm = sqrt(fabs(qf(order, NORM, mesh, fes, eps)));
+      const double area = qf(order, AREA, mesh, fes, u);
       if (!opt.id)
       {
          mfem::out << "Iteration " << i << ", norm: " << norm
                    << ", area: " << area << std::endl;
       }
-      if (opt.vis) { Surface::Visualize(opt, &pmesh, &u); }
-      if (opt.print) { Surface::Print(opt, &pmesh, &u); }
+      if (opt.vis) { Surface::Visualize(opt, &mesh, &u); }
+      if (opt.print) { Surface::Print(opt, &mesh, &u); }
       if (norm < NRM) { break; }
    }
    return 0;
@@ -1289,6 +1306,7 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.surface, "-s", "--surface", "Choice of the surface.");
    args.AddOption(&opt.pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&opt.tau, "-t", "--tau", "Costa scale factor.");
    args.AddOption(&opt.lambda, "-l", "--lambda", "Lambda step toward solution.");
    args.AddOption(&opt.amr, "-a", "--amr", "-no-a", "--no-amr", "Enable AMR.");
    args.AddOption(&opt.amr_threshold, "-at", "--amr-threshold", "AMR threshold.");
@@ -1302,6 +1320,8 @@ int main(int argc, char *argv[])
                   "Enable or disable the 'ByVdim' solver");
    args.AddOption(&opt.print, "-print", "--print", "-no-print", "--no-print",
                   "Enable or disable result output (files in mfem format).");
+   args.AddOption(&opt.snapshot, "-ss", "--snapshot", "-no-ss", "--no-snapshot",
+                  "Enable or disable GLVis snapshot.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(mfem::out); MPI_Finalize(); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
