@@ -801,15 +801,19 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    int elem_no = T.ElementNo;
    if (index == 0 && length == QuadF->GetVDim())
    {
-      QuadF->GetElementValues(elem_no, ip.index, V);
+      Vector temp;
+      QuadF->GetElementValues(elem_no, ip.index, temp);
+      V = temp;
    }
    else
    {
-      // This will need to be improved upon...
       Vector temp;
       QuadF->GetElementValues(elem_no, ip.index, temp);
       double *data = temp.HostReadWrite();
-      V.NewDataAndSize(data + index, length);
+      V.SetSize(length);
+      for(int i = 0; i < length; i++) {
+         V(i) = data[index + i];
+      }
    }
 
    return;
