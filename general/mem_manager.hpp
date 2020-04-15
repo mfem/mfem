@@ -716,48 +716,51 @@ template <typename T>
 inline T &Memory<T>::operator[](int idx)
 {
    MFEM_ASSERT((flags & VALID_HOST) && !(flags & VALID_DEVICE),
-               "invalid host pointer access");
+               "invalid host pointer access: use HostReadWrite() to invalidate the device pointer");
    return h_ptr[idx];
 }
 
 template <typename T>
 inline const T &Memory<T>::operator[](int idx) const
 {
-   MFEM_ASSERT((flags & VALID_HOST), "invalid host pointer access");
+   MFEM_ASSERT((flags & VALID_HOST),
+               "invalid host pointer access: use HostRead() to synchronize host with device");
    return h_ptr[idx];
 }
 
 template <typename T>
 inline Memory<T>::operator T*()
 {
-   MFEM_ASSERT(Empty() ||
-               ((flags & VALID_HOST) &&
-                (std::is_const<T>::value || !(flags & VALID_DEVICE))),
-               "invalid host pointer access");
+   MFEM_ASSERT(Empty() || ((flags & VALID_HOST) && std::is_const<T>::value),
+               "invalid host pointer access: use HostRead() to synchronize host with device");
+   MFEM_ASSERT(Empty() || ((flags & VALID_HOST) && !(flags & VALID_DEVICE)),
+               "invalid host pointer access: use HostReadWrite() to invalidate the device pointer");
    return h_ptr;
 }
 
 template <typename T>
 inline Memory<T>::operator const T*() const
 {
-   MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   MFEM_ASSERT(Empty() || (flags & VALID_HOST),
+               "invalid host pointer access: use HostRead() to synchronize host with device");
    return h_ptr;
 }
 
 template <typename T> template <typename U>
 inline Memory<T>::operator U*()
 {
-   MFEM_ASSERT(Empty() ||
-               ((flags & VALID_HOST) &&
-                (std::is_const<U>::value || !(flags & VALID_DEVICE))),
-               "invalid host pointer access");
+   MFEM_ASSERT(Empty() || ((flags & VALID_HOST) && std::is_const<T>::value),
+               "invalid host pointer access: use HostRead() to synchronize host with device");
+   MFEM_ASSERT(Empty() || ((flags & VALID_HOST) && !(flags & VALID_DEVICE)),
+               "invalid host pointer access: use HostReadWrite() to invalidate the device pointer");
    return reinterpret_cast<U*>(h_ptr);
 }
 
 template <typename T> template <typename U>
 inline Memory<T>::operator const U*() const
 {
-   MFEM_ASSERT(Empty() || (flags & VALID_HOST), "invalid host pointer access");
+   MFEM_ASSERT((flags & VALID_HOST),
+               "invalid host pointer access: use HostRead() to synchronize host with device");
    return reinterpret_cast<U*>(h_ptr);
 }
 
