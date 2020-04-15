@@ -47,4 +47,3 @@ build_script:
 after_build:
 - cd build_serial
 - ctest -C Release --output-on-failure
-

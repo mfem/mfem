@@ -370,6 +370,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
   checks in Travis enforce MFEM-specific rules which are explained in the
   error messages and the `tests/scripts` directory.
 
+- If triggered, track the status of the LLNL GitLab tests. If failing, ask
+  one of the _LLNL developers_ for details.
+
 ### Pull Request Checklist
 
 Before a PR can be merged, it should satisfy the following:
@@ -380,9 +383,13 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Is this a new feature users need to be aware of? New or updated example or miniapp?
     - [ ] Does it make sense to create a new section in the `CHANGELOG` to group with other related features?
 - [ ] Update `INSTALL`:
-    - [ ] Had a new optional library been added? (*Make sure the external library is compatible with our BSD license, e.g. it is not licensed under GPL!*)
+    - [ ] Had a new optional library been added? If so, what range of versions of this library are required? (*Make sure the external library is compatible with our BSD license, e.g. it is not licensed under GPL!*)
+    - [ ] Have the version ranges for any required or optional libraries changed?
     - [ ] Does `make` or `cmake` have a new target?
     - [ ] Did the requirements or the installation process change? *(rare)*
+- [ ] Update continuous integration server configurations if necessary (e.g. with new version requirements for each of MFEM's dependencies)
+    - [ ] `.travis.yml`
+    - [ ] `.appveyor.yml`
 - [ ] Update `.gitignore`:
     - [ ] Check if `make distclean; git status` shows any files that were generated from the source by the project (not an IDE) but we don't want to track in the repository.
     - [ ] Add new patterns (just for the new files above) and re-run the above test.
@@ -496,6 +503,10 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - [ ] `makefile`
     - [ ] `CMakeLists.txt`
     - [ ] `doc/CodeDocumentation.conf.in`
+- [ ] Check that version requirements for each of MFEM's dependencies are documented in `INSTALL` and up-to-date
+- [ ] Check that continuous integration server configurations reflect the dependency version requirements of the new release
+    - [ ] `.travis.yml`
+    - [ ] `.appveyor.yml`
 - [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
 - [ ] Tag the repository:
 
@@ -536,6 +547,17 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
 
+### Mirroring on GitLab
+
+- MFEM repository is also mirrored on the LLNL GitLab instance, in a
+  semi-automated manner.
+
+- This instance is meant to complete CI testing with tests on Livermore
+  Computing systems. Gitlab pipeline status is reported in the corresponding
+  GitHub pull request.
+
+- No change can be made on this instance.
+
 ## Automated Testing
 
 MFEM has several levels of automated testing running on GitHub, as well as on
@@ -563,10 +585,14 @@ and debug build is performed with a simple run of `ex1` to verify the executable
 
 ### Tests at LLNL
 
-- We mirror the `master` and `next` branches internally (to `gh-master`
-and `gh-next`) and run longer nightly tests via cron. On the weekends, a more
-extensive test is run which extracts and executes all the different sample runs
-from each example.
+- We mirror the `master` and `next` branches internally (to `gh-master` and
+  `gh-next`) and run longer nightly tests via cron. On the weekends, a more
+  extensive test is run which extracts and executes all the different sample
+  runs from each example.
+
+- We also mirror PRs on the LLNL GitLab instance. PR mirroring can only be
+  triggered by _LLNL developers_, but test status is publicly available. Only
+  _LLNL developers_ can access the detailed test report.
 
 ## Contact Information
 

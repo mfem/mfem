@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_HEXAHEDRON
@@ -52,7 +52,7 @@ public:
    { return geom_t::Edges[ei]; }
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   virtual int GetNFaces(int &nFaceVertices) const
+   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 4; return 6; }
 
    virtual int GetNFaces() const { return 6; }

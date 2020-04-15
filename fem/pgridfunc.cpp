@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -497,6 +497,26 @@ void ParGridFunction::Save(std::ostream &out) const
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 }
+
+#ifdef MFEM_USE_ADIOS2
+void ParGridFunction::Save(adios2stream &out,
+                           const std::string& variable_name,
+                           const adios2stream::data_type type) const
+{
+   double *data_  = const_cast<double*>(HostRead());
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   GridFunction::Save(out, variable_name, type);
+
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+}
+#endif
 
 void ParGridFunction::SaveAsOne(std::ostream &out)
 {

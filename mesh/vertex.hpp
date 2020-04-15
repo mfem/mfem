@@ -6,13 +6,14 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_VERTEX
 #define MFEM_VERTEX
 
 #include "../config/config.hpp"
+#include "../general/globals.hpp"
 
 namespace mfem
 {
@@ -44,7 +45,7 @@ public:
 
    /// (DEPRECATED) Set the coordinates of the Vertex.
    /** @deprecated This old version of SetCoords is not always memory safe. */
-   void SetCoords(const double *p)
+   MFEM_DEPRECATED void SetCoords(const double *p)
    { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; }
 
    /// Sets vertex location based on given point p

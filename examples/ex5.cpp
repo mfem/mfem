@@ -20,7 +20,7 @@
 //               polynomials (pressure p).
 //
 //               The example demonstrates the use of the BlockMatrix class, as
-//               well as the collective saving of several grid functions in a
+//               well as the collective saving of several grid functions in
 //               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
