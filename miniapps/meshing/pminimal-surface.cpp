@@ -1249,6 +1249,7 @@ static int Problem1(Opt &opt)
    OperatorPtr A;
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(EPS);
+   cg.SetAbsTol(EPS*EPS);
    cg.SetMaxIter(400);
    cg.SetPrintLevel(0);
    ParGridFunction eps(&fes);
@@ -1268,7 +1269,7 @@ static int Problem1(Opt &opt)
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, u);
       subtract(u, uold, eps);
-      const double norm = sqrt(fabs(qf(order, NORM, mesh, fes, eps)));
+      const double norm = sqrt(std::fabs(qf(order, NORM, mesh, fes, eps)));
       const double area = qf(order, AREA, mesh, fes, u);
       if (!opt.id)
       {

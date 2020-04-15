@@ -1237,6 +1237,11 @@ static int Problem1(Opt &opt)
    u.ProjectCoefficient(u0_fc);
    if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
    if (opt.vis) { Surface::Visualize(opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
+   CGSolver cg;
+   cg.SetRelTol(EPS);
+   cg.SetAbsTol(EPS*EPS);
+   cg.SetMaxIter(400);
+   cg.SetPrintLevel(0);
    Vector B, X;
    OperatorPtr A;
    GridFunction eps(&fes);
@@ -1252,10 +1257,11 @@ static int Problem1(Opt &opt)
       a.AddDomainIntegrator(new DiffusionIntegrator(q_uold_cc));
       a.Assemble();
       a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
-      CG(*A, B, X, 0, 400, EPS, 0.0);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, u);
       subtract(u, uold, eps);
-      const double norm = sqrt(fabs(qf(order, NORM, mesh, fes, eps)));
+      const double norm = sqrt(std::fabs(qf(order, NORM, mesh, fes, eps)));
       const double area = qf(order, AREA, mesh, fes, u);
       if (!opt.id)
       {
