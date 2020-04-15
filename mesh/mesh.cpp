@@ -4490,42 +4490,27 @@ Table *Mesh::GetFaceToElementTable() const
    return face_elem;
 }
 
-void Mesh::GetElementFaces(int i, Array<int> &fcs, Array<int> &cor)
-const
+void Mesh::GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const
 {
-   int n, j;
+   MFEM_VERIFY(el_to_face != NULL, "el_to_face not generated");
 
-   if (el_to_face)
-   {
-      el_to_face->GetRow(i, fcs);
-   }
-   else
-   {
-      mfem_error("Mesh::GetElementFaces(...) : el_to_face not generated.");
-   }
+   el_to_face->GetRow(i, faces);
 
-   n = fcs.Size();
-   cor.SetSize(n);
-   for (j = 0; j < n; j++)
-      if (faces_info[fcs[j]].Elem1No == i)
+   int n = faces.Size();
+   ori.SetSize(n);
+
+   for (int j = 0; j < n; j++)
+   {
+      if (faces_info[faces[j]].Elem1No == i)
       {
-         cor[j] = faces_info[fcs[j]].Elem1Inf % 64;
-      }
-#ifdef MFEM_DEBUG
-      else if (faces_info[fcs[j]].Elem2No == i)
-      {
-         cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
+         ori[j] = faces_info[faces[j]].Elem1Inf % 64;
       }
       else
       {
-         mfem_error("Mesh::GetElementFaces(...) : 2");
+         MFEM_ASSERT(faces_info[faces[j]].Elem2No == i, "internal error");
+         ori[j] = faces_info[faces[j]].Elem2Inf % 64;
       }
-#else
-      else
-      {
-         cor[j] = faces_info[fcs[j]].Elem2Inf % 64;
-      }
-#endif
+   }
 }
 
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const
@@ -4547,7 +4532,7 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
          *o = GetQuadOrientation(fv, bv);
          break;
       default:
-         mfem_error("Mesh::GetBdrElementFace(...) 2");
+         MFEM_ABORT("invalid geometry");
    }
 }
 
@@ -4558,7 +4543,7 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
       case 1: return boundary[i]->GetVertices()[0];
       case 2: return be_to_edge[i];
       case 3: return be_to_face[i];
-      default: mfem_error("Mesh::GetBdrElementEdgeIndex: invalid dimension!");
+      default: MFEM_ABORT("invalid dimension!");
    }
    return -1;
 }
@@ -4566,12 +4551,14 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
 void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
 {
    int fid = GetBdrElementEdgeIndex(bdr_el);
+
    const FaceInfo &fi = faces_info[fid];
-   MFEM_ASSERT(fi.Elem1Inf%64 == 0, "internal error"); // orientation == 0
+   MFEM_ASSERT(fi.Elem1Inf % 64 == 0, "internal error"); // orientation == 0
+
    const int *fv = (Dim > 1) ? faces[fid]->GetVertices() : NULL;
    const int *bv = boundary[bdr_el]->GetVertices();
    int ori;
-   switch (GetBdrElementBaseGeometry(bdr_el))
+   switch (GetBdrElementGeometry(bdr_el))
    {
       case Geometry::POINT:    ori = 0; break;
       case Geometry::SEGMENT:  ori = (fv[0] == bv[0]) ? 0 : 1; break;
