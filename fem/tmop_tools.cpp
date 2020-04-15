@@ -420,7 +420,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
    DiscreteAdaptTC *dtc = NULL;
-   for (int i = 0; i<integs.Size(); i++)
+   for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
@@ -448,7 +448,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
       Vector x_loc(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
-      for (int i=0; i<integs.Size(); i++)
+      for (int i = 0; i < integs.Size(); i++)
       {
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
@@ -483,7 +483,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       {
          x_loc = x;
       }
-      for (int i=0; i<integs.Size(); i++)
+      for (int i = 0; i < integs.Size(); i++)
       {
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
