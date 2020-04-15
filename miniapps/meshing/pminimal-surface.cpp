@@ -101,7 +101,6 @@ struct Opt
    bool print = false;
    bool radial = false;
    bool by_vdim = false;
-   bool vis_mesh = false;
    double lambda = 0.1;
    double amr_threshold = 0.6;
    const char *keys = "gAm";
@@ -241,8 +240,7 @@ public:
    {
       const GridFunction &solution = sol ? *sol : *mesh->GetNodes();
       glvis << "parallel " << opt.sz << " " << opt.id << "\n";
-      if (opt.vis_mesh) { glvis << "mesh\n" << *mesh; }
-      else { glvis << "solution\n" << *mesh << solution; }
+      glvis << "solution\n" << *mesh << solution;
       glvis.precision(8);
       glvis << "window_size " << w << " " << h << "\n";
       glvis << "keys " << opt.keys << "\n";
@@ -256,8 +254,7 @@ public:
    {
       glvis << "parallel " << opt.sz << " " << opt.id << "\n";
       const GridFunction &solution = sol ? *sol : *mesh->GetNodes();
-      if (opt.vis_mesh) { glvis << "mesh\n" << *mesh; }
-      else { glvis << "solution\n" << *mesh << solution; }
+      glvis << "solution\n" << *mesh << solution;
       if (opt.wait) { glvis << "pause\n"; }
       glvis << std::flush;
    }
@@ -1300,8 +1297,6 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.keys, "-k", "--keys", "GLVis configuration keys.");
    args.AddOption(&opt.vis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable visualization.");
-   args.AddOption(&opt.vis_mesh, "-vm", "--vis-mesh", "-no-vm",
-                  "--no-vis-mesh", "Enable or disable mesh visualization.");
    args.AddOption(&opt.by_vdim, "-c", "--solve-byvdim",
                   "-no-c", "--solve-bynodes",
                   "Enable or disable the 'ByVdim' solver");
@@ -1310,7 +1305,6 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(mfem::out); MPI_Finalize(); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
-   MFEM_VERIFY(!opt.vis_mesh, "Option not available in parallel!");
    if (!opt.id) { args.PrintOptions(mfem::out); }
 
    // Initialize hardware devices
