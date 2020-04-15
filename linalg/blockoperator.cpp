@@ -81,6 +81,8 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
       {
          if (op(iRow,jCol))
          {
+            xblock.GetBlock(jCol).HostReadWrite();
+
             op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
             yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
          }

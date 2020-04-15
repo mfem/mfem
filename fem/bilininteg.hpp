@@ -2103,6 +2103,7 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *Q;
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
@@ -2395,6 +2396,7 @@ class DivDivIntegrator: public BilinearFormIntegrator
 protected:
    Coefficient *Q;
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
