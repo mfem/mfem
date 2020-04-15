@@ -851,17 +851,6 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete blfT;
                   delete diff;
-
-                  MixedBilinearForm blfv(&fespace_nd, &fespace_rt);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
                }
             }
             {
@@ -1091,17 +1080,6 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete blfT;
                   delete diff;
-
-                  MixedBilinearForm blfv(&fespace_nd, &fespace_nd);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
                }
             }
             {
@@ -1346,17 +1324,6 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete blfT;
                   delete diff;
-
-                  MixedBilinearForm blfv(&fespace_rt, &fespace_nd);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
                }
             }
             {
@@ -1586,17 +1553,6 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete blfT;
                   delete diff;
-
-                  MixedBilinearForm blfv(&fespace_rt, &fespace_rt);
-                  blfv.AddDomainIntegrator(new VectorFEMassIntegrator());
-                  blfv.Assemble();
-                  blfv.Finalize();
-
-                  SparseMatrix * diffv = Add(1.0,blf.SpMat(),-1.0,blfv.SpMat());
-
-                  REQUIRE( diffv->MaxNorm() < tol );
-
-                  delete diffv;
                }
             }
             {
