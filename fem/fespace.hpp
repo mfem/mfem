@@ -115,7 +115,7 @@ protected:
    Table edge_dof;
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
-   Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
+   Table *bdr_elem_dof; // used only with NURBS FE spaces; not owned.
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -138,8 +138,8 @@ protected:
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
 
-   bool dirty; // space needs updating (rebuilding) if true, e.g., on order change
    long sequence; // to detect changes in the mesh: should match Mesh::GetSequence
+   bool orders_changed; // space needs updating (rebuilding) if true
 
    void UpdateNURBS();
 
@@ -446,8 +446,8 @@ public:
    /// Returns indices of degrees of freedom of element 'elem'.
    virtual void GetElementDofs(int elem, Array<int> &dofs) const;
 
-   /// Returns indexes of degrees of freedom for i'th boundary element.
-   virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
+   /// Returns indexes of degrees of freedom for boundary element 'bel'.
+   virtual void GetBdrElementDofs(int bel, Array<int> &dofs) const;
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
@@ -511,7 +511,7 @@ public:
    void BuildDofToArrays();
 
    const Table &GetElementToDofTable() const { return *elem_dof; }
-   const Table &GetBdrElementToDofTable() const { return *bdrElem_dof; }
+   const Table &GetBdrElementToDofTable() const { return *bdr_elem_dof; }
 
    int GetElementForDof(int i) const { return dof_elem_array[i]; }
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }

@@ -60,11 +60,11 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
-     elem_dof(NULL), bdrElem_dof(NULL),
+     elem_dof(NULL), bdr_elem_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
-     sequence(0)
+     sequence(0), orders_changed(false)
 { }
 
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
@@ -104,7 +104,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
       if (elem_order[i] != p)
       {
          elem_order[i] = p;
-         dirty = true;
+         orders_changed = true;
       }
    }
    else
@@ -115,7 +115,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
          elem_order = fec->DefaultOrder();
 
          elem_order[i] = p;
-         dirty = true;
+         orders_changed = true;
       }
    }
 }
@@ -1468,7 +1468,7 @@ void FiniteElementSpace::UpdateNURBS()
 
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
-   bdrElem_dof = NURBSext->GetBdrElementDofTable();
+   bdr_elem_dof = NURBSext->GetBdrElementDofTable();
 }
 
 void FiniteElementSpace::Construct()
@@ -1477,7 +1477,7 @@ void FiniteElementSpace::Construct()
    MFEM_VERIFY(!NURBSext, "internal error");
 
    elem_dof = NULL;
-   bdrElem_dof = NULL;
+   bdr_elem_dof = NULL;
 
    ndofs = 0;
    nedofs = nfdofs = nbdofs = 0;
@@ -1605,7 +1605,7 @@ int FiniteElementSpace::FindEdgeDof(int edge, int pdof) const
       beg++;
    }
 
-   MFEM_ABORT("Edge DOFs not found (count = " << pdof << ")");
+   MFEM_ABORT("Edge DOFs not found for count = " << pdof);
    return 0;
 }
 
@@ -1722,85 +1722,81 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    return FE;
 }
 
-void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 {
-   if (bdrElem_dof)
+   if (bdr_elem_dof)
    {
-      bdrElem_dof->GetRow(i, dofs);
+      bdr_elem_dof->GetRow(bel, dofs);
+      return;
    }
-   else
-   {
-      Array<int> V, E, Eo;
-      int k, j, nv, ne, nf, nd, iF, oF, dim;
-      const int *ind;
 
-      dim = mesh->Dimension();
-      nv = fec->DofForGeometry(Geometry::POINT);
-      if (nv > 0)
+   Array<int> V, E, Eo; // TODO: LocalArray
+   int F, Fo;
+
+   int dim = mesh->Dimension();
+   auto geom = mesh->GetBdrElementGeometry(bel);
+   int p = fec->DefaultOrder();
+
+   if (IsVariableOrder()) // determine order 'p' from regular mesh element
+   {
+      int elem, info;
+      mesh->GetBdrElementAdjacentElement(bel, elem, info);
+      p = elem_order[elem];
+   }
+
+   int nv = fec->GetNumDof(Geometry::POINT, p);
+   int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, p) : 0;
+   int nf = (dim > 2) ? fec->GetNumDof(geom, p) : 0;
+
+   if (nv)
+   {
+      mesh->GetBdrElementVertices(bel, V);
+   }
+   if (ne)
+   {
+      mesh->GetBdrElementEdges(bel, E, Eo);
+   }
+   if (nf)
+   {
+      mesh->GetBdrElementFace(bel, &F, &Fo);
+   }
+
+   dofs.SetSize(0);
+   dofs.Reserve(nv*V.Size() + ne*E.Size() + nf);
+
+   if (nv) // vertex DOFs
+   {
+      for (int i = 0; i < V.Size(); i++)
       {
-         mesh->GetBdrElementVertices(i, V);
-      }
-      ne = (dim > 1) ? ( fec->DofForGeometry(Geometry::SEGMENT) ) : ( 0 );
-      if (ne > 0)
-      {
-         mesh->GetBdrElementEdges(i, E, Eo);
-      }
-      nd = V.Size() * nv + E.Size() * ne;
-      nf = (dim == 3) ? (fec->DofForGeometry(
-                            mesh->GetBdrElementBaseGeometry(i))) : (0);
-      if (nf > 0)
-      {
-         nd += nf;
-         mesh->GetBdrElementFace(i, &iF, &oF);
-      }
-      dofs.SetSize(nd);
-      if (nv > 0)
-      {
-         for (k = 0; k < V.Size(); k++)
+         for (int j = 0; j < nv; j++)
          {
-            for (j = 0; j < nv; j++)
-            {
-               dofs[k*nv+j] = V[k]*nv+j;
-            }
-         }
-         nv *= V.Size();
-      }
-      if (ne > 0)
-      {
-         // if (dim > 1)
-         for (k = 0; k < E.Size(); k++)
-         {
-            ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
-            for (j = 0; j < ne; j++)
-            {
-               if (ind[j] < 0)
-               {
-                  dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
-               }
-               else
-               {
-                  dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
-               }
-            }
+            dofs.Append(V[i]*nv + j);
          }
       }
-      if (nf > 0)
-         // if (dim == 3)
+   }
+
+   if (ne) // edge DOFs
+   {
+      for (int i = 0; i < E.Size(); i++)
       {
-         ne = nv + ne * E.Size();
-         ind = fec->DofOrderForOrientation(
-                  mesh->GetBdrElementBaseGeometry(i), oF);
-         for (j = 0; j < nf; j++)
+         int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
+         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, p, Eo[i]);
+
+         for (int j = 0; j < ne; j++)
          {
-            if (ind[j] < 0)
-            {
-               dofs[ne+j] = -1 - ( nvdofs+nedofs+fdofs[iF]+(-1-ind[j]) );
-            }
-            else
-            {
-               dofs[ne+j] = nvdofs+nedofs+fdofs[iF]+ind[j];
-            }
+            dofs.Append(EncodeDof(nvdofs + ebase, ind[j]));
          }
+      }
+   }
+
+   if (nf) // face DOFs
+   {
+      int fbase = fdofs[F]; // TODO: variable order space
+      const int *ind = fec->GetDofOrdering(geom, p, Fo);
+
+      for (int j = 0; j < nf; j++)
+      {
+         dofs.Append(EncodeDof(nvdofs + nedofs + fbase, ind[j]));
       }
    }
 }
@@ -2055,7 +2051,7 @@ void FiniteElementSpace::Destroy()
    else
    {
       delete elem_dof;
-      delete bdrElem_dof;
+      delete bdr_elem_dof;
 
       delete [] bdofs;
       delete [] fdofs;
