@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_NONLINEARFORM
@@ -87,6 +87,7 @@ public:
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
+   const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
@@ -112,7 +113,7 @@ public:
 
    /// (DEPRECATED) Specify essential boundary conditions.
    /** @deprecated Use either SetEssentialBC() or SetEssentialTrueDofs(). */
-   void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
+   MFEM_DEPRECATED void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 
    /// Specify essential boundary conditions.
    void SetEssentialTrueDofs(const Array<int> &ess_tdof_list)

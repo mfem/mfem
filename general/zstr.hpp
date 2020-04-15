@@ -69,7 +69,9 @@ static std::string strerror()
    {
       buff = "Unknown error";
    }
-#elif (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(__APPLE__)
+#elif (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || \
+      defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
+      defined(__NetBSD__) || defined(__DragonFly__)
    // XSI-compliant strerror_r()
    if (strerror_r(errno, &buff[0], buff.size()) != 0)
    {
@@ -173,7 +175,7 @@ struct static_method_holder
          is_p->peek();
          peek_failed = is_p->fail();
       }
-      catch (std::ios_base::failure e) {}
+      catch (std::ios_base::failure &e) {}
       if (peek_failed)
       {
          throw Exception(std::string("strict_fstream: open('")

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_GLOBALS_HPP
@@ -112,6 +112,18 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 // Request a global object to be instantiated for each thread in its TLS.
 #define MFEM_THREAD_LOCAL thread_local
+
+
+// MFEM_DEPRECATED macro to mark obsolete functions and methods
+// see https://stackoverflow.com/questions/295120/c-mark-as-deprecated
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+#define MFEM_DEPRECATED __declspec(deprecated)
+#else
+#pragma message("WARNING: You need to implement MFEM_DEPRECATED for this compiler")
+#define MFEM_DEPRECATED
+#endif
 
 
 #endif

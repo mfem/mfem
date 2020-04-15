@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 // Implementation of Bilinear Form Integrators
@@ -2216,7 +2216,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // integrant is rational function if det(J) is not constant
+      // integrand is rational function if det(J) is not constant
       int order = 2 * Tr.OrderGrad(&el); // order of the numerator
       ir = (el.Space() == FunctionSpace::rQk) ?
            &RefinedIntRules.Get(el.GetGeomType(), order) :
