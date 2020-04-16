@@ -57,7 +57,7 @@ public:
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag);
 
-   /// Assemble diagonal of ADA^T and add it to Vector @a diag.
+   /// Assemble diagonal of ADA^T (A is this integrator) and add it to @a diag.
    virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
 
    /// Method for partially assembled action.
