@@ -750,12 +750,14 @@ public:
       delete tspec_fesv;
    }
 
+   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec_);
    virtual void SetSerialDiscreteTargetSize(GridFunction &tspec_);
    virtual void SetSerialDiscreteTargetSkew(GridFunction &tspec_);
    virtual void SetSerialDiscreteTargetAspectRatio(GridFunction &tspec_);
    virtual void SetSerialDiscreteTargetOrientation(GridFunction &tspec_);
    virtual void FinalizeSerialDiscreteTargetSpec();
 #ifdef MFEM_USE_MPI
+   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec_);
    virtual void SetParDiscreteTargetSize(ParGridFunction &tspec_);
    virtual void SetParDiscreteTargetSkew(ParGridFunction &tspec_);
    virtual void SetParDiscreteTargetAspectRatio(ParGridFunction &tspec_);

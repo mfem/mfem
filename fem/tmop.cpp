@@ -982,7 +982,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetBase(ParGridFunction &tspec_)
 
    ncomp += vdim;
 
-   if (ncomp == vdim)
+   if (tspec_fes == NULL)
    {
       tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
                                          tspec_.FESpace()->FEColl(),
@@ -1039,6 +1039,12 @@ void DiscreteAdaptTC::SetParDiscreteTargetOrientation(ParGridFunction &tspec_)
    orientationidx = ncomp;
    SetParDiscreteTargetBase(tspec_);
 }
+
+void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
+{
+   SetParDiscreteTargetSize(tspec_);
+   FinalizeParDiscreteTargetSpec();
+}
 #endif
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
@@ -1048,7 +1054,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
 
    ncomp += vdim;
 
-   if (ncomp == vdim)
+   if (tspec_fes == NULL)
    {
       tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
                                          tspec_.FESpace()->FEColl(),
@@ -1121,6 +1127,13 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
                                        tspec_fes->FEColl(),
                                        ncomp);
 }
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
+{
+   SetSerialDiscreteTargetSize(tspec_);
+   FinalizeSerialDiscreteTargetSpec();
+}
+
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x)
 {
