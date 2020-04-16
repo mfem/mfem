@@ -1412,6 +1412,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          }
          mfem::out << '\n';
       }
+      Monitor(it, norm, r, x);
 
       if (norm <= norm_goal)
       {
