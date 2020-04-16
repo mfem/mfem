@@ -60,6 +60,12 @@ New and updated examples and miniapps
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
 
+- Added a new example, Example 27/27p, to demonstrate the enforcement of
+  various boundary conditions with the Laplace operator.  The example shows the
+  procedures for applying Dirichlet, Neumann (both homogeneous and
+  inhomogeneous), Robin, and periodic boundary conditions with either H1 or DG
+  discretizations.
+
 Improved testing
 ----------------
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
