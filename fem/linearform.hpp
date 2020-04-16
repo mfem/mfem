@@ -100,7 +100,7 @@ public:
 
    /// (DEPRECATED) Return the FE space associated with the LinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Read+write access to the associated FiniteElementSpace.
    FiniteElementSpace *FESpace() { return fes; }
