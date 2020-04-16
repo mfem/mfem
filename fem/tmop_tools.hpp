@@ -28,8 +28,12 @@ private:
    Vector nodes0;
    Vector field0;
 
+   const double dt_scale;
+
 public:
-   AdvectorCG() : AdaptivityEvaluator(), ode_solver(), nodes0(), field0() { }
+   AdvectorCG(double timestep_scale = 0.5)
+      : AdaptivityEvaluator(),
+        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
