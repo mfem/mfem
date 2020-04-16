@@ -75,7 +75,7 @@ public:
    virtual const int *GetEdgeVertices(int) const = 0;
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   virtual int GetNFaces(int &nFaceVertices) const = 0;
+   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const = 0;
 
    virtual int GetNFaces() const = 0;
 
