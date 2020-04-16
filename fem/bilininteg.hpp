@@ -2920,62 +2920,6 @@ protected:
    VectorCoefficient *VQ;
 };
 
-// Local maximum size of dofs and quads in 1D
-constexpr int HDIV_MAX_D1D = 5;
-constexpr int HDIV_MAX_Q1D = 6;
-
-void PAHdivMassApply3D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<double> &_Bo,
-                       const Array<double> &_Bc,
-                       const Array<double> &_Bot,
-                       const Array<double> &_Bct,
-                       const Vector &_op,
-                       const Vector &_x,
-                       Vector &_y);
-
-void PAHdivMassApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const Array<double> &_Bo,
-                       const Array<double> &_Bc,
-                       const Array<double> &_Bot,
-                       const Array<double> &_Bct,
-                       const Vector &_op,
-                       const Vector &_x,
-                       Vector &_y);
-
-void PAHdivSetup3D(const int Q1D,
-                   const int NE,
-                   const Array<double> &w,
-                   const Vector &j,
-                   Vector &_coeff,
-                   Vector &op);
-
-void PAHdivSetup2D(const int Q1D,
-                   const int NE,
-                   const Array<double> &w,
-                   const Vector &j,
-                   Vector &_coeff,
-                   Vector &op);
-
-void PAHdivMassAssembleDiagonal3D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const Array<double> &_Bo,
-                                  const Array<double> &_Bc,
-                                  const Vector &_op,
-                                  Vector &_diag);
-
-void PAHdivMassAssembleDiagonal2D(const int D1D,
-                                  const int Q1D,
-                                  const int NE,
-                                  const Array<double> &_Bo,
-                                  const Array<double> &_Bc,
-                                  const Vector &_op,
-                                  Vector &_diag);
-
 }
 
 #endif
