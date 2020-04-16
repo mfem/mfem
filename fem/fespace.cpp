@@ -1540,6 +1540,9 @@ void FiniteElementSpace::Construct()
 
    ndofs = nvdofs + nedofs + nfdofs + nbdofs;
 
+   // DOFs are now assigned according to current element orders
+   orders_changed = false;
+
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
 }
@@ -1737,7 +1740,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
    auto geom = mesh->GetBdrElementGeometry(bel);
    int p = fec->DefaultOrder();
 
-   if (IsVariableOrder()) // determine order 'p' from regular mesh element
+   if (IsVariableOrder()) // determine order 'p' from adjacent element
    {
       int elem, info;
       mesh->GetBdrElementAdjacentElement(bel, elem, info);
@@ -2124,10 +2127,31 @@ void FiniteElementSpace::GetTrueTransferOperator(
    }
 }
 
+void FiniteElementSpace::UpdateElementOrders()
+{
+   const CoarseFineTransformations &cf_tr = mesh->GetRefinementTransforms();
+   Array<char> new_order(mesh->GetNE());
+
+   switch (mesh->GetLastOperation())
+   {
+      case Mesh::REFINE:
+      {
+         for (int i = 0; i < mesh->GetNE(); i++)
+         {
+            new_order[i] = elem_order[cf_tr.embeddings[i].parent];
+         }
+         break;
+      }
+      default:
+         MFEM_ABORT("not implemented yet");
+   }
+
+   mfem::Swap(elem_order, new_order);
+}
+
 void FiniteElementSpace::Update(bool want_transform)
 {
-#if 0 // FIXME!!!
-   if (mesh->GetSequence() == sequence)
+   if (mesh->GetSequence() == sequence && !orders_changed)
    {
       return; // mesh and space are in sync, no-op
    }
@@ -2136,8 +2160,12 @@ void FiniteElementSpace::Update(bool want_transform)
       MFEM_ABORT("Error in update sequence. Space needs to be updated after "
                  "each mesh modification.");
    }
-#endif
-   sequence = mesh->GetSequence();
+   if (mesh->GetSequence() != sequence && orders_changed)
+   {
+      MFEM_ABORT("Updating space after both mesh changes and element order "
+                 "changes is not supported. Please update separately after "
+                 "each change.");
+   }
 
    if (NURBSext)
    {
@@ -2156,12 +2184,20 @@ void FiniteElementSpace::Update(bool want_transform)
       old_ndofs = ndofs;
    }
 
+   // update the 'elem_order' array if the mesh has changed
+   if (IsVariableOrder() && sequence != mesh->GetSequence())
+   {
+      UpdateElementOrders();
+   }
+
    Destroy(); // calls Th.Clear()
    Construct();
    BuildElementToDofTable();
 
    if (want_transform)
    {
+      MFEM_VERIFY(!orders_changed, "not implemented yet");
+
       // calculate appropriate GridFunction transformation
       switch (mesh->GetLastOperation())
       {

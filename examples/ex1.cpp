@@ -144,6 +144,12 @@ int main(int argc, char *argv[])
       fespace->SetElementOrder(i, order+1);
    }
    fespace->Update(false);
+   {
+      Array<int> refs;
+      refs.Append(0);
+      mesh->GeneralRefinement(refs);
+   }
+   fespace->Update(false);
 
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)

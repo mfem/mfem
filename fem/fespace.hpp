@@ -255,6 +255,9 @@ protected:
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
 
+   /// Resize the elem_order array on mesh change.
+   void UpdateElementOrders();
+
 public:
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
