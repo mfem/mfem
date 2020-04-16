@@ -2311,7 +2311,7 @@ void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
                          DenseMatrix &a_bar)
 {
 #ifdef MFEM_DEBUG
-   if (a.Width() != a.Height())
+   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
    {
       mfem_error("CalcAdjugateRevDiff(...)");
    }
@@ -2324,12 +2324,95 @@ void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
    }
 #endif
 
-   if (adja_bar.Width() == 1)
+   if (a.Width() < a.Height())
+   {
+      const double *d = a.Data();
+      const double *ad_bar = adja_bar.Data();
+      double *d_bar = a_bar.Data();
+      if (a.Width() == 1)
+      {
+         // N x 1, N = 2,3
+         // ad[0] = d[0];
+         d_bar[0] = ad_bar[0];
+         // ad[1] = d[1];
+         d_bar[1] = ad_bar[1];
+         if (a.Height() == 3)
+         {
+            // ad[2] = d[2];
+            d_bar[2] = ad_bar[2];
+         }
+      }
+      else
+      {
+         // 3 x 2
+         // e, g, and f are needed during the reverse sweep
+         double e, g, f;
+         e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+         g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+         f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+
+         // start reverse sweep
+         a_bar = 0.0; // this zeros out d_bar[]
+         double e_bar = 0.0;
+         double g_bar = 0.0;
+         double f_bar = 0.0;
+         // ad[0] = d[0]*g - d[3]*f;
+         d_bar[0] += g*ad_bar[0];  
+         d_bar[3] -= f*ad_bar[0];
+         g_bar += d[0]*ad_bar[0];
+         f_bar -= d[3]*ad_bar[0];
+         // ad[1] = d[3]*e - d[0]*f;
+         d_bar[3] += e*ad_bar[1];
+         d_bar[0] -= f*ad_bar[1];
+         e_bar += d[3]*ad_bar[1];
+         f_bar -= d[0]*ad_bar[1];
+         // ad[2] = d[1]*g - d[4]*f;
+         d_bar[1] += g*ad_bar[2];
+         d_bar[4] -= f*ad_bar[2];
+         g_bar += d[1]*ad_bar[2];
+         f_bar -= d[4]*ad_bar[2];
+         // ad[3] = d[4]*e - d[1]*f;
+         d_bar[4] += e*ad_bar[3];
+         d_bar[1] -= f*ad_bar[3];
+         e_bar += d[4]*ad_bar[3];
+         f_bar -= d[1]*ad_bar[3];
+         // ad[4] = d[2]*g - d[5]*f;
+         d_bar[2] += g*ad_bar[4];
+         d_bar[5] -= f*ad_bar[4];
+         g_bar += d[2]*ad_bar[4];
+         f_bar -= d[5]*ad_bar[4];
+         // ad[5] = d[5]*e - d[2]*f;
+         d_bar[5] += e*ad_bar[5];
+         d_bar[2] -= f*ad_bar[5];
+         e_bar += d[5]*ad_bar[5];
+         f_bar -= d[2]*ad_bar[5];
+
+         // e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+         d_bar[0] += 2.0*d[0]*e_bar;
+         d_bar[1] += 2.0*d[1]*e_bar;
+         d_bar[2] += 2.0*d[2]*e_bar;
+         // g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+         d_bar[3] += 2.0*d[3]*g_bar;
+         d_bar[4] += 2.0*d[4]*g_bar;
+         d_bar[5] += 2.0*d[5]*g_bar;
+         // f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+         d_bar[0] += d[3]*f_bar;
+         d_bar[3] += d[0]*f_bar;
+         d_bar[1] += d[4]*f_bar;
+         d_bar[4] += d[1]*f_bar;
+         d_bar[2] += d[5]*f_bar;
+         d_bar[5] += d[2]*f_bar;
+
+      }
+      return;
+   }
+
+   if (a.Width() == 1)
    {
       // adja(0,0) = 1.0;
       a_bar(0,0) = 0.0;
    }
-   else if (adja_bar.Width() == 2)
+   else if (a.Width() == 2)
    {
       // adja(0,0) =  a(1,1);
       a_bar(1,1) = adja_bar(0,0);

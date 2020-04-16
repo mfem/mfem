@@ -276,6 +276,40 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
       REQUIRE(A_bar(0, 0) == Approx(A_bar_fd));
    }
 
+   SECTION("2x1 matrix")
+   {
+      double A_data[2] = {2.0, -3.0};
+      double adjA_bar_data[2] = {-1.5, 4.0};
+
+      DenseMatrix A(A_data, 2, 1);
+      DenseMatrix adjA_bar(adjA_bar_data, 1, 2);
+      DenseMatrix A_bar(2,1), adjA_fd(1,2);
+      DenseMatrix A_pert(2,1), adjA_pert(1,2);
+
+      // Compute the derivatives using reverse mode
+      CalcAdjugateRevDiff(A, adjA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 2; ++i)
+      {
+         // Pertrub A(i,0) and evaluate derivative of adjugate
+         A_pert = A;
+         A_pert(i, 0) += eps_fd;
+         CalcAdjugate(A_pert, adjA_fd);
+         A_pert(i, 0) -= 2.0 * eps_fd;
+         CalcAdjugate(A_pert, adjA_pert);
+         adjA_fd -= adjA_pert;
+         adjA_fd *= 1 / (2.0 * eps_fd);
+         // sum up derivative with weights
+         double A_bar_fd = 0.0;
+         for (int k = 0; k < 2; ++k)
+         {
+            A_bar_fd += adjA_fd(0, k) * adjA_bar(0, k);
+         }
+         REQUIRE(A_bar(i, 0) == Approx(A_bar_fd));
+      }
+   }
+
    SECTION("2x2 matrix")
    {
       double A_data[4] = {2.0, -3.0, 4.0, -1.0};
@@ -313,6 +347,40 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
             }
             REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
          }
+      }
+   }
+
+   SECTION("3x1 matrix")
+   {
+      double A_data[3] = {2.0, -3.0, 3.1415926};
+      double adjA_bar_data[3] = {-1.5, 4.0, 2.71828};
+
+      DenseMatrix A(A_data, 3, 1);
+      DenseMatrix adjA_bar(adjA_bar_data, 1, 3);
+      DenseMatrix A_bar(3, 1), adjA_fd(1, 3);
+      DenseMatrix A_pert(3, 1), adjA_pert(1, 3);
+
+      // Compute the derivatives using reverse mode
+      CalcAdjugateRevDiff(A, adjA_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 3; ++i)
+      {
+         // Pertrub A(i,0) and evaluate derivative of adjugate
+         A_pert = A;
+         A_pert(i, 0) += eps_fd;
+         CalcAdjugate(A_pert, adjA_fd);
+         A_pert(i, 0) -= 2.0 * eps_fd;
+         CalcAdjugate(A_pert, adjA_pert);
+         adjA_fd -= adjA_pert;
+         adjA_fd *= 1 / (2.0 * eps_fd);
+         // sum up derivative with weights
+         double A_bar_fd = 0.0;
+         for (int k = 0; k < 3; ++k)
+         {
+            A_bar_fd += adjA_fd(0, k) * adjA_bar(0, k);
+         }
+         REQUIRE(A_bar(i, 0) == Approx(A_bar_fd));
       }
    }
 

@@ -447,7 +447,6 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja);
 void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat);
 
 /// Reverse-mode sensitivities of adj(A) with respect to the entries in A
-/// \warning implemented only for square matrices
 void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
                          DenseMatrix &a_bar);
 
