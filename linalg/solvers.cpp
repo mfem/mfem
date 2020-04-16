@@ -106,12 +106,12 @@ void IterativeSolver::SetOperator(const Operator &op)
 }
 
 void IterativeSolver::Monitor(int it, double norm, const Vector& r,
-                              const Vector& x) const
+                              const Vector& x, bool final) const
 {
    if (monitor != nullptr)
    {
-      monitor->MonitorResidual(it, norm, r);
-      monitor->MonitorSolution(it, norm, x);
+      monitor->MonitorResidual(it, norm, r, final);
+      monitor->MonitorSolution(it, norm, x, final);
    }
 }
 
@@ -525,7 +525,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    final_norm = sqrt(betanom);
 
-   Monitor(final_iter, final_norm, r, x);
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -785,7 +785,7 @@ finish:
       mfem::out << "GMRES: No convergence!\n";
    }
 
-   Monitor(final_iter, final_norm, r, x);
+   Monitor(final_iter, final_norm, r, x, true);
 
    for (i = 0; i < v.Size(); i++)
    {
@@ -894,7 +894,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
          }
-         Monitor(j, resid, r, x);
+         Monitor(j, resid, r, x, resid <= final_norm);
 
          if (resid <= final_norm)
          {
@@ -1313,7 +1313,7 @@ loop_end:
    {
       mfem::out << "MINRES: number of iterations: " << final_iter << '\n';
    }
-   Monitor(final_iter, final_norm, *z, x);
+   Monitor(final_iter, final_norm, *z, x, true);
 #if 0
    if (print_level >= 1)
    {

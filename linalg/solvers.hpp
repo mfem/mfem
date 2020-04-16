@@ -39,12 +39,14 @@ public:
    virtual ~IterativeSolverMonitor() {}
 
    /// Monitor the residual vector r
-   virtual void MonitorResidual(int it, double norm, const Vector &r)
+   virtual void MonitorResidual(int it, double norm, const Vector &r,
+                                bool final)
    {
    }
 
    /// Monitor the solution vector x
-   virtual void MonitorSolution(int it, double norm, const Vector &x)
+   virtual void MonitorSolution(int it, double norm, const Vector &x,
+                                bool final)
    {
    }
 };
@@ -72,7 +74,8 @@ protected:
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
-   void Monitor(int it, double norm, const Vector& r, const Vector& x) const;
+   void Monitor(int it, double norm, const Vector& r, const Vector& x,
+                bool final=false) const;
 
 public:
    IterativeSolver();

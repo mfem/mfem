@@ -43,7 +43,7 @@ public:
       pmesh(m),
       pgf(f) {}
 
-   void MonitorSolution(int i, double norm, const Vector &x)
+   void MonitorSolution(int i, double norm, const Vector &x, bool final)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
