@@ -832,6 +832,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  || r || = " << beta << endl;
    }
 
+   Monitor(0, beta, r, x);
+
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
    for (i= 0; i<=m; i++)
@@ -892,6 +894,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
          }
+         Monitor(j, resid, r, x);
 
          if (resid <= final_norm)
          {
@@ -1024,6 +1027,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0
                 << "   ||r|| = " << resid << '\n';
 
+   Monitor(0, resid, r, x);
+
    tol_goal = std::max(resid*rel_tol, abs_tol);
 
    if (resid <= tol_goal)
@@ -1042,6 +1047,9 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          if (print_level >= 0)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
+
+         Monitor(i, resid, r, x);
+
          final_norm = resid;
          final_iter = i;
          converged = 0;
@@ -1084,6 +1092,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (print_level >= 0)
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
+      Monitor(i, resid, r, x);
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
@@ -1105,6 +1114,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
+      Monitor(i, resid, r, x);
       if (resid < tol_goal)
       {
          final_norm = resid;
