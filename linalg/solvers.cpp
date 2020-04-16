@@ -1220,6 +1220,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
                 << eta << (print_level == 3 ? " ...\n" : "\n");
    }
+   Monitor(0, eta, *z, x);
 
    for (it = 1; it <= max_iter; it++)
    {
@@ -1287,6 +1288,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                    << fabs(eta) << '\n';
       }
+      Monitor(it, fabs(eta), *z, x);
 
       if (prec)
       {
@@ -1311,6 +1313,7 @@ loop_end:
    {
       mfem::out << "MINRES: number of iterations: " << final_iter << '\n';
    }
+   Monitor(final_iter, final_norm, *z, x);
 #if 0
    if (print_level >= 1)
    {
