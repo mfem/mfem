@@ -23,8 +23,6 @@ void BlockVector::SetBlocks()
       blocks[i].NewMemoryAndSize(
          Memory<double>(data, blockOffsets[i], BlockSize(i)),
          BlockSize(i), true);
-
-      blocks[i].HostReadWrite();
    }
 }
 

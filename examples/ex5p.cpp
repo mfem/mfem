@@ -11,12 +11,6 @@
 //               mpirun -np 4 ex5p -m ../data/escher.mesh
 //               mpirun -np 4 ex5p -m ../data/fichera.mesh
 //
-// Device sample runs:
-//               mpirun -np 4 ex5p -m ../data/star.mesh -pa -d cuda
-//               mpirun -np 4 ex5p -m ../data/star.mesh -pa -d raja-cuda
-//               mpirun -np 4 ex5p -m ../data/star.mesh -pa -d raja-omp
-//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh -pa -d cuda
-//
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
 //                                 k*u + grad p = f
@@ -65,7 +59,6 @@ int main(int argc, char *argv[])
    int order = 1;
    bool par_format = false;
    bool pa = false;
-   const char *device_config = "cpu";
    bool visualization = 1;
    bool adios2 = false;
 
@@ -79,8 +72,6 @@ int main(int argc, char *argv[])
                   "Format to use when saving the results for VisIt.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -102,18 +93,13 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   if (myid == 0) { device.Print(); }
-
-   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
+   // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
@@ -126,7 +112,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -139,7 +125,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7. Define a parallel finite element space on the parallel mesh. Here we
+   // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
    FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
@@ -159,7 +145,7 @@ int main(int argc, char *argv[])
       std::cout << "***********************************************************\n";
    }
 
-   // 8. Define the two BlockStructure of the problem.  block_offsets is used
+   // 7. Define the two BlockStructure of the problem.  block_offsets is used
    //    for Vector based on dof (like ParGridFunction or ParLinearForm),
    //    block_trueOffstes is used for Vector based on trueDof (HypreParVector
    //    for the rhs and solution of the linear system).  The offsets computed
@@ -176,7 +162,7 @@ int main(int argc, char *argv[])
    block_trueOffsets[2] = W_space->TrueVSize();
    block_trueOffsets.PartialSum();
 
-   // 9. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 8. Define the coefficients, analytical solution, and rhs of the PDE.
    ConstantCoefficient k(1.0);
 
    VectorFunctionCoefficient fcoeff(dim, fFun);
@@ -186,8 +172,8 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient ucoeff(dim, uFun_ex);
    FunctionCoefficient pcoeff(pFun_ex);
 
-   // 10. Define the parallel grid function and parallel linear forms, solution
-   //     vector and rhs.
+   // 9. Define the parallel grid function and parallel linear forms, solution
+   //    vector and rhs.
    BlockVector x(block_offsets), rhs(block_offsets);
    BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
 
@@ -204,7 +190,7 @@ int main(int argc, char *argv[])
    gform->Assemble();
    gform->ParallelAssemble(trueRhs.GetBlock(1));
 
-   // 11. Assemble the finite element matrices for the Darcy operator
+   // 10. Assemble the finite element matrices for the Darcy operator
    //
    //                            D = [ M  B^T ]
    //                                [ B   0  ]
@@ -253,7 +239,7 @@ int main(int argc, char *argv[])
       darcyOp->SetBlock(1,0, B);
    }
 
-   // 12. Construct the operators for preconditioner
+   // 11. Construct the operators for preconditioner
    //
    //                 P = [ diag(M)         0         ]
    //                     [  0       B diag(M)^-1 B^T ]
@@ -306,7 +292,7 @@ int main(int argc, char *argv[])
    darcyPr->SetDiagonalBlock(0, invM);
    darcyPr->SetDiagonalBlock(1, invS);
 
-   // 13. Solve the linear system with MINRES.
+   // 12. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(pa ? 1000 : 500);
    double rtol(1.e-6);
@@ -336,7 +322,7 @@ int main(int argc, char *argv[])
       std::cout << "MINRES solver took " << chrono.RealTime() << "s. \n";
    }
 
-   // 14. Extract the parallel grid function corresponding to the finite element
+   // 13. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor. Compute
    //     L2 error norms.
    ParGridFunction *u(new ParGridFunction);
@@ -364,7 +350,7 @@ int main(int argc, char *argv[])
       std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
    }
 
-   // 15. Save the refined mesh and the solution in parallel. This output can be
+   // 14. Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
    {
       ostringstream mesh_name, u_name, p_name;
@@ -385,7 +371,7 @@ int main(int argc, char *argv[])
       p->Save(p_ofs);
    }
 
-   // 16. Save data in the VisIt format
+   // 15. Save data in the VisIt format
    VisItDataCollection visit_dc("Example5-Parallel", pmesh);
    visit_dc.RegisterField("velocity", u);
    visit_dc.RegisterField("pressure", p);
@@ -394,7 +380,7 @@ int main(int argc, char *argv[])
                       DataCollection::PARALLEL_FORMAT);
    visit_dc.Save();
 
-   // 17. Save data in the ParaView format
+   // 16. Save data in the ParaView format
    ParaViewDataCollection paraview_dc("Example5P", pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
@@ -406,7 +392,7 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("pressure",p);
    paraview_dc.Save();
 
-   // 18. Optionally output a BP (binary pack) file using ADIOS2. This can be
+   // 17. Optionally output a BP (binary pack) file using ADIOS2. This can be
    //     visualized with the ParaView VTX reader.
 #ifdef MFEM_USE_ADIOS2
    if (adios2)
@@ -426,7 +412,7 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // 19. Send the solution by socket to a GLVis server.
+   // 18. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -446,7 +432,7 @@ int main(int argc, char *argv[])
              << endl;
    }
 
-   // 20. Free the used memory.
+   // 19. Free the used memory.
    delete fform;
    delete gform;
    delete u;
