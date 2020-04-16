@@ -33,9 +33,18 @@ New and updated examples and miniapps
   Matched Layer (PML) for the simulation of electromagnetic wave propagation.
   The example defines and solves several indefinite Maxwell problems.
 
+- Added partial assembly support to examples 4/4p and 5/5p, with diagonal
+  preconditioning.
+
+- Added a new test problem in example 24/24p, demonstrating a mixed bilinear
+  form for H(div) and L_2, with partial assembly support.
+
 Discretization improvements
 ---------------------------
 - Added support for simplices in GSLIB-FindPoints.
+
+- Added new partial assembly kernels for H(div) bilinear forms, as well as
+  VectorFEDivergenceIntegrator.
 
 Improved testing
 ----------------
