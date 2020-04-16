@@ -61,10 +61,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    ode_solver.Init(*oper);
 
    // Compute some time step [mesh_size / speed].
-   double min_h = std::numeric_limits<double>::infinity();
+   double h_min = std::numeric_limits<double>::infinity();
    for (int i = 0; i < m->GetNE(); i++)
    {
-      min_h = std::min(min_h, m->GetElementSize(i));
+      h_min = std::min(h_min, m->GetElementSize(i));
    }
    double v_max = 0.0;
    const int s = u.FESpace()->GetVSize() / 2;
@@ -73,26 +73,27 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       const double vel = u(i) * u(i) + u(i+s) * u(i+s);
       v_max = std::max(v_max, vel);
    }
-   if (v_max == 0.0)
-   {
-      // No need to change the field.
-      return;
-   }
-   v_max = std::sqrt(v_max);
-   double dt = 0.5 * min_h / v_max;
-   double glob_dt = dt;
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&dt, &glob_dt, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      double v_loc = v_max, h_loc = h_min;
+      MPI_Allreduce(&v_loc, &v_max, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+      MPI_Allreduce(&h_loc, &h_min, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
    }
 #endif
+   if (v_max == 0.0)
+   {
+      // No mesh motion --> no need to change the field.
+      return;
+   }
+   v_max = std::sqrt(v_max);
+   double dt = dt_scale * h_min / v_max;
 
    double t = 0.0;
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      if (t + glob_dt >= 1.0)
+      if (t + dt >= 1.0)
       {
 #ifdef MFEM_DEBUG
          if (myid == 0)
@@ -100,10 +101,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
             mfem::out << "Remap took " << ti << " steps." << std::endl;
          }
 #endif
-         glob_dt = 1.0 - t;
+         dt = 1.0 - t;
          last_step = true;
       }
-      ode_solver.Step(new_field, t, glob_dt);
+      ode_solver.Step(new_field, t, dt);
    }
 
    // Trim the overshoots and undershoots.
