@@ -3463,11 +3463,6 @@ TEST_CASE("3D Bilinear Weak Curl Integrators",
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
-
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
          ND_FECollection    fec_nd(order, dim);
@@ -3924,11 +3919,6 @@ TEST_CASE("3D Bilinear Weak Curl Cross Integrators",
         type <= (int)Element::HEXAHEDRON; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -4775,11 +4765,6 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
       type++;
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
-
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
          ND_FECollection    fec_nd(order, dim);
@@ -4884,11 +4869,6 @@ TEST_CASE("3D Bilinear Mixed Curl Curl Integrators",
         type <= (int)Element::HEXAHEDRON; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -5046,11 +5026,6 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Curl Integrators",
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
-
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
          ND_FECollection    fec_nd(order, dim);
@@ -5121,11 +5096,6 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Curl Integrators",
         type <= (int)Element::HEXAHEDRON; type++)
    {
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
