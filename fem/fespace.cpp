@@ -109,14 +109,11 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    }
    else
    {
-      if (p != fec->DefaultOrder())
-      {
-         elem_order.SetSize(GetNE());
-         elem_order = fec->DefaultOrder();
+      elem_order.SetSize(GetNE());
+      elem_order = fec->DefaultOrder();
 
-         elem_order[i] = p;
-         orders_changed = true;
-      }
+      elem_order[i] = p;
+      orders_changed = true;
    }
 }
 
@@ -635,16 +632,17 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    }
 }
 
-void
+int
 FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
-                                  Geometry::Type master_geom) const
+                                  Geometry::Type master_geom, int edge_var) const
 {
    switch (entity)
    {
-      case 0: GetVertexDofs(index, dofs); break;
-      case 1: GetEdgeDofs(index, dofs); break;
-      case 2: (index >= 0) ? GetFaceDofs(index, dofs)
+      case 0: GetVertexDofs(index, dofs); return 0;
+      case 1: return GetEdgeDofs(index, dofs, edge_var);
+      default: (index >= 0) ? GetFaceDofs(index, dofs)
          /*             */ : GetDegenerateFaceDofs(index, dofs, master_geom);
+         return 0; // FIXME 3D
    }
 }
 
@@ -680,11 +678,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       {
          const NCMesh::Master &master = list.masters[mi];
 
-         GetEntityDofs(entity, master.index, master_dofs);
+         int p = GetEntityDofs(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
 
-         const FiniteElement* fe = fec->FiniteElementForGeometry(master.Geom());
-         if (!fe) { continue; }
+         const auto *master_fe = fec->GetFE(master.Geom(), p);
+         if (!master_fe) { continue; }
 
          switch (master.geom)
          {
@@ -696,22 +694,28 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
-            const NCMesh::Slave &slave = list.slaves[si];
-            GetEntityDofs(entity, slave.index, slave_dofs, master.Geom());
-            if (!slave_dofs.Size()) { continue; }
+            for (int var = 0; ; var++)
+            {
+               const NCMesh::Slave &slave = list.slaves[si];
+               int q = GetEntityDofs(entity, slave.index, slave_dofs,
+                                     master.Geom(), var);
+               if (q < 0 || !slave_dofs.Size()) { break; }
 
-            slave.OrientedPointMatrix(T.GetPointMat());
-            T.FinalizeTransformation();
-            fe->GetLocalInterpolation(T, I);
+               slave.OrientedPointMatrix(T.GetPointMat());
+               T.FinalizeTransformation();
 
-            // make each slave DOF dependent on all master DOFs
-            AddDependencies(deps, master_dofs, slave_dofs, I);
+               const auto *slave_fe = fec->GetFE(slave.Geom(), q);
+               slave_fe->GetTransferMatrix(*master_fe, T, I);
+
+               // make each slave DOF dependent on all master DOFs
+               AddDependencies(deps, master_dofs, slave_dofs, I);
+            }
          }
       }
    }
 
    // variable order spaces: handle edge interpolation
-   if (edge_dof.Size() > 0)
+   if (IsVariableOrder())
    {
       T.SetIdentityTransformation(Geometry::SEGMENT);
 
@@ -1615,6 +1619,8 @@ int FiniteElementSpace::FindEdgeDof(int edge, int pdof) const
 
 void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 {
+   //if (orders_changed) { CheckUpToDate(); }
+
    if (elem_dof)
    {
       elem_dof->GetRow(elem, dofs);
@@ -2237,6 +2243,8 @@ void FiniteElementSpace::Update(bool want_transform)
 
       delete old_elem_dof;
    }
+
+   sequence = mesh->GetSequence();
 }
 
 void FiniteElementSpace::Save(std::ostream &out) const
