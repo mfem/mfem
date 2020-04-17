@@ -29,8 +29,7 @@ private:
    Vector field0;
    const double dt_scale;
 
-   virtual void ComputeAtNewPositionScalar(const Vector &new_nodes,
-                                           Vector &new_field);
+   void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
    AdvectorCG(double timestep_scale = 0.5)
       : AdaptivityEvaluator(),

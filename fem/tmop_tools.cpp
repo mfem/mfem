@@ -29,10 +29,10 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
-   // This function will not work for AMR meshes in the current state.
+   // TODO: Implement for AMR meshes.
    const int dim     = fes->GetFE(0)->GetDim(),
              ncomp   = fes->GetVDim(),
-             pnt_cnt = new_nodes.Size()/dim;
+             pnt_cnt = new_field.Size()/ncomp;
 
    new_field = field0;
 
@@ -42,8 +42,8 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
    }
 
-   //field0 = new_field;
-   //nodes0 = new_nodes;
+   field0 = new_field;
+   nodes0 = new_nodes;
 }
 
 void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
@@ -141,8 +141,8 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       ode_solver.Step(new_field, t, dt);
    }
 
-   double glob_minv = minv;
-   double glob_maxv = maxv;
+   double glob_minv = minv,
+          glob_maxv = maxv;
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
@@ -425,7 +425,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
       {
          if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " " << energy_out << " " << "Increasing energy.\n"; }
+         { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
          scale *= 0.5; continue;
       }
 
