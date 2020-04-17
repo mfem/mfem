@@ -674,10 +674,12 @@ protected:
              "vector field";
    }
 
+   // Subtract one due to the divergence and add one for the coefficient
+   // which is assumed to be at least linear.
    inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
                                           const FiniteElement & test_fe,
                                           ElementTransformation &Trans)
-   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -710,6 +712,11 @@ protected:
              "Trial space must be a scalar field "
              "and the test space must be H(Div)";
    }
+
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
    virtual void CalcTestShape(const FiniteElement & test_fe,
                               ElementTransformation &Trans,
@@ -870,6 +877,13 @@ public:
              "Trial space must be a vector field "
              "and the test space must be a vector field with a divergence";
    }
+
+   // Subtract one due to the gradient and add one for the coefficient
+   // which is assumed to be at least linear.
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,

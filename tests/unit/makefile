@@ -35,20 +35,21 @@ PAR_MAIN_OBJ = punit_test_main.o
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 
+USE_CUDA := $(MFEM_USE_CUDA:NO=)
 SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
-SEQ_SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda)
-SEQ_SEDOV_TESTS += $(if $(MFEM_CXX:nvcc=),,sedov_tests_cuda_uvm)
+SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda)
+SEQ_SEDOV_TESTS += $(if $(USE_CUDA),sedov_tests_cuda_uvm)
 PAR_SEDOV_TESTS = $(SEQ_SEDOV_TESTS:%=p%)
 
 SEQ_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
 SEQ_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
-SEQ_SEDOV_CUDA_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.o))
-SEQ_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+SEQ_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda.o))
+SEQ_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
 
 PAR_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu.o)
 PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
-PAR_SEDOV_CUDA_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
-PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(MFEM_CXX:nvcc=),,$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
+PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
+PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
 SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
 PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)

@@ -530,7 +530,7 @@ public:
 
    /// (DEPRECATED) Return the FE space associated with the BilinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *FESpace() { return fes; }

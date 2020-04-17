@@ -360,7 +360,6 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
-   ElTr->FinalizeTransformation();
 }
 
 void Mesh::GetElementTransformation(int i, const Vector &nodes,
@@ -402,7 +401,6 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
-   ElTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetElementTransformation(int i)
@@ -470,7 +468,6 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
          ElTr->SetFE(face_el);
       }
    }
-   ElTr->FinalizeTransformation();
 }
 
 void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
@@ -535,7 +532,6 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
          FTr->SetFE(face_el);
       }
    }
-   FTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetFaceTransformation(int FaceNo)
@@ -597,7 +593,6 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
          MFEM_ABORT("Not implemented.");
       }
    }
-   EdTr->FinalizeTransformation();
 }
 
 ElementTransformation *Mesh::GetEdgeTransformation(int EdgeNo)
@@ -619,7 +614,6 @@ void Mesh::GetLocalPtToSegTransformation(
    locpm(0, 0) = SegVert->IntPoint(i/64).x;
    //  (i/64) is the local face no. in the segment
    //  (i%64) is the orientation of the point (not used)
-   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalSegToTriTransformation(
@@ -639,7 +633,6 @@ void Mesh::GetLocalSegToTriTransformation(
       locpm(0, so[j]) = TriVert->IntPoint(tv[j]).x;
       locpm(1, so[j]) = TriVert->IntPoint(tv[j]).y;
    }
-   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalSegToQuadTransformation(
@@ -659,7 +652,6 @@ void Mesh::GetLocalSegToQuadTransformation(
       locpm(0, so[j]) = QuadVert->IntPoint(qv[j]).x;
       locpm(1, so[j]) = QuadVert->IntPoint(qv[j]).y;
    }
-   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalTriToTetTransformation(
@@ -683,7 +675,6 @@ void Mesh::GetLocalTriToTetTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
-   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalTriToWdgTransformation(
@@ -709,7 +700,6 @@ void Mesh::GetLocalTriToWdgTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
-   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalQuadToHexTransformation(
@@ -731,7 +721,6 @@ void Mesh::GetLocalQuadToHexTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
-   Transf.FinalizeTransformation();
 }
 
 void Mesh::GetLocalQuadToWdgTransformation(
@@ -755,7 +744,6 @@ void Mesh::GetLocalQuadToWdgTransformation(
       locpm(1, j) = vert.y;
       locpm(2, j) = vert.z;
    }
-   Transf.FinalizeTransformation();
 }
 
 const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
@@ -939,8 +927,7 @@ void Mesh::ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
 #endif
    MFEM_ASSERT(fi.NCFace >= 0, "");
    transf.Transform(*nc_faces_info[fi.NCFace].PointMatrix, composition);
-   transf.GetPointMat() = composition;
-   transf.FinalizeTransformation();
+   transf.SetPointMat(composition);
 }
 
 FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
@@ -2098,6 +2085,9 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
                break;
             case Geometry::SQUARE:
                new_or = GetQuadOrientation(old_v, new_v);
+               break;
+            case Geometry::TETRAHEDRON:
+               new_or = GetTetOrientation(old_v, new_v);
                break;
             default:
                new_or = 0;
@@ -3595,14 +3585,20 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
+
    GetElementToFaceTable(false);
    GenerateFaces();
 
-   SetCurvature(1, true, spaceDim);
-   Vector node_coordinates_vec(
-      node_coordinates.Data(),
-      node_coordinates.Width()*node_coordinates.Height());
-   SetNodes(node_coordinates_vec);
+   if (orig_mesh->GetNodes())
+   {
+      L2_FECollection fec_dg(1, Dim, BasisType::GaussLobatto);
+      FiniteElementSpace fes_dg(this, &fec_dg, spaceDim, 1);
+      GridFunction nodes_dg(&fes_dg, node_coordinates.Data());
+      bool discont = orig_mesh->GetNodalFESpace()->IsDGSpace();
+      Ordering::Type dof_ordering = orig_mesh->GetNodalFESpace()->GetOrdering();
+      SetCurvature(1, discont, spaceDim, dof_ordering);
+      Nodes->ProjectGridFunction(nodes_dg);
+   }
 
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
@@ -4244,6 +4240,139 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
    return 2*i+1;
 }
 
+int Mesh::GetTetOrientation(const int *base, const int *test)
+{
+   // Static method.
+   // This function computes the index 'j' of the permutation that transforms
+   // test into base: test[tet_orientation[j][i]]=base[i].
+   // tet_orientation = Geometry::Constants<Geometry::TETRAHEDRON>::Orient
+   int orient;
+
+   if (test[0] == base[0])
+      if (test[1] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 0;   //  (0, 1, 2, 3)
+         }
+         else
+         {
+            orient = 1;   //  (0, 1, 3, 2)
+         }
+      else if (test[2] == base[1])
+         if (test[3] == base[2])
+         {
+            orient = 2;   //  (0, 2, 3, 1)
+         }
+         else
+         {
+            orient = 3;   //  (0, 2, 1, 3)
+         }
+      else // test[3] == base[1]
+         if (test[1] == base[2])
+         {
+            orient = 4;   //  (0, 3, 1, 2)
+         }
+         else
+         {
+            orient = 5;   //  (0, 3, 2, 1)
+         }
+   else if (test[1] == base[0])
+      if (test[2] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 6;   //  (1, 2, 0, 3)
+         }
+         else
+         {
+            orient = 7;   //  (1, 2, 3, 0)
+         }
+      else if (test[3] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 8;   //  (1, 3, 2, 0)
+         }
+         else
+         {
+            orient = 9;   //  (1, 3, 0, 2)
+         }
+      else // test[0] == base[1]
+         if (test[3] == base[2])
+         {
+            orient = 10;   //  (1, 0, 3, 2)
+         }
+         else
+         {
+            orient = 11;   //  (1, 0, 2, 3)
+         }
+   else if (test[2] == base[0])
+      if (test[3] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 12;   //  (2, 3, 0, 1)
+         }
+         else
+         {
+            orient = 13;   //  (2, 3, 1, 0)
+         }
+      else if (test[0] == base[1])
+         if (test[1] == base[2])
+         {
+            orient = 14;   //  (2, 0, 1, 3)
+         }
+         else
+         {
+            orient = 15;   //  (2, 0, 3, 1)
+         }
+      else // test[1] == base[1]
+         if (test[3] == base[2])
+         {
+            orient = 16;   //  (2, 1, 3, 0)
+         }
+         else
+         {
+            orient = 17;   //  (2, 1, 0, 3)
+         }
+   else // (test[3] == base[0])
+      if (test[0] == base[1])
+         if (test[2] == base[2])
+         {
+            orient = 18;   //  (3, 0, 2, 1)
+         }
+         else
+         {
+            orient = 19;   //  (3, 0, 1, 2)
+         }
+      else if (test[1] == base[1])
+         if (test[0] == base[2])
+         {
+            orient = 20;   //  (3, 1, 0, 2)
+         }
+         else
+         {
+            orient = 21;   //  (3, 1, 2, 0)
+         }
+      else // test[2] == base[1]
+         if (test[1] == base[2])
+         {
+            orient = 22;   //  (3, 2, 1, 0)
+         }
+         else
+         {
+            orient = 23;   //  (3, 2, 0, 1)
+         }
+
+#ifdef MFEM_DEBUG
+   const int *aor = tet_t::Orient[orient];
+   for (int j = 0; j < 4; j++)
+      if (test[aor[j]] != base[j])
+      {
+         mfem_error("Mesh::GetTetOrientation(...)");
+      }
+#endif
+
+   return orient;
+}
+
 int Mesh::CheckBdrElementOrientation(bool fix_it)
 {
    int wo = 0; // count wrong orientations
@@ -4708,10 +4837,12 @@ void Mesh::GetPointMatrix(int i, DenseMatrix &pointmat) const
 
    pointmat.SetSize(spaceDim, nv);
    for (k = 0; k < spaceDim; k++)
+   {
       for (j = 0; j < nv; j++)
       {
          pointmat(k, j) = vertices[v[j]](k);
       }
+   }
 }
 
 void Mesh::GetBdrPointMatrix(int i,DenseMatrix &pointmat) const
@@ -8478,6 +8609,13 @@ void Mesh::PrintTopo(std::ostream &out,const Array<int> &e_to_k) const
    }
    out << "\nvertices\n" << NumOfVertices << '\n';
 }
+
+#ifdef MFEM_USE_ADIOS2
+void Mesh::Print(adios2stream &out) const
+{
+   out.Print(*this);
+}
+#endif
 
 void Mesh::PrintVTK(std::ostream &out)
 {
