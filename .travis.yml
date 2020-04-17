@@ -1,140 +1,283 @@
-sudo: false
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 language: cpp
 
-matrix:
-  include:
-    #
-    # Linux
-    #
-    - os: linux
-      compiler: gcc
-      env: DEBUG=YES
-           MPI=NO
-           CODECOV=NO
-           MFEM_TEST_TARGET=check
-    #
-    - os: linux
-      compiler: gcc
-      env: DEBUG=NO
-           MPI=NO
-           CODECOV=NO
-           MFEM_TEST_TARGET=test
-    #
-    - os: linux
-      compiler: gcc
-      addons:
-        apt:
-          # sources:
-            # - ubuntu-toolchain-r-test
-          packages:
-            # GCC 4.9
-            # - g++-4.9
-            # MPICH
-            - mpich
-            - libmpich-dev
-            # OpenMPI
-            # - openmpi-bin
-            # - libopenmpi-dev
-      env: DEBUG=YES
-           MPI=YES
-           CODECOV=NO
-           MFEM_TEST_TARGET=check
-           NPROCS=2
-      cache:
-        directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
-          - $TRAVIS_BUILD_DIR/../metis-4.0
-      before_cache:
-        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
-    - os: linux
-      compiler: gcc
-      addons:
-        apt:
-          # sources:
-            # - ubuntu-toolchain-r-test
-          packages:
-            # GCC 4.9
-            # - g++-4.9
-            # MPICH
-            - mpich
-            - libmpich-dev
-            # OpenMPI
-            # - openmpi-bin
-            # - libopenmpi-dev
-      env: DEBUG=NO
-           MPI=YES
-           CODECOV=YES
-           MFEM_TEST_TARGET=test
-           NPROCS=2
-      cache:
-        directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
-          - $TRAVIS_BUILD_DIR/../metis-4.0
-      before_cache:
-        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
-    # Mac OS X
-    #
-    - os: osx
-      # osx_image: xcode7.3
-      compiler: clang
-      env: DEBUG=YES
-           MPI=NO
-           CODECOV=NO
-           MFEM_TEST_TARGET=check
-    #
-    - os: osx
-      # osx_image: xcode7.3
-      compiler: clang
-      env: DEBUG=NO
-           MPI=NO
-           CODECOV=NO
-           MFEM_TEST_TARGET=test
-    #
-    - os: osx
-      # osx_image: xcode7.3
-      compiler: clang
-      env: DEBUG=YES
-           MPI=YES
-           CODECOV=NO
-           MFEM_TEST_TARGET=check
-           NPROCS=4
-           TMPDIR=/tmp
-      cache:
-        directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
-          - $TRAVIS_BUILD_DIR/../metis-4.0
-          - $HOME/local-cached
-      before_cache:
-        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-    #
-    - os: osx
-      # osx_image: xcode7.3
-      compiler: clang
-      env: DEBUG=NO
-           MPI=YES
-           CODECOV=YES
-           MFEM_TEST_TARGET=test
-           NPROCS=4
-           TMPDIR=/tmp
-      cache:
-        directories:
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
-          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
-          - $TRAVIS_BUILD_DIR/../metis-4.0
-          - $HOME/local-cached
-      before_cache:
-        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+sudo: false
 
+stages:
+  - checks
+  - tests
+  - optional
+
+jobs:
+  include:
+
+    # ========================
+    #         Checks
+    # ========================
+    # - code-style
+    # - documentation
+    # - gitignore
+
+    - stage: checks
+      os: linux
+      name: "code-style"
+      addons:
+        apt:
+          packages:
+            - astyle=2.05.1-0ubuntu1
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - cd tests/scripts
+        - ./runtest code-style
+
+    - stage: checks
+      os: linux
+      name: "documentation"
+      addons:
+        apt:
+          packages:
+            - doxygen
+            - graphviz
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - cd tests/scripts
+        - ./runtest documentation
+
+    - stage: checks
+      os: linux
+      name: "gitignore"
+      addons:
+        apt:
+          packages:
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - make config MFEM_USE_MPI=YES MFEM_MPI_NP=2
+        - make all -j3
+        - make test-noclean
+        - cd tests/scripts
+        - ./runtest gitignore
+
+    # ========================
+    #  Optional Checks/Tests
+    # ========================
+    # - branch-history
+
+    - stage: optional
+      name: "branch-history"
+      # need full git history for the binary/big files check
+      git:
+        depth: false
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        # update master
+        - git fetch origin master:master
+        # checkout a branch (otherwise Travis works in detached head)
+        - git checkout -b travis_tests
+        - cd tests/scripts
+        - ./runtest branch-history
+
+    # ========================
+    #       Linux tests
+    # ========================
+    # - serial + debug
+    # - serial
+    # - parallel + debug
+    # - parallel
+
+    - stage: tests
+      os: linux
+      compiler: gcc
+      name: "Linux: Serial + Debug"
+      env: DEBUG=YES
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+
+    - os: linux
+      compiler: gcc
+      name: "Linux: Serial"
+      env: DEBUG=NO
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=test
+
+    - os: linux
+      compiler: gcc
+      name: "Linux: Parallel + Debug"
+      addons:
+        apt:
+          # sources:
+            # - ubuntu-toolchain-r-test
+          packages:
+            # GCC 4.9
+            # - g++-4.9
+            # MPICH
+            - mpich
+            - libmpich-dev
+            # OpenMPI
+            # - openmpi-bin
+            # - libopenmpi-dev
+      env: DEBUG=YES
+           MPI=YES
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+           NPROCS=2
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
+
+    - os: linux
+      compiler: gcc
+      name: "Linux: Parallel"
+      addons:
+        apt:
+          # sources:
+            # - ubuntu-toolchain-r-test
+          packages:
+            # GCC 4.9
+            # - g++-4.9
+            # MPICH
+            - mpich
+            - libmpich-dev
+            # OpenMPI
+            # - openmpi-bin
+            # - libopenmpi-dev
+      env: DEBUG=NO
+           MPI=YES
+           CODECOV=YES
+           MFEM_TEST_TARGET=test
+           NPROCS=2
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
+
+    - os: linux
+      compiler: gcc
+      name: "Linux: Parallel (cmake)"
+      addons:
+        apt:
+          packages:
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+           NPROCS=2
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - mkdir ${TRAVIS_BUILD_DIR}/build
+        - cd ${TRAVIS_BUILD_DIR}/build
+        - cmake ..
+             -DMFEM_USE_MPI=ON
+             -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre
+             -DMFEM_MPI_NP=$NPROCS
+        - make -j3 mfem examples
+        - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
+        - make -j3
+        - ctest --output-on-failure
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
+
+    # ========================
+    #      Mac OS X tests
+    # ========================
+    # - serial + debug
+    # - serial
+    # - parallel + debug
+    # - parallel
+
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      name: "Mac: Serial + Debug"
+      env: DEBUG=YES
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      name: "Mac: Serial"
+      env: DEBUG=NO
+           MPI=NO
+           CODECOV=NO
+           MFEM_TEST_TARGET=test
+
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      name: "Mac: Parallel + Debug"
+      env: DEBUG=YES
+           MPI=YES
+           CODECOV=NO
+           MFEM_TEST_TARGET=check
+           NPROCS=4
+           TMPDIR=/tmp
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+          - $HOME/local-cached
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
+
+    - os: osx
+      # osx_image: xcode7.3
+      compiler: clang
+      name: "Mac: Parallel"
+      env: DEBUG=NO
+           MPI=YES
+           CODECOV=YES
+           MFEM_TEST_TARGET=test
+           NPROCS=4
+           TMPDIR=/tmp
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+          - $HOME/local-cached
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
 before_install:
    # No addon for brew yet, have to install OSX packages this way.

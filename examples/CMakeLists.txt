@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 list(APPEND ALL_EXE_SRCS
   ex1.cpp
@@ -28,6 +28,10 @@ list(APPEND ALL_EXE_SRCS
   ex19.cpp
   ex20.cpp
   ex21.cpp
+  ex22.cpp
+  ex23.cpp
+  ex24.cpp
+  ex25.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -53,6 +57,9 @@ if (MFEM_USE_MPI)
     ex19p.cpp
     ex20p.cpp
     ex21p.cpp
+    ex22p.cpp
+    ex24p.cpp
+    ex25p.cpp
     )
 endif()
 
@@ -100,6 +107,11 @@ if (MFEM_USE_SUNDIALS)
   add_subdirectory(sundials)
 endif()
 
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_GINKGO)
+  add_subdirectory(ginkgo)
+endif()
+
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
@@ -109,3 +121,8 @@ endif()
 if (MFEM_USE_PUMI)
   add_subdirectory(pumi)
 endif()
+
+if (MFEM_USE_HIOP)
+  add_subdirectory(hiop)
+endif()
+

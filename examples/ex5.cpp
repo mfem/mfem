@@ -20,8 +20,8 @@
 //               polynomials (pressure p).
 //
 //               The example demonstrates the use of the BlockMatrix class, as
-//               well as the collective saving of several grid functions in a
-//               VisIt (visit.llnl.gov) visualization format.
+//               well as the collective saving of several grid functions in
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -264,7 +264,19 @@ int main(int argc, char *argv[])
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 14. Save data in the ParaView format
+   ParaViewDataCollection paraview_dc("Example5", mesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("velocity",&u);
+   paraview_dc.RegisterField("pressure",&p);
+   paraview_dc.Save();
+
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -277,7 +289,7 @@ int main(int argc, char *argv[])
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
    }
 
-   // 15. Free the used memory.
+   // 16. Free the used memory.
    delete fform;
    delete gform;
    delete invM;
