@@ -57,13 +57,14 @@
 using namespace std;
 using namespace mfem;
 
-GridFunction* ProlongToMaxOrder(GridFunction *x);
+GridFunction* ProlongToMaxOrder(const GridFunction *x);
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int seed = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -75,6 +76,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&seed, "-s", "--seed", "Random seed");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -103,6 +105,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    mesh->EnsureNCMesh();
+   srand(seed);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -139,19 +142,21 @@ int main(int argc, char *argv[])
    // 6. At this point all elements have the default order (specified when
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
-   for (int i = 0; i < mesh->GetNE()/2; i++)
-   {
-      fespace->SetElementOrder(i, order+1);
-   }
-   fespace->Update(false);
    {
       Array<int> refs;
-      refs.Append(0);
+      refs.Append(1);
       mesh->GeneralRefinement(refs);
    }
    fespace->Update(false);
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      //fespace->SetElementOrder(i, order+1);
+      //fespace->SetElementOrder(i, 4);
+      fespace->SetElementOrder(i, (rand()%4)+1);
+   }
+   fespace->Update(false);
 
-   Array<int> dofs;
+   /*Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       fespace->GetElementDofs(i, dofs);
@@ -160,9 +165,12 @@ int main(int argc, char *argv[])
          mfem::out << " " << dofs[j];
       }
       mfem::out << std::endl;
-   }
+   }*/
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
+
+   cout << "P matrix:\n";
+   fespace->GetConformingProlongation()->Print();
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -247,15 +255,16 @@ int main(int argc, char *argv[])
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
-      // Prolong the solution vector onto L2 space of max order (for GLVis)
-      GridFunction *vis_x = ProlongToMaxOrder(&x);
-
       char vishost[] = "localhost";
       int  visport   = 19916;
+
+      // Prolong the solution vector onto L2 space of max order (for GLVis)
+      GridFunction *vis_x = ProlongToMaxOrder(&x);
 
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x << flush;
+      delete vis_x;
 
       L2_FECollection l2fec(0, dim);
       FiniteElementSpace l2fes(mesh, &l2fec);
@@ -270,7 +279,23 @@ int main(int argc, char *argv[])
       ord_sock.precision(8);
       ord_sock << "solution\n" << *mesh << orders << flush;
 
-      delete vis_x;
+      // visualize the basis functions
+      if (1)
+      {
+         socketstream b_sock(vishost, visport);
+         b_sock.precision(8);
+
+         for (int i = 0; i < X.Size(); i++)
+         {
+            X = 0.0;
+            X(i) = 1.0;
+            a->RecoverFEMSolution(X, *b, x);
+            vis_x = ProlongToMaxOrder(&x);
+            b_sock << "solution\n" << *mesh << *vis_x << "pause\n" << flush;
+            delete vis_x;
+         }
+      }
+
    }
 
    // 15. Free the used memory.
@@ -283,9 +308,9 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-GridFunction* ProlongToMaxOrder(GridFunction *x)
+GridFunction* ProlongToMaxOrder(const GridFunction *x)
 {
-   FiniteElementSpace *fespace = x->FESpace();
+   const FiniteElementSpace *fespace = x->FESpace();
    Mesh *mesh = fespace->GetMesh();
    const FiniteElementCollection *fec = fespace->FEColl();
 

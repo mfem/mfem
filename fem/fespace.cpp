@@ -1887,7 +1887,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
    }
    else
    {
-      MFEM_ASSERT(var == 0, "");
+      if (var > 0) { return -1; }
       p = fec->DefaultOrder();
       ne = fec->GetNumDof(Geometry::SEGMENT, p);
       base = nvdofs + edge*ne;
