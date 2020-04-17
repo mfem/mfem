@@ -24,6 +24,9 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 
    nscd = nscd = dofs.SubcellCross.Width();
 
+   uFace.SetSize(hyp->NumEq, dofs.NumFaceDofs);
+   uNbrFace.SetSize(hyp->NumEq, dofs.NumFaceDofs);
+
    RefMassLumped =  0.;
    RefMass = 0.;
    PrecGradOp = 0.;
@@ -69,6 +72,20 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
          {
             PrecGradOp(i,l,j) += GradAux(i,j);
             GradProd(i,l,j) = GradOp(i,j,l) + GradOp(j,i,l);
+         }
+      }
+   }
+
+   FaceMat.SetSize(dofs.NumFaceDofs, dofs.NumFaceDofs);
+   FaceMat = 0.;
+
+   for (int k = 0; k < nqf; k++)
+   {
+      for (int i = 0; i < dofs.NumFaceDofs; i++)
+      {
+         for (int j = 0; j < dofs.NumFaceDofs; j++)
+         {
+            FaceMat(i,j) += ShapeEvalFace(0,i,k) * ShapeEvalFace(0,j,k);
          }
       }
    }
@@ -197,34 +214,34 @@ void MCL_Evolution::GetNodeVal(const Vector &uElem, Vector &uEval, int j) const
    }
 }
 
-void MCL_Evolution::FaceTerm(const Vector &x, Vector &y1, Vector &y2,
+void MCL_Evolution::FaceTerm(const Vector &x, Vector &uEval, Vector &uNbrEval,
                              const Vector &xMPI, const Vector &normal,
                              int e, int i, int j) const
 {
-   nbr = dofs.NbrDofs(i,j,e);
+   // nbr = dofs.NbrDofs(i,j,e);
 
-   for (int n = 0; n < hyp->NumEq; n++)
-   {
-      DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j, i);
+   // for (int n = 0; n < hyp->NumEq; n++)
+   // {
+   //    DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j, i);
 
-      if (nbr < 0)
-      {
-         uNbr = inflow(DofInd);
-      }
-      else
-      {
-         // nbr in different MPI task?
-         uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
-      }
+   //    if (nbr < 0)
+   //    {
+   //       uNbr = inflow(DofInd);
+   //    }
+   //    else
+   //    {
+   //       // nbr in different MPI task?
+   //       uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
+   //    }
 
-      y1(n) = x(DofInd);
-      y2(n) = uNbr;
-   }
+   //    uEval(n) = x(DofInd);
+   //    uNbrEval(n) = uNbr;
+   // }
 
-   if (nbr < 0)
-   {
-      hyp->SetBdrCond(y1, y2, normal, nbr);
-   }
+   // if (nbr < 0)
+   // {
+   //    hyp->SetBdrCond(uEval, uNbrEval, normal, nbr);
+   // }
 }
 
 void MCL_Evolution::LinearFluxLumping(const Vector &x1, const Vector &x2, const Vector &normal,
@@ -234,7 +251,7 @@ void MCL_Evolution::LinearFluxLumping(const Vector &x1, const Vector &x2, const 
    C_eij = normal;
    for (int k = 0; k < nqf; k++)
    {
-      c_eij += BdrInt(i,k,e) * ShapeEvalFace(i,j,k);
+      c_eij += BdrInt(i,k,e)  * IntRuleFaceWeights(k) * ShapeEvalFace(i,j,k);
    }
 
    C_eij *= c_eij;
@@ -400,20 +417,6 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          }
       }
 
-      // for (int n = 0; n < hyp->NumEq; n++)
-      // {
-      //    double test = 0.;
-      //    for (int j = 0; j < nd; j++)
-      //    {
-      //       test += ElFlux(n*nd+j);
-      //    }
-      //    if (abs(test) > 1.E-12)
-      //    {
-      //       cout << abs(test) << endl;
-      //       MFEM_ABORT("non-zero sum.");
-      //    }
-      // }
-
       // DG flux terms and boundary conditions.
       for (int i = 0; i < dofs.NumBdrs; i++)
       {
@@ -421,13 +424,76 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
-            FaceTerm(x, uEval, uNbrEval, xMPI, normal, e, i, j);
+            nbr = dofs.NbrDofs(i,j,e);
+            for (int n = 0; n < hyp->NumEq; n++)
+            {
+               DofInd = n * ne * nd + e * nd + dofs.BdrDofs(j, i);
+
+               if (nbr < 0)
+               {
+                  uNbr = inflow(DofInd);
+               }
+               else
+               {
+                  // nbr in different MPI task?
+                  uNbr = (nbr < xSizeMPI) ? x(n * ne * nd + nbr) : xMPI(int((nbr - xSizeMPI) / nd) * nd * hyp->NumEq + n * nd + (nbr - xSizeMPI) % nd);
+               }
+
+               uEval(n) = x(DofInd);
+               uNbrEval(n) = uNbr;
+            }
+
+            if (nbr < 0)
+            {
+               hyp->SetBdrCond(uEval, uNbrEval, normal, nbr);
+            }
+
+            uFace.SetCol(j, uEval);
+            uNbrFace.SetCol(j, uNbrEval);
+         }
+
+         for (int j = 0; j < dofs.NumFaceDofs; j++)
+         {
+            uFace.GetColumn(j, uEval);
+            hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i)); // TODO default argument k wrong
+
+            for (int l = 0; l < dofs.NumFaceDofs; l++)
+            {
+               uFace.GetColumn(l, uNbrEval);
+               hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i)); // TODO default argument k wrong
+               FluxNbr -= Flux;
+               Vector contribution(hyp->NumEq);
+               FluxNbr.Mult(normal, contribution);
+               contribution *= FaceMat(j,l);
+
+               for (int n = 0; n < hyp->NumEq; n++)
+               {
+                  ElFlux(n*nd + dofs.BdrDofs(j,i)) += contribution(n);
+               }
+            }
+
+            uNbrFace.GetColumn(j, uNbrEval);
+
             LinearFluxLumping(uEval, uNbrEval, normal, NumFlux, e, j, i);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
                z(vdofs[n * nd + dofs.BdrDofs(j, i)]) += NumFlux(n);
             }
+         }
+      }
+
+      for (int n = 0; n < hyp->NumEq; n++)
+      {
+         double test = 0.;
+         for (int j = 0; j < nd; j++)
+         {
+            test += ElFlux(n*nd+j);
+         }
+         if (abs(test) > 1.E-12)
+         {
+            cout << abs(test) << endl;
+            MFEM_ABORT("non-zero sum.");
          }
       }
 

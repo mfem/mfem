@@ -55,7 +55,7 @@ void GalerkinEvolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             FaceEval(x, uEval, uNbrEval, xMPI, normal, e, i, k);
 
             LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
-            NumFlux *= BdrInt(i, k, e);
+            NumFlux *= BdrInt(i, k, e) * IntRuleFaceWeights(k);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {

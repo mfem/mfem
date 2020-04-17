@@ -19,6 +19,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    // Initialize member variables.
    IntRuleElem = GetElementIntegrationRule(fes);
    IntRuleFace = GetFaceIntegrationRule(fes);
+   IntRuleFaceWeights.SetSize(IntRuleFace->GetNPoints());
 
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
@@ -104,6 +105,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
    for (int k = 0; k < nqf; k++)
    {
       const IntegrationPoint &ip = IntRuleFace->IntPoint(k);
+      IntRuleFaceWeights(k) = ip.weight;
 
       if (dim==1)      { mesh->GetElementVertices(0, bdrs); }
       else if (dim==2) { mesh->GetElementEdges(0, bdrs, orientation); }
@@ -170,7 +172,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
             }
 
             nor /= nor.Norml2();
-            BdrInt(i,k,e) = facetrans->Face->Weight() * ip.weight;
+            BdrInt(i,k,e) = facetrans->Face->Weight();
 
             for (int l = 0; l < dim; l++)
             {

@@ -17,8 +17,9 @@ public:
    FiniteElementSpace *fes;
    const HyperbolicSystem *hyp;
    const DofInfo dofs;
-   const IntegrationRule *IntRuleElem;
+   const IntegrationRule *IntRuleElem; // TODO rm const, *
    const IntegrationRule *IntRuleFace;
+   Vector IntRuleFaceWeights;
 
    // Parameters that are needed repeatedly.
    int dim, nd, ne, nqe, nqf;
