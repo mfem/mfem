@@ -529,6 +529,49 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
    }
 }
 
+void IsoparametricTransformation::JacobianRevDiff(const DenseMatrix &dFdx_bar,
+                                                  DenseMatrix &PointMat_bar)
+{
+   MFEM_ASSERT((PointMat_bar.Width() == PointMat.Width()) &&
+                   (PointMat_bar.Height() = PointMat.Height()),
+               "PointMat_bar shape != PointMat shape");
+
+   dshape.SetSize(FElem->GetDof(), FElem->GetDim());
+   if (dshape.Width() > 0)
+   {
+      // The math here can be found in Giles' report "An extended collection of
+      // matrix derivative results for forward and reverse mode algorithmic
+      // differentiation"
+      FElem->CalcDShape(*IntPoint, dshape);
+      MultABt(dFdx_bar, dshape, PointMat_bar);
+   }
+   else 
+   {
+      // if dshape.Width() == 0, derivative is meaningless
+      PointMat_bar = 0.0;
+   }
+}
+
+void IsoparametricTransformation::AdjugateJacobianRevDiff(
+    const DenseMatrix &adjJ_bar, DenseMatrix &PointMat_bar)
+{
+   Jacobian(); // Recompute the Jacobian, if necessary
+   DenseMatrix dFdx_bar(dFdx.Height(), dFdx.Width()); // pass in as work array?
+   if (dFdx.Width() > 0)
+   {
+      CalcAdjugateRevDiff(dFdx, adjJ_bar, dFdx_bar);
+   }
+   JacobianRevDiff(dFdx_bar, PointMat_bar);
+}
+
+void IsoparametricTransformation::WeightRevDiff(DenseMatrix &PointMat_bar)
+{
+   Jacobian(); // Recompute the Jacobian, if necessary
+   DenseMatrix dFdx_bar(dFdx.Height(), dFdx.Width()); // pass in as work array?
+   dFdx.WeightRevDiff(dFdx_bar);
+   JacobianRevDiff(dFdx_bar, PointMat_bar);
+}
+
 void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,
                                                 IntegrationPoint &ip2)
 {
