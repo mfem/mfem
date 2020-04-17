@@ -60,7 +60,8 @@ private:
    mutable double norm0;
 };
 
-void GeneralResidualMonitor::MonitorResidual(int it, double norm, const Vector &r, bool final)
+void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+                                             const Vector &r, bool final)
 {
    if (print_level == 1 || final || it == 0)
    {
