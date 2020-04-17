@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_ELEMENTTRANSFORM
 #define MFEM_ELEMENTTRANSFORM
@@ -25,6 +25,7 @@ class ElementTransformation
 protected:
    const IntegrationPoint *IntPoint;
    DenseMatrix dFdx, adjJ, invJ;
+   DenseMatrix d2Fdx2;
    double Wght;
    int EvalState;
    enum StateMasks
@@ -32,14 +33,15 @@ protected:
       JACOBIAN_MASK = 1,
       WEIGHT_MASK   = 2,
       ADJUGATE_MASK = 4,
-      INVERSE_MASK  = 8
+      INVERSE_MASK  = 8,
+      HESSIAN_MASK  = 16
    };
    Geometry::Type geom;
-   int space_dim;
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
    virtual const DenseMatrix &EvalJacobian() = 0;
+   virtual const DenseMatrix &EvalHessian() = 0;
 
    double EvalWeight();
    const DenseMatrix &EvalAdjugateJ();
@@ -68,6 +70,9 @@ public:
    const DenseMatrix &Jacobian()
    { return (EvalState & JACOBIAN_MASK) ? dFdx : EvalJacobian(); }
 
+   const DenseMatrix &Hessian()
+   { return (EvalState & HESSIAN_MASK) ? d2Fdx2 : EvalHessian(); }
+
    double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
    const DenseMatrix &AdjugateJacobian()
@@ -76,11 +81,11 @@ public:
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
-   virtual int Order() = 0;
-   virtual int OrderJ() = 0;
-   virtual int OrderW() = 0;
+   virtual int Order() const = 0;
+   virtual int OrderJ() const = 0;
+   virtual int OrderW() const = 0;
    /// Order of adj(J)^t.grad(fi)
-   virtual int OrderGrad(const FiniteElement *fe) = 0;
+   virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
    Geometry::Type GetGeometryType() const { return geom; }
@@ -91,7 +96,7 @@ public:
    /// Get the dimension of the target (physical) space.
    /** We support 2D meshes embedded in 3D; in this case the function will
        return "3". */
-   int GetSpaceDim() const { return space_dim; }
+   virtual int GetSpaceDim() const = 0;
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
        reference space. */
@@ -285,7 +290,7 @@ public:
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
-   DenseMatrix dshape;
+   DenseMatrix dshape,d2shape;
    Vector shape;
 
    const FiniteElement *FElem;
@@ -294,24 +299,30 @@ private:
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
    virtual const DenseMatrix &EvalJacobian();
-
+   // Evaluate the Hessian of the transformation at the IntPoint and store it
+   // in d2Fdx2.
+   virtual const DenseMatrix &EvalHessian();
 public:
    void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
    const FiniteElement* GetFE() const { return FElem; }
 
-   /** @brief Read and write access to the underlying point matrix describing
-       the transformation. */
+   /// @brief Set the underlying point matrix describing the transformation.
    /** The dimensions of the matrix are space-dim x dof. The transformation is
        defined as
 
-           x=F(xh)=P.phi(xh),
+           x = F(xh) = P . phi(xh),
 
        where xh (x hat) is the reference point, x is the corresponding physical
        point, P is the point matrix, and phi(xh) is the column-vector of all
        basis functions evaluated at xh. The columns of P represent the control
        points in physical space defining the transformation. */
+   void SetPointMat(const DenseMatrix &pm) { PointMat = pm; }
+
+   /// Return the stored point matrix.
+   const DenseMatrix &GetPointMat() const { return PointMat; }
+
+   /// Write access to the stored point matrix. Use with caution.
    DenseMatrix &GetPointMat() { return PointMat; }
-   void FinalizeTransformation() { space_dim = PointMat.Height(); }
 
    void SetIdentityTransformation(Geometry::Type GeomType);
 
@@ -319,10 +330,12 @@ public:
    virtual void Transform(const IntegrationRule &, DenseMatrix &);
    virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
 
-   virtual int Order() { return FElem->GetOrder(); }
-   virtual int OrderJ();
-   virtual int OrderW();
-   virtual int OrderGrad(const FiniteElement *fe);
+   virtual int Order() const { return FElem->GetOrder(); }
+   virtual int OrderJ() const;
+   virtual int OrderW() const;
+   virtual int OrderGrad(const FiniteElement *fe) const;
+
+   virtual int GetSpaceDim() const { return PointMat.Height(); }
 
    virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
    {
@@ -331,6 +344,8 @@ public:
    }
 
    virtual ~IsoparametricTransformation() { }
+
+   MFEM_DEPRECATED void FinalizeTransformation() {}
 };
 
 class IntegrationPointTransformation
