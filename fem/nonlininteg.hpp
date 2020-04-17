@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NONLININTEG
 #define MFEM_NONLININTEG
@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fe.hpp"
 #include "coefficient.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
@@ -67,6 +68,26 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
+
+   /// Method defining partial assembly.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA(). */
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA().
+       Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   /// Method for partially assembled action.
+   /** Perform the action of integrator on the input @a x and add the result to
+       the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
+       the element-wise discontinuous version of the FE space.
+
+       This method can be called only after the method AssemblePA() has been
+       called. */
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    virtual ~NonlinearFormIntegrator() { }
 };
@@ -283,6 +304,42 @@ public:
                                     ElementTransformation &Tr,
                                     const Array<const Vector *> &elfun,
                                     const Array2D<DenseMatrix *> &elmats);
+};
+
+class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   Vector shape;
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, nq;
+public:
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+
+   VectorConvectionNLFIntegrator() = default;
+
+   static const IntegrationRule &GetRule(const FiniteElement &fe,
+                                         ElementTransformation &T);
+
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &trans,
+                                      const Vector &elfun,
+                                      Vector &elvect);
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
+
+   using NonlinearFormIntegrator::AssemblePA;
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 };
 
 }
