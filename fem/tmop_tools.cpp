@@ -65,27 +65,22 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    GridFunction u(mesh_nodes->FESpace());
    subtract(new_nodes, nodes0, u);
 
+   // Define a scalar FE space for the solution, and the advection operator.
    TimeDependentOperator *oper = NULL;
    FiniteElementSpace *fess = NULL;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfess = NULL;
 #endif
-   // This must be the fes of the ind, associated with the object's mesh.
-
    if (fes)
    {
-      fess = new FiniteElementSpace(fes->GetMesh(),
-                                    fes->FEColl(),
-                                    1);
+      fess = new FiniteElementSpace(fes->GetMesh(), fes->FEColl(), 1);
       oper = new SerialAdvectorCGOper(nodes0, u, *fess);
    }
 #ifdef MFEM_USE_MPI
    else if (pfes)
    {
-      pfess = new ParFiniteElementSpace(pfes->GetParMesh(),
-                                        pfes->FEColl(),
-                                        1);
-      oper = new ParAdvectorCGOper(nodes0, u, *pfess);
+      pfess = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl(), 1);
+      oper  = new ParAdvectorCGOper(nodes0, u, *pfess);
    }
 #endif
    MFEM_VERIFY(oper != NULL,
@@ -98,7 +93,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    {
       h_min = std::min(h_min, m->GetElementSize(i));
    }
-   double v_max = 0.0, v_max_glob = 0.0;
+   double v_max = 0.0;
    const int dim = fes->GetFE(0)->GetDim(),
              s   = new_field.Size() ;
 
