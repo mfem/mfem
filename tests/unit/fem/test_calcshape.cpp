@@ -157,8 +157,11 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
 
 TEST_CASE("CalcShape for several H1 FiniteElement instances",
           "[H1_SegmentElement]"
+          "[H1_TriangleElement]"
           "[H1_QuadrilateralElement]"
-          "[H1_HexahedronElement]")
+          "[H1_TetrahedronElement]"
+          "[H1_HexahedronElement]"
+          "[H1_WedgeElement]")
 {
    int maxOrder = 5;
    int resolution = 10;
@@ -174,6 +177,17 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
       }
    }
 
+   SECTION("H1_TriangleElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_TriangleElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_TriangleElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
+   }
+
    SECTION("H1_QuadrilateralElement")
    {
       for (int order =1; order <= maxOrder; ++order)
@@ -185,6 +199,17 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
       }
    }
 
+   SECTION("H1_TetrahedronElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_TetrahedronElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_TetrahedronElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
+   }
+
    SECTION("H1_HexahedronElement")
    {
       for (int order =1; order <= maxOrder; ++order)
@@ -192,6 +217,17 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_HexahedronElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_HexahedronElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
+   }
+
+   SECTION("H1_WedgeElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_WedgeElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_WedgeElement fe(order);
          TestCalcShape(&fe, resolution);
       }
    }

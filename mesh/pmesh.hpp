@@ -309,6 +309,12 @@ public:
        as boundary (for visualization purposes) using the mfem v1.0 format. */
    virtual void Print(std::ostream &out = mfem::out) const;
 
+#ifdef MFEM_USE_ADIOS2
+   /** Print the part of the mesh in the calling processor using adios2 bp
+       format. */
+   virtual void Print(adios2stream &out) const;
+#endif
+
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
    virtual void PrintXG(std::ostream &out = mfem::out) const;
@@ -347,6 +353,10 @@ public:
    friend class ParNCMesh;
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
+#endif
+
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
 #endif
 };
 
