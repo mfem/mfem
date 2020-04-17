@@ -959,15 +959,13 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 #ifdef MFEM_USE_MPI
 void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec()
 {
-   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
-
-   MFEM_VERIFY(ncomp>0," Must set atleast 1 discrete target spec");
+   MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
+   MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
                               *ptspec_fes->FEColl(),
                               ncomp);
-   adapt_eval->SetInitialField
-   (*tspec_fes->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
    tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
@@ -1049,8 +1047,8 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
 {
-   const int vdim = tspec_.FESpace()->GetVDim(),
-             cnt  = tspec_.Size()/vdim;
+   const int vdim     = tspec_.FESpace()->GetVDim(),
+             dof_cnt  = tspec_.Size()/vdim;
 
    ncomp += vdim;
 
@@ -1071,16 +1069,16 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
-   tspec.SetSize(ncomp*cnt);
+   tspec.SetSize(ncomp*dof_cnt);
 
    for (int i = 0; i < tspec_temp.Size(); i++)
    {
       tspec(i) = tspec_temp(i);
    }
 
-   for (int i = 0; i < cnt*vdim; i++)
+   for (int i = 0; i < dof_cnt*vdim; i++)
    {
-      tspec(i+(ncomp-vdim)*cnt) = tspec_(i);
+      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
    }
 }
 
@@ -1111,9 +1109,8 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(GridFunction &tspec_)
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
 {
-   if (!adapt_eval) {MFEM_ABORT("Set adaptivity evaluator\n");}
-
-   MFEM_VERIFY(ncomp > 0," Must set atleast 1 discrete target spec");
+   MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
+   MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
                                  *tspec_fes->FEColl(),
