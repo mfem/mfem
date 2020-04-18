@@ -44,9 +44,10 @@ enum class AssemblyLevel
 };
 
 
-/** Class for bilinear form - "Matrix" with associated FE space and
-    BLFIntegrators.  The sum of all the BLFIntegrators will be used
-    form the matrix/operator M.  */
+/** Class for bilinear form - Used to form a matrix given the
+    associated FE space and BLFIntegrators.  The
+    sum of all the BLFIntegrators will be used
+    form the matrix M.  */
 class BilinearForm : public Matrix
 {
 protected:
@@ -506,7 +507,6 @@ public:
        are returned in @a vdofs. The flag @a skip_zeros skips the zero elements
        of the matrix, unless they are breaking the symmetry of the system matrix.
    */
-
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &vdofs, int skip_zeros = 1);
 
@@ -532,7 +532,7 @@ public:
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /// Eliminate the given @a vdofs, storing the eliminated part internall in \f$ M_e \f$.
+   /// Eliminate the given @a vdofs, storing the eliminated part internally in \f$ M_e \f$.
    /** This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, @a vdofs is a list of DOFs. */
@@ -580,9 +580,9 @@ public:
    /// Sets diagonal policy used upon construction of the linear system.
    /** Policies include:
 
-       - DIAG_ZERO (Set the diagonal value to zero)
-       - DIAG_ONE  (Set the diagonal value to one)
-       - DIAG_KEEP (Keep the diagonal value)
+       - DIAG_ZERO (Set the diagonal values to zero)
+       - DIAG_ONE  (Set the diagonal values to one)
+       - DIAG_KEEP (Keep the diagonal values)
    */
    void SetDiagonalPolicy(DiagonalPolicy policy);
 

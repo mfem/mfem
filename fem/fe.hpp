@@ -228,7 +228,7 @@ class KnotVector;
 // Base and derived classes for finite elements
 
 
-/// Abstract class for Finite Elements
+/// Abstract class for all finite elements.
 class FiniteElement
 {
 protected:
@@ -338,13 +338,13 @@ public:
    int GetMapType() const { return MapType; }
 
 
-   /** @brief Returns the FiniteElement::MapT of the element describing how reference
-       functions are mapped to physical space, one of {VALUE, INTEGRAL
-       H_DIV, H_CURL}. */
+   /** @brief Returns the FiniteElement::DerivT of the element describing the
+       spatial derivative method implemented, one of {NONE, GRAD,
+       DIV, CURL}. */
    int GetDerivType() const { return DerivType; }
 
-   /** @brief Returns the FiniteElement::MapT of the element describing how reference
-       function derivatives are mapped to physical space, one of {VALUE,
+   /** @brief Returns the FiniteElement::DerivT of the element describing how
+       reference function derivatives are mapped to physical space, one of {VALUE,
        INTEGRAL, H_DIV, H_CURL}. */
    int GetDerivMapType() const { return DerivMapType; }
 
@@ -548,7 +548,7 @@ public:
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
 
-   /** Return a DofToQuad structure corresponding to the given IntegrationRule
+   /** @brief Return a DofToQuad structure corresponding to the given IntegrationRule
        using the given DofToQuad::Mode. */
    /** See the documentation for DofToQuad for more details. */
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
@@ -599,6 +599,9 @@ public:
    }
 };
 
+
+/** @brief Class for finite elements with basis functions
+    that take scalar values. */
 class ScalarFiniteElement : public FiniteElement
 {
 protected:
@@ -618,7 +621,7 @@ protected:
                                        DofToQuad::Mode mode) const;
 
 public:
-   /** @brief Construct FiniteElement with given
+   /** @brief Construct ScalarFiniteElement with given
        @param D    Reference space dimension
        @param G    Geometry type (of type Geometry::Type)
        @param Do   Number of degrees of freedom in the FiniteElement
@@ -664,6 +667,8 @@ public:
                                          DofToQuad::Mode mode) const;
 };
 
+
+/// Class for standard nodal finite elements.
 class NodalFiniteElement : public ScalarFiniteElement
 {
 protected:
@@ -672,7 +677,7 @@ protected:
                        DenseMatrix &curl) const;
 
 public:
-   /** @brief Construct FiniteElement with given
+   /** @brief Construct NodalFiniteElement with given
        @param D    Reference space dimension
        @param G    Geometry type (of type Geometry::Type)
        @param Do   Number of degrees of freedom in the FiniteElement
@@ -717,11 +722,12 @@ public:
                            DenseMatrix &div) const;
 };
 
-
+/** @brief Class for finite elements utilizing the
+    always positive Bernstein basis. */
 class PositiveFiniteElement : public ScalarFiniteElement
 {
 public:
-   /** @brief Construct FiniteElement with given
+   /** @brief Construct PositiveFiniteElement with given
        @param D    Reference space dimension
        @param G    Geometry type (of type Geometry::Type)
        @param Do   Number of degrees of freedom in the FiniteElement
@@ -756,8 +762,8 @@ public:
                         DenseMatrix &I) const;
 };
 
-/** Abstract base clase for finite elements whose basis functions are
-    vector valued. */
+/** @brief Intermediate class for finite elements whose basis functions take
+    vector values. */
 class VectorFiniteElement : public FiniteElement
 {
    // Hide the scalar functions CalcShape and CalcDShape.
@@ -869,7 +875,7 @@ public:
 class PointFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the PointFiniteElement
    PointFiniteElement();
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -882,7 +888,7 @@ public:
 class Linear1DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Linear1DFiniteElement
    Linear1DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -902,7 +908,7 @@ public:
 class Linear2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Linear2DFiniteElement
    Linear2DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -924,7 +930,7 @@ public:
 class BiLinear2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the BiLinear2DFiniteElement
    BiLinear2DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -948,7 +954,7 @@ public:
 class GaussLinear2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the GaussLinear2DFiniteElement
    GaussLinear2DFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -971,12 +977,12 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
-/** @brief A  2D linear element on a square with 3 nodes at the
+/** @brief A 2D linear element on a square with 3 nodes at the
     vertices of the lower left triangle */
 class P1OnQuadFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P1OnQuadFiniteElement
    P1OnQuadFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -989,7 +995,7 @@ public:
 class Quad1DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Quad1DFiniteElement
    Quad1DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1009,7 +1015,7 @@ public:
 class QuadPos1DFiniteElement : public PositiveFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the QuadPos1DFiniteElement
    QuadPos1DFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1021,7 +1027,7 @@ public:
 class Quad2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Quad2DFiniteElement
    Quad2DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1050,7 +1056,7 @@ private:
    mutable DenseMatrix D;
    mutable Vector pol;
 public:
-   /// Construct the FiniteElement
+   /// Construct the GaussQuad2DFiniteElement
    GaussQuad2DFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1062,7 +1068,7 @@ public:
 class BiQuad2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the BiQuad2DFiniteElement
    BiQuad2DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1084,7 +1090,7 @@ public:
 class BiQuadPos2DFiniteElement : public PositiveFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the BiQuadPos2DFiniteElement
    BiQuadPos2DFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1104,7 +1110,7 @@ public:
 class GaussBiQuad2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the GaussBiQuad2DFiniteElement
    GaussBiQuad2DFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1117,7 +1123,7 @@ public:
 class BiCubic2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the BiCubic2DFiniteElement
    BiCubic2DFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1132,7 +1138,7 @@ public:
 class Cubic1DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Cubic1DFiniteElement
    Cubic1DFiniteElement();
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -1145,7 +1151,7 @@ public:
 class Cubic2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Cubic2DFiniteElement
    Cubic2DFiniteElement();
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -1161,7 +1167,7 @@ public:
 class Cubic3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Cubic3DFiniteElement
    Cubic3DFiniteElement();
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -1174,7 +1180,7 @@ public:
 class P0TriangleFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P0TriangleFiniteElement
    P0TriangleFiniteElement();
 
    /// evaluate shape function - constant 1
@@ -1192,7 +1198,7 @@ public:
 class P0QuadFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P0QuadFiniteElement
    P0QuadFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1207,7 +1213,7 @@ public:
 class Linear3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Linear3DFiniteElement
    Linear3DFiniteElement();
 
    /** @brief virtual function which evaluates the values of all
@@ -1236,7 +1242,7 @@ public:
 class Quadratic3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the Quadratic3DFiniteElement
    Quadratic3DFiniteElement();
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -1249,7 +1255,7 @@ public:
 class TriLinear3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the TriLinear3DFiniteElement
    TriLinear3DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1273,7 +1279,7 @@ public:
 class CrouzeixRaviartFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the CrouzeixRaviartFiniteElement
    CrouzeixRaviartFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1286,31 +1292,33 @@ public:
 class CrouzeixRaviartQuadFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the CrouzeixRaviartQuadFiniteElement
    CrouzeixRaviartQuadFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
 };
 
+
+/// A 1D constant element on a segment
 class P0SegmentFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement with dummy order @a Ord
+   /// Construct the P0SegmentFiniteElement with dummy order @a Ord
    P0SegmentFiniteElement(int Ord = 0);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
 };
 
-/** @brief A 2D 1st Raviart-Thomas vector element on a triangle */
+/** @brief A 2D 1st order Raviart-Thomas vector element on a triangle */
 class RT0TriangleFiniteElement : public VectorFiniteElement
 {
 private:
    static const double nk[3][2];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT0TriangleFiniteElement
    RT0TriangleFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1332,14 +1340,14 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 1st Raviart-Thomas vector element on a square*/
+/** @brief A 2D 1st order Raviart-Thomas vector element on a square*/
 class RT0QuadFiniteElement : public VectorFiniteElement
 {
 private:
    static const double nk[4][2];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT0QuadFiniteElement
    RT0QuadFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1361,14 +1369,14 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 2nd Raviart-Thomas vector element on a triangle */
+/** @brief A 2D 2nd order Raviart-Thomas vector element on a triangle */
 class RT1TriangleFiniteElement : public VectorFiniteElement
 {
 private:
    static const double nk[8][2];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT1TriangleFiniteElement
    RT1TriangleFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1390,14 +1398,14 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 2nd Raviart-Thomas vector element on a square */
+/** @brief A 2D 2nd order Raviart-Thomas vector element on a square */
 class RT1QuadFiniteElement : public VectorFiniteElement
 {
 private:
    static const double nk[12][2];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT1QuadFiniteElement
    RT1QuadFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1419,13 +1427,13 @@ public:
                          ElementTransformation &Trans, Vector &dofs) const;
 };
 
-/** @brief A 2D 3rd Raviart-Thomas vector element on a triangle */
+/** @brief A 2D 3rd order Raviart-Thomas vector element on a triangle */
 class RT2TriangleFiniteElement : public VectorFiniteElement
 {
 private:
    static const double M[15][15];
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT2TriangleFiniteElement
    RT2TriangleFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1439,7 +1447,7 @@ public:
                              Vector &divshape) const;
 };
 
-/** @brief A 2D 3rd Raviart-Thomas vector element on a square */
+/** @brief A 2D 3rd order Raviart-Thomas vector element on a square */
 class RT2QuadFiniteElement : public VectorFiniteElement
 {
 private:
@@ -1448,7 +1456,7 @@ private:
    static const double dpt[3];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT2QuadFiniteElement
    RT2QuadFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1474,7 +1482,7 @@ public:
 class P1SegmentFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P1SegmentFiniteElement
    P1SegmentFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1485,7 +1493,7 @@ public:
 class P2SegmentFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P2SegmentFiniteElement
    P2SegmentFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1501,18 +1509,18 @@ private:
    mutable Vector rxxk;
 #endif
 public:
-   /// Construct the FiniteElement with the provided @a degree
+   /// Construct the Lagrange1DFiniteElement with the provided @a degree
    Lagrange1DFiniteElement (int degree);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
 };
 
-
+/// A 3D linear tetrahedron with nodes at thirds???
 class P1TetNonConfFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P1TetNonConfFiniteElement
    P1TetNonConfFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1523,7 +1531,7 @@ public:
 class P0TetFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P0TetFiniteElement
    P0TetFiniteElement ();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1536,7 +1544,7 @@ public:
 class P0HexFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the P0HexFiniteElement
    P0HexFiniteElement ();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1559,7 +1567,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement with the provided @a degree
+   /// Construct the LagrangeHexFiniteElement with the provided @a degree
    LagrangeHexFiniteElement (int degree);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1572,7 +1580,7 @@ public:
 class RefinedLinear1DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the RefinedLinear1DFiniteElement
    RefinedLinear1DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1592,7 +1600,7 @@ public:
 class RefinedLinear2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the RefinedLinear2DFiniteElement
    RefinedLinear2DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1612,7 +1620,7 @@ public:
 class RefinedLinear3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the RefinedLinear3DFiniteElement
    RefinedLinear3DFiniteElement();
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -1625,7 +1633,7 @@ public:
 class RefinedBiLinear2DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the RefinedBiLinear2DFiniteElement
    RefinedBiLinear2DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1645,7 +1653,7 @@ public:
 class RefinedTriLinear3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct the FiniteElement
+   /// Construct the RefinedTriLinear3DFiniteElement
    RefinedTriLinear3DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1669,7 +1677,7 @@ private:
    static const double tk[12][3];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the Nedelec1HexFiniteElement
    Nedelec1HexFiniteElement();
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -1693,7 +1701,7 @@ private:
    static const double tk[6][3];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the Nedelec1TetFiniteElement
    Nedelec1TetFiniteElement();
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -1717,7 +1725,7 @@ private:
    static const double nk[6][3];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT0HexFiniteElement
    RT0HexFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1747,7 +1755,7 @@ private:
    static const double nk[36][3];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT1HexFiniteElement
    RT1HexFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1777,7 +1785,7 @@ private:
    static const double nk[4][3];
 
 public:
-   /// Construct the FiniteElement
+   /// Construct the RT0TetFiniteElement
    RT0TetFiniteElement();
 
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -1803,6 +1811,7 @@ public:
 class RotTriLinearHexFiniteElement : public NodalFiniteElement
 {
 public:
+   /// Construct the RotTriLinearHexFiniteElement
    RotTriLinearHexFiniteElement();
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1928,7 +1937,7 @@ public:
    static void ChebyshevPoints(const int p, double *x);
 
    /** @brief Compute the @a p terms in the expansion of the binomial (x + y)^p
-       and store them in the allready allocated @a u array. */
+       and store them in the already allocated @a u array. */
    static void CalcBinomTerms(const int p, const double x, const double y,
                               double *u);
    /** @brief Compute the terms in the expansion of the binomial (x + y)^p and
@@ -2085,7 +2094,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the H1_SegmentElement of order @a p and BasisType @a btype
    H1_SegmentElement(const int p, const int btype = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2103,7 +2112,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the H1_QuadrilateralElement of order @a p and BasisType @a btype
    H1_QuadrilateralElement(const int p,
                            const int btype = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2122,7 +2131,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the H1_HexahedronElement of order @a p and BasisType @a btype
    H1_HexahedronElement(const int p, const int btype = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2144,7 +2153,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the H1Pos_SegmentElement of order @a p
    H1Pos_SegmentElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2163,7 +2172,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the H1Pos_QuadrilateralElement of order @a p
    H1Pos_QuadrilateralElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2176,6 +2185,7 @@ public:
 class H1Ser_QuadrilateralElement : public ScalarFiniteElement
 {
 public:
+   /// Construct the H1Ser_QuadrilateralElement of order @a p
    H1Ser_QuadrilateralElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2195,7 +2205,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the H1Pos_HexahedronElement of order @a p
    H1Pos_HexahedronElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2216,7 +2226,7 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the H1_TriangleElement of order @a p and BasisType @a btype
    H1_TriangleElement(const int p, const int btype = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2239,7 +2249,7 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the H1_TetrahedronElement of order @a p and BasisType @a btype
    H1_TetrahedronElement(const int p,
                          const int btype = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2261,7 +2271,7 @@ protected:
    Array<int> dof_map;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the H1Pos_TriangleElement of order @a p
    H1Pos_TriangleElement(const int p);
 
    // The size of shape is (p+1)(p+2)/2 (dof).
@@ -2289,7 +2299,7 @@ protected:
    Array<int> dof_map;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the H1Pos_TetrahedronElement of order @a p
    H1Pos_TetrahedronElement(const int p);
 
    // The size of shape is (p+1)(p+2)(p+3)/6 (dof).
@@ -2320,7 +2330,7 @@ private:
    H1_SegmentElement  SegmentFE;
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the H1_WedgeElement of order @a p and BasisType @a btype
    H1_WedgeElement(const int p,
                    const int btype = BasisType::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2366,7 +2376,7 @@ protected:
    H1Pos_SegmentElement  SegmentFE;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the H1Pos_WedgeElement of order @a p
    H1Pos_WedgeElement(const int p);
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2384,7 +2394,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the L2_SegmentElement of order @a p and BasisType @a btype
    L2_SegmentElement(const int p, const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2401,7 +2411,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the L2Pos_SegmentElement of order @a p
    L2Pos_SegmentElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2419,7 +2429,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the L2_QuadrilateralElement of order @a p and BasisType @a btype
    L2_QuadrilateralElement(const int p,
                            const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2441,7 +2451,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the L2Pos_QuadrilateralElement of order @a p
    L2Pos_QuadrilateralElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2458,7 +2468,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the L2_HexahedronElement of order @a p and BasisType @a btype
    L2_HexahedronElement(const int p,
                         const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2477,7 +2487,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the L2Pos_HexahedronElement of order @a p
    L2Pos_HexahedronElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2497,7 +2507,7 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the L2_TriangleElement of order @a p and BasisType @a btype
    L2_TriangleElement(const int p,
                       const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2519,7 +2529,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the L2Pos_TriangleElement of order @a p
    L2Pos_TriangleElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2540,7 +2550,7 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the L2_TetrahedronElement of order @a p and BasisType @a btype
    L2_TetrahedronElement(const int p,
                          const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2559,7 +2569,7 @@ private:
 #endif
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the L2Pos_TetrahedronElement of order @a p
    L2Pos_TetrahedronElement(const int p);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2582,7 +2592,7 @@ private:
    L2_SegmentElement  SegmentFE;
 
 public:
-   /// Construct the FiniteElement of order @a p and BasisType @a btype
+   /// Construct the L2_WedgeElement of order @a p and BasisType @a btype
    L2_WedgeElement(const int p,
                    const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2594,6 +2604,7 @@ public:
 class P0WedgeFiniteElement : public L2_WedgeElement
 {
 public:
+   /// Construct the P0WedgeFiniteElement
    P0WedgeFiniteElement () : L2_WedgeElement(0) {}
 };
 
@@ -2611,7 +2622,7 @@ protected:
    L2Pos_SegmentElement  SegmentFE;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the L2Pos_WedgeElement of order @a p
    L2Pos_WedgeElement(const int p);
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -2633,7 +2644,7 @@ private:
    Array<int> dof_map, dof2nk;
 
 public:
-   /** @brief Construct the FiniteElement of order @a p and closed and open
+   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and open
        BasisType @a cb_type and @a ob_type */
    RT_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
@@ -2690,7 +2701,7 @@ class RT_HexahedronElement : public VectorFiniteElement
    Array<int> dof_map, dof2nk;
 
 public:
-   /** @brief Construct the FiniteElement of order @a p and closed and open
+   /** @brief Construct the RT_HexahedronElement of order @a p and closed and open
        BasisType @a cb_type and @a ob_type */
    RT_HexahedronElement(const int p,
                         const int cb_type = BasisType::GaussLobatto,
@@ -2745,7 +2756,7 @@ class RT_TriangleElement : public VectorFiniteElement
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the RT_TriangleElement of order @a p
    RT_TriangleElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -2802,7 +2813,7 @@ class RT_TetrahedronElement : public VectorFiniteElement
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the RT_TetrahedronElement of order @a p
    RT_TetrahedronElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -2849,7 +2860,7 @@ class ND_HexahedronElement : public VectorTensorFiniteElement
    Array<int> dof2tk;
 
 public:
-   /** @brief Construct the FiniteElement of order @a p and closed and open
+   /** @brief Construct the ND_HexahedronElement of order @a p and closed and open
     BasisType @a cb_type and @a ob_type */
    ND_HexahedronElement(const int p,
                         const int cb_type = BasisType::GaussLobatto,
@@ -2917,7 +2928,7 @@ class ND_QuadrilateralElement : public VectorTensorFiniteElement
    Array<int> dof2tk;
 
 public:
-   /** @brief Construct the FiniteElement of order @a p and closed and open
+   /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and open
        BasisType @a cb_type and @a ob_type */
    ND_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
@@ -2971,7 +2982,7 @@ class ND_TetrahedronElement : public VectorFiniteElement
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the ND_TetrahedronElement of order @a p
    ND_TetrahedronElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -3027,7 +3038,7 @@ class ND_TriangleElement : public VectorFiniteElement
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the ND_TriangleElement of order @a p
    ND_TriangleElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -3073,7 +3084,7 @@ class ND_SegmentElement : public VectorFiniteElement
    Array<int> dof2tk;
 
 public:
-   /** @brief Construct the FiniteElement of order @a p and open
+   /** @brief Construct the ND_SegmentElement of order @a p and open
        BasisType @a ob_type */
    ND_SegmentElement(const int p, const int ob_type = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const
@@ -3123,7 +3134,7 @@ protected:
    mutable Vector weights;
 
 public:
-   /** @brief Construct FiniteElement with given
+   /** @brief Construct NURBSFiniteElement with given
        @param D    Reference space dimension
        @param G    Geometry type (of type Geometry::Type)
        @param Do   Number of degrees of freedom in the FiniteElement
@@ -3160,7 +3171,7 @@ protected:
    mutable Vector shape_x;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the NURBS1DFiniteElement of order @a p
    NURBS1DFiniteElement(int p)
       : NURBSFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Qk),
         shape_x(p + 1) { }
@@ -3181,7 +3192,7 @@ protected:
    mutable DenseMatrix du;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the NURBS2DFiniteElement of order @a p
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
@@ -3189,7 +3200,7 @@ public:
         dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(Dof,2)
    { Orders[0] = Orders[1] = p; }
 
-   /// Construct the FiniteElement with x-order @a px and y-order @a py
+   /// Construct the NURBS2DFiniteElement with x-order @a px and y-order @a py
    NURBS2DFiniteElement(int px, int py)
       : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
                            std::max(px, py), FunctionSpace::Qk),
@@ -3215,7 +3226,7 @@ protected:
    mutable DenseMatrix du;
 
 public:
-   /// Construct the FiniteElement of order @a p
+   /// Construct the NURBS3DFiniteElement of order @a p
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
@@ -3224,7 +3235,7 @@ public:
         d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(Dof,3)
    { Orders[0] = Orders[1] = Orders[2] = p; }
 
-   /// Construct the FiniteElement with x-order @a px and y-order @a py and z-order @a pz
+   /// Construct the NURBS3DFiniteElement with x-order @a px and y-order @a py and z-order @a pz
    NURBS3DFiniteElement(int px, int py, int pz)
       : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                            std::max(std::max(px,py),pz), FunctionSpace::Qk),
