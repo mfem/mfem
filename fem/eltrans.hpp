@@ -37,7 +37,6 @@ protected:
       HESSIAN_MASK  = 16
    };
    Geometry::Type geom;
-   int space_dim;
 
    /** @brief Evaluate the Jacobian of the transformation at the IntPoint and
        store it in dFdx. */
@@ -109,17 +108,17 @@ public:
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
    /// Return the order of the current element we are using for the transformation.
-   virtual int Order() = 0;
+   virtual int Order() const = 0;
 
    /// Return the order of the elements of the Jacobian of the transformation.
-   virtual int OrderJ() = 0;
+   virtual int OrderJ() const = 0;
 
    /** @brief Return the order of the determinant of the Jacobian (weight)
        of the transformation. */
-   virtual int OrderW() = 0;
+   virtual int OrderW() const = 0;
 
    /// Return the order of \f$ adj(J)^T \nabla fi \f$
-   virtual int OrderGrad(const FiniteElement *fe) = 0;
+   virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
    Geometry::Type GetGeometryType() const { return geom; }
@@ -130,7 +129,7 @@ public:
    /// Get the dimension of the target (physical) space.
    /** We support 2D meshes embedded in 3D; in this case the function will
        return "3". */
-   int GetSpaceDim() const { return space_dim; }
+   virtual int GetSpaceDim() const = 0;
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
        reference space. */
@@ -343,11 +342,9 @@ public:
    /// Get the current element used to compute the transformations
    const FiniteElement* GetFE() const { return FElem; }
 
-   /** @brief Read and write access to the underlying point matrix describing
-       the transformation. */
+   /// @brief Set the underlying point matrix describing the transformation.
    /** The dimensions of the matrix are space-dim x dof. The transformation is
        defined as
-
            \f$ x = F( \hat x ) = P \phi( \hat x ) \f$
 
        where \f$ \hat x \f$  is the reference point, @a x is the corresponding
@@ -355,12 +352,13 @@ public:
        the column-vector of all basis functions evaluated at \f$ \hat x \f$ .
        The columns of @a P represent the control points in physical space
        defining the transformation. */
-   DenseMatrix &GetPointMat() { return PointMat; }
+   void SetPointMat(const DenseMatrix &pm) { PointMat = pm; }
 
-   /** @brief Sets up the correct dimensions for the Jacobian computations.  This
-       must be called after SetIdentityTransformation(), but before and calls to
-       EvalJacobian(). */
-   void FinalizeTransformation() { space_dim = PointMat.Height(); }
+   /// Return the stored point matrix.
+   const DenseMatrix &GetPointMat() const { return PointMat; }
+
+   /// Write access to the stored point matrix. Use with caution.
+   DenseMatrix &GetPointMat() { return PointMat; }
 
    /// Set the FiniteElement Geometry for the reference elements being used.
    void SetIdentityTransformation(Geometry::Type GeomType);
@@ -380,17 +378,19 @@ public:
    virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
 
    /// Return the order of the current element we are using for the transformation.
-   virtual int Order() { return FElem->GetOrder(); }
+   virtual int Order() const { return FElem->GetOrder(); }
 
    /// Return the order of the elements of the Jacobian of the transformation.
-   virtual int OrderJ();
+   virtual int OrderJ() const;
 
    /** @brief Return the order of the determinant of the Jacobian (weight)
        of the transformation. */
-   virtual int OrderW();
+   virtual int OrderW() const;
 
    /// Return the order of \f$ adj(J)^T \nabla fi \f$
-   virtual int OrderGrad(const FiniteElement *fe);
+   virtual int OrderGrad(const FiniteElement *fe) const;
+
+   virtual int GetSpaceDim() const { return PointMat.Height(); }
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
        reference space. */
@@ -405,6 +405,8 @@ public:
    }
 
    virtual ~IsoparametricTransformation() { }
+
+   MFEM_DEPRECATED void FinalizeTransformation() {}
 };
 
 class IntegrationPointTransformation
