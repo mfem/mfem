@@ -54,13 +54,13 @@ struct TMassKernel
    static const bool out_gradients = false;
    ///@}
 
-   /** Partially assembled data type for one element with the given number of
+   /** @brief Partially assembled data type for one element with the given number of
        quadrature points. This type is used in partial assembly, and partially
        assembled action. */
    template <int qpts>
    struct p_asm_data { typedef TVector<qpts,complex_t> type; };
 
-   /** Partially assembled data type for one element with the given number of
+   /** @brief Partially assembled data type for one element with the given number of
        quadrature points. This type is used in full element matrix assembly. */
    template <int qpts>
    struct f_asm_data { typedef TVector<qpts,complex_t> type; };
@@ -72,6 +72,7 @@ struct TMassKernel
    };
 
    /** @brief Method used for un-assembled (matrix free) action.
+       @param k the element number
        @param F  Jt [M x Dim x SDim x NE] - Jacobian transposed, data member in F
        @param Q  CoefficientEval<>::Type
        @param q  CoefficientEval<>::Type::result_t
@@ -104,6 +105,7 @@ struct TMassKernel
        Result in A is the quadrature-point dependent part of element matrix
        assembly (as opposed to part that is same for all elements),
        A = w det(J)
+       @param k the element number
        @param F Jt [M x Dim x SDim x NE] - Jacobian transposed, data member in F
        @param Q CoefficientEval<>::Type
        @param q CoefficientEval<>::Type::result_t
@@ -126,6 +128,7 @@ struct TMassKernel
    }
 
    /** @brief Method for partially assembled action.
+       @param k the element number
        @param A  [M] - partially assembled scalars
        @param R  val_qpts [M x NC x NE] - in/out data member in R
        val_qpts *= A
@@ -165,20 +168,22 @@ struct TDiffusionKernel<1,1,complex_t>
    static const bool uses_Jacobians = true;
 
    /// Needed for the FieldEvaluator::Data class
+   ///@{
    static const bool in_values     = false;
    static const bool in_gradients  = true;
    static const bool out_values    = false;
    static const bool out_gradients = true;
+   ///@}
 
-   /** Partially assembled data type for one element with the given number of
+   /** @brief Partially assembled data type for one element with the given number of
        quadrature points. This type is used in partial assembly, and partially
        assembled action. */
    template <int qpts>
    struct p_asm_data { typedef TMatrix<qpts,1,complex_t> type; };
 
 
-   /// Partially assembled data type for one element with the given number of
-   /// quadrature points. This type is used in full element matrix assembly.
+   /** @brief Partially assembled data type for one element with the given number of
+       quadrature points. This type is used in full element matrix assembly. */
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,1,1,complex_t> type; };
 
@@ -189,6 +194,7 @@ struct TDiffusionKernel<1,1,complex_t>
    };
 
    /** @brief Method used for un-assembled (matrix free) action.
+       @param k the element number
        @param F Jt [M x Dim x SDim x NE] - Jacobian transposed, data member in F
        @param Q - CoefficientEval<>::Type
        @param q - CoefficientEval<>::Type::result_t
@@ -221,6 +227,7 @@ struct TDiffusionKernel<1,1,complex_t>
        asm_type == p_asm_data, i.e. A.layout.rank == 2) or
        non-symmetric (when asm_type == f_asm_data, i.e. A.layout.rank
        == 3) matrices.
+       @param k the element number
        @param F Jt [M x Dim x SDim x NE] - Jacobian transposed, data member in F
        @param Q CoefficientEval<>::Type
        @param q CoefficientEval<>::Type::result_t
@@ -244,6 +251,7 @@ struct TDiffusionKernel<1,1,complex_t>
       }
    }
    /** @brief Method for partially assembled action.
+       @param k the element number
        @param A  [M x Dim*(Dim+1)/2] partially assembled Dim x Dim symmetric
                                      matrices
        @param R  grad_qpts [M x SDim x NC x NE] - in/out data member in R
@@ -278,20 +286,22 @@ struct TDiffusionKernel<2,2,complex_t>
    static const bool uses_Jacobians = true;
 
    /// Needed for the FieldEvaluator::Data class
+   ///@{
    static const bool in_values     = false;
    static const bool in_gradients  = true;
    static const bool out_values    = false;
    static const bool out_gradients = true;
+   ///@}
 
-   /// Partially assembled data type for one element with the given number of
-   /// quadrature points. This type is used in partial assembly, and partially
-   /// assembled action. Stores one symmetric 2 x 2 matrix per point.
+   /** @brief Partially assembled data type for one element with the given number of
+       quadrature points. This type is used in partial assembly, and partially
+       assembled action. Stores one symmetric 2 x 2 matrix per point. */
    template <int qpts>
    struct p_asm_data { typedef TMatrix<qpts,3,complex_t> type; };
 
-   /// Partially assembled data type for one element with the given number of
-   /// quadrature points. This type is used in full element matrix assembly.
-   /// Stores one general (non-symmetric) 2 x 2 matrix per point.
+   /** @brief Partially assembled data type for one element with the given number of
+       quadrature points. This type is used in full element matrix assembly.
+       Stores one general (non-symmetric) 2 x 2 matrix per point. */
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
 
@@ -302,6 +312,7 @@ struct TDiffusionKernel<2,2,complex_t>
    };
 
    /** @brief Method used for un-assembled (matrix free) action.
+       @param k the element number
        @param F Jt [M x Dim x SDim x NE] - Jacobian transposed, data member in F
        @param Q CoefficientEval<>::Type
        @param q CoefficientEval<>::Type::result_t
@@ -345,6 +356,7 @@ struct TDiffusionKernel<2,2,complex_t>
        asm_type == p_asm_data, i.e. A.layout.rank == 2) or non-symmetric
        (when asm_type == f_asm_data, i.e. A.layout.rank == 3) matrices.
        A = (w/det(J)) adj(J) adj(J)^t
+       @param k the element number
        @param F Jt [M x Dim x SDim x NE] - Jacobian transposed, data member in F
        @param Q CoefficientEval<>::Type
        @param q CoefficientEval<>::Type::result_t
@@ -379,6 +391,7 @@ struct TDiffusionKernel<2,2,complex_t>
    }
 
    /** @brief  Method for partially assembled action.
+       @param k the element number
        @param  A  [M x Dim*(Dim+1)/2]  - partially assembled Dim x Dim symmetric
                                          matrices
        @param R grad_qpts [M x SDim x NC x NE] - in/out data member in R
@@ -419,20 +432,22 @@ struct TDiffusionKernel<3,3,complex_t>
    static const bool uses_Jacobians = true;
 
    /// Needed for the FieldEvaluator::Data class
+   ///@{
    static const bool in_values     = false;
    static const bool in_gradients  = true;
    static const bool out_values    = false;
    static const bool out_gradients = true;
+   ///@}
 
-   /// Partially assembled data type for one element with the given number of
-   /// quadrature points. This type is used in partial assembly, and partially
-   /// assembled action. Stores one symmetric 3 x 3 matrix per point.
+   /** @brief Partially assembled data type for one element with the given number of
+       quadrature points. This type is used in partial assembly, and partially
+       assembled action. Stores one symmetric 3 x 3 matrix per point. */
    template <int qpts>
    struct p_asm_data { typedef TMatrix<qpts,6,complex_t> type; };
 
-   /// Partially assembled data type for one element with the given number of
-   /// quadrature points. This type is used in full element matrix assembly.
-   /// Stores one general (non-symmetric) 3 x 3 matrix per point.
+   /** @brief Partially assembled data type for one element with the given number of
+       quadrature points. This type is used in full element matrix assembly.
+       Stores one general (non-symmetric) 3 x 3 matrix per point. */
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
 

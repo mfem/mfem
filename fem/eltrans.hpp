@@ -42,6 +42,9 @@ protected:
    /** @brief Evaluate the Jacobian of the transformation at the IntPoint and
        store it in dFdx. */
    virtual const DenseMatrix &EvalJacobian() = 0;
+
+   /** @brief Evaluate the Hessian of the transformation at the IntPoint and
+       store it in d2Fdx2. */
    virtual const DenseMatrix &EvalHessian() = 0;
 
    double EvalWeight();
@@ -58,7 +61,8 @@ public:
    void SetIntPoint(const IntegrationPoint *ip)
    { IntPoint = ip; EvalState = 0; }
 
-   /// Get a const reference to the currently set integration point.
+   /** @brief Get a const reference to the currently set integration point.  This
+       will return NULL if no integration point is set. */
    const IntegrationPoint &GetIntPoint() { return *IntPoint; }
 
    /** @brief Transform integration point from reference coordinates to
@@ -104,9 +108,14 @@ public:
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
-
+   /// Return the order of the current element we are using for the transformation.
    virtual int Order() = 0;
+
+   /// Return the order of the elements of the Jacobian of the transformation.
    virtual int OrderJ() = 0;
+
+   /** @brief Return the order of the determinant of the Jacobian (weight)
+       of the transformation. */
    virtual int OrderW() = 0;
 
    /// Return the order of \f$ adj(J)^T \nabla fi \f$
@@ -343,9 +352,9 @@ public:
 
        where \f$ \hat x \f$  is the reference point, @a x is the corresponding
        physical point, @a P is the point matrix, and \f$ \phi( \hat x ) \f$ is
-       the column-vector of all basis functions evaluated at xh. The columns of
-       @a P represent the control points in physical space defining the
-       transformation. */
+       the column-vector of all basis functions evaluated at \f$ \hat x \f$ .
+       The columns of @a P represent the control points in physical space
+       defining the transformation. */
    DenseMatrix &GetPointMat() { return PointMat; }
 
    /** @brief Sets up the correct dimensions for the Jacobian computations.  This
@@ -370,8 +379,14 @@ public:
        coordinates and store them as column vectors in @a result. */
    virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
 
+   /// Return the order of the current element we are using for the transformation.
    virtual int Order() { return FElem->GetOrder(); }
+
+   /// Return the order of the elements of the Jacobian of the transformation.
    virtual int OrderJ();
+
+   /** @brief Return the order of the determinant of the Jacobian (weight)
+       of the transformation. */
    virtual int OrderW();
 
    /// Return the order of \f$ adj(J)^T \nabla fi \f$

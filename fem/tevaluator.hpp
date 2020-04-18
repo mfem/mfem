@@ -58,7 +58,7 @@ public:
 
    // default copy constructor
 
-   /** Multi-component shape evaluation from DOFs to quadrature points.
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
        dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
@@ -80,8 +80,8 @@ public:
                      qpt_layout, qpt_data);
    }
 
-   /** Multi-component shape evaluation transpose from quadrature points to DOFs.
-       qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp). */
+   /** @brief Multi-component shape evaluation transpose from quadrature points to
+       DOFs.  qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
@@ -103,7 +103,7 @@ public:
                    dof_layout, dof_data);
    }
 
-   /** Multi-component gradient evaluation from DOFs to quadrature points.
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
       dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
@@ -128,7 +128,7 @@ public:
                      grad_layout.merge_12(), grad_data);
    }
 
-   /** Multi-component gradient evaluation transpose from quadrature points to
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
       DOFs. grad_layout is (NIP x DIM x NumComp), dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
@@ -154,7 +154,7 @@ public:
                    dof_layout, dof_data);
    }
 
-   /** Multi-component assemble.
+   /** @brief Multi-component assemble.
        qpt_layout is (NIP x NumComp),
        M_layout is (DOF x DOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
@@ -178,9 +178,9 @@ public:
 #endif
    }
 
-   // Multi-component assemble of grad-grad element matrices.
-   // qpt_layout is (NIP x DIM x DIM x NumComp), and
-   // D_layout is (DOF x DOF x NumComp).
+   /** @brief Multi-component assemble of grad-grad element matrices.
+       qpt_layout is (NIP x DIM x DIM x NumComp), and
+       D_layout is (DOF x DOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
    MFEM_ALWAYS_INLINE
@@ -225,7 +225,7 @@ protected:
 public:
    TProductShapeEvaluator() { }
 
-   /** Multi-component shape evaluation from DOFs to quadrature points.
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
        dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
@@ -238,8 +238,8 @@ public:
                      qpt_layout, qpt_data);
    }
 
-   /** Multi-component shape evaluation transpose from quadrature points to DOFs.
-       qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp). */
+   /** @brief Multi-component shape evaluation transpose from quadrature points
+       to DOFs.  qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
@@ -252,7 +252,7 @@ public:
                    dof_layout, dof_data);
    }
 
-   /** Multi-component gradient evaluation from DOFs to quadrature points.
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
        dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
@@ -268,7 +268,7 @@ public:
                      grad_layout.merge_12(), grad_data);
    }
 
-   /** Multi-component gradient evaluation transpose from quadrature points to
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
        DOFs. grad_layout is (NIP x DIM x NumComp), dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
@@ -286,7 +286,7 @@ public:
                    dof_layout, dof_data);
    }
 
-   /** Multi-component assemble.
+   /** @brief Multi-component assemble.
        qpt_layout is (NIP x NumComp), M_layout is (DOF x DOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
@@ -309,7 +309,7 @@ public:
 #endif
    }
 
-   /** Multi-component assemble of grad-grad element matrices.
+   /** @brief Multi-component assemble of grad-grad element matrices.
        qpt_layout is (NIP x DIM x DIM x NumComp), and
        D_layout is (DOF x DOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
@@ -371,7 +371,7 @@ public:
                       qpt_layout.template split_1<NIP,NIP>(), qpt_data);
    }
 
-   /** Multi-component shape evaluation from DOFs to quadrature points.
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
        dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
@@ -403,7 +403,7 @@ public:
                     dof_layout.template split_1<DOF,DOF>(), dof_data);
    }
 
-   /** Multi-component shape evaluation transpose from quadrature points to DOFs.
+   /** @brief Multi-component shape evaluation transpose from quadrature points to DOFs.
        qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
@@ -415,7 +415,7 @@ public:
       CalcT<false,false,Add>(qpt_layout, qpt_data, dof_layout, dof_data);
    }
 
-   /** Multi-component gradient evaluation from DOFs to quadrature points.
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
        dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
@@ -431,7 +431,7 @@ public:
                        grad_layout.ind2(1), grad_data);
    }
 
-   /** Multi-component gradient evaluation transpose from quadrature points to
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
        DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
        (TDOF x NumComp). */
    template <bool Add,
@@ -449,7 +449,7 @@ public:
                              dof_layout, dof_data);
    }
 
-   /** Multi-component assemble.
+   /** @brief Multi-component assemble.
        qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
@@ -540,9 +540,9 @@ public:
          D_layout.merge_23().template split_12<DOF,DOF,DOF,DOF*NC>(), D_data);
    }
 
-   // Multi-component assemble of grad-grad element matrices.
-   // qpt_layout is (TNIP x DIM x DIM x NumComp), and
-   // D_layout is (TDOF x TDOF x NumComp).
+   /** @brief Multi-component assemble of grad-grad element matrices.
+      qpt_layout is (TNIP x DIM x DIM x NumComp), and
+      D_layout is (TDOF x TDOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
    MFEM_ALWAYS_INLINE
@@ -651,7 +651,7 @@ public:
                       qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data);
    }
 
-   /** Multi-component shape evaluation from DOFs to quadrature points.
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
        dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
@@ -687,7 +687,7 @@ public:
                     dof_layout.template split_1<DOF,DOF*DOF>(), dof_data);
    }
 
-   /** Multi-component shape evaluation transpose from quadrature points to DOFs.
+   /** @brief Multi-component shape evaluation transpose from quadrature points to DOFs.
        qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
@@ -699,7 +699,7 @@ public:
       CalcT<false,false,false,Add>(qpt_layout, qpt_data, dof_layout, dof_data);
    }
 
-   /** Multi-component gradient evaluation from DOFs to quadrature points.
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
        dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
@@ -719,7 +719,7 @@ public:
       // y-derivatives and second time for the z-derivatives.
    }
 
-   /** Multi-component gradient evaluation transpose from quadrature points to
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
        DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
        (TDOF x NumComp). */
    template <bool Add,
@@ -739,7 +739,7 @@ public:
                                    dof_layout, dof_data);
    }
 
-   /** Multi-component assemble.
+   /** @brief Multi-component assemble.
        qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
@@ -864,9 +864,9 @@ public:
    }
 #endif
 
-   // Multi-component assemble of grad-grad element matrices.
-   // qpt_layout is (TNIP x DIM x DIM x NumComp), and
-   // D_layout is (TDOF x TDOF x NumComp).
+   /** @brief Multi-component assemble of grad-grad element matrices.
+       qpt_layout is (TNIP x DIM x DIM x NumComp), and
+       D_layout is (TDOF x TDOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
    MFEM_ALWAYS_INLINE
@@ -951,7 +951,7 @@ public:
 };
 
 
-/** Field evaluators -- values of a given global FE grid function
+/** @brief Field evaluators -- values of a given global FE grid function
     This is roughly speaking a templated version of GridFunction
 */
 template <typename FESpace_t, typename VecLayout_t, typename IR,
@@ -1132,8 +1132,8 @@ public:
    }
 #endif
 
-   /** Enumeration for the data type used by the Eval() and Assemble() methods.
-       The types can obtained by summing constants from this enumeration and used
+   /** @brief Enumeration for the data type used by the Eval() and Assemble() methods.
+       The types can be obtained by summing constants from this enumeration and used
        as a template parameter in struct Data. */
    enum InOutData
    {
@@ -1189,7 +1189,7 @@ public:
       TTensor4<qpts,dim,vdim,NE,complex_t>      grad_qpts;
    };
 
-   /** This struct is similar to struct AData, adding separate static data
+   /** @brief This struct is similar to struct AData, adding separate static data
        members for the input (InData) and output (OutData) data types. */
    template <int IData, int OData, int NE>
    struct BData : public AData<IData|OData,NE>
@@ -1200,7 +1200,7 @@ public:
       static const int OutData = OData;
    };
 
-   /** This struct implements the input (Eval, EvalSerialized) and output
+   /** @brief This struct implements the input (Eval, EvalSerialized) and output
        (Assemble, AssembleSerialized) operations for the given Ops.
        Ops is "bitwise or" of constants from the enum InOutData. */
    template <int Ops, bool dummy> struct Action;
@@ -1379,7 +1379,7 @@ public:
 #endif
    };
 
-   /** This struct implements element matrix computation for some combinations
+   /** @brief This struct implements element matrix computation for some combinations
        of input (InOps) and output (OutOps) operations. */
    template <int InOps, int OutOps, int NE> struct TElementMatrix;
 
@@ -1401,9 +1401,12 @@ public:
    template <int NE> struct TElementMatrix<2,2,NE> // 2,2 = Gradients,Gradients
    {
       /** @brief Assemble element mass matrix
+          @param a the layout for the quadrature point data
           @param A given quadrature point data for element (incl. coefficient,
                  geometry)
+          @param m the layout for the resulting element mass matrix
           @param M the resulting element mass matrix
+          @param ev the shape evaluator
           qpt_layout_t is (nip), M_layout_t is (dof x dof)
           NE = 1 is assumed */
       template <typename qpt_layout_t, typename qpt_data_t,
