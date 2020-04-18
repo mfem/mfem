@@ -43,7 +43,7 @@
 #endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
-#if defined(MFEM_USE_HIP) && defined(__ROCM_ARCH__)
+#if defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
