@@ -116,30 +116,29 @@ private:
 };
 
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
-/** Potentially useful with tensorized operators, for example.
-    This is just a very basic Chebyshev iteration, if you want
-    tolerances, iteration control, etc. wrap this with SLISolver. */
+/** Potentially useful with tensorized operators, for example. This is just a
+    very basic Chebyshev iteration, if you want tolerances, iteration control,
+    etc. wrap this with SLISolver. */
 class OperatorChebyshevSmoother : public Solver
 {
 public:
-   /** Application is by *inverse* of the given vector.
-       It is assumed the underlying operator acts as the identity
-       on entries in ess_tdof_list, corresponding to (assembled) DIAG_ONE
-       policy or ConstrainedOperator in the matrix-free setting.
-       The estimated largest eigenvalue of the diagonally preconditoned
-       operator must be provided via max_eig_estimate. */
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The estimated largest eigenvalue of the
+       diagonally preconditoned operator must be provided via
+       max_eig_estimate. */
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, double max_eig_estimate);
 
-   /** Application is by *inverse* of the given vector.
-       It is assumed the underlying operator acts as the identity
-       on entries in ess_tdof_list, corresponding to (assembled) DIAG_ONE
-       policy or ConstrainedOperator in the matrix-free setting.
-       The largest eigenvalue of the diagonally preconditoned operator is
-       estimated internally via a power method. The accuracy of the
-       estimated eigenvalue may be controlled via power_iterations and
-       power_tolerance. */
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The largest eigenvalue of the diagonally
+       preconditoned operator is estimated internally via a power method. The
+       accuracy of the estimated eigenvalue may be controlled via
+       power_iterations and power_tolerance. */
 #ifdef MFEM_USE_MPI
    OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,

@@ -57,7 +57,9 @@ int FiniteElementSpaceHierarchy::GetNumLevels() const { return meshes.Size(); }
 int FiniteElementSpaceHierarchy::GetFinestLevelIndex() const { return GetNumLevels() - 1; }
 
 void FiniteElementSpaceHierarchy::AddLevel(Mesh* mesh,
-                                           FiniteElementSpace* fespace, Operator* prolongation, bool ownM, bool ownFES,
+                                           FiniteElementSpace* fespace,
+                                           Operator* prolongation,
+                                           bool ownM, bool ownFES,
                                            bool ownP)
 {
    meshes.Append(mesh);
@@ -75,8 +77,8 @@ void FiniteElementSpaceHierarchy::AddUniformlyRefinedLevel(int dim,
    Mesh* mesh = new Mesh(*GetFinestFESpace().GetMesh());
    mesh->UniformRefinement();
    FiniteElementSpace& coarseFEspace = GetFinestFESpace();
-   FiniteElementSpace* fineFEspace = new FiniteElementSpace(mesh,
-                                                            coarseFEspace.FEColl(), dim, ordering);
+   FiniteElementSpace* fineFEspace =
+      new FiniteElementSpace(mesh, coarseFEspace.FEColl(), dim, ordering);
    Operator* P = new TransferOperator(coarseFEspace, *fineFEspace);
    AddLevel(mesh, fineFEspace, P, true, true, true);
 }
@@ -87,8 +89,8 @@ void FiniteElementSpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection*
 {
    MFEM_VERIFY(GetNumLevels() > 0, "There is no level which can be refined");
    Mesh* mesh = GetFinestFESpace().GetMesh();
-   FiniteElementSpace* newFEspace = new FiniteElementSpace(mesh, fec, dim,
-                                                           ordering);
+   FiniteElementSpace* newFEspace =
+      new FiniteElementSpace(mesh, fec, dim, ordering);
    Operator* P = new TransferOperator(GetFinestFESpace(), *newFEspace);
    AddLevel(mesh, newFEspace, P, false, true, true);
 }
@@ -128,7 +130,8 @@ Operator* FiniteElementSpaceHierarchy::GetProlongationAtLevel(int level) const
 #ifdef MFEM_USE_MPI
 
 ParFiniteElementSpaceHierarchy::ParFiniteElementSpaceHierarchy(ParMesh* mesh,
-                                                               ParFiniteElementSpace* fespace, bool ownM,
+                                                               ParFiniteElementSpace* fespace,
+                                                               bool ownM,
                                                                bool ownFES)
    : FiniteElementSpaceHierarchy(mesh, fespace, ownM, ownFES)
 {
@@ -140,8 +143,8 @@ void ParFiniteElementSpaceHierarchy::AddUniformlyRefinedLevel(int dim,
    ParMesh* mesh = new ParMesh(*GetFinestFESpace().GetParMesh());
    mesh->UniformRefinement();
    ParFiniteElementSpace& coarseFEspace = GetFinestFESpace();
-   ParFiniteElementSpace* fineFEspace = new ParFiniteElementSpace(mesh,
-                                                                  coarseFEspace.FEColl(), dim, ordering);
+   ParFiniteElementSpace* fineFEspace =
+      new ParFiniteElementSpace(mesh, coarseFEspace.FEColl(), dim, ordering);
    Operator* P = new TrueTransferOperator(coarseFEspace, *fineFEspace);
    AddLevel(mesh, fineFEspace, P, true, true, true);
 }
@@ -151,8 +154,8 @@ void ParFiniteElementSpaceHierarchy::AddOrderRefinedLevel(
    int dim, int ordering)
 {
    ParMesh* mesh = GetFinestFESpace().GetParMesh();
-   ParFiniteElementSpace* newFEspace = new ParFiniteElementSpace(mesh, fec, dim,
-                                                                 ordering);
+   ParFiniteElementSpace* newFEspace =
+      new ParFiniteElementSpace(mesh, fec, dim, ordering);
    Operator* P = new TrueTransferOperator(GetFinestFESpace(), *newFEspace);
    AddLevel(mesh, newFEspace, P, false, true, true);
 }
