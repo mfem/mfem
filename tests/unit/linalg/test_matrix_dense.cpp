@@ -460,3 +460,77 @@ TEST_CASE("DenseMatrix WeightRevDiff", "[DenseMatrix]")
       }
    }
 }
+
+TEST_CASE("DenseMatrix CalcOrthoRevDiff", "[DenseMatrix]")
+{
+   constexpr double eps_fd = 1e-5; // 2nd-order finite-difference step size
+
+   SECTION("2x1 matrix")
+   {
+      double A_data[2] = {2.0, -3.0};
+      double n_bar_data[2] = {-1.5, 4.0};
+      Vector n_bar(n_bar_data, 2);
+      Vector n_pert(2), n_fd(2);
+      DenseMatrix A(A_data, 2, 1);
+      DenseMatrix A_bar(2,1), A_pert(2,1);
+
+      // Compute the derivatives using reverse mode
+      CalcOrthoRevDiff(A, n_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 2; ++i)
+      {
+         // Pertrub A(i,0) and evaluate derivative of adjugate
+         A_pert = A;
+         A_pert(i, 0) += eps_fd;
+         CalcOrtho(A_pert, n_fd);
+         A_pert(i, 0) -= 2.0 * eps_fd;
+         CalcOrtho(A_pert, n_pert);
+         n_fd -= n_pert;
+         n_fd *= 1 / (2.0 * eps_fd);
+         // sum up derivative with weights
+         double A_bar_fd = 0.0;
+         for (int k = 0; k < 2; ++k)
+         {
+            A_bar_fd += n_fd(k) * n_bar(k);
+         }
+         REQUIRE(A_bar(i, 0) == Approx(A_bar_fd));
+      }
+   }
+
+   SECTION("3x2 matrix")
+   {
+      double A_data[6] = {1.0, 5.0, 3.0, -2.0, 6.0, -9.0};
+      double n_bar_data[3] = {1.0, 4.0, -3.0};
+      Vector n_bar(n_bar_data, 3);
+      Vector n_pert(3), n_fd(3);
+      DenseMatrix A(A_data, 3, 2);
+      DenseMatrix A_bar(3,2), A_pert(3,2);
+
+      // Compute the derivatives using reverse mode
+      CalcOrthoRevDiff(A, n_bar, A_bar);
+
+      // Compute the derivatives using central finite-difference approximation
+      for (int i = 0; i < 3; ++i)
+      {
+         for (int j = 0; j < 2; ++j)
+         {
+            // Pertrub A(i,j) and evaluate derivative of adjugate 
+            A_pert = A;
+            A_pert(i,j) += eps_fd;
+            CalcOrtho(A_pert, n_fd);
+            A_pert(i,j) -= 2.0*eps_fd;
+            CalcOrtho(A_pert, n_pert);
+            n_fd -= n_pert;
+            n_fd *= 1/(2.0*eps_fd);
+            // sum up derivative with weights 
+            double A_bar_fd = 0.0;
+            for (int k = 0; k < 3; ++k)
+            {
+               A_bar_fd += n_fd(k)*n_bar(k);
+            }
+            REQUIRE(A_bar(i,j) == Approx(A_bar_fd));
+         }
+      }
+   }
+}

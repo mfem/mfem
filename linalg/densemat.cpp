@@ -2576,6 +2576,50 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
    }
 }
 
+void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
+                      DenseMatrix &J_bar)
+{
+   MFEM_ASSERT(((J.Height() == 2 && J.Width() == 1) ||
+                (J.Height() == 3 && J.Width() == 2)) &&
+                   (J.Height() == n.Size()),
+               "Matrix must be 3x2 or 2x1, "
+                   << "and the Vector must be sized with the rows. "
+                   << " J.Height() = " << J.Height()
+                   << ", J.Width() = " << J.Width()
+                   << ", n.Size() = " << n.Size());
+   MFEM_ASSERT((J.Height() == J_bar.Height() && J.Width() == J_bar.Width()),
+               "Input matrix and derivative matrix must be the same size.");
+
+   const double *d = J.Data();
+   double *d_bar = J_bar.Data();
+   if (J.Height() == 2)
+   {
+      // n(0) =  d[1];
+      d_bar[1] = n_bar(0);
+      // n(1) = -d[0];
+      d_bar[0] = -n_bar(1);
+   }
+   else
+   {
+      J_bar = 0.0;
+      // n(0) = d[1]*d[5] - d[2]*d[4];
+      d_bar[1] += d[5]*n_bar(0);
+      d_bar[5] += d[1]*n_bar(0);
+      d_bar[2] -= d[4]*n_bar(0);
+      d_bar[4] -= d[2]*n_bar(0); 
+      // n(1) = d[2]*d[3] - d[0]*d[5];
+      d_bar[2] += d[3]*n_bar(1);
+      d_bar[3] += d[2]*n_bar(1);
+      d_bar[0] -= d[5]*n_bar(1);
+      d_bar[5] -= d[0]*n_bar(1);
+      // n(2) = d[0]*d[4] - d[1]*d[3];
+      d_bar[0] += d[4]*n_bar(2);
+      d_bar[4] += d[0]*n_bar(2);
+      d_bar[1] -= d[3]*n_bar(2);
+      d_bar[3] -= d[1]*n_bar(2);
+   }
+}
+
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat)
 {
    const int height = a.Height();

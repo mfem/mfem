@@ -462,6 +462,10 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva);
     k-th row removed. Note: J^t.n = 0, det([n|J])=|n|^2=det(J^t.J). */
 void CalcOrtho(const DenseMatrix &J, Vector &n);
 
+/// The reverse-mode differentiation of CalcOrtho()
+void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
+                      DenseMatrix &J_bar);
+
 /// Calculate the matrix A.At
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat);
 
