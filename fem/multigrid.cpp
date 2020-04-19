@@ -137,10 +137,10 @@ void Multigrid::SetOperator(const Operator& op)
 
 void Multigrid::SmoothingStep(int level) const
 {
-   GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);  // r = A x
-   subtract(*X[level], *R[level], *R[level]);              // r = b - A x
+   GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]); // r = A x
+   subtract(*X[level], *R[level], *R[level]);             // r = b - A x
    GetSmootherAtLevel(level)->Mult(*R[level], *Z[level]); // z = S r
-   add(*Y[level], 1.0, *Z[level], *Y[level]); // x = x + S (b - A x)
+   add(*Y[level], 1.0, *Z[level], *Y[level]);             // x = x + S (b - A x)
 }
 
 void Multigrid::Cycle(int level) const

@@ -50,8 +50,7 @@ New and updated examples and miniapps
   The example defines and solves several indefinite Maxwell problems.
 
 - Added a new Example 26/26p to demonstrate the construction of a matrix-free
-  geometric and p-multigrid preconditioner for the iterative solution of the
-  Laplace problem.
+  geometric and p-multigrid preconditioner for the Laplace problem.
 
 - Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
