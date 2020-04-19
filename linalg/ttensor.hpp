@@ -14,9 +14,9 @@
 
 #include "../config/tconfig.hpp"
 #include "../general/tassign.hpp"
+#include "../general/backends.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
-#include "../general/backends.hpp"
 
 // Templated tensor implementation (up to order 4)
 

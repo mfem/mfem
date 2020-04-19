@@ -14,14 +14,17 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
-#include "backends.hpp"
 
 // HIP block size used by MFEM.
 #define MFEM_HIP_BLOCKS 256
 
 #ifdef MFEM_USE_HIP
+
 #define MFEM_DEVICE __device__
 #define MFEM_HOST_DEVICE __host__ __device__
+#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
+#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
+
 // Define a HIP error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'hipError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
@@ -35,8 +38,6 @@
       } \
    } \
    while (0)
-#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
-#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
 #endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
@@ -45,7 +46,8 @@
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
-#define MFEM_FOREACH_THREAD(i,k,N) for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
+#define MFEM_FOREACH_THREAD(i,k,N) \
+    for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
 #endif
 
 namespace mfem
