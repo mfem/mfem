@@ -16,8 +16,7 @@
 #include "../general/tassign.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
-#include "../general/cuda.hpp"
-#include "../general/hip.hpp"
+#include "../general/backends.hpp"
 
 // Templated tensor implementation (up to order 4)
 

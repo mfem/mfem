@@ -14,10 +14,7 @@
 
 #include "../config/config.hpp"
 #include "error.hpp"
-
-#ifdef MFEM_USE_HIP
-#include <hip/hip_runtime.h>
-#endif
+#include "backends.hpp"
 
 // HIP block size used by MFEM.
 #define MFEM_HIP_BLOCKS 256

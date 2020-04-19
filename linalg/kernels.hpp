@@ -18,7 +18,7 @@
 #endif
 
 #include "../config/config.hpp"
-#include "../general/cuda.hpp"
+#include "../general/backends.hpp"
 #include "../general/globals.hpp"
 
 #include "matrix.hpp"
