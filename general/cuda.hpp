@@ -59,7 +59,7 @@
 #define MFEM_STREAM_SYNC
 #endif
 
-#if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
+#if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) && \
       (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
