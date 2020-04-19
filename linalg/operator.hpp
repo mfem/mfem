@@ -763,7 +763,7 @@ public:
 };
 
 /** @brief PowerMethod helper class to estimate the largest eigenvalue of an
- *         operator using the iterative power method. */
+           operator using the iterative power method. */
 class PowerMethod
 {
    Vector v1;

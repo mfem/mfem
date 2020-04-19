@@ -19,10 +19,13 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions
-//               as in example 1. It highlights on the creation of a hierarchy
-//               of discretization spaces with partial assembly and the
-//               construction of an efficient multigrid preconditioner for the
-//               iterative solver.
+//               as in Example 1.
+//
+//               It highlights on the creation of a hierarchy of discretization
+//               spaces with partial assembly and the construction of an
+//               efficient multigrid preconditioner for the iterative solver.
+//
+//               We recommend viewing Example 1 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -31,20 +34,20 @@
 using namespace std;
 using namespace mfem;
 
-/// Class for constructing a multigrid preconditioner for the diffusion operator.
-/// This example multigrid preconditioner class demonstrates the creation of the
-/// diffusion bilinear forms and operators using partial assembly for all spaces
-/// in the FiniteElementSpaceHierarchy. The preconditioner uses a CG solver on
-/// the coarsest level and second order Chebyshev accelerated smoothers on the
-/// other levels.
+// Class for constructing a multigrid preconditioner for the diffusion operator.
+// This example multigrid preconditioner class demonstrates the creation of the
+// diffusion bilinear forms and operators using partial assembly for all spaces
+// in the FiniteElementSpaceHierarchy. The preconditioner uses a CG solver on
+// the coarsest level and second order Chebyshev accelerated smoothers on the
+// other levels.
 class DiffusionMultigrid : public Multigrid
 {
 private:
    ConstantCoefficient one;
 
 public:
-   /// Constructs a diffusion multigrid for the given FiniteElementSpaceHierarchy
-   /// and the array of essential boundaries
+   // Constructs a diffusion multigrid for the given FiniteElementSpaceHierarchy
+   // and the array of essential boundaries
    DiffusionMultigrid(FiniteElementSpaceHierarchy& fespaces, Array<int>& ess_bdr)
       : Multigrid(fespaces), one(1.0)
    {
@@ -121,9 +124,9 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&geometric_refinements, "-gr", "--geometricrefinements",
+   args.AddOption(&geometric_refinements, "-gr", "--geometric-refinements",
                   "Number of geometric refinements done prior to order refinements.");
-   args.AddOption(&order_refinements, "-or", "--orderrefinements",
+   args.AddOption(&order_refinements, "-or", "--order-refinements",
                   "Number of order refinements. Finest level in the hierarchy has order 2^{or}.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
