@@ -12,7 +12,7 @@
 #ifndef MFEM_DTENSOR
 #define MFEM_DTENSOR
 
-#include "../general/cuda.hpp"
+#include "../general/backends.hpp"
 
 namespace mfem
 {
