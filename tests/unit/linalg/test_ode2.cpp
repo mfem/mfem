@@ -79,7 +79,21 @@ TEST_CASE("Second order ODE methods",
          dt = t_final/double(ti_steps);
       };
 
-      double order(SecondOrderODESolver* ode_solver)
+      void init_hist(SecondOrderODESolver* ode_solver,double dt)
+      {
+         int nstate = ode_solver->GetStateSize();
+
+         for (int s = 0; s< nstate; s++)
+         {
+            double t = -(s)*dt;
+            Vector uh(1);
+            uh[0] = -cos(t) - sin(t);
+            ode_solver->SetStateVector(s,uh);
+         }
+      }
+
+
+      double order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
       {
          double dt,t;
          Vector u(1);
@@ -93,10 +107,13 @@ TEST_CASE("Second order ODE methods",
          u = u0;
          du = dudt0;
          ode_solver->Init(*oper);
-         for (int ti = 0; ti< steps; ti++)
+         if (init_hist_) init_hist(ode_solver,dt);
+         /*for (int ti = 0; ti< steps; ti++)
          {
             ode_solver->Step(u, du, t, dt);
-         }
+         }*/
+         ode_solver->Run(u, du, t, dt,t_final - 1e-12);
+
          u -= u0;
          du -= dudt0;
 
@@ -120,9 +137,11 @@ TEST_CASE("Second order ODE methods",
             u = u0;
             du = dudt0;
             ode_solver->Init(*oper);
+            if (init_hist_) init_hist(ode_solver,dt);
             for (int ti = 0; ti< steps; ti++)
             {
                ode_solver->Step(u, du, t, dt);
+//std::cout<<t<<" "<<u[0]<<std::endl;
             }
             u -= u0;
             du -= dudt0;
@@ -179,6 +198,12 @@ TEST_CASE("Second order ODE methods",
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.5)" << std::endl;
       REQUIRE(check.order(new GeneralizedAlpha2Solver(0.5)) + tol > 2.0 );
+   }
+
+   SECTION("GeneralizedAlpha(0.5) - restart")
+   {
+      std::cout <<"\nTesting GeneralizedAlpha(0.5) - restart" << std::endl;
+      REQUIRE(check.order(new GeneralizedAlpha2Solver(0.5),true) + tol > 2.0 );
    }
 
    SECTION("GeneralizedAlpha(1.0)")
