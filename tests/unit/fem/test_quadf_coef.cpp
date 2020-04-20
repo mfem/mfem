@@ -89,6 +89,8 @@ TEST_CASE("Quadrature Function Coefficients",
          std::cout << "  Testing GridFunc L2 projection" << std::endl;
          L2_FECollection    fec_l2(order_h1, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
+         H1_FECollection    fec_h1(order_h1, dim);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
          GridFunction g0(&fespace_l2);
          GridFunction gtrue(&fespace_l2);
 
@@ -106,8 +108,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         // g0.ProjectDiscCoefficient(qfvc, GridFunction::ARITHMETIC);
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_h1, fespace_l2);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -134,7 +135,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         g0.ProjectCoefficient(qfvc);
+         fi.ProjectQuadratureCoefficient(g0, qfvc, fespace_h1);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -148,31 +149,35 @@ TEST_CASE("Quadrature Function Coefficients",
          std::cout << "  Testing GridFunc L2 projection" << std::endl;
          L2_FECollection    fec_l2(order_h1, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2, 1);
+         H1_FECollection    fec_h1(order_h1, dim);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
          GridFunction g0(&fespace_l2);
          GridFunction gtrue(&fespace_l2);
-         // This line is necessary for the test suite.
-         fi.SetupReset();
+
+         fi.SetupDiscReset();
 
          // When using an L2 FE space of the same order as the mesh, the below highlights
          // that the ProjectDiscCoeff method is just taking the quadrature point values and making them node values.
          {
             int ne = mesh.GetNE();
-            int int_points = ir.GetNPoints();
 
-            for (int i = 0; i < ne; i++)
-            {
-               for (int j = 0; j < int_points; j++)
-               {
-                  gtrue((i * int_points) + j) = geom_facts->X((i * int_points * dim) +
-                                                              (2 * int_points) + j);
+            GridFunction nodes(&fespace_h1);
+            Vector el_x;
+            Array<int> vdofs;
+            mesh.GetNodes(nodes);
+            for(int i = 0; i < ne; i++){
+               fespace_h1.GetElementVDofs(i, vdofs);
+               nodes.GetSubVector(vdofs, el_x);
+               // Should be constant across all elements
+               int enodes = el_x.Size() / dim;
+               for(int j = 0; j < enodes; j++){
+                  gtrue(j + i * enodes) = el_x(enodes * 2 + j);
                }
             }
          }
 
          g0 = 0.0;
-         // These two methods result in the same answer at least for hex meshes
-         // g0.ProjectDiscCoefficient(qfc, GridFunction::ARITHMETIC);
-         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_h1, fespace_l2);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -196,11 +201,10 @@ TEST_CASE("Quadrature Function Coefficients",
                gtrue(i) = nodes(i * dim + 2);
             }
          }
-         //If this was actually doing something akin to an L2 projection these values would be fairly close.
+
          g0 = 0.0;
-         g0.ProjectCoefficient(qfc);
+         fi.ProjectQuadratureCoefficient(g0, qfc, fespace_h1);
          gtrue -= g0;
-         //This currently fails...
          REQUIRE(gtrue.Norml2() < tol);
       }
    }
