@@ -107,7 +107,7 @@ TEST_CASE("Second order ODE methods",
          u = u0;
          du = dudt0;
          ode_solver->Init(*oper);
-         if (init_hist_) init_hist(ode_solver,dt);
+         if (init_hist_) { init_hist(ode_solver,dt); }
          /*for (int ti = 0; ti< steps; ti++)
          {
             ode_solver->Step(u, du, t, dt);
@@ -137,11 +137,11 @@ TEST_CASE("Second order ODE methods",
             u = u0;
             du = dudt0;
             ode_solver->Init(*oper);
-            if (init_hist_) init_hist(ode_solver,dt);
+            if (init_hist_) { init_hist(ode_solver,dt); }
             for (int ti = 0; ti< steps; ti++)
             {
                ode_solver->Step(u, du, t, dt);
-//std::cout<<t<<" "<<u[0]<<std::endl;
+               //std::cout<<t<<" "<<u[0]<<std::endl;
             }
             u -= u0;
             du -= dudt0;
