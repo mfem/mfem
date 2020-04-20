@@ -141,21 +141,7 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
          cout << "Creating Admittance Coefficient" << endl;
       }
 
-      abc_marker_.SetSize(pmesh.bdr_attributes.Max());
-      if ( abcs.Size() == 1 && abcs[0] < 0 )
-      {
-         // Mark all boundaries as absorbing
-         abc_marker_ = 1;
-      }
-      else
-      {
-         // Mark select boundaries as absorbing
-         abc_marker_ = 0;
-         for (int i=0; i<abcs.Size(); i++)
-         {
-            abc_marker_[abcs[i]-1] = 1;
-         }
-      }
+      AttrToMarker(pmesh.bdr_attributes.Max(), abcs, abc_marker_);
       etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
    }
 
@@ -166,22 +152,8 @@ MaxwellSolver::MaxwellSolver(ParMesh & pmesh, int order,
       {
          cout << "Configuring Dirichlet BC" << endl;
       }
-      dbc_marker_.SetSize(pmesh.bdr_attributes.Max());
-      if ( dbcs.Size() == 1 && dbcs[0] < 0 )
-      {
-         // Mark all boundaries as Dirichlet
-         dbc_marker_ = 1;
-      }
-      else
-      {
-         // Mark select boundaries as Dirichlet
-         dbc_marker_ = 0;
-         for (int i=0; i<dbcs.Size(); i++)
-         {
-            dbc_marker_[dbcs[i]-1] = 1;
-         }
-      }
 
+      AttrToMarker(pmesh.bdr_attributes.Max(), dbcs, dbc_marker_);
       HCurlFESpace_->GetEssentialTrueDofs(dbc_marker_, dbc_dofs_);
 
       if ( dEdt_bc_ != NULL )

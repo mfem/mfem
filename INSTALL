@@ -403,6 +403,11 @@ MFEM_USE_CONDUIT = YES/NO
    an installation of Conduit. If Conduit was built with HDF5 support, it also
    requires an installation of HDF5 (see also MFEM_USE_NETCDF).
 
+MFEM_USE_ADIOS2 = YES/NO
+   Enables support for ADIOS2, version 2 of the adaptable input output system
+   for scientific data management. In MFEM, ADIOS2 provides parallel I/O with
+   ParaView visualization.
+
 MFEM_USE_ZLIB = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
@@ -492,11 +497,13 @@ The specific libraries and their options are:
 - HYPRE, required for the parallel build, i.e. when MFEM_USE_MPI = YES.
   URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
+  Versions: HYPRE >= 2.10.0b.
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
   URL: http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
   Options: METIS_OPT, METIS_LIB.
+  Versions: METIS 4.0.3 or 5.1.0.
 
 - LAPACK (optional), used when MFEM_USE_LAPACK = YES. Alternative, optimized
   implementations can also be used, e.g. the ATLAS project.
@@ -520,6 +527,7 @@ The specific libraries and their options are:
   both MPI and hypre.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
+  Versions: SUNDIALS >= 5.0.0.
 
 - Mesquite (optional), used when MFEM_USE_MESQUITE = YES.
   URL: http://trilinos.org/oldsite/packages/mesquite
@@ -528,6 +536,7 @@ The specific libraries and their options are:
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
   Options: SUITESPARSE_OPT, SUITESPARSE_LIB.
+  Versions: SuiteSparse >= 4.5.4, older versions may work too.
 
 - SuperLU_DIST (optional), used when MFEM_USE_SUPERLU = YES. Note that
   SuperLU_DIST requires ParMETIS, which includes METIS 5 in its distribution.
@@ -535,6 +544,7 @@ The specific libraries and their options are:
   same location.
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
+  Versions: SuperLU_DIST >= 5.1.0.
 
 - STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
@@ -544,6 +554,7 @@ The specific libraries and their options are:
   2.0.0 or later.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
+  Versions: STRUMPACK >= 3.0.0, requires HYPRE < 2.16.0.
 
 - Ginkgo (optional), used when MFEM_USE_GINKGO = YES. Note that Ginkgo needs a
   C++ compiler that supports the C++-11 standard. For additional requirements
@@ -556,6 +567,7 @@ The specific libraries and their options are:
   one can get the library through the Homebrew package manager (http://brew.sh).
   URL: http://gnutls.org
   Options: GNUTLS_OPT, GNUTLS_LIB.
+  Versions: GnuTLS >= 2.12.0, older versions may work too.
 
 - NetCDF (optional), used when MFEM_USE_NETCDF = YES, required for reading Cubit
   mesh files. Also requires installation of HDF5 and ZLIB, as explained at the
@@ -563,6 +575,7 @@ The specific libraries and their options are:
   don't need the C++ or parallel versions.
   URL: www.unidata.ucar.edu/software/netcdf
   Options: NETCDF_OPT, NETCDF_LIB.
+  Versions: NetCDF >= 4.4.0.
 
 - PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.8 or higher of
   the PETSC dev branch is required. The MFEM and PETSc builds can share common
@@ -574,6 +587,7 @@ The specific libraries and their options are:
                 --with-shared-libraries=0
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
+  Versions: PETSc >= 3.8.0.
 
 - Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
   Starting with MFEM v4.1, Axom version 0.3.1 or later is required.
@@ -581,16 +595,22 @@ The specific libraries and their options are:
        https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
+  Versions: Axom >= 0.3.1.
 
 - Conduit (optional), used when MFEM_USE_CONDUIT = YES. Conduit Mesh Blueprint
   support requires Conduit >= v0.3.1 and VisIt >= v2.13.1 to read the output.
   URL: https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: CONDUIT_OPT, CONDUIT_LIB.
+  Versions: Conduit >= 0.3.1.
+
+- ADIOS2 (optional) used when MFEM_USE_ADIOS2 = YES.
+  URL: https://adios2.readthedocs.io/
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
   Options: PUMI_OPT, PUMI_LIB.
+  Versions: PUMI >= 2.2.0.
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
@@ -604,10 +624,12 @@ The specific libraries and their options are:
   MFEM_USE_GSLIB=YES.
   URL: https://github.com/gslib/gslib/archive/v1.0.5.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
+  Versions: GSLIB >= 1.0.5.
 
 - CUDA (optional), used when MFEM_USE_CUDA = YES.
   URL: https://developer.nvidia.com/cuda-toolkit
   Options: CUDA_CXX, CUDA_ARCH, CUDA_OPT, CUDA_LIB.
+  Versions: CUDA >= 9.1, older versions may work too.
 
 - HIP (optional), used when MFEM_USE_HIP = YES.
   URL: https://rocm.github.io/ROCmInstall.html
@@ -616,21 +638,25 @@ The specific libraries and their options are:
 - OCCA (optional), used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
+  Versions: OCCA >= 1.0.9.
 
 - libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED v0.6
   or later version, specifically, git-hash 3d05795 or later.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
+  Versions: libCEED >= 0.6.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
+  Versions: RAJA >= 0.10.0.
 
 - Umpire, used when MFEM_USE_UMPIRE = YES.
   URL: https://github.com/LLNL/Umpire
   Options: UMPIRE_DIR, UMPIRE_OPT, UMPIRE_LIB.
+  Versions: Umpire >= 2.0.0.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
