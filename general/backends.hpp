@@ -39,6 +39,7 @@
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_DEVICE
+#define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
 #define MFEM_DEVICE_SYNC
 #define MFEM_STREAM_SYNC
