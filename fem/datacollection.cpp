@@ -739,12 +739,6 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
 #endif
 }
 
-void ParaViewDataCollection::RegisterField(const std::string& field_name,
-                                           mfem::GridFunction *gf)
-{
-   DataCollection::RegisterField(field_name,gf);
-}
-
 void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
 {
    levels_of_detail = levels_of_detail_;
