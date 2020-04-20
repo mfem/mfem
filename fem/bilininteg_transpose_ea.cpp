@@ -11,7 +11,6 @@
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
-#include "../linalg/elementmatrix.hpp"
 
 namespace mfem
 {
