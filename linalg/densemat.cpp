@@ -2581,12 +2581,12 @@ void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
 {
    MFEM_ASSERT(((J.Height() == 2 && J.Width() == 1) ||
                 (J.Height() == 3 && J.Width() == 2)) &&
-                   (J.Height() == n.Size()),
+                   (J.Height() == n_bar.Size()),
                "Matrix must be 3x2 or 2x1, "
                    << "and the Vector must be sized with the rows. "
                    << " J.Height() = " << J.Height()
                    << ", J.Width() = " << J.Width()
-                   << ", n.Size() = " << n.Size());
+                   << ", n_bar.Size() = " << n_bar.Size());
    MFEM_ASSERT((J.Height() == J_bar.Height() && J.Width() == J_bar.Width()),
                "Input matrix and derivative matrix must be the same size.");
 
