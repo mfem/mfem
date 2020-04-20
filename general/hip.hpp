@@ -21,6 +21,7 @@
 #ifdef MFEM_USE_HIP
 
 #define MFEM_DEVICE __device__
+#define MFEM_LAMBDA __host__ __device__
 #define MFEM_HOST_DEVICE __host__ __device__
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
