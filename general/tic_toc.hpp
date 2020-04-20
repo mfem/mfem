@@ -48,7 +48,7 @@ public:
    /// Stop the stopwatch.
    void Stop();
 
-   ///Return the time resolution available to the stopwatch.
+   /// Return the time resolution available to the stopwatch.
    double Resolution();
 
    /// Return the number of real seconds elapsed since the stopwatch was started.

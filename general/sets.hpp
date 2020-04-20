@@ -50,7 +50,7 @@ public:
    /// Return 1 if the sets are equal and 0 otherwise.
    int operator==(IntegerSet &s);
 
-   /** Create an integer set from C-array 'p' of 'n' integers.
+   /** @brief Create an integer set from C-array 'p' of 'n' integers.
        Overwrites any existing set data. */
    void Recreate(const int n, const int *p);
 };

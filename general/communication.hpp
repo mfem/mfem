@@ -59,8 +59,6 @@ class GroupTopology
 private:
    MPI_Comm   MyComm;
 
-
-
    /// Neighbor ids (lproc) in each group.
    Table      group_lproc;
    /// Master neighbor id for each group.
@@ -94,6 +92,7 @@ public:
    /// Return the number of MPI ranks within this object's communicator.
    int NRanks() const { int s; MPI_Comm_size(MyComm, &s); return s; }
 
+   /// Set up the group topology given the list of sets of shared entities.
    void Create(ListOfIntegerSets &groups, int mpitag);
 
    /// Return the number of groups.
@@ -104,16 +103,21 @@ public:
 
    /// Return the MPI rank of neighbor 'i'.
    int GetNeighborRank(int i) const { return lproc_proc[i]; }
+
    /// Return true if I am master for group 'g'.
    bool IAmMaster(int g) const { return (groupmaster_lproc[g] == 0); }
-   /** Return the neighbor index of the group master for a given group.
+
+   /** @brief Return the neighbor index of the group master for a given group.
     *  Neighbor 0 is the local processor. */
    int GetGroupMaster(int g) const { return groupmaster_lproc[g]; }
+
    /// Return the rank of the group master for group 'g'.
    int GetGroupMasterRank(int g) const
    { return lproc_proc[groupmaster_lproc[g]]; }
+
    /// Return the group number in the master for group 'g'.
    int GetGroupMasterGroup(int g) const { return group_mgroup[g]; }
+
    /// Get the number of processors in a group
    int GetGroupSize(int g) const { return group_lproc.RowSize(g); }
 
@@ -123,6 +127,7 @@ public:
 
    /// Save the data in a stream.
    void Save(std::ostream &out) const;
+
    /// Load the data from a stream.
    void Load(std::istream &in);
 
@@ -339,7 +344,7 @@ struct VarMessage
    std::string data;
    MPI_Request send_request;
 
-   /** Non-blocking send to processor 'rank'. Returns immediately. Completion
+   /** @brief Non-blocking send to processor 'rank'. Returns immediately. Completion
        (as tested by MPI_Wait/Test) does not mean the message was received --
        it may be on its way or just buffered locally. */
    void Isend(int rank, MPI_Comm comm)
@@ -349,7 +354,7 @@ struct VarMessage
                 &send_request);
    }
 
-   /** Non-blocking synchronous send to processor 'rank'. Returns immediately.
+   /** @brief Non-blocking synchronous send to processor 'rank'. Returns immediately.
        Completion (MPI_Wait/Test) means that the message was received. */
    void Issend(int rank, MPI_Comm comm)
    {
@@ -379,8 +384,8 @@ struct VarMessage
       }
    }
 
-   /** Return true if all messages in the map container were sent, otherwise
-       return false, without waiting. */
+   /** @brief Return true if all messages in the map container were sent, 
+       otherwise return false, without waiting. */
    template<typename MapT>
    static bool TestAllSent(MapT& rank_msg)
    {
@@ -398,7 +403,7 @@ struct VarMessage
       return true;
    }
 
-   /** Blocking probe for incoming message of this type from any rank.
+   /** @brief Blocking probe for incoming message of this type from any rank.
        Returns the rank and message size. */
    static void Probe(int &rank, int &size, MPI_Comm comm)
    {
@@ -408,7 +413,7 @@ struct VarMessage
       MPI_Get_count(&status, MPI_BYTE, &size);
    }
 
-   /** Non-blocking probe for incoming message of this type from any rank.
+   /** @briefNon-blocking probe for incoming message of this type from any rank.
        If there is an incoming message, returns true and sets 'rank' and 'size'.
        Otherwise returns false. */
    static bool IProbe(int &rank, int &size, MPI_Comm comm)
@@ -465,6 +470,8 @@ struct VarMessage
    }
 
    VarMessage() : send_request(MPI_REQUEST_NULL) {}
+
+   /// Clear the message and associated request.
    void Clear() { data.clear(); send_request = MPI_REQUEST_NULL; }
 
    virtual ~VarMessage()

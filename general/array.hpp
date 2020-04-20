@@ -62,7 +62,6 @@ public:
 
    /// Creates array of @a asize elements
    explicit inline Array(int asize)
-
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
 
    /** @brief Creates array using an existing c-array of asize elements;
@@ -70,7 +69,6 @@ public:
        be deleted. */
    inline Array(T *_data, int asize)
    { data.Wrap(_data, asize, false); size = asize; }
-
 
    /// Copy constructor: deep copy from @a src
    /** This method supports source arrays using any MemoryType. */
@@ -259,18 +257,21 @@ public:
    /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
 
-   /// Copy data from a pointer. 'Size()'' elements are copied.
+   /// Copy data from a pointer. 'Size()' elements are copied.
    inline void Assign(const T *);
 
    /// STL-like copyTo @a dest from begin to end.
    template <typename U>
    inline void CopyTo(U *dest) { std::copy(begin(), end(), dest); }
 
+   /** @brief Copy from @a src into this array.  Copies enough entries to
+       fill the Capacity size of this array.  Careful this does not update
+       the Size to match this Capacity after this.*/
    template <typename U>
    inline void CopyFrom(const U *src)
    { std::memcpy(begin(), src, MemoryUsage()); }
 
-   // STL-like begin.  Returns poiner to the first element of the array.
+   /// STL-like begin.  Returns poiner to the first element of the array.
    inline T* begin() { return data; }
 
    /// STL-like end.  Returns pointer after the last element of the array.

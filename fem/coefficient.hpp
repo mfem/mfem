@@ -263,7 +263,11 @@ public:
       center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
       weight = NULL; sdim = 3; tdf = NULL;
    }
+
+   /// Set the center location of the delta function.
    void SetDeltaCenter(const Vector& center);
+
+   /// Set the scale value multiplying the delta function.
    void SetScale(double _s) { scale = _s; }
 
    /// Set a time-dependent function that multiplies the Scale().
@@ -337,6 +341,7 @@ protected:
    double time;
 
 public:
+   /// Initilize the a VectorCoefficient with vector dimension @a vd.
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
    /// Set the time for time dependent coefficients
@@ -389,6 +394,8 @@ public:
    ///  Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+
+   /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
 };
 
@@ -481,8 +488,11 @@ public:
        grid function is not owned by the coefficient. */
    VectorGridFunctionCoefficient(GridFunction *gf);
 
-   /// Set the grid function
+   /** @brief Set the grid function for this coefficient.  Also sets the Vector 
+       dimension to match that of the @a gf. */
    void SetGridFunction(GridFunction *gf);
+
+   ///  Returns a pointer to the grid function in this Coefficient
    GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the vector coefficient at @a ip.

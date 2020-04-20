@@ -44,7 +44,9 @@ public:
    /// Clear the elements off the stack.
    void Clear();
 
+   /// Swap the data in this stack with the data in @a other.
    void Swap(Stack<Elem, Num> &other);
+
    /// Return the number of bytes used by the stack.
    size_t MemoryUsage() const;
    ~Stack() { Clear(); }
