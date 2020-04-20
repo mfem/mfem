@@ -529,6 +529,19 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
    }
 }
 
+void IsoparametricTransformation::TransformRevDiff(const IntegrationPoint &ip,
+                                                   const Vector &x_bar,
+                                                   DenseMatrix &PointMat_bar)
+{
+   MFEM_ASSERT((PointMat_bar.Width() == PointMat.Width()) &&
+                   (PointMat_bar.Height() = PointMat.Height()),
+               "PointMat_bar shape != PointMat shape");
+   shape.SetSize(FElem->GetDof());
+   FElem->CalcShape(ip, shape);
+   // PointMat.Mult(shape, trans);
+   MultVWt(x_bar, shape, PointMat_bar);
+}
+
 void IsoparametricTransformation::JacobianRevDiff(const DenseMatrix &dFdx_bar,
                                                   DenseMatrix &PointMat_bar)
 {

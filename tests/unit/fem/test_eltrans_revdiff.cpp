@@ -76,6 +76,42 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
    DenseMatrix &coords = trans.GetPointMat();
    DenseMatrix coords_bar(coords.Height(), coords.Width());
 
+   SECTION("TransformRevDiff")
+   {
+      // x_bar(i) is the weight on the (i)th entry of the coordinate x;
+      // the values are not important for this test.
+      double x_bar_data[4] = {2.5, -3.2};
+      Vector x_bar(x_bar_data, 2);
+      Vector x_fd(2), x_pert(2);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans.SetIntPoint(&ip);
+         // reverse-mode differentiation of coordinate transformation
+         trans.TransformRevDiff(ip, x_bar, coords_bar);
+         // get the weighted derivatives using finite difference method
+         for (int n = 0; n < coords.Width(); ++n)
+         {
+            for (int di = 0; di < coords.Height(); ++di)
+            {
+               coords(di, n) += eps_fd;
+               trans.Transform(ip, x_fd);         
+               coords(di, n) -= 2.0*eps_fd;
+               trans.Transform(ip, x_pert);
+               x_fd -= x_pert;
+               x_fd *= 1.0/(2.0*eps_fd);
+               coords(di, n) += eps_fd;
+               double x_bar_fd = 0.0;
+               for (int j = 0; j < x_bar.Size(); ++j)
+               {
+                  x_bar_fd += x_bar(j)*x_fd(j);
+               }
+               REQUIRE(coords_bar(di, n) == Approx(x_bar_fd));
+            }
+         }
+      }
+   }
+
    SECTION("JacobianRevDiff")
    {
       // dFdx_bar(i,j) is the weight on the (i,j)th entry of the Jacobian;
