@@ -84,6 +84,8 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    Vector el_x;
    const FiniteElement *fe;
    ElementTransformation *T;
+   Mesh *mesh = fes->GetMesh();
+
    double energy = 0.0;
 
    if (dnfi.Size())
@@ -103,14 +105,81 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 
    if (fnfi.Size())
    {
-      MFEM_ABORT("TODO: add energy contribution from interior face terms");
+      FaceElementTransformations *tr;
+      const FiniteElement *fe1, *fe2;
+      Array<int> vdofs2;
+
+      for (int i = 0; i < mesh->GetNumFaces(); i++)
+      {
+         tr = mesh->GetInteriorFaceTransformations(i);
+         if (tr != NULL)
+         {
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
+            fes->GetElementVDofs(tr->Elem2No, vdofs2);
+            vdofs.Append (vdofs2);
+            x.GetSubVector(vdofs, el_x);
+            fe1 = fes->GetFE(tr->Elem1No);
+            fe2 = fes->GetFE(tr->Elem2No);
+            for (int k = 0; k < fnfi.Size(); k++)
+            {
+               energy += fnfi[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
+            }
+         }
+      }
    }
 
    if (bfnfi.Size())
    {
-      MFEM_ABORT("TODO: add energy contribution from boundary face terms");
-   }
+      FaceElementTransformations *tr;
+      const FiniteElement *fe1, *fe2;
 
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bfnfi.Size(); k++)
+      {
+         if (bfnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bfnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < fes -> GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         tr = mesh->GetBdrFaceTransformations (i);
+         if (tr != NULL)
+         {
+            fes->GetElementVDofs(tr->Elem1No, vdofs);
+            x.GetSubVector(vdofs, el_x);
+
+            fe1 = fes->GetFE(tr->Elem1No);
+            // The fe2 object is really a dummy and not used on the boundaries,
+            // but we can't dereference a NULL pointer, and we don't want to
+            // actually make a fake element.
+            fe2 = fe1;
+            for (int k = 0; k < bfnfi.Size(); k++)
+            {
+               if (bfnfi_marker[k] &&
+                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               energy += bfnfi[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
+            }
+         }
+      }
+   }
    return energy;
 }
 

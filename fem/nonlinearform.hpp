@@ -129,7 +129,7 @@ public:
        be fes->GetVSize(). */
    double GetGridFunctionEnergy(const Vector &x) const;
 
-   /// Compute the enery corresponding to the state @a x.
+   /// Compute the energy corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
