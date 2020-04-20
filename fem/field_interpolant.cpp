@@ -13,6 +13,7 @@
 
 #include "field_interpolant.hpp"
 #include "../linalg/densemat.hpp"
+#include "gridfunc.hpp"
 
 namespace mfem{
 
@@ -115,24 +116,25 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
    double* data = m_all_data.HostReadWrite();
    if(fes.GetOrdering() == Ordering::byNODES){
       for(int e = 0; e < NE; e++){
+         qfv = 0.0;
          mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         inv.Factor();
+         inv.Factor(mi);
          const FiniteElement &fe = *fes.GetFE(e);
          ElementTransformation &eltr = *fes.GetElementTransformation(e);
          qi.AssembleRHSElementVect(fe, eltr, rhs);
          for(int ind = 0; ind < vdim; ind++){
             qfv_sub.MakeRef(qfv, ndofs * ind);
             rhs_sub.MakeRef(rhs, ndofs * ind);
-            inv.Mult(rhs_sub, qfv_sub); 
+            inv.Mult(rhs_sub, qfv_sub);
          }
-         fes.GetElementDofs(e, dofs);
+         fes.GetElementVDofs(e, dofs);
          gf.SetSubVector(dofs, qfv);
       }
    } else {
       Vector tmp(qfv);
       for(int e = 0; e < NE; e++){
          mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         inv.Factor();
+         inv.Factor(mi);
          const FiniteElement &fe = *fes.GetFE(e);
          ElementTransformation &eltr = *fes.GetElementTransformation(e);
          qi.AssembleRHSElementVect(fe, eltr, rhs);
@@ -199,7 +201,7 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
    double* data = m_all_data.HostReadWrite();
    for(int e = 0; e < NE; e++){
       mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-      inv.Factor();
+      inv.Factor(mi);
       const FiniteElement &fe = *fes.GetFE(e);
       ElementTransformation &eltr = *fes.GetElementTransformation(e);
       qi.AssembleRHSElementVect(fe, eltr, rhs);
