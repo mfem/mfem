@@ -90,7 +90,21 @@ TEST_CASE("First order ODE methods",
          dt = t_final/double(ti_steps);
       };
 
-      double order(ODESolver* ode_solver)
+      void init_hist(ODESolver* ode_solver,double dt)
+      {
+         int nstate = ode_solver->GetStateSize();
+
+         for (int s = 0; s< nstate; s++)
+         {
+            double t = -(s)*dt;
+            Vector uh(2);
+            uh[0] = -cos(t) - sin(t);
+            uh[1] =  cos(t) - sin(t);
+            ode_solver->SetStateVector(s,uh);
+         }
+      }
+
+      double order(ODESolver* ode_solver, bool init_hist_ = false)
       {
          double dt,t;
          Vector u(2);
@@ -101,10 +115,8 @@ TEST_CASE("First order ODE methods",
          dt = t_final/double(steps);
          u = u0;
          ode_solver->Init(*oper);
-         for (int ti = 0; ti< steps; ti++)
-         {
-            ode_solver->Step(u, t, dt);
-         }
+         if (init_hist_) init_hist(ode_solver,dt);
+         ode_solver->Run(u, t, dt, t_final - 1e-12);
          u +=u0;
          err[0] = u.Norml2();
 
@@ -120,6 +132,7 @@ TEST_CASE("First order ODE methods",
             dt = t_final/double(steps);
             u = u0;
             ode_solver->Init(*oper);
+            if (init_hist_) init_hist(ode_solver,dt);
             for (int ti = 0; ti< steps; ti++)
             {
                ode_solver->Step(u, t, dt);
@@ -212,6 +225,12 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new GeneralizedAlphaSolver(0.5)) + tol > 2.0 );
    }
 
+   SECTION("GeneralizedAlphaSolver(0.5) - restart")
+   {
+      std::cout <<"\nTesting GeneralizedAlphaSolver(0.5) - restart" << std::endl;
+      REQUIRE(check.order(new GeneralizedAlphaSolver(0.5), true) + tol > 2.0 );
+   }
+
    SECTION("GeneralizedAlphaSolver(0.0)")
    {
       std::cout <<"\nTesting GeneralizedAlphaSolver(0.0)" << std::endl;
@@ -225,10 +244,22 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new AB1Solver()) + tol > 1.0 );
    }
 
+   SECTION("AB1Solver() - restart")
+   {
+      std::cout <<"\nTesting AB1Solver() - restart" << std::endl;
+      REQUIRE(check.order(new AB1Solver(), true) + tol > 1.0 );
+   }
+
    SECTION("AB2Solver()")
    {
       std::cout <<"\nTesting AB2Solver()" << std::endl;
       REQUIRE(check.order(new AB2Solver()) + tol > 2.0 );
+   }
+
+   SECTION("AB2Solver() - restart")
+   {
+      std::cout <<"\nTesting AB2Solver() - restart" << std::endl;
+      REQUIRE(check.order(new AB2Solver(), true) + tol > 2.0 );
    }
 
    SECTION("AB3Solver()")
@@ -243,10 +274,16 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new AB4Solver()) + tol > 4.0 );
    }
 
-   SECTION("AB5Solver(5)")
+   SECTION("AB5Solver()")
    {
       std::cout <<"\nTesting AB5Solver()" << std::endl;
       REQUIRE(check.order(new AB5Solver()) + tol > 5.0 );
+   }
+
+   SECTION("AB5Solver() - restart")
+   {
+      std::cout <<"\nTesting AB5Solver() - restart" << std::endl;
+      REQUIRE(check.order(new AB5Solver(), true) + tol > 5.0 );
    }
 
    // Adams-Moulton
@@ -262,10 +299,22 @@ TEST_CASE("First order ODE methods",
       REQUIRE(check.order(new AM1Solver()) + tol > 2.0 );
    }
 
+   SECTION("AM1Solver() - restart")
+   {
+      std::cout <<"\nTesting AM1Solver() - restart" << std::endl;
+      REQUIRE(check.order(new AM1Solver(), true) + tol > 2.0 );
+   }
+
    SECTION("AM2Solver()")
    {
       std::cout <<"\nTesting AM2Solver()" << std::endl;
       REQUIRE(check.order(new AM2Solver()) + tol > 3.0 );
+   }
+
+   SECTION("AM2Solver() - restart")
+   {
+      std::cout <<"\nTesting AM2Solver() - restart" << std::endl;
+      REQUIRE(check.order(new AM2Solver(), true) + tol > 1.0 );
    }
 
    SECTION("AM3Solver()")
@@ -278,6 +327,12 @@ TEST_CASE("First order ODE methods",
    {
       std::cout <<"\nTesting AM4Solver()" << std::endl;
       REQUIRE(check.order(new AM4Solver()) + tol > 5.0 );
+   }
+
+   SECTION("AM4Solver() - restart")
+   {
+      std::cout <<"\nTesting AM4Solver() - restart" << std::endl;
+      REQUIRE(check.order(new AM4Solver(),true) + tol > 5.0 );
    }
 }
 
