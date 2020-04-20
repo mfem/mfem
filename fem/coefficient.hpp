@@ -964,7 +964,7 @@ public:
    void SetQuadratureFunction(QuadratureFunction *qf);
 
    /// Set the starting index within the QuadFunc that'll be used to project outwards as well
-   /// as the corresponding length. The projected length should have the bounds of 
+   /// as the corresponding length. The projected length should have the bounds of
    /// 1 <= length <= (length QuadFunc - index).
    void SetComponent(int _index, int _length);
 
