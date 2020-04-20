@@ -25,13 +25,13 @@ public:
    int Column, Floor, Number;
 };
 
-/** @brief Symmetric 3D Table stored an array of rows each of which has
+/** @brief Symmetric 3D Table stored as an array of rows each of which has
     a stack of column, floor, number nodes.  The number of the node
     is assigned by counting the nodes from zero as they are pushed
-    into the table.  Diagonals of any kind are not so the row, column
-    and floor must all be different for each node.  Only one node is
-    stored for all 6 symmetric entries that are indexable by unique
-    triplets of row, column, and floor.
+    into the table.  Diagonals of any kind are not allowed so the row, 
+    column and floor must all be different for each node.  Only one 
+    node is stored for all 6 symmetric entries that are indexable by 
+    unique triplets of row, column, and floor.
 */
 class STable3D
 {
@@ -64,7 +64,7 @@ public:
        table entry. */
    int Push4 (int r, int c, int f, int t);
 
-   /** Return the number assigned to the table entry.  The entry is
+   /** @brief Return the number assigned to the table entry.  The entry is
        addressed by the three smallest values of (r,c,f,t).  Return -1 if
        it is not there. */
    int operator() (int r, int c, int f, int t) const;

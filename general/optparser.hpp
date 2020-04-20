@@ -69,15 +69,15 @@ private:
 
 public:
 
-   /// Comstruct a command line option parser with '_argc' and '_argv'.
+   /// Construct a command line option parser with '_argc' and '_argv'.
    OptionsParser(int _argc, char *_argv[])
       : argc(_argc), argv(_argv)
    {
       error_type = error_idx = 0;
    }
 
-   /** Add a boolean option and set 'var' to recieve the value.  Enable/disable
-       tags are used to set the bool to true/false respectively. */
+   /** @brief Add a boolean option and set 'var' to recieve the value.  
+       Enable/disable tags are used to set the bool to true/false respectively. */
    void AddOption(bool *var, const char *enable_short_name,
                   const char *enable_long_name, const char *disable_short_name,
                   const char *disable_long_name, const char *description,
@@ -143,10 +143,19 @@ public:
    /// Return true if the command line options were parsed sucessfully.
    bool Good() const { return (error_type == 0); }
 
+   /// Return true if we are flagged to print the help message.
    bool Help() const { return (error_type == 1); }
+
+   /// Print the options
    void PrintOptions(std::ostream &out) const;
+
+   /// Print the error message
    void PrintError(std::ostream &out) const;
+
+   /// Print the help message
    void PrintHelp(std::ostream &out) const;
+
+   /// Print the usage message
    void PrintUsage(std::ostream &out) const;
 };
 

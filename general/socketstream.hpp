@@ -72,7 +72,7 @@ public:
    /// Returns the attached socket descriptor.
    int getsocketdescriptor() { return socket_descriptor; }
 
-   /** @brief Returns true of the socket is open and has a valid
+   /** @brief Returns true if the socket is open and has a valid
        socket descriptor.  Otherwise returns false. */
    bool is_open() { return (socket_descriptor >= 0); }
 
