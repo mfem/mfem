@@ -410,7 +410,6 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    }
    else
    {
-std::cout<<"AB ----> RK\n";
       f->Mult(x,k[idx[0]]);
       RKsolver->Step(x,t,dt);
    }
