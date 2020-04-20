@@ -91,6 +91,17 @@ public:
       while (t < tf) { Step(x, t, dt); }
    }
 
+   /// Function for getting and setting the state vectors
+   virtual int   GetStateSize() { return 0; }
+   virtual void  GetStateVector(int i, Vector &state)
+   {
+      mfem_error("ODESolver has no state vectors");
+   }
+   virtual void  SetStateVector(int i, Vector &state)
+   {
+      mfem_error("ODESolver has no state vectors");
+   }
+
    virtual ~ODESolver() { }
 };
 
@@ -223,6 +234,10 @@ public:
 
    virtual void Step(Vector &x, double &t, double &dt);
 
+   virtual int  GetStateSize() { return smax; };
+   virtual void GetStateVector(int i, Vector &state);
+   virtual void SetStateVector(int i, Vector &state);
+
    ~AdamsBashforthSolver()
    {
       if (RKsolver) { delete RKsolver; }
@@ -297,6 +312,10 @@ public:
    virtual void Init(TimeDependentOperator &_f);
 
    virtual void Step(Vector &x, double &t, double &dt);
+
+   virtual int  GetStateSize() { return smax-1; };
+   virtual void GetStateVector(int i, Vector &state);
+   virtual void SetStateVector(int i, Vector &state);
 
    ~AdamsMoultonSolver()
    {
@@ -450,6 +469,11 @@ public:
    virtual void Init(TimeDependentOperator &_f);
 
    virtual void Step(Vector &x, double &t, double &dt);
+
+   virtual int  GetStateSize() { return 1; };
+   virtual void GetStateVector(int i, Vector &state);
+   virtual void SetStateVector(int i, Vector &state);
+
 };
 
 
@@ -606,10 +630,19 @@ public:
       while (t < tf) { Step(x, dxdt, t, dt); }
    }
 
+   /// Function for getting and setting the state vectors
+   virtual int   GetStateSize() { return 0; }
+   virtual void  GetStateVector(int i, Vector &state)
+   {
+      mfem_error("ODESolver has no state vectors");
+   }
+   virtual void  SetStateVector(int i, Vector &state)
+   {
+      mfem_error("ODESolver has no state vectors");
+   }
+
    virtual ~SecondOrderODESolver() { }
 };
-
-
 
 /// The classical newmark method.
 /// Newmark, N. M. (1959) A method of computation for structural dynamics.
@@ -680,6 +713,10 @@ public:
    virtual void Init(SecondOrderTimeDependentOperator &_f);
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+
+   virtual int  GetStateSize() { return 1; };
+   virtual void GetStateVector(int i, Vector &state);
+   virtual void SetStateVector(int i, Vector &state);
 };
 
 /// The classical midpoint method.
