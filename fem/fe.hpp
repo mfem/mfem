@@ -232,14 +232,14 @@ class KnotVector;
 class FiniteElement
 {
 protected:
-   int Dim;      ///< Dimension of reference space
-   Geometry::Type GeomType; ///< Geometry::Type of the reference element
-   int FuncSpace, RangeType, MapType,
-       DerivType, DerivRangeType, DerivMapType;
+   int dim;      ///< Dimension of reference space
+   Geometry::Type geom_type; ///< Geometry::Type of the reference element
+   int func_space, range_type, map_type,
+       deriv_type, deriv_range_type, deriv_map_type;
    mutable
-   int Dof,      ///< Number of degrees of freedom
-       Order;    ///< Order/degree of the shape functions
-   mutable int Orders[Geometry::MaxDim]; ///< Anisotropic orders
+   int dof,      ///< Number of degrees of freedom
+       order;    ///< Order/degree of the shape functions
+   mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix vshape; // Dof x Dim
@@ -250,8 +250,8 @@ protected:
    mutable Array<DofToQuad*> dof2quad_array;
 
 public:
-   /// Enumeration for RangeType and DerivRangeType
-   enum RangeT { SCALAR, VECTOR };
+   /// Enumeration for range_type and deriv_range_type
+   enum RangeType { SCALAR, VECTOR };
 
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
@@ -263,7 +263,7 @@ public:
        - \f$ w = w(\hat x) = det(J) \f$ is the transformation weight factor for square J
        - \f$ w = w(\hat x) = det(J^t J)^{1/2} \f$ is the transformation weight factor in general
    */
-   enum MapT
+   enum MapType
    {
       VALUE,     /**< For scalar fields; preserves point values
                           \f$ u(x) = \hat u(\hat x) \f$ */
@@ -284,7 +284,7 @@ public:
        value returned by GetDerivType() indicates which derivative method is
        implemented.
    */
-   enum DerivT
+   enum DerivType
    {
       NONE, ///< No derivatives implemented
       GRAD, ///< Implements CalcDShape methods
@@ -303,66 +303,66 @@ public:
                  int F = FunctionSpace::Pk);
 
    /// Returns the reference space dimension for the finite element
-   int GetDim() const { return Dim; }
+   int GetDim() const { return dim; }
 
    /// Returns the Geometry::Type of the reference element
-   Geometry::Type GetGeomType() const { return GeomType; }
+   Geometry::Type GetGeomType() const { return geom_type; }
 
    /// Returns the number of degrees of freedom in the finite element
-   int GetDof() const { return Dof; }
+   int GetDof() const { return dof; }
 
    /** @brief Returns the order of the finite element. In the case of
        anisotropic orders, returns the maximum order. */
-   int GetOrder() const { return Order; }
+   int GetOrder() const { return order; }
 
    /** @brief Returns true if the FiniteElement basis *may be using* different
        orders/degrees in different spatial directions. */
-   bool HasAnisotropicOrders() const { return Orders[0] != -1; }
+   bool HasAnisotropicOrders() const { return orders[0] != -1; }
 
    /// Returns an array containing the anisotropic orders/degrees.
-   const int *GetAnisotropicOrders() const { return Orders; }
+   const int *GetAnisotropicOrders() const { return orders; }
 
    /// Returns the type of FunctionSpace on the element.
-   int Space() const { return FuncSpace; }
+   int Space() const { return func_space; }
 
-   /// Returns the FiniteElement::RangeT of the element, one of {SCALAR, VECTOR}.
-   int GetRangeType() const { return RangeType; }
+   /// Returns the FiniteElement::RangeType of the element, one of {SCALAR, VECTOR}.
+   int GetRangeType() const { return range_type; }
 
-   /** @brief Returns the FiniteElement::RangeT of the element derivative, either
+   /** @brief Returns the FiniteElement::RangeType of the element derivative, either
        SCALAR or VECTOR. */
-   int GetDerivRangeType() const { return DerivRangeType; }
+   int GetDerivRangeType() const { return deriv_range_type; }
 
-   /** @brief Returns the FiniteElement::MapT of the element describing how reference
+   /** @brief Returns the FiniteElement::MapType of the element describing how reference
        functions are mapped to physical space, one of {VALUE, INTEGRAL
        H_DIV, H_CURL}. */
-   int GetMapType() const { return MapType; }
+   int GetMapType() const { return map_type; }
 
 
-   /** @brief Returns the FiniteElement::DerivT of the element describing the
+   /** @brief Returns the FiniteElement::DerivType of the element describing the
        spatial derivative method implemented, one of {NONE, GRAD,
        DIV, CURL}. */
-   int GetDerivType() const { return DerivType; }
+   int GetDerivType() const { return deriv_type; }
 
-   /** @brief Returns the FiniteElement::DerivT of the element describing how
+   /** @brief Returns the FiniteElement::DerivType of the element describing how
        reference function derivatives are mapped to physical space, one of {VALUE,
        INTEGRAL, H_DIV, H_CURL}. */
-   int GetDerivMapType() const { return DerivMapType; }
+   int GetDerivMapType() const { return deriv_map_type; }
 
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
-   /** The size (#Dof) of the result Vector @a shape must be set in advance. */
+   /** The size (#dof) of the result Vector @a shape must be set in advance. */
    virtual void CalcShape(const IntegrationPoint &ip,
                           Vector &shape) const = 0;
 
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
-   /** The size (#Dof) of the result Vector @a shape must be set in advance. */
+   /** The size (#dof) of the result Vector @a shape must be set in advance. */
    void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
    /** Each row of the result DenseMatrix @a dshape contains the derivatives of
-       one shape function. The size (#Dof x #Dim) of @a dshape must be set in
+       one shape function. The size (#dof x #dim) of @a dshape must be set in
        advance.  */
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const = 0;
@@ -370,8 +370,8 @@ public:
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a dshape contains the derivatives of
-       one shape function. The size (#Dof x SDim) of @a dshape must be set in
-       advance, where SDim >= #Dim is the physical space dimension as described
+       one shape function. The size (#dof x SDim) of @a dshape must be set in
+       advance, where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
    void CalcPhysDShape(ElementTransformation &Trans, DenseMatrix &dshape) const;
 
@@ -383,7 +383,7 @@ public:
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
    /** Each row of the result DenseMatrix @a shape contains the components of
-       one vector shape function. The size (#Dof x #Dim) of @a shape must be set
+       one vector shape function. The size (#dof x #dim) of @a shape must be set
        in advance. */
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -391,8 +391,8 @@ public:
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a shape contains the components of
-       one vector shape function. The size (#Dof x SDim) of @a shape must be set
-       in advance, where SDim >= #Dim is the physical space dimension as
+       one vector shape function. The size (#dof x SDim) of @a shape must be set
+       in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    virtual void CalcVShape(ElementTransformation &Trans,
                            DenseMatrix &shape) const;
@@ -403,32 +403,32 @@ public:
 
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
-   /** The size (#Dof) of the result Vector @a divshape must be set in advance.
+   /** The size (#dof) of the result Vector @a divshape must be set in advance.
     */
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
 
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in physical space at the point described by @a Trans. */
-   /** The size (#Dof) of the result Vector @a divshape must be set in advance.
+   /** The size (#dof) of the result Vector @a divshape must be set in advance.
     */
    void CalcPhysDivShape(ElementTransformation &Trans, Vector &divshape) const;
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
    /** Each row of the result DenseMatrix @a curl_shape contains the components
-       of the curl of one vector shape function. The size (#Dof x CDim) of
-       @a curl_shape must be set in advance, where CDim = 3 for #Dim = 3 and
-       CDim = 1 for #Dim = 2. */
+       of the curl of one vector shape function. The size (#dof x CDim) of
+       @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
+       CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
    /** Each row of the result DenseMatrix @a curl_shape contains the components
-       of the curl of one vector shape function. The size (#Dof x CDim) of
-       @a curl_shape must be set in advance, where CDim = 3 for #Dim = 3 and
-       CDim = 1 for #Dim = 2. */
+       of the curl of one vector shape function. The size (#dof x CDim) of
+       @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
+       CDim = 1 for #dim = 2. */
    void CalcPhysCurlShape(ElementTransformation &Trans,
                           DenseMatrix &curl_shape) const;
 
@@ -443,19 +443,19 @@ public:
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.*/
+       The size (#dof x (#dim (#dim-1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian (const IntegrationPoint &ip,
                              DenseMatrix &Hessian) const;
 
    /** @brief Evaluate the Hessian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
-   /** The size (#Dof, #Dim*(#Dim+1)/2) of @a Hessian must be set in advance. */
+   /** The size (#dof, #dim*(#dim+1)/2) of @a Hessian must be set in advance. */
    virtual void CalcPhysHessian(ElementTransformation &Trans,
                                 DenseMatrix& Hessian) const;
 
    /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
-   /** The size (#Dof) of @a Laplacian must be set in advance. */
+   /** The size (#dof) of @a Laplacian must be set in advance. */
    virtual void CalcPhysLaplacian(ElementTransformation &Trans,
                                   Vector& Laplacian) const;
 
@@ -493,7 +493,7 @@ public:
        allowing the "coarse" FiniteElement to be different from the "fine"
        FiniteElement as when h-refinement is combined with p-refinement or
        p-derefinement. It is assumed that both finite elements use the same
-       FiniteElement::MapT. */
+       FiniteElement::MapType. */
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const;
@@ -632,19 +632,19 @@ public:
                        int F = FunctionSpace::Pk)
 #ifdef MFEM_THREAD_SAFE
       : FiniteElement(D, G, Do, O, F)
-   { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
+   { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
 #else
-      : FiniteElement(D, G, Do, O, F), c_shape(Dof)
-   { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
+      : FiniteElement(D, G, Do, O, F), c_shape(dof)
+   { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
 #endif
 
-   /** @brief Set the FiniteElement::MapT of the element to either VALUE or INTEGRAL.
-       Also sets the FiniteElement::DerivT to GRAD if the FiniteElement::MapT is VALUE. */
+   /** @brief Set the FiniteElement::MapType of the element to either VALUE or INTEGRAL.
+       Also sets the FiniteElement::DerivType to GRAD if the FiniteElement::MapType is VALUE. */
    void SetMapType(int M)
    {
       MFEM_VERIFY(M == VALUE || M == INTEGRAL, "unknown MapType");
-      MapType = M;
-      DerivType = (M == VALUE) ? GRAD : NONE;
+      map_type = M;
+      deriv_type = (M == VALUE) ? GRAD : NONE;
    }
 
 
@@ -864,10 +864,10 @@ public:
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
-   { RangeType = VECTOR; MapType = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
 #else
       FiniteElement(D, G, Do, O, F), Jinv(D)
-   { RangeType = VECTOR; MapType = M; SetDerivMembers(); }
+   { range_type = VECTOR; map_type = M; SetDerivMembers(); }
 #endif
 };
 
@@ -1516,7 +1516,7 @@ public:
                            DenseMatrix &dshape) const;
 };
 
-/// A 3D linear tetrahedron with nodes at thirds???
+/// A 3D Crouzeix-Raviart element on the tetrahedron.
 class P1TetNonConfFiniteElement : public NodalFiniteElement
 {
 public:
@@ -3146,8 +3146,8 @@ public:
    {
       ijk = NULL;
       patch = elem = -1;
-      kv.SetSize(Dim);
-      weights.SetSize(Dof);
+      kv.SetSize(dim);
+      weights.SetSize(dof);
       weights = 1.0;
    }
 
@@ -3196,17 +3196,17 @@ public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
-        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(Dof,2)
-   { Orders[0] = Orders[1] = p; }
+        u(dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
+        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(dof,2)
+   { orders[0] = orders[1] = p; }
 
    /// Construct the NURBS2DFiniteElement with x-order @a px and y-order @a py
    NURBS2DFiniteElement(int px, int py)
       : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
                            std::max(px, py), FunctionSpace::Qk),
-        u(Dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
-        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(Dof,2)
-   { Orders[0] = px; Orders[1] = py; }
+        u(dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
+        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(dof,2)
+   { orders[0] = px; orders[1] = py; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -3230,19 +3230,19 @@ public:
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
+        u(dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
-        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(Dof,3)
-   { Orders[0] = Orders[1] = Orders[2] = p; }
+        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(dof,3)
+   { orders[0] = orders[1] = orders[2] = p; }
 
    /// Construct the NURBS3DFiniteElement with x-order @a px and y-order @a py and z-order @a pz
    NURBS3DFiniteElement(int px, int py, int pz)
       : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                            std::max(std::max(px,py),pz), FunctionSpace::Qk),
-        u(Dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
+        u(dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
-        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(Dof,3)
-   { Orders[0] = px; Orders[1] = py; Orders[2] = pz; }
+        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(dof,3)
+   { orders[0] = px; orders[1] = py; orders[2] = pz; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
