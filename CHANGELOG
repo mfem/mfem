@@ -23,19 +23,38 @@ Meshing improvements
   Hessian for r-adaptivity using discrete fields, and allows use of skewness
   and orientation based metrics.
 
+Improved GPU capabilities
+-------------------------
+- Added support for Chebyshev accelerated polynomial smoother on GPU.
+
+Discretization improvements
+---------------------------
+- Added support for matrix-free interpolation and restriction operators between
+  continuous H1 finite element spaces of different order on the same mesh or
+  with the same order on uniformly refined meshes.
+
+- Added support for simplices in GSLIB-FindPoints.
+
+Linear and nonlinear solvers
+----------------------------
+- Added power method to iteratively estimate the largest eigenvalue and the
+  corresponding eigenvector of an operator.
+
+- Added initial support for h- and p-multigrid solvers and preconditioners for
+  matrix-based and matrix-free discretizations with basic GPU capability.
+
 New and updated examples and miniapps
 -------------------------------------
-- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
-  stitching together opposite surfaces of a mesh to create a topologically
-  periodic mesh.
-
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
   Matched Layer (PML) for the simulation of electromagnetic wave propagation.
   The example defines and solves several indefinite Maxwell problems.
 
-Discretization improvements
----------------------------
-- Added support for simplices in GSLIB-FindPoints.
+- Added a new Example 26/26p to demonstrate the construction of a matrix-free
+  geometric and p-multigrid preconditioner for the Laplace problem.
+
+- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
+  stitching together opposite surfaces of a mesh to create a topologically
+  periodic mesh.
 
 Improved testing
 ----------------
