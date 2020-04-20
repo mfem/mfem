@@ -38,6 +38,9 @@
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
+#include "transfer.hpp"
+#include "fespacehierarchy.hpp"
+#include "multigrid.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

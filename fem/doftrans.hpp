@@ -137,8 +137,8 @@ private:
    DofTransformation * doftrans_;
 
 public:
-   /** Default constructor which requires that SetDofTransformation be called
-       before use. */
+   /** @brief Default constructor which requires that SetDofTransformation be
+       called before use. */
    VDofTransformation(int vdim = 1, int ordering = 0)
       : DofTransformation(0,0),
         vdim_(vdim), ordering_(ordering),
@@ -151,7 +151,7 @@ public:
         vdim_(vdim), ordering_(ordering),
         doftrans_(&doftrans) {}
 
-   // Set or change the vdim parameter
+   /// Set or change the vdim parameter
    inline void SetVDim(int vdim)
    {
       vdim_ = vdim;
@@ -162,13 +162,19 @@ public:
       }
    }
 
-   // Set or change the nested DofTransformation object
+   /// Return the current vdim value
+   inline int GetVDim() const { return vdim_; }
+
+   /// Set or change the nested DofTransformation object
    inline void SetDofTransformation(DofTransformation & doftrans)
    {
       height_ = vdim_ * doftrans.Height();
       width_  = vdim_ * doftrans.Width();
       doftrans_ = &doftrans;
    }
+
+   /// Return the nested DofTransformation object
+   inline DofTransformation * GetDofTransformation() const { return doftrans_; }
 
    inline void SetFaceOrientation(const Array<int> & face_orientation)
    { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation);}
