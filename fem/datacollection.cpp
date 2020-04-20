@@ -809,7 +809,7 @@ void ParaViewDataCollection::Save()
    // the directory is created
 
    // create pvd file if needed
-   if (!pvd_stream.is_open())
+   if (myid == 0 && !pvd_stream.is_open())
    {
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
