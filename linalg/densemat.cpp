@@ -530,6 +530,119 @@ double DenseMatrix::Weight() const
    return 0.0;
 }
 
+void DenseMatrix::DetRevDiff(DenseMatrix &A_bar) const
+{
+   MFEM_ASSERT(Height() == Width() && Height() > 0,
+               "The matrix must be square and "
+               << "sized larger than zero to compute the determinant."
+               << "  Height() = " << Height()
+               << ", Width() = " << Width());
+
+   switch (Height())
+   {
+      case 1:
+         // return data[0];
+         A_bar(0,0) = 1.0;
+         return;
+
+      case 2:
+         // return data[0] * data[3] - data[1] * data[2];
+         A_bar(0,0) = data[3]; // data[0]
+         A_bar(1,1) = data[0]; // data[3]
+         A_bar(1,0) = -data[2]; // data[1]
+         A_bar(0,1) = -data[1]; // data[2]
+         return;
+
+      case 3:
+      {
+         const double *d = data;
+         // return
+         //   d[0] * (d[4] * d[8] - d[5] * d[7]) +
+         //   d[3] * (d[2] * d[7] - d[1] * d[8]) +
+         //   d[6] * (d[1] * d[5] - d[2] * d[4]);
+         A_bar(0,0) = d[4]*d[8] - d[5]*d[7]; // d[0]
+         A_bar(1,0) = d[6]*d[5] - d[3]*d[8]; // d[1]
+         A_bar(2,0) = d[3]*d[7] - d[6]*d[4]; // d[2]
+         A_bar(0,1) = d[2]*d[7] - d[1]*d[8]; // d[3]
+         A_bar(1,1) = d[0]*d[8] - d[6]*d[2]; // d[4]
+         A_bar(2,1) = d[6]*d[1] - d[0]*d[7]; // d[5]
+         A_bar(0,2) = d[1]*d[5] - d[2]*d[4]; // d[6]
+         A_bar(1,2) = d[3]*d[2] - d[0]*d[5]; // d[7]
+         A_bar(2,2) = d[0]*d[4] - d[3]*d[1]; // d[8]
+         return;
+
+      }
+      default:
+      {
+         // In the general case we compute the gradient of the determinant
+         // using the relation from Mike Giles document:
+         // "An extended collection of matrix derivative results for forward
+         // and reverse mode algorithmic differentiation"
+         DenseMatrixInverse lu_factors(*this);
+         lu_factors.GetInverseMatrix(A_bar);
+         A_bar.Transpose();
+         A_bar *= lu_factors.Det();
+         return;
+
+      }
+   }
+   // not reachable
+}
+
+void DenseMatrix::WeightRevDiff(DenseMatrix &A_bar) const
+{
+#ifdef MFEM_DEBUG
+   if (Height() != A_bar.Height() || Width() != A_bar.Width())
+   {
+      mfem_error("DenseMatrix::WeightRevDiff()");
+   }
+#endif
+   if (Height() == Width())
+   {
+      // return Det();
+      DetRevDiff(A_bar);
+      return;
+   }
+   else if ((Height() == 2) && (Width() == 1))
+   {
+      // return sqrt(data[0] * data[0] + data[1] * data[1]);
+      double wgt = sqrt(data[0] * data[0] + data[1] * data[1]);
+      A_bar(0,0) = data[0]/wgt;
+      A_bar(1,0) = data[1]/wgt;
+      return;
+   }
+   else if ((Height() == 3) && (Width() == 1))
+   {
+      // return sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
+      double wgt = sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
+      for (int i = 0; i < 3; ++i)
+      {
+         A_bar(i,0) = data[i]/wgt;
+      }
+      return;
+   }
+   else if ((Height() == 3) && (Width() == 2))
+   {
+      const double *d = data;
+      double E = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+      double G = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
+      double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
+      double wgt = sqrt(E * G - F * F);
+      // start reverse sweep
+      double E_bar = 0.5*G/wgt;
+      double G_bar = 0.5*E/wgt;
+      double F_bar = -F/wgt;
+      A_bar(0,0) = F_bar*d[3] + 2.0*E_bar*d[0]; // d[0]
+      A_bar(1,0) = F_bar*d[4] + 2.0*E_bar*d[1]; // d[1]
+      A_bar(2,0) = F_bar*d[5] + 2.0*E_bar*d[2]; // d[2]
+      A_bar(0,1) = F_bar*d[0] + 2.0*G_bar*d[3]; // d[3]
+      A_bar(1,1) = F_bar*d[1] + 2.0*G_bar*d[4]; // d[4]
+      A_bar(2,1) = F_bar*d[2] + 2.0*G_bar*d[5]; // d[5]
+      return;
+   }
+   mfem_error("DenseMatrix::WeightRevDiff()");
+}
+
 void DenseMatrix::Set(double alpha, const double *A)
 {
    const int s = Width()*Height();
@@ -2194,6 +2307,143 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
    }
 }
 
+void CalcAdjugateRevDiff(const DenseMatrix &a, const DenseMatrix &adja_bar,
+                         DenseMatrix &a_bar)
+{
+#ifdef MFEM_DEBUG
+   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
+   {
+      mfem_error("CalcAdjugateRevDiff(...)");
+   }
+   if (a.Width() != a_bar.Width() ||
+       a.Height() != a_bar.Height() ||
+       a_bar.Width() != adja_bar.Height() ||
+       a_bar.Height() != adja_bar.Width())
+   {
+      mfem_error("CalcAdjugateRefDiff(...)");
+   }
+#endif
+
+   if (a.Width() < a.Height())
+   {
+      const double *d = a.Data();
+      const double *ad_bar = adja_bar.Data();
+      double *d_bar = a_bar.Data();
+      if (a.Width() == 1)
+      {
+         // N x 1, N = 2,3
+         // ad[0] = d[0];
+         d_bar[0] = ad_bar[0];
+         // ad[1] = d[1];
+         d_bar[1] = ad_bar[1];
+         if (a.Height() == 3)
+         {
+            // ad[2] = d[2];
+            d_bar[2] = ad_bar[2];
+         }
+      }
+      else
+      {
+         // 3 x 2
+         // e, g, and f are needed during the reverse sweep
+         double e, g, f;
+         e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+         g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+         f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+
+         // start reverse sweep
+         a_bar = 0.0; // this zeros out d_bar[]
+         double e_bar = 0.0;
+         double g_bar = 0.0;
+         double f_bar = 0.0;
+         // ad[0] = d[0]*g - d[3]*f;
+         d_bar[0] += g*ad_bar[0];  
+         d_bar[3] -= f*ad_bar[0];
+         g_bar += d[0]*ad_bar[0];
+         f_bar -= d[3]*ad_bar[0];
+         // ad[1] = d[3]*e - d[0]*f;
+         d_bar[3] += e*ad_bar[1];
+         d_bar[0] -= f*ad_bar[1];
+         e_bar += d[3]*ad_bar[1];
+         f_bar -= d[0]*ad_bar[1];
+         // ad[2] = d[1]*g - d[4]*f;
+         d_bar[1] += g*ad_bar[2];
+         d_bar[4] -= f*ad_bar[2];
+         g_bar += d[1]*ad_bar[2];
+         f_bar -= d[4]*ad_bar[2];
+         // ad[3] = d[4]*e - d[1]*f;
+         d_bar[4] += e*ad_bar[3];
+         d_bar[1] -= f*ad_bar[3];
+         e_bar += d[4]*ad_bar[3];
+         f_bar -= d[1]*ad_bar[3];
+         // ad[4] = d[2]*g - d[5]*f;
+         d_bar[2] += g*ad_bar[4];
+         d_bar[5] -= f*ad_bar[4];
+         g_bar += d[2]*ad_bar[4];
+         f_bar -= d[5]*ad_bar[4];
+         // ad[5] = d[5]*e - d[2]*f;
+         d_bar[5] += e*ad_bar[5];
+         d_bar[2] -= f*ad_bar[5];
+         e_bar += d[5]*ad_bar[5];
+         f_bar -= d[2]*ad_bar[5];
+
+         // e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+         d_bar[0] += 2.0*d[0]*e_bar;
+         d_bar[1] += 2.0*d[1]*e_bar;
+         d_bar[2] += 2.0*d[2]*e_bar;
+         // g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+         d_bar[3] += 2.0*d[3]*g_bar;
+         d_bar[4] += 2.0*d[4]*g_bar;
+         d_bar[5] += 2.0*d[5]*g_bar;
+         // f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+         d_bar[0] += d[3]*f_bar;
+         d_bar[3] += d[0]*f_bar;
+         d_bar[1] += d[4]*f_bar;
+         d_bar[4] += d[1]*f_bar;
+         d_bar[2] += d[5]*f_bar;
+         d_bar[5] += d[2]*f_bar;
+
+      }
+      return;
+   }
+
+   if (a.Width() == 1)
+   {
+      // adja(0,0) = 1.0;
+      a_bar(0,0) = 0.0;
+   }
+   else if (a.Width() == 2)
+   {
+      // adja(0,0) =  a(1,1);
+      a_bar(1,1) = adja_bar(0,0);
+      // adja(0,1) = -a(0,1);
+      a_bar(0,1) = -adja_bar(0,1);
+      // adja(1,0) = -a(1,0);
+      a_bar(1,0) = -adja_bar(1,0);
+      // adja(1,1) =  a(0,0);
+      a_bar(0,0) = adja_bar(1,1);
+   }
+   else
+   {
+      a_bar = 0.0;
+      for (int di1 = 0; di1 < 3; ++di1)
+      {
+         int it11 = (di1 + 1) % 3;
+         int it12 = (di1 + 2) % 3;
+         for (int di2 = 0; di2 < 3; ++di2)
+         {
+            int it21 = (di2 + 1) % 3;
+            int it22 = (di2 + 2) % 3;
+            // adja(di2,di1) = a(it11,it21)*a(it12,it22) - a(it11,it22)*a(it12,it21);
+            a_bar(it11,it21) += a(it12,it22)*adja_bar(di2,di1);
+            a_bar(it12,it22) += a(it11,it21)*adja_bar(di2,di1);
+            a_bar(it11,it22) -= a(it12,it21)*adja_bar(di2,di1);
+            a_bar(it12,it21) -= a(it11,it22)*adja_bar(di2,di1);
+         }
+      }
+   }
+}
+
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
 {
    MFEM_ASSERT(a.Width() <= a.Height() && a.Width() >= 1 && a.Height() <= 3, "");
@@ -2323,6 +2573,50 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
       n(0) = d[1]*d[5] - d[2]*d[4];
       n(1) = d[2]*d[3] - d[0]*d[5];
       n(2) = d[0]*d[4] - d[1]*d[3];
+   }
+}
+
+void CalcOrthoRevDiff(const DenseMatrix &J, const Vector &n_bar,
+                      DenseMatrix &J_bar)
+{
+   MFEM_ASSERT(((J.Height() == 2 && J.Width() == 1) ||
+                (J.Height() == 3 && J.Width() == 2)) &&
+                   (J.Height() == n.Size()),
+               "Matrix must be 3x2 or 2x1, "
+                   << "and the Vector must be sized with the rows. "
+                   << " J.Height() = " << J.Height()
+                   << ", J.Width() = " << J.Width()
+                   << ", n.Size() = " << n.Size());
+   MFEM_ASSERT((J.Height() == J_bar.Height() && J.Width() == J_bar.Width()),
+               "Input matrix and derivative matrix must be the same size.");
+
+   const double *d = J.Data();
+   double *d_bar = J_bar.Data();
+   if (J.Height() == 2)
+   {
+      // n(0) =  d[1];
+      d_bar[1] = n_bar(0);
+      // n(1) = -d[0];
+      d_bar[0] = -n_bar(1);
+   }
+   else
+   {
+      J_bar = 0.0;
+      // n(0) = d[1]*d[5] - d[2]*d[4];
+      d_bar[1] += d[5]*n_bar(0);
+      d_bar[5] += d[1]*n_bar(0);
+      d_bar[2] -= d[4]*n_bar(0);
+      d_bar[4] -= d[2]*n_bar(0); 
+      // n(1) = d[2]*d[3] - d[0]*d[5];
+      d_bar[2] += d[3]*n_bar(1);
+      d_bar[3] += d[2]*n_bar(1);
+      d_bar[0] -= d[5]*n_bar(1);
+      d_bar[5] -= d[0]*n_bar(1);
+      // n(2) = d[0]*d[4] - d[1]*d[3];
+      d_bar[0] += d[4]*n_bar(2);
+      d_bar[4] += d[0]*n_bar(2);
+      d_bar[1] -= d[3]*n_bar(2);
+      d_bar[3] -= d[1]*n_bar(2);
    }
 }
 
