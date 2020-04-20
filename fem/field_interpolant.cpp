@@ -273,7 +273,8 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
    int vdim = vqfc.GetVDim();
    int size = b->Size() / vdim;
 
-   for(int ind = 0; ind < vdim; ind++) {
+   for (int ind = 0; ind < vdim; ind++)
+   {
       int offset = ind * size;
       b_sub.MakeRef(*b, offset, size);
       X_sub.MakeRef(x, offset, size);

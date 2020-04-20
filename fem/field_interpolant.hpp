@@ -49,13 +49,13 @@ public:
                                          FiniteElementSpace &tr_fes,
                                          FiniteElementSpace &fes);
    //Parallel versions of the ProjectQuadratureCoefficient will need to be created once the serial version works
-   
+
    // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
    // quadrature function coefficient.
    void ProjectQuadratureCoefficient(GridFunction &gf,
                                      VectorQuadratureFunctionCoefficient &vqfc,
                                      FiniteElementSpace &fes);
-   // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as 
+   // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
    // quadrature function coefficient.
    void ProjectQuadratureCoefficient(GridFunction &gf,
                                      QuadratureFunctionCoefficient &qfc,
@@ -72,8 +72,9 @@ private:
 public:
    VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc) : vqfc(
          vqfc) { }
-   VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc, const IntegrationRule *ir) : vqfc(
-         vqfc), LinearFormIntegrator(ir) { }
+   VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
+                              const IntegrationRule *ir) : vqfc(
+                                    vqfc), LinearFormIntegrator(ir) { }
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
                                ElementTransformation &Tr,
@@ -86,7 +87,8 @@ private:
    QuadratureFunctionCoefficient &qfc;
 public:
    QuadratureIntegrator(QuadratureFunctionCoefficient &qfc) : qfc(qfc) { }
-   QuadratureIntegrator(QuadratureFunctionCoefficient &qfc, const IntegrationRule *ir) : qfc(qfc), LinearFormIntegrator(ir) { }
+   QuadratureIntegrator(QuadratureFunctionCoefficient &qfc,
+                        const IntegrationRule *ir) : qfc(qfc), LinearFormIntegrator(ir) { }
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
                                ElementTransformation &Tr,
