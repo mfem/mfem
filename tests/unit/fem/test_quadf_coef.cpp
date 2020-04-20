@@ -165,12 +165,14 @@ TEST_CASE("Quadrature Function Coefficients",
             Vector el_x;
             Array<int> vdofs;
             mesh.GetNodes(nodes);
-            for(int i = 0; i < ne; i++){
+            for (int i = 0; i < ne; i++)
+            {
                fespace_h1.GetElementVDofs(i, vdofs);
                nodes.GetSubVector(vdofs, el_x);
                // Should be constant across all elements
                int enodes = el_x.Size() / dim;
-               for(int j = 0; j < enodes; j++){
+               for (int j = 0; j < enodes; j++)
+               {
                   gtrue(j + i * enodes) = el_x(enodes * 2 + j);
                }
             }
