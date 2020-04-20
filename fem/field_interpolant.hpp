@@ -22,45 +22,50 @@
 #include "bilininteg.hpp"
 #include "lininteg.hpp"
 
-namespace mfem{
+namespace mfem
+{
 
-class FieldInterpolant {
-    private:
-        bool setup;
-        Vector m_all_data;
-        MassIntegrator mass_int;
-        int NE;
-    public:
-    FieldInterpolant(const IntegrationRule* ir) { mass_int.SetIntRule(ir); }
-    void ProjectQuadratureDiscCoefficient(GridFunction &gf, 
-                                          VectorQuadratureFunctionCoefficient &vqfc,
-                                          FiniteElementSpace &fes);
-    void ProjectQuadratureDiscCoefficient(GridFunction &gf, 
-                                          QuadratureFunctionCoefficient &qfc,
-                                          FiniteElementSpace &fes);
-    void SetupReset() { setup = false; }
+class FieldInterpolant
+{
+private:
+   bool setup;
+   Vector m_all_data;
+   MassIntegrator mass_int;
+   int NE;
+public:
+   FieldInterpolant(const IntegrationRule* ir) { mass_int.SetIntRule(ir); }
+   void ProjectQuadratureDiscCoefficient(GridFunction &gf,
+                                         VectorQuadratureFunctionCoefficient &vqfc,
+                                         FiniteElementSpace &fes);
+   void ProjectQuadratureDiscCoefficient(GridFunction &gf,
+                                         QuadratureFunctionCoefficient &qfc,
+                                         FiniteElementSpace &fes);
+   void SetupReset() { setup = false; }
 };
 
-class VectorQuadratureIntegrator : public LinearFormIntegrator {
-    private:
-        VectorQuadratureFunctionCoefficient &vqfc;
-    public:
-        VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc) : vqfc(vqfc) { }
-        using LinearFormIntegrator::AssembleRHSElementVect;
-        void AssembleRHSElementVect(const FiniteElement &fe,
-                                    ElementTransformation &Tr,
-                                    Vector &elvect);
+class VectorQuadratureIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorQuadratureFunctionCoefficient &vqfc;
+public:
+   VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc) : vqfc(
+         vqfc) { }
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   void AssembleRHSElementVect(const FiniteElement &fe,
+                               ElementTransformation &Tr,
+                               Vector &elvect);
 };
 
-class QuadratureIntegrator : public LinearFormIntegrator {
-    private:
-        QuadratureFunctionCoefficient &qfc;
-    public:
-        QuadratureIntegrator(QuadratureFunctionCoefficient &qfc) : qfc(qfc) { }
-        using LinearFormIntegrator::AssembleRHSElementVect;
-        void AssembleRHSElementVect(const FiniteElement &fe,
-                                    ElementTransformation &Tr,
-                                    Vector &elvect);
+class QuadratureIntegrator : public LinearFormIntegrator
+{
+private:
+   QuadratureFunctionCoefficient &qfc;
+public:
+   QuadratureIntegrator(QuadratureFunctionCoefficient &qfc) : qfc(qfc) { }
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   void AssembleRHSElementVect(const FiniteElement &fe,
+                               ElementTransformation &Tr,
+                               Vector &elvect);
 };
 
 }

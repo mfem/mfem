@@ -780,7 +780,7 @@ void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
    MFEM_VERIFY(_index < QuadF->GetVDim(),
                "Index must be < QuadratureFunction length");
    index = _index;
-   
+
    MFEM_VERIFY(_length > 0, "Length must be > 0");
 
    int diff = QuadF->GetVDim() - index;
@@ -811,7 +811,8 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
       QuadF->GetElementValues(elem_no, ip.index, temp);
       double *data = temp.HostReadWrite();
       V.SetSize(length);
-      for(int i = 0; i < length; i++) {
+      for (int i = 0; i < length; i++)
+      {
          V(i) = data[index + i];
       }
    }
