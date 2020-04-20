@@ -30,6 +30,7 @@ set(SRCS
   fe.cpp
   fe_coll.cpp
   fespace.cpp
+  field_interpolant.cpp
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
@@ -62,6 +63,7 @@ set(HDRS
   fe_coll.hpp
   fem.hpp
   fespace.hpp
+  field_interpolant.hpp
   geom.hpp
   gridfunc.hpp
   hybridization.hpp
