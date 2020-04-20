@@ -1120,7 +1120,7 @@ FiniteElementSpace::RefinementOperator::RefinementOperator
 FiniteElementSpace::RefinementOperator::RefinementOperator(
    const FiniteElementSpace *fespace, const FiniteElementSpace *coarse_fes)
    : Operator(fespace->GetVSize(), coarse_fes->GetVSize()),
-     fespace(fespace), old_elem_dof(NULL)
+     fespace(fespace), old_elem_dof(NULL), old_elem_fos(NULL)
 {
    Mesh::GeometryList elem_geoms(*fespace->GetMesh());
 
