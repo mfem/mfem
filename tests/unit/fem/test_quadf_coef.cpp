@@ -67,6 +67,8 @@ TEST_CASE("Quadrature Function Coefficients",
    QuadratureFunctionCoefficient qfc(&quadf_coeff);
    VectorQuadratureFunctionCoefficient qfvc(&quadf_vcoeff);
 
+   FieldInterpolant fi(&ir);
+
    SECTION("Operators on VecQuadFuncCoeff")
    {
       std::cout << "Testing VecQuadFuncCoeff: " << std::endl;
@@ -104,7 +106,8 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         g0.ProjectDiscCoefficient(qfvc, GridFunction::ARITHMETIC);
+         // g0.ProjectDiscCoefficient(qfvc, GridFunction::ARITHMETIC);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -147,6 +150,8 @@ TEST_CASE("Quadrature Function Coefficients",
          FiniteElementSpace fespace_l2(&mesh, &fec_l2, 1);
          GridFunction g0(&fespace_l2);
          GridFunction gtrue(&fespace_l2);
+         // This line is necessary for the test suite.
+         fi.SetupReset();
 
          // When using an L2 FE space of the same order as the mesh, the below highlights
          // that the ProjectDiscCoeff method is just taking the quadrature point values and making them node values.
@@ -165,7 +170,9 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         g0.ProjectDiscCoefficient(qfc, GridFunction::ARITHMETIC);
+         // These two methods result in the same answer at least for hex meshes
+         // g0.ProjectDiscCoefficient(qfc, GridFunction::ARITHMETIC);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_l2);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }

@@ -19,7 +19,7 @@
 #include "intrules.hpp"
 #include "eltrans.hpp"
 #include "coefficient.hpp"
-#include "bilininteg.cpp"
+#include "bilininteg.hpp"
 #include "lininteg.hpp"
 
 namespace mfem{
@@ -31,7 +31,7 @@ class FieldInterpolant {
         MassIntegrator mass_int;
         int NE;
     public:
-    FieldInterpolant() {}
+    FieldInterpolant(const IntegrationRule* ir) { mass_int.SetIntRule(ir); }
     void ProjectQuadratureDiscCoefficient(GridFunction &gf, 
                                           VectorQuadratureFunctionCoefficient &vqfc,
                                           FiniteElementSpace &fes);

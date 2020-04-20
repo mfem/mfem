@@ -23,6 +23,7 @@
 #include "nonlininteg.hpp"
 #include "bilininteg.hpp"
 #include "fespace.hpp"
+#include "field_interpolant.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "nonlinearform.hpp"
