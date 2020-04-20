@@ -1788,6 +1788,7 @@ static void PADiffusionApply(const int dim,
    if (!ini)
    {
       ini = true;
+      //printf("\033[33mD1D:%d, Q1D:%d\033[m", D1D, Q1D);
       V2 = getenv("V2");
    }
    if (V2)
@@ -1822,6 +1823,7 @@ static void PADiffusionApply(const int dim,
             case 0x67: return SmemPADiffusion2Apply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
             case 0x78: return SmemPADiffusion2Apply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
             case 0x89: return SmemPADiffusion2Apply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);
+            case 0x9A: return SmemPADiffusion2Apply3D<9,10>(NE,B,G,Bt,Gt,D,X,Y);
                //default:   return PADiffusionApply3D(NE,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
          }
       }
