@@ -115,7 +115,7 @@ TEST_CASE("First order ODE methods",
          dt = t_final/double(steps);
          u = u0;
          ode_solver->Init(*oper);
-         if (init_hist_) init_hist(ode_solver,dt);
+         if (init_hist_) { init_hist(ode_solver,dt); }
          ode_solver->Run(u, t, dt, t_final - 1e-12);
          u +=u0;
          err[0] = u.Norml2();
@@ -132,7 +132,7 @@ TEST_CASE("First order ODE methods",
             dt = t_final/double(steps);
             u = u0;
             ode_solver->Init(*oper);
-            if (init_hist_) init_hist(ode_solver,dt);
+            if (init_hist_) { init_hist(ode_solver,dt); }
             for (int ti = 0; ti< steps; ti++)
             {
                ode_solver->Step(u, t, dt);
