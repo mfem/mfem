@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
    args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
-                         "--no-amgx","Use AMGX");
+                  "--no-amgx","Use AMGX");
    args.Parse();
    if (!args.Good())
    {
@@ -124,8 +124,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-     int ref_levels = 3;
-     //(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 3;
+      //(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -236,30 +236,33 @@ int main(int argc, char *argv[])
 #endif
 
 
-   if(amgx){
-     printf("Using AMGX \n");
+   if (amgx)
+   {
+      printf("Using AMGX \n");
 
-     //AMGX
-     std::string amgx_str;
-     amgx_str = amgx_cfg;
-     NvidiaAMGX amgx;
-     amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
+      //AMGX
+      std::string amgx_str;
+      amgx_str = amgx_cfg;
+      NvidiaAMGX amgx;
+      amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
 
-     amgx.SetA(A);
+      amgx.SetA(A);
 
-     X = 0.0; //set to zero
-     amgx.Solve(X, B);
+      X = 0.0; //set to zero
+      amgx.Solve(X, B);
 
-   }else{
-     HypreSolver *amg = new HypreBoomerAMG(A);
+   }
+   else
+   {
+      HypreSolver *amg = new HypreBoomerAMG(A);
 
-     HyprePCG *pcg = new HyprePCG(A);
-     pcg->SetPreconditioner(*amg);
-     pcg->SetTol(1e-12);
-     pcg->SetMaxIter(200);
-     pcg->SetPrintLevel(2);
-     pcg->Mult(B, X);
-     delete pcg;
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetPreconditioner(*amg);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(200);
+      pcg->SetPrintLevel(2);
+      pcg->Mult(B, X);
+      delete pcg;
    }
 
 
