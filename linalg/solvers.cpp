@@ -170,6 +170,174 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
 }
 
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, double max_eig_estimate_)
+   :
+   Solver(d.Size()),
+   order(order_),
+   max_eig_estimate(max_eig_estimate_),
+   N(d.Size()),
+   dinv(N),
+   diag(d),
+   coeffs(order),
+   ess_tdof_list(ess_tdofs),
+   residual(N),
+   oper(oper_) { Setup(); }
+
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, int power_iterations, double power_tolerance)
+#endif
+   : Solver(d.Size()),
+     order(order_),
+     N(d.Size()),
+     dinv(N),
+     diag(d),
+     coeffs(order),
+     ess_tdof_list(ess_tdofs),
+     residual(N),
+     oper(oper_)
+{
+   OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
+   ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
+
+#ifdef MFEM_USE_MPI
+   PowerMethod powerMethod(comm);
+#else
+   PowerMethod powerMethod;
+#endif
+   Vector ev(oper->Width());
+   max_eig_estimate = powerMethod.EstimateLargestEigenvalue(diagPrecond, ev,
+                                                            power_iterations, power_tolerance);
+
+   Setup();
+}
+
+void OperatorChebyshevSmoother::Setup()
+{
+   // Invert diagonal
+   residual.UseDevice(true);
+   auto D = diag.Read();
+   auto X = dinv.Write();
+   MFEM_FORALL(i, N, X[i] = 1.0 / D[i]; );
+   auto I = ess_tdof_list.Read();
+   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
+
+   // Set up Chebyshev coefficients
+   // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
+   // Gauss-Seidel by Adams et al.
+   double upper_bound = 1.2 * max_eig_estimate;
+   double lower_bound = 0.3 * max_eig_estimate;
+   double theta = 0.5 * (upper_bound + lower_bound);
+   double delta = 0.5 * (upper_bound - lower_bound);
+
+   switch (order-1)
+   {
+      case 0:
+      {
+         coeffs[0] = 1.0 / theta;
+         break;
+      }
+      case 1:
+      {
+         double tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
+         coeffs[0] = -4*theta*tmp_0;
+         coeffs[1] = 2*tmp_0;
+         break;
+      }
+      case 2:
+      {
+         double tmp_0 = 3*pow(delta, 2);
+         double tmp_1 = pow(theta, 2);
+         double tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
+         coeffs[0] = tmp_2*(tmp_0 - 12*tmp_1);
+         coeffs[1] = 12/(tmp_0 - 4*tmp_1);
+         coeffs[2] = -4*tmp_2;
+         break;
+      }
+      case 3:
+      {
+         double tmp_0 = pow(delta, 2);
+         double tmp_1 = pow(theta, 2);
+         double tmp_2 = 8*tmp_0;
+         double tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
+         coeffs[0] = tmp_3*(32*pow(theta, 3) - 16*theta*tmp_0);
+         coeffs[1] = tmp_3*(-48*tmp_1 + tmp_2);
+         coeffs[2] = 32*theta*tmp_3;
+         coeffs[3] = -8*tmp_3;
+         break;
+      }
+      case 4:
+      {
+         double tmp_0 = 5*pow(delta, 4);
+         double tmp_1 = pow(theta, 4);
+         double tmp_2 = pow(theta, 2);
+         double tmp_3 = pow(delta, 2);
+         double tmp_4 = 60*tmp_3;
+         double tmp_5 = 20*tmp_3;
+         double tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
+         double tmp_7 = 160*tmp_2;
+         double tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
+         coeffs[0] = tmp_6*(tmp_0 + 80*tmp_1 - tmp_2*tmp_4);
+         coeffs[1] = tmp_8*(tmp_4 - tmp_7);
+         coeffs[2] = tmp_6*(-tmp_5 + tmp_7);
+         coeffs[3] = -80*tmp_8;
+         coeffs[4] = 16*tmp_6;
+         break;
+      }
+      default:
+         MFEM_ABORT("Chebyshev smoother not implemented for order = " << order);
+   }
+}
+
+void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
+{
+   if (iterative_mode)
+   {
+      MFEM_ABORT("Chebyshev smoother not implemented for iterative mode");
+   }
+
+   if (!oper)
+   {
+      MFEM_ABORT("Chebyshev smoother requires operator");
+   }
+
+   residual = x;
+   helperVector.SetSize(x.Size());
+
+   y.UseDevice(true);
+   y = 0.0;
+
+   for (int k = 0; k < order; ++k)
+   {
+      // Apply
+      if (k > 0)
+      {
+         oper->Mult(residual, helperVector);
+         residual = helperVector;
+      }
+
+      // Scale residual by inverse diagonal
+      const int n = N;
+      auto Dinv = dinv.Read();
+      auto R = residual.ReadWrite();
+      MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
+
+      // Add weighted contribution to y
+      auto Y = y.ReadWrite();
+      auto C = coeffs.Read();
+      MFEM_FORALL(i, n, Y[i] += C[k] * R[i]; );
+   }
+}
 
 void SLISolver::UpdateVectors()
 {
@@ -382,13 +550,24 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-
    if (print_level == 1 || print_level == 3)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (print_level == 3 ? " ...\n" : "\n");
    }
 
+   if (nom < 0.0)
+   {
+      if (print_level >= 0)
+      {
+         mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                   << nom << '\n';
+      }
+      converged = 0;
+      final_iter = 0;
+      final_norm = nom;
+      return;
+   }
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
@@ -436,6 +615,17 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          betanom = Dot(r, r);
       }
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
+      if (betanom < 0.0)
+      {
+         if (print_level >= 0)
+         {
+            mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                      << betanom << '\n';
+         }
+         converged = 0;
+         final_iter = i;
+         break;
+      }
 
       if (print_level == 1)
       {
