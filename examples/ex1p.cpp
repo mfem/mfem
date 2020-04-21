@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
    if (amgx)
    {
       printf("Using AMGX \n");
-
+#if MFEM_USE_AMGX
       //AMGX
       std::string amgx_str;
       amgx_str = amgx_cfg;
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 
       X = 0.0; //set to zero
       amgx.Solve(X, B);
-
+#endif
    }
    else
    {

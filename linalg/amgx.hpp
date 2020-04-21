@@ -12,6 +12,9 @@
 #ifndef MFEM_AMGX
 #define MFEM_AMGX
 
+#ifdef MFEM_USE_AMGX
+#ifdef MFEM_USE_MPI
+
 #include <amgx_c.h>
 #include <mpi.h>
 #include "hypre.hpp"
@@ -81,4 +84,7 @@ public:
 
 }
 
+#endif
+
+#endif
 #endif

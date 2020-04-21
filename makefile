@@ -458,7 +458,6 @@ serial parallel cuda pcuda hip phip:              M_DBG=NO
 debug pdebug cudebug pcudebug hipdebug phipdebug: M_DBG=YES
 cuda pcuda cudebug pcudebug:                      M_CUDA=YES
 hip phip hipdebug phipdebug:                      M_HIP=YES
-cuda pcuda:                                       M_AMGX=YES
 
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
@@ -467,7 +466,7 @@ serial parallel debug pdebug:
 
 cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	   MFEM_USE_CUDA=$(M_CUDA) MFEM_USE_AMGX=$(M_AMGX) $(MAKEOVERRIDES_SAVE)
+	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 hip phip hipdebug phipdebug:
