@@ -92,6 +92,7 @@ public:
    }
 
    /// Function for getting and setting the state vectors
+   virtual int   GetMaxStateSize() { return 0; }
    virtual int   GetStateSize() { return 0; }
    virtual void  GetStateVector(int i, Vector &state)
    {
@@ -234,7 +235,8 @@ public:
 
    virtual void Step(Vector &x, double &t, double &dt);
 
-   virtual int  GetStateSize() { return smax; };
+   virtual int  GetMaxStateSize() { return smax; };
+   virtual int  GetStateSize() { return s; };
    virtual void GetStateVector(int i, Vector &state);
    virtual void SetStateVector(int i, Vector &state);
 
@@ -313,7 +315,8 @@ public:
 
    virtual void Step(Vector &x, double &t, double &dt);
 
-   virtual int  GetStateSize() { return smax-1; };
+   virtual int  GetMaxStateSize() { return smax-1; };
+   virtual int  GetStateSize() { return s-1; };
    virtual void GetStateVector(int i, Vector &state);
    virtual void SetStateVector(int i, Vector &state);
 
@@ -458,7 +461,7 @@ class GeneralizedAlphaSolver : public ODESolver
 protected:
    mutable Vector xdot,k,y;
    double alpha_f, alpha_m, gamma;
-   bool first;
+   int  nstate;
 
    void SetRhoInf(double rho_inf);
    void PrintProperties(std::ostream &out = mfem::out);
@@ -470,10 +473,10 @@ public:
 
    virtual void Step(Vector &x, double &t, double &dt);
 
-   virtual int  GetStateSize() { return 1; };
+   virtual int  GetMaxStateSize() { return 1; };
+   virtual int  GetStateSize() { return nstate; };
    virtual void GetStateVector(int i, Vector &state);
    virtual void SetStateVector(int i, Vector &state);
-
 };
 
 
@@ -631,6 +634,7 @@ public:
    }
 
    /// Function for getting and setting the state vectors
+   virtual int   GetMaxStateSize() { return 0; };
    virtual int   GetStateSize() { return 0; }
    virtual void  GetStateVector(int i, Vector &state)
    {
@@ -694,7 +698,7 @@ class GeneralizedAlpha2Solver : public SecondOrderODESolver
 protected:
    Vector xa,va,aa,d2xdt2;
    double alpha_f, alpha_m, beta, gamma;
-   bool first;
+   int nstate;
 
 public:
    GeneralizedAlpha2Solver(double rho_inf = 1.0)
@@ -714,7 +718,8 @@ public:
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
 
-   virtual int  GetStateSize() { return 1; };
+   virtual int  GetMaxStateSize() { return 1; };
+   virtual int  GetStateSize() { return nstate; };
    virtual void GetStateVector(int i, Vector &state);
    virtual void SetStateVector(int i, Vector &state);
 };

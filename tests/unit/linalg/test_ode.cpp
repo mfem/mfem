@@ -125,19 +125,48 @@ TEST_CASE("First order ODE methods",
                   <<std::setw(12)<<"Order"<<std::endl;
          std::cout<<std::setw(12)<<err[0]<<std::endl;
 
-         for (int l = 1; l< levels; l++)
+         Array<Vector> uh(ode_solver->GetMaxStateSize());
+         for (int l = 1; l < levels; l++)
          {
+            int lvl = pow(2,l);
             t = 0.0;
-            steps *=2;
-            dt = t_final/double(steps);
+            dt *= 0.5;
             u = u0;
             ode_solver->Init(*oper);
             if (init_hist_) { init_hist(ode_solver,dt); }
-            for (int ti = 0; ti< steps; ti++)
+
+            // Instead of single run command:
+            // ode_solver->Run(u, t, dt, t_final - 1e-12);
+            // Chop-up sequence with Get/Set in between
+            // in order to test these routines
+            for (int ti = 0; ti < steps; ti++)
             {
                ode_solver->Step(u, t, dt);
             }
-            u +=u0;
+            int nstate = ode_solver->GetStateSize();
+            for (int s = 0; s < nstate; s++)
+            {
+               ode_solver->GetStateVector(s,uh[s]);
+            }
+
+            for (int ll = 1; ll < lvl; ll++)
+            {
+               for (int s = 0; s < nstate; s++)
+               {
+                  ode_solver->SetStateVector(s,uh[s]);
+               }
+               for (int ti = 0; ti < steps; ti++)
+               {
+                  ode_solver->Step(u, t, dt);
+               }
+               nstate = ode_solver->GetStateSize();
+               for (int s = 0; s< nstate; s++)
+               {
+                  ode_solver->GetStateVector(s,uh[s]);
+               }
+            }
+
+            u += u0;
             err[l] = u.Norml2();
             std::cout<<std::setw(12)<<err[l]
                      <<std::setw(12)<<err[l-1]/err[l]
