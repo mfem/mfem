@@ -41,7 +41,7 @@ AssemblyLevel StringToAssemblyLevel(const std::string &val)
    {
       MFEM_ABORT("Unrecognized assembly level: " << val);
       return AssemblyLevel::NONE;
-   } 
+   }
 }
 
 void BilinearForm::AllocMat()
