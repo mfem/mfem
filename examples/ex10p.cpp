@@ -45,6 +45,40 @@ using namespace mfem;
 
 class ReducedSystemOperator;
 
+class GeneralResidualMonitor : public IterativeSolverMonitor
+{
+public:
+   GeneralResidualMonitor(const std::string& prefix_, int print_level_)
+      : prefix(prefix_), print_level(print_level_)
+   { }
+
+   virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
+
+private:
+   const std::string prefix;
+   int print_level;
+   mutable double norm0;
+};
+
+void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+                                             const Vector &r, bool final)
+{
+   if (print_level == 1 || final || it == 0)
+   {
+      mfem::out << prefix << " iteration " << setw(2) << it
+                << " : ||r|| = " << norm;
+      if (it > 0)
+      {
+         mfem::out << ",  ||r||/||r_0|| = " << norm/norm0;
+      }
+      else
+      {
+         norm0 = norm;
+      }
+      mfem::out << '\n';
+   }
+}
+
 /** After spatial discretization, the hyperelastic model can be written as a
  *  system of ODEs:
  *     dv/dt = -M^{-1}*(H(x) + S*v)
@@ -76,9 +110,11 @@ protected:
 
    /// Newton solver for the reduced backward Euler equation
    NewtonSolver newton_solver;
+   GeneralResidualMonitor newton_monitor;
 
    /// Solver for the Jacobian solve in the Newton method
    Solver *J_solver;
+   GeneralResidualMonitor J_monitor;
    /// Preconditioner for the Jacobian solve in the Newton method
    Solver *J_prec;
 
@@ -513,14 +549,13 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete Jacobian;
 }
 
-
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K)
    : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()), newton_solver(f.GetComm()),
-     z(height/2)
+     newton_monitor("  Newton", 1), J_monitor("    MINRES", 3), z(height/2)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
@@ -565,13 +600,15 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    J_minres->SetAbsTol(0.0);
    J_minres->SetMaxIter(300);
    J_minres->SetPrintLevel(-1);
+   J_minres->SetMonitor(J_monitor);
    J_minres->SetPreconditioner(*J_prec);
    J_solver = J_minres;
 
    newton_solver.iterative_mode = false;
    newton_solver.SetSolver(*J_solver);
    newton_solver.SetOperator(*reduced_oper);
-   newton_solver.SetPrintLevel(1); // print Newton iterations
+   newton_solver.SetPrintLevel(-1);
+   newton_solver.SetMonitor(newton_monitor);
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(0.0);
    newton_solver.SetMaxIter(10);
