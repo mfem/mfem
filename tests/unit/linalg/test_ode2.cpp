@@ -108,10 +108,6 @@ TEST_CASE("Second order ODE methods",
          du = dudt0;
          ode_solver->Init(*oper);
          if (init_hist_) { init_hist(ode_solver,dt); }
-         /*for (int ti = 0; ti< steps; ti++)
-         {
-            ode_solver->Step(u, du, t, dt);
-         }*/
          ode_solver->Run(u, du, t, dt,t_final - 1e-12);
 
          u -= u0;
@@ -129,20 +125,49 @@ TEST_CASE("Second order ODE methods",
          std::cout<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
+         Array<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l< levels; l++)
          {
+            int lvl = pow(2,l);
             t = 0.0;
-            steps *=2;
-            dt = t_final/double(steps);
+            dt *= 0.5;
             u = u0;
             du = dudt0;
             ode_solver->Init(*oper);
             if (init_hist_) { init_hist(ode_solver,dt); }
-            for (int ti = 0; ti< steps; ti++)
+
+            // Instead of single run command:
+            // ode_solver->Run(u, du, t, dt, t_final - 1e-12);
+            // Chop-up sequence with Get/Set in between
+            // in order to test these routines
+            for (int ti = 0; ti < steps; ti++)
             {
                ode_solver->Step(u, du, t, dt);
-               //std::cout<<t<<" "<<u[0]<<std::endl;
             }
+
+            int nstate = ode_solver->GetStateSize();
+            for (int s = 0; s < nstate; s++)
+            {
+               ode_solver->GetStateVector(s,uh[s]);
+            }
+
+            for (int ll = 1; ll < lvl; ll++)
+            {
+               for (int s = 0; s < nstate; s++)
+               {
+                  ode_solver->SetStateVector(s,uh[s]);
+               }
+               for (int ti = 0; ti < steps; ti++)
+               {
+                  ode_solver->Step(u, du, t, dt);
+               }
+               nstate = ode_solver->GetStateSize();
+               for (int s = 0; s< nstate; s++)
+               {
+                  ode_solver->GetStateVector(s,uh[s]);
+               }
+            }
+
             u -= u0;
             du -= dudt0;
             err_u[l] = u.Norml2();

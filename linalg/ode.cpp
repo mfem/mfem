@@ -366,7 +366,7 @@ AdamsBashforthSolver::AdamsBashforthSolver(int _s, const double *_a)
 
 void AdamsBashforthSolver::GetStateVector(int i, Vector &state)
 {
-   MFEM_ASSERT( (i >= 0) && ( i < smax ),
+   MFEM_ASSERT( (i >= 0) && ( i < s ),
                 " AdamsBashforthSolver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
 
@@ -379,7 +379,7 @@ void AdamsBashforthSolver::SetStateVector(int i, Vector &state)
                 " AdamsBashforthSolver::SetStateVector \n" <<
                 " - Tried to set non-existent state "<<i);
    k[idx[i]] = state;
-   s = smax;
+   s = std::max(i,s);
 }
 
 void AdamsBashforthSolver::Init(TimeDependentOperator &_f)
@@ -449,10 +449,10 @@ AdamsMoultonSolver::AdamsMoultonSolver(int _s, const double *_a)
 
 void AdamsMoultonSolver::GetStateVector(int i, Vector &state)
 {
-   MFEM_ASSERT( (i >= 0) && ( i < smax ),
+   MFEM_ASSERT( (i >= 0) && ( i < s ),
                 " AdamsMoultonSolver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
-   state = k[idx[i]];
+   state = k[idx[i+1]];
 }
 
 void AdamsMoultonSolver::SetStateVector(int i, Vector &state)
@@ -461,7 +461,7 @@ void AdamsMoultonSolver::SetStateVector(int i, Vector &state)
                 " AdamsMoultonSolver::SetStateVector \n" <<
                 " - Tried to set non-existent state "<<i);
    k[idx[i+1]] = state;
-   s = smax;
+   s = std::max(i,s);
 }
 
 void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
@@ -675,12 +675,12 @@ void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
    y.SetSize(f->Width(), mem_type);
    xdot.SetSize(f->Width(), mem_type);
    xdot = 0.0;
-   first = true;
+   nstate = 0;
 }
 
 void GeneralizedAlphaSolver::GetStateVector(int i, Vector &state)
 {
-   MFEM_ASSERT( (i == 0),
+   MFEM_ASSERT( (i == 0) && (nstate == 1),
                 "GeneralizedAlphaSolver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
    state = xdot;
@@ -692,7 +692,7 @@ void GeneralizedAlphaSolver::SetStateVector(int i, Vector &state)
                 "GeneralizedAlphaSolver::SetStateVector \n" <<
                 " - Tried to set non-existent state "<<i);
    xdot = state;
-   first = false;
+   nstate = 1;
 }
 
 void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
@@ -735,10 +735,10 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
 // This routine assumes xdot is initialized.
 void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
-   if (first)
+   if (nstate == 0)
    {
       f->Mult(x,xdot);
-      first = false;
+      nstate = 1;
    }
 
    // Set y = x + alpha_f*(1.0 - (gamma/alpha_m))*dt*xdot
@@ -943,12 +943,12 @@ void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &_f)
    aa.SetSize(f->Width());
    d2xdt2.SetSize(f->Width());
    d2xdt2 = 0.0;
-   first = true;
+   nstate = 0;
 }
 
 void GeneralizedAlpha2Solver::GetStateVector(int i, Vector &state)
 {
-   MFEM_ASSERT( (i == 0),
+   MFEM_ASSERT( (i == 0) && (nstate == 1),
                 "GeneralizedAlpha2Solver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
    state = d2xdt2;
@@ -960,7 +960,7 @@ void GeneralizedAlpha2Solver::SetStateVector(int i, Vector &state)
                 "GeneralizedAlpha2Solver::SetStateVector \n" <<
                 " - Tried to set non-existent state "<<i);
    d2xdt2 = state;
-   first = false;
+   nstate = 1;
 }
 
 void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
@@ -1003,10 +1003,10 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    double fac5 = alpha_m;
 
    // In the first pass compute d2xdt2 directy from operator.
-   if (first)
+   if (nstate == 0)
    {
       f->Mult(x, dxdt, d2xdt2);
-      first = false;
+      nstate = 1;
    }
 
    // Predict alpha levels
