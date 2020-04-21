@@ -156,8 +156,8 @@ public:
    /// Set the desired assembly level based on a std::string.
    void SetAssemblyLevel(const std::string &assembly);
 
-   /// Get the assembly level
-   AssemblyLevel GetAssemblyLevel() {return assembly;}
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
@@ -535,7 +535,7 @@ public:
 
    /// (DEPRECATED) Return the FE space associated with the BilinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *FESpace() { return fes; }
