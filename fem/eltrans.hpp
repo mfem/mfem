@@ -391,6 +391,15 @@ public:
 
    FaceElementTransformations() : side(2), FaceGeom(geom), Face(this) {}
 
+   /** @brief Method to set the geometry type of the face.
+
+       @note This method should only be used when
+       [Par]Mesh::GetFaceTransformation will not be called i.e. when the
+       face transformation will not be needed but the neighboring
+       element transformations will be.
+   */
+   void SetGeometryType(Geometry::Type g) { geom = g; }
+
    /** FaceElementTransformations objects are often used when
        performing the surface integrals on the interfaces between
        elements needed by Discontinuous Galerkin methods.  Since the
