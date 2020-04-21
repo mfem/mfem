@@ -88,6 +88,8 @@ namespace mfem {
  * - <a class="el" href="ex24p_8cpp_source.html">Example 24p</a>: parallel mixed finite element spaces and interpolators
  * - <a class="el" href="ex25_8cpp_source.html">Example 25</a>: simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
  * - <a class="el" href="ex25p_8cpp_source.html">Example 25p</a>: parallel simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
+ * - <a class="el" href="ex26_8cpp_source.html">Example 26</a>: multigrid preconditioner for the Laplace problem using nodal H1 FEM 
+ * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Laplace problem using nodal H1 FEM 
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples
