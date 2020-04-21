@@ -710,15 +710,14 @@ class DiscreteAdaptTC : public TargetConstructor
 protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
-   int   ncomp;
-   int   sizeidx,  skewidx,  aspectratioidx,  orientationidx;
-   Vector tspec;              //eta(x)
+   int ncomp, sizeidx, skewidx, aspectratioidx, orientationidx;
+   Vector tspec;             //eta(x)
    Vector tspec_sav;
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
    Vector tspec_pertmix;     //eta(x+h,y+h)
-   // The new order for these vectors is
-   // eta1(x+h),eta2(x+h)...etan(x+h),eta1(y+h),eta2(y+h)...etan(y+h).
+   // The order inside these perturbation vectors (e.g. in 2D) is
+   // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
 
    // Note: do not use the Nodes of this space as they may not be on the
@@ -737,11 +736,11 @@ protected:
    // Owned.
    AdaptivityEvaluator *adapt_eval;
 
-   void SetSerialDiscreteTargetBase(GridFunction &tspec_);
+   void SetSerialDiscreteTargetBase(const GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
-   void SetParDiscreteTargetBase(ParGridFunction &tspec_);
+   void SetParDiscreteTargetBase(const ParGridFunction &tspec_);
 #endif
-   void SetTspecAtIndex(int idx, GridFunction &tspec_);
+   void SetTspecAtIndex(int idx, const GridFunction &tspec_);
 
 public:
    DiscreteAdaptTC(TargetType ttype)
@@ -760,20 +759,34 @@ public:
       delete tspec_fesv;
    }
 
-   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec_);
-   virtual void SetSerialDiscreteTargetSize(GridFunction &tspec_);
-   virtual void SetSerialDiscreteTargetSkew(GridFunction &tspec_);
-   virtual void SetSerialDiscreteTargetAspectRatio(GridFunction &tspec_);
-   virtual void SetSerialDiscreteTargetOrientation(GridFunction &tspec_);
+   /** @name Target specification methods.
+       The following methods are used to specify geometric parameters of the
+       targets when these parameters are given by discrete FE functions.
+       Note that every GridFunction given to the Set methods must use a
+       H1_FECollection of the same order. The number of components must
+       correspond to the type of geometric parameter and dimension.
+       Once the calls to the Set methods are complete, users are expected to
+       call a Finalize method.
+
+       @param[in] tspec_  Input values of a geometric parameter. Note that
+                          the methods in this class support only functions that
+                          use H1_FECollection collection of the same order. */
+   ///@{
+   virtual void SetSerialDiscreteTargetSpec(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetSize(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetSkew(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetAspectRatio(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetOrientation(const GridFunction &tspec_);
    virtual void FinalizeSerialDiscreteTargetSpec();
 #ifdef MFEM_USE_MPI
-   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec_);
-   virtual void SetParDiscreteTargetSize(ParGridFunction &tspec_);
-   virtual void SetParDiscreteTargetSkew(ParGridFunction &tspec_);
-   virtual void SetParDiscreteTargetAspectRatio(ParGridFunction &tspec_);
-   virtual void SetParDiscreteTargetOrientation(ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetSpec(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetSize(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetSkew(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetAspectRatio(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetOrientation(const ParGridFunction &tspec_);
    virtual void FinalizeParDiscreteTargetSpec();
 #endif
+   ///@}
 
    /// Used in combination with the Update methods to avoid extra computations.
    void ResetUpdateFlags()
