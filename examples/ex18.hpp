@@ -418,7 +418,7 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    {
       intorder++;
    }
-   const IntegrationRule *ir = &IntRules.Get(Tr.FaceGeom, intorder);
+   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -435,10 +435,10 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
       elfun1_mat.MultTranspose(shape1, funval1);
       elfun2_mat.MultTranspose(shape2, funval2);
 
-      Tr.Face->SetIntPoint(&ip);
+      Tr.SetIntPoint(&ip);
 
       // Get the normal vector and the flux on the face
-      CalcOrtho(Tr.Face->Jacobian(), nor);
+      CalcOrtho(Tr.Jacobian(), nor);
       const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       // Update max char speed
