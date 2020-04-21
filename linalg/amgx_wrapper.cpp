@@ -41,9 +41,6 @@ void NvidiaAMGX::Init(const MPI_Comm &comm,
   cudaGetDeviceCount(&nDevs);
   cudaGetDevice(&deviceId);
 
-  printf("No of visible devices per rank %d, deviceId %d, myrank %d, mpi_sz %d\n",
-         nDevs, deviceId, MPI_RANK, MPI_SZ);
-
   //Init AMGX
   if(count == 1)
   {
@@ -166,10 +163,6 @@ void NvidiaAMGX::SetA(const HypreParMatrix &in_A)
   MPI_Barrier(amgx_comm);
 
   rowPart[MPI_SZ] = in_A.M();
-  //rowPart.Print();
-  for(int i=0; i<rowPart.Size(); ++i){
-    std::cout<<rowPart[i]<<std::endl;
-  }
 
   AMGX_distribution_handle dist;
   AMGX_distribution_create(&dist, cfg);
@@ -179,10 +172,6 @@ void NvidiaAMGX::SetA(const HypreParMatrix &in_A)
   //Step 3.
   //Upload matrix to AMGX
   nLocalRows = I.Size()-1;
-
-  if (!std::is_sorted(rowPart.GetData(), rowPart.GetData() + MPI_SZ + 1)) {
-    mfem_error("Not sorted \n");
-  }
 
   AMGX_matrix_upload_distributed(A, nGlobalRows, nLocalRows, I.HostRead()[nLocalRows],
                                  1, 1, I.ReadWrite(), J.ReadWrite(), Aloc.ReadWrite(),
@@ -203,9 +192,9 @@ void NvidiaAMGX::Solve(Vector &in_x, Vector &in_b)
 {
 
   //Upload vectors to amgx
-  AMGX_vector_upload(x, in_x.Size(), 1, in_x.GetData());
+  AMGX_vector_upload(x, in_x.Size(), 1, in_x.ReadWrite());
 
-  AMGX_vector_upload(b, in_b.Size(), 1, in_b.GetData());
+  AMGX_vector_upload(b, in_b.Size(), 1, in_b.ReadWrite());
 
   MPI_Barrier(amgx_comm);
 
@@ -218,8 +207,7 @@ void NvidiaAMGX::Solve(Vector &in_x, Vector &in_b)
     printf("Amgx failed to solve system, error code %d. \n", status);
   }
 
-  AMGX_vector_download(x, in_x.GetData());
-
+  AMGX_vector_download(x, in_x.ReadWrite());
 }
 
 NvidiaAMGX::~NvidiaAMGX()
