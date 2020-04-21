@@ -73,12 +73,12 @@ void test_ea(Mesh &&mesh, int order, bool dg, const int pb)
       k_fa.AddDomainIntegrator(new MassIntegrator(one));
       k_ea.AddDomainIntegrator(new MassIntegrator(one));
    }
-   else if(pb==1) // Convection
+   else if (pb==1) // Convection
    {
       AddConvectionIntegrators(k_fa, vel_coeff, dg);
       AddConvectionIntegrators(k_ea, vel_coeff, dg);
    }
-   else if(pb==2) // Diffusion
+   else if (pb==2) // Diffusion
    {
       k_fa.AddDomainIntegrator(new DiffusionIntegrator(one));
       k_ea.AddDomainIntegrator(new DiffusionIntegrator(one));
