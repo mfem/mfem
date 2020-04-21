@@ -40,6 +40,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -55,7 +56,7 @@
 //   ICF limited shape:
 //     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 10
 //   ICF combo shape + size (rings, slow convergence):
-//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb
+//     mpirun -np 4 pmesh-optimizer -o 3 -rs 0 -mid 1 -tid 1 -ni 1000 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 1
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
 //   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -rs 0 -mid 303 -tid 1 -ni 20 -ls 2 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
@@ -271,7 +272,7 @@ int main (int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   bool combomet         = 0;
+   int combomet          = 0;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
@@ -336,8 +337,11 @@ int main (int argc, char *argv[])
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
-   args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
-                  "Combination of metrics.");
+   args.AddOption(&combomet, "-cmb", "--combo-type",
+                  "Combination of metrics options:"
+                  "0: Use single metric\n\t"
+                  "1: Shape + space-dependent size given analytically\n\t"
+                  "2: Shape + adapted size given discretely; shared target");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -593,31 +597,35 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
-   if (combomet == 1)
+   if (combomet > 0)
    {
-      // TODO normalization of combinations.
-      // We will probably drop this example and replace it with adaptivity.
-      if (normalization) { MFEM_ABORT("Not implemented."); }
-
       // First metric.
       coeff1 = new ConstantCoefficient(1.0);
       he_nlf_integ->SetCoefficient(*coeff1);
-      a.AddDomainIntegrator(he_nlf_integ);
 
       // Second metric.
       metric2 = new TMOP_Metric_077;
-      target_c2 = new TargetConstructor(
-         TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, MPI_COMM_WORLD);
-      target_c2->SetVolumeScale(0.01);
-      target_c2->SetNodes(x0);
-      TMOP_Integrator *he_nlf_integ2;
-      he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
+      TMOP_Integrator *he_nlf_integ2 = NULL;
+      if (combomet == 1)
+      {
+         target_c2 = new TargetConstructor(
+            TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, MPI_COMM_WORLD);
+         target_c2->SetVolumeScale(0.01);
+         target_c2->SetNodes(x0);
+         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
+         he_nlf_integ2->SetCoefficient(coeff2);
+      }
+      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c); }
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
-      // Weight of metric2.
-      he_nlf_integ2->SetCoefficient(coeff2);
-      a.AddDomainIntegrator(he_nlf_integ2);
+      TMOPComboIntegrator *combo = new TMOPComboIntegrator;
+      combo->AddTMOPIntegrator(he_nlf_integ);
+      combo->AddTMOPIntegrator(he_nlf_integ2);
+      if (normalization) { combo->ParEnableNormalization(x0); }
+      if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
+
+      a.AddDomainIntegrator(combo);
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
