@@ -2405,14 +2405,12 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
 private:
-   DenseMatrix Jinv;
-   DenseMatrix dshape;
-   DenseMatrix gshape;
-   DenseMatrix pelmat;
+   DenseMatrix dshape, dshapedxt, pelmat;
+   DenseMatrix Jinv, gshape;
 
 public:
    VectorDiffusionIntegrator() { Q = NULL; }
