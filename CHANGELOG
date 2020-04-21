@@ -52,9 +52,12 @@ New and updated examples and miniapps
 - Added a new Example 26/26p to demonstrate the construction of a matrix-free
   geometric and p-multigrid preconditioner for the Laplace problem.
 
-- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
+- Added a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
+
+- Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
+  the Dirichlet problem for the minimal surface equation.
 
 Improved testing
 ----------------
