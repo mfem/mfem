@@ -1609,8 +1609,8 @@ void PAHcurlH1Apply3D(const int D1D,
                       const Vector &_x,
                       Vector &_y)
 {
-   constexpr int MAX_D1D = HCURL_MAX_D1D;
-   constexpr int MAX_Q1D = HCURL_MAX_Q1D;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
