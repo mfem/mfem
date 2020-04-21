@@ -10424,6 +10424,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
+   const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
@@ -10441,7 +10442,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    }
    if (flags & GeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NE);
+      J.SetSize(dim*vdim*NQ*NE);
       eval_flags |= QuadratureInterpolator::DERIVATIVES;
    }
    if (flags & GeometricFactors::DETERMINANTS)

@@ -49,6 +49,14 @@ public:
 
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+
+   /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
+   /// each entry of the L-vector is uniquely represented in `y`.
+   /** This means, the sum of the E-vector `y` is equal to the sum of the
+       corresponding L-vector filled with ones. The boolean mask is required to
+       emulate SetSubVector and its transpose on GPUs. This method is running on
+       the host, since the `processed` array requires a large shared memory. */
+   void BooleanMask(Vector& y) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
