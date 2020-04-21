@@ -30,53 +30,53 @@ class NvidiaAMGX
 
 private:
 
-  //Only first instance will setup/teardown AMGX
-  static int count;
+   //Only first instance will setup/teardown AMGX
+   static int count;
 
-  bool isEnabled{false};
+   bool isEnabled{false};
 
-  //Number of gpus - assume same as MPI procs
-  int nDevs, deviceId;
+   //Number of gpus - assume same as MPI procs
+   int nDevs, deviceId;
 
-  int MPI_SZ, MPI_RANK;
+   int MPI_SZ, MPI_RANK;
 
-  AMGX_Mode amgx_mode;
+   AMGX_Mode amgx_mode;
 
-  MPI_Comm amgx_comm; //amgx communicator
+   MPI_Comm amgx_comm; //amgx communicator
 
-  //Amgx matrices and vectors
-  int ring;
-  AMGX_matrix_handle      A{nullptr};
-  AMGX_vector_handle x{nullptr}, b{nullptr};
-  AMGX_solver_handle solver{nullptr};
+   //Amgx matrices and vectors
+   int ring;
+   AMGX_matrix_handle      A{nullptr};
+   AMGX_vector_handle x{nullptr}, b{nullptr};
+   AMGX_solver_handle solver{nullptr};
 
-  AMGX_config_handle  cfg;
+   AMGX_config_handle  cfg;
 
-  static AMGX_resources_handle   rsrc;
+   static AMGX_resources_handle   rsrc;
 
-//Reference impl: PETSc MatMPIAIJGetLocalMat method
-//used to merge Diagonal and OffDiagonal blocks in a ParCSR matrix
-void GetLocalA(const HypreParMatrix &in_A, Array<int> &I,
-               Array<int64_t> &J, Array<double> &Aloc);
+   //Reference impl: PETSc MatMPIAIJGetLocalMat method
+   //used to merge Diagonal and OffDiagonal blocks in a ParCSR matrix
+   void GetLocalA(const HypreParMatrix &in_A, Array<int> &I,
+                  Array<int64_t> &J, Array<double> &Aloc);
 
 
 public:
 
-  NvidiaAMGX() = default;
+   NvidiaAMGX() = default;
 
-  //Constructor
-  NvidiaAMGX(const MPI_Comm &comm,
+   //Constructor
+   NvidiaAMGX(const MPI_Comm &comm,
+              const std::string &modeStr, const std::string &cfgFile);
+
+   void Init(const MPI_Comm &comm,
              const std::string &modeStr, const std::string &cfgFile);
 
-  void Init(const MPI_Comm &comm,
-            const std::string &modeStr, const std::string &cfgFile);
+   void SetA(const HypreParMatrix &A);
 
-  void SetA(const HypreParMatrix &A);
+   void Solve(Vector &x, Vector &b);
 
-  void Solve(Vector &x, Vector &b);
-
-  //Destructor
-  ~NvidiaAMGX();
+   //Destructor
+   ~NvidiaAMGX();
 };
 
 }

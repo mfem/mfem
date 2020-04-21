@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
    args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
-                         "--no-amgx","Use AMGX");
+                  "--no-amgx","Use AMGX");
    args.Parse();
    if (!args.Good())
    {
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-     // skip
+      // skip
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -140,15 +140,15 @@ int main(int argc, char *argv[])
    delete [] partitioning;
    delete mesh;
    for (int l = 0; l < par_ref_levels; l++)
-     {
-       pmesh->UniformRefinement();
-     }
+   {
+      pmesh->UniformRefinement();
+   }
    // pmesh->PrintInfo();
    long global_ne = pmesh->ReduceInt(pmesh->GetNE());
    if (myid == 0)
-     {
-       cout << "Total number of elements: " << global_ne << endl;
-     }
+   {
+      cout << "Total number of elements: " << global_ne << endl;
+   }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -174,8 +174,8 @@ int main(int argc, char *argv[])
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
-     cout << "Number of finite element unknowns: " << size <<endl;
-     
+      cout << "Number of finite element unknowns: " << size <<endl;
+
    }
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
@@ -226,37 +226,40 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, with AMGX or HYPRE
    high_resolution_clock::time_point t1 = high_resolution_clock::now();
-   if(amgx){
+   if (amgx)
+   {
 
-     std::string amgx_str;
-     amgx_str = amgx_cfg;
-     NvidiaAMGX amgx;
-     amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
+      std::string amgx_str;
+      amgx_str = amgx_cfg;
+      NvidiaAMGX amgx;
+      amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
 
-     amgx.SetA(A);
+      amgx.SetA(A);
 
-     X = 0.0; //set to zero
-     amgx.Solve(X, B);
+      X = 0.0; //set to zero
+      amgx.Solve(X, B);
 
-   }else{
-     HypreSolver *amg = new HypreBoomerAMG(A);
-
-     HyprePCG *pcg = new HyprePCG(A);
-     pcg->SetPreconditioner(*amg);
-     pcg->SetTol(1e-12);
-     pcg->SetMaxIter(200);
-     pcg->SetPrintLevel(2);
-     pcg->Mult(B, X);
-     delete pcg;
    }
-   
+   else
+   {
+      HypreSolver *amg = new HypreBoomerAMG(A);
+
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetPreconditioner(*amg);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(200);
+      pcg->SetPrintLevel(2);
+      pcg->Mult(B, X);
+      delete pcg;
+   }
+
    high_resolution_clock::time_point t2 = high_resolution_clock::now();
 
    duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-   if(myid ==0)
+   if (myid ==0)
    {
-     std::cout << "It took me " << time_span.count() << " seconds.";
-     std::cout << std::endl;
+      std::cout << "It took me " << time_span.count() << " seconds.";
+      std::cout << std::endl;
    }
 
 
@@ -306,38 +309,38 @@ int main(int argc, char *argv[])
 Mesh *make_mesh(int myid, int num_procs, int dim, int level,
                 int &par_ref_levels, Array<int> &nxyz)
 {
-  int log_p = (int)floor(log((double)num_procs)/log(2.0) + 0.5);
-  MFEM_VERIFY((1 << log_p) == num_procs,
-              "number of processor is not a power of 2: " << num_procs);
-  MFEM_VERIFY(dim == 3, "dim = " << dim << " is NOT implemented!");
+   int log_p = (int)floor(log((double)num_procs)/log(2.0) + 0.5);
+   MFEM_VERIFY((1 << log_p) == num_procs,
+               "number of processor is not a power of 2: " << num_procs);
+   MFEM_VERIFY(dim == 3, "dim = " << dim << " is NOT implemented!");
 
-  // Determine processor decomposition.
-  int s[3];
-  s[0] = log_p/3 + (log_p%3 > 0 ? 1 : 0);
-  s[1] = log_p/3 + (log_p%3 > 1 ? 1 : 0);
-  s[2] = log_p/3;
-  nxyz.SetSize(dim);
-  nxyz[0] = 1 << s[0];
-  nxyz[1] = 1 << s[1];
-  nxyz[2] = 1 << s[2];
+   // Determine processor decomposition.
+   int s[3];
+   s[0] = log_p/3 + (log_p%3 > 0 ? 1 : 0);
+   s[1] = log_p/3 + (log_p%3 > 1 ? 1 : 0);
+   s[2] = log_p/3;
+   nxyz.SetSize(dim);
+   nxyz[0] = 1 << s[0];
+   nxyz[1] = 1 << s[1];
+   nxyz[2] = 1 << s[2];
 
-  // Determine mesh size.
-  int ser_level = level%3;
-  par_ref_levels = level/3;
-  int log_n = log_p + ser_level;
-  int t[3];
-  t[0] = log_n/3 + (log_n%3 > 0 ? 1 : 0);
-  t[1] = log_n/3 + (log_n%3 > 1 ? 1 : 0);
-  t[2] = log_n/3;
+   // Determine mesh size.
+   int ser_level = level%3;
+   par_ref_levels = level/3;
+   int log_n = log_p + ser_level;
+   int t[3];
+   t[0] = log_n/3 + (log_n%3 > 0 ? 1 : 0);
+   t[1] = log_n/3 + (log_n%3 > 1 ? 1 : 0);
+   t[2] = log_n/3;
 
-  // Create the Mesh.
-  const bool gen_edges = true;
-  const bool sfc_ordering = true;
-  Mesh *mesh = new Mesh(1 << t[0], 1 << t[1], 1 << t[2],
-                        Element::HEXAHEDRON, gen_edges,
-                        1.0, 1.0, 1.0, sfc_ordering);
-  if (myid == 0)
-    {
+   // Create the Mesh.
+   const bool gen_edges = true;
+   const bool sfc_ordering = true;
+   Mesh *mesh = new Mesh(1 << t[0], 1 << t[1], 1 << t[2],
+                         Element::HEXAHEDRON, gen_edges,
+                         1.0, 1.0, 1.0, sfc_ordering);
+   if (myid == 0)
+   {
       cout << "Processor partitioning: ";
       nxyz.Print(cout, dim);
 
@@ -346,8 +349,8 @@ Mesh *make_mesh(int myid, int num_procs, int dim, int level,
            << (1 << (t[0]+par_ref_levels)) << ' '
            << (1 << (t[1]+par_ref_levels)) << ' '
            << (1 << (t[2]+par_ref_levels)) << endl;
-    }
+   }
 
-  return mesh;
+   return mesh;
 
 }

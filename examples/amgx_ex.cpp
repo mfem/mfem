@@ -106,32 +106,32 @@ NvidiaAMGX::NvidiaAMGX()
 void NvidiaAMGX::ConfigureAsSolver(bool verbose)
 {
    std::string configs = "{\n"
-      "    \"config_version\": 2, \n"
-      "    \"solver\": {\n"
-      "        \"max_uncolored_percentage\": 0.15, \n"
-      "        \"algorithm\": \"AGGREGATION\", \n"
-      "        \"solver\": \"AMG\", \n"
-      "        \"smoother\": \"MULTICOLOR_GS\", \n"
-      "        \"presweeps\": 1, \n"
-      "        \"symmetric_GS\": 1, \n"
-      "        \"selector\": \"SIZE_2\", \n"
-      "        \"coarsest_sweeps\": 10, \n"
-      "        \"max_iters\": 1000, \n"
-      "        \"postsweeps\": 1, \n"
-      "        \"scope\": \"main\", \n"
-      "        \"max_levels\": 1000, \n"
-      "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
-      "        \"tolerance\": 0.0000001, \n"
-      "        \"norm\": \"L2\", \n"
-      "        \"cycle\": \"V\"";
+                         "    \"config_version\": 2, \n"
+                         "    \"solver\": {\n"
+                         "        \"max_uncolored_percentage\": 0.15, \n"
+                         "        \"algorithm\": \"AGGREGATION\", \n"
+                         "        \"solver\": \"AMG\", \n"
+                         "        \"smoother\": \"MULTICOLOR_GS\", \n"
+                         "        \"presweeps\": 1, \n"
+                         "        \"symmetric_GS\": 1, \n"
+                         "        \"selector\": \"SIZE_2\", \n"
+                         "        \"coarsest_sweeps\": 10, \n"
+                         "        \"max_iters\": 1000, \n"
+                         "        \"postsweeps\": 1, \n"
+                         "        \"scope\": \"main\", \n"
+                         "        \"max_levels\": 1000, \n"
+                         "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
+                         "        \"tolerance\": 0.0000001, \n"
+                         "        \"norm\": \"L2\", \n"
+                         "        \"cycle\": \"V\"";
 
    if (verbose)
    {
       configs = configs + ",\n"
-         "        \"obtain_timings\": 1, \n"
-         "        \"monitor_residual\": 1, \n"
-         "        \"print_grid_stats\": 1, \n"
-         "        \"print_solve_stats\": 1 \n";
+                "        \"obtain_timings\": 1, \n"
+                "        \"monitor_residual\": 1, \n"
+                "        \"print_grid_stats\": 1, \n"
+                "        \"print_solve_stats\": 1 \n";
    }
    else
    {
@@ -146,32 +146,32 @@ void NvidiaAMGX::ConfigureAsSolver(bool verbose)
 void NvidiaAMGX::ConfigureAsPreconditioner(bool verbose)
 {
    std::string configs = "{\n"
-      "    \"config_version\": 2, \n"
-      "    \"solver\": {\n"
-      "        \"max_uncolored_percentage\": 0.15, \n"
-      "        \"algorithm\": \"AGGREGATION\", \n"
-      "        \"solver\": \"AMG\", \n"
-      "        \"smoother\": \"MULTICOLOR_GS\", \n"
-      "        \"presweeps\": 1, \n"
-      "        \"symmetric_GS\": 1, \n"
-      "        \"selector\": \"SIZE_2\", \n"
-      "        \"coarsest_sweeps\": 10, \n"
-      "        \"max_iters\": 2, \n"
-      "        \"postsweeps\": 1, \n"
-      "        \"scope\": \"main\", \n"
-      "        \"max_levels\": 1000, \n"
-      "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
-      "        \"tolerance\": 0.0, \n"
-      "        \"norm\": \"L2\", \n"
-      "        \"cycle\": \"V\"";
+                         "    \"config_version\": 2, \n"
+                         "    \"solver\": {\n"
+                         "        \"max_uncolored_percentage\": 0.15, \n"
+                         "        \"algorithm\": \"AGGREGATION\", \n"
+                         "        \"solver\": \"AMG\", \n"
+                         "        \"smoother\": \"MULTICOLOR_GS\", \n"
+                         "        \"presweeps\": 1, \n"
+                         "        \"symmetric_GS\": 1, \n"
+                         "        \"selector\": \"SIZE_2\", \n"
+                         "        \"coarsest_sweeps\": 10, \n"
+                         "        \"max_iters\": 2, \n"
+                         "        \"postsweeps\": 1, \n"
+                         "        \"scope\": \"main\", \n"
+                         "        \"max_levels\": 1000, \n"
+                         "        \"matrix_coloring_scheme\": \"MIN_MAX\", \n"
+                         "        \"tolerance\": 0.0, \n"
+                         "        \"norm\": \"L2\", \n"
+                         "        \"cycle\": \"V\"";
 
    if (verbose)
    {
       configs = configs + ",\n"
-         "        \"obtain_timings\": 1, \n"
-         "        \"monitor_residual\": 1, \n"
-         "        \"print_grid_stats\": 1, \n"
-         "        \"print_solve_stats\": 1 \n";
+                "        \"obtain_timings\": 1, \n"
+                "        \"monitor_residual\": 1, \n"
+                "        \"print_grid_stats\": 1, \n"
+                "        \"print_solve_stats\": 1 \n";
    }
    else
    {
@@ -298,7 +298,8 @@ int main(int argc, char *argv[])
                   "AMGX solver config file (overrides --amgx-solver, --amgx-verbose)");
    args.AddOption(&amgx_parameter, "--amgx-config", "--amgx-config",
                   "AMGX solver config as string (overrides --amgx-solver, --amgx-verbose)");
-   args.AddOption(&amgx_solver, "--amgx-solver", "--amgx-solver", "--amgx-preconditioner",
+   args.AddOption(&amgx_solver, "--amgx-solver", "--amgx-solver",
+                  "--amgx-preconditioner",
                   "--amgx-preconditioner",
                   "Configure AMGX as solver or preconditioner.");
    args.AddOption(&amgx_verbose, "--amgx-verbose", "--amgx-verbose",
@@ -425,10 +426,10 @@ int main(int argc, char *argv[])
    }
    else // Jacobi preconditioning in partial assembly mode
    {
-     OperatorPtr A;
-     Vector B, X;
-     Array<int> ess_tdof_list(0);
-     a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      OperatorPtr A;
+      Vector B, X;
+      Array<int> ess_tdof_list(0);
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
       if (UsesTensorBasis(*fespace))
       {
