@@ -381,7 +381,7 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
       const auto d_un = un.Read();
       const auto d_unm1 = unm1.Read();
       const auto d_unm2 = unm2.Read();
-      auto d_Fext = Fext.Write();
+      auto d_Fext = Fext.ReadWrite();
       MFEM_FORALL(i, Fext.Size(),
                   d_Fext[i] += bd1idt * d_un[i] +
                                bd2idt * d_unm1[i] +
