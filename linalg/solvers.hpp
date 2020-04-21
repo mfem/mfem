@@ -115,6 +115,65 @@ private:
    const Operator *oper;
 };
 
+/// Chebyshev accelerated smoothing with given vector, no matrix necessary
+/** Potentially useful with tensorized operators, for example. This is just a
+    very basic Chebyshev iteration, if you want tolerances, iteration control,
+    etc. wrap this with SLISolver. */
+class OperatorChebyshevSmoother : public Solver
+{
+public:
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The estimated largest eigenvalue of the
+       diagonally preconditoned operator must be provided via
+       max_eig_estimate. */
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, double max_eig_estimate);
+
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The largest eigenvalue of the diagonally
+       preconditoned operator is estimated internally via a power method. The
+       accuracy of the estimated eigenvalue may be controlled via
+       power_iterations and power_tolerance. */
+#ifdef MFEM_USE_MPI
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, MPI_Comm comm = MPI_COMM_NULL, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
+#else
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, int power_iterations = 10, double power_tolerance = 1e-8);
+#endif
+
+   ~OperatorChebyshevSmoother() {}
+
+   void Mult(const Vector&x, Vector &y) const;
+
+   void SetOperator(const Operator &op_)
+   {
+      oper = &op_;
+   }
+
+   void Setup();
+
+private:
+   const int order;
+   double max_eig_estimate;
+   const int N;
+   Vector dinv;
+   const Vector &diag;
+   Array<double> coeffs;
+   const Array<int>& ess_tdof_list;
+   mutable Vector residual;
+   mutable Vector helperVector;
+   const Operator* oper;
+};
+
 
 /// Stationary linear iteration: x <- x + B (b - A x)
 class SLISolver : public IterativeSolver
