@@ -68,17 +68,17 @@ void test_ea(Mesh &&mesh, int order, bool dg, const int pb)
    ConstantCoefficient one(1.0);
    VectorFunctionCoefficient vel_coeff(dim, velocity_function);
 
-   if (pb==0)// Mass
+   if (pb==0) // Mass
    {
       k_fa.AddDomainIntegrator(new MassIntegrator(one));
       k_ea.AddDomainIntegrator(new MassIntegrator(one));
    }
-   else if(pb==1)// Convection
+   else if(pb==1) // Convection
    {
       AddConvectionIntegrators(k_fa, vel_coeff, dg);
       AddConvectionIntegrators(k_ea, vel_coeff, dg);
    }
-   else if(pb==2)// Diffusion
+   else if(pb==2) // Diffusion
    {
       k_fa.AddDomainIntegrator(new DiffusionIntegrator(one));
       k_ea.AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -107,7 +107,7 @@ void test_ea(Mesh &&mesh, int order, bool dg, const int pb)
 //Basic unit test for convection
 TEST_CASE("Element Assembly", "[ElementAssembly]")
 {
-   for(int pb : {0, 1, 2})
+   for (int pb : {0, 1, 2})
    {
       for (bool dg : {true, false})
       {
