@@ -33,6 +33,10 @@ add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(minimal-surface
+  MAIN minimal-surface.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
@@ -45,10 +49,16 @@ add_mfem_miniapp(twist
 add_test(NAME mesh-optimizer
   COMMAND mesh-optimizer -no-vis -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh)
 
+add_test(NAME minimal-surface COMMAND minimal-surface)
+
 # Parallel apps.
 if (MFEM_USE_MPI)
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(pminimal-surface
+    MAIN pminimal-surface.cpp
     LIBRARIES mfem)
 
   # Add parallel tests.
@@ -56,5 +66,10 @@ if (MFEM_USE_MPI)
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pmesh-optimizer> -no-vis
     -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh
+    ${MPIEXEC_POSTFLAGS})
+
+  add_test(NAME pminimal-surface_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pminimal-surface>
     ${MPIEXEC_POSTFLAGS})
 endif()
