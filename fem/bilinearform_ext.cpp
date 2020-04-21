@@ -457,7 +457,7 @@ void EABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    // Apply the Element Restriction
-   const bool useRestrict = DeviceCanUseCeed() || !elem_restrict;
+   const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
    if (!useRestrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
