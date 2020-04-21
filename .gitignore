@@ -72,6 +72,10 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/ex5-p-*.bp
+examples/ex9-p-*.bp
+examples/ex12-p-*.bp
+examples/ex16-p-*.bp
 examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
@@ -165,6 +169,8 @@ miniapps/meshing/shaper
 miniapps/meshing/extruder
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
+miniapps/meshing/minimal-surface
+miniapps/meshing/pminimal-surface
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
