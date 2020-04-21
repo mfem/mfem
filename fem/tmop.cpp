@@ -963,61 +963,59 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec()
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
-                              *ptspec_fes->FEColl(),
-                              ncomp);
+                              *ptspec_fes->FEColl(), ncomp);
    adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
    tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
-                                       tspec_fes->FEColl(),
-                                       ncomp);
+                                       tspec_fes->FEColl(), ncomp);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetBase(ParGridFunction &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetBase(const ParGridFunction &tspec_)
 {
-   if (tspec_fes == NULL)
+   if (ptspec_fes == NULL)
    {
       ptspec_fes = tspec_.ParFESpace();
    }
    SetSerialDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetSize(ParGridFunction &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
 {
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
    sizeidx = ncomp;
    SetParDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetSkew(ParGridFunction &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
 {
    if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetParDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(ParGridFunction &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction &tspec_)
 {
    if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
    aspectratioidx = ncomp;
    SetParDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetOrientation(ParGridFunction &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction &tspec_)
 {
    if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
    orientationidx = ncomp;
    SetParDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
+void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
 {
    SetParDiscreteTargetSize(tspec_);
    if (tspec_fesv == NULL) { FinalizeParDiscreteTargetSpec(); }
 }
 #endif
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetBase(const GridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
@@ -1054,7 +1052,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetBase(GridFunction &tspec_)
    }
 }
 
-void DiscreteAdaptTC::SetTspecAtIndex(int idx, GridFunction &tspec_)
+void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
@@ -1068,7 +1066,7 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, GridFunction &tspec_)
    }
 }
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetSize(GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
 {
 
    if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
@@ -1076,21 +1074,21 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetSize(GridFunction &tspec_)
    SetSerialDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
 {
    if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
    skewidx = ncomp;
    SetSerialDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(const GridFunction &tspec_)
 {
    if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
    aspectratioidx = ncomp;
    SetSerialDiscreteTargetBase(tspec_);
 }
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(const GridFunction &tspec_)
 {
    if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
    orientationidx = ncomp;
@@ -1103,19 +1101,15 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
-                                 *tspec_fes->FEColl(),
-                                 ncomp);
-
-   adapt_eval->SetInitialField
-   (*tspec_fes->GetMesh()->GetNodes(), tspec);
+                                 *tspec_fes->FEColl(), ncomp);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
    tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
-                                       tspec_fes->FEColl(),
-                                       ncomp);
+                                       tspec_fes->FEColl(), ncomp);
 }
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
+void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
 {
    SetSerialDiscreteTargetSize(tspec_);
    if (tspec_fesv == NULL) { FinalizeSerialDiscreteTargetSpec(); }
@@ -1176,7 +1170,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const Vector &elfun,
                                             DenseTensor &Jtr) const
 {
-   MFEM_VERIFY(tspec_fes, "A call to SetDiscreteTargerSpec() is needed.");
+   MFEM_VERIFY(tspec_fesv, "A call to FinalizeDiscreteTargetSpec() is needed.");
 
    switch (target_type)
    {
@@ -1188,7 +1182,6 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          const int dim = Wideal.Height(),
                    ndofs = tspec_fes->GetFE(0)->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
-
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
