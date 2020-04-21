@@ -30,9 +30,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
    // TODO: Implement for AMR meshes.
-   const int dim     = fes->GetFE(0)->GetDim(),
-             ncomp   = fes->GetVDim(),
-             pnt_cnt = new_field.Size()/ncomp;
+   const int pnt_cnt = new_field.Size()/ncomp;
 
    new_field = field0;
 
@@ -94,8 +92,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       h_min = std::min(h_min, m->GetElementSize(i));
    }
    double v_max = 0.0;
-   const int dim = fes->GetFE(0)->GetDim(),
-             s   = new_field.Size() ;
+   const int s = new_field.Size();
 
    for (int i = 0; i < s; i++)
    {

@@ -560,6 +560,8 @@ protected:
    ParFiniteElementSpace *pfes;
 #endif
 
+   int dim, ncomp;
+
 public:
    AdaptivityEvaluator() : mesh(NULL), fes(NULL)
    {
@@ -735,13 +737,16 @@ protected:
 #ifdef MFEM_USE_MPI
    void SetParDiscreteTargetBase(ParGridFunction &tspec_);
 #endif
+   void SetTspecAtIndex(int idx, GridFunction &tspec_);
 
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
         ncomp(0),
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
-        tspec(), tspec_fes(NULL), adapt_eval(NULL) { }
+        tspec(), tspec_sav(), tspec_perth(), tspec_pert2h(), tspec_pertmix(),
+        ptspec_fes(NULL), tspec_fes(NULL), tspec_fesv(NULL),
+        adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC()
    {
