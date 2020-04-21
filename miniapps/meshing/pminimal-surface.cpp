@@ -9,9 +9,9 @@
 // terms of the BSD-3 license.  We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//               --------------------------------
-//               Parallel Minimal Surface Miniapp
-//               --------------------------------
+//     --------------------------------------------------------------------
+//     Minimal Surface Miniapp: Compute minimal surfaces - Parallel Version
+//     --------------------------------------------------------------------
 //
 // This miniapp solves Plateau's problem: the Dirichlet problem for the minimal
 // surface equation.
