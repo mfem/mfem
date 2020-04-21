@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "amgx_wrapper.hpp"
+#include "amgx.hpp"
 
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_AMGX
 
 namespace mfem
 {
@@ -245,3 +247,6 @@ NvidiaAMGX::~NvidiaAMGX()
 }
 
 }//mfem namespace
+
+#endif
+#endif
