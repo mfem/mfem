@@ -34,7 +34,9 @@ FindPointsGSLIB::FindPointsGSLIB()
 {
    gsl_comm = new comm;
 #ifdef MFEM_USE_MPI
-   MPI_Init(NULL, NULL);
+   int initialized;
+   MPI_Initialized(&initialized);
+   if (!initialized) { MPI_Init(NULL, NULL); }
    MPI_Comm comm = MPI_COMM_WORLD;;
    comm_init(gsl_comm, comm);
 #else

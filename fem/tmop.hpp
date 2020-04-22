@@ -722,9 +722,6 @@ protected:
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-#ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *ptspec_fes;
-#endif
    const FiniteElementSpace *tspec_fes;
    const FiniteElementSpace *tspec_fesv;
 
@@ -736,11 +733,13 @@ protected:
    // Owned.
    AdaptivityEvaluator *adapt_eval;
 
-   void SetSerialDiscreteTargetBase(const GridFunction &tspec_);
-#ifdef MFEM_USE_MPI
-   void SetParDiscreteTargetBase(const ParGridFunction &tspec_);
-#endif
+   void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
+   void FinalizeSerialDiscreteTargetSpec();
+#ifdef MFEM_USE_MPI
+   void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
+   void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
+#endif
 
 public:
    DiscreteAdaptTC(TargetType ttype)
@@ -748,7 +747,7 @@ public:
         ncomp(0),
         sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
-        ptspec_fes(NULL), tspec_fes(NULL), tspec_fesv(NULL),
+        tspec_fes(NULL), tspec_fesv(NULL),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
         adapt_eval(NULL) { }
 
@@ -777,14 +776,12 @@ public:
    virtual void SetSerialDiscreteTargetSkew(const GridFunction &tspec_);
    virtual void SetSerialDiscreteTargetAspectRatio(const GridFunction &tspec_);
    virtual void SetSerialDiscreteTargetOrientation(const GridFunction &tspec_);
-   virtual void FinalizeSerialDiscreteTargetSpec();
 #ifdef MFEM_USE_MPI
    virtual void SetParDiscreteTargetSpec(const ParGridFunction &tspec_);
    virtual void SetParDiscreteTargetSize(const ParGridFunction &tspec_);
    virtual void SetParDiscreteTargetSkew(const ParGridFunction &tspec_);
    virtual void SetParDiscreteTargetAspectRatio(const ParGridFunction &tspec_);
    virtual void SetParDiscreteTargetOrientation(const ParGridFunction &tspec_);
-   virtual void FinalizeParDiscreteTargetSpec();
 #endif
    ///@}
 
