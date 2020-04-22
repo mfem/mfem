@@ -1611,6 +1611,7 @@ void FiniteElementSpace::Construct()
 
 int FiniteElementSpace::AssignEdgeDofs()
 {
+   MFEM_ASSERT(IsVariableOrder(), "");
    MFEM_ASSERT(mesh->Dimension() > 1, "");
    MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
 
@@ -1637,7 +1638,7 @@ int FiniteElementSpace::AssignEdgeDofs()
 
    if (Nonconforming())
    {
-      // in the hp-case, add minimum slave order to each master edge
+      // in the hp-case, add minimum slave orders to their master edges
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(1);
       for (const NCMesh::Master &master : list.masters)
       {
@@ -1647,7 +1648,11 @@ int FiniteElementSpace::AssignEdgeDofs()
             const NCMesh::Slave &slave = list.slaves[i];
             slave_min_o = std::min(edge_min_order[slave.index], slave_min_o);
          }
-         edge_orders.Append(Connection(master.index, slave_min_o));
+         // constrain the master face, if necessary
+         if (slave_min_o < edge_min_order[master.index])
+         {
+            edge_orders.Append(Connection(master.index, slave_min_o));
+         }
       }
    }
 
