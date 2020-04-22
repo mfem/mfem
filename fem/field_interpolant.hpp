@@ -33,7 +33,7 @@ private:
    MassIntegrator mass_int;
    int NE;
 public:
-   FieldInterpolant(const IntegrationRule* ir) { mass_int.SetIntRule(ir); }
+   FieldInterpolant(const IntegrationRule* ir) : setup_disc(false) { mass_int.SetIntRule(ir); }
    // This function takes a vector quadrature function coefficient and projects it onto a GridFunction that lives
    // in L2 space. This function requires tr_fes to be the finite element space that the VectorQuadratureFunctionCoefficient lives on
    // and fes is the L2 finite element space that we're projecting onto.
