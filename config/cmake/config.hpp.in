@@ -120,6 +120,9 @@
 // Requires a CUDA compiler (nvcc).
 #cmakedefine MFEM_USE_CUDA
 
+// Enable MFEM functionality based on the AMGX library
+#cmakedefine MFEM_USE_AMGX
+
 // Enable MFEM functionality based on the RAJA library
 #cmakedefine MFEM_USE_RAJA
 
