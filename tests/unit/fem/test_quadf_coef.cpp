@@ -436,9 +436,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          REQUIRE(error < tol);
       }
    }
-
-#endif
 }
-
+#endif
 } // namespace qf_coeff
 
