@@ -187,8 +187,8 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 template <typename BODY> __global__ static
 void CuKernel1D(const int N, BODY body)
 {
-   for (int k = blockIdx.x * blockDim.x + threadIdx.x; 
-        k < N; 
+   for (int k = blockIdx.x * blockDim.x + threadIdx.x;
+        k < N;
         k += blockDim.x * gridDim.x)
    {
       body(k);
@@ -198,8 +198,8 @@ void CuKernel1D(const int N, BODY body)
 template <typename BODY> __global__ static
 void CuKernel2D(const int N, BODY body, const int BZ)
 {
-   for (int k = blockIdx.x * BZ + threadIdx.z; 
-        k < N; 
+   for (int k = blockIdx.x * BZ + threadIdx.z;
+        k < N;
         k += blockDim.x * blockDim.y * blockDim.z * gridDim.x)
    {
       body(k);
@@ -209,8 +209,8 @@ void CuKernel2D(const int N, BODY body, const int BZ)
 template <typename BODY> __global__ static
 void CuKernel3D(const int N, BODY body)
 {
-   for (int k = blockIdx.x; 
-        k < N; 
+   for (int k = blockIdx.x;
+        k < N;
         k += blockDim.x * blockDim.y * blockDim.z * gridDim.x)
    {
       body(k);
