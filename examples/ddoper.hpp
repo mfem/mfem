@@ -1954,7 +1954,10 @@ public:
       //a_EE->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker_everywhere);//???
       VectorFEMassIntegrator *binteg = new VectorFEMassIntegrator(pos);
       binteg->isBdryInteg = true;
+      binteg->el_marker = &bdr_marker_everywhere;
       a_EE->AddBoundaryIntegrator(binteg, bdr_marker_everywhere);
+
+      // TODO: does the PA diagonal include the boundary integrator?
     }
 #endif
 #else
@@ -2063,6 +2066,7 @@ public:
       //a_HH->AddBoundaryIntegrator(new VectorFEMassIntegrator(pos), bdr_marker);
       VectorFEMassIntegrator *binteg = new VectorFEMassIntegrator(pos);
       binteg->isBdryInteg = true;
+      binteg->el_marker = &bdr_marker;
       a_HH->AddBoundaryIntegrator(binteg, bdr_marker);
     }
 #endif
@@ -2335,7 +2339,7 @@ public:
 
     LSpcg.SetAbsTol(1.0e-12);
     LSpcg.SetRelTol(1.0e-8);
-    LSpcg.SetMaxIter(400);
+    LSpcg.SetMaxIter(2000);
     LSpcg.SetOperator(*LS_Maxwellop);
     LSpcg.SetPrintLevel(0);
 
@@ -2606,11 +2610,12 @@ public:
       //t[0] = 1.0;
       t = 1.0;
       At = 0.0;
-      sdInv->LS_Maxwellop->GetBlock(0,0).Mult(t, At);
+      sdInv->LS_Maxwellop->GetBlock(1,1).Mult(t, At);
+      //sdInv->LS_Maxwellop->Mult(t, At);
       cout << rank << ": LBTS A_EE * 1 norm " << At.Norml2() << endl;
       if (rank == 0)
 	{
-	  std::string filename = "Atpa6.txt";
+	  std::string filename = "Atfa7.txt";
 	  std::ofstream sfile(filename, std::ofstream::out);
 	  At.Print(sfile);
 	  sfile.close();

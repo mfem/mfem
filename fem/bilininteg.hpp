@@ -180,6 +180,7 @@ public:
    virtual ~BilinearFormIntegrator() { }
 
   bool isBdryInteg = false;
+  Array<int> *el_marker = NULL;
 };
 
 class TransposeIntegrator : public BilinearFormIntegrator

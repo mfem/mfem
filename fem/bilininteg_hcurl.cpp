@@ -187,8 +187,8 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
      }
    
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
-                                                     *mesh->GetElementTransformation(0));
+     = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el, bdryInteg ? *mesh->GetBdrElementTransformation(0) : *mesh->GetElementTransformation(0));
+                                                     
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
@@ -226,7 +226,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       for (int e=0; e<ne; ++e)
       {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
+	ElementTransformation *tr = bdryInteg ? mesh->GetBdrElementTransformation(e) : mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
             if (VQ)
@@ -245,6 +245,29 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
    }
 
+   if (el_marker)
+     {
+       MFEM_VERIFY(bdryInteg, "");
+       MFEM_VERIFY(el_marker->Size() == mesh->bdr_attributes.Max(), "");
+       
+       for (int e=0; e<ne; ++e)
+	 {
+	   const int el_attr = (bdryInteg) ? mesh->GetBdrAttribute(e) : -1;
+	   MFEM_VERIFY(el_attr > 0, "");
+	   
+	   if ((*el_marker)[el_attr-1] == 0)
+	     {
+	       for (int p=0; p<nq; ++p)
+		 {
+		   for (int i=0; i<coeffDim; ++i)
+		     {
+		       coeff[i + (coeffDim * (p + (e * nq)))] = 0.0;
+		     }
+		 }
+	     }
+	 }
+     }
+   
    if (isBdryInteg || (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2 && mesh->SpaceDimension() == 3))
      {
        MFEM_VERIFY(coeffDim == 1, "");  // Vector coefficient not implemented in this case
