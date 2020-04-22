@@ -200,7 +200,7 @@ void CuKernel2D(const int N, BODY body, const int BZ)
 {
    for (int k = blockIdx.x * BZ + threadIdx.z;
         k < N;
-        k += blockDim.x * blockDim.y * blockDim.z * gridDim.x)
+        k += blockDim.z * gridDim.x)
    {
       body(k);
    }
@@ -211,7 +211,7 @@ void CuKernel3D(const int N, BODY body)
 {
    for (int k = blockIdx.x;
         k < N;
-        k += blockDim.x * blockDim.y * blockDim.z * gridDim.x)
+        k += gridDim.x)
    {
       body(k);
    }
