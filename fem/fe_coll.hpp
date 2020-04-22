@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FE_COLLECTION
 #define MFEM_FE_COLLECTION
@@ -102,9 +102,10 @@ class H1_FECollection : public FiniteElementCollection
 protected:
    int b_type;
    char h1_name[32];
+
    mutable Array<FiniteElement*> H1_Elements[Geometry::NumGeom];
    mutable Array<int> H1_dof[Geometry::NumGeom];
-   mutable Array<int*> SegDofOrd[2], TriDofOrd[6], QuadDofOrd[8];
+   mutable Array<int*> SegDofOrd[2], TriDofOrd[6], QuadDofOrd[8], TetDofOrd[24];
 
    bool HaveOrder(int p) const;
    void InitOrder(int p) const;
@@ -164,11 +165,13 @@ class L2_FECollection : public FiniteElementCollection
 private:
    int b_type, map_type;
    char d_name[32];
+
    mutable Array<ScalarFiniteElement*> L2_Elements[Geometry::NumGeom];
    mutable Array<ScalarFiniteElement*> Tr_Elements[Geometry::NumGeom];
-   mutable Array<int*> SegDofOrd[2]; // for rotating segment dofs in 1D
-   mutable Array<int*> TriDofOrd[6]; // for rotating triangle dofs in 2D
-   mutable Array<int*> OtherDofOrd;  // for rotating other types of elements (for Or == 0)
+   mutable Array<int*> SegDofOrd[2];  // for rotating segment dofs in 1D
+   mutable Array<int*> TriDofOrd[6];  // for rotating triangle dofs in 2D
+   mutable Array<int*> TetDofOrd[24]; // for rotating tetrahedron dofs in 3D
+   mutable Array<int*> OtherDofOrd;   // for rotating other types of elements (for Or == 0)
 
    bool HaveOrder(int p) const;
    void InitOrder(int p) const;
