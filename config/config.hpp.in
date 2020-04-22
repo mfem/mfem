@@ -131,6 +131,9 @@
 // Requires a CUDA compiler (nvcc).
 // #define MFEM_USE_CUDA
 
+// Enable MFEM functionality based on the AMGX library.
+// #define MFEM_USE_AMGX
+
 // Build the AMD GPU/HIP-enabled version of the MFEM library.
 // Requires a HIP compiler (hipcc).
 // #define MFEM_USE_HIP
