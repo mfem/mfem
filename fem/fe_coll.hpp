@@ -1035,7 +1035,7 @@ private:
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    int *SegDofOrd[2]; // for rotating segment dofs in 1D
    int *OtherDofOrd; 
-   bool ValidGeomType(int GeomType) const;
+   bool ValidGeomType(Geometry::Type GeomType) const;
    
 public:
    KernelFECollection(const int D,
@@ -1049,14 +1049,14 @@ public:
    virtual ~KernelFECollection();
    
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
    virtual const FiniteElement *
-   TraceFiniteElementForGeometry(int GeomType) const;
+   TraceFiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int * DofOrderForOrientation(Geometry::Type GeomType, int Or) const;
 
    virtual const char * Name() const { return d_name; }
 };

@@ -2983,18 +2983,18 @@ KernelFECollection::~KernelFECollection()
 }
 
 const FiniteElement *
-KernelFECollection::FiniteElementForGeometry(int GeomType) const
+KernelFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return L2_Elements[GeomType];
 }
 
 const FiniteElement *
-KernelFECollection::TraceFiniteElementForGeometry(int GeomType) const
+KernelFECollection::TraceFiniteElementForGeometry(Geometry::Type GeomType) const
 {
    return Tr_Elements[GeomType];
 }
 
-int KernelFECollection::DofForGeometry(int GeomType) const
+int KernelFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    if (L2_Elements[GeomType])
    {
@@ -3003,7 +3003,7 @@ int KernelFECollection::DofForGeometry(int GeomType) const
    return 0;
 }
 
-int *KernelFECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *KernelFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or) const
 {
    if (GeomType == Geometry::SEGMENT) {
       return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];

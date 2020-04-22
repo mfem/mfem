@@ -3587,7 +3587,7 @@ public:
 class KernelFiniteElement : public ScalarFiniteElement
 {
 public:
-   KernelFiniteElement(int D, int G, int Do, int O, int F)
+   KernelFiniteElement(int D, Geometry::Type G, int Do, int O, int F)
       : ScalarFiniteElement(D, G, Do, O, F) { }
    virtual ~KernelFiniteElement() { }
 
