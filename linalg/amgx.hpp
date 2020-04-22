@@ -12,6 +12,8 @@
 #ifndef MFEM_AMGX
 #define MFEM_AMGX
 
+#include "../config/config.hpp"
+
 #ifdef MFEM_USE_AMGX
 #ifdef MFEM_USE_MPI
 

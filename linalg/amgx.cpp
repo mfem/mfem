@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../config/config.hpp"
 #include "amgx.hpp"
-
 #ifdef MFEM_USE_MPI
 #ifdef MFEM_USE_AMGX
 
