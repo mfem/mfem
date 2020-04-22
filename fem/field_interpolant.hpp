@@ -89,8 +89,8 @@ public:
    VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc) : vqfc(
          vqfc) { }
    VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
-                              const IntegrationRule *ir) : vqfc(
-                                    vqfc), LinearFormIntegrator(ir) { }
+                              const IntegrationRule *ir) : LinearFormIntegrator(ir), vqfc(
+                                    vqfc) { }
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
                                ElementTransformation &Tr,
@@ -104,7 +104,7 @@ private:
 public:
    QuadratureIntegrator(QuadratureFunctionCoefficient &qfc) : qfc(qfc) { }
    QuadratureIntegrator(QuadratureFunctionCoefficient &qfc,
-                        const IntegrationRule *ir) : qfc(qfc), LinearFormIntegrator(ir) { }
+                        const IntegrationRule *ir) : LinearFormIntegrator(ir), qfc(qfc) { }
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
                                ElementTransformation &Tr,
