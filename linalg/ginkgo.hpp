@@ -648,6 +648,37 @@ protected:
       : Solver(a.Height(), a.Width(), iter_mode)
    {
       exec_ = std::move(exec);
+      permute_ = false;
+   }
+
+   GinkgoPreconditionerBase(std::shared_ptr<const gko::Executor> exec,
+                            SparseMatrix &a, Array<int> &inv_permutation_indices, 
+                            bool iter_mode=false)
+      : Solver(a.Height(), a.Width(), iter_mode)
+   {
+      exec_ = std::move(exec);
+
+      bool on_device = false;
+      if (exec_->get_master() != exec_)
+      {
+         on_device = true;
+      }
+      permute_ = true;
+      auto gko_inv_perm_ind = gko::Array<int>::view(
+                                              exec_,
+                                              inv_permutation_indices.Size(),
+                                              inv_permutation_indices.ReadWrite(
+                                                                on_device));
+      // Note the "forward" permutation uses the inverse flag because
+      //  the indices are for the inverse permutation as defined by Ginkgo
+      vec_permute_ = gko::matrix::Permutation<int>::create(
+                      exec_, gko::dim<2>{inv_permutation_indices.Size()},
+                      gko_inv_perm_ind,
+                      gko::matrix::row_permute | gko::matrix::inverse_permute);
+      vec_inv_permute_ = gko::matrix::Permutation<int>::create(
+                      exec_, gko::dim<2>{inv_permutation_indices.Size()},
+                      gko_inv_perm_ind,
+                      gko::matrix::row_permute);
    }
 
 public:
@@ -665,6 +696,11 @@ protected:
    std::shared_ptr<const gko::Executor> exec_;
    std::unique_ptr<const gko::LinOpFactory> gko_precond_factory_;
    std::unique_ptr<gko::LinOp> gko_precond_;
+   bool permute_;
+//   gko::Array<int> inv_permutation_indices_;
+   std::unique_ptr<gko::matrix::Permutation<int>> vec_permute_;
+   std::unique_ptr<gko::matrix::Permutation<int>> vec_inv_permute_;
+ 
 };
 
 
@@ -720,13 +756,65 @@ public:
       gko_precond_ = gko_precond_factory_.get()->generate(
                         gko::give(gko_sparse));
    }
+
+   GinkgoJacobiPreconditioner(std::shared_ptr<const gko::Executor> exec,
+                              SparseMatrix &a,
+                              Array<int> &inv_permutation_indices,
+                              const char *storage_opt="none",
+                              const double accuracy=1.e-1,
+                              const int max_block_size=32,
+                              bool iter_mode=false)
+      : GinkgoPreconditionerBase(exec, a, inv_permutation_indices, iter_mode)
+   {
+
+      bool on_device = false;
+      if (exec->get_master() != exec)
+      {
+         on_device = true;
+      }
+
+      using mtx = gko::matrix::Csr<double, int>;
+      auto gko_sparse = mtx::create(
+                           exec, gko::dim<2>(a.Height(), a.Width()),
+                           gko::Array<double>::view(exec,
+                                                    a.NumNonZeroElems(),
+                                                    a.ReadWriteData(on_device)),
+                           gko::Array<int>::view(exec,
+                                                 a.NumNonZeroElems(),
+                                                 a.ReadWriteJ(on_device)),
+                           gko::Array<int>::view(exec, a.Height() + 1,
+                                                 a.ReadWriteI(on_device)));
+
+      if (storage_opt == "auto")
+      {
+         gko_precond_factory_ = gko::preconditioner::Jacobi<double, int>::build()
+                                .with_storage_optimization(
+                                   gko::precision_reduction::autodetect())
+                                .with_accuracy(accuracy)
+                                .with_max_block_size(max_block_size)
+                                .on(exec);
+      }
+      else
+      {
+         gko_precond_factory_ = gko::preconditioner::Jacobi<double, int>::build()
+                                .with_storage_optimization(
+                                   gko::precision_reduction(0, 0))
+                                .with_accuracy(accuracy)
+                                .with_max_block_size(max_block_size)
+                                .on(exec);
+      }
+
+      gko_precond_ = gko_precond_factory_.get()->generate(
+                        gko::give(gko_sparse));
+   }
 };
 
 class GinkgoIluPreconditioner : public GinkgoPreconditionerBase
 {
 public:
    GinkgoIluPreconditioner(std::shared_ptr<const gko::Executor> exec,
-                           SparseMatrix &a, bool iter_mode=false)
+                           SparseMatrix &a, const char *trisolve_type = "exact",
+                           bool iter_mode=false)
       : GinkgoPreconditionerBase(exec, a, iter_mode)
    {
 
@@ -748,8 +836,62 @@ public:
                            gko::Array<int>::view(exec, a.Height() + 1,
                                                  a.ReadWriteI(on_device)));
 
-      gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
-                             .on(exec);
+      if (trisolve_type == "isai") {
+
+        using l_solver_type = gko::preconditioner::LowerIsai<>;
+        using u_solver_type = gko::preconditioner::UpperIsai<>;
+        gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
+                                                        u_solver_type>::build()
+                                .on(exec);
+      }
+      else {
+   
+        gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
+                               .on(exec);
+      }
+      
+      gko_precond_ = gko_precond_factory_.get()->generate(
+                        gko::give(gko_sparse));
+   }
+
+   GinkgoIluPreconditioner(std::shared_ptr<const gko::Executor> exec,
+                           SparseMatrix &a, Array<int> &inv_permutation_indices,
+                           const char *trisolve_type = "exact",
+                           bool iter_mode=false)
+      : GinkgoPreconditionerBase(exec, a, inv_permutation_indices, iter_mode)
+   {
+
+      bool on_device = false;
+      if (exec->get_master() != exec)
+      {
+         on_device = true;
+      }
+
+      using mtx = gko::matrix::Csr<double, int>;
+      auto gko_sparse = mtx::create(
+                           exec, gko::dim<2>(a.Height(), a.Width()),
+                           gko::Array<double>::view(exec,
+                                                    a.NumNonZeroElems(),
+                                                    a.ReadWriteData(on_device)),
+                           gko::Array<int>::view(exec,
+                                                 a.NumNonZeroElems(),
+                                                 a.ReadWriteJ(on_device)),
+                           gko::Array<int>::view(exec, a.Height() + 1,
+                                                 a.ReadWriteI(on_device)));
+
+      if (trisolve_type == "isai") {
+
+        using l_solver_type = gko::preconditioner::LowerIsai<>;
+        using u_solver_type = gko::preconditioner::UpperIsai<>;
+        gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
+                                                        u_solver_type>::build()
+                                .on(exec);
+      }
+      else {
+   
+        gko_precond_factory_ = gko::preconditioner::Ilu<>::build()
+                               .on(exec);
+      }
 
       gko_precond_ = gko_precond_factory_.get()->generate(
                         gko::give(gko_sparse));
