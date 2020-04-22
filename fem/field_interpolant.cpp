@@ -32,6 +32,7 @@ void VectorQuadratureIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = IntRule->IntPoint(q);
+      Tr.SetIntPoint(&ip);
       const double w = Tr.Weight() * ip.weight;
       vqfc.Eval(temp, Tr, ip);
       fe.CalcShape(ip, shape);
@@ -57,6 +58,7 @@ void QuadratureIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = IntRule->IntPoint(q);
+      Tr.SetIntPoint (&ip);
       const double w = Tr.Weight() * ip.weight;
       double temp = qfc.Eval(Tr, ip);
       fe.CalcShape(ip, shape);
@@ -331,5 +333,126 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
    delete L2;
    delete b;
 }
+
+#ifdef MFEM_USE_MPI
+// This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
+// quadrature function coefficient.
+void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                                    VectorQuadratureFunctionCoefficient &vqfc,
+                                                    ParFiniteElementSpace &fes)
+{
+   const IntegrationRule* ir;
+   {
+      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
+      // and the QuadratureSpace correspond to the same
+      const FiniteElement &el = *fes.GetFE(0);
+      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      const QuadratureFunction* qf = vqfc.GetQuadFunction();
+      const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
+      MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
+                  (ir->GetNPoints() == ir_qf->GetNPoints()),
+                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
+   }
+
+   ParLinearForm *b = new ParLinearForm(&fes);
+   b->AddDomainIntegrator(new VectorQuadratureIntegrator(vqfc, ir));
+   b->Assemble();
+
+   // We need this fes to only have a vdim of 1 which is not the case here so we need to make a new fespace
+   // Potential fix me with a better implementation
+   const FiniteElementCollection *fec = fes.FEColl();
+   ParMesh *mesh = fes.GetParMesh();
+   ParFiniteElementSpace fes_v1(mesh, fec, 1);
+
+   ParBilinearForm *L2 = new ParBilinearForm(&fes_v1);
+   L2->AddDomainIntegrator(new MassIntegrator(ir));
+   L2->Assemble();
+
+   ParGridFunction x(&fes);
+   x = 0.0;
+   OperatorPtr A;
+   Vector B, b_sub, X_sub, X;
+
+   Array<int> ess_tdof_list;
+
+   int vdim = vqfc.GetVDim();
+   int size = b->Size() / vdim;
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetPrintLevel(0);
+   cg.SetMaxIter(2000);
+   cg.SetRelTol(sqrt(1e-25));
+   cg.SetAbsTol(sqrt(0.0));
+
+   for (int ind = 0; ind < vdim; ind++)
+   {
+      int offset = ind * size;
+      b_sub.MakeRef(*b, offset, size);
+      X_sub.MakeRef(x, offset, size);
+      L2->FormLinearSystem(ess_tdof_list, X_sub, b_sub, A, X, B);
+      // Fix this to be more efficient
+      // OperatorJacobiSmoother M(*L2, ess_tdof_list);
+      // CG(*A, B, X, 0, 2000, 1e-25, 0.0);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      // Recover the solution as a finite element grid function.
+      L2->RecoverFEMSolution(X, *b, X_sub);
+   }
+   gf = x;
+
+   delete L2;
+   delete b;
+}
+// This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
+// quadrature function coefficient.
+void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                                    QuadratureFunctionCoefficient &qfc,
+                                                    ParFiniteElementSpace &fes)
+{
+   const IntegrationRule* ir;
+   {
+      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
+      // and the QuadratureSpace correspond to the same
+      const FiniteElement &el = *fes.GetFE(0);
+      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      const QuadratureFunction* qf = qfc.GetQuadFunction();
+      const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
+      MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
+                  (ir->GetNPoints() == ir_qf->GetNPoints()),
+                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
+   }
+   ParLinearForm *b = new ParLinearForm(&fes);
+   b->AddDomainIntegrator(new QuadratureIntegrator(qfc, ir));
+   b->Assemble();
+
+   ParBilinearForm *L2 = new ParBilinearForm(&fes);
+   L2->AddDomainIntegrator(new MassIntegrator(ir));
+   L2->Assemble();
+
+   ParGridFunction x(&fes);
+   x = 0.0;
+   OperatorPtr A;
+   Vector B, X;
+   Array<int> ess_tdof_list;
+
+   L2->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   // Fix this to be more efficient
+   // OperatorJacobiSmoother M(*L2, ess_tdof_list);
+   // CG(*A, B, X, 0, 2000, 1e-25, 0.0);
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetPrintLevel(0);
+   cg.SetMaxIter(2000);
+   cg.SetRelTol(sqrt(1e-25));
+   cg.SetAbsTol(sqrt(0.0));
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   // Recover the solution as a finite element grid function.
+   L2->RecoverFEMSolution(X, *b, x);
+   gf = x;
+
+   delete L2;
+   delete b;
+}
+#endif
 
 }
