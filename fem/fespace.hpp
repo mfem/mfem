@@ -165,7 +165,7 @@ protected:
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
                      Geometry::Type master_geom = Geometry::INVALID,
-                     int edge_var = 0) const;
+                     int edge_variant = 0) const;
    // Get degenerate face DOFs: see explanation in method implementation.
    void GetDegenerateFaceDofs(int index, Array<int> &dofs,
                               Geometry::Type master_geom) const;
@@ -457,9 +457,15 @@ public:
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
-   /** Returns the indexes of the degrees of freedom for i'th edge
-       including the dofs for the vertices of the edge. */
-   int GetEdgeDofs(int edge, Array<int> &dofs, int var = 0) const;
+   /** @brief Returns the indices of the degrees of freedom for the specified
+       edge, including the DOFs for the vertices of the edge. */
+   /** In variable order spaces, multiple sets of DOFs may exist on an edge,
+       corresponding to the different polynomial orders of incident elements.
+       The 'variant' parameter is the zero-based index of the desired DOF set.
+       The variants are ordered from lowest polynomial degree to the highest.
+       @return The polynomial order of the selected variant, or -1 if there are
+       no more variants. */
+   int GetEdgeDofs(int edge, Array<int> &dofs, int variant = 0) const;
 
    void GetVertexDofs(int i, Array<int> &dofs) const;
 
