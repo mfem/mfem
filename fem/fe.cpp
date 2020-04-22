@@ -13758,11 +13758,11 @@ void RKFiniteElement::GetPoly(const Vector &x,
    switch (Dim)
    {
    case 1:
-      poly1d.CalcLegendre(polyOrd, x(0), &p(0));
+      poly1d.CalcMono(polyOrd, x(0), &p(0));
       break;
    case 2:
-      poly1d.CalcLegendre(polyOrd, x(0), &q_scr(0, 0));
-      poly1d.CalcLegendre(polyOrd, x(1), &q_scr(0, 1));
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
@@ -13773,9 +13773,9 @@ void RKFiniteElement::GetPoly(const Vector &x,
       }
       break;
    case 3:
-      poly1d.CalcLegendre(polyOrd, x(0), &q_scr(0, 0));
-      poly1d.CalcLegendre(polyOrd, x(1), &q_scr(0, 1));
-      poly1d.CalcLegendre(polyOrd, x(2), &q_scr(0, 2));
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1));
+      poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
@@ -13806,11 +13806,11 @@ void RKFiniteElement::GetDPoly(const Vector &x,
    switch (Dim)
    {
    case 1:
-      poly1d.CalcLegendre(polyOrd, x(0), &p(0), &dp[0](0));
+      poly1d.CalcMono(polyOrd, x(0), &p(0), &dp[0](0));
       break;
    case 2:
-      poly1d.CalcLegendre(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
-      poly1d.CalcLegendre(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
@@ -13823,9 +13823,9 @@ void RKFiniteElement::GetDPoly(const Vector &x,
       }
       break;
    case 3:
-      poly1d.CalcLegendre(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
-      poly1d.CalcLegendre(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
-      poly1d.CalcLegendre(polyOrd, x(2), &q_scr(0, 2), &dq_scr(0, 2));
+      poly1d.CalcMono(polyOrd, x(0), &q_scr(0, 0), &dq_scr(0, 0));
+      poly1d.CalcMono(polyOrd, x(1), &q_scr(0, 1), &dq_scr(0, 1));
+      poly1d.CalcMono(polyOrd, x(2), &q_scr(0, 2), &dq_scr(0, 2));
       for (int i = 0; i < numPoly1d; ++i)
       {
          for (int j = 0; j + i < numPoly1d; ++j)
