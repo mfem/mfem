@@ -538,8 +538,7 @@ void IsoparametricTransformation::TransformRevDiff(const IntegrationPoint &ip,
                "PointMat_bar shape != PointMat shape");
    shape.SetSize(FElem->GetDof());
    FElem->CalcShape(ip, shape);
-   // PointMat.Mult(shape, trans);
-   MultVWt(x_bar, shape, PointMat_bar);
+   AddMultVWt(x_bar, shape, PointMat_bar);
 }
 
 void IsoparametricTransformation::JacobianRevDiff(const DenseMatrix &dFdx_bar,
@@ -556,12 +555,7 @@ void IsoparametricTransformation::JacobianRevDiff(const DenseMatrix &dFdx_bar,
       // matrix derivative results for forward and reverse mode algorithmic
       // differentiation"
       FElem->CalcDShape(*IntPoint, dshape);
-      MultABt(dFdx_bar, dshape, PointMat_bar);
-   }
-   else 
-   {
-      // if dshape.Width() == 0, derivative is meaningless
-      PointMat_bar = 0.0;
+      AddMultABt(dFdx_bar, dshape, PointMat_bar);
    }
 }
 

@@ -88,6 +88,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
          const IntegrationPoint &ip = ir->IntPoint(i);
          trans.SetIntPoint(&ip);
          // reverse-mode differentiation of coordinate transformation
+         coords_bar = 0.0;
          trans.TransformRevDiff(ip, x_bar, coords_bar);
          // get the weighted derivatives using finite difference method
          for (int n = 0; n < coords.Width(); ++n)
@@ -123,7 +124,8 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
          trans.SetIntPoint(&ip);
-         // reverse-mode differentiation of Jacobian of mapping 
+         // reverse-mode differentiation of Jacobian of mapping
+         coords_bar = 0.0;
          trans.JacobianRevDiff(dFdx_bar, coords_bar);
          // get the weighted derivatives using finite difference method
          for (int n = 0; n < coords.Width(); ++n)
@@ -164,6 +166,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
          const IntegrationPoint &ip = ir->IntPoint(i);
          trans.SetIntPoint(&ip);
          // reverse-mode differentiation of Adjugate of mapping 
+         coords_bar = 0.0;
          trans.AdjugateJacobianRevDiff(adjJ_bar, coords_bar);
          // get the weighted derivatives using finite difference method
          for (int n = 0; n < coords.Width(); ++n)
@@ -199,6 +202,7 @@ TEST_CASE("IsoparametricTransformation reverse-mode differentiation",
          const IntegrationPoint &ip = ir->IntPoint(i);
          trans.SetIntPoint(&ip);
          // get the gradient of the Weight() using reverse mode 
+         coords_bar = 0.0;
          trans.WeightRevDiff(coords_bar);
          // get the gradient of the Weight() using finite difference method
          for (int n = 0; n < coords.Width(); ++n)

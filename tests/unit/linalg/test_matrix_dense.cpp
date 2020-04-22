@@ -272,7 +272,7 @@ TEST_CASE("DenseMatrix CalcAdjugateRevDiff", "[DenseMatrix]")
       adjA_fd -= adjA_pert;
       adjA_fd *= 1/(2.0 * eps_fd);
       // sum up derivative with weights
-      double A_bar_fd = adjA_fd(1, 1) * adjA_bar(1, 1);
+      double A_bar_fd = adjA_fd(0, 0) * adjA_bar(0, 0);
       REQUIRE(A_bar(0, 0) == Approx(A_bar_fd));
    }
 
