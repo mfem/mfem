@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "ceed.hpp"
 
@@ -59,56 +59,147 @@ void InitCeedCoeff(Coefficient* Q, CeedData* ptr)
    }
 }
 
-void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
-                                       const mfem::IntegrationRule &ir,
-                                       Ceed ceed, CeedBasis *basis,
-                                       CeedElemRestriction *restr)
+static CeedElemTopology GetCeedTopology(Geometry::Type geom)
 {
-   mfem::Mesh *mesh = fes.GetMesh();
-   const mfem::FiniteElement *fe = fes.GetFE(0);
-   const int order = fes.GetOrder(0);
-   mfem::Array<int> dof_map;
-   switch (mesh->Dimension())
+   switch (geom)
    {
-      case 1:
+      case Geometry::SEGMENT:
+         return CEED_LINE;
+      case Geometry::TRIANGLE:
+         return CEED_TRIANGLE;
+      case Geometry::SQUARE:
+         return CEED_QUAD;
+      case Geometry::TETRAHEDRON:
+         return CEED_TET;
+      case Geometry::CUBE:
+         return CEED_HEX;
+      case Geometry::PRISM:
+         return CEED_PRISM;
+      default:
+         MFEM_ABORT("This type of element is not supported");
+         return CEED_PRISM;
+   }
+}
+
+static void InitCeedNonTensorBasisAndRestriction(const FiniteElementSpace &fes,
+                                                 const IntegrationRule &ir,
+                                                 Ceed ceed, CeedBasis *basis,
+                                                 CeedElemRestriction *restr)
+{
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement *fe = fes.GetFE(0);
+   const int dim = mesh->Dimension();
+   const int P = fe->GetDof();
+   const int Q = ir.GetNPoints();
+   DenseMatrix shape(P, Q);
+   Vector grad(P*dim*Q);
+   DenseMatrix qref(dim, Q);
+   Vector qweight(Q);
+   Vector shape_i(P);
+   DenseMatrix grad_i(P, dim);
+   const Table &el_dof = fes.GetElementToDofTable();
+   Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const TensorBasisElement * tfe =
+      dynamic_cast<const TensorBasisElement *>(fe);
+   if (tfe) // Lexicographic ordering using dof_map
+   {
+      const Array<int>& dof_map = tfe->GetDofMap();
+      for (int i = 0; i < Q; i++)
       {
-         const mfem::H1_SegmentElement *h1_fe =
-            dynamic_cast<const mfem::H1_SegmentElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         qref(0,i) = ip.x;
+         if (dim>1) { qref(1,i) = ip.y; }
+         if (dim>2) { qref(2,i) = ip.z; }
+         qweight(i) = ip.weight;
+         fe->CalcShape(ip, shape_i);
+         fe->CalcDShape(ip, grad_i);
+         for (int j = 0; j < P; j++)
+         {
+            shape(j, i) = shape_i(dof_map[j]);
+            for (int d = 0; d < dim; ++d)
+            {
+               grad(j+i*P+d*Q*P) = grad_i(dof_map[j], d);
+            }
+         }
       }
-      case 2:
+
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
-         const mfem::H1_QuadrilateralElement *h1_fe =
-            dynamic_cast<const mfem::H1_QuadrilateralElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
-      }
-      case 3:
-      {
-         const mfem::H1_HexahedronElement *h1_fe =
-            dynamic_cast<const mfem::H1_HexahedronElement *>(fe);
-         MFEM_VERIFY(h1_fe, "invalid FE");
-         h1_fe->GetDofMap().Copy(dof_map);
-         break;
+         const int el_offset = fe->GetDof() * i;
+         for (int j = 0; j < fe->GetDof(); j++)
+         {
+            tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
+         }
       }
    }
-   const mfem::FiniteElement *fe1d =
-      fes.FEColl()->FiniteElementForGeometry(mfem::Geometry::SEGMENT);
-   mfem::DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
-   mfem::DenseMatrix grad1d(fe1d->GetDof(), ir.GetNPoints());
-   mfem::Vector qref1d(ir.GetNPoints()), qweight1d(ir.GetNPoints());
-   mfem::Vector shape_i(shape1d.Height());
-   mfem::DenseMatrix grad_i(grad1d.Height(), 1);
-   const mfem::H1_SegmentElement *h1_fe1d =
-      dynamic_cast<const mfem::H1_SegmentElement *>(fe1d);
+   else  // Native ordering
+   {
+      for (int i = 0; i < Q; i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         qref(0,i) = ip.x;
+         if (dim>1) { qref(1,i) = ip.y; }
+         if (dim>2) { qref(2,i) = ip.z; }
+         qweight(i) = ip.weight;
+         fe->CalcShape(ip, shape_i);
+         fe->CalcDShape(ip, grad_i);
+         for (int j = 0; j < P; j++)
+         {
+            shape(j, i) = shape_i(j);
+            for (int d = 0; d < dim; ++d)
+            {
+               grad(j+i*P+d*Q*P) = grad_i(j, d);
+            }
+         }
+      }
+
+      for (int e = 0; e < mesh->GetNE(); e++)
+      {
+         for (int i = 0; i < P; i++)
+         {
+            tp_el_dof[i + e*P] = el_dof.GetJ()[i + e*P];
+         }
+      }
+   }
+   CeedBasisCreateH1(ceed, GetCeedTopology(fe->GetGeomType()), fes.GetVDim(),
+                     fe->GetDof(), ir.GetNPoints(), shape.GetData(),
+                     grad.GetData(), qref.GetData(), qweight.GetData(), basis);
+   CeedInterlaceMode imode = CEED_NONINTERLACED;
+   if (fes.GetOrdering()==Ordering::byVDIM)
+   {
+      imode = CEED_INTERLACED;
+   }
+   CeedElemRestrictionCreate(ceed, imode, mesh->GetNE(), fe->GetDof(),
+                             fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
+                             tp_el_dof.GetData(), restr);
+}
+
+static void InitCeedTensorBasisAndRestriction(const FiniteElementSpace &fes,
+                                              const IntegrationRule &ir,
+                                              Ceed ceed, CeedBasis *basis,
+                                              CeedElemRestriction *restr)
+{
+   Mesh *mesh = fes.GetMesh();
+   const FiniteElement *fe = fes.GetFE(0);
+   const int order = fes.GetOrder(0);
+   const TensorBasisElement * tfe =
+      dynamic_cast<const TensorBasisElement *>(fe);
+   MFEM_VERIFY(tfe, "invalid FE");
+   const Array<int>& dof_map = tfe->GetDofMap();
+   const FiniteElement *fe1d =
+      fes.FEColl()->FiniteElementForGeometry(Geometry::SEGMENT);
+   DenseMatrix shape1d(fe1d->GetDof(), ir.GetNPoints());
+   DenseMatrix grad1d(fe1d->GetDof(), ir.GetNPoints());
+   Vector qref1d(ir.GetNPoints()), qweight1d(ir.GetNPoints());
+   Vector shape_i(shape1d.Height());
+   DenseMatrix grad_i(grad1d.Height(), 1);
+   const H1_SegmentElement *h1_fe1d =
+      dynamic_cast<const H1_SegmentElement *>(fe1d);
    MFEM_VERIFY(h1_fe1d, "invalid FE");
-   const mfem::Array<int> &dof_map_1d = h1_fe1d->GetDofMap();
+   const Array<int> &dof_map_1d = h1_fe1d->GetDofMap();
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
-      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
+      const IntegrationPoint &ip = ir.IntPoint(i);
       qref1d(i) = ip.x;
       qweight1d(i) = ip.weight;
       fe1d->CalcShape(ip, shape_i);
@@ -124,8 +215,8 @@ void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                            grad1d.GetData(), qref1d.GetData(),
                            qweight1d.GetData(), basis);
 
-   const mfem::Table &el_dof = fes.GetElementToDofTable();
-   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const Table &el_dof = fes.GetElementToDofTable();
+   Array<int> tp_el_dof(el_dof.Size_of_connections());
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       const int el_offset = fe->GetDof() * i;
@@ -134,9 +225,30 @@ void InitCeedTensorBasisAndRestriction(const mfem::FiniteElementSpace &fes,
          tp_el_dof[j + el_offset] = el_dof.GetJ()[dof_map[j] + el_offset];
       }
    }
-   CeedElemRestrictionCreate(ceed, mesh->GetNE(), fe->GetDof(),
+   CeedInterlaceMode imode = CEED_NONINTERLACED;
+   if (fes.GetOrdering()==Ordering::byVDIM)
+   {
+      imode = CEED_INTERLACED;
+   }
+   CeedElemRestrictionCreate(ceed, imode, mesh->GetNE(), fe->GetDof(),
                              fes.GetNDofs(), fes.GetVDim(), CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
+}
+
+void InitCeedBasisAndRestriction(const FiniteElementSpace &fes,
+                                 const IntegrationRule &irm,
+                                 Ceed ceed, CeedBasis *basis,
+                                 CeedElemRestriction *restr)
+{
+   if (UsesTensorBasis(fes))
+   {
+      const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, irm.GetOrder());
+      InitCeedTensorBasisAndRestriction(fes, ir, ceed, basis, restr);
+   }
+   else
+   {
+      InitCeedNonTensorBasisAndRestriction(fes, irm, ceed, basis, restr);
+   }
 }
 
 const std::string &GetCeedPath()
@@ -163,6 +275,125 @@ const std::string &GetCeedPath()
       // mfem::out << "Using libCEED dir: " << internal::ceed_path << std::endl;
    }
    return internal::ceed_path;
+}
+
+void CeedPAAssemble(const CeedPAOperator& op,
+                    CeedData& ceedData)
+{
+   const FiniteElementSpace &fes = op.fes;
+   const mfem::IntegrationRule &irm = op.ir;
+   Ceed ceed(internal::ceed);
+   mfem::Mesh *mesh = fes.GetMesh();
+   CeedInt nqpts, nelem = mesh->GetNE();
+   CeedInt dim = mesh->SpaceDimension(), vdim = fes.GetVDim();
+
+   mesh->EnsureNodes();
+   InitCeedBasisAndRestriction(fes, irm, ceed, &ceedData.basis, &ceedData.restr);
+
+   const mfem::FiniteElementSpace *mesh_fes = mesh->GetNodalFESpace();
+   MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
+   InitCeedBasisAndRestriction(*mesh_fes, irm, ceed, &ceedData.mesh_basis,
+                               &ceedData.mesh_restr);
+
+   CeedBasisGetNumQuadraturePoints(ceedData.basis, &nqpts);
+
+   const int qdatasize = op.qdatasize;
+   CeedElemRestrictionCreateStrided(ceed, nelem, nqpts, nelem*nqpts, qdatasize,
+                                    CEED_STRIDES_BACKEND, &ceedData.restr_i);
+
+   CeedVectorCreate(ceed, mesh->GetNodes()->Size(), &ceedData.node_coords);
+   CeedVectorSetArray(ceedData.node_coords, CEED_MEM_HOST, CEED_USE_POINTER,
+                      mesh->GetNodes()->GetData());
+
+   CeedVectorCreate(ceed, nelem * nqpts * qdatasize, &ceedData.rho);
+
+   // Context data to be passed to the 'f_build_diff' Q-function.
+   ceedData.build_ctx.dim = mesh->Dimension();
+   ceedData.build_ctx.space_dim = mesh->SpaceDimension();
+
+   std::string qf_file = GetCeedPath() + op.header;
+   std::string qf;
+
+   // Create the Q-function that builds the operator (i.e. computes its
+   // quadrature data) and set its context data.
+   switch (ceedData.coeff_type)
+   {
+      case CeedCoeff::Const:
+         qf = qf_file + op.const_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.const_qf,
+                                     qf.c_str(),
+                                     &ceedData.build_qfunc);
+         ceedData.build_ctx.coeff = ((CeedConstCoeff*)ceedData.coeff)->val;
+         break;
+      case CeedCoeff::Grid:
+         qf = qf_file + op.grid_func;
+         CeedQFunctionCreateInterior(ceed, 1, op.grid_qf,
+                                     qf.c_str(),
+                                     &ceedData.build_qfunc);
+         CeedQFunctionAddInput(ceedData.build_qfunc, "coeff", 1, CEED_EVAL_INTERP);
+         break;
+      default:
+         MFEM_ABORT("This coeff_type is not handled");
+   }
+   CeedQFunctionAddInput(ceedData.build_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
+   CeedQFunctionAddInput(ceedData.build_qfunc, "weights", 1, CEED_EVAL_WEIGHT);
+   CeedQFunctionAddOutput(ceedData.build_qfunc, "qdata", qdatasize,
+                          CEED_EVAL_NONE);
+   CeedQFunctionSetContext(ceedData.build_qfunc, &ceedData.build_ctx,
+                           sizeof(ceedData.build_ctx));
+
+   // Create the operator that builds the quadrature data for the operator.
+   CeedOperatorCreate(ceed, ceedData.build_qfunc, NULL, NULL,
+                      &ceedData.build_oper);
+   if (ceedData.coeff_type==CeedCoeff::Grid)
+   {
+      CeedGridCoeff* ceedCoeff = (CeedGridCoeff*)ceedData.coeff;
+      InitCeedBasisAndRestriction(*ceedCoeff->coeff->FESpace(), irm, ceed,
+                                  &ceedCoeff->basis,
+                                  &ceedCoeff->restr);
+      CeedVectorCreate(ceed, ceedCoeff->coeff->FESpace()->GetNDofs(),
+                       &ceedCoeff->coeffVector);
+      CeedVectorSetArray(ceedCoeff->coeffVector, CEED_MEM_HOST, CEED_USE_POINTER,
+                         ceedCoeff->coeff->GetData());
+      CeedOperatorSetField(ceedData.build_oper, "coeff", ceedCoeff->restr,
+                           ceedCoeff->basis, ceedCoeff->coeffVector);
+   }
+   CeedOperatorSetField(ceedData.build_oper, "dx", ceedData.mesh_restr,
+                        ceedData.mesh_basis, CEED_VECTOR_ACTIVE);
+   CeedOperatorSetField(ceedData.build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
+                        ceedData.mesh_basis, CEED_VECTOR_NONE);
+   CeedOperatorSetField(ceedData.build_oper, "qdata", ceedData.restr_i,
+                        CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+
+   // Compute the quadrature data for the operator.
+   CeedOperatorApply(ceedData.build_oper, ceedData.node_coords, ceedData.rho,
+                     CEED_REQUEST_IMMEDIATE);
+
+   // Create the Q-function that defines the action of the operator.
+   qf = qf_file + op.apply_func;//":f_apply_diff";
+   CeedQFunctionCreateInterior(ceed, 1, op.apply_qf,
+                               qf.c_str(),
+                               &ceedData.apply_qfunc);
+   CeedInt dimU = vdim*(op.trial_op==CEED_EVAL_GRAD ? dim : 1);
+   CeedInt dimV = vdim*(op.test_op==CEED_EVAL_GRAD ? dim : 1);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "u", dimU, op.trial_op);
+   CeedQFunctionAddInput(ceedData.apply_qfunc, "qdata", qdatasize,
+                         CEED_EVAL_NONE);
+   CeedQFunctionAddOutput(ceedData.apply_qfunc, "v", dimV, op.test_op);
+   CeedQFunctionSetContext(ceedData.apply_qfunc, &ceedData.build_ctx,
+                           sizeof(ceedData.build_ctx));
+
+   // Create the diff operator.
+   CeedOperatorCreate(ceed, ceedData.apply_qfunc, NULL, NULL, &ceedData.oper);
+   CeedOperatorSetField(ceedData.oper, "u", ceedData.restr, ceedData.basis,
+                        CEED_VECTOR_ACTIVE);
+   CeedOperatorSetField(ceedData.oper, "qdata", ceedData.restr_i,
+                        CEED_BASIS_COLLOCATED, ceedData.rho);
+   CeedOperatorSetField(ceedData.oper, "v", ceedData.restr, ceedData.basis,
+                        CEED_VECTOR_ACTIVE);
+
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.u);
+   CeedVectorCreate(ceed, fes.GetNDofs(), &ceedData.v);
 }
 
 } // namespace mfem
