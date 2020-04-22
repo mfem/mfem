@@ -18,7 +18,7 @@
 
 #include <cmath>
 #include <cstdarg>
-#include <limits>
+#include <climits>
 
 using namespace std;
 
@@ -96,7 +96,7 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
 {
    MFEM_VERIFY(sequence == mesh->GetSequence(), "space has not been Updated()");
    MFEM_VERIFY(i >= 0 && i < GetNE(), "invalid element index");
-   MFEM_VERIFY(p >= 0 && p < std::numeric_limits<char>::max(), "order ouf of range");
+   MFEM_VERIFY(p >= 0 && p < CHAR_MAX, "order ouf of range");
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(), "internal error");
 
    if (elem_order.Size())
@@ -634,12 +634,12 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
 
 int
 FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
-                                  Geometry::Type master_geom, int edge_var) const
+                                  Geometry::Type master_geom, int edge_variant) const
 {
    switch (entity)
    {
       case 0: GetVertexDofs(index, dofs); return 0;
-      case 1: return GetEdgeDofs(index, dofs, edge_var);
+      case 1: return GetEdgeDofs(index, dofs, edge_variant);
       default: (index >= 0) ? GetFaceDofs(index, dofs)
          /*             */ : GetDegenerateFaceDofs(index, dofs, master_geom);
          return 0; // FIXME 3D
@@ -674,11 +674,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (!list.masters.size()) { continue; }
 
       // loop through all master edges/faces, constrain their slave edges/faces
-      for (unsigned mi = 0; mi < list.masters.size(); mi++)
+      for (const NCMesh::Master &master : list.masters)
       {
-         const NCMesh::Master &master = list.masters[mi];
-
-         int p = GetEntityDofs(entity, master.index, master_dofs);
+         int p = GetEntityDofs(entity, master.index, master_dofs, master.Geom(), 0);
          if (!master_dofs.Size()) { continue; }
 
          const auto *master_fe = fec->GetFE(master.Geom(), p);
@@ -694,11 +692,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
-            for (int var = 0; ; var++)
+            const NCMesh::Slave &slave = list.slaves[si];
+            for (int variant = 0; ; variant++)
             {
-               const NCMesh::Slave &slave = list.slaves[si];
                int q = GetEntityDofs(entity, slave.index, slave_dofs,
-                                     master.Geom(), var);
+                                     master.Geom(), variant);
                if (q < 0 || !slave_dofs.Size()) { break; }
 
                slave.OrientedPointMatrix(T.GetPointMat());
@@ -714,7 +712,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
-   // variable order spaces: handle edge interpolation
+   // variable order spaces: handle edge constraints
    if (IsVariableOrder())
    {
       T.SetIdentityTransformation(Geometry::SEGMENT);
@@ -724,14 +722,15 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       {
          if (edge_dof.RowSize(edge) <= 1) { continue; }
 
-         int p = GetEdgeDofs(edge, master_dofs, 0);
+         int p = GetEdgeDofs(edge, master_dofs, 0); // lowest order DOFs
          const auto *master_fe = fec->GetFE(Geometry::SEGMENT, p);
 
          // constrain all higher order edges: interpolate the lowest order edge
-         for (int var = 1; ; var++)
+         for (int variant = 1; ; variant++)
          {
-            int q = GetEdgeDofs(edge, slave_dofs, var);
+            int q = GetEdgeDofs(edge, slave_dofs, variant);
             if (q < 0) { break; }
+
             const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
             slave_fe->GetTransferMatrix(*master_fe, T, I);
 
@@ -1556,8 +1555,12 @@ int FiniteElementSpace::AssignEdgeDofs()
    MFEM_ASSERT(mesh->Dimension() > 1, "");
    MFEM_ASSERT(elem_order.Size() == mesh->GetNE(), "");
 
+   // get a list of orders for each edge; also the minimal order per edge
    Array<Connection> edge_orders;
    edge_orders.Reserve(12 * mesh->GetNE());
+
+   Array<int> edge_min_order(mesh->GetNEdges());
+   edge_min_order = INT_MAX;
 
    Array<int> E, Eo;
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -1565,7 +1568,27 @@ int FiniteElementSpace::AssignEdgeDofs()
       mesh->GetElementEdges(i, E, Eo);
       for (int j = 0; j < E.Size(); j++)
       {
-         edge_orders.Append(Connection(E[j], elem_order[i]));
+         int order = elem_order[i];
+         edge_orders.Append(Connection(E[j], order));
+
+         int &emo = edge_min_order[E[j]];
+         emo = std::min(emo, order);
+      }
+   }
+
+   if (Nonconforming())
+   {
+      // in the hp-case, add minimum slave order to each master edge
+      const NCMesh::NCList &list = mesh->ncmesh->GetNCList(1);
+      for (const NCMesh::Master &master : list.masters)
+      {
+         int slave_min_o = INT_MAX;
+         for (int i = master.slaves_begin; i < master.slaves_end; i++)
+         {
+            const NCMesh::Slave &slave = list.slaves[i];
+            slave_min_o = std::min(edge_min_order[slave.index], slave_min_o);
+         }
+         edge_orders.Append(Connection(master.index, slave_min_o));
       }
    }
 
@@ -1869,17 +1892,18 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    }
 }
 
-int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
+int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
+                                    int variant) const
 {
    int p, ne, base;
    if (IsVariableOrder())
    {
       const int* beg = edge_dof.GetRow(edge);
       const int* end = edge_dof.GetRow(edge + 1);
-      if (var >= end - beg) { return -1; } // past last edge DOFs
+      if (variant >= end - beg) { return -1; } // past last edge DOFs
 
-      base = beg[var];
-      ne = beg[var+1] - base;
+      base = beg[variant];
+      ne = beg[variant+1] - base;
 
       p = ne + 1;
       MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, p) == ne, "");
@@ -1887,7 +1911,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs, int var) const
    }
    else
    {
-      if (var > 0) { return -1; }
+      if (variant > 0) { return -1; }
       p = fec->DefaultOrder();
       ne = fec->GetNumDof(Geometry::SEGMENT, p);
       base = nvdofs + edge*ne;

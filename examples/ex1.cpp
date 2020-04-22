@@ -116,7 +116,8 @@ int main(int argc, char *argv[])
          //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         //mesh->UniformRefinement();
+         mesh->RandomRefinement(0.5);
       }
    }
 
@@ -146,6 +147,7 @@ int main(int argc, char *argv[])
       Array<int> refs;
       refs.Append(1);
       mesh->GeneralRefinement(refs);
+      mesh->GeneralRefinement(refs);
    }
    fespace->Update(false);
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -153,6 +155,7 @@ int main(int argc, char *argv[])
       //fespace->SetElementOrder(i, order+1);
       //fespace->SetElementOrder(i, 4);
       fespace->SetElementOrder(i, (rand()%4)+1);
+      //fespace->SetElementOrder(i, i ? 2 : 4);
    }
    fespace->Update(false);
 
@@ -169,8 +172,8 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-   cout << "P matrix:\n";
-   fespace->GetConformingProlongation()->Print();
+   /*cout << "P matrix:\n";
+   fespace->GetConformingProlongation()->Print();*/
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
