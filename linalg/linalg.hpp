@@ -29,7 +29,7 @@
 #include "handle.hpp"
 #include "invariants.hpp"
 
-#ifdef MEM_USE_AMGX
+#ifdef MFEM_USE_AMGX
 #include "amgx.hpp"
 #endif
 
