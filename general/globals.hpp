@@ -114,4 +114,16 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 #define MFEM_THREAD_LOCAL thread_local
 
 
+// MFEM_DEPRECATED macro to mark obsolete functions and methods
+// see https://stackoverflow.com/questions/295120/c-mark-as-deprecated
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+#define MFEM_DEPRECATED __declspec(deprecated)
+#else
+#pragma message("WARNING: You need to implement MFEM_DEPRECATED for this compiler")
+#define MFEM_DEPRECATED
+#endif
+
+
 #endif
