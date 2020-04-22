@@ -143,23 +143,20 @@ int main(int argc, char *argv[])
    // 6. At this point all elements have the default order (specified when
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
-   {
+   /*{
       Array<int> refs;
       refs.Append(1);
       mesh->GeneralRefinement(refs);
-      mesh->GeneralRefinement(refs);
+      //mesh->GeneralRefinement(refs);
    }
-   fespace->Update(false);
-   for (int i = 0; i < mesh->GetNE(); i++)
+   fespace->Update(false);*/
+   /*for (int i = 0; i < mesh->GetNE(); i++)
    {
-      //fespace->SetElementOrder(i, order+1);
-      //fespace->SetElementOrder(i, 4);
       fespace->SetElementOrder(i, (rand()%4)+1);
-      //fespace->SetElementOrder(i, i ? 2 : 4);
    }
-   fespace->Update(false);
+   fespace->Update(false);*/
 
-   /*Array<int> dofs;
+   Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       fespace->GetElementDofs(i, dofs);
@@ -168,7 +165,7 @@ int main(int argc, char *argv[])
          mfem::out << " " << dofs[j];
       }
       mfem::out << std::endl;
-   }*/
+   }
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -254,7 +251,6 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -266,7 +262,8 @@ int main(int argc, char *argv[])
 
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << *vis_x << flush;
+      sol_sock << "solution\n" << *mesh << *vis_x
+               << "keys Rjlm\n" << flush;
       delete vis_x;
 
       L2_FECollection l2fec(0, dim);
@@ -280,7 +277,8 @@ int main(int argc, char *argv[])
 
       socketstream ord_sock(vishost, visport);
       ord_sock.precision(8);
-      ord_sock << "solution\n" << *mesh << orders << flush;
+      ord_sock << "solution\n" << *mesh << orders
+               << "keys Rjlmc\n" << flush;
 
       // visualize the basis functions
       if (1)
