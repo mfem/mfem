@@ -352,9 +352,16 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    N->Mult(un, Nun);
    Nun.Add(1.0, fn);
 
-   MFEM_FORALL(i,
-               Fext.Size(),
-               Fext[i] = ab1 * Nun[i] + ab2 * Nunm1[i] + ab3 * Nunm2[i];);
+   {
+      const auto d_Nun = Nun.Read();
+      const auto d_Nunm1 = Nunm1.Read();
+      const auto d_Nunm2 = Nunm2.Read();
+      auto d_Fext = Fext.Write();
+      MFEM_FORALL(i, Fext.Size(),
+                  d_Fext[i] = ab1 * d_Nun[i] +
+                              ab2 * d_Nunm1[i] +
+                              ab3 * d_Nunm2[i];);
+   }
 
    // Rotate the solutions from previous time steps.
    Nunm2 = Nunm1;
@@ -367,12 +374,19 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    Fext.Set(1.0, tmp1);
 
    // Compute BDF terms.
-   double bd1idt = -bd1 / dt;
-   double bd2idt = -bd2 / dt;
-   double bd3idt = -bd3 / dt;
-   MFEM_FORALL(i,
-               Fext.Size(),
-               Fext[i] += bd1idt * un[i] + bd2idt * unm1[i] + bd3idt * unm2[i];);
+   {
+      const double bd1idt = -bd1 / dt;
+      const double bd2idt = -bd2 / dt;
+      const double bd3idt = -bd3 / dt;
+      const auto d_un = un.Read();
+      const auto d_unm1 = unm1.Read();
+      const auto d_unm2 = unm2.Read();
+      auto d_Fext = Fext.ReadWrite();
+      MFEM_FORALL(i, Fext.Size(),
+                  d_Fext[i] += bd1idt * d_un[i] +
+                               bd2idt * d_unm1[i] +
+                               bd3idt * d_unm2[i];);
+   }
 
    sw_extrap.Stop();
 
@@ -380,10 +394,16 @@ void NavierSolver::Step(double &time, double dt, int cur_step)
    // Pressure poisson.
    //
    sw_curlcurl.Start();
-
-   MFEM_FORALL(i,
-               Lext.Size(),
-               Lext[i] = ab1 * un[i] + ab2 * unm1[i] + ab3 * unm2[i];);
+   {
+      const auto d_un = un.Read();
+      const auto d_unm1 = unm1.Read();
+      const auto d_unm2 = unm2.Read();
+      auto d_Lext = Lext.Write();
+      MFEM_FORALL(i, Lext.Size(),
+                  d_Lext[i] = ab1 * d_un[i] +
+                              ab2 * d_unm1[i] +
+                              ab3 * d_unm2[i];);
+   }
 
    Lext_gf.SetFromTrueDofs(Lext);
    if (pmesh->Dimension() == 2)
