@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 0;
 
-   Mesh *mesh = new Mesh("3dfoc.mesh");
+   Mesh *mesh = new Mesh("box-cylinder.mesh");
 
    for (int i = 0; i < serial_refinements; ++i)
    {
