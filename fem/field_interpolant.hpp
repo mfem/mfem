@@ -21,6 +21,10 @@
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
 #include "lininteg.hpp"
+#include "gridfunc.hpp"
+#ifdef MFEM_USE_MPI
+#include "pgridfunc.hpp"
+#endif
 
 namespace mfem
 {
@@ -60,6 +64,18 @@ public:
    void ProjectQuadratureCoefficient(GridFunction &gf,
                                      QuadratureFunctionCoefficient &qfc,
                                      FiniteElementSpace &fes);
+#ifdef MFEM_USE_MPI
+   // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
+   // quadrature function coefficient.
+   void ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                     VectorQuadratureFunctionCoefficient &vqfc,
+                                     ParFiniteElementSpace &fes);
+   // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
+   // quadrature function coefficient.
+   void ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                     QuadratureFunctionCoefficient &qfc,
+                                     ParFiniteElementSpace &fes);
+#endif
    //Tells the ProjectQuadratureDiscCoefficient that they need to recalculate the data.
    void SetupDiscReset() { setup_disc = false; }
    ~FieldInterpolant() {}
