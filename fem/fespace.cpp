@@ -1402,6 +1402,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    this->ordering = (Ordering::Type) ordering;
 
    elem_dof = NULL;
+   face_dof = NULL;
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
@@ -1464,6 +1465,7 @@ void FiniteElementSpace::UpdateNURBS()
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
+   delete face_dof;
    face_dof = NULL;
 
 }
