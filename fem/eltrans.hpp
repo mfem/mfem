@@ -347,7 +347,9 @@ public:
    /// @param[in] ip - specifies the location in reference space
    /// @param[in] x_bar - derivative of some output w.r.t. x
    /// @param[out] PointMat_bar - derivative of output w.r.t. PointMat
-   /// @note PointMat_bar must have the same shape as PointMat 
+   /// @note PointMat_bar must have the same shape as PointMat
+   /// @warning This routine does not initialize PointMat_bar, and instead 
+   /// accumulates (with += or -=) contributions to its derivative.
    void TransformRevDiff(const IntegrationPoint &ip, const Vector &x_bar,
                          DenseMatrix &PointMat_bar);
 
@@ -355,6 +357,8 @@ public:
    /// @param[in] dFdx_bar - derivative of functional w.r.t. Jacobian
    /// @param[out] PointMat_bar - derivative w.r.t. PointMat
    /// @note PointMat_bar must have the same shape as PointMat 
+   /// @warning This routine does not initialize PointMat_bar, and instead 
+   /// accumulates (with += or -=) contributions to its derivative.
    void JacobianRevDiff(const DenseMatrix &dFdx_bar,
                         DenseMatrix &PointMat_bar);
 
@@ -362,12 +366,16 @@ public:
    /// @param[in] adjJ_bar - derivative of functional w.r.t. Adjugate
    /// @param[out] PointMat_bar - derivative w.r.t. PointMat
    /// @note PointMat_bar must have the same shape as PointMat
+   /// @warning This routine does not initialize PointMat_bar, and instead 
+   /// accumulates (with += or -=) contributions to its derivative.
    void AdjugateJacobianRevDiff(const DenseMatrix &adjJ_bar,
                                 DenseMatrix &PointMat_bar);
 
    /// @brief Reverse-mode differentiation of Weight()
    /// @param[out] PointMat_bar - derivative of functional w.r.t. PointMat
    /// @note PointMat_bar must have the same shape as PointMat
+   /// @warning This routine does not initialize PointMat_bar, and instead 
+   /// accumulates (with += or -=) contributions to its derivative.
    void WeightRevDiff(DenseMatrix &PointMat_bar);
 
    virtual ~IsoparametricTransformation() { }
