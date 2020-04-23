@@ -75,7 +75,8 @@ if (MFEM_USE_MPI)
 
   add_test(NAME nurbs_ex1p_lap_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis -m 
+    ${PROJECT_SOURCE_DIR}/data/pipe-nurbs-2d.mesh -o 2 -no-ibp
     ${MPIEXEC_POSTFLAGS})
 
   add_test(NAME nurbs_ex1p_weak_mp_np=4
