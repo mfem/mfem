@@ -114,6 +114,35 @@ TEST_CASE("Quadrature Function Coefficients",
          REQUIRE(gtrue.Norml2() < tol);
       }
 
+      SECTION("Gridfunction L2 tests byVDIM")
+      {
+         std::cout << "  Testing GridFunc L2 projection byVDIM" << std::endl;
+         L2_FECollection    fec_l2(order_h1, dim);
+         FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim, Ordering::byVDIM);
+         H1_FECollection    fec_h1(order_h1, dim);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1, 1, Ordering::byVDIM);
+         GridFunction g0(&fespace_l2);
+         GridFunction gtrue(&fespace_l2);
+
+         {
+            int nnodes = gtrue.Size() / dim;
+            int vdim = dim;
+
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
+                  gtrue(i + (vdim * j)) = i;
+               }
+            }
+         }
+
+         g0 = 0.0;
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_h1, fespace_l2);
+         gtrue -= g0;
+         REQUIRE(gtrue.Norml2() < tol);
+      }
+
       SECTION("Gridfunction H1 tests")
       {
          std::cout << "  Testing GridFunc H1 projection" << std::endl;
@@ -131,6 +160,32 @@ TEST_CASE("Quadrature Function Coefficients",
                for (int j = 0; j < nnodes; j++)
                {
                   gtrue((i * nnodes) + j) = i;
+               }
+            }
+         }
+
+         g0 = 0.0;
+         fi.ProjectQuadratureCoefficient(g0, qfvc, fespace_h1);
+         gtrue -= g0;
+         REQUIRE(gtrue.Norml2() < tol);
+      }
+      SECTION("Gridfunction H1 tests byVDIM")
+      {
+         std::cout << "  Testing GridFunc H1 projection byVDIM" << std::endl;
+         H1_FECollection    fec_h1(order_h1, dim);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
+         GridFunction g0(&fespace_h1);
+         GridFunction gtrue(&fespace_h1);
+
+         {
+            int nnodes = gtrue.Size() / dim;
+            int vdim = dim;
+
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
+                  gtrue(i + j * vdim) = i;
                }
             }
          }
@@ -321,6 +376,41 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          REQUIRE(error < tol);
       }
 
+      SECTION("Gridfunction L2 tests byVDIM")
+      {
+         std::cout << "  Testing GridFunc L2 projection byVDIM" << std::endl;
+         L2_FECollection    fec_l2(order_h1, dim);
+         ParFiniteElementSpace fespace_l2(&mesh, &fec_l2, dim, Ordering::byVDIM);
+         H1_FECollection    fec_h1(order_h1, dim);
+         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, 1, Ordering::byVDIM);
+         ParGridFunction g0(&fespace_l2);
+         ParGridFunction gtrue(&fespace_l2);
+
+         {
+            int nnodes = gtrue.Size() / dim;
+            int vdim = dim;
+
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
+                  gtrue(i + (vdim * j)) = i;
+               }
+            }
+         }
+
+         g0 = 0.0;
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_h1, fespace_l2);
+         gtrue -= g0;
+
+         double lerr = gtrue.Norml2();
+         double error = 0;
+
+         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+         REQUIRE(error < tol);
+      }
+
       SECTION("Gridfunction H1 tests")
       {
          std::cout << "  Testing GridFunc H1 projection" << std::endl;
@@ -338,6 +428,39 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
                for (int j = 0; j < nnodes; j++)
                {
                   gtrue((i * nnodes) + j) = i;
+               }
+            }
+         }
+
+         g0 = 0.0;
+         fi.ProjectQuadratureCoefficient(g0, qfvc, fespace_h1);
+         gtrue -= g0;
+
+         double lerr = gtrue.Norml2();
+         double error = 0;
+
+         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+         REQUIRE(error < tol);
+      }
+
+      SECTION("Gridfunction H1 tests byVDIM")
+      {
+         std::cout << "  Testing GridFunc H1 projection byVDIM" << std::endl;
+         H1_FECollection    fec_h1(order_h1, dim);
+         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
+         ParGridFunction g0(&fespace_h1);
+         ParGridFunction gtrue(&fespace_h1);
+
+         {
+            int nnodes = gtrue.Size() / dim;
+            int vdim = dim;
+
+            for (int i = 0; i < vdim; i++)
+            {
+               for (int j = 0; j < nnodes; j++)
+               {
+                  gtrue(i + j * vdim) = i;
                }
             }
          }
