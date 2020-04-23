@@ -122,55 +122,22 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
    }
 
    double* data = m_all_data.HostReadWrite();
-   if (fes.GetOrdering() == Ordering::byNODES)
+   for (int e = 0; e < NE; e++)
    {
-      for (int e = 0; e < NE; e++)
+      qfv = 0.0;
+      mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
+      inv.Factor(mi);
+      const FiniteElement &fe = *tr_fes.GetFE(e);
+      ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
+      qi.AssembleRHSElementVect(fe, eltr, rhs);
+      for (int ind = 0; ind < vdim; ind++)
       {
-         qfv = 0.0;
-         mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         inv.Factor(mi);
-         const FiniteElement &fe = *tr_fes.GetFE(e);
-         ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
-         qi.AssembleRHSElementVect(fe, eltr, rhs);
-         for (int ind = 0; ind < vdim; ind++)
-         {
-            qfv_sub.MakeRef(qfv, ndofs * ind);
-            rhs_sub.MakeRef(rhs, ndofs * ind);
-            inv.Mult(rhs_sub, qfv_sub);
-         }
-         fes.GetElementVDofs(e, dofs);
-         gf.SetSubVector(dofs, qfv);
+         qfv_sub.MakeRef(qfv, ndofs * ind);
+         rhs_sub.MakeRef(rhs, ndofs * ind);
+         inv.Mult(rhs_sub, qfv_sub);
       }
-   }
-   else
-   {
-      Vector tmp(qfv);
-      for (int e = 0; e < NE; e++)
-      {
-         mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         inv.Factor(mi);
-         const FiniteElement &fe = *tr_fes.GetFE(e);
-         ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
-         qi.AssembleRHSElementVect(fe, eltr, rhs);
-         for (int ind = 0; ind < vdim; ind++)
-         {
-            qfv_sub.MakeRef(qfv, ndofs * ind);
-            rhs_sub.MakeRef(rhs, ndofs * ind);
-            inv.Mult(rhs_sub, qfv_sub);
-         }
-
-         //Now to reorder the vec from byNodes order to byVec
-         tmp = qfv;
-         for (int ind = 0; ind < vdim; ind++)
-         {
-            for (int nd = 0; nd < ndofs; nd++)
-            {
-               qfv((nd * vdim) + ind) = tmp(nd + ind * ndofs);
-            }
-         }
-         fes.GetElementVDofs(e, dofs);
-         gf.SetSubVector(dofs, qfv);
-      }
+      fes.GetElementVDofs(e, dofs);
+      gf.SetSubVector(dofs, qfv);
    }
 }
 
@@ -251,9 +218,27 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
                   "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
    }
 
+   int vdim = vqfc.GetVDim();
+   int size = gf.Size() / vdim;
+
    LinearForm *b = new LinearForm(&fes);
    b->AddDomainIntegrator(new VectorQuadratureIntegrator(vqfc, ir));
    b->Assemble();
+
+   // If our FES is byVDIM then we're going to rearrange b to be in byNodes order
+   if (fes.GetOrdering() == Ordering::byVDIM)
+   {
+      Vector tmp = *b;
+      double* data = b->HostReadWrite();
+      for (int i = 0; i < vdim; i++)
+      {
+         for (int j = 0; j < size; j++)
+         {
+            data[j + i * size] = tmp(i + j * vdim);
+         }
+      }
+   }
+
 
    // We need this fes to only have a vdim of 1 which is not the case here so we need to make a new fespace
    // Potential fix me with a better implementation
@@ -272,9 +257,6 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
 
    Array<int> ess_tdof_list;
 
-   int vdim = vqfc.GetVDim();
-   int size = b->Size() / vdim;
-
    for (int ind = 0; ind < vdim; ind++)
    {
       int offset = ind * size;
@@ -287,7 +269,21 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
       // Recover the solution as a finite element grid function.
       L2->RecoverFEMSolution(X, *b, X_sub);
    }
-   gf = x;
+
+   if (fes.GetOrdering() == Ordering::byNODES)
+   {
+      gf = x;
+   }
+   else
+   {
+      for (int i = 0; i < vdim; i++)
+      {
+         for (int j = 0; j < size; j++)
+         {
+            gf(i + j * vdim) = x(i * size + j);
+         }
+      }
+   }
 
    delete L2;
    delete b;
@@ -354,9 +350,26 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
                   "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
    }
 
+   int vdim = vqfc.GetVDim();
+   int size = gf.Size() / vdim;
+
    ParLinearForm *b = new ParLinearForm(&fes);
    b->AddDomainIntegrator(new VectorQuadratureIntegrator(vqfc, ir));
    b->Assemble();
+
+   // If our FES is byVDIM then we're going to rearrange b to be in byNodes order
+   if (fes.GetOrdering() == Ordering::byVDIM)
+   {
+      Vector tmp = *b;
+      double* data = b->HostReadWrite();
+      for (int i = 0; i < vdim; i++)
+      {
+         for (int j = 0; j < size; j++)
+         {
+            data[j + i * size] = tmp(i + j * vdim);
+         }
+      }
+   }
 
    // We need this fes to only have a vdim of 1 which is not the case here so we need to make a new fespace
    // Potential fix me with a better implementation
@@ -374,9 +387,6 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
    Vector B, b_sub, X_sub, X;
 
    Array<int> ess_tdof_list;
-
-   int vdim = vqfc.GetVDim();
-   int size = b->Size() / vdim;
 
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetPrintLevel(0);
@@ -398,7 +408,21 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
       // Recover the solution as a finite element grid function.
       L2->RecoverFEMSolution(X, *b, X_sub);
    }
-   gf = x;
+
+   if (fes.GetOrdering() == Ordering::byNODES)
+   {
+      gf = x;
+   }
+   else
+   {
+      for (int i = 0; i < vdim; i++)
+      {
+         for (int j = 0; j < size; j++)
+         {
+            gf(i + j * vdim) = x(i * size + j);
+         }
+      }
+   }
 
    delete L2;
    delete b;
