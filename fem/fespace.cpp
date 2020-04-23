@@ -64,12 +64,13 @@ FiniteElementSpace::FiniteElementSpace()
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
-     sequence(0), orders_changed(false)
+     sequence(0), orders_changed(false), relaxed_hp(false)
 { }
 
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
+   : relaxed_hp(orig.relaxed_hp)
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
@@ -1683,9 +1684,9 @@ int FiniteElementSpace::AssignEdgeDofs()
       }
    }
 
-   if (Nonconforming())
+   if (Nonconforming() && !relaxed_hp)
    {
-      // in the hp-case, add minimum slave orders to their master edges
+      // in the strict hp case, add minimum slave orders to their master edges
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(1);
       for (const NCMesh::Master &master : list.masters)
       {
@@ -1695,7 +1696,7 @@ int FiniteElementSpace::AssignEdgeDofs()
             const NCMesh::Slave &slave = list.slaves[i];
             slave_min_o = std::min(edge_min_order[slave.index], slave_min_o);
          }
-         // constrain the master face, if necessary
+         // constrain the master face, if minimum slave lower
          if (slave_min_o < edge_min_order[master.index])
          {
             edge_orders.Append(Connection(master.index, slave_min_o));
