@@ -102,6 +102,7 @@ public:
    }
 };
 
+#ifdef MFEM_USE_MPI
 class ParFieldInterpolant : public FieldInterpolant
 {
 protected:
@@ -154,6 +155,7 @@ public:
       delete ParL2;
    }
 };
+#endif
 
 class VectorQuadratureIntegrator : public LinearFormIntegrator
 {
