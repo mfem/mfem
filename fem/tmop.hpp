@@ -764,8 +764,6 @@ public:
        Note that every GridFunction given to the Set methods must use a
        H1_FECollection of the same order. The number of components must
        correspond to the type of geometric parameter and dimension.
-       Once the calls to the Set methods are complete, users are expected to
-       call a Finalize method.
 
        @param[in] tspec_  Input values of a geometric parameter. Note that
                           the methods in this class support only functions that
