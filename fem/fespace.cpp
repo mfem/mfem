@@ -1473,6 +1473,7 @@ void FiniteElementSpace::UpdateNURBS()
 void FiniteElementSpace::GenerateFaceDofsFromBdr()
 {
    if (face_dof) { return; }
+   if (!mesh->BdrInfoAvailable()) { return; }
 
    Array<Connection> face_dof_list;
    Array<int> row;

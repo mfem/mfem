@@ -55,6 +55,13 @@ add_test(NAME nurbs_ex1_weak_mp_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
   -m ${PROJECT_SOURCE_DIR}/data/ball-nurbs.mesh -o 2 --weak-bc -r 0)
 
+add_test(NAME nurbs_ex1_weak_patch_format_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0)
+
+add_test(NAME nurbs_ex1_weak_patch_format_r1_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
@@ -76,6 +83,16 @@ if (MFEM_USE_MPI)
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/ball-nurbs.mesh -o 2 --weak-bc -r 0
     ${MPIEXEC_POSTFLAGS})
+
+add_test(NAME nurbs_ex1_weak_patch_format_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0)
+
+add_test(NAME nurbs_ex1_weak_patch_format_r1_np=4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+    ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
 
   add_mfem_miniapp(nurbs_ex11p
     MAIN nurbs_ex11p.cpp
