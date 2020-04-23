@@ -157,18 +157,13 @@ int main (int argc, char *argv[])
    }
 
    FindPointsGSLIB finder;
-   const double rel_bbox_el = 0.05;
-   const double newton_tol  = 1.0e-12;
-   const int npts_at_once   = 256;
    Vector interp_vals_1(pts_cnt), interp_vals_2(pts_cnt);
 
    // First solution.
-   finder.Setup(mesh_1, rel_bbox_el, newton_tol, npts_at_once);
-   finder.Interpolate(vxyz, func_1, interp_vals_1);
+   finder.Interpolate(mesh_1, vxyz, func_1, interp_vals_1);
 
    // Second solution.
-   finder.Setup(mesh_2, rel_bbox_el, newton_tol, npts_at_once);
-   finder.Interpolate(vxyz, func_2, interp_vals_2);
+   finder.Interpolate(mesh_2, vxyz, func_2, interp_vals_2);
 
    // Compute differences between the two sets of values.
    double avg_diff = 0.0, max_diff = 0.0, diff_p;
