@@ -68,7 +68,10 @@ TEST_CASE("Quadrature Function Coefficients",
    QuadratureFunctionCoefficient qfc(&quadf_coeff);
    VectorQuadratureFunctionCoefficient qfvc(&quadf_vcoeff);
 
-   FieldInterpolant fi(&ir);
+   H1_FECollection    fec_h1(order_h1, dim);
+   FiniteElementSpace fespace_hv1(&mesh, &fec_h1, 1);
+   FieldInterpolant fi(&fespace_hv1);
+   fi.SetupCG();
 
    SECTION("Operators on VecQuadFuncCoeff")
    {
@@ -248,6 +251,8 @@ TEST_CASE("Quadrature Function Coefficients",
          GridFunction g0(&fespace_h1);
          GridFunction gtrue(&fespace_h1);
 
+         fi.FullReset();
+
          {
             int nnodes = gtrue.Size();
             int vdim = 1;
@@ -324,7 +329,10 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
    QuadratureFunctionCoefficient qfc(&quadf_coeff);
    VectorQuadratureFunctionCoefficient qfvc(&quadf_vcoeff);
 
-   FieldInterpolant fi(&ir);
+   H1_FECollection    fec_h1(order_h1, dim);
+   ParFiniteElementSpace fespace_hv1(&mesh, &fec_h1, 1);
+   ParFieldInterpolant fi(&fespace_hv1);
+   fi.SetupCG(MPI_COMM_WORLD);
 
    SECTION("Operators on VecQuadFuncCoeff")
    {
@@ -451,6 +459,8 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
          ParGridFunction g0(&fespace_h1);
          ParGridFunction gtrue(&fespace_h1);
+
+         fi.FullReset();
 
          {
             int nnodes = gtrue.Size() / dim;

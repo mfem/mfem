@@ -107,6 +107,8 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
    VectorQuadratureIntegrator qi(vqfc);
    qi.SetIntRule(ir);
 
+   Array<BilinearFormIntegrator*> dbfi = *L2->GetDBFI();
+
    if (!setup_disc)
    {
       m_all_data.SetSize(ndofs * ndofs * NE);
@@ -116,7 +118,7 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
          const FiniteElement &fe = *tr_fes.GetFE(e);
          ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
          mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         mass_int.AssembleElementMatrix(fe, eltr, mi);
+         dbfi[0]->AssembleElementMatrix(fe, eltr, mi);
       }
       setup_disc = true;
    }
@@ -170,6 +172,7 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
 
    QuadratureIntegrator qi(qfc);
    qi.SetIntRule(ir);
+   Array<BilinearFormIntegrator*> dbfi = *L2->GetDBFI();
 
    if (!setup_disc)
    {
@@ -180,7 +183,7 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
          const FiniteElement &fe = *tr_fes.GetFE(e);
          ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
          mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         mass_int.AssembleElementMatrix(fe, eltr, mi);
+         dbfi[0]->AssembleElementMatrix(fe, eltr, mi);
       }
       setup_disc = true;
    }
@@ -239,16 +242,7 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
       }
    }
 
-
-   // We need this fes to only have a vdim of 1 which is not the case here so we need to make a new fespace
-   // Potential fix me with a better implementation
-   const FiniteElementCollection *fec = fes.FEColl();
-   Mesh *mesh = fes.GetMesh();
-   FiniteElementSpace fes_v1(mesh, fec, 1);
-
-   BilinearForm *L2 = new BilinearForm(&fes_v1);
-   L2->AddDomainIntegrator(new MassIntegrator(ir));
-   L2->Assemble();
+   // L2->Assemble();
 
    GridFunction x(&fes);
    x = 0.0;
@@ -263,9 +257,9 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
       b_sub.MakeRef(*b, offset, size);
       X_sub.MakeRef(x, offset, size);
       L2->FormLinearSystem(ess_tdof_list, X_sub, b_sub, A, X, B);
-      // Fix this to be more efficient
-      // OperatorJacobiSmoother M(*L2, ess_tdof_list);
-      CG(*A, B, X, 0, 2000, 1e-25, 0.0);
+      // Fix this to be more efficient;
+      cg->SetOperator(*A);
+      cg->Mult(B, X);
       // Recover the solution as a finite element grid function.
       L2->RecoverFEMSolution(X, *b, X_sub);
    }
@@ -285,7 +279,6 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
       }
    }
 
-   delete L2;
    delete b;
 }
 void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
@@ -308,9 +301,7 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
    b->AddDomainIntegrator(new QuadratureIntegrator(qfc, ir));
    b->Assemble();
 
-   BilinearForm *L2 = new BilinearForm(&fes);
-   L2->AddDomainIntegrator(new MassIntegrator(ir));
-   L2->Assemble();
+   // L2->Assemble();
 
    GridFunction x(&fes);
    x = 0.0;
@@ -319,23 +310,21 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
    Array<int> ess_tdof_list;
 
    L2->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   // Fix this to be more efficient
-   // OperatorJacobiSmoother M(*L2, ess_tdof_list);
-   CG(*A, B, X, 0, 2000, 1e-25, 0.0);
+   cg->SetOperator(*A);
+   cg->Mult(B, X);
    // Recover the solution as a finite element grid function.
    L2->RecoverFEMSolution(X, *b, x);
    gf = x;
 
-   delete L2;
    delete b;
 }
 
 #ifdef MFEM_USE_MPI
 // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
 // quadrature function coefficient.
-void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                                    VectorQuadratureFunctionCoefficient &vqfc,
-                                                    ParFiniteElementSpace &fes)
+void ParFieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                                       VectorQuadratureFunctionCoefficient &vqfc,
+                                                       ParFiniteElementSpace &fes)
 {
    const IntegrationRule* ir;
    {
@@ -371,15 +360,7 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
       }
    }
 
-   // We need this fes to only have a vdim of 1 which is not the case here so we need to make a new fespace
-   // Potential fix me with a better implementation
-   const FiniteElementCollection *fec = fes.FEColl();
-   ParMesh *mesh = fes.GetParMesh();
-   ParFiniteElementSpace fes_v1(mesh, fec, 1);
-
-   ParBilinearForm *L2 = new ParBilinearForm(&fes_v1);
-   L2->AddDomainIntegrator(new MassIntegrator(ir));
-   L2->Assemble();
+   // ParL2->Assemble();
 
    ParGridFunction x(&fes);
    x = 0.0;
@@ -388,25 +369,16 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
 
    Array<int> ess_tdof_list;
 
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetPrintLevel(0);
-   cg.SetMaxIter(2000);
-   cg.SetRelTol(sqrt(1e-25));
-   cg.SetAbsTol(sqrt(0.0));
-
    for (int ind = 0; ind < vdim; ind++)
    {
       int offset = ind * size;
       b_sub.MakeRef(*b, offset, size);
       X_sub.MakeRef(x, offset, size);
-      L2->FormLinearSystem(ess_tdof_list, X_sub, b_sub, A, X, B);
-      // Fix this to be more efficient
-      // OperatorJacobiSmoother M(*L2, ess_tdof_list);
-      // CG(*A, B, X, 0, 2000, 1e-25, 0.0);
-      cg.SetOperator(*A);
-      cg.Mult(B, X);
+      ParL2->FormLinearSystem(ess_tdof_list, X_sub, b_sub, A, X, B);
       // Recover the solution as a finite element grid function.
-      L2->RecoverFEMSolution(X, *b, X_sub);
+      cg->SetOperator(*A);
+      cg->Mult(B, X);
+      ParL2->RecoverFEMSolution(X, *b, X_sub);
    }
 
    if (fes.GetOrdering() == Ordering::byNODES)
@@ -424,14 +396,13 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
       }
    }
 
-   delete L2;
    delete b;
 }
 // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
 // quadrature function coefficient.
-void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                                    QuadratureFunctionCoefficient &qfc,
-                                                    ParFiniteElementSpace &fes)
+void ParFieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                                       QuadratureFunctionCoefficient &qfc,
+                                                       ParFiniteElementSpace &fes)
 {
    const IntegrationRule* ir;
    {
@@ -449,9 +420,7 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
    b->AddDomainIntegrator(new QuadratureIntegrator(qfc, ir));
    b->Assemble();
 
-   ParBilinearForm *L2 = new ParBilinearForm(&fes);
-   L2->AddDomainIntegrator(new MassIntegrator(ir));
-   L2->Assemble();
+   // ParL2->Assemble();
 
    ParGridFunction x(&fes);
    x = 0.0;
@@ -459,22 +428,14 @@ void FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
    Vector B, X;
    Array<int> ess_tdof_list;
 
-   L2->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   ParL2->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    // Fix this to be more efficient
-   // OperatorJacobiSmoother M(*L2, ess_tdof_list);
-   // CG(*A, B, X, 0, 2000, 1e-25, 0.0);
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetPrintLevel(0);
-   cg.SetMaxIter(2000);
-   cg.SetRelTol(sqrt(1e-25));
-   cg.SetAbsTol(sqrt(0.0));
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
+   cg->SetOperator(*A);
+   cg->Mult(B, X);
    // Recover the solution as a finite element grid function.
-   L2->RecoverFEMSolution(X, *b, x);
+   ParL2->RecoverFEMSolution(X, *b, x);
    gf = x;
 
-   delete L2;
    delete b;
 }
 #endif
