@@ -1182,7 +1182,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const Vector &elfun,
                                             DenseTensor &Jtr) const
 {
-   MFEM_VERIFY(tspec_fesv, "A call to FinalizeDiscreteTargetSpec() is needed.");
+   MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
 
    switch (target_type)
    {
