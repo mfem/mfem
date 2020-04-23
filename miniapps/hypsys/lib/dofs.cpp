@@ -617,7 +617,7 @@ void DofInfo::ExtractBdrDofs()
          {
             BdrDofs(i,0) = i;
             BdrDofs(i,1) = ctr + p;
-            BdrDofs(i,2) = ctr + i;
+            BdrDofs(p-i,2) = ctr + i;
             ctr += p - i;
          }
          break;

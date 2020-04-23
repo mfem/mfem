@@ -10,15 +10,14 @@ int main(int argc, char *argv[])
    Configuration config;
    config.ProblemNum = 0;
    config.ConfigNum = 1;
+   config.VisSteps = 100;
+   config.tFinal = 1.;
+   config.odeSolverType = 3;
+   config.dt = 0.001;
    const char *MeshFile = "data/unstr.mesh";
+   config.order = 3;
    int refinements = 1;
    int prefinements = 0;
-   config.order = 3;
-   config.tFinal = 1.;
-   config.dt = 0.001;
-   config.odeSolverType = 3;
-   config.VisSteps = 100;
-
    EvolutionScheme scheme = MonolithicConvexLimiting;
 
    config.precision = 8;
@@ -29,24 +28,22 @@ int main(int argc, char *argv[])
                   "Hyperbolic system of equations to solve.");
    args.AddOption(&config.ConfigNum, "-c", "--configuration",
                   "Problem setup to use.");
-   args.AddOption(&MeshFile, "-m", "--mesh",
-                  "Mesh file to use.");
+   args.AddOption(&config.VisSteps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
+   args.AddOption(&config.tFinal, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&config.odeSolverType, "-s", "--ode-solver",
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP.");
+   args.AddOption(&config.dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&MeshFile, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&config.order, "-o", "--order",
+                  "Order (polynomial degree) of the finite element space.");
    args.AddOption(&refinements, "-r", "--refine",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&prefinements, "-pr", "--parallel-refine",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&config.order, "-o", "--order",
-                  "Order (polynomial degree) of the finite element space.");
-   args.AddOption(&config.tFinal, "-tf", "--t-final",
-                  "Final time; start time is 0.");
-   args.AddOption(&config.dt, "-dt", "--time-step",
-                  "Time step.");
-   args.AddOption(&config.odeSolverType, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP.");
-   args.AddOption(&config.VisSteps, "-vs", "--visualization-steps",
-                  "Visualize every n-th timestep.");
-   args.AddOption((int *)(&scheme), "-e", "--EvolutionScheme",
+   args.AddOption((int*)(&scheme), "-e", "--EvolutionScheme",
                   "Scheme: 0 - Galerkin Finite Element Approximation,\n\t"
                   "        1 - Monolithic Convex Limiting.");
 
