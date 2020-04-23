@@ -132,13 +132,6 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Setup the gslib mesh.
-   FindPointsGSLIB finder;
-   const double rel_bbox_el = 0.05;
-   const double newton_tol  = 1.0e-12;
-   const int npts_at_once   = 256;
-   finder.Setup(mesh, rel_bbox_el, newton_tol, npts_at_once);
-
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
@@ -171,7 +164,9 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt);
-   finder.Interpolate(vxyz, field_vals, interp_vals);
+   // FindPoints using GSLIB and interpolate
+   FindPointsGSLIB finder;
+   finder.Interpolate(mesh, vxyz, field_vals, interp_vals);
    Array<unsigned int> code_out = finder.GetCode();
    Vector dist_p_out = finder.GetDist2();
 

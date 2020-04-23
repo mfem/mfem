@@ -81,6 +81,8 @@ public:
                    Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
                    Vector &ref_pos, Vector &dist);
    void FindPoints(const Vector &point_pos);
+   /** Setup FindPoints and search positions*/
+   void FindPoints(Mesh &m, const Vector &point_pos);
 
    /** Interpolation of field values at prescribed reference space positions.
 
@@ -100,9 +102,12 @@ public:
                     Array<unsigned int> &elem_ids, Vector &ref_pos,
                     const GridFunction &field_in, Vector &field_out);
    void Interpolate(const GridFunction &field_in, Vector &field_out);
-   /** Search positions and Interpolate */
+   /** Search positions and interpolate */
    void Interpolate(const Vector &point_pos, const GridFunction &field_in,
                     Vector &field_out);
+   /** Setup FindPoints, search positions and interpolate */
+   void Interpolate(Mesh &m, const Vector &point_pos,
+                    const GridFunction &field_in, Vector &field_out);
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as

@@ -169,6 +169,18 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos)
    FindPoints(point_pos, gsl_code, gsl_proc, gsl_elem, gsl_ref, gsl_dist);
 }
 
+void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos)
+{
+   if (!setupflag || (mesh != &m) )
+   {
+      const double rel_bbox_el = 0.05;
+      const double newton_tol  = 1.0e-12;
+      const int npts_at_once   = 256;
+      Setup(m, rel_bbox_el, newton_tol, npts_at_once);
+   }
+   FindPoints(point_pos);
+}
+
 void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
                                   Array<unsigned int> &proc_ids,
                                   Array<unsigned int> &elem_ids,
@@ -211,6 +223,13 @@ void FindPointsGSLIB::Interpolate(const Vector &point_pos,
                                   const GridFunction &field_in, Vector &field_out)
 {
    FindPoints(point_pos);
+   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
+}
+
+void FindPointsGSLIB::Interpolate(Mesh &m, const Vector &point_pos,
+                                  const GridFunction &field_in, Vector &field_out)
+{
+   FindPoints(m, point_pos);
    Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
 }
 
