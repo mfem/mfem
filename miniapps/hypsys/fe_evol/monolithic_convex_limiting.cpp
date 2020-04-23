@@ -289,16 +289,15 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
    }
 
    DenseMatrix mat3(nd, hyp->NumEq);
-   Vector ElFlux(hyp->NumEq*nd);
-   DenseMatrix galerkin(nd, hyp->NumEq), BdrFlux(hyp->NumEq*nd, dofs.NumBdrs);
-   DenseMatrix uDot(nd, hyp->NumEq);
+   DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq), BdrFlux(hyp->NumEq*nd, dofs.NumBdrs),
+               uDot(nd, hyp->NumEq), AntiDiff(nd, hyp->NumEq);
 
    z = 0.;
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
-      mat2 = uDot = 0.;
+      mat2 = uDot = AntiDiff = 0.;
       BdrFlux = 0.;
 
       for (int k = 0; k < nqe; k++)
@@ -337,8 +336,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       // Using the fact that mass matrices are the same for all components.
       AddMult(InvMassMat->Minv(e), galerkin, uDot);
 
-      mat2 -= galerkin; // TODO: Optimization possible by just using flux terms
-      ElFlux = mat2.GetData(); // ElFlux = int f(u_h) \nabla \phi - M_C uDot
+      // TODO: Optimization possible by just using flux terms
+      Add(mat2, galerkin, -1., ElFlux); // ElFlux = int f(u_h) \nabla \phi - M_C uDot
 
       mat2 = mat3 = 0.;
 
@@ -356,16 +355,14 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          // ElFlux += M_L uDot
          for (int n = 0; n < hyp->NumEq; n++)
          {
-            ElFlux(n*nd + j) += LumpedMassMat(n*ne*nd + e*nd + j) * uDot(j,n);
+            ElFlux(j,n) += LumpedMassMat(n*ne*nd + e*nd + j) * uDot(j,n);
          }
       }
 
+      ElFlux += mat2; // ElFlux_i += sum_j f_j cTilde_ij
+      ElFlux -= mat3; // ElFlux_i -= sum_j f_j (c_ij + c_ji) )
       Vector ElTerms(mat2.GetData(), nd*hyp->NumEq);
       z.AddElementVector(vdofs, -1., ElTerms);
-      ElFlux += ElTerms; // ElFlux_i += sum_j f_j cTilde_ij
-
-      ElTerms = mat3.GetData();
-      ElFlux -= ElTerms; // ElFlux_i -= sum_j f_j (c_ij + c_ji)
 
       // Artificial diffusion.
       for (int m = 0; m < dofs.numSubcells; m++)
@@ -410,8 +407,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                for (int n = 0; n < hyp->NumEq; n++)
                {
                   double rus = dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
-                  ElFlux(n * nd + I) -= rus;
                   z(vdofs[n * nd + I]) += rus;
+                  AntiDiff(I,n) -= rus;
                }
             }
          }
@@ -474,7 +471,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
                for (int n = 0; n < hyp->NumEq; n++)
                {
-                  ElFlux(n*nd + dofs.BdrDofs(j,i)) += contribution(n);
+                  ElFlux(dofs.BdrDofs(j,i), n) += contribution(n);
                }
             }
 
@@ -513,7 +510,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          double test = 0.;
          for (int j = 0; j < nd; j++)
          {
-            test += ElFlux(n*nd+j);
+            test += ElFlux(j,n);
          }
          if (abs(test) > 1.E-12)
          {
@@ -522,11 +519,12 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          }
       }
 
-      // Vector sums(hyp->NumEq*nd);
-      // BdrFlux.GetRowSums(sums);
+      z.AddElementVector(vdofs, ElFlux.GetData());
+      z.AddElementVector(vdofs, AntiDiff.GetData());
 
-      // z.AddElementVector(vdofs, ElFlux);
-      // z.AddElementVector(vdofs, sums);
+      Vector sums(hyp->NumEq*nd);
+      BdrFlux.GetRowSums(sums);
+      z.AddElementVector(vdofs, sums);
 
       for (int n = 0; n < hyp->NumEq; n++)
       {
