@@ -2026,7 +2026,7 @@ int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
       if (variant > 0) { return -1; }
       p = fec->DefaultOrder();
       ne = fec->GetNumDof(Geometry::SEGMENT, p);
-      base = nvdofs + edge*ne;
+      base = edge*ne;
    }
 
    Array<int> V; // TODO: LocalArray
