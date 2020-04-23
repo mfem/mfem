@@ -61,7 +61,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
    const int ne = fes->GetNE();
    const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes,
                                                                   NodalQuadRule);
-   const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes, NodalQuadRule);
+   const IntegrationRule *IntRuleFace = GetFaceIntegrationRule(fes); // TODO removed NodalQuadRule!
    const int nqe = IntRuleElem->GetNPoints();
    nqf = IntRuleFace->GetNPoints();
    Vector vec, vval;
@@ -142,18 +142,23 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 void Advection::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i) const
 {
-   if (i == -1) // Element terms.
-   {
-      VelocityVector = VelElem(e).GetColumn(k);
-      VelocityVector *= u(0);
-      FluxEval.SetRow(0, VelocityVector);
-   }
-   else
-   {
-      VelocityVector = VelFace(e*nqf+k).GetColumn(i);
-      VelocityVector *= u(0);
-      FluxEval.SetRow(0, VelocityVector);
-   }
+   int dim = FluxEval.Width();
+   Vector x(dim), v(dim);
+   VelocityFunctionAdv(x, v);
+   v *= u(0);
+   FluxEval.SetRow(0, v);
+   // if (i == -1) // Element terms.
+   // {
+   //    VelocityVector = VelElem(e).GetColumn(k);
+   //    VelocityVector *= u(0);
+   //    FluxEval.SetRow(0, VelocityVector);
+   // }
+   // else
+   // {
+   //    VelocityVector = VelFace(e*nqf+k).GetColumn(i);
+   //    VelocityVector *= u(0);
+   //    FluxEval.SetRow(0, VelocityVector);
+   // }
 }
 
 double Advection::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,

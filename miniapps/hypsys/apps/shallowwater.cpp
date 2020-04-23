@@ -44,6 +44,18 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
+      case 2:
+      {
+         ProblemName = "Shallow Water Equations - Constricted Channel";
+         glvis_scale = "on";
+         GravConst = 0.16;
+         SolutionKnown = false;
+         SteadyState = true;
+         TimeDepBC = false;
+         ProjType = 0;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -211,7 +223,35 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
       case 1:
       {
          u = 0.;
-         u(0) = X.Norml2() < 0.5 ? 1. : .125;
+         u(0) = X.Norml2() < 0.5 ? 1. : .25; // TODO: Temporary change
+         break;
+      }
+      case 2:
+      {
+         if (dim != 2)
+         {
+            MFEM_ABORT("Test case is only implemented in 2D.");
+         }
+
+         const double x1[2]={-10., 0.}, x2[2]={-10., 40.},
+                      x3[2]={53.8622, 5.5872}, x4[2]={53.8622, 34.4128},
+                      slope0=0.53886, slope1=0.79893;
+         int sign_top, sign_bot;
+
+         if (x(0)>x3[0])
+         {
+            sign_top = -(x(0)-x4[0])*slope1-(x(1)-x4[1])>0 ? 1 : -1;
+            sign_bot = (x(0)-x3[0])*slope1-(x(1)-x3[1])>0 ? 1 : -1;
+            u(0) = sign_top*sign_bot>0. ? 1.8350436: 1.5273361;
+         }
+         else
+         {
+            sign_top = -(x(0)-x2[0])*slope0-(x(1)-x2[1])>0 ? 1 : -1;
+            sign_bot = (x(0)-x1[0])*slope0-(x(1)-x1[1])>0 ? 1 : -1;
+            u(0) = sign_top*sign_bot>0. ? 1.250133 : (sign_top>0 ? 1. : 1.5273361);
+         }
+
+         // TODO momentum?
          break;
       }
       default:
@@ -221,10 +261,42 @@ void AnalyticalSolutionSWE(const Vector &x, double t, Vector &u)
 
 void InitialConditionSWE(const Vector &x, Vector &u)
 {
-   AnalyticalSolutionSWE(x, 0., u);
+   switch (ConfigShallowWater.ConfigNum)
+   {
+      case 0:
+      case 1:
+      {
+         AnalyticalSolutionSWE(x, 0., u);
+         break;
+      }
+      case 2:
+      {
+         u(0) = 1.;
+         u(1) = 1.;
+         u(2) = 0.;
+         break;
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
+   }
 }
 
 void InflowFunctionSWE(const Vector &x, double t, Vector &u)
 {
-   AnalyticalSolutionSWE(x, t, u);
+   switch (ConfigShallowWater.ConfigNum)
+   {
+      case 0:
+      case 1:
+      {
+         AnalyticalSolutionSWE(x, 0., u);
+         break;
+      }
+      case 2:
+      {
+         InitialConditionSWE(x, u);
+         break;
+      }
+      default:
+         MFEM_ABORT("No such test case implemented.");
+   }
 }
