@@ -1,4 +1,4 @@
-# make clean && make -j;
+make clean && make -j;
 
 SCHEME=1
 

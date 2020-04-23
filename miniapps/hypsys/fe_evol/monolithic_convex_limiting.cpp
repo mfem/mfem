@@ -85,7 +85,8 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       {
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
-            FaceMat(i,j) += ShapeEvalFace(0,i,k) * ShapeEvalFace(0,j,k);
+            FaceMat(i,j) += IntRuleFaceWeights(k)
+                            * ShapeEvalFace(0,i,k) * ShapeEvalFace(0,j,k);
          }
       }
    }
@@ -247,28 +248,28 @@ void MCL_Evolution::FaceTerm(const Vector &x, Vector &uEval, Vector &uNbrEval,
 void MCL_Evolution::LinearFluxLumping(const Vector &x1, const Vector &x2, const Vector &normal,
                                       Vector &y, int e, int j, int i) const
 {
-   double c_eij = 0.;
-   C_eij = normal;
-   for (int k = 0; k < nqf; k++)
-   {
-      c_eij += BdrInt(i,k,e)  * IntRuleFaceWeights(k) * ShapeEvalFace(i,j,k);
-   }
+   // double c_eij = 0.; // TODO use FaceMat
+   // C_eij = normal;
+   // for (int k = 0; k < nqf; k++)
+   // {
+   //    c_eij += BdrInt(i,k,e)  * IntRuleFaceWeights(k) * ShapeEvalFace(i,j,k);
+   // }
 
-   C_eij *= c_eij;
+   // C_eij *= c_eij;
 
-   double ws = max(hyp->GetWaveSpeed(x1, normal, e, 0, i),
-                   hyp->GetWaveSpeed(x2, normal, e, 0, i));
+   // double ws = max(hyp->GetWaveSpeed(uEval, normal, e, 0, i),
+   //                 hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i));
 
-   c_eij *= ws;
+   // c_eij *= ws;
 
-   subtract(c_eij, x2, x1, y);
+   // subtract(c_eij, uNbrEval, uEval, NumFlux);
 
-   hyp->EvaluateFlux(x1, Flux, e, dofs.BdrDofs(j, i));
-   hyp->EvaluateFlux(x2, FluxNbr, e, dofs.BdrDofs(j, i));
-   Flux -= FluxNbr;
-   Flux.AddMult(C_eij, y);
+   // hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i));
+   // hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i));
+   // Flux -= FluxNbr;
+   // Flux.AddMult(C_eij, NumFlux);
 
-   y *= 0.5;
+   // NumFlux *= 0.5;
 }
 
 void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
@@ -289,7 +290,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
    DenseMatrix mat3(nd, hyp->NumEq);
    Vector ElFlux(hyp->NumEq*nd);
-   DenseMatrix galerkin(nd, hyp->NumEq);
+   DenseMatrix galerkin(nd, hyp->NumEq), BdrFlux(hyp->NumEq*nd, dofs.NumBdrs);
    DenseMatrix uDot(nd, hyp->NumEq);
 
    z = 0.;
@@ -298,6 +299,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
       mat2 = uDot = 0.;
+      BdrFlux = 0.;
 
       for (int k = 0; k < nqe; k++)
       {
@@ -311,20 +313,22 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
       for (int i = 0; i < dofs.NumBdrs; i++)
       {
+         OuterUnitNormals(e).GetColumn(i, normal);
+
          for (int k = 0; k < nqf; k++)
          {
-            OuterUnitNormals(e).GetColumn(i, normal);
             FaceEval(x, uEval, uNbrEval, xMPI, normal, e, i, k);
 
             LaxFriedrichs(uEval, uNbrEval, normal, NumFlux, e, k, i);
-            NumFlux *= BdrInt(i, k, e);
+            NumFlux *= BdrInt(i,k,e) * IntRuleFaceWeights(k);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
                for (int j = 0; j < dofs.NumFaceDofs; j++)
                {
-                  galerkin(dofs.BdrDofs(j,i), n) -= ShapeEvalFace(i,j,k)
-                                                    * NumFlux(n);
+                  double tmp = ShapeEvalFace(i,j,k) * NumFlux(n);
+                  galerkin(dofs.BdrDofs(j,i), n) -= tmp;
+                  BdrFlux(n*nd + dofs.BdrDofs(j,i), i) -= tmp;
                }
             }
          }
@@ -335,10 +339,6 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
       mat2 -= galerkin; // TODO: Optimization possible by just using flux terms
       ElFlux = mat2.GetData(); // ElFlux = int f(u_h) \nabla \phi - M_C uDot
-
-
-      // ElFlux = uDot.GetData();
-      // // y.SetSubVector(vdofs, ElFlux);
 
       mat2 = mat3 = 0.;
 
@@ -454,17 +454,23 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
+            double FaceMatLumped = 0.; // TODO optimize?
+
             uFace.GetColumn(j, uEval);
             hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i)); // TODO default argument k wrong
 
             for (int l = 0; l < dofs.NumFaceDofs; l++)
             {
+               FaceMatLumped += FaceMat(j,l);
+
+               if (j == l) { continue; }
+
                uFace.GetColumn(l, uNbrEval);
                hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i)); // TODO default argument k wrong
                FluxNbr -= Flux;
                Vector contribution(hyp->NumEq);
                FluxNbr.Mult(normal, contribution);
-               contribution *= FaceMat(j,l);
+               contribution *= BdrInt(i,0,e) * FaceMat(j,l); // TODO BdrInt
 
                for (int n = 0; n < hyp->NumEq; n++)
                {
@@ -474,11 +480,30 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             uNbrFace.GetColumn(j, uNbrEval);
 
-            LinearFluxLumping(uEval, uNbrEval, normal, NumFlux, e, j, i);
+            // LinearFluxLumping(uEval, uNbrEval, normal, NumFlux, e, j, i);
+
+            double ws = max( hyp->GetWaveSpeed(uEval, normal, e, 0, i),
+                             hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
+
+            FaceMatLumped *= BdrInt(i,0,e);
+
+            subtract(ws * FaceMatLumped, uNbrEval, uEval, NumFlux);
+
+            hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i));
+            hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i));
+            Vector helper(hyp->NumEq);
+            Flux.Mult(normal, helper);
+            helper *= FaceMatLumped;
+
+            Flux -= FluxNbr;
+            Flux.AddMult_a(FaceMatLumped, normal, NumFlux);
+
+            NumFlux *= 0.5;
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               z(vdofs[n * nd + dofs.BdrDofs(j, i)]) += NumFlux(n);
+               z(vdofs[n*nd + dofs.BdrDofs(j,i)]) += NumFlux(n);
+               BdrFlux(n*nd + dofs.BdrDofs(j,i), i) += helper(n) - NumFlux(n);
             }
          }
       }
@@ -497,6 +522,12 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          }
       }
 
+      // Vector sums(hyp->NumEq*nd);
+      // BdrFlux.GetRowSums(sums);
+
+      // z.AddElementVector(vdofs, ElFlux);
+      // z.AddElementVector(vdofs, sums);
+
       for (int n = 0; n < hyp->NumEq; n++)
       {
          for (int j = 0; j < nd; j++)
@@ -505,5 +536,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             y(DofInd) = z(DofInd) / LumpedMassMat(DofInd);
          }
       }
+
+      // z.SetSubVector(vdofs, galerkin.GetData());
    }
+   // InvMassMat->Mult(z, y);
 }
