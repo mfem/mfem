@@ -112,12 +112,12 @@ protected:
    Array<char> elem_order;
 
    int nvdofs, nedofs, nfdofs, nbdofs;
-   int *fdofs, *bdofs;
+   int *bdofs;
 
-   /// In a variable order space, holds a set of DOFs for each edge.
-   Table edge_dof;
+   Table edge_dof; ///< Set of DOFs for each edge (variable order spaces only)
+   Table face_dof; ///< Set of DOFs for each face (var. order or mixed meshes)
 
-   mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
+   Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    Table *bdr_elem_dof; // used only with NURBS FE spaces; not owned.
 
    Array<int> dof_elem_array, dof_ldof_array;
@@ -167,13 +167,28 @@ protected:
    void Construct();
    void Destroy();
 
-   void BuildElementToDofTable() const;
+   void BuildElementToDofTable();
 
    /// Build the table edge_dof in variable order space, return total edge DOFs.
    int AssignEdgeDofs();
+   /// Build the table face_dof in variable order space, return total face DOFs.
+   int AssignFaceDofs();
 
-   /// In var. order space, return edge DOFs associated with order p.
-   int FindEdgeDof(int edge, int pdof) const;
+   /// Build the edge_dof or face_dof tables. Used by Assign{Edge,Face}Dofs().
+   int MakeDofTable(int ent_dim, Array<Connection> &entity_order,
+                    Table &entity_dof);
+
+   /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
+   int FindDofs(const Table &dof_table, int row, int ndof) const;
+
+   /** In a variable order space, return edge DOFs associated with a polynomial
+       order that has 'ndof' degrees of freedom. */
+   int FindEdgeDof(int edge, int ndof) const
+   { return FindDofs(edge_dof, edge, ndof); }
+
+   /// Similar to FindEdgeDof, but used for mixed meshes too.
+   int FindFaceDof(int face, int ndof) const
+   { return FindDofs(face_dof, face, ndof); }
 
    /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
    static inline int EncodeDof(int entity_base, int idx)
@@ -330,8 +345,11 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
-   /// Sets the polynomial order of the i'th finite element.
+   /** Sets the polynomial order of the i'th finite element. */
+   /** By default, all elements are assumed to be of fec->DefaultOrder(). Once
+       SetElementOrder is called, the space becomes a variable order space. */
    void SetElementOrder(int i, int p);
+
    /// Returns the order of the i'th finite element
    int GetElementOrder(int i) const;
 
@@ -551,7 +569,8 @@ public:
 
    void GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const;
 
-   void RebuildElementToDofTable();
+   /// (@deprecated) Use the Update() method if the space or mesh changed.
+   MFEM_DEPRECATED void RebuildElementToDofTable();
 
    /** @brief Reorder the scalar DOFs based on the element ordering.
 

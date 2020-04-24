@@ -26,7 +26,7 @@ namespace mfem
 class FiniteElementCollection
 {
 protected:
-   int dim, default_p;
+   const int dim, default_p;
 
    template <Geometry::Type geom>
    static inline void GetNVE(int &nv, int &ne);
@@ -49,14 +49,15 @@ public:
 
    virtual int GetNumDof(Geometry::Type geom, int p) const = 0;
 
-   /** @brief Returns an array, say p, that maps a local permuted index i to
-       a local base index: base_i = p[i]. */
+   /** @brief Returns an array, say idx, that maps a local permuted index i to
+       a local base index: base_i = idx[i]. */
    virtual const int * GetDofOrdering(Geometry::Type geom, int p,
                                       int orientation) const = 0;
 
    // legacy >>>
-   const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType) const
-   { return GetFE(GeomType, default_p); }
+   /*MFEM_DEPRECATED*/ const FiniteElement*
+   FiniteElementForGeometry(Geometry::Type geom) const
+   { return GetFE(geom, default_p); }
 
    int DofForGeometry(Geometry::Type GeomType) const
    { return GetNumDof(GeomType, default_p); }
