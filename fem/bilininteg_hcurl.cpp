@@ -173,7 +173,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const bool bdryInteg = isBdryInteg;
 
-   // TODO: this implementation assumes boundary marker is 1 everywhere (all boundary elements are included). This should be generalized to allow for an input boundary marker, as in BilinearForm::Assemble.
+   // TODO: this implementation applies boundary markers just by setting coeff to zero on boundary elements. It would be better to skip those elements in AddMultPA. 
    
    const FiniteElement *fel = bdryInteg ? fes.GetBE(0) : fes.GetFE(0);
    
@@ -197,7 +197,15 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
    ne = bdryInteg ? fes.GetNBE() : fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   Vector bdryJac;
+   if (bdryInteg)
+     {
+       bdryJac.SetSize(ne*nq*6);
+     }
+   else
+     {
+       geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+     }
    mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
    dofs1D = mapsC->ndof;
@@ -271,10 +279,33 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (isBdryInteg || (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2 && mesh->SpaceDimension() == 3))
      {
        MFEM_VERIFY(coeffDim == 1, "");  // Vector coefficient not implemented in this case
-       MFEM_VERIFY(geom->J.Size() == 9 * ne * nq, "");  // J is 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
-       PAHcurlSetup2Din3D(quad1D, ne, ir->GetWeights(), geom->J,
-			  coeff, pa_data);
 
+       if (isBdryInteg)
+	 {
+	   for (int e=0; e<ne; ++e)
+	     {
+	       ElementTransformation *tr = mesh->GetBdrElementTransformation(e);
+	       for (int q = 0; q < nq; ++q)
+		 {
+		   tr->SetIntPoint(&(ir->IntPoint(q)));
+		   const DenseMatrix& jac = tr->Jacobian();
+		   for (int i=0; i<3; ++i)
+		     for (int j=0; j<2; ++j)
+		       {
+			 bdryJac[(6*nq*e) + (3*nq*j) + (i*nq) + q] = jac(i,j);
+		       }
+		 }
+	     }
+	 }
+       else
+	 {
+	   // J is allocated as 3x3, but entries (i,j) are set only for 0 <= i < 3, 0 <= j < 2.
+	   // That is, on each element J is 3x2 with 6 entries, not 9, so the last third of geom->J is unused.
+	   MFEM_VERIFY(geom->J.Size() == 9 * ne * nq, "");  
+	 }
+	   
+       PAHcurlSetup2Din3D(quad1D, ne, ir->GetWeights(), isBdryInteg ? bdryJac : geom->J,
+			  coeff, pa_data);
      }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
