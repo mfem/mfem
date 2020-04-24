@@ -381,6 +381,7 @@ class FaceElementTransformations : public IsoparametricTransformation
 {
 private:
    int side;
+   int mask;
 
 public:
    int Elem1No, Elem2No;
@@ -417,6 +418,24 @@ public:
     */
    int SetActiveSide(int s);
    int GetActiveSide() const { return side; }
+
+   /// Set the mask indicating which portions of the object have been setup
+   /** The argument @a m is a bitmask used in
+       Mesh::GetFaceElementTransformations to indicate which portions
+       of the FaceElement Transformations object have been configured.
+
+       mask &  1: Elem1 is configured
+       mask &  2: Elem2 is configured
+       mask &  4: Loc1 is configured
+       mask &  8: Loc2 is configured
+       mask & 16: The Face transformation itself is configured
+   */
+   void SetConfigurationMask(int m) { mask = m; }
+   int  GetConfigurationMask() const { return mask; }
+
+   virtual void Transform(const IntegrationPoint &, Vector &);
+   virtual void Transform(const IntegrationRule &, DenseMatrix &);
+   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
 
    ElementTransformation * GetActiveElementTransformation();
    IntegrationPointTransformation * GetActivePointTransformation();

@@ -859,6 +859,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
 {
    FaceInfo &face_info = faces_info[FaceNo];
 
+   FaceElemTr.SetConfigurationMask(0);
    FaceElemTr.Elem1 = NULL;
    FaceElemTr.Elem2 = NULL;
 
@@ -921,6 +922,8 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
          }
       }
    }
+
+   FaceElemTr.SetConfigurationMask(mask);
 
    return &FaceElemTr;
 }
