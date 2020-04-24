@@ -1038,8 +1038,7 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 
    delete tspec_fes;
    tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
-                                      tspec_.FESpace()->FEColl(),
-                                      1);
+                                      tspec_.FESpace()->FEColl(), 1);
 
    // need to append data to tspec
    // make a copy of tspec->tspec_temp, increase its size, and
