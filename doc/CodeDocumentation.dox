@@ -144,6 +144,7 @@ namespace mfem {
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
  * - <a class="el" href="toroid_8cpp_source.html">Toroid</a>: generate simple toroidal meshes
  * - <a class="el" href="twist_8cpp_source.html">Twist</a>: generate simple periodic meshes
+ * - <a class="el" href="minimal-surface_8cpp_source.html">Minimal Surface</a>: compute minimal surfaces, <a class="el" href="minimal-surface_8cpp_source.html">serial</a> and <a class="el" href="pminimal-surface_8cpp_source.html">parallel</a> versions
  * - <a class="el" href="shaper_8cpp_source.html">Shaper</a>: resolve material interfaces by mesh refinement
  * - <a class="el" href="extruder_8cpp_source.html">Extruder</a>: extrude a low-dimensional mesh into a higher dimension
  * - <a class="el" href="mesh-explorer_8cpp_source.html">Mesh Explorer</a>: visualize and manipulate meshes
