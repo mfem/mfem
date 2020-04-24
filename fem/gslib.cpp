@@ -168,7 +168,7 @@ void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
    {
       const int dataptrin  = i*points_fld,
                 dataptrout = i*points_cnt;
-      field_in_scalar.SetData(field_in.GetData()+dataptrin);
+      field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
       GetNodeValues(field_in_scalar, node_vals);
 
       if (dim==2)

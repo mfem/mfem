@@ -275,6 +275,12 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
 
+   if (finder)
+   {
+      finder->FreeData();
+      delete finder;
+   }
+
    FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI
    if (pfes)
