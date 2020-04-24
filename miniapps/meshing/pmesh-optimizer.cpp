@@ -48,7 +48,7 @@
 //   Adapted discrete aspect-ratio+orientation
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Adapted discrete aspect ratio (3D)
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 0 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -378,6 +378,8 @@ int main (int argc, char *argv[])
          {
 #ifdef MFEM_USE_GSLIB
             tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
          FunctionCoefficient ind_coeff(discrete_size_2d);
@@ -402,6 +404,8 @@ int main (int argc, char *argv[])
          {
 #ifdef MFEM_USE_GSLIB
             tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
          //Diffuse the interface
@@ -498,6 +502,8 @@ int main (int argc, char *argv[])
          {
 #ifdef MFEM_USE_GSLIB
             tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
          VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
@@ -518,6 +524,8 @@ int main (int argc, char *argv[])
          {
 #ifdef MFEM_USE_GSLIB
             tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
 
