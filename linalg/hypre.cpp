@@ -303,10 +303,13 @@ HypreParMatrix::HypreParMatrix()
 
 char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 {
-   hypre_CSRMatrixData(hypre_csr) = csr->GetData();
+   csrA = csr->GetSharedPtrData();
+   hypre_CSRMatrixData(hypre_csr) = *csrA;
 #ifndef HYPRE_BIGINT
-   hypre_CSRMatrixI(hypre_csr) = csr->GetI();
-   hypre_CSRMatrixJ(hypre_csr) = csr->GetJ();
+   csrI = csr->GetSharedPtrI();
+   csrJ = csr->GetSharedPtrJ();
+   hypre_CSRMatrixI(hypre_csr) = *csrI;
+   hypre_CSRMatrixJ(hypre_csr) = *csrJ;
    // Prevent hypre from destroying hypre_csr->{i,j,data}
    return 0;
 #else
@@ -1586,7 +1589,19 @@ void HypreParMatrix::Destroy()
 
    if (ParCSROwner)
    {
-      hypre_ParCSRMatrixDestroy(A);
+     const int useCount = csrI.use_count();
+     MFEM_VERIFY(useCount == csrJ.use_count() && useCount == csrA.use_count(), "");
+     if (useCount <= 1)
+       {
+	 hypre_ParCSRMatrixDestroy(A);
+       }
+
+     if (useCount == 1)
+       {
+	 csrI->Reset();
+	 csrJ->Reset();
+	 csrA->Reset();
+       }
    }
 }
 

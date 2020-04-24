@@ -49,13 +49,13 @@ protected:
        this array is always zero, I[0] = 0, and the last entry, I[height], gives
        the total number of entries stored (at a minimum, all nonzeros must be
        represented) in the sparse matrix. */
-   Memory<int> I;
+  std::shared_ptr<Memory<int>> I;
    /** @brief %Array with size #I[#height], containing the column indices for
        all matrix entries, as indexed by the #I array. */
-   Memory<int> J;
+  std::shared_ptr<Memory<int>> J;
    /** @brief %Array with size #I[#height], containing the actual entries of the
        sparse matrix, as indexed by the #I array. */
-   Memory<double> A;
+  std::shared_ptr<Memory<double>> A;
    ///@}
 
    /** @brief %Array of linked lists, one for every row. This array represents
@@ -82,7 +82,13 @@ protected:
 
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix() { 
+     I = std::make_shared<Memory<int>>();
+     J = std::make_shared<Memory<int>>();
+     A = std::make_shared<Memory<double>>();
+
+     SetEmpty(); 
+   }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -138,67 +144,71 @@ public:
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
 
    /// Return the array #I.
-   inline int *GetI() { return I; }
+   inline int *GetI() { return *I; }
    /// Return the array #I, const version.
-   inline const int *GetI() const { return I; }
+   inline const int *GetI() const { return *I; }
 
    /// Return the array #J.
-   inline int *GetJ() { return J; }
+   inline int *GetJ() { return *J; }
    /// Return the array #J, const version.
-   inline const int *GetJ() const { return J; }
+   inline const int *GetJ() const { return *J; }
 
    /// Return the element data, i.e. the array #A.
-   inline double *GetData() { return A; }
+   inline double *GetData() { return *A; }
    /// Return the element data, i.e. the array #A, const version.
-   inline const double *GetData() const { return A; }
+   inline const double *GetData() const { return *A; }
+
+  inline std::shared_ptr<Memory<int>>& GetSharedPtrI() { return I; } 
+  inline std::shared_ptr<Memory<int>>& GetSharedPtrJ() { return J; } 
+  inline std::shared_ptr<Memory<double>>& GetSharedPtrData() { return A; } 
 
    // Memory access methods for the #I array.
-   Memory<int> &GetMemoryI() { return I; }
-   const Memory<int> &GetMemoryI() const { return I; }
+   Memory<int> &GetMemoryI() { return *I; }
+   const Memory<int> &GetMemoryI() const { return *I; }
    const int *ReadI(bool on_dev = true) const
-   { return mfem::Read(I, Height()+1, on_dev); }
+   { return mfem::Read(*I, Height()+1, on_dev); }
    int *WriteI(bool on_dev = true)
-   { return mfem::Write(I, Height()+1, on_dev); }
+   { return mfem::Write(*I, Height()+1, on_dev); }
    int *ReadWriteI(bool on_dev = true)
-   { return mfem::ReadWrite(I, Height()+1, on_dev); }
+   { return mfem::ReadWrite(*I, Height()+1, on_dev); }
    const int *HostReadI() const
-   { return mfem::Read(I, Height()+1, false); }
+   { return mfem::Read(*I, Height()+1, false); }
    int *HostWriteI()
-   { return mfem::Write(I, Height()+1, false); }
+   { return mfem::Write(*I, Height()+1, false); }
    int *HostReadWriteI()
-   { return mfem::ReadWrite(I, Height()+1, false); }
+   { return mfem::ReadWrite(*I, Height()+1, false); }
 
    // Memory access methods for the #J array.
-   Memory<int> &GetMemoryJ() { return J; }
-   const Memory<int> &GetMemoryJ() const { return J; }
+   Memory<int> &GetMemoryJ() { return *J; }
+   const Memory<int> &GetMemoryJ() const { return *J; }
    const int *ReadJ(bool on_dev = true) const
-   { return mfem::Read(J, J.Capacity(), on_dev); }
+   { return mfem::Read(*J, J->Capacity(), on_dev); }
    int *WriteJ(bool on_dev = true)
-   { return mfem::Write(J, J.Capacity(), on_dev); }
+   { return mfem::Write(*J, J->Capacity(), on_dev); }
    int *ReadWriteJ(bool on_dev = true)
-   { return mfem::ReadWrite(J, J.Capacity(), on_dev); }
+   { return mfem::ReadWrite(*J, J->Capacity(), on_dev); }
    const int *HostReadJ() const
-   { return mfem::Read(J, J.Capacity(), false); }
+   { return mfem::Read(*J, J->Capacity(), false); }
    int *HostWriteJ()
-   { return mfem::Write(J, J.Capacity(), false); }
+   { return mfem::Write(*J, J->Capacity(), false); }
    int *HostReadWriteJ()
-   { return mfem::ReadWrite(J, J.Capacity(), false); }
+   { return mfem::ReadWrite(*J, J->Capacity(), false); }
 
    // Memory access methods for the #A array.
-   Memory<double> &GetMemoryData() { return A; }
-   const Memory<double> &GetMemoryData() const { return A; }
+   Memory<double> &GetMemoryData() { return *A; }
+   const Memory<double> &GetMemoryData() const { return *A; }
    const double *ReadData(bool on_dev = true) const
-   { return mfem::Read(A, A.Capacity(), on_dev); }
+   { return mfem::Read(*A, A->Capacity(), on_dev); }
    double *WriteData(bool on_dev = true)
-   { return mfem::Write(A, A.Capacity(), on_dev); }
+   { return mfem::Write(*A, A->Capacity(), on_dev); }
    double *ReadWriteData(bool on_dev = true)
-   { return mfem::ReadWrite(A, A.Capacity(), on_dev); }
+   { return mfem::ReadWrite(*A, A->Capacity(), on_dev); }
    const double *HostReadData() const
-   { return mfem::Read(A, A.Capacity(), false); }
+   { return mfem::Read(*A, A->Capacity(), false); }
    double *HostWriteData()
-   { return mfem::Write(A, A.Capacity(), false); }
+   { return mfem::Write(*A, A->Capacity(), false); }
    double *HostReadWriteData()
-   { return mfem::ReadWrite(A, A.Capacity(), false); }
+   { return mfem::ReadWrite(*A, A->Capacity(), false); }
 
    /// Returns the number of elements in row @a i.
    int RowSize(const int i) const;
@@ -425,7 +435,7 @@ public:
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
    /// Returns whether or not CSR format has been finalized.
-   bool Finalized() const { return !A.Empty(); }
+   bool Finalized() const { return !A->Empty(); }
    /// Returns whether or not the columns are sorted.
    bool ColumnsAreSorted() const { return isSorted; }
 
@@ -556,16 +566,16 @@ public:
 
    /// Set the graph ownership flag (I and J arrays).
    void SetGraphOwner(bool ownij)
-   { I.SetHostPtrOwner(ownij); J.SetHostPtrOwner(ownij); }
+   { I->SetHostPtrOwner(ownij); J->SetHostPtrOwner(ownij); }
 
    /// Set the data ownership flag (A array).
-   void SetDataOwner(bool owna) { A.SetHostPtrOwner(owna); }
+   void SetDataOwner(bool owna) { A->SetHostPtrOwner(owna); }
 
    /// Get the graph ownership flag (I and J arrays).
-   bool OwnsGraph() const { return I.OwnsHostPtr() && J.OwnsHostPtr(); }
+   bool OwnsGraph() const { return I->OwnsHostPtr() && J->OwnsHostPtr(); }
 
    /// Get the data ownership flag (A array).
-   bool OwnsData() const { return A.OwnsHostPtr(); }
+   bool OwnsData() const { return A->OwnsHostPtr(); }
 
    /// Lose the ownership of the graph (I, J) and data (A) arrays.
    void LoseData() { SetGraphOwner(false); SetDataOwner(false); }
@@ -680,9 +690,9 @@ inline void SparseMatrix::SetColPtr(const int row) const
             ColPtrJ[i] = -1;
          }
       }
-      for (int j = I[row], end = I[row+1]; j < end; j++)
+      for (int j = (*I)[row], end = (*I)[row+1]; j < end; j++)
       {
-         ColPtrJ[J[j]] = j;
+	ColPtrJ[(*J)[j]] = j;
       }
    }
    current_row = row;
@@ -700,9 +710,9 @@ inline void SparseMatrix::ClearColPtr() const
    }
    else
    {
-      for (int j = I[current_row], end = I[current_row+1]; j < end; j++)
+      for (int j = (*I)[current_row], end = (*I)[current_row+1]; j < end; j++)
       {
-         ColPtrJ[J[j]] = -1;
+	ColPtrJ[(*J)[j]] = -1;
       }
    }
 }
@@ -730,7 +740,7 @@ inline double &SparseMatrix::SearchRow(const int col)
    {
       const int j = ColPtrJ[col];
       MFEM_VERIFY(j != -1, "Entry for column " << col << " is not allocated.");
-      return A[j];
+      return (*A)[j];
    }
 }
 
@@ -744,7 +754,7 @@ inline double SparseMatrix::_Get_(const int col) const
    else
    {
       const int j = ColPtrJ[col];
-      return (j == -1) ? 0.0 : A[j];
+      return (j == -1) ? 0.0 : (*A)[j];
    }
 }
 
@@ -778,17 +788,17 @@ inline double &SparseMatrix::SearchRow(const int row, const int col)
    }
    else
    {
-      int *Ip = I+row, *Jp = J;
+     int *Ip = (*I)+row, *Jp = *J;
       for (int k = Ip[0], end = Ip[1]; k < end; k++)
       {
          if (Jp[k] == col)
          {
-            return A[k];
+	   return (*A)[k];
          }
       }
       MFEM_ABORT("Could not find entry for row = " << row << ", col = " << col);
    }
-   return A[0];
+   return (*A)[0];
 }
 
 /// Specialization of the template function Swap<> for class SparseMatrix

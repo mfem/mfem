@@ -169,6 +169,62 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
    }
 }
 
+  TEST_CASE("HypreParMatrixData",
+	    "[Parallel]")
+  {
+    SECTION("DataOwnership")
+      {
+	int rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+	ParMesh pmesh(MPI_COMM_WORLD, mesh);
+	int dim = mesh.Dimension();
+	int order = 2;
+
+	//FiniteElementCollection *fec = new H1_FECollection(order, dim);
+	H1_FECollection fec(order, dim);
+	ParFiniteElementSpace fes(&pmesh, &fec);
+
+	Array<int> ess_tdof_list;
+	Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+	ess_bdr = 1;
+	fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+	const int ntd = fes.GetTrueVSize();
+	Vector x(ntd);
+	Vector Ax1(ntd);
+	Vector Ax2(ntd);
+
+	x.Randomize();
+
+	HypreParMatrix *A = NULL;
+
+	{
+	  ParBilinearForm a(&fes);
+	  OperatorPtr Aptr;
+
+	  a.SetAssemblyLevel(AssemblyLevel::FULL);
+	  a.AddDomainIntegrator(new DiffusionIntegrator());
+	  a.Assemble();
+	  a.FormSystemMatrix(ess_tdof_list, Aptr);
+
+	  A = Aptr.As<HypreParMatrix>();
+	  A->Mult(x, Ax1);
+	}
+
+	A->Mult(x, Ax2);
+
+	Ax1 -= Ax2;
+	Ax1 = 0.0;
+	double error = Ax1.Norml2();
+	std::cout << "HypreParMatrix data ownership error norm on rank " << rank << ": " << error << std::endl;
+
+	REQUIRE(error < 1.e-12);
+	delete A;
+      }
+  }
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem

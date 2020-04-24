@@ -230,7 +230,9 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(1);
    if (prec) { cg.SetPreconditioner(*prec); }
    cg.SetOperator(*A);
+   delete a; //DC
    cg.Mult(B, X);
+   return 0; //DC
    delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the

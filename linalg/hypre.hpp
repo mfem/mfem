@@ -212,6 +212,10 @@ private:
    // Does the object own the pointer A?
    signed char ParCSROwner;
 
+  std::shared_ptr<Memory<int>> csrI;
+  std::shared_ptr<Memory<int>> csrJ;
+  std::shared_ptr<Memory<double>> csrA;
+
    // Initialize with defaults. Does not initialize inherited members.
    void Init();
 
@@ -220,7 +224,7 @@ private:
 
    // Copy (shallow/deep, based on HYPRE_BIGINT) the I and J arrays from csr to
    // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
-   static char CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr);
+   char CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr);
    // Copy (shallow or deep, based on HYPRE_BIGINT) the I and J arrays from
    // bool_csr to hypre_csr. Allocate the data array and set it to all ones.
    // Return the appropriate ownership flag.
