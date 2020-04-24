@@ -2430,17 +2430,16 @@ public:
 };
 
 
-class RT_QuadrilateralElement : public VectorFiniteElement
+class RT_QuadrilateralElement : public VectorTensorFiniteElement
 {
 private:
    static const double nk[8];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2nk;
+   Array<int> dof2nk;
 
 public:
    RT_QuadrilateralElement(const int p,
@@ -2486,16 +2485,15 @@ public:
 };
 
 
-class RT_HexahedronElement : public VectorFiniteElement
+class RT_HexahedronElement : public VectorTensorFiniteElement
 {
    static const double nk[18];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
-   Array<int> dof_map, dof2nk;
+   Array<int> dof2nk;
 
 public:
    RT_HexahedronElement(const int p,

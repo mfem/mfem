@@ -4,8 +4,10 @@
 //
 // Sample runs:  mpirun -np 4 ex5p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex5p -m ../data/star.mesh
+//               mpirun -np 4 ex5p -m ../data/star.mesh -pa
 //               mpirun -np 4 ex5p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex5p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh -pa
 //               mpirun -np 4 ex5p -m ../data/escher.mesh
 //               mpirun -np 4 ex5p -m ../data/fichera.mesh
 //
@@ -56,6 +58,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool par_format = false;
+   bool pa = false;
    bool visualization = 1;
    bool adios2 = false;
 
@@ -67,6 +70,8 @@ int main(int argc, char *argv[])
    args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
                   "--serial-format",
                   "Format to use when saving the results for VisIt.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -196,25 +201,43 @@ int main(int argc, char *argv[])
    ParBilinearForm *mVarf(new ParBilinearForm(R_space));
    ParMixedBilinearForm *bVarf(new ParMixedBilinearForm(R_space, W_space));
 
-   HypreParMatrix *M, *B;
+   HypreParMatrix *M = NULL;
+   HypreParMatrix *B = NULL;
 
+   if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
    mVarf->Assemble();
-   mVarf->Finalize();
-   M = mVarf->ParallelAssemble();
+   if (!pa) { mVarf->Finalize(); }
 
+   if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    bVarf->Assemble();
-   bVarf->Finalize();
-   B = bVarf->ParallelAssemble();
-   (*B) *= -1;
-
-   HypreParMatrix *BT = B->Transpose();
+   if (!pa) { bVarf->Finalize(); }
 
    BlockOperator *darcyOp = new BlockOperator(block_trueOffsets);
-   darcyOp->SetBlock(0,0, M);
-   darcyOp->SetBlock(0,1, BT);
-   darcyOp->SetBlock(1,0, B);
+
+   Array<int> empty_tdof_list;  // empty
+   OperatorPtr opM, opB;
+
+   if (pa)
+   {
+      mVarf->FormSystemMatrix(empty_tdof_list, opM);
+      bVarf->FormRectangularSystemMatrix(empty_tdof_list, empty_tdof_list, opB);
+
+      darcyOp->SetBlock(0,0, opM.Ptr());
+      darcyOp->SetBlock(0,1, new TransposeOperator(opB.Ptr()), -1.0);
+      darcyOp->SetBlock(1,0, opB.Ptr(), -1.0);
+   }
+   else
+   {
+      M = mVarf->ParallelAssemble();
+      B = bVarf->ParallelAssemble();
+      (*B) *= -1;
+
+      darcyOp->SetBlock(0,0, M);
+      darcyOp->SetBlock(0,1, new TransposeOperator(B));
+      darcyOp->SetBlock(1,0, B);
+   }
 
    // 11. Construct the operators for preconditioner
    //
@@ -223,17 +246,43 @@ int main(int argc, char *argv[])
    //
    //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
    //     pressure Schur Complement.
-   HypreParMatrix *MinvBt = B->Transpose();
-   HypreParVector *Md = new HypreParVector(MPI_COMM_WORLD, M->GetGlobalNumRows(),
-                                           M->GetRowStarts());
-   M->GetDiag(*Md);
+   HypreParMatrix *MinvBt = NULL;
+   HypreParVector *Md = NULL;
+   HypreParMatrix *S = NULL;
+   Vector Md_PA;
+   Solver *invM, *invS;
 
-   MinvBt->InvScaleRows(*Md);
-   HypreParMatrix *S = ParMult(B, MinvBt);
+   if (pa)
+   {
+      Md_PA.SetSize(R_space->GetTrueVSize());
+      mVarf->AssembleDiagonal(Md_PA);
+      Vector invMd(Md_PA.Size());
+      for (int i=0; i<Md_PA.Size(); ++i)
+      {
+         invMd[i] = 1.0 / Md_PA[i];
+      }
 
-   HypreSolver *invM, *invS;
-   invM = new HypreDiagScale(*M);
-   invS = new HypreBoomerAMG(*S);
+      Vector BMBt_diag(W_space->GetTrueVSize());
+      bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+      Array<int> ess_tdof_list;  // empty
+
+      invM = new OperatorJacobiSmoother(Md_PA, ess_tdof_list);
+      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+   }
+   else
+   {
+      Md = new HypreParVector(MPI_COMM_WORLD, M->GetGlobalNumRows(),
+                              M->GetRowStarts());
+      M->GetDiag(*Md);
+
+      MinvBt = B->Transpose();
+      MinvBt->InvScaleRows(*Md);
+      S = ParMult(B, MinvBt);
+
+      invM = new HypreDiagScale(*M);
+      invS = new HypreBoomerAMG(*S);
+   }
 
    invM->iterative_mode = false;
    invS->iterative_mode = false;
@@ -245,7 +294,7 @@ int main(int argc, char *argv[])
 
    // 12. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
-   int maxIter(500);
+   int maxIter(pa ? 1000 : 500);
    double rtol(1.e-6);
    double atol(1.e-10);
 
@@ -395,7 +444,6 @@ int main(int argc, char *argv[])
    delete S;
    delete Md;
    delete MinvBt;
-   delete BT;
    delete B;
    delete M;
    delete mVarf;
