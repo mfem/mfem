@@ -145,49 +145,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    DenseMatrix RefMat(dofs.numDofsSubcell, dofs.numDofsSubcell);
    Geometry::Type gtype = el->GetGeomType();
 
-   switch (gtype)
-   {
-      case Geometry::SEGMENT:
-      {
-         RefMat = 1.;
-         RefMat(0,0) = RefMat(1,1) = 2.;
-         RefMat *= 1. / 6.;
-         break;
-      }
-      case Geometry::TRIANGLE:
-      {
-         RefMat = 1.;
-         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = 2.;
-         RefMat *= 1. / 24.;
-         break;
-      }
-      case Geometry::SQUARE:
-      {
-         RefMat = 2.;
-         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 4.;
-         RefMat(0,3) = RefMat(1,2) = RefMat(2,1) = RefMat(3,0) = 1.;
-         RefMat *= 1. / 36.;
-         break;
-      }
-      case Geometry::CUBE:
-      {
-         RefMat = 2.;
-         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 8.;
-         RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 8.;
-         RefMat(0,7) = RefMat(1,6) = RefMat(2,5) = RefMat(3,4) = 1.;
-         RefMat(4,3) = RefMat(5,2) = RefMat(6,1) = RefMat(7,0) = 1.;
-         RefMat(0,1) = RefMat(0,2) = RefMat(1,0) = RefMat(1,3) = 4.;
-         RefMat(2,0) = RefMat(2,3) = RefMat(3,1) = RefMat(3,2) = 4.;
-         RefMat(4,5) = RefMat(4,6) = RefMat(5,4) = RefMat(5,7) = 4.;
-         RefMat(6,4) = RefMat(6,7) = RefMat(7,5) = RefMat(7,6) = 4.;
-         RefMat(0,4) = RefMat(1,5) = RefMat(2,6) = RefMat(3,7) = 4.;
-         RefMat(4,0) = RefMat(5,1) = RefMat(6,2) = RefMat(7,3) = 4.;
-         RefMat *= 1. / 216.;
-         break;
-      }
-      default:
-         MFEM_ABORT("Unsupported Geometry.");
-   }
+   ComputeLORMassMatrix(RefMat, gtype, false);
 
    RefMat *= 1. / ((double) dofs.numSubcells);
 
@@ -218,9 +176,6 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    DenseMatrixInverse InvLOR(&LowOrderRefinedMat);
    InvLOR.Factor();
    InvLOR.GetInverseMatrix(DistributionMatrix);
-   // MassMatLOR.Print();
-   // DistributionMatrix.Print();
-
 }
 
 void MCL_Evolution::Mult(const Vector &x, Vector &y) const
@@ -313,14 +268,16 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
    DenseMatrix mat3(nd, hyp->NumEq);
    DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq), BdrFlux(hyp->NumEq*nd, dofs.NumBdrs),
-               uDot(nd, hyp->NumEq), AntiDiff(nd, hyp->NumEq);
+               uDot(nd, hyp->NumEq);
+   DenseTensor AntiDiff(nd, nd, hyp->NumEq), wij(nd, nd, hyp->NumEq);
 
    z = 0.;
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
-      mat2 = uDot = AntiDiff = 0.;
+      mat2 = uDot = 0.;
+      AntiDiff = 0.;
       BdrFlux = 0.;
 
       for (int k = 0; k < nqe; k++)
@@ -431,7 +388,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                {
                   double rus = dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
                   z(vdofs[n * nd + I]) += rus;
-                  AntiDiff(I,n) -= rus;
+                  AntiDiff(I,J,n) -= rus;
+                  // wij(I,J,n) = dij * (x(vdofs[n * nd + J]) + x(vdofs[n * nd + I]))
                }
             }
          }
@@ -555,22 +513,15 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               UnlimitedFluxes(i,j,n) = MassMatLOR(i,j) * (AuxiliaryVectors(i,n)
-                                                         - AuxiliaryVectors(j,n));
+               UnlimitedFluxes(i,j,n) = AntiDiff(i,j,n) + MassMatLOR(i,j)
+                                        * (AuxiliaryVectors(i,n) - AuxiliaryVectors(j,n));
 
                ElFlux(i,n) += UnlimitedFluxes(i,j,n);
             }
          }
       }
 
-
-
-      // UnlimitedFluxes.Transpose();
-      // Vector test(hyp->NumEq);
-      // UnlimitedFluxes.GetRowSums(test);
-
       z.AddElementVector(vdofs, ElFlux.GetData());
-      z.AddElementVector(vdofs, AntiDiff.GetData());
 
       Vector sums(hyp->NumEq*nd);
       BdrFlux.GetRowSums(sums);
@@ -588,4 +539,70 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       // z.SetSubVector(vdofs, galerkin.GetData());
    }
    // InvMassMat->Mult(z, y);
+}
+
+void MCL_Evolution::ComputeLORMassMatrix(DenseMatrix &RefMat, Geometry::Type gtype, bool UseDiagonalNbrs)
+{
+   switch (gtype)
+   {
+      case Geometry::SEGMENT:
+      {
+         RefMat = 1.;
+         RefMat(0,0) = RefMat(1,1) = 2.;
+         RefMat *= 1. / 6.;
+         break;
+      }
+      case Geometry::TRIANGLE:
+      {
+         RefMat = 1.;
+         RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = 2.;
+         RefMat *= 1. / 24.;
+         break;
+      }
+      case Geometry::SQUARE:
+      {
+         RefMat = 2.;
+         if (UseDiagonalNbrs)
+         {
+            RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 4.;
+            RefMat(0,3) = RefMat(1,2) = RefMat(2,1) = RefMat(3,0) = 1.;
+         }
+         else
+         {
+            RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 5.;
+            RefMat(0,3) = RefMat(1,2) = RefMat(2,1) = RefMat(3,0) = 0.;
+         }
+         RefMat *= 1. / 36.;
+         break;
+      }
+      case Geometry::CUBE:
+      {
+         if (UseDiagonalNbrs)
+         {
+            RefMat = 2.;
+            RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 8.;
+            RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 8.;
+            RefMat(0,7) = RefMat(1,6) = RefMat(2,5) = RefMat(3,4) = 1.;
+            RefMat(4,3) = RefMat(5,2) = RefMat(6,1) = RefMat(7,0) = 1.;
+         }
+         else
+         {
+            RefMat = 0.;
+            RefMat(0,0) = RefMat(1,1) = RefMat(2,2) = RefMat(3,3) = 15.;
+            RefMat(4,4) = RefMat(5,5) = RefMat(6,6) = RefMat(7,7) = 15.;
+         }
+
+         RefMat(0,1) = RefMat(0,2) = RefMat(1,0) = RefMat(1,3) = 4.;
+         RefMat(2,0) = RefMat(2,3) = RefMat(3,1) = RefMat(3,2) = 4.;
+         RefMat(4,5) = RefMat(4,6) = RefMat(5,4) = RefMat(5,7) = 4.;
+         RefMat(6,4) = RefMat(6,7) = RefMat(7,5) = RefMat(7,6) = 4.;
+         RefMat(0,4) = RefMat(1,5) = RefMat(2,6) = RefMat(3,7) = 4.;
+         RefMat(4,0) = RefMat(5,1) = RefMat(6,2) = RefMat(7,3) = 4.;
+
+         RefMat *= 1. / 216.;
+         break;
+      }
+      default:
+         MFEM_ABORT("Unsupported Geometry.");
+   }
 }

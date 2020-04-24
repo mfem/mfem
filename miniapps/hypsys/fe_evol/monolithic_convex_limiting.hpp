@@ -34,6 +34,7 @@ public:
                                   Vector &y, int e, int j, int i) const;
    void ComputeTimeDerivative(const Vector &x, Vector &y,
                               const Vector &xMPI = serial) const;
+   void ComputeLORMassMatrix(DenseMatrix &RefMat, Geometry::Type gtype, bool UseDiagonalNbrs);
 };
 
 #endif
