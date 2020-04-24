@@ -102,7 +102,6 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
 
    Vector rhs(ndofs * vdim), rhs_sub(ndofs);
    Vector qfv(ndofs * vdim), qfv_sub(ndofs);
-   Array<int> dofs(ndofs);
 
    VectorQuadratureIntegrator qi(vqfc);
    qi.SetIntRule(ir);
@@ -124,6 +123,7 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
    }
 
    double* data = m_all_data.HostReadWrite();
+   Array<int> dofs;
    for (int e = 0; e < NE; e++)
    {
       qfv = 0.0;
@@ -168,7 +168,7 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
 
    Vector rhs(ndofs);
    Vector qfv(ndofs);
-   Array<int> dofs(ndofs);
+   Array<int> dofs;
 
    QuadratureIntegrator qi(qfc);
    qi.SetIntRule(ir);

@@ -52,15 +52,20 @@ TEST_CASE("Quadrature Function Coefficients",
    }
 
    {
-      //More like nelems * nqpts
-      int nelems = quadf_vcoeff.Size() / quadf_vcoeff.GetVDim();
+      int nqpts = ir.GetNPoints();
+      int nelems = quadf_vcoeff.Size() / quadf_vcoeff.GetVDim() / nqpts;
       int vdim = quadf_vcoeff.GetVDim();
 
       for (int i = 0; i < nelems; i++)
       {
          for (int j = 0; j < vdim; j++)
          {
-            quadf_vcoeff((i * vdim) + j) = j;
+            for (int k = 0; k < nqpts; k++)
+            {
+               //X has dims nqpts x sdim x ne
+               quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
+                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
+            }
          }
       }
    }
@@ -94,20 +99,26 @@ TEST_CASE("Quadrature Function Coefficients",
          L2_FECollection    fec_l2(order_h1, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
          H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, 1);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
+
          GridFunction g0(&fespace_l2);
          GridFunction gtrue(&fespace_l2);
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
+            int ne = mesh.GetNE();
 
-            for (int i = 0; i < vdim; i++)
+            GridFunction nodes(&fespace_h1);
+            Vector el_x;
+            Array<int> vdofs;
+            mesh.GetNodes(nodes);
+            int vdim = quadf_vcoeff.GetVDim();
+
+            for (int i = 0; i < ne; i++)
             {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue((i * nnodes) + j) = i;
-               }
+               fespace_h1.GetElementVDofs(i, vdofs);
+               nodes.GetSubVector(vdofs, el_x);
+               fespace_l2.GetElementVDofs(i, vdofs);
+               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
             }
          }
 
@@ -123,20 +134,25 @@ TEST_CASE("Quadrature Function Coefficients",
          L2_FECollection    fec_l2(order_h1, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim, Ordering::byVDIM);
          H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, 1, Ordering::byVDIM);
+         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
          GridFunction g0(&fespace_l2);
          GridFunction gtrue(&fespace_l2);
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
+            int ne = mesh.GetNE();
 
-            for (int i = 0; i < vdim; i++)
+            GridFunction nodes(&fespace_h1);
+            Vector el_x;
+            Array<int> vdofs;
+            mesh.GetNodes(nodes);
+            int vdim = quadf_vcoeff.GetVDim();
+
+            for (int i = 0; i < ne; i++)
             {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue(i + (vdim * j)) = i;
-               }
+               fespace_h1.GetElementVDofs(i, vdofs);
+               nodes.GetSubVector(vdofs, el_x);
+               fespace_l2.GetElementVDofs(i, vdofs);
+               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
             }
          }
 
@@ -155,16 +171,9 @@ TEST_CASE("Quadrature Function Coefficients",
          GridFunction gtrue(&fespace_h1);
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
-
-            for (int i = 0; i < vdim; i++)
-            {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue((i * nnodes) + j) = i;
-               }
-            }
+            GridFunction nodes(&fespace_h1);
+            mesh.GetNodes(nodes);
+            gtrue = nodes;
          }
 
          g0 = 0.0;
@@ -181,16 +190,9 @@ TEST_CASE("Quadrature Function Coefficients",
          GridFunction gtrue(&fespace_h1);
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
-
-            for (int i = 0; i < vdim; i++)
-            {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue(i + j * vdim) = i;
-               }
-            }
+            GridFunction nodes(&fespace_h1);
+            mesh.GetNodes(nodes);
+            gtrue = nodes;
          }
 
          g0 = 0.0;
@@ -228,7 +230,6 @@ TEST_CASE("Quadrature Function Coefficients",
             {
                fespace_h1.GetElementVDofs(i, vdofs);
                nodes.GetSubVector(vdofs, el_x);
-               // Should be constant across all elements
                int enodes = el_x.Size() / dim;
                for (int j = 0; j < enodes; j++)
                {
@@ -313,15 +314,20 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
    }
 
    {
-      //More like nelems * nqpts
-      int nelems = quadf_vcoeff.Size() / quadf_vcoeff.GetVDim();
+      int nqpts = ir.GetNPoints();
+      int nelems = quadf_vcoeff.Size() / quadf_vcoeff.GetVDim() / nqpts;
       int vdim = quadf_vcoeff.GetVDim();
 
       for (int i = 0; i < nelems; i++)
       {
          for (int j = 0; j < vdim; j++)
          {
-            quadf_vcoeff((i * vdim) + j) = j;
+            for (int k = 0; k < nqpts; k++)
+            {
+               //X has dims nqpts x sdim x ne
+               quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
+                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
+            }
          }
       }
    }
@@ -355,20 +361,25 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          L2_FECollection    fec_l2(order_h1, dim);
          ParFiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
          H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, 1);
+         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
          ParGridFunction g0(&fespace_l2);
          ParGridFunction gtrue(&fespace_l2);
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
+            int ne = mesh.GetNE();
 
-            for (int i = 0; i < vdim; i++)
+            ParGridFunction nodes(&fespace_h1);
+            Vector el_x;
+            Array<int> vdofs;
+            mesh.GetNodes(nodes);
+            int vdim = quadf_vcoeff.GetVDim();
+
+            for (int i = 0; i < ne; i++)
             {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue((i * nnodes) + j) = i;
-               }
+               fespace_h1.GetElementVDofs(i, vdofs);
+               nodes.GetSubVector(vdofs, el_x);
+               fespace_l2.GetElementVDofs(i, vdofs);
+               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
             }
          }
 
@@ -390,20 +401,25 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          L2_FECollection    fec_l2(order_h1, dim);
          ParFiniteElementSpace fespace_l2(&mesh, &fec_l2, dim, Ordering::byVDIM);
          H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, 1, Ordering::byVDIM);
+         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
          ParGridFunction g0(&fespace_l2);
          ParGridFunction gtrue(&fespace_l2);
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
+            int ne = mesh.GetNE();
 
-            for (int i = 0; i < vdim; i++)
+            ParGridFunction nodes(&fespace_h1);
+            Vector el_x;
+            Array<int> vdofs;
+            mesh.GetNodes(nodes);
+            int vdim = quadf_vcoeff.GetVDim();
+
+            for (int i = 0; i < ne; i++)
             {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue(i + (vdim * j)) = i;
-               }
+               fespace_h1.GetElementVDofs(i, vdofs);
+               nodes.GetSubVector(vdofs, el_x);
+               fespace_l2.GetElementVDofs(i, vdofs);
+               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
             }
          }
 
@@ -428,16 +444,9 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          ParGridFunction gtrue(&fespace_h1);
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
-
-            for (int i = 0; i < vdim; i++)
-            {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue((i * nnodes) + j) = i;
-               }
-            }
+            ParGridFunction nodes(&fespace_h1);
+            mesh.GetNodes(nodes);
+            gtrue = nodes;
          }
 
          g0 = 0.0;
@@ -463,16 +472,9 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          fi.FullReset();
 
          {
-            int nnodes = gtrue.Size() / dim;
-            int vdim = dim;
-
-            for (int i = 0; i < vdim; i++)
-            {
-               for (int j = 0; j < nnodes; j++)
-               {
-                  gtrue(i + j * vdim) = i;
-               }
-            }
+            ParGridFunction nodes(&fespace_h1);
+            mesh.GetNodes(nodes);
+            gtrue = nodes;
          }
 
          g0 = 0.0;
@@ -516,7 +518,6 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
             {
                fespace_h1.GetElementVDofs(i, vdofs);
                nodes.GetSubVector(vdofs, el_x);
-               // Should be constant across all elements
                int enodes = el_x.Size() / dim;
                for (int j = 0; j < enodes; j++)
                {
