@@ -121,7 +121,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       Geometry::Type geom = elem->GetGeometryType();
       MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
                   geom == Geometry::CUBE || geom == Geometry::PRISM ||
-                  geom == Geometry::TETRAHEDRON,
+                  geom == Geometry::TETRAHEDRON || geom == Geometry::CUTSQUARE,
                   "Element type " << geom << " not supported by NCMesh.");
 
       // initialize edge/face tables for this type of element
@@ -1448,6 +1448,60 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
       child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
    }
+   else if (el.Geom() == Geometry::CUTSQUARE)
+   {
+      ref_type &= 0x3; // ignore Z bit
+
+      if (ref_type == 1) // X split
+      {
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid23 = nodes.GetId(no[2], no[3]);
+
+         child[0] = NewQuadrilateral(no[0], mid01, mid23, no[3],
+                                     attr, fa[0], -1, fa[2], fa[3]);
+
+         child[1] = NewQuadrilateral(mid01, no[1], no[2], mid23,
+                                     attr, fa[0], fa[1], fa[2], -1);
+      }
+      else if (ref_type == 2) // Y split
+      {
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid30 = nodes.GetId(no[3], no[0]);
+
+         child[0] = NewQuadrilateral(no[0], no[1], mid12, mid30,
+                                     attr, fa[0], fa[1], -1, fa[3]);
+
+         child[1] = NewQuadrilateral(mid30, mid12, no[2], no[3],
+                                     attr, -1, fa[1], fa[2], fa[3]);
+      }
+      else if (ref_type == 3) // iso split
+      {
+         int mid01 = nodes.GetId(no[0], no[1]);
+         int mid12 = nodes.GetId(no[1], no[2]);
+         int mid23 = nodes.GetId(no[2], no[3]);
+         int mid30 = nodes.GetId(no[3], no[0]);
+
+         int midel = nodes.GetId(mid01, mid23);
+
+         child[0] = NewQuadrilateral(no[0], mid01, midel, mid30,
+                                     attr, fa[0], -1, -1, fa[3]);
+
+         child[1] = NewQuadrilateral(mid01, no[1], mid12, midel,
+                                     attr, fa[0], fa[1], -1, -1);
+
+         child[2] = NewQuadrilateral(midel, mid12, no[2], mid23,
+                                     attr, -1, fa[1], fa[2], -1);
+
+         child[3] = NewQuadrilateral(mid30, midel, mid23, no[3],
+                                     attr, -1, -1, fa[2], fa[3]);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid refinement type.");
+      }
+
+      if (ref_type != 3) { Iso = false; }
+   }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
@@ -1557,6 +1611,10 @@ int NCMesh::RetrieveNode(const Element &el, int index)
       case Geometry::SQUARE:
          ch = el.child[quad_deref_table[el.ref_type - 1][index]];
          break;
+      
+      case Geometry::CUTSQUARE:
+         ch = el.child[quad_deref_table[el.ref_type - 1][index]];
+         break;
 
       case Geometry::TETRAHEDRON:
       case Geometry::TRIANGLE:
@@ -1640,6 +1698,21 @@ void NCMesh::DerefineElement(int elem)
       }
    }
    else if (el.Geom() == Geometry::SQUARE)
+   {
+      for (int i = 0; i < 4; i++)
+      {
+         Element &ch = elements[child[quad_deref_table[rt1][i]]];
+         el.node[i] = ch.node[i];
+      }
+      for (int i = 0; i < 4; i++)
+      {
+         Element &ch = elements[child[quad_deref_table[rt1][i + 4]]];
+         const int* fv = GI[el.Geom()].faces[i];
+         fa[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                            ch.node[fv[2]], ch.node[fv[3]])->attribute;
+      }
+   }
+   else if (el.Geom() == Geometry::CUTSQUARE)
    {
       for (int i = 0; i < 4; i++)
       {
@@ -3331,6 +3404,10 @@ static bool RefPointInside(Geometry::Type geom, const RefCoord pt[3])
          return (pt[0] >= 0) && (pt[0] <= T_ONE) &&
                 (pt[1] >= 0) && (pt[1] <= T_ONE);
 
+      case Geometry::CUTSQUARE:
+         return (pt[0] >= 0) && (pt[0] <= T_ONE) &&
+                (pt[1] >= 0) && (pt[1] <= T_ONE);
+
       case Geometry::CUBE:
          return (pt[0] >= 0) && (pt[0] <= T_ONE) &&
                 (pt[1] >= 0) && (pt[1] <= T_ONE) &&
@@ -3428,6 +3505,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
       case Geometry::TETRAHEDRON: return pm_tet_identity;
       case Geometry::PRISM:       return pm_prism_identity;
       case Geometry::CUBE:        return pm_hex_identity;
+      case Geometry::CUTSQUARE:   return pm_quad_identity;
       default:
          MFEM_ABORT("unsupported geometry " << geom);
          return pm_tri_identity;

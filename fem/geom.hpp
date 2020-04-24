@@ -34,7 +34,7 @@ public:
    enum Type
    {
       INVALID = -1,
-      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM,
+      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, CUTSQUARE,
       NUM_GEOMETRIES
    };
 
@@ -230,6 +230,26 @@ template <> struct Geometry::Constants<Geometry::PRISM>
       static const int I[NumVert];
       static const int J[NumEdges][2]; // {end,edge_idx}
    };
+};
+
+template <> struct Geometry::Constants<Geometry::CUTSQUARE>
+{
+   static const int Dimension = 2;
+   static const int NumVert = 4;
+   static const int NumEdges = 4;
+   static const int Edges[NumEdges][2];
+   // Upper-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+   static const int NumFaces = 1;
+   static const int FaceVert[NumFaces][NumVert];
+
+   static const int NumOrient = 8;
+   static const int Orient[NumOrient][NumVert];
+   static const int InvOrient[NumOrient];
 };
 
 // Defined in fe.cpp to ensure construction after 'mfem::WedgeFE'.

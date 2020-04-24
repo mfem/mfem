@@ -23,6 +23,7 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/zstr.hpp"
+#include "cutquad.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "../general/adios2stream.hpp"
 #endif
@@ -187,7 +188,7 @@ public:
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
    typedef Geometry::Constants<Geometry::PRISM>       pri_t;
-
+   typedef Geometry::Constants<Geometry::CUTSQUARE>   cutsq_t;
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
    /// A list of all unique element attributes used by the Mesh.

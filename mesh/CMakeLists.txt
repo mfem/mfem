@@ -19,6 +19,7 @@ set(SRCS
   nurbs.cpp
   point.cpp
   quadrilateral.cpp
+  cutquad.cpp
   segment.cpp
   tetrahedron.cpp
   triangle.cpp
@@ -37,6 +38,7 @@ set(HDRS
   nurbs.hpp
   point.hpp
   quadrilateral.hpp
+  cutquad.hpp
   segment.hpp
   tetrahedron.hpp
   tmesh.hpp

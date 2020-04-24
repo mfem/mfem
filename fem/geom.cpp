@@ -16,10 +16,10 @@ namespace mfem
 {
 
 const char *Geometry::Name[NumGeom] =
-{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism" };
+{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism" , "CutSquare"};
 
 const double Geometry::Volume[NumGeom] =
-{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5 };
+{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5, 1.0 };
 
 Geometry::Geometry()
 {
@@ -138,7 +138,24 @@ Geometry::Geometry()
    GeomVert[6]->IntPoint(5).x = 0.0;
    GeomVert[6]->IntPoint(5).y = 1.0;
    GeomVert[6]->IntPoint(5).z = 1.0;
+   
+    // Vertices for Geometry::SQUARE
+   GeomVert[7] = new IntegrationRule(4);
 
+   GeomVert[7]->IntPoint(0).x = 0.0;
+   GeomVert[7]->IntPoint(0).y = 0.0;
+
+   GeomVert[7]->IntPoint(1).x = 1.0;
+   GeomVert[7]->IntPoint(1).y = 0.0;
+
+   GeomVert[7]->IntPoint(2).x = 1.0;
+   GeomVert[7]->IntPoint(2).y = 1.0;
+
+   GeomVert[7]->IntPoint(3).x = 0.0;
+   GeomVert[7]->IntPoint(3).y = 1.0;
+
+
+   
    GeomCenter[POINT].x = 0.0;
    GeomCenter[POINT].y = 0.0;
    GeomCenter[POINT].z = 0.0;
@@ -167,6 +184,10 @@ Geometry::Geometry()
    GeomCenter[PRISM].y = 1.0 / 3.0;
    GeomCenter[PRISM].z = 0.5;
 
+   GeomCenter[CUTSQUARE].x = 0.5;
+   GeomCenter[CUTSQUARE].y = 0.5;
+   GeomCenter[CUTSQUARE].z = 0.0;
+
    GeomToPerfGeomJac[POINT]       = NULL;
    GeomToPerfGeomJac[SEGMENT]     = new DenseMatrix(1);
    GeomToPerfGeomJac[TRIANGLE]    = new DenseMatrix(2);
@@ -174,6 +195,7 @@ Geometry::Geometry()
    GeomToPerfGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    GeomToPerfGeomJac[CUBE]        = new DenseMatrix(3);
    GeomToPerfGeomJac[PRISM]       = new DenseMatrix(3);
+   GeomToPerfGeomJac[CUTSQUARE]   = new DenseMatrix(2);
 
    PerfGeomToGeomJac[POINT]       = NULL;
    PerfGeomToGeomJac[SEGMENT]     = NULL;
@@ -182,6 +204,7 @@ Geometry::Geometry()
    PerfGeomToGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    PerfGeomToGeomJac[CUBE]        = NULL;
    PerfGeomToGeomJac[PRISM]       = new DenseMatrix(3);
+   PerfGeomToGeomJac[CUTSQUARE]   = NULL;
 
    GeomToPerfGeomJac[SEGMENT]->Diag(1.0, 1);
    {
@@ -210,6 +233,15 @@ Geometry::Geometry()
       *GeomToPerfGeomJac[PRISM] = pri_T.Jacobian();
       CalcInverse(pri_T.Jacobian(), *PerfGeomToGeomJac[PRISM]);
    }
+   GeomToPerfGeomJac[CUTSQUARE]->Diag(1.0, 2);
+   {
+      IsoparametricTransformation tet_T;
+      tet_T.SetFE(&TetrahedronFE);
+      GetPerfPointMat (TETRAHEDRON, tet_T.GetPointMat());
+      tet_T.SetIntPoint(&GeomCenter[TETRAHEDRON]);
+      *GeomToPerfGeomJac[TETRAHEDRON] = tet_T.Jacobian();
+      CalcInverse(tet_T.Jacobian(), *PerfGeomToGeomJac[TETRAHEDRON]);
+   }
 }
 
 Geometry::~Geometry()
@@ -233,6 +265,7 @@ const IntegrationRule * Geometry::GetVertices(int GeomType)
       case Geometry::TETRAHEDRON: return GeomVert[4];
       case Geometry::CUBE:        return GeomVert[5];
       case Geometry::PRISM:       return GeomVert[6];
+      case Geometry::CUTSQUARE:   return GeomVert[7];
       default:
          mfem_error ("Geometry::GetVertices(...)");
    }
@@ -261,6 +294,10 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          }
          break;
       case Geometry::SQUARE:
+         ip.x = double(rand()) / RAND_MAX;
+         ip.y = double(rand()) / RAND_MAX;
+         break;
+      case Geometry::CUTSQUARE:
          ip.x = double(rand()) / RAND_MAX;
          ip.y = double(rand()) / RAND_MAX;
          break;
@@ -371,6 +408,10 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip)
          if (ip.x < 0.0 || ip.y < 0.0 || ip.x+ip.y > 1.0 ||
              ip.z < 0.0 || ip.z > 1.0) { return false; }
          break;
+      case Geometry::CUTSQUARE:
+         if (ip.x < 0.0 || ip.x > 1.0 || ip.y < 0.0 || ip.y > 1.0)
+         { return false; }
+         break;
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
@@ -437,6 +478,15 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, double eps)
               || internal::FuzzyGT(ip.x+ip.y, 1.0, eps)
               || internal::FuzzyLT(ip.z, 0.0, eps)
               || internal::FuzzyGT(ip.z, 1.0, eps) )
+         {
+            return false;
+         }
+         break;
+      case Geometry::CUTSQUARE:
+         if ( internal::FuzzyLT(ip.x, 0.0, eps)
+              || internal::FuzzyGT(ip.x, 1.0, eps)
+              || internal::FuzzyLT(ip.y, 0.0, eps)
+              || internal::FuzzyGT(ip.y, 1.0, eps) )
          {
             return false;
          }
@@ -555,6 +605,12 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
          double lbeg[5] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y, 1.0-beg.z };
          return internal::IntersectSegment<5,3>(lbeg, lend, end);
       }
+      case Geometry::CUTSQUARE:
+      {
+         double lend[4] = { end.x, end.y, 1.0-end.x, 1.0-end.y };
+         double lbeg[4] = { beg.x, beg.y, 1.0-beg.x, 1.0-beg.y };
+         return internal::IntersectSegment<4,2>(lbeg, lend, end);
+      }
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
@@ -593,7 +649,7 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
          else                 { in_y = true; }
          return in_x && in_y;
       }
-
+ 
       case TETRAHEDRON:
       {
          if (ip.z < 0.0)
@@ -651,7 +707,18 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
          else                 { in_z = true; }
          return in_tri && in_z;
       }
-
+      
+      case CUTSQUARE:
+      {
+         bool in_x, in_y;
+         if (ip.x < 0.0)      { in_x = false; ip.x = 0.0; }
+         else if (ip.x > 1.0) { in_x = false; ip.x = 1.0; }
+         else                 { in_x = true; }
+         if (ip.y < 0.0)      { in_y = false; ip.y = 0.0; }
+         else if (ip.y > 1.0) { in_y = false; ip.y = 1.0; }
+         else                 { in_y = true; }
+         return in_x && in_y;
+      } 
       default:
          MFEM_ABORT("Reference element type is not supported!");
    }
@@ -725,7 +792,16 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
          pm(0,5) = 0.5;  pm(1,5) = 0.86602540378443864676;  pm(2,5) = 1.0;
       }
       break;
-
+      
+      case Geometry::CUTSQUARE:
+      {
+         pm.SetSize (2, 4);
+         pm(0,0) = 0.0;  pm(1,0) = 0.0;
+         pm(0,1) = 1.0;  pm(1,1) = 0.0;
+         pm(0,2) = 1.0;  pm(1,2) = 1.0;
+         pm(0,3) = 0.0;  pm(1,3) = 1.0;
+      }
+      break;
       default:
          mfem_error ("Geometry::GetPerfPointMat (...)");
    }
@@ -744,13 +820,13 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
    }
 }
 
-const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5 };
-const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3 };
+const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5, 4 };
+const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3, 2};
 const int Geometry::DimStart[MaxDim+2] =
 { POINT, SEGMENT, TRIANGLE, TETRAHEDRON, NUM_GEOMETRIES };
-const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6 };
-const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9 };
-const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5 };
+const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6, 4 };
+const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9, 4 };
+const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5, 1 };
 
 const int Geometry::
 Constants<Geometry::POINT>::Orient[1][1] = {{0}};
@@ -897,7 +973,23 @@ Constants<Geometry::PRISM>::VertToVert::J[9][2] =
    {5, 4}                   // 4,5:4
 };
 
-
+const int Geometry::
+Constants<Geometry::CUTSQUARE>::Edges[4][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}};
+const int Geometry::
+Constants<Geometry::CUTSQUARE>::VertToVert::I[4] = {0, 2, 3, 4};
+const int Geometry::
+Constants<Geometry::CUTSQUARE>::VertToVert::J[4][2] =
+{{1, 0}, {3, -4}, {2, 1}, {3, 2}};
+const int Geometry::
+Constants<Geometry::CUTSQUARE>::FaceVert[1][4] = {{0, 1, 2, 3}};
+const int Geometry::
+Constants<Geometry::CUTSQUARE>::Orient[8][4] =
+{
+   {0, 1, 2, 3}, {0, 3, 2, 1}, {1, 2, 3, 0}, {1, 0, 3, 2},
+   {2, 3, 0, 1}, {2, 1, 0, 3}, {3, 0, 1, 2}, {3, 2, 1, 0}
+};
+const int Geometry::
+Constants<Geometry::CUTSQUARE>::InvOrient[8] = { 0, 1, 6, 3, 4, 5, 2, 7 };
 GeometryRefiner::GeometryRefiner()
 {
    type = Quadrature1D::ClosedUniform;
@@ -1323,7 +1415,55 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
          RGeom[Geometry::PRISM].Append(RG);
          return RG;
       }
+      case Geometry::CUTSQUARE:
+      {
+         RG = new RefinedGeometry((Times+1)*(Times+1), 4*Times*Times,
+                                  4*(ETimes+1)*Times, 4*Times);
+         RG->Times = Times;
+         RG->ETimes = ETimes;
+         RG->Type = type;
+         for (k = j = 0; j <= Times; j++)
+            for (i = 0; i <= Times; i++, k++)
+            {
+               IntegrationPoint &ip = RG->RefPts.IntPoint(k);
+               ip.x = cp[i];
+               ip.y = cp[j];
+            }
+         Array<int> &G = RG->RefGeoms;
+         for (l = k = j = 0; j < Times; j++, k++)
+            for (i = 0; i < Times; i++, k++)
+            {
+               G[l++] = k;
+               G[l++] = k+1;
+               G[l++] = k+Times+2;
+               G[l++] = k+Times+1;
+            }
+         Array<int> &E = RG->RefEdges;
+         int lb = 0, li = 2*RG->NumBdrEdges;
+         // horizontal edges
+         for (k = 0; k <= Times; k += Times/ETimes)
+         {
+            int &lt = (k == 0 || k == Times) ? lb : li;
+            for (i = 0, j = k*(Times+1); i < Times; i++)
+            {
+               E[lt++] = j; j++;
+               E[lt++] = j;
+            }
+         }
+         // vertical edges (in right-to-left order)
+         for (k = Times; k >= 0; k -= Times/ETimes)
+         {
+            int &lt = (k == Times || k == 0) ? lb : li;
+            for (i = 0, j = k; i < Times; i++)
+            {
+               E[lt++] = j; j += Times+1;
+               E[lt++] = j;
+            }
+         }
 
+         RGeom[Geometry::CUTSQUARE].Append(RG);
+         return RG;
+      }
       default:
 
          return NULL;
@@ -1400,6 +1540,28 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
          }
       }
       break;
+    
+      case Geometry::CUTSQUARE:
+      {
+         if (Times < 2)
+         {
+            return NULL;
+         }
+         ir = FindInIntPts(Geom, (Times-1)*(Times-1));
+         if (ir == NULL)
+         {
+            ir = new IntegrationRule((Times-1)*(Times-1));
+            for (int k = 0, j = 1; j < Times; j++)
+               for (int i = 1; i < Times; i++, k++)
+               {
+                  IntegrationPoint &ip = ir->IntPoint(k);
+                  ip.x = double(i) / Times;
+                  ip.y = double(j) / Times;
+                  ip.z = 0.0;
+               }
+         }
+      }
+      break;  
 
       default:
          mfem_error("GeometryRefiner::RefineInterior(...)");
