@@ -58,8 +58,7 @@ DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
-     ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
-     fdofs(NULL), bdofs(NULL),
+     ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0), bdofs(NULL),
      elem_dof(NULL), bdr_elem_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
@@ -240,10 +239,11 @@ void FiniteElementSpace::GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const
    DofsToVDofs(vdofs);
 }
 
-void FiniteElementSpace::BuildElementToDofTable() const
+void FiniteElementSpace::BuildElementToDofTable()
 {
    if (elem_dof) { return; }
 
+   // TODO: can we call GetElementDofs only once per element?
    Table *el_dof = new Table;
    Array<int> dofs;
    el_dof -> MakeI (mesh -> GetNE());
@@ -1525,11 +1525,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       dynamic_cast<const NURBSFECollection *>(fec);
    if (nurbs_fec)*/ if (0)
    {
-      if (!mesh->NURBSext)
-      {
-         mfem_error("FiniteElementSpace::FiniteElementSpace :\n"
-                    "   NURBS FE space requires NURBS mesh.");
-      }
+      MFEM_VERIFY(mesh->NURBSext, "NURBS FE space requires a NURBS mesh.");
 
       if (NURBSext == NULL)
       {
@@ -1571,7 +1567,6 @@ void FiniteElementSpace::UpdateNURBS()
    nedofs = 0;
    nfdofs = 0;
    nbdofs = 0;
-   fdofs = NULL;
    bdofs = NULL;
 
    //dynamic_cast<const NURBSFECollection *>(fec)->Reset();
@@ -1592,15 +1587,22 @@ void FiniteElementSpace::Construct()
    ndofs = 0;
    nedofs = nfdofs = nbdofs = 0;
    bdofs = NULL;
-   fdofs = NULL;
+
    cP = NULL;
    cR = NULL;
    cP_is_set = false;
    // 'Th' is initialized/destroyed before this method is called.
 
-   nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT); // FIXME
+   int order = fec->DefaultOrder();
 
-   if (mesh->Dimension() > 1)
+   // assign vertex DOFs
+   if (mesh->GetNV())
+   {
+      nvdofs = mesh->GetNV() * fec->GetNumDof(Geometry::POINT, order);
+   }
+
+   // assign edge DOFs
+   if (mesh->GetNEdges())
    {
       if (IsVariableOrder())
       {
@@ -1608,43 +1610,43 @@ void FiniteElementSpace::Construct()
       }
       else
       {
-         nedofs = mesh->GetNEdges() * fec->DofForGeometry(Geometry::SEGMENT); // FIXME
+         nedofs = mesh->GetNEdges() * fec->GetNumDof(Geometry::SEGMENT, order);
       }
    }
 
-   if (mesh->GetNFaces() > 0)
+   // assign face DOFs
+   if (mesh->GetNFaces())
    {
-      bool have_face_dofs = false;
-      for (int g = Geometry::DimStart[2]; g < Geometry::DimStart[3]; g++)
+      if (IsVariableOrder() || mesh->GetNumGeometries(2) > 1)
       {
-         if (mesh->HasGeometry(Geometry::Type(g)) &&
-             fec->DofForGeometry(Geometry::Type(g)) > 0)
-         {
-            have_face_dofs = true;
-            break;
-         }
+         nfdofs = AssignFaceDofs();
       }
-      if (have_face_dofs)
+      else
       {
-         fdofs = new int[mesh->GetNFaces()+1];
-         fdofs[0] = 0;
-         for (int i = 0; i < mesh->GetNFaces(); i++)
-         {
-            nfdofs += fec->DofForGeometry(mesh->GetFaceBaseGeometry(i));
-            fdofs[i+1] = nfdofs;
-         }
+         Geometry::Type geom = mesh->GetFaceGeometry(0);
+         nfdofs = mesh->GetNFaces() * fec->GetNumDof(geom, order);
       }
    }
 
-   if (mesh->Dimension() > 0)
+   // assign internal ("bubble") DOFs
+   if (mesh->GetNE())
    {
-      bdofs = new int[mesh->GetNE()+1];
-      bdofs[0] = 0;
-      for (int i = 0; i < mesh->GetNE(); i++)
+      if (IsVariableOrder() || mesh->GetNumGeometries(mesh->Dimension()) > 1)
       {
-         int p = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
-         nbdofs += fec->GetNumDof(mesh->GetElementGeometry(i), p);
-         bdofs[i+1] = nbdofs;
+         bdofs = new int[mesh->GetNE()+1];
+         bdofs[0] = 0;
+         for (int i = 0; i < mesh->GetNE(); i++)
+         {
+            int p = IsVariableOrder() ? elem_order[i] : order;
+            nbdofs += fec->GetNumDof(mesh->GetElementGeometry(i), p);
+            bdofs[i+1] = nbdofs;
+         }
+      }
+      else
+      {
+         bdofs = NULL;
+         Geometry::Type geom = mesh->GetElementGeometry(0);
+         nbdofs = mesh->GetNE() * fec->GetNumDof(geom, order);
       }
    }
 
@@ -1656,6 +1658,7 @@ void FiniteElementSpace::Construct()
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
 }
+
 
 int FiniteElementSpace::AssignEdgeDofs()
 {
@@ -1704,50 +1707,113 @@ int FiniteElementSpace::AssignEdgeDofs()
       }
    }
 
-   edge_orders.Sort();
-   edge_orders.Unique();
-
    // For each edge we now have a list of polynomial orders in which it
    // needs to be represented. We assign the DOF numbers and fill the table
    // edge_dof, where each row contains the indices of the beginnings of
    // the DOF ranges for the different polynomial orders.
 
-   int nedofs = 0;
-   for (int i = 0; i < edge_orders.Size(); i++)
-   {
-      int p = edge_orders[i].to;
-      int dofs = fec->GetNumDof(Geometry::SEGMENT, p);
-
-      MFEM_ASSERT(dofs == p-1, ""); // FIXME later
-
-      edge_orders[i].to = nedofs;
-      nedofs += dofs;
-   }
-
-   // append a dummy edge as terminator
-   edge_orders.Append(Connection(mesh->GetNEdges(), nedofs));
-
-   edge_dof.MakeFromList(mesh->GetNEdges()+1, edge_orders);
+   int nedofs = MakeDofTable(1, edge_orders, edge_dof);
 
    return nedofs;
 }
 
-int FiniteElementSpace::FindEdgeDof(int edge, int pdof) const
+int FiniteElementSpace::AssignFaceDofs()
 {
-   MFEM_ASSERT(IsVariableOrder(), "");
-   MFEM_ASSERT(edge_dof.Size() == mesh->GetNEdges() + 1, "");
+   // NOTE: this is called for both variable order spaces and mixed meshes.
+   // NOTE: unlike edges, faces can have at most two sets of DOFs assigned; we
+   //       still use a Table, mainly for simplicity.
 
-   const int *beg = edge_dof.GetRow(edge);
-   const int *end = edge_dof.GetRow(edge + 1); // terminator, see above
+   // get a list of orders for each face; also the minimal order per face
+   Array<Connection> face_orders;
+   face_orders.Reserve(6 * mesh->GetNE());
+
+   Array<int> face_min_order(mesh->GetNFaces());
+   face_min_order = INT_MAX;
+
+   Array<int> F, Fo;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      mesh->GetElementFaces(i, F, Fo);
+      for (int j = 0; j < F.Size(); j++)
+      {
+         int order = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
+         face_orders.Append(Connection(F[j], order));
+
+         int &emo = face_min_order[F[j]];
+         emo = std::min(emo, order);
+      }
+   }
+
+   /*if (IsVariableOrder() && Nonconforming() && !relaxed_hp)
+   {
+      // in the strict hp case, add minimum slave orders to their master edges
+      const NCMesh::NCList &list = mesh->ncmesh->GetNCList(1);
+      for (const NCMesh::Master &master : list.masters)
+      {
+         int slave_min_o = INT_MAX;
+         for (int i = master.slaves_begin; i < master.slaves_end; i++)
+         {
+            const NCMesh::Slave &slave = list.slaves[i];
+            slave_min_o = std::min(face_min_order[slave.index], slave_min_o);
+         }
+         // constrain the master face, if minimum slave lower
+         if (slave_min_o < face_min_order[master.index])
+         {
+            face_orders.Append(Connection(master.index, slave_min_o));
+         }
+      }
+   }*/
+
+   int nfdofs = MakeDofTable(2, face_orders, face_dof);
+
+   return nfdofs;
+}
+
+int FiniteElementSpace::MakeDofTable(int ent_dim,
+                                     Array<Connection> &entity_order,
+                                     Table &entity_dof)
+{
+   entity_order.Sort();
+   entity_order.Unique();
+
+   // assign DOFs according to orders
+   int total_dofs = 0;
+   for (int i = 0; i < entity_order.Size(); i++)
+   {
+      auto geom = (ent_dim == 1) ? Geometry::SEGMENT
+                  : mesh->GetFaceGeometry(entity_order[i].from);
+
+      int order = entity_order[i].to;
+      int dofs = fec->GetNumDof(geom, order);
+
+      entity_order[i].to = total_dofs;
+      total_dofs += dofs;
+   }
+
+   // append a dummy row as terminator
+   int num_ent = (ent_dim == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
+   entity_order.Append(Connection(num_ent, total_dofs));
+
+   // build the table
+   entity_dof.MakeFromList(num_ent+1, entity_order);
+
+   return total_dofs;
+}
+
+
+int FiniteElementSpace::FindDofs(const Table &dof_table, int row, int ndof) const
+{
+   const int *beg = dof_table.GetRow(row);
+   const int *end = dof_table.GetRow(row + 1); // terminator, see above
 
    while (beg < end)
    {
       // return the appropriate range of DOFs
-      if ((beg[1] - beg[0]) == pdof) { return beg[0]; }
+      if ((beg[1] - beg[0]) == ndof) { return beg[0]; }
       beg++;
    }
 
-   MFEM_ABORT("Edge DOFs not found for count = " << pdof);
+   MFEM_ABORT("DOFs not found for pdof = " << ndof);
    return 0;
 }
 
@@ -1766,11 +1832,11 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 
    int dim = mesh->Dimension();
    Geometry::Type geom = mesh->GetElementGeometry(elem);
-   int p = IsVariableOrder() ? elem_order[elem] : fec->DefaultOrder();
+   int order = IsVariableOrder() ? elem_order[elem] : fec->DefaultOrder();
 
-   int nv = fec->GetNumDof(Geometry::POINT, p);
-   int nb = (dim > 0) ? fec->GetNumDof(geom, p) : 0;
-   int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, p) : 0;
+   int nv = fec->GetNumDof(Geometry::POINT, order);
+   int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, order) : 0;
+   int nb = (dim > 0) ? fec->GetNumDof(geom, order) : 0;
 
    if (nv)
    {
@@ -1783,12 +1849,12 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
    }
 
    int nfd = 0;
-   if (dim > 2 && fec->HasFaceDofs(geom, p))
+   if (dim > 2 && fec->HasFaceDofs(geom, order))
    {
       mesh->GetElementFaces(elem, F, Fo);
       for (int i = 0; i < F.Size(); i++)
       {
-         nfd += fec->GetNumDof(mesh->GetFaceGeometry(F[i]), p);
+         nfd += fec->GetNumDof(mesh->GetFaceGeometry(F[i]), order);
       }
    }
 
@@ -1811,7 +1877,7 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
       for (int i = 0; i < E.Size(); i++)
       {
          int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
-         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, p, Eo[i]);
+         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, order, Eo[i]);
 
          for (int j = 0; j < ne; j++)
          {
@@ -1824,11 +1890,11 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
    {
       for (int i = 0; i < F.Size(); i++)
       {
-         int fbase = fdofs[F[i]]; // TODO: variable order space
+         auto fgeom = mesh->GetFaceGeometry(F[i]);
+         int nf = fec->GetNumDof(fgeom, order);
 
-         Geometry::Type fgeom = mesh->GetFaceGeometry(F[i]);
-         int nf = fec->GetNumDof(fgeom, p);
-         const int *ind = fec->GetDofOrdering(fgeom, p, Fo[i]);
+         int fbase = (face_dof.Size() > 0) ? FindFaceDof(F[i], nf) : F[i]*nf;
+         const int *ind = fec->GetDofOrdering(fgeom, order, Fo[i]);
 
          for (int j = 0; j < nf; j++)
          {
@@ -1839,7 +1905,9 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
 
    if (nb) // interior ("bubble") DOFs
    {
-      int bbase = nvdofs + nedofs + nfdofs + bdofs[elem];
+      int bbase = bdofs ? bdofs[elem] : elem*nb;
+      bbase += nvdofs + nedofs + nfdofs;
+
       for (int j = 0; j < nb; j++)
       {
          dofs.Append(bbase + j);
@@ -1853,10 +1921,10 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    MFEM_VERIFY(i < mesh->GetNE(),
                "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
 
-   int p = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
+   int order = IsVariableOrder() ? elem_order[i] : fec->DefaultOrder();
 
    const FiniteElement *FE =
-      fec->GetFE(mesh->GetElementGeometry(i), p);
+      fec->GetFE(mesh->GetElementGeometry(i), order);
 
    if (NURBSext)
    {
@@ -1879,31 +1947,22 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetBdrElementGeometry(bel);
-   int p = fec->DefaultOrder();
+   int order = fec->DefaultOrder();
 
-   if (IsVariableOrder()) // determine order 'p' from adjacent element
+   if (IsVariableOrder()) // determine order from adjacent element
    {
       int elem, info;
       mesh->GetBdrElementAdjacentElement(bel, elem, info);
-      p = elem_order[elem];
+      order = elem_order[elem];
    }
 
-   int nv = fec->GetNumDof(Geometry::POINT, p);
-   int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, p) : 0;
-   int nf = (dim > 2) ? fec->GetNumDof(geom, p) : 0;
+   int nv = fec->GetNumDof(Geometry::POINT, order);
+   int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, order) : 0;
+   int nf = (dim > 2) ? fec->GetNumDof(geom, order) : 0;
 
-   if (nv)
-   {
-      mesh->GetBdrElementVertices(bel, V);
-   }
-   if (ne)
-   {
-      mesh->GetBdrElementEdges(bel, E, Eo);
-   }
-   if (nf)
-   {
-      mesh->GetBdrElementFace(bel, &F, &Fo);
-   }
+   if (nv) { mesh->GetBdrElementVertices(bel, V); }
+   if (ne) { mesh->GetBdrElementEdges(bel, E, Eo); }
+   if (nf) { mesh->GetBdrElementFace(bel, &F, &Fo); }
 
    dofs.SetSize(0);
    dofs.Reserve(nv*V.Size() + ne*E.Size() + nf);
@@ -1924,7 +1983,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
       for (int i = 0; i < E.Size(); i++)
       {
          int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
-         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, p, Eo[i]);
+         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, order, Eo[i]);
 
          for (int j = 0; j < ne; j++)
          {
@@ -1935,8 +1994,8 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 
    if (nf) // face DOFs
    {
-      int fbase = fdofs[F]; // TODO: variable order space
-      const int *ind = fec->GetDofOrdering(geom, p, Fo);
+      int fbase = (face_dof.Size() > 0) ? FindFaceDof(F, nf) : F*nf;
+      const int *ind = fec->GetDofOrdering(geom, order, Fo);
 
       for (int j = 0; j < nf; j++)
       {
@@ -1947,6 +2006,9 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
+#if 1
+   MFEM_ABORT("TODO");
+#else
    int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
    Array<int> V, E, Eo;
    const int *ind;
@@ -2002,6 +2064,7 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
          dofs[ne+k] = j;
       }
    }
+#endif
 }
 
 int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
@@ -2063,7 +2126,7 @@ void FiniteElementSpace::GetVertexDofs(int i, Array<int> &dofs) const
    }
 }
 
-void FiniteElementSpace::GetElementInteriorDofs (int i, Array<int> &dofs) const
+void FiniteElementSpace::GetElementInteriorDofs(int i, Array<int> &dofs) const
 {
    int j, k, nb;
    if (mesh->Dimension() == 0) { dofs.SetSize(0); return; }
@@ -2076,7 +2139,7 @@ void FiniteElementSpace::GetElementInteriorDofs (int i, Array<int> &dofs) const
    }
 }
 
-void FiniteElementSpace::GetEdgeInteriorDofs (int i, Array<int> &dofs) const
+void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
 {
    int j, k, ne;
 
@@ -2088,18 +2151,25 @@ void FiniteElementSpace::GetEdgeInteriorDofs (int i, Array<int> &dofs) const
    }
 }
 
-void FiniteElementSpace::GetFaceInteriorDofs (int i, Array<int> &dofs) const
+void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
 {
-   int j, k, nf;
-
-   nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
-   dofs.SetSize (nf);
-   if (nf > 0)
+   int nf, base;
+   if (face_dof.Size() > 0)
    {
-      for (j = 0, k = nvdofs+nedofs+fdofs[i]; j < nf; j++, k++)
-      {
-         dofs[j] = k;
-      }
+      base = face_dof.GetRow(i)[0];
+      nf = face_dof.GetRow(i)[1] - base;
+   }
+   else
+   {
+      auto geom = mesh->GetFaceGeometry(0);
+      nf = fec->GetNumDof(geom, fec->DefaultOrder());
+      base = i*nf;
+   }
+
+   dofs.SetSize(nf);
+   for (int j = 0; j < nf; j++)
+   {
+      dofs[j] = nvdofs + nedofs + base + j;
    }
 }
 
@@ -2211,9 +2281,7 @@ void FiniteElementSpace::Destroy()
    {
       delete elem_dof;
       delete bdr_elem_dof;
-
       delete [] bdofs;
-      delete [] fdofs;
    }
 }
 
