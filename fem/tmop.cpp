@@ -1365,13 +1365,13 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
 
    tspec_pert1h.SetSize(x.Size()*ncomp);
 
-   Vector TSpecTemp(ncomp*cnt);
+   Vector TSpecTemp;
    Vector xtemp = x;
    for (int j = 0; j < dim; j++)
    {
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += dx; }
 
-      TSpecTemp.SetDataAndSize(tspec_pert1h.GetData() + j*cnt*ncomp, cnt*ncomp);
+      TSpecTemp.NewDataAndSize(tspec_pert1h.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= dx; }
@@ -1393,7 +1393,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    tspec_pert2h.SetSize(cnt*dim*ncomp);
    tspec_pertmix.SetSize(cnt*totmix*ncomp);
 
-   Vector TSpecTemp(cnt*ncomp);
+   Vector TSpecTemp;
    Vector xtemp = x;
 
    // T(x+2h)
@@ -1401,7 +1401,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    {
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += 2*dx; }
 
-      TSpecTemp.SetDataAndSize(tspec_pert2h.GetData() + j*cnt*ncomp, cnt*ncomp);
+      TSpecTemp.NewDataAndSize(tspec_pert2h.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= 2*dx; }
@@ -1419,7 +1419,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
             xtemp(k2*cnt+i) += dx;
          }
 
-         TSpecTemp.SetDataAndSize(tspec_pertmix.GetData() + j*cnt*ncomp, cnt*ncomp);
+         TSpecTemp.NewDataAndSize(tspec_pertmix.GetData() + j*cnt*ncomp, cnt*ncomp);
          UpdateTargetSpecification(xtemp, TSpecTemp);
 
          for (int i = 0; i < cnt; i++)
