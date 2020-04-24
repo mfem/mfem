@@ -53,6 +53,8 @@ private:
    Vector pos_r_out, dist_p_out;
    int dim;
 public:
+   InterpolatorFP() : finder(NULL) { }
+
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
 
