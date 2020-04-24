@@ -21,6 +21,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    OuterUnitNormals.SetSize(dim, dofs.NumBdrs, ne);
    C_eij.SetSize(dim); // TODO rename
    eldofs.SetSize(hyp->NumEq*nd);
+   DistributionMatrix.SetSize(nd,nd);
 
    nscd = nscd = dofs.SubcellCross.Width();
 
@@ -184,6 +185,8 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
          RefMat *= 1. / 216.;
          break;
       }
+      default:
+         MFEM_ABORT("Unsupported Geometry.");
    }
 
    RefMat *= 1. / ((double) dofs.numSubcells);
@@ -200,6 +203,24 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
          }
       }
    }
+
+   Vector MassMatLORLumped(nd);
+   DenseMatrix LowOrderRefinedMat(MassMatLOR);
+   LowOrderRefinedMat *= -1;
+   LowOrderRefinedMat.GetRowSums(MassMatLORLumped);
+
+   for (int i = 0; i < nd; i++)
+   {
+      LowOrderRefinedMat(i,i) -= MassMatLORLumped(i);
+      LowOrderRefinedMat(0,i) = 1.;
+   }
+
+   DenseMatrixInverse InvLOR(&LowOrderRefinedMat);
+   InvLOR.Factor();
+   InvLOR.GetInverseMatrix(DistributionMatrix);
+   // MassMatLOR.Print();
+   // DistributionMatrix.Print();
+
 }
 
 void MCL_Evolution::Mult(const Vector &x, Vector &y) const
@@ -287,6 +308,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          inflow.ProjectCoefficient(hyp->BdrCond);
       }
    }
+
+   dofs.ComputeBounds(x);
 
    DenseMatrix mat3(nd, hyp->NumEq);
    DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq), BdrFlux(hyp->NumEq*nd, dofs.NumBdrs),
@@ -518,6 +541,33 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             MFEM_ABORT("non-zero sum.");
          }
       }
+
+      DenseMatrix AuxiliaryVectors(nd, hyp->NumEq);
+      mfem::Mult(DistributionMatrix, ElFlux, AuxiliaryVectors);
+      DenseTensor UnlimitedFluxes(nd, nd, hyp->NumEq); // TODO: Try to use nscd
+
+      ElFlux = 0.;
+      for (int i = 0; i < nd; i++)
+      {
+         for (int j = 0; j < nd; j++)
+         {
+            if (i==j) { continue; }
+
+            for (int n = 0; n < hyp->NumEq; n++)
+            {
+               UnlimitedFluxes(i,j,n) = MassMatLOR(i,j) * (AuxiliaryVectors(i,n)
+                                                         - AuxiliaryVectors(j,n));
+
+               ElFlux(i,n) += UnlimitedFluxes(i,j,n);
+            }
+         }
+      }
+
+
+
+      // UnlimitedFluxes.Transpose();
+      // Vector test(hyp->NumEq);
+      // UnlimitedFluxes.GetRowSums(test);
 
       z.AddElementVector(vdofs, ElFlux.GetData());
       z.AddElementVector(vdofs, AntiDiff.GetData());

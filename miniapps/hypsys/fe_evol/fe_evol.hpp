@@ -16,7 +16,6 @@ public:
    // General member variables.
    FiniteElementSpace *fes;
    const HyperbolicSystem *hyp;
-   const DofInfo dofs;
    const IntegrationRule *IntRuleElem; // TODO rm const, *
    const IntegrationRule *IntRuleFace;
    Vector IntRuleFaceWeights;
@@ -41,6 +40,7 @@ public:
    Vector LumpedMassMat;
 
    // Tools to compute the discrete time derivative, needed repeatedly.
+   mutable DofInfo dofs;
    mutable Array<int> vdofs;
    mutable Vector z, uOld, uElem, uEval, uNbrEval, NumFlux, normal;
    mutable DenseMatrix Flux, FluxNbr, mat1, mat2;

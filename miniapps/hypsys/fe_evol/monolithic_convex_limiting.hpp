@@ -10,7 +10,7 @@ class MCL_Evolution : public FE_Evolution
 {
 public:
    DenseTensor PrecGradOp, GradProd, Adjugates;
-   DenseMatrix MassMatLOR, FaceMat;
+   DenseMatrix FaceMat, DistributionMatrix, MassMatLOR;
 
    int nscd; // nscd: NumSubcellCrossDofs
 

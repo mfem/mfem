@@ -30,7 +30,7 @@ public:
    // Computes the admissible interval of values for each DG dof from the
    // values of all elements that feature the dof at its physical location.
    // Assumes that xe_min and xe_max are already computed.
-   void ComputeBounds();
+   void ComputeBounds(const Vector &x);
 
    void ExtractBdrDofs();
 
