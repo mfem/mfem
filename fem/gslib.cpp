@@ -304,7 +304,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
    const GridFunction *nodes = mesh->GetNodes();
    Mesh *meshsplit           = NULL;
    const int NE              = mesh->GetNE();
-   int NEsplit;
+   int NEsplit = -1;
 
    // Split the reference element into a reference submesh of quads or hexes.
    if (gt == Geometry::TRIANGLE)
@@ -398,6 +398,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
       }
       meshsplit->FinalizeHexMesh(1, 1, true);
    }
+   else { MFEM_ABORT("Unsupported geometry type."); }
 
    // Curve the reference submesh.
    H1_FECollection fec(fe->GetOrder(), dim);
