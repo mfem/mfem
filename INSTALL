@@ -640,12 +640,11 @@ The specific libraries and their options are:
   Options: OCCA_DIR, OCCA_OPT, OCCA_LIB.
   Versions: OCCA >= 1.0.9.
 
-- libCEED (optional), used when MFEM_USE_CEED = YES. Requires libCEED v0.6
-  or later version, specifically, git-hash 3d05795 or later.
+- libCEED (optional), used when MFEM_USE_CEED = YES.
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.6.
+  Versions: libCEED >= 0.7.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.1, only RAJA v0.10.0+ is supported.
