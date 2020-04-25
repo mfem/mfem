@@ -74,7 +74,6 @@ int main(int argc, char *argv[])
    bool pa = false;
    bool amgx = true;
    const char *device_config = "cuda";
-   bool visualization = false;
    const char *amgx_cfg = 0;
    int dim = 3;
    int level = 4;
@@ -87,13 +86,8 @@ int main(int argc, char *argv[])
                   "Set the problem size: 2^level mesh elements per processor.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
    args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
                   "--no-amgx","Use AMGX");
@@ -208,7 +202,6 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -248,7 +241,7 @@ int main(int argc, char *argv[])
       pcg->SetPreconditioner(*amg);
       pcg->SetTol(1e-12);
       pcg->SetMaxIter(200);
-      pcg->SetPrintLevel(2);
+      pcg->SetPrintLevel(1);
       pcg->Mult(B, X);
       delete pcg;
    }
@@ -267,34 +260,7 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-   }
-
-   // 16. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
-   }
-
-   // 17. Free the used memory.
+   // 15. Free the used memory.
    delete a;
    delete b;
    delete fespace;
