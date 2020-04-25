@@ -77,7 +77,6 @@ void QuadratureIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
 //If that isn't the case we might be able to still do things but things will most likely be slower.
 void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
                                                         VectorQuadratureFunctionCoefficient &vqfc,
-                                                        FiniteElementSpace &tr_fes,
                                                         FiniteElementSpace &fes)
 {
    int ndofs;
@@ -114,8 +113,8 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
       double* data = m_all_data.HostReadWrite();
       for (int e = 0; e < NE; e++)
       {
-         const FiniteElement &fe = *tr_fes.GetFE(e);
-         ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
+         const FiniteElement &fe = *fes.GetFE(e);
+         ElementTransformation &eltr = *fes.GetElementTransformation(e);
          mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
          dbfi[0]->AssembleElementMatrix(fe, eltr, mi);
       }
@@ -129,8 +128,8 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
       qfv = 0.0;
       mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
       inv.Factor(mi);
-      const FiniteElement &fe = *tr_fes.GetFE(e);
-      ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
+      const FiniteElement &fe = *fes.GetFE(e);
+      ElementTransformation &eltr = *fes.GetElementTransformation(e);
       qi.AssembleRHSElementVect(fe, eltr, rhs);
       for (int ind = 0; ind < vdim; ind++)
       {
@@ -145,7 +144,6 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
 
 void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
                                                         QuadratureFunctionCoefficient &qfc,
-                                                        FiniteElementSpace &tr_fes,
                                                         FiniteElementSpace &fes)
 {
    int ndofs;
@@ -180,8 +178,8 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
       double* data = m_all_data.HostReadWrite();
       for (int e = 0; e < NE; e++)
       {
-         const FiniteElement &fe = *tr_fes.GetFE(e);
-         ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
+         const FiniteElement &fe = *fes.GetFE(e);
+         ElementTransformation &eltr = *fes.GetElementTransformation(e);
          mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
          dbfi[0]->AssembleElementMatrix(fe, eltr, mi);
       }
@@ -195,8 +193,8 @@ void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
    {
       mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
       inv.Factor(mi);
-      const FiniteElement &fe = *tr_fes.GetFE(e);
-      ElementTransformation &eltr = *tr_fes.GetElementTransformation(e);
+      const FiniteElement &fe = *fes.GetFE(e);
+      ElementTransformation &eltr = *fes.GetElementTransformation(e);
       qi.AssembleRHSElementVect(fe, eltr, rhs);
       inv.Mult(rhs, qfv);
       fes.GetElementDofs(e, dofs);
