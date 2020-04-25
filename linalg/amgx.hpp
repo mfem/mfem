@@ -59,6 +59,10 @@ private:
 
    static AMGX_resources_handle   rsrc;
 
+   Array<int> m_I;
+   Array<int64_t> m_J;
+   Array<double> m_Aloc;
+
    //Reference impl: PETSc MatMPIAIJGetLocalMat method
    //used to merge Diagonal and OffDiagonal blocks in a ParCSR matrix
    void GetLocalA(const HypreParMatrix &in_A, Array<int> &I,

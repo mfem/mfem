@@ -151,13 +151,10 @@ void NvidiaAMGX::SetA(const HypreParMatrix &in_A)
    int nGlobalRows, nLocalRows;
    nGlobalRows = in_A.M();
 
-   Array<HYPRE_Int> I;
-   Array<int64_t> J;
-   Array<double> Aloc;
 
    //Step 1.
    //Merge Diag and Offdiag to a single CSR matrix
-   GetLocalA(in_A, I, J, Aloc);
+   GetLocalA(in_A, m_I, m_J, m_Aloc);
 
    //Step 2.
    //Create a vector of offsets describing matrix row partitions
@@ -179,11 +176,17 @@ void NvidiaAMGX::SetA(const HypreParMatrix &in_A)
 
    //Step 3.
    //Upload matrix to AMGX
-   nLocalRows = I.Size()-1;
+   nLocalRows = m_I.Size()-1;
+
+   const int m_I_nLocalRows = m_I.HostRead()[nLocalRows];
+   AMGX_pin_memory(m_I.HostReadWrite(),m_I.Size()*sizeof(int));
+   AMGX_pin_memory(m_J.HostReadWrite(),m_J.Size()*sizeof(int64_t));
+   AMGX_pin_memory(m_Aloc.HostReadWrite(),m_Aloc.Size()*sizeof(double));
 
    AMGX_matrix_upload_distributed(A, nGlobalRows, nLocalRows,
-                                  I.HostRead()[nLocalRows],
-                                  1, 1, I.ReadWrite(), J.ReadWrite(), Aloc.ReadWrite(),
+                                  m_I_nLocalRows,
+                                  1, 1, m_I.HostReadWrite(),
+                                  m_J.HostReadWrite(), m_Aloc.HostReadWrite(),
                                   nullptr, dist);
 
 
@@ -201,6 +204,9 @@ void NvidiaAMGX::Solve(Vector &in_x, Vector &in_b)
 {
 
    //Upload vectors to amgx
+   AMGX_pin_memory(in_x.HostReadWrite(), in_x.Size()*sizeof(double));
+   AMGX_pin_memory(in_b.HostReadWrite(), in_b.Size()*sizeof(double));
+
    AMGX_vector_upload(x, in_x.Size(), 1, in_x.ReadWrite());
 
    AMGX_vector_upload(b, in_b.Size(), 1, in_b.ReadWrite());
@@ -216,13 +222,21 @@ void NvidiaAMGX::Solve(Vector &in_x, Vector &in_b)
       printf("Amgx failed to solve system, error code %d. \n", status);
    }
 
-   AMGX_vector_download(x, in_x.ReadWrite());
+   AMGX_vector_download(x, in_x.HostWrite());
+
+   AMGX_unpin_memory(in_x.HostReadWrite());
+   AMGX_unpin_memory(in_b.HostReadWrite());
 }
 
 NvidiaAMGX::~NvidiaAMGX()
 {
    if (isEnabled)
    {
+
+      AMGX_unpin_memory(m_I.HostReadWrite());
+      AMGX_unpin_memory(m_J.HostReadWrite());
+      AMGX_unpin_memory(m_Aloc.HostReadWrite());
+
       AMGX_solver_destroy(solver);
       AMGX_matrix_destroy(A);
       AMGX_vector_destroy(x);
