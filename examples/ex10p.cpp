@@ -48,9 +48,25 @@ class ReducedSystemOperator;
 class GeneralResidualMonitor : public IterativeSolverMonitor
 {
 public:
-   GeneralResidualMonitor(const std::string& prefix_, int print_level_)
-      : prefix(prefix_), print_level(print_level_)
-   { }
+   GeneralResidualMonitor(MPI_Comm comm, const std::string& prefix_,
+                          int print_lvl)
+      : prefix(prefix_)
+   {
+#ifndef MFEM_USE_MPI
+      print_level = print_lvl;
+#else
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      if (rank == 0)
+      {
+         print_level = print_lvl;
+      }
+      else
+      {
+         print_level = -1;
+      }
+#endif
+   }
 
    virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
 
@@ -63,7 +79,7 @@ private:
 void GeneralResidualMonitor::MonitorResidual(int it, double norm,
                                              const Vector &r, bool final)
 {
-   if (print_level == 1 || final || it == 0)
+   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
    {
       mfem::out << prefix << " iteration " << setw(2) << it
                 << " : ||r|| = " << norm;
@@ -555,7 +571,8 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()), newton_solver(f.GetComm()),
-     newton_monitor("  Newton", 1), J_monitor("    MINRES", 3), z(height/2)
+     newton_monitor(f.GetComm(), "  Newton", 1),
+     J_monitor(f.GetComm(), "    MINRES", 3), z(height/2)
 {
    const double rel_tol = 1e-8;
    const int skip_zero_entries = 0;
