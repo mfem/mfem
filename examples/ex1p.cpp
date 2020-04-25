@@ -64,10 +64,10 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   //const char *mesh_file = "../data/beam-hex.mesh";
-
-   int order = 1;
+   //const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/beam-hex.mesh";
+   
+   int order = 3;
    bool static_cond = false;
    bool pa = false;
    bool amgx = true;
@@ -238,8 +238,8 @@ int main(int argc, char *argv[])
 
    if (amgx)
    {
-      printf("Using AMGX \n");
-#if MFEM_USE_AMGX
+
+#ifdef MFEM_USE_AMGX
       //AMGX
       std::string amgx_str;
       amgx_str = amgx_cfg;
