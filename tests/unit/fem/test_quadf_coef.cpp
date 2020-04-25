@@ -105,25 +105,15 @@ TEST_CASE("Quadrature Function Coefficients",
          GridFunction gtrue(&fespace_l2);
 
          {
-            int ne = mesh.GetNE();
 
             GridFunction nodes(&fespace_h1);
-            Vector el_x;
-            Array<int> vdofs;
             mesh.GetNodes(nodes);
-            int vdim = quadf_vcoeff.GetVDim();
+            gtrue.ProjectGridFunction(nodes);
 
-            for (int i = 0; i < ne; i++)
-            {
-               fespace_h1.GetElementVDofs(i, vdofs);
-               nodes.GetSubVector(vdofs, el_x);
-               fespace_l2.GetElementVDofs(i, vdofs);
-               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
-            }
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_h1, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -139,25 +129,15 @@ TEST_CASE("Quadrature Function Coefficients",
          GridFunction gtrue(&fespace_l2);
 
          {
-            int ne = mesh.GetNE();
 
             GridFunction nodes(&fespace_h1);
-            Vector el_x;
-            Array<int> vdofs;
             mesh.GetNodes(nodes);
-            int vdim = quadf_vcoeff.GetVDim();
+            gtrue.ProjectGridFunction(nodes);
 
-            for (int i = 0; i < ne; i++)
-            {
-               fespace_h1.GetElementVDofs(i, vdofs);
-               nodes.GetSubVector(vdofs, el_x);
-               fespace_l2.GetElementVDofs(i, vdofs);
-               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
-            }
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_h1, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -220,26 +200,17 @@ TEST_CASE("Quadrature Function Coefficients",
          // When using an L2 FE space of the same order as the mesh, the below highlights
          // that the ProjectDiscCoeff method is just taking the quadrature point values and making them node values.
          {
-            int ne = mesh.GetNE();
 
+            GridFunction nodes_z(&fespace_hv1);
             GridFunction nodes(&fespace_h1);
-            Vector el_x;
-            Array<int> vdofs;
             mesh.GetNodes(nodes);
-            for (int i = 0; i < ne; i++)
-            {
-               fespace_h1.GetElementVDofs(i, vdofs);
-               nodes.GetSubVector(vdofs, el_x);
-               int enodes = el_x.Size() / dim;
-               for (int j = 0; j < enodes; j++)
-               {
-                  gtrue(j + i * enodes) = el_x(enodes * 2 + j);
-               }
-            }
+            nodes_z.MakeRef(nodes, nodes_z.Size() * 2);
+            gtrue.ProjectGridFunction(nodes_z);
+
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_h1, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_l2);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -366,25 +337,15 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          ParGridFunction gtrue(&fespace_l2);
 
          {
-            int ne = mesh.GetNE();
 
             ParGridFunction nodes(&fespace_h1);
-            Vector el_x;
-            Array<int> vdofs;
             mesh.GetNodes(nodes);
-            int vdim = quadf_vcoeff.GetVDim();
+            gtrue.ProjectGridFunction(nodes);
 
-            for (int i = 0; i < ne; i++)
-            {
-               fespace_h1.GetElementVDofs(i, vdofs);
-               nodes.GetSubVector(vdofs, el_x);
-               fespace_l2.GetElementVDofs(i, vdofs);
-               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
-            }
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_h1, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
@@ -406,25 +367,15 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          ParGridFunction gtrue(&fespace_l2);
 
          {
-            int ne = mesh.GetNE();
 
             ParGridFunction nodes(&fespace_h1);
-            Vector el_x;
-            Array<int> vdofs;
             mesh.GetNodes(nodes);
-            int vdim = quadf_vcoeff.GetVDim();
+            gtrue.ProjectGridFunction(nodes);
 
-            for (int i = 0; i < ne; i++)
-            {
-               fespace_h1.GetElementVDofs(i, vdofs);
-               nodes.GetSubVector(vdofs, el_x);
-               fespace_l2.GetElementVDofs(i, vdofs);
-               gtrue.SetSubVector(vdofs, el_x.HostReadWrite());
-            }
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_h1, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
@@ -508,26 +459,17 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          // When using an L2 FE space of the same order as the mesh, the below highlights
          // that the ProjectDiscCoeff method is just taking the quadrature point values and making them node values.
          {
-            int ne = mesh.GetNE();
 
+            ParGridFunction nodes_z(&fespace_hv1);
             ParGridFunction nodes(&fespace_h1);
-            Vector el_x;
-            Array<int> vdofs;
             mesh.GetNodes(nodes);
-            for (int i = 0; i < ne; i++)
-            {
-               fespace_h1.GetElementVDofs(i, vdofs);
-               nodes.GetSubVector(vdofs, el_x);
-               int enodes = el_x.Size() / dim;
-               for (int j = 0; j < enodes; j++)
-               {
-                  gtrue(j + i * enodes) = el_x(enodes * 2 + j);
-               }
-            }
+            nodes_z.MakeRef(nodes, nodes_z.Size() * 2);
+            gtrue.ProjectGridFunction(nodes_z);
+
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_h1, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_l2);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();

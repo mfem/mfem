@@ -56,18 +56,14 @@ public:
       L2->Assemble();
    }
    // This function takes a vector quadrature function coefficient and projects it onto a GridFunction that lives
-   // in L2 space. This function requires tr_fes to be the finite element space that the VectorQuadratureFunctionCoefficient lives on
-   // and fes is the L2 finite element space that we're projecting onto.
+   // in L2 space. This function requires fes to be L2 finite element space that we're projecting onto.
    void ProjectQuadratureDiscCoefficient(GridFunction &gf,
                                          VectorQuadratureFunctionCoefficient &vqfc,
-                                         FiniteElementSpace &tr_fes,
                                          FiniteElementSpace &fes);
    // This function takes a quadrature function coefficient and projects it onto a GridFunction that lives
-   // in L2 space. This function requires tr_fes to be the finite element space that the QuadratureFunctionCoefficient lives on
-   // and fes is the L2 finite element space that we're projecting onto.
+   // in L2 space. This function requires fes to be L2 finite element space that we're projecting onto.
    void ProjectQuadratureDiscCoefficient(GridFunction &gf,
                                          QuadratureFunctionCoefficient &qfc,
-                                         FiniteElementSpace &tr_fes,
                                          FiniteElementSpace &fes);
    // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
    // quadrature function coefficient.
