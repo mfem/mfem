@@ -207,9 +207,9 @@ void NvidiaAMGX::Solve(Vector &in_x, Vector &in_b)
    AMGX_pin_memory(in_x.HostReadWrite(), in_x.Size()*sizeof(double));
    AMGX_pin_memory(in_b.HostReadWrite(), in_b.Size()*sizeof(double));
 
-   AMGX_vector_upload(x, in_x.Size(), 1, in_x.ReadWrite());
+   AMGX_vector_upload(x, in_x.Size(), 1, in_x.HostReadWrite());
 
-   AMGX_vector_upload(b, in_b.Size(), 1, in_b.ReadWrite());
+   AMGX_vector_upload(b, in_b.Size(), 1, in_b.HostReadWrite());
 
    MPI_Barrier(amgx_comm);
 
