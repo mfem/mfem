@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    bool amgx = true;
-   const char *device_config = "cuda";
+   const char *device_config = "cpu";
    const char *amgx_cfg = 0;
    int dim = 3;
    int level = 4;
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 
       X = 0.0; //set to zero
       amgx.Solve(X, B);
-
+      cudaDeviceSynchronize();
    }
    else
    {
