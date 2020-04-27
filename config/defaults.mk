@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # This file describes the default MFEM build options.
 #
@@ -45,6 +45,14 @@ CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
 # Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
+
+# HIP configuration options
+HIP_CXX = hipcc
+# The HIP_ARCH option specifies the AMD GPU processor, similar to CUDA_ARCH. For
+# example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
+# gfx900, gfx1010, etc.
+HIP_ARCH = gfx900
+HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -100,7 +108,7 @@ MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
-MFEM_USE_GZSTREAM      = NO
+MFEM_USE_ZLIB          = NO
 MFEM_USE_LIBUNWIND     = NO
 MFEM_USE_LAPACK        = NO
 MFEM_THREAD_SAFE       = NO
@@ -113,7 +121,7 @@ MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_STRUMPACK     = NO
-MFEM_USE_GECKO         = NO
+MFEM_USE_GINKGO        = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -121,9 +129,15 @@ MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
+MFEM_USE_HIOP          = NO
+MFEM_USE_GSLIB         = NO
 MFEM_USE_CUDA          = NO
+MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
+MFEM_USE_CEED          = NO
+MFEM_USE_UMPIRE        = NO
+MFEM_USE_ADIOS2        = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -173,9 +187,9 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
-SUNDIALS_DIR = @MFEM_DIR@/../sundials-3.0.0
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib -L$(SUNDIALS_DIR)/lib\
+SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\
  -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
 
 ifeq ($(MFEM_USE_MPI),YES)
@@ -200,7 +214,7 @@ SUITESPARSE_LIB = -Wl,-rpath,$(SUITESPARSE_DIR)/lib -L$(SUITESPARSE_DIR)/lib\
 # SuperLU library configuration
 SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_5.1.0
 SUPERLU_OPT = -I$(SUPERLU_DIR)/SRC
-SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/SRC -L$(SUPERLU_DIR)/SRC -lsuperlu_dist
+SUPERLU_LIB = -Wl,-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib -lsuperlu_dist_5.1.0
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
 # STRUMPACK >= v2.2.0)
@@ -230,10 +244,10 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
-# Gecko library configuration
-GECKO_DIR = @MFEM_DIR@/../gecko
-GECKO_OPT = -I$(GECKO_DIR)/inc
-GECKO_LIB = -L$(GECKO_DIR)/lib -lgecko
+# Ginkgo library configuration (currently not needed)
+GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
+GINKGO_OPT = -isystem $(GINKGO_DIR)/include
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo -lginkgo_omp -lginkgo_cuda -lginkgo_reference
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -290,7 +304,7 @@ SIDRE_LIB = \
    -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+   -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
@@ -299,14 +313,33 @@ PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
    -llion -lmth -lapf_zoltan -lspr
 
+# HIOP
+HIOP_DIR = @MFEM_DIR@/../hiop/install
+HIOP_OPT = -I$(HIOP_DIR)/include
+HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
+
+# GSLIB library
+GSLIB_DIR = @MFEM_DIR@/../gslib/build
+GSLIB_OPT = -I$(GSLIB_DIR)/include
+GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
+
 # CUDA library configuration (currently not needed)
 CUDA_OPT =
 CUDA_LIB =
+
+# HIP library configuration (currently not needed)
+HIP_OPT =
+HIP_LIB =
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+
+# libCEED library configuration
+CEED_DIR ?= @MFEM_DIR@/../libCEED
+CEED_OPT = -I$(CEED_DIR)/include
+CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
 RAJA_DIR = @MFEM_DIR@/../raja
@@ -315,6 +348,11 @@ ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+
+# UMPIRE library configuration
+UMPIRE_DIR = @MFEM_DIR@/../umpire
+UMPIRE_OPT = -I$(UMPIRE_DIR)/include
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
 
 # If YES, enable some informational messages
 VERBOSE = NO

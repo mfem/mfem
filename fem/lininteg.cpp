@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 
 #include <cmath>
@@ -90,6 +90,37 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
       el.CalcShape(ip, shape);
 
       add(elvect, ip.weight * val, shape, elvect);
+   }
+}
+
+void BoundaryLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);        // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;    // <------ user control
+      ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      IntegrationPoint eip;
+      Tr.Loc1.Transform(ip, eip);
+
+      Tr.Face->SetIntPoint (&ip);
+      double val = Tr.Face->Weight() * ip.weight * Q.Eval(*Tr.Face, ip);
+
+      el.CalcShape(eip, shape);
+
+      add(elvect, val, shape, elvect);
    }
 }
 
@@ -350,7 +381,6 @@ void VectorFEDomainLFIntegrator::AssembleDeltaElementVect(
    vshape.Mult(vec, elvect);
 }
 
-
 void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -396,20 +426,23 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
-      Tr.SetIntPoint (&ip);
-      double val = ip.weight*F.Eval(Tr, ip);
-
       el.CalcShape(ip, shape);
 
-      add(elvect, val, shape, elvect);
+      double val = ip.weight;
+      if (F)
+      {
+         Tr.SetIntPoint (&ip);
+         val *= F->Eval(Tr, ip);
+      }
+
+      elvect.Add(val, shape);
    }
 }
 
@@ -428,7 +461,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
