@@ -14,24 +14,23 @@
 
 #include "../tconfig.hpp"
 
-template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
+template <> struct AutoSIMD<double,2,2>
 {
-   typedef scalar_t scalar_type;
    static constexpr int size = 2;
    static constexpr int align_size = 16;
 
    union
    {
       vector double vd;
-      scalar_t vec[size];
+      double vec[size];
    };
 
-   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
+   inline MFEM_ALWAYS_INLINE double &operator[](int i)
    {
       return vec[i];
    }
 
-   inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const
+   inline MFEM_ALWAYS_INLINE const double &operator[](int i) const
    {
       return vec[i];
    }
@@ -42,7 +41,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const double &e)
    {
       vd = vec_splats(e);
       return *this;
@@ -50,11 +49,11 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const AutoSIMD &v)
    {
-      vd = vec_add(vd,v);
+      vd = vec_add(vd,v.vd);
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const double &e)
    {
       vd = vec_add(vd,vec_splats(e));
       return *this;
@@ -62,11 +61,11 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const AutoSIMD &v)
    {
-      vd = vec_sub(vd,v);
+      vd = vec_sub(vd,v.vd);
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const double &e)
    {
       vd = vec_sub(vd,vec_splats(e));
       return *this;
@@ -78,7 +77,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const double &e)
    {
       vd = vec_mul(vd,vec_splats(e));
       return *this;
@@ -90,7 +89,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const double &e)
    {
       vd = vec_div(vd,vec_splats(e));
       return *this;
@@ -98,7 +97,9 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-() const
    {
-      return vec_neg(vd);
+      AutoSIMD r;
+      r.vd = vec_neg(vd);
+      return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
@@ -108,7 +109,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const double &e) const
    {
       AutoSIMD r;
       r.vd = vec_add(vd, vec_splats(e));
@@ -122,7 +123,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const double &e) const
    {
       AutoSIMD r;
       r.vd = vec_sub(vd, vec_splats(e));
@@ -136,7 +137,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const double &e) const
    {
       AutoSIMD r;
       r.vd = vec_mul(vd, vec_splats(e));
@@ -150,7 +151,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const double &e) const
    {
       AutoSIMD r;
       r.vd = vec_div(vd, vec_splats(e));
@@ -163,13 +164,13 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const double &e)
    {
       vd = vec_madd(v.vd,vec_splats(e),vd);
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const double &e, const AutoSIMD &v)
    {
       vd = vec_madd(vec_splats(e),v.vd,vd);
       return *this;
@@ -181,55 +182,51 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,2,2>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const double &e)
    {
       vd = vec_mul(v.vd,vec_splats(e));
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const scalar_t &e, const AutoSIMD &v)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const double &e, const AutoSIMD &v)
    {
       vd = vec_mul(vec_splats(e),v.vd);
       return *this;
    }
 };
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,2,2> operator+(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,2,2> &v)
+AutoSIMD<double,2,2> operator+(const double &e,
+                               const AutoSIMD<double,2,2> &v)
 {
-   AutoSIMD<scalar_t,2,2> r;
+   AutoSIMD<double,2,2> r;
    r.vd = vec_add(vec_splats(e),v.vd);
    return r;
 }
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,2,2> operator-(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,2,2> &v)
+AutoSIMD<double,2,2> operator-(const double &e,
+                               const AutoSIMD<double,2,2> &v)
 {
-   AutoSIMD<scalar_t,2,2> r;
+   AutoSIMD<double,2,2> r;
    r.vd = vec_sub(vec_splats(e),v.vd);
    return r;
 }
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,2,2> operator*(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,2,2> &v)
+AutoSIMD<double,2,2> operator*(const double &e,
+                               const AutoSIMD<double,2,2> &v)
 {
-   AutoSIMD<scalar_t,2,2> r;
+   AutoSIMD<double,2,2> r;
    r.vd = vec_mul(vec_splats(e),v.vd);
    return r;
 }
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,2,2> operator/(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,2,2> &v)
+AutoSIMD<double,2,2> operator/(const double &e,
+                               const AutoSIMD<double,2,2> &v)
 {
-   AutoSIMD<scalar_t,2,2> r;
+   AutoSIMD<double,2,2> r;
    r.vd = vec_div(vec_splats(e),v.vd);
    return r;
 }

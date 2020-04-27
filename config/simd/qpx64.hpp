@@ -14,17 +14,16 @@
 
 #include "../tconfig.hpp"
 
-template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
+template <> struct AutoSIMD<double,1,1>
 {
-   typedef scalar_t scalar_type;
    static constexpr int size = 1;
    static constexpr int align_size = 8;
 
-   scalar_t vec[size];
+   double vec[size];
 
-   inline __ATTRS_ai scalar_t &operator[](int i) { return vec[0]; }
+   inline __ATTRS_ai double &operator[](int i) { return vec[0]; }
 
-   inline __ATTRS_ai const scalar_t &operator[](int i) const { return vec[0]; }
+   inline __ATTRS_ai const double &operator[](int i) const { return vec[0]; }
 
    inline __ATTRS_ai AutoSIMD &operator=(const AutoSIMD &v)
    {
@@ -32,7 +31,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &operator=(const scalar_t &e)
+   inline __ATTRS_ai AutoSIMD &operator=(const double &e)
    {
       vec[0] = e;
       return *this;
@@ -44,7 +43,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &operator+=(const scalar_t &e)
+   inline __ATTRS_ai AutoSIMD &operator+=(const double &e)
    {
       vec[0] += e;
       return *this;
@@ -56,7 +55,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &operator-=(const scalar_t &e)
+   inline __ATTRS_ai AutoSIMD &operator-=(const double &e)
    {
       vec[0] -= e;
       return *this;
@@ -68,7 +67,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &operator*=(const scalar_t &e)
+   inline __ATTRS_ai AutoSIMD &operator*=(const double &e)
    {
       vec[0] *= e;
       return *this;
@@ -80,7 +79,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &operator/=(const scalar_t &e)
+   inline __ATTRS_ai AutoSIMD &operator/=(const double &e)
    {
       vec[0] /= e;
       return *this;
@@ -100,7 +99,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return r;
    }
 
-   inline __ATTRS_ai AutoSIMD operator+(const scalar_t &e) const
+   inline __ATTRS_ai AutoSIMD operator+(const double &e) const
    {
       AutoSIMD r;
       r[0] = vec[0] + e;
@@ -114,7 +113,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return r;
    }
 
-   inline __ATTRS_ai AutoSIMD operator-(const scalar_t &e) const
+   inline __ATTRS_ai AutoSIMD operator-(const double &e) const
    {
       AutoSIMD r;
       r[0] = vec[0] - e;
@@ -128,7 +127,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return r;
    }
 
-   inline __ATTRS_ai AutoSIMD operator*(const scalar_t &e) const
+   inline __ATTRS_ai AutoSIMD operator*(const double &e) const
    {
       AutoSIMD r;
       r[0] = vec[0] * e;
@@ -142,7 +141,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return r;
    }
 
-   inline __ATTRS_ai AutoSIMD operator/(const scalar_t &e) const
+   inline __ATTRS_ai AutoSIMD operator/(const double &e) const
    {
       AutoSIMD r;
       r[0] = vec[0] / e;
@@ -155,13 +154,13 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
+   inline __ATTRS_ai AutoSIMD &fma(const AutoSIMD &v, const double &e)
    {
       vec[0] += v[0] * e;
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
+   inline __ATTRS_ai AutoSIMD &fma(const double &e, const AutoSIMD &v)
    {
       vec[0] += e * v[0];
       return *this;
@@ -173,59 +172,51 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &mul(const AutoSIMD &v, const scalar_t &e)
+   inline __ATTRS_ai AutoSIMD &mul(const AutoSIMD &v, const double &e)
    {
       vec[0] = v[0] * e;
       return *this;
    }
 
-   inline __ATTRS_ai AutoSIMD &mul(const scalar_t &e, const AutoSIMD &v)
+   inline __ATTRS_ai AutoSIMD &mul(const double &e, const AutoSIMD &v)
    {
       vec[0] = e * v[0];
       return *this;
    }
 };
 
-// *****************************************************************************
-template <typename scalar_t>
 inline __ATTRS_ai
-AutoSIMD<scalar_t,1,1> operator+(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,1,1> &v)
+AutoSIMD<double,1,1> operator+(const double &e,
+                               const AutoSIMD<double,1,1> &v)
 {
-   AutoSIMD<scalar_t,1,1> r;
+   AutoSIMD<double,1,1> r;
    r[0] = e + v[0];
    return r;
 }
 
-// *****************************************************************************
-template <typename scalar_t>
 inline __ATTRS_ai
-AutoSIMD<scalar_t,1,1> operator-(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,1,1> &v)
+AutoSIMD<double,1,1> operator-(const double &e,
+                               const AutoSIMD<double,1,1> &v)
 {
-   AutoSIMD<scalar_t,1,1> r;
+   AutoSIMD<double,1,1> r;
    r[0] = e - v[0];
    return r;
 }
 
-// *****************************************************************************
-template <typename scalar_t>
 inline __ATTRS_ai
-AutoSIMD<scalar_t,1,1> operator*(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,1,1> &v)
+AutoSIMD<double,1,1> operator*(const double &e,
+                               const AutoSIMD<double,1,1> &v)
 {
-   AutoSIMD<scalar_t,1,1> r;
+   AutoSIMD<double,1,1> r;
    r[0] = e * v[0];
    return r;
 }
 
-// *****************************************************************************
-template <typename scalar_t>
 inline __ATTRS_ai
-AutoSIMD<scalar_t,1,1> operator/(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,1,1> &v)
+AutoSIMD<double,1,1> operator/(const double &e,
+                               const AutoSIMD<double,1,1> &v)
 {
-   AutoSIMD<scalar_t,1,1> r;
+   AutoSIMD<double,1,1> r;
    r[0] = e / v[0];
    return r;
 }
