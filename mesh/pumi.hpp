@@ -33,8 +33,10 @@
 #include <apf.h>
 #include <apfMesh2.h>
 #include <apfShape.h>
+#include <apfField.h>
 #include <apfNumbering.h>
 #include <apfDynamicVector.h>
+#include <maMesh.h>
 
 namespace mfem
 {
@@ -95,6 +97,10 @@ public:
                               ParGridFunction* Vel,
                               apf::Field* VelField,
                               apf::Field* VelMagField);
+
+   void NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
+                               ParGridFunction* gf,
+                               apf::Field* NedelecField);
 
    /// Update the mesh after adaptation.
    void UpdateMesh(const ParMesh* AdaptedpMesh);
