@@ -2751,6 +2751,7 @@ private:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, dofs1D, quad1D;
+   // int dim, ne, o_dofs1D, c_dofs1D;  // no actual quadrature here, should name like this
 };
 
 

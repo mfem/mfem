@@ -17,7 +17,7 @@ using namespace mfem;
 TEST_CASE("PAGradient", "PAGradient")
 {
    const int order = 2;
-   const int num_elements = 2;
+   const int num_elements = 1;
    Mesh mesh(num_elements, num_elements, Element::QUADRILATERAL, true);
    int dim = mesh.Dimension();
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);

@@ -503,11 +503,14 @@ void PADiscreteLinearOperatorExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
+      // do not know what this means or why it was here
+      /*
       if (ginterp)
       {
          ginterp->AssemblePA(*trialFes, *testFes);
       }
       else
+      */
       {
          integrators[i]->AssemblePA(*trialFes, *testFes);
       }
