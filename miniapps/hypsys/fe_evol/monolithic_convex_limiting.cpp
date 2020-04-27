@@ -7,6 +7,8 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 {
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
+   Geometry::Type gtype = el->GetGeomType();
+
    IntegrationRule nodes =  el->GetNodes();
    Vector shape(nd), dx_shape(nd), RefMassLumped(nd);
    DenseMatrix dshape(nd,dim), GradAux(nd,nd), RefMass(nd,nd), InvRefMass(nd,nd);
@@ -23,7 +25,8 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    C_eij.SetSize(dim); // TODO rename
    eldofs.SetSize(hyp->NumEq*nd);
    DistributionMatrix.SetSize(nd,nd);
-   if (el->GetGeomType()==Geometry::TRIANGLE)
+
+   if (gtype == Geometry::TRIANGLE)
    {
       Dof2LocNbr.SetSize(nd, 6);
    }
@@ -33,8 +36,6 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    }
 
    Dof2LocNbr = -1;
-
-   nscd = nscd = dofs.SubcellCross.Width();
 
    uFace.SetSize(hyp->NumEq, dofs.NumFaceDofs);
    uNbrFace.SetSize(hyp->NumEq, dofs.NumFaceDofs);
@@ -176,11 +177,10 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    MassMatLOR.SetSize(nd,nd);
    MassMatLOR = 0.;
    DenseMatrix RefMat(dofs.numDofsSubcell, dofs.numDofsSubcell);
-   Geometry::Type gtype = el->GetGeomType();
 
    ComputeLORMassMatrix(RefMat, gtype, false);
 
-   RefMat *= 1. / ((double) dofs.numSubcells);
+   RefMat *= 1. / ((double) dofs.numSubcells); // TODO unnecessary
 
    for (int m = 0; m < dofs.numSubcells; m++)
    {
@@ -297,7 +297,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       }
    }
 
-   dofs.ComputeBounds(x);
+   // dofs.ComputeBounds(x);
 
    DenseMatrix mat3(nd, hyp->NumEq);
    DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq), BdrFlux(hyp->NumEq*nd, dofs.NumBdrs),
@@ -377,53 +377,51 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       Vector ElTerms(mat2.GetData(), nd*hyp->NumEq);
       z.AddElementVector(vdofs, -1., ElTerms);
 
-      // Artificial diffusion.
-      for (int m = 0; m < dofs.numSubcells; m++)
+      // Artificial diffusion
+      for (int I = 0; I < nd; I++)
       {
-         for (int i = 0; i < dofs.numDofsSubcell; i++)
+         GetNodeVal(uElem, uEval, I);
+
+         for (int j = 0; j < Dof2LocNbr.Width(); j++)
          {
-            int I = dofs.Sub2Ind(m,i);
-            GetNodeVal(uElem, uEval, I);
+            int J = Dof2LocNbr(I,j);
+            if (J == -1) { continue; }
 
-            for (int j = 0; j < nscd; j++)
+            GetNodeVal(uElem, uNbrEval, J);
+
+            double CTildeNorm1 = 0.;
+            double CTildeNorm2 = 0.;
+
+            for (int l = 0; l < dim; l++)
             {
-               int J = dofs.Sub2Ind(m, dofs.SubcellCross(i,j));
-               GetNodeVal(uElem, uNbrEval, J);
+               CTildeNorm1 += CTilde(I,l,J) * CTilde(I,l,J);
+               CTildeNorm2 += CTilde(J,l,I) * CTilde(J,l,I);
+            }
 
-               double CTildeNorm1 = 0.;
-               double CTildeNorm2 = 0.;
+            CTildeNorm1 = sqrt(CTildeNorm1);
+            CTildeNorm2 = sqrt(CTildeNorm2);
 
-               for (int l = 0; l < dim; l++)
-               {
-                  CTildeNorm1 += CTilde(I,l,J) * CTilde(I,l,J);
-                  CTildeNorm2 += CTilde(J,l,I) * CTilde(J,l,I);
-               }
+            // double dij = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
 
-               CTildeNorm1 = sqrt(CTildeNorm1);
-               CTildeNorm2 = sqrt(CTildeNorm2);
+            CTilde(J).GetRow(I, normal);
+            normal /= CTildeNorm1;
 
-               // double dij = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
+            double ws1 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
+                             hyp->GetWaveSpeed(uNbrEval, normal, e, J));
 
-               CTilde(J).GetRow(I, normal);
-               normal /= CTildeNorm1;
+            CTilde(I).GetRow(J, normal);
+            normal /= CTildeNorm2;
 
-               double ws1 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
-                                hyp->GetWaveSpeed(uNbrEval, normal, e, J));
+            double ws2 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
+                             hyp->GetWaveSpeed(uNbrEval, normal, e, J));
+            double dij = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
 
-               CTilde(I).GetRow(J, normal);
-               normal /= CTildeNorm2;
-
-               double ws2 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
-                                hyp->GetWaveSpeed(uNbrEval, normal, e, J));
-               double dij = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
-
-               for (int n = 0; n < hyp->NumEq; n++)
-               {
-                  double rus = dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
-                  z(vdofs[n * nd + I]) += rus;
-                  AntiDiff(I,J,n) -= rus;
-                  // wij(I,J,n) = dij * (x(vdofs[n * nd + J]) + x(vdofs[n * nd + I]))
-               }
+            for (int n = 0; n < hyp->NumEq; n++)
+            {
+               double rus = dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
+               z(vdofs[n * nd + I]) += rus;
+               AntiDiff(I,J,n) -= rus;
+               // wij(I,J,n) = dij * (x(vdofs[n * nd + J]) + x(vdofs[n * nd + I]))
             }
          }
       }

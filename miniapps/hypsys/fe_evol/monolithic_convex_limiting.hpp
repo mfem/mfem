@@ -12,8 +12,6 @@ public:
    DenseTensor PrecGradOp, GradProd, Adjugates;
    DenseMatrix FaceMat, DistributionMatrix, MassMatLOR, Dof2LocNbr;
 
-   int nscd; // nscd: NumSubcellCrossDofs
-
    mutable DenseTensor CTilde, CFull;
    mutable DenseMatrix uFace, uNbrFace;
    mutable Vector C_eij;

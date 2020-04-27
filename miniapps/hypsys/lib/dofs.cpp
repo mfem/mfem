@@ -297,7 +297,7 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 
    FillNeighborDofs();
    FillSubcell2CellDof();
-   FillSubcellCross();
+   // FillSubcellCross();
 }
 
 void DofInfo::FillNeighborDofs()
