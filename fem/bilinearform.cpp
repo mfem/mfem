@@ -12,37 +12,11 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
-#include "bilinearform.hpp"
 #include "../general/device.hpp"
 #include <cmath>
 
 namespace mfem
 {
-
-AssemblyLevel StringToAssemblyLevel(const std::string &val)
-{
-   if (val=="f"||val=="fa"||val=="full")
-   {
-      return AssemblyLevel::FULL;
-   }
-   else if (val=="e"||val=="ea"||val=="element")
-   {
-      return AssemblyLevel::ELEMENT;
-   }
-   else if (val=="p"||val=="pa"||val=="partial")
-   {
-      return AssemblyLevel::PARTIAL;
-   }
-   else if (val=="n"||val=="na"||val=="none")
-   {
-      return AssemblyLevel::NONE;
-   }
-   else
-   {
-      MFEM_ABORT("Unrecognized assembly level: " << val);
-      return AssemblyLevel::NONE;
-   }
-}
 
 void BilinearForm::AllocMat()
 {
@@ -164,11 +138,6 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       default:
          mfem_error("Unknown assembly level");
    }
-}
-
-void BilinearForm::SetAssemblyLevel(const std::string &assembly)
-{
-   SetAssemblyLevel(StringToAssemblyLevel(assembly));
 }
 
 void BilinearForm::EnableStaticCondensation()

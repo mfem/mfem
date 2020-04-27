@@ -43,8 +43,6 @@ enum class AssemblyLevel
    NONE,
 };
 
-/// Returns the AssemblyLevel associated to @a assembly
-AssemblyLevel StringToAssemblyLevel(const std::string &assembly);
 
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
@@ -152,9 +150,6 @@ public:
    /// Set the desired assembly level. The default is AssemblyLevel::FULL.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
-
-   /// Set the desired assembly level based on a std::string.
-   void SetAssemblyLevel(const std::string &assembly);
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
