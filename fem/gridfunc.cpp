@@ -1480,15 +1480,58 @@ void GridFunction::GetGradients(ElementTransformation &tr,
 }
 
 void GridFunction::GetVectorGradient(
-   ElementTransformation &tr, DenseMatrix &grad) const
+   ElementTransformation &T, DenseMatrix &grad) const
 {
-   MFEM_ASSERT(fes->GetFE(tr.ElementNo)->GetMapType() == FiniteElement::VALUE,
-               "invalid FE map type");
-   DenseMatrix grad_hat;
-   GetVectorGradientHat(tr, grad_hat);
-   const DenseMatrix &Jinv = tr.InverseJacobian();
-   grad.SetSize(grad_hat.Height(), Jinv.Width());
-   Mult(grad_hat, Jinv, grad);
+   if (T.ElementType == ElementTransformation::ELEMENT)
+   {
+      MFEM_ASSERT(fes->GetFE(T.ElementNo)->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
+      DenseMatrix grad_hat;
+      GetVectorGradientHat(T, grad_hat);
+      const DenseMatrix &Jinv = T.InverseJacobian();
+      grad.SetSize(grad_hat.Height(), Jinv.Width());
+      Mult(grad_hat, Jinv, grad);
+   }
+   else if (T.ElementType == ElementTransformation::BDR_ELEMENT)
+   {
+      FaceElementTransformations * FET = NULL;
+
+      const FiniteElement *fe = fes->GetBE(T.ElementNo);
+
+      if (fe == NULL)
+      {
+         // This must be a DG field.  Check for DG context.
+         FET = dynamic_cast<FaceElementTransformations *>(&T);
+         if (FET == NULL)
+         {
+            // non-DG context
+            FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         }
+      }
+      else
+      {
+         /// Not a DG field but we will need the neighboring element.
+         FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         FET->SetActiveSide(0);
+         FET->SetIntPoint(&T.GetIntPoint());
+      }
+      GetVectorGradient(*FET->GetActiveElementTransformation(), grad);
+   }
+   else if (T.ElementType == ElementTransformation::FACE)
+   {
+      // This must be a DG field called in a DG context.
+      FaceElementTransformations * FET =
+         dynamic_cast<FaceElementTransformations *>(&T);
+      if (FET != NULL)
+      {
+         GetVectorGradient(*FET->GetActiveElementTransformation(), grad);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("GridFunction::GetVectorGradient: Unsupported element type \""
+                 << T.ElementType << "\"");
+   }
 }
 
 void GridFunction::GetElementAverages(GridFunction &avgs) const
