@@ -26,13 +26,13 @@
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
-//               mpirun -np 4 ex1p -al pa -d cuda
-//               mpirun -np 4 ex1p -al ea -d cuda
-//               mpirun -np 4 ex1p -al pa -d occa-cuda
-//               mpirun -np 4 ex1p -al pa -d raja-omp
-//               mpirun -np 4 ex1p -al pa -d ceed-cpu
-//               mpirun -np 4 ex1p -al pa -d ceed-cuda
-//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -al pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d cuda
+//               mpirun -np 4 ex1p -ea -d cuda
+//               mpirun -np 4 ex1p -pa -d occa-cuda
+//               mpirun -np 4 ex1p -pa -d raja-omp
+//               mpirun -np 4 ex1p -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cuda
+//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -68,7 +68,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   const char *assembly = "full";
+   bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -80,8 +81,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&assembly, "-al", "--assembly-level",
-                  "Assembly level configuration string.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -196,7 +199,8 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->SetAssemblyLevel(assembly);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   else if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -214,8 +218,7 @@ int main(int argc, char *argv[])
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
-   bool isFA = a->GetAssemblyLevel() == AssemblyLevel::FULL;
-   if (!isFA)
+   if (pa || ea)
    {
       if (UsesTensorBasis(*fespace))
       {

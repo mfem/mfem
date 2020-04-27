@@ -26,17 +26,17 @@
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
-//               ex1 -al pa -d cuda
-//               ex1 -al ea -d cuda
-//               ex1 -al pa -d raja-cuda
-//               ex1 -al pa -d occa-cuda
-//               ex1 -al pa -d raja-omp
-//               ex1 -al pa -d occa-omp
-//               ex1 -al pa -d ceed-cpu
-//               ex1 -al pa -d ceed-cuda
-//               ex1 -m ../data/beam-hex.mesh -al pa -d cuda
-//               ex1 -m ../data/beam-tet.mesh -al pa -d ceed-cpu
-//               ex1 -m ../data/beam-tet.mesh -al pa -d ceed-cuda:/gpu/cuda/ref
+//               ex1 -pa -d cuda
+//               ex1 -ea -d cuda
+//               ex1 -pa -d raja-cuda
+//               ex1 -pa -d occa-cuda
+//               ex1 -pa -d raja-omp
+//               ex1 -pa -d occa-omp
+//               ex1 -pa -d ceed-cpu
+//               ex1 -pa -d ceed-cuda
+//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -66,7 +66,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   const char *assembly = "full";
+   bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -78,8 +79,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&assembly, "-al", "--assembly-level",
-                  "Assembly level configuration string.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -168,7 +171,8 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   a->SetAssemblyLevel(assembly);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   else if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -185,8 +189,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   bool isFA = a->GetAssemblyLevel() == AssemblyLevel::FULL;
-   if (isFA)
+   if (!pa && !ea)
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
