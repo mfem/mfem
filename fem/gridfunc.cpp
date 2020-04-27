@@ -1304,22 +1304,67 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
    }
 }
 
-void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
+void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
 {
-   int elNo = tr.ElementNo;
-   const FiniteElement *fe = fes->GetFE(elNo);
-   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
-   int dim = fe->GetDim(), dof = fe->GetDof();
-   DenseMatrix dshape(dof, dim);
-   Vector lval, gh(dim);
-   Array<int> dofs;
+   const FiniteElement * fe = NULL;
+   if (T.ElementType == ElementTransformation::ELEMENT)
+   {
+      fe = fes->GetFE(T.ElementNo);
+      MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
+                  "invalid FE map type");
+      int spaceDim = fes->GetMesh()->SpaceDimension();
+      int dim = fe->GetDim(), dof = fe->GetDof();
+      DenseMatrix dshape(dof, dim);
+      Vector lval, gh(dim);
+      Array<int> dofs;
 
-   grad.SetSize(dim);
-   fes->GetElementDofs(elNo, dofs);
-   GetSubVector(dofs, lval);
-   fe->CalcDShape(tr.GetIntPoint(), dshape);
-   dshape.MultTranspose(lval, gh);
-   tr.InverseJacobian().MultTranspose(gh, grad);
+      grad.SetSize(spaceDim);
+      fes->GetElementDofs(T.ElementNo, dofs);
+      GetSubVector(dofs, lval);
+      fe->CalcDShape(T.GetIntPoint(), dshape);
+      dshape.MultTranspose(lval, gh);
+      T.InverseJacobian().MultTranspose(gh, grad);
+   }
+   else if (T.ElementType == ElementTransformation::BDR_ELEMENT)
+   {
+      FaceElementTransformations * FET = NULL;
+
+      fe = fes->GetBE(T.ElementNo);
+
+      if (fe == NULL)
+      {
+         // This must be a DG field.  Check for DG context.
+         FET = dynamic_cast<FaceElementTransformations *>(&T);
+         if (FET == NULL)
+         {
+            // non-DG context
+            FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         }
+      }
+      else
+      {
+         /// Not a DG field but we will need the neighboring element.
+         FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         FET->SetActiveSide(0);
+         FET->SetIntPoint(&T.GetIntPoint());
+      }
+      GetGradient(*FET->GetActiveElementTransformation(), grad);
+   }
+   else if (T.ElementType == ElementTransformation::FACE)
+   {
+      // This must be a DG field called in a DG context.
+      FaceElementTransformations * FET =
+         dynamic_cast<FaceElementTransformations *>(&T);
+      if (FET != NULL)
+      {
+         GetGradient(*FET->GetActiveElementTransformation(), grad);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("GridFunction::GetGradient: Unsupported element type \""
+                 << T.ElementType << "\"");
+   }
 }
 
 void GridFunction::GetGradients(ElementTransformation &tr,
