@@ -14,24 +14,23 @@
 
 #include "../tconfig.hpp"
 
-template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
+template <> struct AutoSIMD<double,4,4>
 {
-   typedef scalar_t scalar_type;
    static constexpr int size = 4;
    static constexpr int align_size = 32;
 
    union
    {
       __m256d m256d;
-      scalar_t vec[size];
+      double vec[size];
    };
 
-   inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
+   inline MFEM_ALWAYS_INLINE double &operator[](int i)
    {
       return vec[i];
    }
 
-   inline MFEM_ALWAYS_INLINE const scalar_t &operator[](int i) const
+   inline MFEM_ALWAYS_INLINE const double &operator[](int i) const
    {
       return vec[i];
    }
@@ -42,7 +41,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const double &e)
    {
       m256d = _mm256_set1_pd(e);
       return *this;
@@ -50,11 +49,11 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const AutoSIMD &v)
    {
-      m256d = _mm256_add_pd(m256d,v);
+      m256d = _mm256_add_pd(m256d,v.m256d);
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const double &e)
    {
       m256d = _mm256_add_pd(m256d,_mm256_set1_pd(e));
       return *this;
@@ -62,11 +61,11 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const AutoSIMD &v)
    {
-      m256d = _mm256_sub_pd(m256d,v);
+      m256d = _mm256_sub_pd(m256d,v.m256d);
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const double &e)
    {
       m256d = _mm256_sub_pd(m256d,_mm256_set1_pd(e));
       return *this;
@@ -78,7 +77,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const double &e)
    {
       m256d = _mm256_mul_pd(m256d,_mm256_set1_pd(e));
       return *this;
@@ -90,7 +89,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const double &e)
    {
       m256d = _mm256_div_pd(m256d,_mm256_set1_pd(e));
       return *this;
@@ -110,7 +109,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const double &e) const
    {
       AutoSIMD r;
       r.m256d = _mm256_add_pd(m256d, _mm256_set1_pd(e));
@@ -124,7 +123,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const double &e) const
    {
       AutoSIMD r;
       r.m256d = _mm256_sub_pd(m256d, _mm256_set1_pd(e));
@@ -138,7 +137,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const double &e) const
    {
       AutoSIMD r;
       r.m256d = _mm256_mul_pd(m256d, _mm256_set1_pd(e));
@@ -152,7 +151,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return r;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const scalar_t &e) const
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const double &e) const
    {
       AutoSIMD r;
       r.m256d = _mm256_div_pd(m256d, _mm256_set1_pd(e));
@@ -169,7 +168,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const double &e)
    {
 #ifndef __AVX2__
       m256d = _mm256_add_pd(_mm256_mul_pd(_mm256_set1_pd(e),v.m256d),m256d);
@@ -179,7 +178,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const double &e, const AutoSIMD &v)
    {
 #ifndef __AVX2__
       m256d = _mm256_add_pd(_mm256_mul_pd(v.m256d,_mm256_set1_pd(e)),m256d);
@@ -195,55 +194,51 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const scalar_t &e)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const double &e)
    {
       m256d = _mm256_mul_pd(v.m256d,_mm256_set1_pd(e));
       return *this;
    }
 
-   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const scalar_t &e, const AutoSIMD &v)
+   inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const double &e, const AutoSIMD &v)
    {
       m256d = _mm256_mul_pd(_mm256_set1_pd(e),v.m256d);
       return *this;
    }
 };
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,4,4> operator+(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+AutoSIMD<double,4,4> operator+(const double &e,
+                               const AutoSIMD<double,4,4> &v)
 {
-   AutoSIMD<scalar_t,4,4> r;
+   AutoSIMD<double,4,4> r;
    r.m256d = _mm256_add_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,4,4> operator-(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+AutoSIMD<double,4,4> operator-(const double &e,
+                               const AutoSIMD<double,4,4> &v)
 {
-   AutoSIMD<scalar_t,4,4> r;
+   AutoSIMD<double,4,4> r;
    r.m256d = _mm256_sub_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,4,4> operator*(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+AutoSIMD<double,4,4> operator*(const double &e,
+                               const AutoSIMD<double,4,4> &v)
 {
-   AutoSIMD<scalar_t,4,4> r;
+   AutoSIMD<double,4,4> r;
    r.m256d = _mm256_mul_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
-template <typename scalar_t>
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<scalar_t,4,4> operator/(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+AutoSIMD<double,4,4> operator/(const double &e,
+                               const AutoSIMD<double,4,4> &v)
 {
-   AutoSIMD<scalar_t,4,4> r;
+   AutoSIMD<double,4,4> r;
    r.m256d = _mm256_div_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }

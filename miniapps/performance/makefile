@@ -65,7 +65,6 @@ MFEM_PERF_CXXFLAGS_clang += -pedantic -Wall
 MFEM_PERF_CXXFLAGS_clang += -fcolor-diagnostics
 MFEM_PERF_CXXFLAGS_clang += -fvectorize
 MFEM_PERF_CXXFLAGS_clang += -fslp-vectorize
-MFEM_PERF_CXXFLAGS_clang += -fslp-vectorize-aggressive
 MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 
 # - Intel C++ compiler extra options:

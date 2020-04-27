@@ -117,7 +117,11 @@ public:
         coeff(integ.coeff),
         assembled_data(),
         in_fes(sol_fes)
-   { assembled_data.Reset(MemoryType::HOST_32); }
+   {
+      assembled_data.Reset(SS == 64 ? MemoryType::HOST_64 :
+                           SS == 32 ? MemoryType::HOST_32 :
+                           MemoryType::HOST);
+   }
 
    virtual ~TBilinearForm()
    {

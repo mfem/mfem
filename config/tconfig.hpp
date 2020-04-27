@@ -68,12 +68,19 @@
 #elif defined(__VSX__)
 #define MFEM_SIMD_SIZE 16
 #define MFEM_TEMPLATE_BLOCK_SIZE 2
+#elif defined(__MIC__) || defined(__AVX512F__)
+#define MFEM_SIMD_SIZE 64
+#define MFEM_TEMPLATE_BLOCK_SIZE 8
 #elif defined(__x86_64__)
 #define MFEM_SIMD_SIZE 32
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
 #else
+#warning No SIMD
 #error Unknown SIMD architecture
 #endif
+
+namespace mfem
+{
 
 template<typename complex_t, typename real_t, bool simd>
 struct AutoImplTraits
@@ -94,6 +101,8 @@ struct AutoImplTraits
    typedef AutoSIMD<int, simd_size, valign_size> vint_t;
 #endif // MFEM_USE_SIMD
 };
+
+} // mfem namespace
 
 #define MFEM_TEMPLATE_ENABLE_SERIALIZE
 
