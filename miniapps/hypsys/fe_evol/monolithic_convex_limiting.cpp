@@ -11,6 +11,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    Vector shape(nd), dx_shape(nd), RefMassLumped(nd);
    DenseMatrix dshape(nd,dim), GradAux(nd,nd), RefMass(nd,nd), InvRefMass(nd,nd);
    DenseTensor GradOp(nd,nd,dim);
+   double tol = 1.e-12;
 
    // ShapeNodes.SetSize(nd,nd); // TODO unnecessary?
    Adjugates.SetSize(dim,dim,ne);
@@ -22,6 +23,16 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    C_eij.SetSize(dim); // TODO rename
    eldofs.SetSize(hyp->NumEq*nd);
    DistributionMatrix.SetSize(nd,nd);
+   if (el->GetGeomType()==Geometry::TRIANGLE)
+   {
+      Dof2LocNbr.SetSize(nd, 6);
+   }
+   else
+   {
+      Dof2LocNbr.SetSize(nd, 2*dim);
+   }
+
+   Dof2LocNbr = -1;
 
    nscd = nscd = dofs.SubcellCross.Width();
 
@@ -71,8 +82,30 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       {
          for (int j = 0; j < nd; j++)
          {
-            PrecGradOp(i,l,j) += GradAux(i,j);
+            if (abs(GradAux(i,j)) > tol)
+            {
+               PrecGradOp(i,l,j) = GradAux(i,j);
+            }
             GradProd(i,l,j) = GradOp(i,j,l) + GradOp(j,i,l);
+         }
+      }
+   }
+
+   for (int i = 0; i < nd; i++)
+   {
+      int ctr = 0;
+      for (int j = 0; j < nd; j++)
+      {
+         if (i==j) { continue; }
+
+         for (int l = 0; l < dim; l++)
+         {
+            if (abs(PrecGradOp(i,l,j)) > tol)
+            {
+               Dof2LocNbr(i,ctr) = j;
+               ctr++;
+               break;
+            }
          }
       }
    }
@@ -521,11 +554,11 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          }
       }
 
-      z.AddElementVector(vdofs, ElFlux.GetData());
+      // z.AddElementVector(vdofs, ElFlux.GetData());
 
       Vector sums(hyp->NumEq*nd);
       BdrFlux.GetRowSums(sums);
-      z.AddElementVector(vdofs, sums);
+      // z.AddElementVector(vdofs, sums);
 
       for (int n = 0; n < hyp->NumEq; n++)
       {

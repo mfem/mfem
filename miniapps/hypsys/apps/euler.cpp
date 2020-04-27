@@ -57,7 +57,6 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
          break;
       }
       case 3:
-      case 6:
       {
          ProblemName = "Euler Equations of Gas dynamics - Double Mach Reflection";
          glvis_scale = "off valuerange 1.4 22";
@@ -90,6 +89,63 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
          SteadyState = false;
          TimeDepBC = true;
          ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
+      case 6:
+      {
+         ProblemName = "Euler Equations of Gas dynamics - MoST gimmick";
+         glvis_scale = "on";
+         SpHeatRatio = 1.4;
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = true;
+         ProjType = 1;
+
+         Mesh *mesh = fes->GetMesh();
+         const int nd = fes->GetFE(0)->GetDof();
+         const int ne = fes->GetNE();
+         if (mesh->Dimension() != 2) { MFEM_ABORT("Test case is 2D."); }
+         u0 = 0.;
+
+         for (int e = 0; e < ne; e++)
+         {
+            int id = mesh->GetElement(e)->GetAttribute();
+            for (int j = 0; j < nd; j++)
+            {
+               switch (id)
+               {
+                  case 1:
+                  {
+                     u0(e*nd+j) = 1.;
+                     u0(3*ne*nd + e*nd+j) = 1. / SpHeatRatio;
+                     break;
+                  }
+                  case 2:
+                  case 3:
+                  case 4:
+                  {
+                     u0(e*nd+j) = 0.125;
+                     u0(3*ne*nd + e*nd+j) = 0.1 / SpHeatRatio;
+                     break;
+                  }
+                  default:
+                     MFEM_ABORT("Too many element IDs.");
+               }
+            }
+         }
+
+         break;
+      }
+      case 7:
+      {
+         ProblemName = "Euler Equations of Gas dynamics - Constricted Channel";
+         glvis_scale = "on";
+         SpHeatRatio = 1.4;
+         SolutionKnown = false;
+         SteadyState = true;
+         TimeDepBC = false;
+         ProjType = 0;
          u0.ProjectCoefficient(ic);
          break;
       }
@@ -483,6 +539,14 @@ void InitialConditionEuler(const Vector &x, Vector &u)
          u(dim+1) = X.Norml2() < 1.0E-1 ? 100.0 : 1.0E-8;
          break;
       }
+      case 7:
+      {
+         u(0) = 1.;
+         u(1) = 1.;
+         u(2) = 0.;
+         EvaluateEnergy(u, 0.1);
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -498,6 +562,11 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u)
       case 6:
       {
          AnalyticalSolutionEuler(x, t, u);
+         break;
+      }
+      case 7:
+      {
+         InitialConditionEuler(x, u);
          break;
       }
       case 1:
