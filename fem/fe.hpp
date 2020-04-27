@@ -1964,6 +1964,21 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
+class H1_CutQuadElement : public NodalTensorFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, dshape_x, dshape_y;
+#endif
+
+public:
+   H1_CutQuadElement(const int p,
+                           const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+};
 
 class H1_HexahedronElement : public NodalTensorFiniteElement
 {

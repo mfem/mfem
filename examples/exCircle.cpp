@@ -84,6 +84,8 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    cout << "element geometry type for cut element is " << endl;                                                 
    cout << mesh->GetElement(21)->GetGeometryType() << endl;
+   cout << "check GetGeomType() for cut element  " << endl;                                                 
+   //cout << mesh->GetElement(21)->GetGeomType() << endl;
    cout << "element type for cut element is " << endl;                                                 
    cout << mesh->GetElement(21)->GetType() << endl;
    Array<int> v;

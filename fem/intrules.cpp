@@ -885,6 +885,9 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
    CubeIntRules.SetSize(32, h_mt);
    CubeIntRules = NULL;
+
+   CutSquareIntRules.SetSize(32, h_mt);
+   CutSquareIntRules = NULL;
 }
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
@@ -900,6 +903,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::CUTSQUARE:   ir_array = &CutSquareIntRules; break;
       default:
          mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -946,6 +950,7 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::CUTSQUARE:   ir_array = &CutSquareIntRules; break;
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -989,6 +994,7 @@ IntegrationRules::~IntegrationRules()
    DeleteIntRuleArray(TetrahedronIntRules);
    DeleteIntRuleArray(CubeIntRules);
    DeleteIntRuleArray(PrismIntRules);
+   DeleteIntRuleArray(CutSquareIntRules);
 }
 
 
@@ -1011,6 +1017,8 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return CubeIntegrationRule(Order);
       case Geometry::PRISM:
          return PrismIntegrationRule(Order);
+      case Geometry::CUTSQUARE:
+         return CutSquareIntegrationRule(Order);
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          return NULL;
@@ -1507,6 +1515,23 @@ IntegrationRule *IntegrationRules::SquareIntegrationRule(int Order)
          new IntegrationRule(*SegmentIntRules[RealOrder],
                              *SegmentIntRules[RealOrder]);
    return SquareIntRules[Order];
+}
+
+// Integration rules for unit cutsquare
+IntegrationRule *IntegrationRules::CutSquareIntegrationRule(int Order)
+{
+   int RealOrder = GetSegmentRealOrder(Order);
+   // Order is one of {RealOrder-1,RealOrder}
+   if (!HaveIntRule(SegmentIntRules, RealOrder))
+   {
+      SegmentIntegrationRule(RealOrder);
+   }
+   AllocIntRule(CutSquareIntRules, RealOrder); // RealOrder >= Order
+   CutSquareIntRules[RealOrder-1] =
+      CutSquareIntRules[RealOrder] =
+         new IntegrationRule(*SegmentIntRules[RealOrder],
+                             *SegmentIntRules[RealOrder]);
+   return CutSquareIntRules[Order];
 }
 
 /** Integration rules for reference tetrahedron

@@ -1590,6 +1590,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    {
       H1_dof[Geometry::TRIANGLE] = (pm1*pm2)/2;
       H1_dof[Geometry::SQUARE] = pm1*pm1;
+      H1_dof[Geometry::CUTSQUARE] = pm1*pm1;
       if (b_type == BasisType::Positive)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
@@ -1611,6 +1612,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
+         H1_Elements[Geometry::CUTSQUARE] = new H1_CutQuadElement(p, btype);
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
@@ -1828,6 +1830,10 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    {
       return TetDofOrd[Or%24];
    }
+   else if (GeomType == Geometry::CUTSQUARE)
+   {
+      return QuadDofOrd[Or%8];
+   }
    return NULL;
 }
 
@@ -1858,6 +1864,7 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
    {
       case Geometry::SEGMENT:
       case Geometry::SQUARE:
+      case Geometry::CUTSQUARE:
       case Geometry::CUBE:
          dof_map = dynamic_cast<const TensorBasisElement *>(fe)
                    ->GetDofMap().GetData();
