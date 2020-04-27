@@ -65,18 +65,18 @@
 #if defined(_WIN32)
 #define MFEM_SIMD_SIZE 8
 #define MFEM_TEMPLATE_BLOCK_SIZE 1
-#elif defined(__VSX__)
-#define MFEM_SIMD_SIZE 16
-#define MFEM_TEMPLATE_BLOCK_SIZE 2
-#elif defined(__MIC__) || defined(__AVX512F__)
+#elif defined(__AVX512F__)
 #define MFEM_SIMD_SIZE 64
 #define MFEM_TEMPLATE_BLOCK_SIZE 8
-#elif defined(__x86_64__)
+#elif defined(__AVX__) || defined(__VECTOR4DOUBLE__)
 #define MFEM_SIMD_SIZE 32
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
+#elif defined(__SSE2__) || defined(__VSX__)
+#define MFEM_SIMD_SIZE 16
+#define MFEM_TEMPLATE_BLOCK_SIZE 2
 #else
-#warning No SIMD
-#error Unknown SIMD architecture
+#define MFEM_SIMD_SIZE 8
+#define MFEM_TEMPLATE_BLOCK_SIZE 1
 #endif
 
 namespace mfem
