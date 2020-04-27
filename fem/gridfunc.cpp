@@ -1219,88 +1219,175 @@ void GridFunction::GetVectorGradientHat(
    MultAtB(loc_data_mat, dshape, gh);
 }
 
-double GridFunction::GetDivergence(ElementTransformation &tr) const
+double GridFunction::GetDivergence(ElementTransformation &T) const
 {
-   double div_v;
-   int elNo = tr.ElementNo;
-   const FiniteElement *FElem = fes->GetFE(elNo);
-   if (FElem->GetRangeType() == FiniteElement::SCALAR)
+   double div_v = 0.0;
+
+   if (T.ElementType == ElementTransformation::ELEMENT)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
-      DenseMatrix grad_hat;
-      GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &Jinv = tr.InverseJacobian();
-      div_v = 0.0;
-      for (int i = 0; i < Jinv.Width(); i++)
+      int elNo = T.ElementNo;
+      const FiniteElement *fe = fes->GetFE(elNo);
+      if (fe->GetRangeType() == FiniteElement::SCALAR)
       {
-         for (int j = 0; j < Jinv.Height(); j++)
+         MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
+                     "invalid FE map type");
+         DenseMatrix grad_hat;
+         GetVectorGradientHat(T, grad_hat);
+         const DenseMatrix &Jinv = T.InverseJacobian();
+         div_v = 0.0;
+         for (int i = 0; i < Jinv.Width(); i++)
          {
-            div_v += grad_hat(i, j) * Jinv(j, i);
+            for (int j = 0; j < Jinv.Height(); j++)
+            {
+               div_v += grad_hat(i, j) * Jinv(j, i);
+            }
          }
+      }
+      else
+      {
+         // Assuming RT-type space
+         Array<int> dofs;
+         fes->GetElementDofs(elNo, dofs);
+         Vector loc_data, divshape(fe->GetDof());
+         GetSubVector(dofs, loc_data);
+         fe->CalcDivShape(T.GetIntPoint(), divshape);
+         div_v = (loc_data * divshape) / T.Weight();
+      }
+   }
+   else if (T.ElementType == ElementTransformation::BDR_ELEMENT)
+   {
+      FaceElementTransformations * FET = NULL;
+
+      const FiniteElement *fe = fes->GetBE(T.ElementNo);
+
+      if (fe == NULL)
+      {
+         // This must be a DG field.  Check for DG context.
+         FET = dynamic_cast<FaceElementTransformations *>(&T);
+         if (FET == NULL)
+         {
+            // non-DG context
+            FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         }
+      }
+      else
+      {
+         /// Not a DG field but we will need the neighboring element.
+         FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         FET->SetActiveSide(0);
+         FET->SetIntPoint(&T.GetIntPoint());
+      }
+      div_v = GetDivergence(*FET->GetActiveElementTransformation());
+   }
+   else if (T.ElementType == ElementTransformation::FACE)
+   {
+      // This must be a DG field called in a DG context.
+      FaceElementTransformations * FET =
+         dynamic_cast<FaceElementTransformations *>(&T);
+      if (FET != NULL)
+      {
+         div_v = GetDivergence(*FET->GetActiveElementTransformation());
       }
    }
    else
    {
-      // Assuming RT-type space
-      Array<int> dofs;
-      fes->GetElementDofs(elNo, dofs);
-      Vector loc_data, divshape(FElem->GetDof());
-      GetSubVector(dofs, loc_data);
-      FElem->CalcDivShape(tr.GetIntPoint(), divshape);
-      div_v = (loc_data * divshape) / tr.Weight();
+      MFEM_ABORT("GridFunction::GetDivergence: Unsupported element type \""
+                 << T.ElementType << "\"");
    }
    return div_v;
 }
 
-void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
+void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
 {
-   int elNo = tr.ElementNo;
-   const FiniteElement *FElem = fes->GetFE(elNo);
-   if (FElem->GetRangeType() == FiniteElement::SCALAR)
+   if (T.ElementType == ElementTransformation::ELEMENT)
    {
-      MFEM_ASSERT(FElem->GetMapType() == FiniteElement::VALUE,
-                  "invalid FE map type");
-      DenseMatrix grad_hat;
-      GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &Jinv = tr.InverseJacobian();
-      DenseMatrix grad(grad_hat.Height(), Jinv.Width()); // vdim x FElem->Dim
-      Mult(grad_hat, Jinv, grad);
-      MFEM_ASSERT(grad.Height() == grad.Width(), "");
-      if (grad.Height() == 3)
+      int elNo = T.ElementNo;
+      const FiniteElement *fe = fes->GetFE(elNo);
+      if (fe->GetRangeType() == FiniteElement::SCALAR)
       {
-         curl.SetSize(3);
-         curl(0) = grad(2,1) - grad(1,2);
-         curl(1) = grad(0,2) - grad(2,0);
-         curl(2) = grad(1,0) - grad(0,1);
+         MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
+                     "invalid FE map type");
+         DenseMatrix grad_hat;
+         GetVectorGradientHat(T, grad_hat);
+         const DenseMatrix &Jinv = T.InverseJacobian();
+         DenseMatrix grad(grad_hat.Height(), Jinv.Width()); // vdim x FElem->Dim
+         Mult(grad_hat, Jinv, grad);
+         MFEM_ASSERT(grad.Height() == grad.Width(), "");
+         if (grad.Height() == 3)
+         {
+            curl.SetSize(3);
+            curl(0) = grad(2,1) - grad(1,2);
+            curl(1) = grad(0,2) - grad(2,0);
+            curl(2) = grad(1,0) - grad(0,1);
+         }
+         else if (grad.Height() == 2)
+         {
+            curl.SetSize(1);
+            curl(0) = grad(1,0) - grad(0,1);
+         }
       }
-      else if (grad.Height() == 2)
+      else
       {
-         curl.SetSize(1);
-         curl(0) = grad(1,0) - grad(0,1);
+         // Assuming ND-type space
+         Array<int> dofs;
+         fes->GetElementDofs(elNo, dofs);
+         Vector loc_data;
+         GetSubVector(dofs, loc_data);
+         DenseMatrix curl_shape(fe->GetDof(), fe->GetDim() == 3 ? 3 : 1);
+         fe->CalcCurlShape(T.GetIntPoint(), curl_shape);
+         curl.SetSize(curl_shape.Width());
+         if (curl_shape.Width() == 3)
+         {
+            double curl_hat[3];
+            curl_shape.MultTranspose(loc_data, curl_hat);
+            T.Jacobian().Mult(curl_hat, curl);
+         }
+         else
+         {
+            curl_shape.MultTranspose(loc_data, curl);
+         }
+         curl /= T.Weight();
+      }
+   }
+   else if (T.ElementType == ElementTransformation::BDR_ELEMENT)
+   {
+      FaceElementTransformations * FET = NULL;
+
+      const FiniteElement *fe = fes->GetBE(T.ElementNo);
+
+      if (fe == NULL)
+      {
+         // This must be a DG field.  Check for DG context.
+         FET = dynamic_cast<FaceElementTransformations *>(&T);
+         if (FET == NULL)
+         {
+            // non-DG context
+            FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         }
+      }
+      else
+      {
+         /// Not a DG field but we will need the neighboring element.
+         FET = fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
+         FET->SetActiveSide(0);
+         FET->SetIntPoint(&T.GetIntPoint());
+      }
+      GetCurl(*FET->GetActiveElementTransformation(), curl);
+   }
+   else if (T.ElementType == ElementTransformation::FACE)
+   {
+      // This must be a DG field called in a DG context.
+      FaceElementTransformations * FET =
+         dynamic_cast<FaceElementTransformations *>(&T);
+      if (FET != NULL)
+      {
+         GetCurl(*FET->GetActiveElementTransformation(), curl);
       }
    }
    else
    {
-      // Assuming ND-type space
-      Array<int> dofs;
-      fes->GetElementDofs(elNo, dofs);
-      Vector loc_data;
-      GetSubVector(dofs, loc_data);
-      DenseMatrix curl_shape(FElem->GetDof(), FElem->GetDim() == 3 ? 3 : 1);
-      FElem->CalcCurlShape(tr.GetIntPoint(), curl_shape);
-      curl.SetSize(curl_shape.Width());
-      if (curl_shape.Width() == 3)
-      {
-         double curl_hat[3];
-         curl_shape.MultTranspose(loc_data, curl_hat);
-         tr.Jacobian().Mult(curl_hat, curl);
-      }
-      else
-      {
-         curl_shape.MultTranspose(loc_data, curl);
-      }
-      curl /= tr.Weight();
+      MFEM_ABORT("GridFunction::GetCurl: Unsupported element type \""
+                 << T.ElementType << "\"");
    }
 }
 
