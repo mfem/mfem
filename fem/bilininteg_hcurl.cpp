@@ -1938,6 +1938,18 @@ static void PAHcurlH1Apply3D(const int D1D,
 // Apply to x corresponding to DOF's in H^1 (trial) the (topological) gradient
 // to get a dof in H(curl) (test, kinda, but there's no integration)
 // see high-order/element-tensor/TensorNedelec.cpp : TensorGradMult
+// see also PAHcurlH1Apply2D below
+
+// NOBODY CALLS OR REFERENCES THIS - what's the plan?
+
+// nothing in this kernel is actually correct, so future me should feel
+// free to go through wholesale, renumber and reindex everything, etc.
+
+// in particular, I'm not sure the Bc and Gc I am getting here are the ones
+// I want
+
+// so _Bc comes from
+
 static void PAHcurlApplyGradient2D(const int D1Dclosed,
                                    const int Q1D,
                                    const int NE,
@@ -1946,6 +1958,8 @@ static void PAHcurlApplyGradient2D(const int D1Dclosed,
                                    const Vector &_x,
                                    Vector &_y)
 {
+   std::cout << "PAHcurlApplyGradient2D [kernel]" << std::endl;
+/*
    constexpr static int VDIM = 2;
 
    // Dylan uses D1D - 1 for what I call Q1Dopen?
@@ -1953,6 +1967,8 @@ static void PAHcurlApplyGradient2D(const int D1Dclosed,
    // really about quadrature points
 
    const int D1Dopen = D1Dclosed - 1;
+
+   // these are the shapes they are in Dylan's code, but not in mine
    auto Bc = Reshape(_Bc.Read(), Q1D, D1Dclosed);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1Dclosed);
    auto x = Reshape(_x.Read(), D1Dclosed, D1Dclosed, NE);
@@ -1988,8 +2004,10 @@ static void PAHcurlApplyGradient2D(const int D1Dclosed,
             }
          }
       }
-   }
+   });
+*/
 }
+
 
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
 // against H(curl) test functions corresponding to y.
@@ -2167,12 +2185,19 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+
    dofs1D = mapsC->ndof;
    quad1D = mapsC->nqpt;
-
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   /*
+   o_dofs1D = mapsO->nqpt;
+   c_dofs1D = mapsC->nqpt;
+   MFEM_VERIFY(mapsO->ndof == c_dofs1D, "Bad programming!");
+   MFEM_VERIFY(mapsC->ndof == c_dofs1D, "Bad programming!");
+   */
+
+    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
    Vector coeff(ne * nq);
    coeff = 1.0;
@@ -2197,7 +2222,7 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
-   // these may just be the wrong kernels
+   // these may just be the wrong kernels (ie, only swapping them out may be sufficient)
 
    std::cout << "GradientInterpolator::AddMultPA" << std::endl;
    if (dim == 3)
@@ -2208,8 +2233,12 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
    else if (dim == 2)
    {
       // mapsC, mapsO are open/closed points
+      /*
       PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
+      */
+      PAHcurlApplyGradient2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+                             x, y);
    }
    else
    {

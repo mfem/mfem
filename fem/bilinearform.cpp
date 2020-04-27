@@ -1703,6 +1703,7 @@ void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
          mfem_error("Element assembly not supported yet... stay tuned!");
          break;
       case AssemblyLevel::PARTIAL:
+         std::cout << "Building PADiscreteLinearOperatorExtension" << std::endl;
          ext = new PADiscreteLinearOperatorExtension(this);
          break;
       case AssemblyLevel::NONE:
@@ -1715,6 +1716,7 @@ void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
 
 void DiscreteLinearOperator::Assemble(int skip_zeros)
 {
+   std::cout << "DiscreteLinearOperator::Assemble" << std::endl;
    if (ext)
    {
       ext->Assemble();
