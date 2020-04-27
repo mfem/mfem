@@ -635,6 +635,22 @@ FaceElementTransformations::GetActivePointTransformation()
    }
 }
 
+void FaceElementTransformations::SetIntPoint(const IntegrationPoint *ip)
+{
+   IsoparametricTransformation::SetIntPoint(ip);
+
+   if (Elem1)
+   {
+      Loc1.Transform(*ip, eip1);
+      Elem1->SetIntPoint(&eip1);
+   }
+   if (Elem2)
+   {
+      Loc2.Transform(*ip, eip2);
+      Elem2->SetIntPoint(&eip2);
+   }
+}
+
 void FaceElementTransformations::Transform(const IntegrationPoint &ip,
                                            Vector &trans)
 {

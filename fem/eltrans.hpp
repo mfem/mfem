@@ -383,6 +383,8 @@ private:
    int side;
    int mask;
 
+   IntegrationPoint eip1, eip2;
+
 public:
    int Elem1No, Elem2No;
    Geometry::Type &FaceGeom; ///< @deprecated Use GetGeometryType instead
@@ -432,6 +434,9 @@ public:
    */
    void SetConfigurationMask(int m) { mask = m; }
    int  GetConfigurationMask() const { return mask; }
+
+   /// Sets integration point on the face and neighboring elements.
+   void SetIntPoint(const IntegrationPoint *ip);
 
    virtual void Transform(const IntegrationPoint &, Vector &);
    virtual void Transform(const IntegrationRule &, DenseMatrix &);
