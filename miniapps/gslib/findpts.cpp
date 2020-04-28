@@ -168,7 +168,7 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder;
    finder.Interpolate(mesh, vxyz, field_vals, interp_vals);
    Array<unsigned int> code_out = finder.GetCode();
-   Vector dist_p_out = finder.GetDist2();
+   Vector dist_p_out = finder.GetDist();
 
    // Free the internal gslib data.
    finder.FreeData();
