@@ -39,14 +39,12 @@ protected:
    Vector m_all_data;
    BilinearForm *L2;
    CGSolver *cg;
-   FiniteElementSpace *fes;
    int NE;
 public:
    // The FiniteElementSpace passed into here should have a vdim set to 1 in order for the
    // MassIntegrator to work properly if the ProjectQuadratureCoefficient method is used with
    // a VectorQuadratureFunctionCoefficient.
-   FieldInterpolant(FiniteElementSpace *fes) : setup_disc(false),
-      setup_full(false), fes(fes)
+   FieldInterpolant(FiniteElementSpace *fes) : setup_disc(false), setup_full(false)
    {
       L2 = new BilinearForm(fes);
 
