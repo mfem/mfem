@@ -47,7 +47,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    bdr_face_restrict_lex = NULL;
 }
 
-void PABilinearFormExtension::SetupRestrictionOperators()
+void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
    ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
                                  ElementDofOrdering::LEXICOGRAPHIC:
@@ -76,7 +76,8 @@ void PABilinearFormExtension::SetupRestrictionOperators()
    {
       bdr_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Boundary);
+                                 FaceType::Boundary,
+                                 m);
       faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
@@ -85,7 +86,7 @@ void PABilinearFormExtension::SetupRestrictionOperators()
 
 void PABilinearFormExtension::Assemble()
 {
-   SetupRestrictionOperators();
+   SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
@@ -291,55 +292,13 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 
 // Data and methods for element-assembled bilinear forms
 EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
-   : BilinearFormExtension(form),
-     trialFes(a->FESpace()),
-     testFes(a->FESpace())
+   : PABilinearFormExtension(form)
 {
-   elem_restrict = NULL;
-   int_face_restrict_lex = NULL;
-   bdr_face_restrict_lex = NULL;
-}
-
-void EABilinearFormExtension::SetupRestrictionOperators()
-{
-   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
-                                 ElementDofOrdering::LEXICOGRAPHIC:
-                                 ElementDofOrdering::NATIVE;
-   elem_restrict = trialFes->GetElementRestriction(ordering);
-   if (elem_restrict)
-   {
-      localX.SetSize(elem_restrict->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict->Height(), Device::GetMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
-   }
-
-   // Construct face restriction operators only if the bilinear form has
-   // interior or boundary face integrators
-   if (int_face_restrict_lex == NULL && a->GetFBFI()->Size() > 0)
-   {
-      int_face_restrict_lex = trialFes->GetFaceRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Interior);
-      faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
-   }
-
-   if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
-   {
-      bdr_face_restrict_lex = trialFes->GetFaceRestriction(
-                                 ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Boundary,
-                                 L2FaceValues::SingleValued);
-      faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
-   }
 }
 
 void EABilinearFormExtension::Assemble()
 {
-   SetupRestrictionOperators();
+   SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trialFes->GetMesh()->GetNE();
    elemDofs = trialFes->GetFE(0)->GetDof();
@@ -387,71 +346,6 @@ void EABilinearFormExtension::Assemble()
    {
       bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr);
    }
-}
-
-void EABilinearFormExtension::AssembleDiagonal(Vector &y) const
-{
-   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-
-   const int iSz = integrators.Size();
-   if (elem_restrict)
-   {
-      localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AssembleDiagonalPA(localY);
-      }
-      const ElementRestriction* H1elem_restrict =
-         dynamic_cast<const ElementRestriction*>(elem_restrict);
-      if (H1elem_restrict)
-      {
-         H1elem_restrict->MultTransposeUnsigned(localY, y);
-      }
-      else
-      {
-         elem_restrict->MultTranspose(localY, y);
-      }
-   }
-   else
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AssembleDiagonalPA(y);
-      }
-   }
-}
-
-void EABilinearFormExtension::Update()
-{
-   FiniteElementSpace *fes = a->FESpace();
-   height = width = fes->GetVSize();
-   trialFes = fes;
-   testFes = fes;
-
-   elem_restrict = nullptr;
-   int_face_restrict_lex = nullptr;
-   bdr_face_restrict_lex = nullptr;
-}
-
-void EABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                               OperatorHandle &A)
-{
-   Operator *oper;
-   Operator::FormSystemOperator(ess_tdof_list, oper);
-   A.Reset(oper); // A will own oper
-}
-
-void EABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                               Vector &x, Vector &b,
-                                               OperatorHandle &A,
-                                               Vector &X, Vector &B,
-                                               int copy_interior)
-{
-   Operator *oper;
-   Operator::FormLinearSystem(ess_tdof_list, x, b, oper, X, B, copy_interior);
-   A.Reset(oper); // A will own oper
 }
 
 void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
