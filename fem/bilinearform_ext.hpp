@@ -78,43 +78,6 @@ public:
    ~FABilinearFormExtension() {}
 };
 
-/// Data and methods for element-assembled bilinear forms
-class EABilinearFormExtension : public BilinearFormExtension
-{
-protected:
-   int ne;
-   int elemDofs;
-   Vector ea_data;
-   int nf_int, nf_bdr;
-   int faceDofs;
-   Vector ea_data_int, ea_data_ext, ea_data_bdr;
-   const FiniteElementSpace *trialFes, *testFes; // Not owned
-   mutable Vector localX, localY;
-   mutable Vector faceIntX, faceIntY;
-   mutable Vector faceBdrX, faceBdrY;
-   const Operator *elem_restrict; // Not owned
-   const Operator *int_face_restrict_lex; // Not owned
-   const Operator *bdr_face_restrict_lex; // Not owned
-
-public:
-   EABilinearFormExtension(BilinearForm *form);
-
-   void Assemble();
-   void AssembleDiagonal(Vector &diag) const;
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void Update();
-   ~EABilinearFormExtension() {}
-
-private:
-   void SetupRestrictionOperators();
-};
-
 /// Data and methods for partially-assembled bilinear forms
 class PABilinearFormExtension : public BilinearFormExtension
 {
@@ -137,15 +100,32 @@ public:
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
-
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
 
-private:
-   void SetupRestrictionOperators();
+protected:
+   void SetupRestrictionOperators(const L2FaceValues m);
 };
 
+/// Data and methods for element-assembled bilinear forms
+class EABilinearFormExtension : public PABilinearFormExtension
+{
+protected:
+   int ne;
+   int elemDofs;
+   Vector ea_data;
+   int nf_int, nf_bdr;
+   int faceDofs;
+   Vector ea_data_int, ea_data_ext, ea_data_bdr;
+
+public:
+   EABilinearFormExtension(BilinearForm *form);
+
+   void Assemble();
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
 
 /// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public BilinearFormExtension
