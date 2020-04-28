@@ -17,6 +17,8 @@
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
+#include "kernels.hpp"
+#include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 
@@ -3503,4 +3505,124 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
+void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
+{
+  
+  int m = Minv.SizeI();
+  int NE = Minv.SizeK(); 
+  P.SetSize(m*NE);
+  auto data_all = mfem::Reshape(Minv.ReadWrite(), m, m, NE);
+  auto piv_all = mfem::Reshape(P.Write(), m, NE);
+
+  MFEM_FORALL(e, NE, 
+  {
+
+    double *data = &data_all(0,0,e);
+    int *ipiv = &piv_all(0,e);
+    for (int i = 0; i < m; i++)
+    {
+
+      // pivoting
+      {
+         int piv = i;
+         double a = fabs(data[piv+i*m]);
+         for (int j = i+1; j < m; j++)
+         {
+            const double b = fabs(data[j+i*m]);
+            if (b > a)
+            {
+               a = b;
+               piv = j;
+            }
+         }
+         ipiv[i] = piv;
+         if (piv != i)
+         {
+            // swap rows i and piv in both L and U parts
+            for (int j = 0; j < m; j++)
+            {
+              //mfem::kernels::internal::Swap<double>(data[i+j*m], data[piv+j*m]);
+              //Hit a segfault...
+              double tmp = data[i+j*m];
+              data[i+j*m] = data[piv+j*m];
+              data[piv+j*m] = tmp;
+            }
+         }
+      }//pivot end
+
+      //Q: How to check for errors?
+      //if (abs(data[i + i*m]) <= TOL)
+      //{
+      //return false; // failed
+      //}
+      
+      const double a_ii_inv = 1.0 / data[i+i*m];
+      for (int j = i+1; j < m; j++)
+      {
+         data[j+i*m] *= a_ii_inv;
+      }
+
+      for (int k = i+1; k < m; k++)
+      {
+         const double a_ik = data[i+k*m];
+         for (int j = i+1; j < m; j++)
+         {
+            data[j+k*m] -= a_ik * data[j+i*m];
+         }
+      }
+
+      }//m loop
+
+  });
+
 }
+
+void BatchLUSolve(DenseTensor &Minv, Array<int> &P, Vector &X)
+{
+ 
+  int m = Minv.SizeI();
+  int NE = Minv.SizeK();
+  auto data_all = mfem::Reshape(Minv.Read(), m, m, NE);
+  auto piv_all = mfem::Reshape(P.Read(), m, NE);
+  auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
+
+  MFEM_FORALL(e, NE,
+  {
+
+    const double *data = &data_all(0,0,e);
+    const int *ipiv = &piv_all(0,e);
+    double *x = &x_all(0,e);
+    
+    // X <- P X
+    for (int i = 0; i < m; i++)
+    {
+      //Swap<double>(x[i], x[ipiv[i]-ipiv_base]); //Hit a segfault...
+      double tmp  = x[i];
+      x[i] = x[ipiv[i]];
+      x[ipiv[i]] = tmp;
+    }
+
+    // X <- L^{-1} X
+    for (int j = 0; j < m; j++)
+    {
+      const double x_j = x[j];
+      for (int i = j+1; i < m; i++)
+        {
+          x[i] -= data[i+j*m] * x_j;
+        }
+    }  
+
+    // X <- U^{-1} X
+    for (int j = m-1; j >= 0; j--)
+    {
+      const double x_j = ( x[j] /= data[j+j*m] );
+      for (int i = 0; i < j; i++)
+        {
+          x[i] -= data[i+j*m] * x_j;
+        }
+    }
+  });
+
+}
+
+} //namespace
