@@ -109,11 +109,13 @@ public:
 
 class TMOPNewtonSolver : public NewtonSolver
 {
-private:
+protected:
    bool parallel;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
+
+   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
 
 public:
 #ifdef MFEM_USE_MPI
@@ -129,25 +131,17 @@ public:
 };
 
 /// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public NewtonSolver
+class TMOPDescentNewtonSolver : public TMOPNewtonSolver
 {
-private:
-   bool parallel;
-
-   // Quadrature points that are checked for negative Jacobians etc.
-   const IntegrationRule &ir;
-
 public:
 #ifdef MFEM_USE_MPI
    TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule) { }
+      : TMOPNewtonSolver(comm, irule) { }
 #endif
    TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule) { }
+      : TMOPNewtonSolver(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
-
-   virtual void ProcessNewState(const Vector &x) const;
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
