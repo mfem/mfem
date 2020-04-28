@@ -11590,6 +11590,14 @@ const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(
    return *d2q;
 }
 
+VectorTensorFiniteElement::~VectorTensorFiniteElement()
+{
+   for (int i = 0; i < dof2quad_array_open.Size(); i++)
+   {
+      delete dof2quad_array_open[i];
+   }
+}
+
 const double ND_QuadrilateralElement::tk[8] =
 { 1.,0.,  0.,1., -1.,0., 0.,-1. };
 

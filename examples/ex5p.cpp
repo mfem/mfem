@@ -219,13 +219,16 @@ int main(int argc, char *argv[])
    Array<int> empty_tdof_list;  // empty
    OperatorPtr opM, opB;
 
+   TransposeOperator *Bt = NULL;
+
    if (pa)
    {
       mVarf->FormSystemMatrix(empty_tdof_list, opM);
       bVarf->FormRectangularSystemMatrix(empty_tdof_list, empty_tdof_list, opB);
+      Bt = new TransposeOperator(opB.Ptr());
 
       darcyOp->SetBlock(0,0, opM.Ptr());
-      darcyOp->SetBlock(0,1, new TransposeOperator(opB.Ptr()), -1.0);
+      darcyOp->SetBlock(0,1, Bt, -1.0);
       darcyOp->SetBlock(1,0, opB.Ptr(), -1.0);
    }
    else
@@ -233,9 +236,10 @@ int main(int argc, char *argv[])
       M = mVarf->ParallelAssemble();
       B = bVarf->ParallelAssemble();
       (*B) *= -1;
+      Bt = new TransposeOperator(B);
 
       darcyOp->SetBlock(0,0, M);
-      darcyOp->SetBlock(0,1, new TransposeOperator(B));
+      darcyOp->SetBlock(0,1, Bt);
       darcyOp->SetBlock(1,0, B);
    }
 
@@ -259,7 +263,7 @@ int main(int argc, char *argv[])
       Vector invMd(Md_PA.Size());
       for (int i=0; i<Md_PA.Size(); ++i)
       {
-         invMd[i] = 1.0 / Md_PA[i];
+         invMd(i) = 1.0 / Md_PA(i);
       }
 
       Vector BMBt_diag(W_space->GetTrueVSize());
@@ -444,6 +448,7 @@ int main(int argc, char *argv[])
    delete S;
    delete Md;
    delete MinvBt;
+   delete Bt;
    delete B;
    delete M;
    delete mVarf;
