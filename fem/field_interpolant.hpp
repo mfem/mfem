@@ -39,12 +39,14 @@ protected:
    Vector m_all_data;
    BilinearForm *L2;
    CGSolver *cg;
+   FiniteElementSpace *fes;
    int NE;
 public:
    // The FiniteElementSpace passed into here should have a vdim set to 1 in order for the
    // MassIntegrator to work properly if the ProjectQuadratureCoefficient method is used with
    // a VectorQuadratureFunctionCoefficient.
-   FieldInterpolant(FiniteElementSpace *fes) : setup_disc(false), setup_full(false)
+   FieldInterpolant(FiniteElementSpace *fes) : setup_disc(false),
+      setup_full(false), fes(fes)
    {
       L2 = new BilinearForm(fes);
 
@@ -83,8 +85,8 @@ public:
       L2->Update();
       L2->Assemble();
    }
-   virtual void SetupCG(int print_level = 0, int max_iter = 2000,
-                        double rel_tol = 1e-15, double abs_tol = 0.0)
+   virtual void SetupCG(double rel_tol = 1e-15, double abs_tol = 0.0,
+                        int print_level = 0, int max_iter = 2000)
    {
       cg = new CGSolver();
       cg->SetPrintLevel(print_level);
@@ -138,8 +140,9 @@ public:
    }
    using FieldInterpolant::SetupCG;
    // Setup the CG solver with an MPI communicator
-   virtual void SetupCG(MPI_Comm _comm, int print_level = 0, int max_iter = 2000,
-                        double rel_tol = 1e-15, double abs_tol = 0.0)
+   virtual void SetupCG(MPI_Comm _comm, double rel_tol = 1e-15,
+                        double abs_tol = 0.0,
+                        int print_level = 0, int max_iter = 2000)
    {
       cg = new CGSolver(_comm);
       cg->SetPrintLevel(print_level);
