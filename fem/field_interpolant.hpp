@@ -83,13 +83,14 @@ public:
       L2->Update();
       L2->Assemble();
    }
-   virtual void SetupCG()
+   virtual void SetupCG(int print_level = 0, int max_iter = 2000,
+                        double rel_tol = 1e-15, double abs_tol = 0.0)
    {
       cg = new CGSolver();
-      cg->SetPrintLevel(0);
-      cg->SetMaxIter(2000);
-      cg->SetRelTol(sqrt(1e-30));
-      cg->SetAbsTol(sqrt(0.0));
+      cg->SetPrintLevel(print_level);
+      cg->SetMaxIter(max_iter);
+      cg->SetRelTol(rel_tol);
+      cg->SetAbsTol(abs_tol);
    }
    ~FieldInterpolant()
    {
@@ -137,13 +138,14 @@ public:
    }
    using FieldInterpolant::SetupCG;
    // Setup the CG solver with an MPI communicator
-   virtual void SetupCG(MPI_Comm _comm)
+   virtual void SetupCG(MPI_Comm _comm, int print_level = 0, int max_iter = 2000,
+                        double rel_tol = 1e-15, double abs_tol = 0.0)
    {
       cg = new CGSolver(_comm);
-      cg->SetPrintLevel(0);
-      cg->SetMaxIter(2000);
-      cg->SetRelTol(sqrt(1e-30));
-      cg->SetAbsTol(sqrt(0.0));
+      cg->SetPrintLevel(print_level);
+      cg->SetMaxIter(max_iter);
+      cg->SetRelTol(rel_tol);
+      cg->SetAbsTol(abs_tol);
    }
 
    ~ParFieldInterpolant()
