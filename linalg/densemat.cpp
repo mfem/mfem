@@ -3541,11 +3541,7 @@ void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
                // swap rows i and piv in both L and U parts
                for (int j = 0; j < m; j++)
                {
-                  //mfem::kernels::internal::Swap<double>(data[i+j*m], data[piv+j*m]);
-                  //Hit a segfault...
-                  double tmp = data[i+j*m];
-                  data[i+j*m] = data[piv+j*m];
-                  data[piv+j*m] = tmp;
+                  mfem::kernels::internal::Swap<double>(data[i+j*m], data[piv+j*m]);
                }
             }
          }//pivot end
@@ -3596,10 +3592,7 @@ void BatchLUSolve(DenseTensor &Minv, Array<int> &P, Vector &X)
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         //Swap<double>(x[i], x[ipiv[i]-ipiv_base]); //Hit a segfault...
-         double tmp  = x[i];
-         x[i] = x[ipiv[i]];
-         x[ipiv[i]] = tmp;
+        mfem::kernels::internal::Swap<double>(x[i], x[ipiv[i]]);
       }
 
       // X <- L^{-1} X
