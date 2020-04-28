@@ -1,6 +1,6 @@
 MESH=data/inline-4tri.mesh
 SCHEME=1
 
-mpirun -np 4 phypsys -p 2 -c 1 -m $MESH -tf 0.25 -dt 0.001 -s 3 -vs 100 -e $SCHEME -r 4 -o 2
-mpirun -np 4 phypsys -p 2 -c 1 -m $MESH -tf 0.25 -dt 0.001 -s 3 -vs 100 -e $SCHEME -r 3 -o 5
-mpirun -np 4 phypsys -p 2 -c 1 -m $MESH -tf 0.25 -dt 0.001 -s 3 -vs 100 -e $SCHEME -r 2 -o 11
+mpirun -np 4 phypsys -p 2 -c 1 -vs 100 -tf 0.25 -s 3 -dt 0.001 -r 4 -o 2 -m $MESH -e $SCHEME
+mpirun -np 4 phypsys -p 2 -c 1 -vs 100 -tf 0.25 -s 3 -dt 0.001 -r 3 -o 5 -m $MESH -e $SCHEME
+mpirun -np 4 phypsys -p 2 -c 1 -vs 100 -tf 0.25 -s 3 -dt 0.001 -r 2 -o 11 -m $MESH -e $SCHEME

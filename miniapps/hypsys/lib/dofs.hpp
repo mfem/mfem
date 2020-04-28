@@ -16,12 +16,12 @@ public:
    GridFunction x_min, x_max;
 
    Vector xi_min, xi_max; // min/max values for each dof
-   Vector xe_min, xe_max; // min/max values for each element
 
    DenseMatrix BdrDofs, Sub2Ind, SubcellCross;
    DenseTensor NbrDofs; // Negative values correspond to the boundary attributes.
 
    int dim, NumBdrs, NumFaceDofs, numSubcells, numDofsSubcell;
+   Array<int> DofMapH1;
 
    DofInfo(FiniteElementSpace *fes_sltn, FiniteElementSpace *fes_bounds);
 
@@ -32,13 +32,12 @@ public:
    // Assumes that xe_min and xe_max are already computed.
    void ComputeBounds(const Vector &x);
 
-   void ExtractBdrDofs();
-
    // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs();
 
+   void ExtractBdrDofs(); // TODO rename
    void FillSubcell2CellDof();
-
+   void FillTriangleDofMap(int p);
    void FillSubcellCross();
 
    // Auxiliary routines.

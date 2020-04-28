@@ -2,7 +2,7 @@ ATTENTION
 
 
 DEBUG
-
+-TODO pdofs?
 
 next steps
 
@@ -10,6 +10,7 @@ next steps
 If possible: try to make advection with non-constant velocity and MCL work
 
 minor tasks:
+   -Use either tensor product formula for PrecGrad or Dmitris result for triangles
    -Use mfem::Mult for matrix multiplication
    -Using  extremely high order is not feasable, probably due to inexact mass matrix inversion.
    -Since MCL works only for elements with constant Jacobians, maybe use Vector of size ne

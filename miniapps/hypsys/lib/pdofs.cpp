@@ -11,8 +11,6 @@ ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_sltn,
 
    xi_min.SetSize(n);
    xi_max.SetSize(n);
-   xe_min.SetSize(ne);
-   xe_max.SetSize(ne);
 
    FillNeighborDofs();
 }
@@ -202,21 +200,27 @@ void ParDofInfo::FillNeighborDofs()
 void ParDofInfo::ComputeBounds()
 {
    ParFiniteElementSpace *pfesCG = px_min.ParFESpace();
+   const int nd = pfesCG->GetFE(0)->GetDof();
    GroupCommunicator &gcomm = pfesCG->GroupComm();
    Array<int> dofsCG;
 
    // Form min/max at each CG dof, considering element overlaps.
-   px_min =   std::numeric_limits<double>::infinity();
-   px_max = - std::numeric_limits<double>::infinity();
-   for (int i = 0; i < mesh->GetNE(); i++)
+   x_min =  std::numeric_limits<double>::infinity();
+   x_max = -std::numeric_limits<double>::infinity();
+
+   for (int e = 0; e < mesh->GetNE(); e++)
    {
-      px_min.FESpace()->GetElementDofs(i, dofsCG);
-      for (int j = 0; j < dofsCG.Size(); j++)
+      px_min.FESpace()->GetElementDofs(e, dofsCG);
+      double xe_min =  std::numeric_limits<double>::infinity();
+      double xe_max = -std::numeric_limits<double>::infinity();
+
+      for (int j = 0; j < nd; j++)
       {
-         px_min(dofsCG[j]) = std::min(px_min(dofsCG[j]), xe_min(i));
-         px_max(dofsCG[j]) = std::max(px_max(dofsCG[j]), xe_max(i));
+         px_min(dofsCG[j]) = std::min(px_min(dofsCG[j]), xe_min);
+         px_max(dofsCG[j]) = std::max(px_max(dofsCG[j]), xe_max);
       }
    }
+
    Array<double> minvals(px_min.GetData(), px_min.Size()),
          maxvals(px_max.GetData(), px_max.Size());
 
@@ -230,13 +234,13 @@ void ParDofInfo::ComputeBounds()
       dynamic_cast<const TensorBasisElement *>(pfesCG->GetFE(0));
    const Array<int> &dof_map = fe_cg->GetDofMap();
    const int ndofs = dof_map.Size();
-   for (int i = 0; i < mesh->GetNE(); i++)
+   for (int e = 0; e < mesh->GetNE(); e++)
    {
-      px_min.FESpace()->GetElementDofs(i, dofsCG);
+      px_min.FESpace()->GetElementDofs(e, dofsCG);
       for (int j = 0; j < dofsCG.Size(); j++)
       {
-         xi_min(i*ndofs + j) = px_min(dofsCG[dof_map[j]]);
-         xi_max(i*ndofs + j) = px_max(dofsCG[dof_map[j]]);
+         xi_min(e*ndofs + j) = px_min(dofsCG[dof_map[j]]);
+         xi_max(e*ndofs + j) = px_max(dofsCG[dof_map[j]]);
       }
    }
 }

@@ -288,8 +288,6 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 
    xi_min.SetSize(n);
    xi_max.SetSize(n);
-   xe_min.SetSize(ne);
-   xe_max.SetSize(ne);
 
    ExtractBdrDofs();
    NumFaceDofs = BdrDofs.Height();
@@ -297,7 +295,58 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 
    FillNeighborDofs();
    FillSubcell2CellDof();
-   // FillSubcellCross();
+
+   const FiniteElement *el = fes->GetFE(0);
+   if (el->GetGeomType() == Geometry::TRIANGLE)
+   {
+      FillTriangleDofMap(el->GetOrder());
+   }
+   else
+   {
+      const TensorBasisElement *TensorElem =
+      dynamic_cast<const TensorBasisElement *>(fes_bounds->GetFE(0));
+      DofMapH1 = TensorElem->GetDofMap();
+   }
+
+}
+
+void DofInfo::FillTriangleDofMap(int p)
+{
+   const int nd = (p+1)*(p+2) / 2;
+   DofMapH1.SetSize(nd);
+
+   // Corners
+   DofMapH1[0] = 0;
+   DofMapH1[p] = 1;
+   DofMapH1[nd-1] = 2;
+
+   int ctr1 = 2*p;
+   int ctr2 = nd-3;
+
+   // Element edges
+   for (int i = 1; i < p; i++)
+   {
+      DofMapH1[i] = 2+i;
+      DofMapH1[ctr1] = 2+i+p-1;
+      DofMapH1[ctr2] = 2+i+2*(p-1);
+      ctr1 += (p-i);
+      ctr2 -= 2+i;
+   }
+
+   ctr1 = p+2;
+   ctr2 = 3*p;
+
+   // Element interior
+   for (int j = 1; j < p-1; j++)
+   {
+      for (int i = 1; i < p-j; i++)
+      {
+         DofMapH1[ctr1] = ctr2;
+         ctr1++;
+         ctr2++;
+      }
+      ctr1 += 2;
+   }
 }
 
 void DofInfo::FillNeighborDofs()
@@ -822,6 +871,7 @@ void DofInfo::ComputeBounds(const Vector &x)
    // Form min/max at each CG dof, considering element overlaps.
    x_min =  std::numeric_limits<double>::infinity();
    x_max = -std::numeric_limits<double>::infinity();
+
    for (int e = 0; e < mesh->GetNE(); e++)
    {
       x_min.FESpace()->GetElementDofs(e, dofsCG);
@@ -836,25 +886,19 @@ void DofInfo::ComputeBounds(const Vector &x)
 
       for (int j = 0; j < nd; j++)
       {
-         x_min(dofsCG[j]) = std::min(x_min(dofsCG[j]), xe_min);
-         x_max(dofsCG[j]) = std::max(x_max(dofsCG[j]), xe_max);
+         x_min(dofsCG[j]) = min(x_min(dofsCG[j]), xe_min);
+         x_max(dofsCG[j]) = max(x_max(dofsCG[j]), xe_max);
       }
    }
-   Array<double> minvals(x_min.GetData(), x_min.Size()),
-         maxvals(x_max.GetData(), x_max.Size());
 
    // Use (x_min, x_max) to fill (xi_min, xi_max) for each DG dof.
-   const TensorBasisElement *fe_cg =
-      dynamic_cast<const TensorBasisElement *>(fesCG->GetFE(0));
-   const Array<int> &dof_map = fe_cg->GetDofMap();
-   const int ndofs = dof_map.Size();
    for (int e = 0; e < mesh->GetNE(); e++)
    {
       x_min.FESpace()->GetElementDofs(e, dofsCG);
-      for (int j = 0; j < dofsCG.Size(); j++)
+      for (int j = 0; j < nd; j++)
       {
-         xi_min(e*ndofs + j) = x_min(dofsCG[dof_map[j]]);
-         xi_max(e*ndofs + j) = x_max(dofsCG[dof_map[j]]);
+         xi_min(e*nd + j) = x_min(dofsCG[DofMapH1[j]]);
+         xi_max(e*nd + j) = x_max(dofsCG[DofMapH1[j]]);
       }
    }
 }
