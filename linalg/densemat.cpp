@@ -3592,7 +3592,7 @@ void BatchLUSolve(DenseTensor &Minv, Array<int> &P, Vector &X)
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-        mfem::kernels::internal::Swap<double>(x[i], x[ipiv[i]]);
+         mfem::kernels::internal::Swap<double>(x[i], x[ipiv[i]]);
       }
 
       // X <- L^{-1} X
