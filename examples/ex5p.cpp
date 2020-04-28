@@ -4,7 +4,7 @@
 //
 // Sample runs:  mpirun -np 4 ex5p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex5p -m ../data/star.mesh
-//               mpirun -np 4 ex5p -m ../data/star.mesh -pa
+//               mpirun -np 4 ex5p -m ../data/star.mesh -r 2 -pa
 //               mpirun -np 4 ex5p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex5p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex5p -m ../data/beam-hex.mesh -pa
@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int ref_levels = -1;
    int order = 1;
    bool par_format = false;
    bool pa = false;
@@ -65,6 +66,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
@@ -102,10 +105,13 @@ int main(int argc, char *argv[])
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   //    more than 10,000 elements, unless the user specifies it as input.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels == -1)
+      {
+         ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      }
+
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
