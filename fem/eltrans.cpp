@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
@@ -391,14 +391,10 @@ void IsoparametricTransformation::SetIdentityTransformation(
       nodes.IntPoint(j).Get(&PointMat(0,j), dim);
    }
    geom = GeomType;
-   space_dim = dim;
 }
 
 const DenseMatrix &IsoparametricTransformation::EvalJacobian()
 {
-   MFEM_ASSERT(space_dim == PointMat.Height(),
-               "the IsoparametricTransformation has not been finalized;"
-               " call FinilizeTransformation() after setup");
    MFEM_ASSERT((EvalState & JACOBIAN_MASK) == 0, "");
 
    dshape.SetSize(FElem->GetDof(), FElem->GetDim());
@@ -413,7 +409,24 @@ const DenseMatrix &IsoparametricTransformation::EvalJacobian()
    return dFdx;
 }
 
-int IsoparametricTransformation::OrderJ()
+const DenseMatrix &IsoparametricTransformation::EvalHessian()
+{
+   MFEM_ASSERT((EvalState & HESSIAN_MASK) == 0, "");
+
+   int Dim = FElem->GetDim();
+   d2shape.SetSize(FElem->GetDof(), (Dim*(Dim+1))/2);
+   d2Fdx2.SetSize(PointMat.Height(), d2shape.Width());
+   if (d2shape.Width() > 0)
+   {
+      FElem->CalcHessian(*IntPoint, d2shape);
+      Mult(PointMat, d2shape, d2Fdx2);
+   }
+   EvalState |= HESSIAN_MASK;
+
+   return d2Fdx2;
+}
+
+int IsoparametricTransformation::OrderJ() const
 {
    switch (FElem->Space())
    {
@@ -422,12 +435,12 @@ int IsoparametricTransformation::OrderJ()
       case FunctionSpace::Qk:
          return (FElem->GetOrder());
       default:
-         mfem_error("IsoparametricTransformation::OrderJ()");
+         MFEM_ABORT("unsupported finite element");
    }
    return 0;
 }
 
-int IsoparametricTransformation::OrderW()
+int IsoparametricTransformation::OrderW() const
 {
    switch (FElem->Space())
    {
@@ -436,12 +449,12 @@ int IsoparametricTransformation::OrderW()
       case FunctionSpace::Qk:
          return (FElem->GetOrder() * FElem->GetDim() - 1);
       default:
-         mfem_error("IsoparametricTransformation::OrderW()");
+         MFEM_ABORT("unsupported finite element");
    }
    return 0;
 }
 
-int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
+int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 {
    if (FElem->Space() == fe->Space())
    {
@@ -454,9 +467,11 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
             return ((k-1)*(d-1)+(l-1));
          case FunctionSpace::Qk:
             return (k*(d-1)+(l-1));
+         default:
+            MFEM_ABORT("unsupported finite element");
       }
    }
-   mfem_error("IsoparametricTransformation::OrderGrad(...)");
+   MFEM_ABORT("incompatible finite elements");
    return 0;
 }
 
