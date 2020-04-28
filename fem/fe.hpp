@@ -1930,6 +1930,8 @@ public:
    const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir,
                                        DofToQuad::Mode mode,
                                        const bool closed) const;
+
+   ~VectorTensorFiniteElement();
 };
 
 class H1_SegmentElement : public NodalTensorFiniteElement
