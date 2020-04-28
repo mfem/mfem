@@ -79,7 +79,6 @@ protected:
 
    /// Solver for the Jacobian solve in the Newton method
    Solver *J_solver;
-
    /// Preconditioner for the Jacobian solve in the Newton method
    Solver *J_prec;
 
@@ -514,6 +513,7 @@ ReducedSystemOperator::~ReducedSystemOperator()
    delete Jacobian;
 }
 
+
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K)
@@ -571,7 +571,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    newton_solver.iterative_mode = false;
    newton_solver.SetSolver(*J_solver);
    newton_solver.SetOperator(*reduced_oper);
-   newton_solver.SetPrintLevel(1);
+   newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(0.0);
    newton_solver.SetMaxIter(10);
