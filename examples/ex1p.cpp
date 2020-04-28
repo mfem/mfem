@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec, 1, 1);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {

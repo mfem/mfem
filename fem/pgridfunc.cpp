@@ -96,11 +96,13 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
    std::string filename(_filename);
    std::string file_prefix;
    std::string file_ext;
-   size_t i = filename.rfind('.', filename.length());
-   if (i != string::npos)
    {
-      file_prefix = (filename.substr(0, i));
-      file_ext = (filename.substr(i, filename.length() - i));
+      size_t i = filename.rfind('.', filename.length());
+      if (i != string::npos)
+      {
+         file_prefix = (filename.substr(0, i));
+         file_ext = (filename.substr(i, filename.length() - i));
+      }
    }
 
    int nfiles = 1;
@@ -109,6 +111,7 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
       int n_rfes_ranks;
       int tmp[2];
       std::string mpi_filename;
+      size_t i = filename.rfind('.', filename.length());
       if (i != string::npos)
       {
          mpi_filename = file_prefix + to_string(0) + file_ext;
@@ -148,12 +151,15 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
    MPI_Comm_rank(file_comm, &file_rank);
 
    std::string mpi_filename;
-   if (i != string::npos) {
-      mpi_filename = file_prefix + std::to_string(color) + file_ext;
-   }
-   else
    {
-      mpi_filename = filename + std::to_string(color);
+      size_t i = filename.rfind('.', filename.length());
+      if (i != string::npos) {
+         mpi_filename = file_prefix + std::to_string(color) + file_ext;
+      }
+      else
+      {
+         mpi_filename = filename + std::to_string(color);
+      }
    }
 
    MPI_File fh;
@@ -196,20 +202,24 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
    header_offset += 2 * sizeof(int);
    MPI_Offset v_offset, e_offset, f_offset, r_offset;
 
-   v_offset = header_offset;
-   e_offset = header_offset;
-   f_offset = header_offset;
-   r_offset = header_offset;
+   // v_offset = header_offset;
+   // e_offset = header_offset;
+   // f_offset = header_offset;
+   // r_offset = header_offset;
 
-   int total_vdofs, total_edofs, total_fdofs, total_rdofs, total_dofs = 0;
+   int total_vdofs = 0, total_edofs = 0, total_fdofs = 0, total_rdofs = 0;
+   int total_scalar_dofs = 0;
+
    for (int i = 0; i < n_file_ranks; ++i)
    {
       total_vdofs += *nvdofs[i];
       total_edofs += *nedofs[i];
       total_fdofs += *nfdofs[i];
       total_rdofs += *nrdofs[i];
-      total_dofs += *nv[i];
+      total_scalar_dofs += *nv[i];
    }
+
+   total_scalar_dofs /= vdim;
 
    if (pfes->GetOrdering() == Ordering::byNODES)
    {
@@ -225,10 +235,15 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
          f_offset = header_offset;
          r_offset = header_offset;
          
-         v_offset += total_dofs * sizeof(double) * d;
-         e_offset += total_dofs * sizeof(double) * d;
-         f_offset += total_dofs * sizeof(double) * d;
-         r_offset += total_dofs * sizeof(double) * d;
+         // v_offset += total_scalar_dofs * sizeof(double) * d;
+         // e_offset += total_scalar_dofs * sizeof(double) * d;
+         // f_offset += total_scalar_dofs * sizeof(double) * d;
+         // r_offset += total_scalar_dofs * sizeof(double) * d;
+         v_offset += total_scalar_dofs * d * sizeof(double);
+         e_offset += (total_vdofs + total_scalar_dofs * d) * sizeof(double);
+         f_offset += (total_vdofs + total_edofs + total_scalar_dofs * d) * sizeof(double);
+         r_offset += (total_vdofs + total_edofs + total_fdofs + total_scalar_dofs * d) * sizeof(double);
+
 
          for (int i = 0; i < file_rank; ++i)
          {
@@ -254,9 +269,10 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
    }
    else
    {
-      e_offset += total_vdofs;
-      f_offset += total_vdofs + total_edofs;
-      r_offset += total_vdofs + total_edofs + total_fdofs;
+      v_offset = header_offset;
+      e_offset = v_offset + total_vdofs * vdim * sizeof(double);
+      f_offset = e_offset + total_edofs * vdim * sizeof(double);
+      r_offset = f_offset + total_fdofs * vdim * sizeof(double);
 
       for (int i = 0; i < file_rank; ++i)
       {
@@ -771,16 +787,18 @@ void ParGridFunction::Save(const char *_filename, const int nfiles)
    std::string file_prefix;
    std::string file_ext;
    std::string mpi_filename;
-   size_t i = filename.rfind('.', filename.length());
-   if (i != string::npos)
    {
-      file_prefix = (filename.substr(0, i));
-      file_ext = (filename.substr(i, filename.length() - i));
-      mpi_filename = file_prefix + std::to_string(color) + file_ext;
-   }
-   else
-   {
-      mpi_filename = filename + std::to_string(color);
+      size_t i = filename.rfind('.', filename.length());
+      if (i != string::npos)
+      {
+         file_prefix = (filename.substr(0, i));
+         file_ext = (filename.substr(i, filename.length() - i));
+         mpi_filename = file_prefix + std::to_string(color) + file_ext;
+      }
+      else
+      {
+         mpi_filename = filename + std::to_string(color);
+      }
    }
 
    MPI_File fh;
@@ -824,10 +842,11 @@ void ParGridFunction::Save(const char *_filename, const int nfiles)
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 
-   std::stringstream pfes_header;
-   pfes->Save(pfes_header);
-   pfes_header << '\n';
+   // std::stringstream pfes_header;
+   // pfes->Save(pfes_header);
+   // pfes_header << '\n';
    MPI_Offset header_offset = 0; // pfes_header.str().length();
+
    if (file_rank == 0)
    {
       // MPI_File_write_at(fh, 0, pfes_header.str().c_str(), header_offset,
@@ -844,20 +863,24 @@ void ParGridFunction::Save(const char *_filename, const int nfiles)
 
    MPI_Offset v_offset, e_offset, f_offset, r_offset;
 
-   v_offset = header_offset;
-   e_offset = header_offset;
-   f_offset = header_offset;
-   r_offset = header_offset;
+   // v_offset = header_offset;
+   // e_offset = header_offset;
+   // f_offset = header_offset;
+   // r_offset = header_offset;
 
-   int total_vdofs, total_edofs, total_fdofs, total_rdofs, total_dofs = 0;
+   int total_vdofs = 0, total_edofs = 0, total_fdofs = 0, total_rdofs = 0;
+   int total_scalar_dofs = 0;
+
    for (int i = 0; i < n_file_ranks; ++i)
    {
       total_vdofs += *nvdofs[i];
       total_edofs += *nedofs[i];
       total_fdofs += *nfdofs[i];
       total_rdofs += *nrdofs[i];
-      total_dofs += *nv[i];
+      total_scalar_dofs += *nv[i];
    }
+
+   total_scalar_dofs /= vdim;
 
    if (pfes->GetOrdering() == Ordering::byNODES)
    {
@@ -873,10 +896,10 @@ void ParGridFunction::Save(const char *_filename, const int nfiles)
          f_offset = header_offset;
          r_offset = header_offset;
          
-         v_offset += total_dofs * sizeof(double) * d;
-         e_offset += total_dofs * sizeof(double) * d;
-         f_offset += total_dofs * sizeof(double) * d;
-         r_offset += total_dofs * sizeof(double) * d;
+         v_offset += total_scalar_dofs * d * sizeof(double);
+         e_offset += (total_vdofs + total_scalar_dofs * d) * sizeof(double);
+         f_offset += (total_vdofs + total_edofs + total_scalar_dofs * d) * sizeof(double);
+         r_offset += (total_vdofs + total_edofs + total_fdofs + total_scalar_dofs * d) * sizeof(double);
 
          for (int i = 0; i < file_rank; ++i)
          {
@@ -902,9 +925,10 @@ void ParGridFunction::Save(const char *_filename, const int nfiles)
    }
    else
    {
-      e_offset += total_vdofs;
-      f_offset += total_vdofs + total_edofs;
-      r_offset += total_vdofs + total_edofs + total_fdofs;
+      v_offset = header_offset;
+      e_offset = v_offset + total_vdofs * vdim * sizeof(double);
+      f_offset = e_offset + total_edofs * vdim * sizeof(double);
+      r_offset = f_offset + total_fdofs * vdim * sizeof(double);
 
       for (int i = 0; i < file_rank; ++i)
       {
