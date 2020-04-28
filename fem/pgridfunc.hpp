@@ -324,6 +324,15 @@ public:
       const adios2stream::data_type type = adios2stream::data_type::point_data) const;
 #endif
 
+   /** Save the local grid functions to n number of files, where each file will
+       contain the grid functions from multiple ranks. This is similar to the
+       syncIO approach from "Scalable Parallel I/O Alternatives for Massively
+       Parallel Partitioned Solver Systems" 
+       @param[in] filename - filename for output files with extension
+       @param[in] nfiles - number of files to write using MPI-IO
+       @note - takes into account the signs of the local dofs. */
+   void Save(char *filename, int nfiles = 1);
+
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out);
 

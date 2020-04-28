@@ -16,6 +16,7 @@
 #include "fem.hpp"
 #include <iostream>
 #include <limits>
+#include <string>
 #include "../general/forall.hpp"
 using namespace std;
 
@@ -517,6 +518,202 @@ void ParGridFunction::Save(adios2stream &out,
    }
 }
 #endif
+
+/// TODO: Write to header to specify total number of ranks and number of files
+///       written. Need to have the same combination of ranks and files when
+///       reading and writing (otherwise figuring out the partitions will be
+///       too complicated).
+///       Can use the same splitting scheme in reader to load GF
+///       query the fespace for the numbers of vdofs, edofs, fdofs, rdofs...
+///       then populate the data array
+///       load the grid function by creating a new constructor
+void ParGridFunction::Save(char *_filename, int nfiles)
+{
+   MPI_Comm fes_comm;
+   int fes_rank, n_fes_ranks;
+   fes_comm = pfes->GetComm();
+
+   MPI_Comm_size(fes_comm, &n_fes_ranks);
+   MPI_Comm_rank(fes_comm, &fes_rank);
+
+   int color = fes_rank * nfiles / n_fes_ranks;
+   
+   MPI_Comm file_comm;
+   MPI_Comm_split(fes_comm, color, fes_rank, &file_comm);
+
+   int file_rank, n_file_ranks;
+   MPI_Comm_size(file_comm, &n_file_ranks);
+   MPI_Comm_rank(file_comm, &file_rank);
+
+   std::string filename(_filename);
+   std::string file_prefix;
+   std::string file_ext;
+   std::string mpi_filename;
+   size_t i = filename.rfind('.', filename.length());
+   if (i != string::npos) {
+      file_prefix = (filename.substr(0, i));
+      file_ext = (filename.substr(i+1, filename.length() - i));
+      mpi_filename = file_prefix + std::to_string(color) + file_ext;
+   }
+   else
+   {
+      mpi_filename = filename + std::to_string(color);
+   }
+
+   MPI_File fh;
+   MPI_File_open(file_comm, mpi_filename.c_str(), MPI_MODE_CREATE |
+                                                  MPI_MODE_WRONLY,
+                                                  MPI_INFO_NULL, &fh);
+
+   int *dof_counts = new int[5*n_file_ranks];
+   int **nv = new int*[n_file_ranks];
+   int **nvdofs = new int*[n_file_ranks];
+   int **nedofs = new int*[n_file_ranks];
+   int **nfdofs = new int*[n_file_ranks];
+   int **nrdofs = new int*[n_file_ranks];
+
+   for (int i = 0; i < n_file_ranks; ++i)
+   {
+      nv[i]     = &dof_counts[i*n_file_ranks+0];
+      nvdofs[i] = &dof_counts[i*n_file_ranks+1];
+      nedofs[i] = &dof_counts[i*n_file_ranks+2];
+      nfdofs[i] = &dof_counts[i*n_file_ranks+3];
+      nrdofs[i] = &dof_counts[i*n_file_ranks+4];
+   }
+
+   *nv[file_rank] = pfes->GetVSize();
+   *nvdofs[file_rank] = pfes->GetNVDofs();
+   *nedofs[file_rank] = pfes->GetNEDofs();
+   *nfdofs[file_rank] = pfes->GetNFDofs();
+
+   int vdim = pfes->GetVDim();
+   *nrdofs[file_rank] = *nv[file_rank] / vdim - *nvdofs[file_rank] -
+                                       *nedofs[file_rank] - *nfdofs[file_rank];
+
+   MPI_Allgather(&dof_counts[5*file_rank], 5, MPI_INT, dof_counts, 5, MPI_INT,
+                 file_comm);
+
+   double *data_  = const_cast<double*>(HostRead());
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   std::stringstream pfes_header;
+   pfes->Save(pfes_header);
+   pfes_header << '\n';
+   int header_offset = pfes_header.str().length();
+   if (file_rank == 0)
+   {
+      MPI_File_write_at(fh, 0, pfes_header.str().c_str(), header_offset,
+                        MPI_CHAR, MPI_STATUS_IGNORE);
+   }
+   MPI_Offset v_offset, e_offset, f_offset, r_offset;
+
+   v_offset = header_offset;
+   e_offset = header_offset;
+   f_offset = header_offset;
+   r_offset = header_offset;
+
+   int total_vdofs, total_edofs, total_fdofs, total_rdofs, total_dofs = 0;
+   for (int i = 0; i < n_file_ranks; ++i)
+   {
+      total_vdofs += *nvdofs[i];
+      total_edofs += *nedofs[i];
+      total_fdofs += *nfdofs[i];
+      total_rdofs += *nrdofs[i];
+      total_dofs += *nv[i];
+   }
+
+   if (pfes->GetOrdering() == Ordering::byNODES)
+   {
+      for (int d = 0; d < vdim; ++d)
+      {
+         int v_data_offset = 0 + *nv[file_rank] * d / vdim ;
+         int e_data_offset = v_data_offset + *nvdofs[file_rank];
+         int f_data_offset = e_data_offset + *nedofs[file_rank];
+         int r_data_offset = f_data_offset + *nfdofs[file_rank];
+
+         v_offset = header_offset;
+         e_offset = header_offset;
+         f_offset = header_offset;
+         r_offset = header_offset;
+         
+         v_offset += total_dofs * d;
+         e_offset += total_dofs * d;
+         f_offset += total_dofs * d;
+         r_offset += total_dofs * d;
+
+         for (int i = 0; i < file_rank; ++i)
+         {
+            v_offset += *nvdofs[i];
+            e_offset += *nedofs[i];
+            f_offset += *nfdofs[i];
+            r_offset += *nrdofs[i];
+         }
+
+         MPI_File_write_at_all(fh, v_offset, &data_[v_data_offset],
+                               *nvdofs[file_rank], MPI_DOUBLE,
+                               MPI_STATUS_IGNORE);
+         MPI_File_write_at_all(fh, e_offset, &data_[e_data_offset],
+                               *nedofs[file_rank], MPI_DOUBLE,
+                               MPI_STATUS_IGNORE);
+         MPI_File_write_at_all(fh, f_offset, &data_[f_data_offset],
+                               *nfdofs[file_rank], MPI_DOUBLE,
+                               MPI_STATUS_IGNORE);
+         MPI_File_write_at_all(fh, r_offset, &data_[r_data_offset],
+                               *nrdofs[file_rank], MPI_DOUBLE,
+                               MPI_STATUS_IGNORE);
+      }
+   }
+   else
+   {
+      e_offset += total_vdofs;
+      f_offset += total_vdofs + total_edofs;
+      r_offset += total_vdofs + total_edofs + total_fdofs;
+
+      for (int i = 0; i < file_rank; ++i)
+      {
+         v_offset += *nvdofs[i] * vdim;
+         e_offset += *nedofs[i] * vdim;
+         f_offset += *nfdofs[i] * vdim;
+         r_offset += *nrdofs[i] * vdim;
+      }
+
+      int v_data_offset = 0;
+      int e_data_offset = v_data_offset + *nvdofs[file_rank] * vdim;
+      int f_data_offset = e_data_offset + *nedofs[file_rank] * vdim;
+      int r_data_offset = f_data_offset + *nfdofs[file_rank] * vdim;
+      
+      MPI_File_write_at_all(fh, v_offset, &data_[v_data_offset],
+                            *nvdofs[file_rank] * vdim, MPI_DOUBLE,
+                            MPI_STATUS_IGNORE);
+      MPI_File_write_at_all(fh, e_offset, &data_[e_data_offset],
+                            *nedofs[file_rank] * vdim, MPI_DOUBLE,
+                            MPI_STATUS_IGNORE);
+      MPI_File_write_at_all(fh, f_offset, &data_[f_data_offset],
+                            *nfdofs[file_rank] * vdim, MPI_DOUBLE,
+                            MPI_STATUS_IGNORE);
+      MPI_File_write_at_all(fh, r_offset, &data_[r_data_offset],
+                            *nrdofs[file_rank] * vdim, MPI_DOUBLE,
+                            MPI_STATUS_IGNORE);
+   }
+
+   MPI_File_close(&fh);
+   MPI_Comm_free(&file_comm);
+   
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   delete[] dof_counts;
+   delete[] nv;
+   delete[] nvdofs;
+   delete[] nedofs;
+   delete[] nfdofs;
+   delete[] nrdofs;
+}
 
 void ParGridFunction::SaveAsOne(std::ostream &out)
 {
