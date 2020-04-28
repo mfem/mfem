@@ -197,7 +197,7 @@ int main (int argc, char *argv[])
    finder.Interpolate(pmesh, vxyz, field_vals, interp_vals);
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
-   Vector dist_p_out = finder.GetDist2();
+   Vector dist_p_out = finder.GetDist();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double max_err = 0.0, max_dist = 0.0;

@@ -61,7 +61,8 @@ public:
        @param[in] newt_tol  Newton tolerance for the gslib search methods.
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint. */
-   void Setup(Mesh &m, double bb_t, double newt_tol, int npt_max);
+   void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+              const int npt_max = 256);
 
    /** Searches positions given in physical space by @a point_pos. All output
        Arrays and Vectors are expected to have the correct size.
@@ -75,14 +76,15 @@ public:
        @param[out] ref_pos    Reference coordinates of the found point. Ordered
                               by vdim (XYZ,XYZ,XYZ...).
                               Note: the gslib reference frame is [-1,1].
-       @param[out] dist       Distance between the seeked and the found point
+       @param[out] dist       Distance between the sought and the found point
                               in physical space. */
    void FindPoints(const Vector &point_pos, Array<unsigned int> &codes,
                    Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
                    Vector &ref_pos, Vector &dist);
    void FindPoints(const Vector &point_pos);
    /** Setup FindPoints and search positions*/
-   void FindPoints(Mesh &m, const Vector &point_pos);
+   void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
+                   const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
    /** Interpolation of field values at prescribed reference space positions.
 
@@ -114,11 +116,18 @@ public:
        it calls MPI_Comm_free() for internal gslib communicators. */
    void FreeData();
 
-   const Array<unsigned int> &GetCode()   { return gsl_code; }
-   const Array<unsigned int> &GetElem()   { return gsl_elem; }
-   const Array<unsigned int> &GetProc()   { return gsl_proc; }
-   const Vector &GetReferencePosition()   { return gsl_ref;  }
-   const Vector &GetDist2()               { return gsl_dist; }
+   /// Return code for each point searched by FindPoints: inside element (0),
+   /// element boundary (1), not found (2).
+   const Array<unsigned int> &GetCode() const { return gsl_code; }
+   /// Return element number for each point found by FindPoints.
+   const Array<unsigned int> &GetElem() const { return gsl_elem; }
+   /// Return MPI rank on which each point was found by FindPoints.
+   const Array<unsigned int> &GetProc() const { return gsl_proc; }
+   /// Return reference coordinates for each point found by FindPoints.
+   const Vector &GetReferencePosition() const { return gsl_ref;  }
+   /// Return distance Distance between the sought and the found point
+   /// in physical space, for each point found by FindPoints.
+   const Vector &GetDist()              const { return gsl_dist; }
 };
 
 } // namespace mfem

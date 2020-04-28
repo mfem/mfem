@@ -60,7 +60,8 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm _comm)
 }
 #endif
 
-void FindPointsGSLIB::Setup(Mesh &m, double bb_t, double newt_tol, int npt_max)
+void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
+                            const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
@@ -169,14 +170,13 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos)
    FindPoints(point_pos, gsl_code, gsl_proc, gsl_elem, gsl_ref, gsl_dist);
 }
 
-void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos)
+void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
+                                 const double bb_t, const double newt_tol,
+                                 const int npt_max)
 {
    if (!setupflag || (mesh != &m) )
    {
-      const double rel_bbox_el = 0.05;
-      const double newton_tol  = 1.0e-12;
-      const int npts_at_once   = 256;
-      Setup(m, rel_bbox_el, newton_tol, npts_at_once);
+      Setup(m, bb_t, newt_tol, npt_max);
    }
    FindPoints(point_pos);
 }
