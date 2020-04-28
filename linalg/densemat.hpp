@@ -859,6 +859,9 @@ public:
    ~DenseTensor() { tdata.Delete(); }
 };
 
+void BatchLUFactor(DenseTensor &Minv, Array<int> &P);
+
+void BatchLUSolve(DenseTensor &Minv, Array<int> &P, Vector &X);
 
 // Inline methods
 
