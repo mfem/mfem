@@ -27,6 +27,7 @@
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
+//               ex1 -ea -d cuda
 //               ex1 -pa -d raja-cuda
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -79,6 +81,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -168,6 +172,7 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   else if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -184,7 +189,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   if (!pa)
+   if (!pa && !ea)
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.

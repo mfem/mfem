@@ -219,6 +219,70 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 }
 #endif
 
+#ifdef MFEM_USE_GSLIB
+void InterpolatorFP::SetInitialField(const Vector &init_nodes,
+                                     const Vector &init_field)
+{
+   nodes0 = init_nodes;
+   Mesh *m = mesh;
+#ifdef MFEM_USE_MPI
+   if (pmesh) { m = pmesh; }
+#endif
+   m->SetNodes(nodes0);
+
+   const double rel_bbox_el = 0.1;
+   const double newton_tol  = 1.0e-12;
+   const int npts_at_once   = 256;
+
+   FiniteElementSpace *f = fes;
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      f = pfes;
+      finder = new FindPointsGSLIB(pfes->GetComm());
+   }
+   else { finder = new FindPointsGSLIB(); }
+#else
+   finder = new FindPointsGSLIB();
+#endif
+   finder->Setup(*m, rel_bbox_el, newton_tol, npts_at_once);
+
+   field0_gf.SetSpace(f);
+   field0_gf = init_field;
+
+   dim = f->GetFE(0)->GetDim();
+   const int pts_cnt = init_nodes.Size() / dim;
+   el_id_out.SetSize(pts_cnt);
+   code_out.SetSize(pts_cnt);
+   task_id_out.SetSize(pts_cnt);
+   pos_r_out.SetSize(pts_cnt*dim);
+   dist_p_out.SetSize(pts_cnt);
+}
+
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
+                                          Vector &new_field)
+{
+   const int pts_cnt = new_nodes.Size() / dim;
+
+   // The sizes may change between calls due to AMR.
+   if (el_id_out.Size() != pts_cnt)
+   {
+      el_id_out.SetSize(pts_cnt);
+      code_out.SetSize(pts_cnt);
+      task_id_out.SetSize(pts_cnt);
+      pos_r_out.SetSize(pts_cnt*dim);
+      dist_p_out(pts_cnt);
+   }
+
+   // Interpolate FE function values on the found points.
+   finder->FindPoints(new_nodes, code_out, task_id_out,
+                      el_id_out, pos_r_out, dist_p_out);
+   finder->Interpolate(code_out, task_id_out, el_id_out,
+                       pos_r_out, field0_gf, new_field);
+}
+
+#endif
+
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
 {
@@ -263,24 +327,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
-         if (!cP) {x_out_loc.SetData(x_out.GetData());}
-         else {cP->Mult(x_out,x_out_loc);}
-         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+         if (!cP) { x_out_loc = x_out; }
+         else     { cP->Mult(x_out, x_out_loc); }
       }
 #ifdef MFEM_USE_MPI
       else
       {
          fes->GetProlongationMatrix()->Mult(x_out, x_out_loc);
-         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
-
-      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
-      {
-         if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
-         scale *= 0.5; continue;
-      }
 
       int jac_ok = 1;
       for (int i = 0; i < NE; i++)
@@ -294,6 +349,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             if (Jpr.Det() <= 0.0) { jac_ok = 0; goto break2; }
          }
       }
+
    break2:
       int jac_ok_all = jac_ok;
 #ifdef MFEM_USE_MPI
@@ -308,6 +364,24 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          if (print_level >= 0)
          { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
+         scale *= 0.5; continue;
+      }
+
+      ProcessNewState(x_out);
+      if (serial)
+      {
+         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+      }
+#ifdef MFEM_USE_MPI
+      else
+      {
+         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
+      }
+#endif
+      if (energy_out > 1.2*energy_in || std::isnan(energy_out) != 0)
+      {
+         if (print_level >= 0)
+         { mfem::out << "Scale = " << scale << " Increasing energy.\n"; }
          scale *= 0.5; continue;
       }
 
@@ -337,19 +411,113 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
 void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 {
-   if (discr_tc)
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+
+   // Reset the update flags of all TargetConstructors.
+   // This is done to avoid repeated updates of shared TargetConstructors.
+   TMOP_Integrator *ti  = NULL;
+   TMOPComboIntegrator *co = NULL;
+   DiscreteAdaptTC *dtc = NULL;
+   for (int i = 0; i < integs.Size(); i++)
    {
-      if (parallel)
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
       {
-#ifdef MFEM_USE_MPI
-         const ParNonlinearForm *nlf =
-            dynamic_cast<const ParNonlinearForm *>(oper);
-         Vector x_loc(nlf->ParFESpace()->GetVSize());
-         nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
-         discr_tc->UpdateTargetSpecification(x_loc);
-#endif
+         dtc = ti->GetDiscreteAdaptTC();
+         if (dtc) { dtc->ResetUpdateFlags(); }
       }
-      else { discr_tc->UpdateTargetSpecification(x); }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            dtc = ati[j]->GetDiscreteAdaptTC();
+            if (dtc) { dtc->ResetUpdateFlags(); }
+         }
+      }
+   }
+
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
+      const ParNonlinearForm *nlf =
+         dynamic_cast<const ParNonlinearForm *>(oper);
+      const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
+      Vector x_loc(pfesc->GetVSize());
+      pfesc->GetProlongationMatrix()->Mult(x, x_loc);
+      for (int i = 0; i < integs.Size(); i++)
+      {
+         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+         if (ti)
+         {
+            ti->ComputeFDh(x_loc, *pfesc);
+            UpdateDiscreteTC(*ti, x_loc);
+         }
+         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+         if (co)
+         {
+            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+            for (int j = 0; j < ati.Size(); j++)
+            {
+               ati[j]->ComputeFDh(x_loc, *pfesc);
+               UpdateDiscreteTC(*ati[j], x_loc);
+            }
+         }
+      }
+#endif
+   }
+   else
+   {
+      const FiniteElementSpace *fesc = nlf->FESpace();
+      const Operator *P = nlf->GetProlongation();
+      Vector x_loc;
+      if (P)
+      {
+         x_loc.SetSize(P->Height());
+         P->Mult(x,x_loc);
+      }
+      else
+      {
+         x_loc = x;
+      }
+      for (int i = 0; i < integs.Size(); i++)
+      {
+         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+         if (ti)
+         {
+            ti->ComputeFDh(x_loc, *fesc);
+            UpdateDiscreteTC(*ti, x_loc);
+         }
+         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+         if (co)
+         {
+            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+            for (int j = 0; j < ati.Size(); j++)
+            {
+               ati[j]->ComputeFDh(x_loc, *fesc);
+               UpdateDiscreteTC(*ati[j], x_loc);
+            }
+         }
+      }
+   }
+}
+
+void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
+                                        const Vector &x_new) const
+{
+   const bool update_flag = true;
+   DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
+   if (discrtc)
+   {
+      discrtc->UpdateTargetSpecification(x_new, update_flag);
+      if (ti.GetFDFlag())
+      {
+         double dx = ti.GetFDh();
+         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag);
+         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag);
+      }
    }
 }
 
@@ -387,6 +555,8 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    for (int i = 0; i < NE; i++)
    {
       fes->GetElementVDofs(i, xdofs);
+      // TODO x_loc doesn't have valid values here!
+      MFEM_ABORT("This function has to be fixed!");
       x_loc.GetSubVector(xdofs, posV);
 
       for (int j = 0; j < nsp; j++)
@@ -419,8 +589,8 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (serial)
       {
          const SparseMatrix *cP = fes->GetConformingProlongation();
-         if (!cP) {x_loc.SetData(x_out.GetData());}
-         else {cP->Mult(x_out,x_loc);}
+         if (!cP) { x_loc = x_out; }
+         else     { cP->Mult(x_out,x_loc); }
          energy_out = nlf->GetGridFunctionEnergy(x_loc);
       }
 #ifdef MFEM_USE_MPI
@@ -448,24 +618,6 @@ double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (x_out_ok == false) { return 0.0; }
 
    return scale;
-}
-
-void TMOPDescentNewtonSolver::ProcessNewState(const Vector &x) const
-{
-   if (discr_tc)
-   {
-      if (parallel)
-      {
-#ifdef MFEM_USE_MPI
-         const ParNonlinearForm *nlf =
-            dynamic_cast<const ParNonlinearForm *>(oper);
-         Vector x_loc(nlf->ParFESpace()->GetVSize());
-         nlf->ParFESpace()->GetProlongationMatrix()->Mult(x, x_loc);
-         discr_tc->UpdateTargetSpecification(x_loc);
-#endif
-      }
-      else { discr_tc->UpdateTargetSpecification(x); }
-   }
 }
 
 #ifdef MFEM_USE_MPI

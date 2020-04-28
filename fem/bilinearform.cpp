@@ -126,8 +126,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          // Use the original BilinearForm implementation for now
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Element assembly not supported yet... stay tuned!");
-         // ext = new EABilinearFormExtension(this);
+         ext = new EABilinearFormExtension(this);
          break;
       case AssemblyLevel::PARTIAL:
          ext = new PABilinearFormExtension(this);

@@ -15,6 +15,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "tmop.hpp"
+#include "gslib.hpp"
 
 namespace mfem
 {
@@ -40,6 +41,31 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field);
 };
+
+#ifdef MFEM_USE_GSLIB
+class InterpolatorFP : public AdaptivityEvaluator
+{
+private:
+   Vector nodes0;
+   GridFunction field0_gf;
+   FindPointsGSLIB *finder;
+   Array<uint> el_id_out, code_out, task_id_out;
+   Vector pos_r_out, dist_p_out;
+   int dim;
+public:
+   virtual void SetInitialField(const Vector &init_nodes,
+                                const Vector &init_field);
+
+   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+                                     Vector &new_field);
+
+   ~InterpolatorFP()
+   {
+      finder->FreeData();
+      delete finder;
+   }
+};
+#endif
 
 /// Performs a single remap advection step in serial.
 class SerialAdvectorCGOper : public TimeDependentOperator
@@ -83,23 +109,21 @@ public:
 
 class TMOPNewtonSolver : public NewtonSolver
 {
-private:
+protected:
    bool parallel;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
 
-   mutable DiscreteAdaptTC *discr_tc;
+   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new) const;
 
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+      : NewtonSolver(comm), parallel(true), ir(irule) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
-
-   void SetDiscreteAdaptTC(DiscreteAdaptTC *tc) { discr_tc = tc; }
+      : NewtonSolver(), parallel(false), ir(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
@@ -107,27 +131,17 @@ public:
 };
 
 /// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public NewtonSolver
+class TMOPDescentNewtonSolver : public TMOPNewtonSolver
 {
-private:
-   bool parallel;
-
-   // Quadrature points that are checked for negative Jacobians etc.
-   const IntegrationRule &ir;
-
-   mutable DiscreteAdaptTC *discr_tc;
-
 public:
 #ifdef MFEM_USE_MPI
    TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : NewtonSolver(comm), parallel(true), ir(irule), discr_tc(NULL) { }
+      : TMOPNewtonSolver(comm, irule) { }
 #endif
    TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : NewtonSolver(), parallel(false), ir(irule), discr_tc(NULL) { }
+      : TMOPNewtonSolver(irule) { }
 
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
-
-   virtual void ProcessNewState(const Vector &x) const;
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

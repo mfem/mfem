@@ -78,6 +78,31 @@ public:
    { return (constant); }
 };
 
+/// class for quadrature coefficient
+class QuadratureCoefficient : public Coefficient
+{
+
+private: 
+  const int nip;
+  const int NE;
+public:
+  Vector *qData{nullptr};
+
+  //Set external data
+  QuadratureCoefficient(Vector *Data, int in_nip, int in_NE)
+    : qData(Data), nip(in_nip), NE(in_NE)
+  { }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+
+  Vector *Data()
+  {
+    return qData;
+  }
+
+};
+
 /// class for piecewise constant coefficient
 class PWConstCoefficient : public Coefficient
 {
@@ -91,7 +116,7 @@ public:
    { constants = 0.0; }
 
    /** c should be a vector defined by attributes, so for region with
-       attribute i  c[i] is the coefficient in that region */
+       attribute i  c[i-1] is the coefficient in that region */
    PWConstCoefficient(Vector &c)
    { constants.SetSize(c.Size()); constants=c; }
 
@@ -138,7 +163,7 @@ public:
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a f, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*f)(Vector &))
+   MFEM_DEPRECATED FunctionCoefficient(double (*f)(Vector &))
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
@@ -147,7 +172,7 @@ public:
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a tdf, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*tdf)(Vector &, double))
+   MFEM_DEPRECATED FunctionCoefficient(double (*tdf)(Vector &, double))
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);

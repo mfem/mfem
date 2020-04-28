@@ -27,6 +27,7 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
+//               mpirun -np 4 ex1p -ea -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -81,6 +83,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -196,6 +200,7 @@ int main(int argc, char *argv[])
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   else if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
@@ -213,7 +218,7 @@ int main(int argc, char *argv[])
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
    Solver *prec = NULL;
-   if (pa)
+   if (pa || ea)
    {
       if (UsesTensorBasis(*fespace))
       {

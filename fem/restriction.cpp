@@ -223,6 +223,43 @@ void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const
    });
 }
 
+void ElementRestriction::BooleanMask(Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+
+   Array<char> processed(vd * ndofs);
+   processed = 0;
+
+   auto d_offsets = offsets.HostRead();
+   auto d_indices = indices.HostRead();
+   auto d_x = Reshape(processed.HostReadWrite(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.HostWrite(), nd, vd, ne);
+   for (int i = 0; i < ndofs; ++i)
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i+1];
+      for (int c = 0; c < vd; ++c)
+      {
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int idx_j = d_indices[j];
+            if (d_x(t?c:i,t?i:c))
+            {
+               d_y(idx_j % nd, c, idx_j / nd) = 0.0;
+            }
+            else
+            {
+               d_y(idx_j % nd, c, idx_j / nd) = 1.0;
+               d_x(t?c:i,t?i:c) = 1;
+            }
+         }
+      }
+   }
+}
+
 /// Return the face degrees of freedom returned in Lexicographic order.
 void GetFaceDofs(const int dim, const int face_id,
                  const int dof1d, Array<int> &faceMap)
@@ -929,27 +966,50 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int dofs = nfdofs;
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   if (m==L2FaceValues::DoubleValued)
    {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
-      for (int c = 0; c < vd; ++c)
+      auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
+      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      MFEM_FORALL(i, ndofs,
       {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
+         const int offset = d_offsets[i];
+         const int nextOffset = d_offsets[i + 1];
+         for (int c = 0; c < vd; ++c)
          {
-            int idx_j = d_indices[j];
-            bool isE1 = idx_j < dofs;
-            idx_j = isE1 ? idx_j : idx_j - dofs;
-            dofValue +=  isE1 ?
-            d_x(idx_j % nd, c, 0, idx_j / nd)
-            :d_x(idx_j % nd, c, 1, idx_j / nd);
+            double dofValue = 0;
+            for (int j = offset; j < nextOffset; ++j)
+            {
+               int idx_j = d_indices[j];
+               bool isE1 = idx_j < dofs;
+               idx_j = isE1 ? idx_j : idx_j - dofs;
+               dofValue +=  isE1 ?
+               d_x(idx_j % nd, c, 0, idx_j / nd)
+               :d_x(idx_j % nd, c, 1, idx_j / nd);
+            }
+            d_y(t?c:i,t?i:c) += dofValue;
          }
-         d_y(t?c:i,t?i:c) += dofValue;
-      }
-   });
+      });
+   }
+   else
+   {
+      auto d_x = Reshape(x.Read(), nd, vd, nf);
+      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      MFEM_FORALL(i, ndofs,
+      {
+         const int offset = d_offsets[i];
+         const int nextOffset = d_offsets[i + 1];
+         for (int c = 0; c < vd; ++c)
+         {
+            double dofValue = 0;
+            for (int j = offset; j < nextOffset; ++j)
+            {
+               int idx_j = d_indices[j];
+               dofValue +=  d_x(idx_j % nd, c, idx_j / nd);
+            }
+            d_y(t?c:i,t?i:c) += dofValue;
+         }
+      });
+   }
 }
 
 int ToLexOrdering(const int dim, const int face_id, const int size1d,

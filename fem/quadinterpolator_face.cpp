@@ -495,6 +495,7 @@ void FaceQuadratureInterpolator::Mult(
    }
 }
 
+
 void FaceQuadratureInterpolator::Values(const Vector &e_vec, Vector &q_val) const
 {
   Vector q_der, q_det, q_nor;

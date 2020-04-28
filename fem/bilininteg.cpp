@@ -47,8 +47,32 @@ void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
 
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 {
-   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
-              "   is not implemented for this class.");
+   mfem_error ("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                        Vector &emat)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
+                                                     &fes,
+                                                     Vector &ea_data_int,
+                                                     Vector &ea_data_ext)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace
+                                                     &fes,
+                                                     Vector &ea_data_bdr)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEABoundaryFaces(...)\n"
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
@@ -2135,17 +2159,17 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   int dim = el.GetDim();
-   int dof = el.GetDof();
+   const int dim = el.GetDim();
+   const int dof = el.GetDof();
+   const int sdim = Trans.GetSpaceDim();
+   const bool square = (dim == sdim);
+   double w;
 
-   double norm;
+   elmat.SetSize(sdim * dof);
 
-   elmat.SetSize (dim * dof);
-
-   Jinv.  SetSize (dim);
-   dshape.SetSize (dof, dim);
-   gshape.SetSize (dof, dim);
-   pelmat.SetSize (dof);
+   dshape.SetSize(dof, dim);
+   dshapedxt.SetSize(dof, sdim);
+   pelmat.SetSize(dof);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -2163,35 +2187,29 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 
    elmat = 0.0;
+   pelmat = 0.0;
 
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
       el.CalcDShape (ip, dshape);
-
       Trans.SetIntPoint (&ip);
-      norm = ip.weight * Trans.Weight();
-      CalcInverse (Trans.Jacobian(), Jinv);
-
-      Mult (dshape, Jinv, gshape);
-
-      MultAAt (gshape, pelmat);
-
-      if (Q)
+      w = Trans.Weight();
+      w = ip.weight / (square ? w : w*w*w);
+      // AdjugateJacobian = / adj(J),         if J is square
+      //                    \ adj(J^t.J).J^t, otherwise
+      Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
+      if (Q) {  w *= Q -> Eval (Trans, ip); }
+      AddMult_a_AAt(w, dshapedxt, pelmat);
+   }
+   for (int d = 0; d < sdim; d++)
+   {
+      for (int k = 0; k < dof; k++)
       {
-         norm *= Q -> Eval (Trans, ip);
-      }
-
-      pelmat *= norm;
-
-      for (int d = 0; d < dim; d++)
-      {
-         for (int k = 0; k < dof; k++)
-            for (int l = 0; l < dof; l++)
-            {
-               elmat (dof*d+k, dof*d+l) += pelmat (k, l);
-            }
+         for (int l = 0; l < dof; l++)
+         {
+            elmat(dof*d+k, dof*d+l) = pelmat(k, l);
+         }
       }
    }
 }

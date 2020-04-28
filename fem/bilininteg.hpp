@@ -75,6 +75,22 @@ public:
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
+   /// Method defining element assembly.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
+   //                         const FiniteElementSpace &test_fes,
+   //                         Vector &emat);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr);
+
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -233,6 +249,15 @@ public:
    {
       bfi->AddMultTransposePA(x, y);
    }
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace &fes,
+                                        Vector &ea_data_bdr);
 
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
@@ -674,10 +699,12 @@ protected:
              "vector field";
    }
 
+   // Subtract one due to the divergence and add one for the coefficient
+   // which is assumed to be at least linear.
    inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
                                           const FiniteElement & test_fe,
                                           ElementTransformation &Trans)
-   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -710,6 +737,11 @@ protected:
              "Trial space must be a scalar field "
              "and the test space must be H(Div)";
    }
+
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
    virtual void CalcTestShape(const FiniteElement & test_fe,
                               ElementTransformation &Trans,
@@ -870,6 +902,13 @@ public:
              "Trial space must be a vector field "
              "and the test space must be a vector field with a divergence";
    }
+
+   // Subtract one due to the gradient and add one for the coefficient
+   // which is assumed to be at least linear.
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -1861,6 +1900,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
@@ -1934,6 +1975,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
+
    virtual void AssembleDiagonalPA(Vector &diag);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
@@ -1986,6 +2029,8 @@ public:
    using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePA(const FiniteElementSpace&);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
@@ -2391,14 +2436,12 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
 private:
-   DenseMatrix Jinv;
-   DenseMatrix dshape;
-   DenseMatrix gshape;
-   DenseMatrix pelmat;
+   DenseMatrix dshape, dshapedxt, pelmat;
+   DenseMatrix Jinv, gshape;
 
 public:
    VectorDiffusionIntegrator() { Q = NULL; }
@@ -2521,6 +2564,13 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AssembleEAInteriorFaces(const FiniteElementSpace& fes,
+                                        Vector &ea_data_int,
+                                        Vector &ea_data_ext);
+
+   virtual void AssembleEABoundaryFaces(const FiniteElementSpace& fes,
+                                        Vector &ea_data_bdr);
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          FaceElementTransformations &T);
