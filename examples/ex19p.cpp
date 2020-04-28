@@ -511,7 +511,7 @@ RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),
-     newton_solver(fes[0]->GetComm()), 
+     newton_solver(fes[0]->GetComm()),
      newton_monitor(fes[0]->GetComm(), "Newton", 1),
      j_monitor(fes[0]->GetComm(), "  GMRES", 3),
      mu(c_mu), block_trueOffsets(trueOffsets)
