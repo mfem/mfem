@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NCMESH
 #define MFEM_NCMESH
@@ -152,10 +152,12 @@ public:
    {
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
-      char local;  ///< local number within 'element'
-      char geom;   ///< Geometry::Type (faces only) (char storage to save RAM)
+      signed char local; ///< local number within 'element'
+      signed char geom;  /**< Geometry::Type (faces only) (char storage to save
+                              RAM) */
 
-      MeshId(int index = -1, int element = -1, char local = -1, char geom = -1)
+      MeshId(int index = -1, int element = -1, signed char local = -1,
+             signed char geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
@@ -179,7 +181,7 @@ public:
       int edge_flags; ///< edge orientation flags
       DenseMatrix point_matrix; ///< position within the master edge/face
 
-      Slave(int index, int element, char local, char geom)
+      Slave(int index, int element, signed char local, signed char geom)
          : MeshId(index, element, local, geom)
          , master(-1), edge_flags(0) {}
 
@@ -319,12 +321,20 @@ public:
    Geometry::Type GetFaceGeometry(int index) const
    { return Geometry::Type(face_geom[index]); }
 
+   /// Return the number of root elements.
+   int GetNumRootElements() { return root_state.Size(); }
+
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
+
+   /** Return the size reduction compared to the root element (ignoring local
+       stretching and curvature). */
+   int GetElementSizeReduction(int i) const;
 
    /// Return the faces and face attributes of leaf element 'i'.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
+
 
    /// I/O: Print the "vertex_parents" section of the mesh file (ver. >= 1.1).
    void PrintVertexParents(std::ostream &out) const;
@@ -359,10 +369,8 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
 
    friend class Mesh;
 
-   /// Return the basic Mesh arrays for the current finest level.
-   void GetMeshComponents(Array<mfem::Vertex> &mvertices,
-                          Array<mfem::Element*> &melements,
-                          Array<mfem::Element*> &mboundary) const;
+   /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
+   void GetMeshComponents(Mesh &mesh) const;
 
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
@@ -429,6 +437,7 @@ protected: // implementation
    {
       char geom;     ///< Geometry::Type of the element (char for storage only)
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
+      char tet_type; ///< tetrahedron split type, currently always 0
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
       int rank;      ///< processor number (ParNCMesh), -1 if undefined/unknown
@@ -503,7 +512,7 @@ protected: // implementation
    /** Try to find a space-filling curve friendly orientation of the root
        elements: set 'root_state' based on the ordering of coarse elements.
        Note that the coarse mesh itself must be ordered as an SFC by e.g.
-       Mesh::GetGeckoElementReordering. */
+       Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
    virtual bool IsGhost(const Element &el) const { return false; }
@@ -511,7 +520,9 @@ protected: // implementation
    virtual int GetNumGhostVertices() const { return 0; }
 
    void InitGeomFlags();
+
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+   bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
 
    // refinement/derefinement
@@ -551,6 +562,9 @@ protected: // implementation
                 int n3, int n4, int n5, int attr,
                 int fattr0, int fattr1,
                 int fattr2, int fattr3, int fattr4);
+
+   int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
+                      int fattr0, int fattr1, int fattr2, int fattr3);
 
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
@@ -611,11 +625,13 @@ protected: // implementation
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
+   struct Point;
    struct PointMatrix;
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                          const PointMatrix& pm, int level, Face* eface[4]);
-   void TraverseTriFace(int vn0, int vn1, int vn2,
+   bool TraverseTriFace(int vn0, int vn1, int vn2,
                         const PointMatrix& pm, int level);
+   void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
 
@@ -756,6 +772,7 @@ protected: // implementation
 
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
+   static PointMatrix pm_tet_identity;
    static PointMatrix pm_prism_identity;
    static PointMatrix pm_hex_identity;
 
@@ -828,8 +845,6 @@ protected: // implementation
    };
 
    static GeomInfo GI[Geometry::NumGeom];
-
-   static GeomInfo &gi_hex, &gi_wedge, &gi_quad, &gi_tri;
 
 #ifdef MFEM_DEBUG
 public:

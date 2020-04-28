@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BILINEARFORM
 #define MFEM_BILINEARFORM
@@ -58,7 +58,7 @@ protected:
    /// FE space on which the form lives. Not owned.
    FiniteElementSpace *fes;
 
-   /// The form assembly level (full, partial, etc.)
+   /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly;
    /// Element batch size used in the form action (1, 8, num_elems, etc.)
    int batch;
@@ -96,11 +96,9 @@ protected:
    StaticCondensation *static_cond; ///< Owned.
    Hybridization *hybridization; ///< Owned.
 
-   /**
-    * This member allows one to specify what should be done
-    * to the diagonal matrix entries and corresponding RHS
-    * values upon elimination of the constrained DoFs.
-    */
+   /** This data member allows one to specify what should be done to the
+       diagonal matrix entries and corresponding RHS values upon elimination of
+       the constrained DoFs. */
    DiagonalPolicy diag_policy;
 
    int precompute_sparsity;
@@ -152,6 +150,9 @@ public:
    /// Set the desired assembly level. The default is AssemblyLevel::FULL.
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
@@ -227,7 +228,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -319,12 +320,26 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
+   /** @brief Assemble the diagonal of the bilinear form into diag
+
+       For adaptively refined meshes, this returns P^T d_e, where d_e is the
+       locally assembled diagonal on each element and P^T is the transpose of
+       the conforming prolongation. In general this is not the correct diagonal
+       for an AMR mesh. */
+   void AssembleDiagonal(Vector &diag) const;
+
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return fes->GetConformingProlongation(); }
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return fes->GetConformingRestriction(); }
+   /// Get the output finite element space prolongation matrix
+   virtual const Operator *GetOutputProlongation() const
+   { return GetProlongation(); }
+   /// Get the output finite element space restriction matrix
+   virtual const Operator *GetOutputRestriction() const
+   { return GetRestriction(); }
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
@@ -515,7 +530,7 @@ public:
 
    /// (DEPRECATED) Return the FE space associated with the BilinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *FESpace() { return fes; }
@@ -524,6 +539,9 @@ public:
 
    /// Sets diagonal policy used upon construction of the linear system
    void SetDiagonalPolicy(DiagonalPolicy policy);
+
+   /// Indicate that integrators are not owned by the BilinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; };
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
@@ -549,9 +567,17 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat; ///< Owned.
+   SparseMatrix *mat_e; ///< Owned.
 
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
+
+   /// The form assembly level (full, partial, etc.)
+   AssemblyLevel assembly;
+
+   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
+       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   MixedBilinearFormExtension *ext;
 
    /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
        #tfbfi and #btfbfi are owned by another MixedBilinearForm. */
@@ -607,15 +633,12 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    virtual void Mult(const Vector & x, Vector & y) const;
-
    virtual void AddMult(const Vector & x, Vector & y,
                         const double a = 1.0) const;
 
+   virtual void MultTranspose(const Vector & x, Vector & y) const;
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const;
-
-   virtual void MultTranspose(const Vector & x, Vector & y) const
-   { y = 0.0; AddMultTranspose (x, y); }
 
    virtual MatrixInverse *Inverse() const;
 
@@ -676,7 +699,27 @@ public:
 
    void operator=(const double a) { *mat = a; }
 
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    void Assemble(int skip_zeros = 1);
+
+   /// Get the input finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   { return trial_fes->GetProlongationMatrix(); }
+
+   /// Get the input finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   { return trial_fes->GetRestrictionMatrix(); }
+
+   /// Get the test finite element space prolongation matrix
+   virtual const Operator *GetOutputProlongation() const
+   { return test_fes->GetProlongationMatrix(); }
+
+   /// Get the test finite element space restriction matrix
+   virtual const Operator *GetOutputRestriction() const
+   { return test_fes->GetRestrictionMatrix(); }
 
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal
@@ -739,7 +782,80 @@ public:
 
    virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
 
+   /** @brief Return in @a A that is column-constrained.
+
+      This returns the same operator as FormRectangularLinearSystem(), but does
+      without the transformations of the right-hand side. */
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    OperatorHandle &A);
+
+   /** @brief Form the column-constrained linear system matrix A.
+       See FormRectangularSystemMatrix() for details.
+
+       Version of the method FormRectangularSystemMatrix() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list, OpType &A)
+   {
+      OperatorHandle Ah;
+      FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, Ah);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
+   /** @brief Form the linear system A X = B, corresponding to this mixed bilinear
+       form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OperatorHandle &A, Vector &X, Vector &B);
+
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and the linear form @a b(.).
+
+       Version of the method FormRectangularLinearSystem() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OpType &A, Vector &X, Vector &B)
+   {
+      OperatorHandle Ah;
+      FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, Ah, X, B);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
    void Update();
+
+   /// Return the trial FE space associated with the BilinearForm.
+   FiniteElementSpace *TrialFESpace() { return trial_fes; }
+   /// Read-only access to the associated trial FiniteElementSpace.
+   const FiniteElementSpace *TrialFESpace() const { return trial_fes; }
+
+   /// Return the test FE space associated with the BilinearForm.
+   FiniteElementSpace *TestFESpace() { return test_fes; }
+   /// Read-only access to the associated test FiniteElementSpace.
+   const FiniteElementSpace *TestFESpace() const { return test_fes; }
 
    virtual ~MixedBilinearForm();
 };

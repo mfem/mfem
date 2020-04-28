@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_LININTEG
 #define MFEM_LININTEG
@@ -126,7 +126,8 @@ class BoundaryLFIntegrator : public LinearFormIntegrator
    Coefficient &Q;
    int oa, ob;
 public:
-   /// Constructs a boundary integrator with a given Coefficient QG
+   /** @brief Constructs a boundary integrator with a given Coefficient @a QG.
+       Integration order will be @a a * basis_order + @a b. */
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
@@ -135,8 +136,9 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
 };
 
 /// Class for boundary integration \f$ L(v) = (g \cdot n, v) \f$
@@ -279,11 +281,15 @@ public:
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
-   Coefficient &F;
+   Coefficient *F;
    Vector shape;
+   int oa, ob; // these contol the quadrature order, see DomainLFIntegrator
 
 public:
-   VectorFEBoundaryFluxLFIntegrator(Coefficient &f) : F(f) { }
+   VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
+      : F(NULL), oa(a), ob(b) { }
+   VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
+      : F(&f), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -297,9 +303,12 @@ class VectorFEBoundaryTangentLFIntegrator : public LinearFormIntegrator
 {
 private:
    VectorCoefficient &f;
+   int oa, ob;
 
 public:
-   VectorFEBoundaryTangentLFIntegrator(VectorCoefficient &QG) : f(QG) { }
+   VectorFEBoundaryTangentLFIntegrator(VectorCoefficient &QG,
+                                       int a = 2, int b = 0)
+      : f(QG), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
