@@ -79,6 +79,229 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
    fes = pfes;
 }
 
+ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
+                                 const char *_filename)
+   : GridFunction(pf), pfes(pf)
+{
+   std::cout << "in GF constructor\n";
+   MPI_Comm fes_comm;
+   int fes_rank, n_fes_ranks;
+   fes_comm = pfes->GetComm();
+   std::cout << "got comm\n";
+   MPI_Comm_size(fes_comm, &n_fes_ranks);
+   std::cout << "got nranks\n";
+   MPI_Comm_rank(fes_comm, &fes_rank);
+   std::cout << "got rank\n";
+
+   std::string filename(_filename);
+   std::string file_prefix;
+   std::string file_ext;
+   size_t i = filename.rfind('.', filename.length());
+   if (i != string::npos)
+   {
+      file_prefix = (filename.substr(0, i));
+      file_ext = (filename.substr(i, filename.length() - i));
+   }
+
+   int nfiles = 1;
+   if (fes_rank == 0)
+   {
+      int n_rfes_ranks;
+      int tmp[2];
+      std::string mpi_filename;
+      if (i != string::npos)
+      {
+         mpi_filename = file_prefix + to_string(0) + file_ext;
+      }
+      else
+      {
+         mpi_filename = filename + to_string(0);
+      }
+      
+      std::cout << "reading filename: " << mpi_filename << std::endl;
+      MPI_File fh;
+      MPI_File_open(MPI_COMM_SELF, mpi_filename.c_str(), MPI_MODE_RDONLY,
+                                                      MPI_INFO_NULL, &fh);
+      std::cout << "file opened\n";
+      MPI_File_read_at(fh, 0, tmp, 2, MPI_INT, MPI_STATUS_IGNORE);
+      std::cout << "file read\n";
+      MPI_File_close(&fh);
+      std::cout << "file closed\n";
+      
+      n_rfes_ranks = tmp[0];
+      nfiles = tmp[1];
+      std::cout << "n_rfes_ranks (r): " << n_rfes_ranks << std::endl;
+      std::cout << "nfiles (r): " << nfiles << std::endl;
+      MFEM_ASSERT(n_fes_ranks == n_rfes_ranks, "ParGridFunction::ParGridFunction\n"
+                  "\tThe number of MPI ranks used to save the GridFunction is\n"
+                  "\tnot the same as the number used to load it!");
+   }
+   MPI_Bcast(&nfiles, 1, MPI_INT, 0, fes_comm);
+
+   int color = fes_rank * nfiles / n_fes_ranks;
+   
+   MPI_Comm file_comm;
+   MPI_Comm_split(fes_comm, color, fes_rank, &file_comm);
+
+   int file_rank, n_file_ranks;
+   MPI_Comm_size(file_comm, &n_file_ranks);
+   MPI_Comm_rank(file_comm, &file_rank);
+
+   std::string mpi_filename;
+   if (i != string::npos) {
+      mpi_filename = file_prefix + std::to_string(color) + file_ext;
+   }
+   else
+   {
+      mpi_filename = filename + std::to_string(color);
+   }
+
+   MPI_File fh;
+   MPI_File_open(file_comm, mpi_filename.c_str(), MPI_MODE_RDONLY,
+                                                  MPI_INFO_NULL, &fh);
+
+   int *dof_counts = new int[5*n_file_ranks];
+   int **nv = new int*[n_file_ranks];
+   int **nvdofs = new int*[n_file_ranks];
+   int **nedofs = new int*[n_file_ranks];
+   int **nfdofs = new int*[n_file_ranks];
+   int **nrdofs = new int*[n_file_ranks];
+
+   for (int i = 0; i < n_file_ranks; ++i)
+   {
+      nv[i]     = &dof_counts[i*5+0];
+      nvdofs[i] = &dof_counts[i*5+1];
+      nedofs[i] = &dof_counts[i*5+2];
+      nfdofs[i] = &dof_counts[i*5+3];
+      nrdofs[i] = &dof_counts[i*5+4];
+   }
+
+   *nv[file_rank] = pfes->GetVSize();
+   *nvdofs[file_rank] = pfes->GetNVDofs();
+   *nedofs[file_rank] = pfes->GetNEDofs();
+   *nfdofs[file_rank] = pfes->GetNFDofs();
+
+   int vdim = pfes->GetVDim();
+   *nrdofs[file_rank] = *nv[file_rank] / vdim - *nvdofs[file_rank] -
+                                       *nedofs[file_rank] - *nfdofs[file_rank];
+
+   // MPI_Allgather(&dof_counts[5*file_rank], 5, MPI_INT, dof_counts, 5, MPI_INT,
+   //               file_comm);
+   MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, &dof_counts[0], 5, MPI_INT,
+                 file_comm);
+
+   double *data_ = HostWrite();
+
+   MPI_Offset header_offset = 0;
+   header_offset += 2 * sizeof(int);
+   MPI_Offset v_offset, e_offset, f_offset, r_offset;
+
+   v_offset = header_offset;
+   e_offset = header_offset;
+   f_offset = header_offset;
+   r_offset = header_offset;
+
+   int total_vdofs, total_edofs, total_fdofs, total_rdofs, total_dofs = 0;
+   for (int i = 0; i < n_file_ranks; ++i)
+   {
+      total_vdofs += *nvdofs[i];
+      total_edofs += *nedofs[i];
+      total_fdofs += *nfdofs[i];
+      total_rdofs += *nrdofs[i];
+      total_dofs += *nv[i];
+   }
+
+   if (pfes->GetOrdering() == Ordering::byNODES)
+   {
+      for (int d = 0; d < vdim; ++d)
+      {
+         int v_data_offset = 0 + *nv[file_rank] * d / vdim ;
+         int e_data_offset = v_data_offset + *nvdofs[file_rank];
+         int f_data_offset = e_data_offset + *nedofs[file_rank];
+         int r_data_offset = f_data_offset + *nfdofs[file_rank];
+
+         v_offset = header_offset;
+         e_offset = header_offset;
+         f_offset = header_offset;
+         r_offset = header_offset;
+         
+         v_offset += total_dofs * sizeof(double) * d;
+         e_offset += total_dofs * sizeof(double) * d;
+         f_offset += total_dofs * sizeof(double) * d;
+         r_offset += total_dofs * sizeof(double) * d;
+
+         for (int i = 0; i < file_rank; ++i)
+         {
+            v_offset += *nvdofs[i] * sizeof(double);
+            e_offset += *nedofs[i] * sizeof(double);
+            f_offset += *nfdofs[i] * sizeof(double);
+            r_offset += *nrdofs[i] * sizeof(double);
+         }
+
+         MPI_File_read_at_all(fh, v_offset, &data_[v_data_offset],
+                              *nvdofs[file_rank], MPI_DOUBLE,
+                              MPI_STATUS_IGNORE);
+         MPI_File_read_at_all(fh, e_offset, &data_[e_data_offset],
+                              *nedofs[file_rank], MPI_DOUBLE,
+                              MPI_STATUS_IGNORE);
+         MPI_File_read_at_all(fh, f_offset, &data_[f_data_offset],
+                              *nfdofs[file_rank], MPI_DOUBLE,
+                              MPI_STATUS_IGNORE);
+         MPI_File_read_at_all(fh, r_offset, &data_[r_data_offset],
+                              *nrdofs[file_rank], MPI_DOUBLE,
+                              MPI_STATUS_IGNORE);
+      }
+   }
+   else
+   {
+      e_offset += total_vdofs;
+      f_offset += total_vdofs + total_edofs;
+      r_offset += total_vdofs + total_edofs + total_fdofs;
+
+      for (int i = 0; i < file_rank; ++i)
+      {
+         v_offset += *nvdofs[i] * sizeof(double) * vdim;
+         e_offset += *nedofs[i] * sizeof(double) * vdim;
+         f_offset += *nfdofs[i] * sizeof(double) * vdim;
+         r_offset += *nrdofs[i] * sizeof(double) * vdim;
+      }
+
+      int v_data_offset = 0;
+      int e_data_offset = v_data_offset + *nvdofs[file_rank] * vdim;
+      int f_data_offset = e_data_offset + *nedofs[file_rank] * vdim;
+      int r_data_offset = f_data_offset + *nfdofs[file_rank] * vdim;
+      
+      MPI_File_read_at_all(fh, v_offset, &data_[v_data_offset],
+                           *nvdofs[file_rank] * vdim, MPI_DOUBLE,
+                           MPI_STATUS_IGNORE);
+      MPI_File_read_at_all(fh, e_offset, &data_[e_data_offset],
+                           *nedofs[file_rank] * vdim, MPI_DOUBLE,
+                           MPI_STATUS_IGNORE);
+      MPI_File_read_at_all(fh, f_offset, &data_[f_data_offset],
+                           *nfdofs[file_rank] * vdim, MPI_DOUBLE,
+                           MPI_STATUS_IGNORE);
+      MPI_File_read_at_all(fh, r_offset, &data_[r_data_offset],
+                           *nrdofs[file_rank] * vdim, MPI_DOUBLE,
+                           MPI_STATUS_IGNORE);
+   }
+
+   MPI_File_close(&fh);
+   MPI_Comm_free(&file_comm);
+
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   delete[] dof_counts;
+   delete[] nv;
+   delete[] nvdofs;
+   delete[] nedofs;
+   delete[] nfdofs;
+   delete[] nrdofs;
+}
+
+
 void ParGridFunction::Update()
 {
    face_nbr_data.Destroy();
@@ -519,15 +742,14 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-/// TODO: Write to header to specify total number of ranks and number of files
-///       written. Need to have the same combination of ranks and files when
+/// TODO: Need to have the same combination of ranks and files when
 ///       reading and writing (otherwise figuring out the partitions will be
 ///       too complicated).
 ///       Can use the same splitting scheme in reader to load GF
 ///       query the fespace for the numbers of vdofs, edofs, fdofs, rdofs...
 ///       then populate the data array
 ///       load the grid function by creating a new constructor
-void ParGridFunction::Save(char *_filename, int nfiles)
+void ParGridFunction::Save(const char *_filename, const int nfiles)
 {
    MPI_Comm fes_comm;
    int fes_rank, n_fes_ranks;
@@ -550,9 +772,10 @@ void ParGridFunction::Save(char *_filename, int nfiles)
    std::string file_ext;
    std::string mpi_filename;
    size_t i = filename.rfind('.', filename.length());
-   if (i != string::npos) {
+   if (i != string::npos)
+   {
       file_prefix = (filename.substr(0, i));
-      file_ext = (filename.substr(i+1, filename.length() - i));
+      file_ext = (filename.substr(i, filename.length() - i));
       mpi_filename = file_prefix + std::to_string(color) + file_ext;
    }
    else
@@ -574,11 +797,11 @@ void ParGridFunction::Save(char *_filename, int nfiles)
 
    for (int i = 0; i < n_file_ranks; ++i)
    {
-      nv[i]     = &dof_counts[i*n_file_ranks+0];
-      nvdofs[i] = &dof_counts[i*n_file_ranks+1];
-      nedofs[i] = &dof_counts[i*n_file_ranks+2];
-      nfdofs[i] = &dof_counts[i*n_file_ranks+3];
-      nrdofs[i] = &dof_counts[i*n_file_ranks+4];
+      nv[i]     = &dof_counts[i*5+0];
+      nvdofs[i] = &dof_counts[i*5+1];
+      nedofs[i] = &dof_counts[i*5+2];
+      nfdofs[i] = &dof_counts[i*5+3];
+      nrdofs[i] = &dof_counts[i*5+4];
    }
 
    *nv[file_rank] = pfes->GetVSize();
@@ -590,7 +813,9 @@ void ParGridFunction::Save(char *_filename, int nfiles)
    *nrdofs[file_rank] = *nv[file_rank] / vdim - *nvdofs[file_rank] -
                                        *nedofs[file_rank] - *nfdofs[file_rank];
 
-   MPI_Allgather(&dof_counts[5*file_rank], 5, MPI_INT, dof_counts, 5, MPI_INT,
+   // MPI_Allgather(&dof_counts[5*file_rank], 5, MPI_INT, dof_counts, 5, MPI_INT,
+   //               file_comm);
+   MPI_Allgather(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, &dof_counts[0], 5, MPI_INT,
                  file_comm);
 
    double *data_  = const_cast<double*>(HostRead());
@@ -602,12 +827,21 @@ void ParGridFunction::Save(char *_filename, int nfiles)
    std::stringstream pfes_header;
    pfes->Save(pfes_header);
    pfes_header << '\n';
-   int header_offset = pfes_header.str().length();
+   MPI_Offset header_offset = 0; // pfes_header.str().length();
    if (file_rank == 0)
    {
-      MPI_File_write_at(fh, 0, pfes_header.str().c_str(), header_offset,
-                        MPI_CHAR, MPI_STATUS_IGNORE);
+      // MPI_File_write_at(fh, 0, pfes_header.str().c_str(), header_offset,
+      //                   MPI_CHAR, MPI_STATUS_IGNORE);
+
+      int tmp[] = {n_fes_ranks, nfiles};
+      MPI_File_write_at(fh, header_offset, &tmp, 2, MPI_INT,
+                        MPI_STATUS_IGNORE);
+      std::cout << "n_fes_ranks (w): " << n_fes_ranks << std::endl;
+      std::cout << "nfiles (w): " << nfiles << std::endl;
    }
+
+   header_offset += 2 * sizeof(int);
+
    MPI_Offset v_offset, e_offset, f_offset, r_offset;
 
    v_offset = header_offset;
@@ -639,17 +873,17 @@ void ParGridFunction::Save(char *_filename, int nfiles)
          f_offset = header_offset;
          r_offset = header_offset;
          
-         v_offset += total_dofs * d;
-         e_offset += total_dofs * d;
-         f_offset += total_dofs * d;
-         r_offset += total_dofs * d;
+         v_offset += total_dofs * sizeof(double) * d;
+         e_offset += total_dofs * sizeof(double) * d;
+         f_offset += total_dofs * sizeof(double) * d;
+         r_offset += total_dofs * sizeof(double) * d;
 
          for (int i = 0; i < file_rank; ++i)
          {
-            v_offset += *nvdofs[i];
-            e_offset += *nedofs[i];
-            f_offset += *nfdofs[i];
-            r_offset += *nrdofs[i];
+            v_offset += *nvdofs[i] * sizeof(double);
+            e_offset += *nedofs[i] * sizeof(double);
+            f_offset += *nfdofs[i] * sizeof(double);
+            r_offset += *nrdofs[i] * sizeof(double);
          }
 
          MPI_File_write_at_all(fh, v_offset, &data_[v_data_offset],
@@ -674,10 +908,10 @@ void ParGridFunction::Save(char *_filename, int nfiles)
 
       for (int i = 0; i < file_rank; ++i)
       {
-         v_offset += *nvdofs[i] * vdim;
-         e_offset += *nedofs[i] * vdim;
-         f_offset += *nfdofs[i] * vdim;
-         r_offset += *nrdofs[i] * vdim;
+         v_offset += *nvdofs[i] * sizeof(double) * vdim;
+         e_offset += *nedofs[i] * sizeof(double) * vdim;
+         f_offset += *nfdofs[i] * sizeof(double) * vdim;
+         r_offset += *nrdofs[i] * sizeof(double) * vdim;
       }
 
       int v_data_offset = 0;
@@ -705,6 +939,11 @@ void ParGridFunction::Save(char *_filename, int nfiles)
    for (int i = 0; i < size; i++)
    {
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   if (file_rank == 0)
+   {
+      out << "Finished writing file " << color << std::endl;
    }
 
    delete[] dof_counts;

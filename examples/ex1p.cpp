@@ -237,6 +237,13 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
+   {
+      x.Save("ex1p.gf", 1);
+      ParGridFunction new_x(fespace, "ex1p.gf");
+      new_x -= x;
+      out << "GF difference: " << new_x.Norml1() << endl;
+   }
+
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
