@@ -8,6 +8,10 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
    Geometry::Type gtype = el->GetGeomType();
+   int order = el->GetOrder();
+   H1_FECollection fec(order, dim, BasisType::Positive);
+   fesH1 = new FiniteElementSpace(mesh, &fec);
+   // xMin()
 
    IntegrationRule nodes =  el->GetNodes();
    Vector shape(nd), dx_shape(nd), RefMassLumped(nd);
@@ -16,6 +20,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    double tol = 1.e-12;
 
    // ShapeNodes.SetSize(nd,nd); // TODO unnecessary?
+   NodalFluxes.SetSize(hyp->NumEq, dim, nd);
    Adjugates.SetSize(dim,dim,ne);
    PrecGradOp.SetSize(nd,dim,nd);
    GradProd.SetSize(nd,dim,nd);
@@ -297,12 +302,16 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       }
    }
 
-   // dofs.ComputeBounds(x);
+   dofs.ComputeBounds(x);
 
    DenseMatrix mat3(nd, hyp->NumEq);
-   DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq), BdrFlux(hyp->NumEq*nd, dofs.NumBdrs),
-               uDot(nd, hyp->NumEq);
-   DenseTensor AntiDiff(nd, nd, hyp->NumEq), wij(nd, nd, hyp->NumEq);
+   DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq),
+               uDot(nd, hyp->NumEq), DTilde(nd, nd), sif(dofs.NumBdrs, dofs.NumFaceDofs);
+   DenseTensor AntiDiff(nd, nd, hyp->NumEq), wij(nd, nd, hyp->NumEq),
+               wfi(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq), // TODO order, no i?
+               wfiNbr(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq),
+               BdrFlux(dofs.NumFaceDofs, dofs.NumBdrs, hyp->NumEq);
+   Vector sums(hyp->NumEq*nd);
 
    z = 0.;
    for (int e = 0; e < ne; e++)
@@ -312,6 +321,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       mat2 = uDot = 0.;
       AntiDiff = 0.;
       BdrFlux = 0.;
+      sums = 0.;
 
       for (int k = 0; k < nqe; k++)
       {
@@ -340,7 +350,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                {
                   double tmp = ShapeEvalFace(i,j,k) * NumFlux(n);
                   galerkin(dofs.BdrDofs(j,i), n) -= tmp;
-                  BdrFlux(n*nd + dofs.BdrDofs(j,i), i) -= tmp;
+                  BdrFlux(j,i,n) -= tmp;
                }
             }
          }
@@ -359,6 +369,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       {
          GetNodeVal(uElem, uEval, j);
          hyp->EvaluateFlux(uEval, Flux, e, j);
+         NodalFluxes(j) = Flux;
          MultABt(PrecGradOp(j), Adjugates(e), CTilde(j));
          AddMultABt(CTilde(j), Flux, mat2);
 
@@ -385,7 +396,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          for (int j = 0; j < Dof2LocNbr.Width(); j++)
          {
             int J = Dof2LocNbr(I,j);
-            if (J == -1) { continue; }
+            if (J == -1) { break; }
 
             GetNodeVal(uElem, uNbrEval, J);
 
@@ -415,13 +426,19 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             double ws2 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
                              hyp->GetWaveSpeed(uNbrEval, normal, e, J));
             double dij = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
+            DTilde(I,J) = dij;
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
                double rus = dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
                z(vdofs[n * nd + I]) += rus;
                AntiDiff(I,J,n) -= rus;
-               // wij(I,J,n) = dij * (x(vdofs[n * nd + J]) + x(vdofs[n * nd + I]))
+               wij(I,J,n) = dij * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
+
+               for (int l = 0; l < dim; l++)
+               {
+                  wij(I,J,n) -= CTilde(I,l,J) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
+               }
             }
          }
       }
@@ -495,11 +512,32 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                              hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
 
             FaceMatLumped *= BdrInt(i,0,e);
+            sif(i,j) = ws * FaceMatLumped;
 
-            subtract(ws * FaceMatLumped, uNbrEval, uEval, NumFlux);
+            subtract(sif(i,j), uNbrEval, uEval, NumFlux);
 
             hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i));
             hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i));
+
+            for (int n = 0; n < hyp->NumEq; n++)
+            {
+               wfi(i,j,n) = sif(i,j) * (uEval(n) + uNbrEval(n));
+               // wfiNbr(i,j,n) = ws * (uEval(n) + uNbrEval(n));
+               for (int l = 0; l < dim; l++)
+               {
+                  wfi(i,j,n) -= (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
+                  // cout << FluxNbr(n,l) - Flux(n,l) << endl;
+                  // wfiNbr(i,j,n) += (FluxNbr(n,l) - Flux(n,l)) * normal(l);
+               }
+
+               // cout << i << " " << ws << endl;
+               // wfiNbr(n) *= FaceMatLumped;
+            }
+
+            // cout << e << " " << i << " " << j << " " << wfi(i,j,0) << endl;
+            // if (e==0 && i == 2)
+            //    cout << wfi(i,0,0) << endl;
+
             Vector helper(hyp->NumEq);
             Flux.Mult(normal, helper);
             helper *= FaceMatLumped;
@@ -512,51 +550,87 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             for (int n = 0; n < hyp->NumEq; n++)
             {
                z(vdofs[n*nd + dofs.BdrDofs(j,i)]) += NumFlux(n);
-               BdrFlux(n*nd + dofs.BdrDofs(j,i), i) += helper(n) - NumFlux(n);
+               BdrFlux(j,i,n) += helper(n) - NumFlux(n);
+            }
+         }
+
+         // if (e==0 && i == 2)
+         //    cout << wfi(i,0,0) << endl;
+
+         for (int j = 0; j < dofs.NumFaceDofs; j++)
+         {
+            for (int n = 0; n < hyp->NumEq; n++)
+            {
+               double gif = BdrFlux(j,i,n);
+               int J = dofs.BdrDofs(j,i);
+               if (gif > 0.)
+               {
+                  gif = min( gif, min( 2.*sif(i,j) * dofs.xi_max(e*nd+J) - wfi(i,j,n), wfiNbr(i,j,n) - 2.*sif(i,j) * dofs.xi_min(e*nd+J) ) );
+                  // gif = min( gif, min( 2.*sif(i,j) * 1. - wfi(i,j,n), wfi(i,j,n) - 2.*sif(i,j) * 0. ) );
+               }
+               else
+               {
+                  gif = max( gif, max( 2.*sif(i,j) * dofs.xi_min(e*nd+J) - wfi(i,j,n), wfiNbr(i,j,n) - 2.*sif(i,j) * dofs.xi_max(e*nd+J) ) );
+                  // gif = max( gif, max( 2.*sif(i,j) * 0. - wfi(i,j,n), wfi(i,j,n) - 2.*sif(i,j) * 1. ) );
+               }
+               // cout << e << " " << i << " " << j << " " /* << sif(i,j) << " " */ << wfi(i,j,n) << endl;
+
+               // BdrFlux(n*nd + dofs.BdrDofs(j,i), i) = gif;
+               // sums(n*nd+dofs.BdrDofs(j,i)) += gif;
             }
          }
       }
 
-      for (int n = 0; n < hyp->NumEq; n++)
-      {
-         double test = 0.;
-         for (int j = 0; j < nd; j++)
-         {
-            test += ElFlux(j,n);
-         }
-         if (abs(test) > 1.E-12)
-         {
-            cout << abs(test) << endl;
-            MFEM_ABORT("non-zero sum.");
-         }
-      }
+      // BdrFlux.GetRowSums(sums);
+      z.AddElementVector(vdofs, sums);
+
+      // for (int n = 0; n < hyp->NumEq; n++)
+      // {
+      //    double test = 0.;
+      //    for (int j = 0; j < nd; j++)
+      //    {
+      //       test += ElFlux(j,n);
+      //    }
+      //    if (abs(test) > 1.E-12)
+      //    {
+      //       cout << abs(test) << endl;
+      //       MFEM_ABORT("non-zero sum.");
+      //    }
+      // }
 
       DenseMatrix AuxiliaryVectors(nd, hyp->NumEq);
       mfem::Mult(DistributionMatrix, ElFlux, AuxiliaryVectors);
-      DenseTensor UnlimitedFluxes(nd, nd, hyp->NumEq); // TODO: Try to use nscd
+      DenseTensor UnlimitedFluxes(nd, nd, hyp->NumEq);
 
       ElFlux = 0.;
-      for (int i = 0; i < nd; i++)
+      for (int I = 0; I < nd; I++)
       {
-         for (int j = 0; j < nd; j++)
+         for (int j = 0; j < Dof2LocNbr.Width(); j++)
          {
-            if (i==j) { continue; }
+            int J = Dof2LocNbr(I,j);
+            if (J == -1) { break; }
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               UnlimitedFluxes(i,j,n) = AntiDiff(i,j,n) + MassMatLOR(i,j)
-                                        * (AuxiliaryVectors(i,n) - AuxiliaryVectors(j,n));
+               UnlimitedFluxes(I,J,n) = AntiDiff(I,J,n) + MassMatLOR(I,J)
+                                        * (AuxiliaryVectors(I,n) - AuxiliaryVectors(J,n));
 
-               ElFlux(i,n) += UnlimitedFluxes(i,j,n);
+               if (UnlimitedFluxes(I,J,n) > 0.)
+               {
+                  ElFlux(I,n) += min( UnlimitedFluxes(I,J,n), min( 2.*DTilde(I,J) * dofs.xi_max(e*nd+I) - wij(I,J,n),
+                                 wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_min(e*nd+J) ) );
+               }
+               else
+               {
+                  ElFlux(I,n) += max( UnlimitedFluxes(I,J,n), max( 2.*DTilde(I,J) * dofs.xi_min(e*nd+I) - wij(I,J,n),
+                                 wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_max(e*nd+J) ) );
+               }
+               // ElFlux(I,n) += UnlimitedFluxes(I,J,n);
             }
          }
       }
 
-      // z.AddElementVector(vdofs, ElFlux.GetData());
-
-      Vector sums(hyp->NumEq*nd);
-      BdrFlux.GetRowSums(sums);
-      // z.AddElementVector(vdofs, sums);
+      z.AddElementVector(vdofs, ElFlux.GetData());
 
       for (int n = 0; n < hyp->NumEq; n++)
       {

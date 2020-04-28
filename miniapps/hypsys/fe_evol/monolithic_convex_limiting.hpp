@@ -9,10 +9,13 @@ using namespace mfem;
 class MCL_Evolution : public FE_Evolution
 {
 public:
+   FiniteElementSpace *fesH1;
+
    DenseTensor PrecGradOp, GradProd, Adjugates;
    DenseMatrix FaceMat, DistributionMatrix, MassMatLOR, Dof2LocNbr;
 
-   mutable DenseTensor CTilde, CFull;
+   mutable GridFunction xMin, xMax;
+   mutable DenseTensor CTilde, CFull, NodalFluxes;
    mutable DenseMatrix uFace, uNbrFace;
    mutable Vector C_eij;
    mutable Array<int> eldofs;
@@ -20,7 +23,7 @@ public:
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                           DofInfo &dofs_);
 
-   virtual ~MCL_Evolution() { }
+   virtual ~MCL_Evolution() { delete fesH1;}
 
    void Mult(const Vector&x, Vector &y) const override;
 
