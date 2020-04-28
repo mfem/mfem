@@ -25,8 +25,8 @@ using namespace std;
 double QuadratureCoefficient::Eval(ElementTransformation & T,
                                    const IntegrationPoint & ip)
 {
-  auto coeff = mfem::Reshape(qData->HostRead(), nip, NE);
-  return coeff(ip.index, T.ElementNo);
+   auto coeff = mfem::Reshape(qData->HostRead(), nip, NE);
+   return coeff(ip.index, T.ElementNo);
 }
 
 double PWConstCoefficient::Eval(ElementTransformation & T,

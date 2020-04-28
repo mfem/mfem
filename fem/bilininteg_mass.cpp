@@ -56,7 +56,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    if (Q == nullptr)
    {
       coeff = new Vector[1];
-      coeff->SetSize(1);   
+      coeff->SetSize(1);
       (*coeff)(0) = 1.0;
    }
    else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
@@ -135,7 +135,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
       });
    }
 
-   if(own_coeff) delete coeff;
+   if (own_coeff) { delete coeff; }
 }
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
