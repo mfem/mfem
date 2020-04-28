@@ -51,21 +51,30 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
-   Vector coeff;
+   Vector *coeff{nullptr};
+   bool own_coeff{true};
    if (Q == nullptr)
    {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
+      coeff = new Vector[1];
+      coeff->SetSize(1);   
+      (*coeff)(0) = 1.0;
    }
    else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
+      coeff = new Vector[1];
+      coeff->SetSize(1);
+      (*coeff)(0) = 1.0;
+   }
+   else if (QuadratureCoefficient* cQ = dynamic_cast<QuadratureCoefficient*>(Q))
+   {
+      coeff = cQ->Data();
+      own_coeff = false;
    }
    else
    {
-      coeff.SetSize(nq * ne);
-      auto C = Reshape(coeff.HostWrite(), nq, ne);
+      coeff = new Vector[1];
+      coeff->SetSize(nq * ne);
+      auto C = Reshape(coeff->HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
@@ -80,11 +89,11 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    {
       const int NE = ne;
       const int NQ = nq;
-      const bool const_c = coeff.Size() == 1;
+      const bool const_c = coeff->Size() == 1;
       auto w = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,2,2,NE);
       auto C =
-         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
+         const_c ? Reshape(coeff->Read(), 1,1) : Reshape(coeff->Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
       MFEM_FORALL(e, NE,
       {
@@ -104,11 +113,11 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    {
       const int NE = ne;
       const int NQ = nq;
-      const bool const_c = coeff.Size() == 1;
+      const bool const_c = coeff->Size() == 1;
       auto W = ir->GetWeights().Read();
       auto J = Reshape(geom->J.Read(), NQ,3,3,NE);
       auto C =
-         const_c ? Reshape(coeff.Read(), 1,1) : Reshape(coeff.Read(), NQ,NE);
+         const_c ? Reshape(coeff->Read(), 1,1) : Reshape(coeff->Read(), NQ,NE);
       auto v = Reshape(pa_data.Write(), NQ,NE);
       MFEM_FORALL(e, NE,
       {
@@ -125,6 +134,8 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
          }
       });
    }
+
+   if(own_coeff) delete coeff;
 }
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)

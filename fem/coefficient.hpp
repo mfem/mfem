@@ -86,19 +86,19 @@ private:
   const int nip;
   const int NE;
 public:
-  Vector &qData;
+  Vector *qData{nullptr};
 
   //Set external data
-  QuadratureCoefficient(Vector &Data, int in_nip, int in_NE)
+  QuadratureCoefficient(Vector *Data, int in_nip, int in_NE)
     : qData(Data), nip(in_nip), NE(in_NE)
   { }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 
-  void CopyTo(Vector &V)
+  Vector *Data()
   {
-    V = qData;
+    return qData;
   }
 
 };
