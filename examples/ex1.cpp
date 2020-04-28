@@ -27,7 +27,6 @@
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
-//               ex1 -ea -d cuda
 //               ex1 -pa -d raja-cuda
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
