@@ -970,7 +970,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    tr = GetFaceElementTransformations(fn);
    tr->Attribute = boundary[BdrElemNo]->GetAttribute();
    tr->ElementNo = BdrElemNo;
-   tr->ElementType = ElementTransformation::BDR_ELEMENT;
+   tr->ElementType = ElementTransformation::BDR_FACE;
    return tr;
 }
 
