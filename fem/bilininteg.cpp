@@ -878,8 +878,6 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    int nd1 = el1.GetDof();
    double w;
 
-   Trans.SetActiveSide(0);
-
 #ifdef MFEM_THREAD_SAFE
    Vector shape;
 #endif
