@@ -931,12 +931,12 @@ public:
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
    void EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
-                                    GridFunction &zeta_gf,
-                                    Coefficient &coeff);
+                               GridFunction &zeta_gf, Coefficient &coeff,
+                               int interp_type);
    #ifdef MFEM_USE_MPI
    void EnableAdaptiveLimiting(const ParGridFunction &zeta0_gf,
-                                    ParGridFunction &zeta_gf,
-                                    Coefficient &coeff);
+                               ParGridFunction &zeta_gf, Coefficient &coeff,
+                               int interp_type);
    #endif
 
    /// Update the original/reference nodes used for limiting.

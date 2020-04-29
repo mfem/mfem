@@ -32,9 +32,9 @@
 // Compile with: make pmesh-optimizer
 //
 //   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 1 -al
+//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -vl 1 -al
 //   Adaptive limiting through FD:
-//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -vl 1 -al -fd
+//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -vl 1 -al -fd
 //
 // Sample runs:
 //   Adapted analytic Hessian:
@@ -630,7 +630,7 @@ int main (int argc, char *argv[])
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta.ProjectCoefficient(alim_coeff);
       zeta_0.ProjectCoefficient(alim_coeff);
-      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coeff_zeta);
+      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coeff_zeta, 1);
       socketstream vis1;
       common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
                              300, 600, 300, 300);
