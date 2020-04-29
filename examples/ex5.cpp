@@ -163,10 +163,14 @@ int main(int argc, char *argv[])
 
    BlockOperator darcyOp(block_offsets);
 
+   TransposeOperator *Bt = NULL;
+
    if (pa)
    {
+      Bt = new TransposeOperator(bVarf);
+
       darcyOp.SetBlock(0,0, mVarf);
-      darcyOp.SetBlock(0,1, new TransposeOperator(bVarf), -1.0);
+      darcyOp.SetBlock(0,1, Bt, -1.0);
       darcyOp.SetBlock(1,0, bVarf, -1.0);
    }
    else
@@ -174,9 +178,10 @@ int main(int argc, char *argv[])
       SparseMatrix &M(mVarf->SpMat());
       SparseMatrix &B(bVarf->SpMat());
       B *= -1.;
+      Bt = new TransposeOperator(&B);
 
       darcyOp.SetBlock(0,0, &M);
-      darcyOp.SetBlock(0,1, new TransposeOperator(&B));
+      darcyOp.SetBlock(0,1, Bt);
       darcyOp.SetBlock(1,0, &B);
    }
 
@@ -342,6 +347,7 @@ int main(int argc, char *argv[])
    delete invM;
    delete invS;
    delete S;
+   delete Bt;
    delete MinvBt;
    delete mVarf;
    delete bVarf;
