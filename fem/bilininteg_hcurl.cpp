@@ -20,8 +20,8 @@ namespace mfem
 {
 
 // Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 5;
-constexpr int HCURL_MAX_Q1D = 6;
+constexpr int HCURL_MAX_D1D = 8;
+constexpr int HCURL_MAX_Q1D = 8;
 
 // PA H(curl) Mass Assemble 2D kernel
 static void PAHcurlSetup2D(const int Q1D,
@@ -1827,8 +1827,8 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
    if (dim == 3)
    {
       // Reduce HCURL_MAX_D1D/Q1D to avoid using too much memory
-      constexpr int MAX_D1D = 4;
-      constexpr int MAX_Q1D = 5;
+      constexpr int MAX_D1D = 8;
+      constexpr int MAX_Q1D = 8;
       PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
                                                     mapsO->B, mapsC->B,
                                                     mapsO->G, mapsC->G,

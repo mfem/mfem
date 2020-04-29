@@ -68,7 +68,7 @@ using namespace std;
 
 //#define IMPEDANCE_POSITIVE
 
-#define FOSLS_DIRECT_SOLVER
+//#define FOSLS_DIRECT_SOLVER
 
 //#define ZERO_ORDER_FOSLS
 //#define ZERO_ORDER_FOSLS_COMPLEX
@@ -76,6 +76,8 @@ using namespace std;
 //#define IFFOSLS
 //#define IFFOSLS_H
 //#define IFFOSLS_ESS
+
+//#define FOSLS_INIT_GUESS
 
 //#define TEST_DECOUPLED_FOSLS
 //#define TEST_DECOUPLED_FOSLS_PROJ
@@ -2342,7 +2344,7 @@ public:
     LSpcg.SetMaxIter(2000);
     LSpcg.SetOperator(*LS_Maxwellop);
     LSpcg.SetPrintLevel(0);
-
+    
 #ifdef FOSLS_DIRECT_SOLVER
     std::vector<std::vector<int> > blockProcOffsets(numBlocks);
     std::vector<std::vector<int> > all_block_num_loc_rows(numBlocks);
@@ -2390,7 +2392,13 @@ public:
     if (!fullAssembly)
       {
 	blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, blockCoarseA, P, diag_pa, ess_tdof_list_empty);
+	precMG->SetTheta(0.5);
 	LSpcg.SetPreconditioner(*precMG);
+	LSpcg.iterative_mode = true;
+#ifdef FOSLS_INIT_GUESS
+	initialGuess.SetSize(LS_Maxwellop->Height());
+	initialGuess = 0.0;
+#endif
       }
 #else
     blockgmg::BlockMGSolver *precMG = new blockgmg::BlockMGSolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
@@ -2408,7 +2416,13 @@ public:
 #ifdef FOSLS_DIRECT_SOLVER
     invLSH->Mult(x, y);
 #else
+#ifdef FOSLS_INIT_GUESS
+    y = initialGuess;
+#endif
     LSpcg.Mult(x, y);
+#ifdef FOSLS_INIT_GUESS
+    initialGuess = y;
+#endif
 #endif
   }
   
@@ -2516,6 +2530,7 @@ private:
   mutable Vector z, Minv_x;
   
   CGSolver LSpcg;
+  mutable Vector initialGuess;
   
   STRUMPACKSolver *invLSH;
   HypreParMatrix *LSH;
@@ -2615,7 +2630,7 @@ public:
       cout << rank << ": LBTS A_EE * 1 norm " << At.Norml2() << endl;
       if (rank == 0)
 	{
-	  std::string filename = "Atfa7.txt";
+	  std::string filename = "Atpa7.txt";
 	  std::ofstream sfile(filename, std::ofstream::out);
 	  At.Print(sfile);
 	  sfile.close();

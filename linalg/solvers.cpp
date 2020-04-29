@@ -360,6 +360,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
+   int myid = -1;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
    if (iterative_mode)
    {
       oper->Mult(x, r);
@@ -395,6 +398,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       converged = 1;
       final_iter = 0;
       final_norm = sqrt(nom);
+      cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
       return;
    }
 
@@ -413,6 +417,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          final_iter = 0;
          final_norm = sqrt(nom);
+	 cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
          return;
       }
    }
@@ -510,6 +515,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "Average reduction factor = "
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
+   cout << myid << ": PCG iter " << final_iter << '\n' << std::flush;
    final_norm = sqrt(betanom);
 }
 

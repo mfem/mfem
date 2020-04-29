@@ -68,7 +68,12 @@ public:
 
     bM->FormSystemMatrix(ess_tdof_list, M);
     bM_eps->FormSystemMatrix(ess_tdof_list, M_eps);
-    bM_curl->FormColSystemMatrix(ess_tdof_list, M_curl);
+    //bM_curl->FormColSystemMatrix(ess_tdof_list, M_curl);
+    {
+      OperatorPtr M_curl_ptr;
+      bM_curl->FormRectangularSystemMatrix(ess_tdof_list, ess_tdof_list, M_curl_ptr);
+      M_curl = M_curl_ptr.As<HypreParMatrix>();
+    }
 
     M_inv.SetAbsTol(1.0e-12);
     M_inv.SetRelTol(1.0e-12);
@@ -132,18 +137,28 @@ public:
     a_mix1->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(pos));
     a_mix1->Assemble();
     a_mix1->Finalize();
-    HypreParMatrix *A_mix1 = new HypreParMatrix;
-    a_mix1->FormColSystemMatrix(ess_tdof_list, *A_mix1);
-    
+    HypreParMatrix *A_mix1 = NULL; // new HypreParMatrix;
+    //a_mix1->FormColSystemMatrix(ess_tdof_list, *A_mix1);
+    {
+      OperatorPtr A_mix1_ptr;
+      a_mix1->FormRectangularSystemMatrix(ess_tdof_list, ess_tdof_list, A_mix1_ptr);
+      A_mix1 = A_mix1_ptr.As<HypreParMatrix>();
+    }
+
     // (k curl u, v) + (k eps u, curl v)
     ParMixedBilinearForm *a_mix2 = new ParMixedBilinearForm(fespace,fespace);
     a_mix2->AddDomainIntegrator(new MixedVectorCurlIntegrator(pos));
     a_mix2->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(coeff));
     a_mix2->Assemble();
     a_mix2->Finalize();
-    HypreParMatrix *A_mix2 = new HypreParMatrix;
-    a_mix2->FormColSystemMatrix(ess_tdof_list, *A_mix2);
-    
+    HypreParMatrix *A_mix2 = NULL; // new HypreParMatrix;
+    //a_mix2->FormColSystemMatrix(ess_tdof_list, *A_mix2);
+    {
+      OperatorPtr A_mix2_ptr;
+      a_mix2->FormRectangularSystemMatrix(ess_tdof_list, ess_tdof_list, A_mix2_ptr);
+      A_mix2 = A_mix2_ptr.As<HypreParMatrix>();
+    }
+
     BlockOperator *LS_Maxwellop = new BlockOperator(block_trueOffsets);
     const int numBlocks = 4;
 
@@ -233,6 +248,7 @@ public:
     invLSH = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*LSH), MPI_COMM_WORLD);
 #else
     precMG = new BlockMGSolver(LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
+    precMG->SetTheta(0.5);
     LSpcg.SetPreconditioner(*precMG);
 #endif
   }
@@ -257,7 +273,7 @@ public:
 
     trueRhs->GetBlock(0) -= z;
 
-    M_curl.Mult(Minv_x, z);
+    M_curl->Mult(Minv_x, z);
     z *= 1.0 / omega;
     
     trueRhs->GetBlock(1) = z;
@@ -270,7 +286,7 @@ public:
 
     trueRhs->GetBlock(2) -= z;
 
-    M_curl.Mult(Minv_x, z);
+    M_curl->Mult(Minv_x, z);
     z *= 1.0 / omega;
 
     trueRhs->GetBlock(3) += z;
@@ -307,7 +323,7 @@ public:
     rhs = 0.0;
     rhsIm = 0.0;
 
-    const double ci = 3.3;
+    const double ci = 0.0; // 3.3;
 
     // Exact complex solution: E = Er + i Ei = Epw + ci i Epw, where Epw is E_exact.
     
@@ -427,10 +443,11 @@ public:
     
     // Check error of imaginary part
     E_gf.SetFromTrueDofs(trueSol->GetBlock(2));
-    E_gf *= (1.0 / ci);
+    const double iml2 = E_gf.Norml2();
+    E_gf *= ci == 0.0 ? 0.0 : (1.0 / ci);
     Error_E = E_gf.ComputeL2Error(Eex, irs);
 
-    cout << myid << ": imag error " << Error_E << " relative to " << norm_E << endl;
+    cout << myid << ": imag error " << Error_E << " relative to " << norm_E << ", l2 norm " << iml2 << endl;
   }
   
 private:
@@ -443,7 +460,7 @@ private:
   ParMixedBilinearForm *bM_curl;
   
   HypreParMatrix M, M_eps;
-  HypreParMatrix M_curl;
+  HypreParMatrix *M_curl;
 
   CGSolver M_inv;
 
