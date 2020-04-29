@@ -87,6 +87,7 @@ class FaceQuadratureInterpolator;
 class FiniteElementSpace
 {
    friend class InterpolationGridTransfer;
+   friend class PRefinementTransferOperator;
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -160,7 +161,12 @@ protected:
 
    void BuildElementToDofTable() const;
 
-   /// Helper to remove encoded sign from a DOF
+   /// Helpers to remove encoded sign from a DOF
+   static inline int DecodeDof(int dof)
+   {
+      return (dof >= 0) ? dof : (-1 - dof);
+   }
+
    static inline int DecodeDof(int dof, double& sign)
    { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
@@ -198,6 +204,7 @@ protected:
       RefinementOperator(const FiniteElementSpace *fespace,
                          const FiniteElementSpace *coarse_fes);
       virtual void Mult(const Vector &x, Vector &y) const;
+      virtual void MultTranspose(const Vector &x, Vector &y) const;
       virtual ~RefinementOperator();
    };
 
