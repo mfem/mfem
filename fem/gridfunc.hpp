@@ -225,35 +225,6 @@ public:
                        Vector &val, Vector *tr = NULL) const;
    ///@}
 
-   /** @name FaceElementTransformations Get Value Methods
-
-       These member functions are designed for use within
-       GridFunctionCoefficient objects.  These can be used with
-       FaceElementTransformations objects coming from
-       Mesh::GetFaceElementTransformations(),
-       Mesh::GetInteriorFaceElementTransformations(), or
-       Mesh::GetBdrFaceElementTransformations().
-
-       @note These methods do not reset the FaceElementTransformations
-       object so they should be safe to use within integration loops
-       or other contexts where the FaceElementTransformations is
-       already in use.
-   */
-   ///@{
-   /** Return a scalar value from within the face indicated by the
-       FaceElementTransformations object.
-   */
-   double GetValue(FaceElementTransformations &T, const IntegrationPoint &ip,
-                   int comp = 0, Vector *tr = NULL) const;
-
-   /** Return a vector value from within the face indicated by the
-       FaceElementTransformations object.
-   */
-   void GetVectorValue(FaceElementTransformations &T,
-                       const IntegrationPoint &ip,
-                       Vector &val, Vector *tr = NULL) const;
-   ///@}
-
    /** @name ElementTransformation Get Values Methods
 
        These are convenience methods for repeatedly calling GetValue
