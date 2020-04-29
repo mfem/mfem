@@ -643,18 +643,19 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    }
 }
 
-int
-FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
-                                  Geometry::Type master_geom, int edge_variant) const
+int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
+                                  Geometry::Type master_geom, int variant) const
 {
    switch (entity)
    {
       case 0: GetVertexDofs(index, dofs); return 0;
-      case 1: return GetEdgeDofs(index, dofs, edge_variant);
-      default: (index >= 0) ? GetFaceDofs(index, dofs)
-         /*             */ : GetDegenerateFaceDofs(index, dofs, master_geom);
-         return 0; // FIXME 3D
+      case 1: return GetEdgeDofs(index, dofs, variant);
+      case 2: if (index >= 0) { return GetFaceDofs(index, dofs, variant); }
+              else return 0;
+//         /*             */ : GetDegenerateFaceDofs(index, dofs, master_geom); // FIX ME - variant
+
    }
+   return 0;
 }
 
 
@@ -721,9 +722,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
-   // variable order spaces: handle edge constraints
    if (IsVariableOrder())
    {
+      // variable order spaces: handle edge constraints
       T.SetIdentityTransformation(Geometry::SEGMENT);
 
       MFEM_ASSERT(edge_dof.Size() == mesh->GetNEdges()+1, "");
@@ -741,6 +742,31 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             if (q < 0) { break; }
 
             const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
+            slave_fe->GetTransferMatrix(*master_fe, T, I);
+
+            AddDependencies(deps, master_dofs, slave_dofs, I);
+         }
+      }
+
+      // variable order spaces: handle face constraints
+      MFEM_ASSERT(face_dof.Size() == mesh->GetNFaces()+1, "");
+      for (int face = 0; face < mesh->GetNFaces(); face++)
+      {
+         if (face_dof.RowSize(face) <= 1) { continue; }
+
+         Geometry::Type geom = mesh->GetFaceGeometry(face);
+         T.SetIdentityTransformation(geom);
+
+         int p = GetFaceDofs(face, master_dofs, 0); // lowest order DOFs
+         const auto *master_fe = fec->GetFE(geom, p);
+
+         // constrain all higher order faces: interpolate the lowest order face
+         for (int variant = 1; ; variant++)
+         {
+            int q = GetFaceDofs(face, slave_dofs, variant);
+            if (q < 0) { break; }
+
+            const auto *slave_fe = fec->GetFE(geom, q);
             slave_fe->GetTransferMatrix(*master_fe, T, I);
 
             AddDependencies(deps, master_dofs, slave_dofs, I);
@@ -2004,67 +2030,77 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
    }
 }
 
-void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
+int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) const
 {
-#if 1
-   MFEM_ABORT("TODO");
-#else
-   int j, k, nv, ne, nf, nd, dim = mesh->Dimension();
+   int i, j, nv, ne, nf, nd, p, fbase, dim = mesh->Dimension();
    Array<int> V, E, Eo;
-   const int *ind;
+
+   if (IsVariableOrder())
+   {
+      const int* beg = face_dof.GetRow(face);
+      const int* end = face_dof.GetRow(face + 1);
+      if (variant >= end - beg) { return -1; } // past last edge DOFs
+
+      fbase = beg[variant];
+      nf = beg[variant+1] - fbase;
+
+      p = std::sqrt(nf) + 1;  // FIX ME: deduce 'p' from the number of face DOFs?
+      MFEM_ASSERT(fec->GetNumDof(mesh->GetFaceGeometry(face), p) == nf, "");
+   }
+   else
+   {
+      if (variant > 0) { return -1; }
+      p = fec->DefaultOrder();
+      nf = fec->GetNumDof(mesh->GetFaceGeometry(face), p);
+      fbase = face*nf;
+   }
 
    // for 1D, 2D and 3D faces
-   nv = fec->DofForGeometry(Geometry::POINT);
-   ne = (dim > 1) ? fec->DofForGeometry(Geometry::SEGMENT) : 0;
+   nv = fec->GetNumDof(Geometry::POINT, p);
+   ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, p) : 0;
+
    if (nv > 0)
    {
-      mesh->GetFaceVertices(i, V);
+      mesh->GetFaceVertices(face, V);
    }
    if (ne > 0)
    {
-      mesh->GetFaceEdges(i, E, Eo);
+      mesh->GetFaceEdges(face, E, Eo);
    }
-   nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
+
    nd = V.Size() * nv + E.Size() * ne + nf;
-   dofs.SetSize(nd);
+   dofs.SetSize(0);
+   dofs.Reserve(nd);
    if (nv > 0)
    {
-      for (k = 0; k < V.Size(); k++)
+      for (i = 0; i < V.Size(); i++)
       {
          for (j = 0; j < nv; j++)
          {
-            dofs[k*nv+j] = V[k]*nv+j;
+             dofs.Append(V[i]*nv + j);
          }
       }
    }
-   nv *= V.Size();
    if (ne > 0)
    {
-      for (k = 0; k < E.Size(); k++)
+      for (i = 0; i < E.Size(); i++)
       {
-         ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[k]);
-         for (j = 0; j < ne; j++)
-         {
-            if (ind[j] < 0)
-            {
-               dofs[nv+k*ne+j] = -1 - ( nvdofs+E[k]*ne+(-1-ind[j]) );
-            }
-            else
-            {
-               dofs[nv+k*ne+j] = nvdofs+E[k]*ne+ind[j];
-            }
-         }
+          int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
+          const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, p, Eo[i]);
+
+          for (int j = 0; j < ne; j++)
+          {
+             dofs.Append(EncodeDof(nvdofs + ebase, ind[j]));
+          }
       }
    }
-   ne = nv + ne * E.Size();
-   if (nf > 0)
+   for (int j = 0; j < nf; j++)
    {
-      for (j = nvdofs+nedofs+fdofs[i], k = 0; k < nf; j++, k++)
-      {
-         dofs[ne+k] = j;
-      }
+      dofs.Append(nvdofs + nedofs + fbase + j);
    }
-#endif
+
+   return p;
+
 }
 
 int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,
