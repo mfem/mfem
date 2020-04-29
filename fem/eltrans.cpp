@@ -551,88 +551,52 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
    }
 }
 
-int FaceElementTransformations::SetActiveSide(int s)
+void FaceElementTransformations::SetIntPoint(const IntegrationPoint *ip)
 {
-   if (s == 2) // automatic choice of side
+   IsoparametricTransformation::SetIntPoint(ip);
+
+   if (Elem1)
    {
-      if (Elem1 && Elem2)
-      {
-         side = (Elem1->Attribute <= Elem2->Attribute) ? 0 : 1;
-      }
-      else if (Elem1)
-      {
-         side = 0;
-      }
-      else if (Elem2)
-      {
-         side = 1;
-      }
-      else
-      {
-         MFEM_ABORT("FaceElementTransformation: both Elem1 and Elem2 are NULL. "
-                    "Automatic side selection failed!");
-      }
+      Loc1.Transform(*ip, eip1);
+      Elem1->SetIntPoint(&eip1);
    }
-   else
+   if (Elem2)
    {
-      if (s == 0 && Elem1)
-      {
-         side = 0;
-      }
-      else if (s == 1 && Elem2)
-      {
-         side = 1;
-      }
-      else
-      {
-         MFEM_ABORT("FaceElementTransformation: the ElementTransformation "
-                    "for the requested side is NULL.");
-      }
-   }
-
-   return side;
-}
-
-ElementTransformation *
-FaceElementTransformations::GetActiveElementTransformation()
-{
-   while (1)
-   {
-      if (side == 0)
-      {
-         return Elem1;
-      }
-      else if (side == 1)
-      {
-         return Elem2;
-      }
-
-      // Automatic selection has not yet occured.
-      SetActiveSide(2);
+      Loc2.Transform(*ip, eip2);
+      Elem2->SetIntPoint(&eip2);
    }
 }
 
-IntegrationPointTransformation *
-FaceElementTransformations::GetActivePointTransformation()
+ElementTransformation &
+FaceElementTransformations::GetElement1Transformation()
 {
-   while (1)
-   {
-      if (side == 0)
-      {
-         MFEM_VERIFY(mask & 4, "The IntegrationPointTransformation "
-                     "for side 1 has not been configured.");
-         return &Loc1;
-      }
-      else if (side == 1)
-      {
-         MFEM_VERIFY(mask & 8, "The IntegrationPointTransformation "
-                     "for side 2 has not been configured.");
-         return &Loc2;
-      }
+   MFEM_VERIFY(mask & 1 && Elem1 != NULL, "The ElementTransformation "
+               "for the element has not been configured for side 1.");
+   return *Elem1;
+}
 
-      // Automatic selection has not yet occured.
-      SetActiveSide(2);
-   }
+ElementTransformation &
+FaceElementTransformations::GetElement2Transformation()
+{
+   MFEM_VERIFY(mask & 2 && Elem2 != NULL, "The ElementTransformation "
+               "for the element has not been configured for side 2.");
+   return *Elem2;
+}
+
+IntegrationPointTransformation &
+FaceElementTransformations::GetIntPoint1Transformation()
+{
+   MFEM_VERIFY(mask & 4, "The IntegrationPointTransformation "
+               "for the element has not been configured for side 1.");
+   return Loc1;
+}
+
+IntegrationPointTransformation &
+FaceElementTransformations::GetIntPoint2Transformation()
+{
+   MFEM_VERIFY(mask & 8, "The IntegrationPointTransformation "
+               "for the element has not been configured for side 2.");
+   return Loc2;
 }
 
 void FaceElementTransformations::Transform(const IntegrationPoint &ip,
