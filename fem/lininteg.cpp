@@ -608,7 +608,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
-      Tr.Elem1->SetIntPoint(&eip);
+
       // compute uD through the face transformation
       w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
       if (!MQ)
@@ -690,7 +690,6 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       IntegrationPoint eip;
       Tr.Loc1.Transform(ip, eip);
       Tr.SetIntPoint(&ip);
-      Tr.Elem1->SetIntPoint(&eip);
 
       // Evaluate the Dirichlet b.c. using the face transformation.
       uD.Eval(u_dir, Tr, ip);
