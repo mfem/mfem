@@ -1475,15 +1475,24 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    if (face_dof) { return; }
    if (!mesh->BdrInfoAvailable()) { return; }
 
-   Array<Connection> face_dof_list;
-   Array<int> row;
+   // Find bdr to face mapping
    face_to_be.SetSize(mesh->GetNumFaces());
    face_to_be = -1;
    for (int b = 0; b < bdrElem_dof->Size(); b++)
    {
-      bdrElem_dof->GetRow(b, row);
       int f = mesh->GetBdrElementEdgeIndex(b);
       face_to_be[f] = b;
+   }
+
+   // Loop over faces in correct order, to prevent a sort
+   // Sort will destroy orientation info in ordering of dofs
+   Array<Connection> face_dof_list;
+   Array<int> row;
+   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   {
+      int b = face_to_be[f];
+      if (b == -1) { continue;}
+      bdrElem_dof->GetRow(b, row);
       Connection conn(f,0);
       for (int i = 0; i < row.Size(); i++)
       {
@@ -1491,9 +1500,8 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
          face_dof_list.Append(conn);
       }
    }
-   face_dof_list.Sort();
-   face_dof_list.Unique();
    face_dof = new Table(mesh->GetNumFaces(), face_dof_list);
+
 }
 
 void FiniteElementSpace::Construct()
