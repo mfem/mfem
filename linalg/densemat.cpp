@@ -3505,11 +3505,8 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
-void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
+void BatchLUFactor(Vector &Minv,const int m,const int NE, Array<int> &P)
 {
-
-   int m = Minv.SizeI();
-   int NE = Minv.SizeK();
    P.SetSize(m*NE);
    auto data_all = mfem::Reshape(Minv.ReadWrite(), m, m, NE);
    auto piv_all = mfem::Reshape(P.Write(), m, NE);
@@ -3573,11 +3570,10 @@ void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
 
 }
 
-void BatchLUSolve(DenseTensor &Minv, Array<int> &P, Vector &X)
+void BatchLUSolve(Vector &Minv, int m, int NE,
+                  Array<int> &P, Vector &X)
 {
 
-   int m = Minv.SizeI();
-   int NE = Minv.SizeK();
    auto data_all = mfem::Reshape(Minv.Read(), m, m, NE);
    auto piv_all = mfem::Reshape(P.Read(), m, NE);
    auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
