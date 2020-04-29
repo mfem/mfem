@@ -1212,26 +1212,52 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    }
 }
 
-void TMOP_Integrator::EnableAdaptiveLimiting(
-   const GridFunction &zeta0_gf, GridFunction &zeta_gf, Coefficient &coeff)
+void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
+                                             GridFunction &zeta_gf,
+                                             Coefficient &coeff,
+                                             int interp_type)
 {
    zeta_0 = &zeta0_gf;
    zeta = &zeta_gf;
    coeff_zeta = &coeff;
-   adapt_eval = new AdvectorCG;
+
+   if (interp_type == 0) { adapt_eval = new AdvectorCG; }
+   else if (interp_type == 1)
+   {
+#ifdef MFEM_USE_GSLIB
+      adapt_eval = new InterpolatorFP;
+#elif
+      MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+   }
+   else { MFEM_ABORT("Bad interpolation option."); }
+
    adapt_eval->SetSerialMetaInfo(*zeta->FESpace()->GetMesh(),
                                  *zeta->FESpace()->FEColl(), 1);
    adapt_eval->SetInitialField
    (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
 }
 
-void TMOP_Integrator::EnableAdaptiveLimiting(
-   const ParGridFunction &zeta0_gf, ParGridFunction &zeta_gf, Coefficient &coeff)
+void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &zeta0_gf,
+                                             ParGridFunction &zeta_gf,
+                                             Coefficient &coeff,
+                                             int interp_type)
 {
    zeta_0 = &zeta0_gf;
    zeta = &zeta_gf;
    coeff_zeta = &coeff;
-   adapt_eval = new AdvectorCG;
+
+   if (interp_type == 0) { adapt_eval = new AdvectorCG; }
+   else if (interp_type == 1)
+   {
+#ifdef MFEM_USE_GSLIB
+      adapt_eval = new InterpolatorFP;
+#elif
+      MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+   }
+   else { MFEM_ABORT("Bad interpolation option."); }
+
    adapt_eval->SetParMetaInfo(*zeta_gf.ParFESpace()->GetParMesh(),
                               *zeta_gf.ParFESpace()->FEColl(), 1);
    adapt_eval->SetInitialField
