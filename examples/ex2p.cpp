@@ -274,6 +274,13 @@ int main(int argc, char *argv[])
       pmesh->SetNodalFESpace(fespace);
    }
 
+   {
+      x.Save("ex2p.gf", 1);
+      ParGridFunction new_x(fespace, "ex2p.gf");
+      new_x -= x;
+      out << "GF difference: " << new_x.Norml1() << endl;
+   }
+
    // 16. Save in parallel the displaced mesh and the inverted solution (which
    //     gives the backward displacements to the original grid). This output
    //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".

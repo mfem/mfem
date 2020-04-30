@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   int nfiles = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -86,6 +87,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&nfiles, "-nf", "--num-files", "Number of files to write.");
    args.Parse();
    if (!args.Good())
    {
@@ -158,7 +160,7 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec, 1, 0);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -237,20 +239,52 @@ int main(int argc, char *argv[])
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
+   std::string filename("nranks_");
+   filename += to_string(num_procs);
+   filename += ".gf";
+   {
+      double t1;
+      t1 = MPI_Wtime();
+      x.Save(filename.c_str(), nfiles);
+      double t2 = MPI_Wtime();
+
+      if (myid == 0)
+      {
+         err << "elapsed write time: " << t2 - t1 << endl;
+      }
+   }
+   {
+      double t1;
+      t1 = MPI_Wtime();
+      ParGridFunction new_x(fespace, filename.c_str());
+      double t2 = MPI_Wtime();
+      if (myid == 0)
+      {
+         err << "elapsed read time: " << t2 - t1 << endl;
+      }
+      // new_x -= x;
+      // out << "GF difference: " << new_x.Norml1() << endl;
+   }
+
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      //mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "sol." << num_procs << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
+      //ofstream mesh_ofs(mesh_name.str().c_str());
+      //mesh_ofs.precision(8);
+      //pmesh->Print(mesh_ofs);
+      double t1 = MPI_Wtime();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
+      double t2 = MPI_Wtime();
+      if (myid == 0)
+      {
+         err << t2 - t1 << endl;
+      }
    }
 
    // 16. Send the solution by socket to a GLVis server.

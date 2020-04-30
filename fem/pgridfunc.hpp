@@ -83,6 +83,13 @@ public:
        constructed. The new ParGridFunction assumes ownership of both. */
    ParGridFunction(ParMesh *pmesh, std::istream &input);
 
+   /// Construct a ParGridFunction by loading a ParGridFunction saved using
+   /// ParGridFunction::Save(char *filename, int nfiles).
+   /** The parallel space @a *pf and the space used by the GridFunction saved
+       in @a *filename should match. The number of ranks used when loading the
+       ParGridFunction must be the same as when it was saved. */
+   ParGridFunction(ParFiniteElementSpace *pf, const char *filename);
+
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
        that have the same size.
@@ -323,6 +330,15 @@ public:
       adios2stream &out, const std::string &variable_name,
       const adios2stream::data_type type = adios2stream::data_type::point_data) const;
 #endif
+
+   /** Save the local grid functions to n number of files, where each file will
+       contain the grid functions from potentially multiple ranks. This is
+       similar to the syncIO approach from "Scalable Parallel I/O Alternatives
+       for Massively Parallel Partitioned Solver Systems" 
+       @param[in] filename - filename for output files with extension
+       @param[in] nfiles - number of files to write using MPI-IO
+       @note - takes into account the signs of the local dofs. */
+   void Save(const char *filename, const int nfiles = 1);
 
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out);
