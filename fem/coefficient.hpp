@@ -27,7 +27,10 @@ class ParMesh;
 #endif
 
 
-/// Base class Coefficients that optionally depend on space and time.
+/** @brief Base class Coefficients that optionally depend on space and 
+    time.  These are used by the BilinearFormIntegrator, 
+    LinearFormIntegrator, and NonlinearFormIntegrator classes to represent
+    the physical coeffiencients in the PDEs that are being discretized. */
 class Coefficient
 {
 protected:
@@ -192,7 +195,7 @@ public:
 
 
 /** @brief A coefficient that depends on 1 or 2 parent coefficients and a
-    transformation rule represented by a c-function.
+    transformation rule represented by a C-function.
 
     \f$ C(x,t) = T(Q1(x,t)) \f$ or \f$ C(x,t) = T(Q1(x,t), Q2(x,t)) \f$
 
@@ -217,7 +220,7 @@ public:
 };
 
 /** @brief Delta function coefficient optionally multiplied by a weight
-    coefficient and a scaled time dependent c-function.
+    coefficient and a scaled time dependent C-function.
 
     \f$ F(x,t) = w(x,t) s T(t) d(x - xc) \f$
 
@@ -332,8 +335,7 @@ public:
    { return active_attr[T.Attribute-1] ? c->Eval(T, ip, GetTime()) : 0.0; }
 };
 
-
-/// Base class for Vector Coefficients that optionally depend on time and space.
+/// Base class for vector Coefficients that optionally depend on time and space.
 class VectorCoefficient
 {
 protected:
@@ -341,7 +343,7 @@ protected:
    double time;
 
 public:
-   /// Initilize the a VectorCoefficient with vector dimension @a vd.
+   /// Initilize the VectorCoefficient with vector dimension @a vd.
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
    /// Set the time for time dependent coefficients
@@ -653,8 +655,8 @@ public:
    virtual ~VectorDeltaCoefficient() { }
 };
 
-/** @brief Derived vector coefficient that takes the value of the parent vector
-    coefficient for the active attrs and is zero otherwise. */
+/** @brief Derived vector coefficient that has the value of the parent vector
+    where it is active and is zero otherwise. */
 class VectorRestrictedCoefficient : public VectorCoefficient
 {
 private:
@@ -824,8 +826,8 @@ public:
 };
 
 
-/** @brief Derived matrix coefficient that takes the value of the parent
-    matrix coefficient for the active attrs and is zero otherwise. */
+/** @brief Derived matrix coefficient that has the value of the parent
+    matrix coefficient where it is active and is zero otherwise. */
 class MatrixRestrictedCoefficient : public MatrixCoefficient
 {
 private:

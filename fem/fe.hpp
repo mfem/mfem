@@ -257,7 +257,7 @@ public:
        mapped to physical space.
 
        A reference function \f$ \hat u(\hat x) \f$ can be mapped to a function
-      \f$ u(x) \f$ on a general physical element in following where:
+      \f$ u(x) \f$ on a general physical element in following ways:
        - \f$ x = T(\hat x) \f$ is the image of the reference point \f$ \hat x \f$
        - \f$ J = J(\hat x) \f$ is the Jacobian matrix of the transformation T
        - \f$ w = w(\hat x) = det(J) \f$ is the transformation weight factor for square J
@@ -601,7 +601,7 @@ public:
 
 
 /** @brief Class for finite elements with basis functions
-    that take scalar values. */
+    that return scalar values. */
 class ScalarFiniteElement : public FiniteElement
 {
 protected:
@@ -762,7 +762,7 @@ public:
                         DenseMatrix &I) const;
 };
 
-/** @brief Intermediate class for finite elements whose basis functions take
+/** @brief Intermediate class for finite elements whose basis functions return
     vector values. */
 class VectorFiniteElement : public FiniteElement
 {

@@ -271,7 +271,7 @@ public:
    inline void CopyFrom(const U *src)
    { std::memcpy(begin(), src, MemoryUsage()); }
 
-   /// STL-like begin.  Returns poiner to the first element of the array.
+   /// STL-like begin.  Returns pointer to the first element of the array.
    inline T* begin() { return data; }
 
    /// STL-like end.  Returns pointer after the last element of the array.

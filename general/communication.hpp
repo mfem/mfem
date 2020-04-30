@@ -413,7 +413,7 @@ struct VarMessage
       MPI_Get_count(&status, MPI_BYTE, &size);
    }
 
-   /** @briefNon-blocking probe for incoming message of this type from any rank.
+   /** @brief Non-blocking probe for incoming message of this type from any rank.
        If there is an incoming message, returns true and sets 'rank' and 'size'.
        Otherwise returns false. */
    static bool IProbe(int &rank, int &size, MPI_Comm comm)

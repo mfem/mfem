@@ -44,10 +44,8 @@ enum class AssemblyLevel
 };
 
 
-/** Class for bilinear form - Used to form a matrix given the
-    associated FE space and BLFIntegrators.  The
-    sum of all the BLFIntegrators will be used
-    form the matrix M.  */
+/** @brief Used to form a matrix given the associated FE space and BLFIntegrators
+    The sum of all the BLFIntegrators will be used form the matrix M.  */
 class BilinearForm : public Matrix
 {
 protected:

@@ -83,7 +83,7 @@ public:
    ~FABilinearFormExtension() {}
 };
 
-/// Data and methods for element-assembled bilinear forms NOT YET IMPLIMENTED
+/// Data and methods for element-assembled bilinear forms NOT YET IMPLEMENTED
 class EABilinearFormExtension : public BilinearFormExtension
 {
 public:
