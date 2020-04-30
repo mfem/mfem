@@ -47,6 +47,19 @@ void Func_3D_lin(const Vector &x, Vector &v)
    v[2] = -2.572 * x[0] + 1.321 * x[1] + 3.234 * x[2];
 }
 
+double func_3D_quad(const Vector &x)
+{
+   return x[0] * x[1] + 2.0 * x[1] * x[2] + 3.0 * x[2] * x[0];
+}
+
+void dfunc_3D_quad(const Vector &x, Vector &v)
+{
+  v.SetSize(3);
+  v[0] = 1.0 * x[1] + 3.0 * x[2];
+  v[1] = 2.0 * x[2] + 1.0 * x[0];
+  v[2] = 3.0 * x[0] + 2.0 * x[1];
+}
+  
 TEST_CASE("1D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
@@ -1981,6 +1994,301 @@ TEST_CASE("3D GetVectorValue",
       }
    }
    std::cout << "Checked GridFunction::GetVectorValue at "
+             << npts << " 3D points" << std::endl;
+}
+
+TEST_CASE("3D GetGradient",
+          "[GridFunction]"
+          "[GradientGridFunctionCoefficient]")
+{
+   int log = 1;
+   int n = 1;
+   int dim = 3;
+   int order = 2;
+   int npts = 0;
+
+   double tol = 1e-6;
+
+   for (int type = (int)Element::TETRAHEDRON;
+        type <= (int)Element::WEDGE; type++)
+   {
+      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+
+      FunctionCoefficient quadCoef(func_3D_quad);
+
+      SECTION("3D GetGradient tests for element type " + std::to_string(type))
+      {
+         H1_FECollection h1_fec(order, dim);
+         DG_FECollection dgv_fec(order, dim, BasisType::GaussLegendre,
+                                 FiniteElement::VALUE);
+
+         FiniteElementSpace h1_fespace(&mesh, &h1_fec);
+         FiniteElementSpace dgv_fespace(&mesh, &dgv_fec);
+
+         GridFunction h1_x(&h1_fespace);
+         GridFunction dgv_x(&dgv_fespace);
+
+         GradientGridFunctionCoefficient h1_xCoef(&h1_x);
+         GradientGridFunctionCoefficient dgv_xCoef(&dgv_x);
+
+         h1_x.ProjectCoefficient(quadCoef);
+         dgv_x.ProjectCoefficient(quadCoef);
+
+         Vector      f_val(dim);      f_val = 0.0;
+         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
+         Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
+
+         SECTION("Domain Evaluation 3D (H1 Context)")
+         {
+            std::cout << "Domain Evaluation 3D (H1 Context)" << std::endl;
+            for (int e = 0; e < mesh.GetNE(); e++)
+            {
+               ElementTransformation *T = mesh.GetElementTransformation(e);
+               const FiniteElement   *fe = h1_fespace.GetFE(e);
+               const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
+                                                        2*order + 2);
+
+               double h1_err = 0.0;
+               double dgv_err = 0.0;
+
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
+               for (int j=0; j<ir.GetNPoints(); j++)
+               {
+                  npts++;
+                  const IntegrationPoint &ip = ir.IntPoint(j);
+                  T->SetIntPoint(&ip);
+                  T->Transform(ip, tip);
+
+                  dfunc_3D_quad(tip, f_val);
+
+                  h1_xCoef.Eval(h1_gf_val, *T, ip);
+                  dgv_xCoef.Eval(dgv_gf_val, *T, ip);
+
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+
+		  h1_err  +=  h1_dist;
+                  dgv_err += dgv_dist;
+
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+			       << f_val[2] << ") vs. ("
+                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
+			       << h1_gf_val[2] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && dgv_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << dgv_gf_val[0] << "," << dgv_gf_val[1] << ","
+                               << dgv_gf_val[2] << ") " << dgv_dist
+                               << std::endl;
+                  }
+               }
+               h1_err /= ir.GetNPoints();
+               dgv_err /= ir.GetNPoints();
+
+               REQUIRE(h1_err == Approx(0.0));
+               REQUIRE(dgv_err == Approx(0.0));
+            }
+         }
+	 /*
+         SECTION("Boundary Evaluation 3D (H1 Context)")
+         {
+            std::cout << "Boundary Evaluation 3D (H1 Context)" << std::endl;
+            for (int be = 0; be < mesh.GetNBE(); be++)
+            {
+               ElementTransformation *T = mesh.GetBdrElementTransformation(be);
+               const FiniteElement   *fe = h1_fespace.GetBE(be);
+               const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
+                                                        2*order + 2);
+
+               double h1_err = 0.0;
+               double dgv_err = 0.0;
+               double dgi_err = 0.0;
+
+               double tip_data[3];
+               Vector tip(tip_data, 3);
+               for (int j=0; j<ir.GetNPoints(); j++)
+               {
+                  npts++;
+                  const IntegrationPoint &ip = ir.IntPoint(j);
+                  T->SetIntPoint(&ip);
+                  T->Transform(ip, tip);
+
+                  double f_val = func_3D_lin(tip);
+                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+
+                  h1_err += fabs(f_val - h1_gf_val);
+                  dgv_err += fabs(f_val - dgv_gf_val);
+                  dgi_err += fabs(f_val - dgi_gf_val);
+
+                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  {
+                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  {
+                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  {
+                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << std::endl;
+                  }
+               }
+               h1_err /= ir.GetNPoints();
+               dgv_err /= ir.GetNPoints();
+               dgi_err /= ir.GetNPoints();
+
+               REQUIRE(h1_err == Approx(0.0));
+               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(dgi_err == Approx(0.0));
+            }
+         }
+	 */
+	 /*
+         SECTION("Domain Evaluation 3D (DG Context)")
+         {
+            std::cout << "Domain Evaluation 3D (DG Context)" << std::endl;
+            for (int e = 0; e < mesh.GetNE(); e++)
+            {
+               ElementTransformation *T = mesh.GetElementTransformation(e);
+               const FiniteElement   *fe = dgv_fespace.GetFE(e);
+               const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
+                                                        2*order + 2);
+
+               double h1_err = 0.0;
+               double dgv_err = 0.0;
+               double dgi_err = 0.0;
+
+               double tip_data[3];
+               Vector tip(tip_data, 3);
+               for (int j=0; j<ir.GetNPoints(); j++)
+               {
+                  npts++;
+                  const IntegrationPoint &ip = ir.IntPoint(j);
+                  T->SetIntPoint(&ip);
+                  T->Transform(ip, tip);
+
+                  double f_val = func_3D_lin(tip);
+
+                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+
+                  h1_err += fabs(f_val - h1_gf_val);
+                  dgv_err += fabs(f_val - dgv_gf_val);
+                  dgi_err += fabs(f_val - dgi_gf_val);
+
+                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgv " << f_val << " "
+                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " dgi " << f_val << " "
+                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << std::endl;
+                  }
+               }
+               h1_err /= ir.GetNPoints();
+               dgv_err /= ir.GetNPoints();
+               dgi_err /= ir.GetNPoints();
+
+               REQUIRE(h1_err == Approx(0.0));
+               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(dgi_err == Approx(0.0));
+            }
+         }
+	 */
+	 /*
+         SECTION("Boundary Evaluation 3D (DG Context)")
+         {
+            std::cout << "Boundary Evaluation 3D (DG Context)" << std::endl;
+            for (int be = 0; be < mesh.GetNBE(); be++)
+            {
+               FaceElementTransformations *T =
+                  mesh.GetBdrFaceTransformations(be);
+               const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(),
+                                                        2*order + 2);
+
+               double h1_err = 0.0;
+               double dgv_err = 0.0;
+               double dgi_err = 0.0;
+
+               double tip_data[3];
+               Vector tip(tip_data, 3);
+               for (int j=0; j<ir.GetNPoints(); j++)
+               {
+                  npts++;
+                  const IntegrationPoint &ip = ir.IntPoint(j);
+
+                  T->SetIntPoint(&ip);
+                  T->Transform(ip, tip);
+
+                  double f_val = func_3D_lin(tip);
+
+                  double h1_gf_val = h1_xCoef.Eval(*T, ip);
+                  double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
+                  double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
+
+                  h1_err += fabs(f_val - h1_gf_val);
+                  dgv_err += fabs(f_val - dgv_gf_val);
+                  dgi_err += fabs(f_val - dgi_gf_val);
+
+                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  {
+                     std::cout << be << ":" << j << " h1  " << f_val << " "
+                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
+                  {
+                     std::cout << be << ":" << j << " dgv " << f_val << " "
+                               << dgv_gf_val << " " << fabs(f_val - dgv_gf_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - dgi_gf_val) > tol)
+                  {
+                     std::cout << be << ":" << j << " dgi " << f_val << " "
+                               << dgi_gf_val << " " << fabs(f_val - dgi_gf_val)
+                               << std::endl;
+                  }
+               }
+               h1_err /= ir.GetNPoints();
+               dgv_err /= ir.GetNPoints();
+               dgi_err /= ir.GetNPoints();
+
+               REQUIRE(h1_err == Approx(0.0));
+               REQUIRE(dgv_err == Approx(0.0));
+               REQUIRE(dgi_err == Approx(0.0));
+            }
+         }
+	 */
+      }
+   }
+   std::cout << "Checked GridFunction::GetGradient at "
              << npts << " 3D points" << std::endl;
 }
 
