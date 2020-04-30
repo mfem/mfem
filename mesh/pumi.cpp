@@ -983,33 +983,7 @@ IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
 {
   int num_nodes = pumi_xi.size();
   IntegrationRule mfem_xi(num_nodes);
-  int rotation = 0;
-
-  // if check orientation is on then find the rotation
-  if (checkOrientation) {
-    // by this point
-    MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
-    // get downward vertices of PUMI element
-    apf::Downward vs;
-    int nv = apf_mesh->getDownward(tet,0,vs);
-    int pumi_vid[nv];
-    for (int i = 0; i < nv; i++)
-      pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
-
-    // get downward vertices of MFEM element
-    mfem::Array<int> mfem_vid;
-    this->GetElementVertices(elemId, mfem_vid);
-
-    // get rotated indices of PUMI element
-    int pumi_vid_rot[nv];
-    for (int i = 0; i < nv; i++)
-      pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
-    apf::Downward vs_rot;
-    for (int i = 0; i < nv; i++)
-      vs_rot[i] = vs[pumi_vid_rot[i]];
-    rotation = ma::findTetRotation(apf_mesh, tet, vs_rot);
-  }
-
+  int rotation = checkOrientation ? RotationPUMItoMFEM(apf_mesh, tet, elemId):0;
   for(int i = 0; i < num_nodes; i++) {
     // for non zero "rotation", rotate the xi
     if (rotation)
@@ -1031,156 +1005,43 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                   apf::Field* pr_field,
                                   apf::Field* vel_mag_field)
 {
-   int dim = apf_mesh->getDimension(); // dimension of mesh
-   int type = apf::Mesh::simplexTypes[dim]; // highest dim entity simplex type
    apf::FieldShape* field_shape = getShape(vel_field);
-   apf::EntityShape* es = field_shape->getEntityShape(type);
-
-   IntegrationRule pumi_nodes;
-   getPumiNodeXis(field_shape, type, pumi_nodes);
+   int dim = apf_mesh->getDimension();
 
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(dim);
    int iel = 0;
    while ((ent = apf_mesh->iterate(itr)))
    {
+      apf::NewArray<apf::Vector3> pumi_nodes;
+      apf::getElementNodeXis(field_shape, apf_mesh, ent, pumi_nodes);
+      IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
+     	  apf_mesh, ent, iel, pumi_nodes, true);
       // Get the solution
-      Vector u_vel, v_vel, w_vel;
-      grid_vel->GetValues(iel, pumi_nodes, u_vel, 1);
-      grid_vel->GetValues(iel, pumi_nodes, v_vel, 2);
-      grid_vel->GetValues(iel, pumi_nodes, w_vel, 3);
-
+      ElementTransformation* eltr = this->GetElementTransformation(iel);
+      DenseMatrix vel;
+      grid_vel->GetVectorValues(*eltr, mfem_nodes, vel);
       Vector pr;
-      grid_pr->GetValues(iel, pumi_nodes, pr, 1);
+      grid_pr->GetValues(iel, mfem_nodes, pr, 1);
 
-      int dof_id = 0;
+      int non = 0;
       for (int d = 0; d <= dim; d++) {
-      	int d_type = apf::Mesh::simplexTypes[d];
-      	if (field_shape->hasNodesIn(d_type))
-	{
-	  int non = field_shape->countNodesOn(d_type);
-	  Array<int> order(non);
-	  // initialize to 0 in case alignSharedNodes does not do anything
-	  order = 0;
-
-	  apf::Downward down;
-	  int nd =  apf_mesh->getDownward(ent, d_type, down);
-	  for (int ii = 0 ; ii < nd; ++ii)
-	  {
-	      es->alignSharedNodes(apf_mesh, ent, down[ii], order);
-	      for (int jj = 0; jj < non; jj++)
-	      {
-		int cnt = dof_id + order[jj];
-		double mag = u_vel[cnt] * u_vel[cnt] +
-			     v_vel[cnt] * v_vel[cnt] +
-			     w_vel[cnt] * w_vel[cnt];
-		mag = sqrt(mag);
-		apf::setScalar(vel_mag_field, down[ii], jj, mag);
-
-		// Set vel
-		double vels[3] = {u_vel[cnt], v_vel[cnt], w_vel[cnt]};
-		apf::setComponents(vel_field, down[ii], jj, vels);
-
-		// Set Pr
-		apf::setScalar(pr_field, down[ii], jj, pr[cnt]);
-
-	      }
-	      // Counter
-	      dof_id += non;
+	if (!field_shape->hasNodesIn(d)) continue;
+	apf::Downward a;
+	int na = apf_mesh->getDownward(ent,d,a);
+	for (int i = 0; i < na; i++) {
+	  int type = apf_mesh->getType(a[i]);
+	  int nan = field_shape->countNodesOn(type);
+	  for (int n = 0; n < nan; n++) {
+	    apf::Vector3 v(vel.GetColumn(non));
+	    apf::setVector(vel_field, a[i], n, v);
+	    apf::setScalar(pr_field, a[i], n, pr[non]);
+	    apf::setScalar(vel_mag_field, a[i], n, v.getLength());
+	    non++;
 	  }
 	}
       }
-      /* // Transfer */
-      /* apf::Downward vtxs; */
-      /* int num_vts = apf_mesh->getDownward(ent, 0, vtxs); */
-      /* for (int kk = 0; kk < num_vts; kk++) */
-      /* { */
-      /*    double mag = u_vel[kk] * u_vel[kk] + v_vel[kk] * v_vel[kk] + */
-      /*                 w_vel[kk] * w_vel[kk]; */
-      /*    mag = sqrt(mag); */
-      /*    apf::setScalar(vel_mag_field, vtxs[kk], 0, mag); */
-      /*    // Set vel */
-      /*    double vels[3] = {u_vel[kk], v_vel[kk], w_vel[kk]}; */
-      /*    apf::setComponents(vel_field, vtxs[kk], 0, vels); */
-
-      /*    // Set Pr */
-      /*    apf::setScalar(pr_field, vtxs[kk], 0, pr[kk]); */
-      /* } */
-
-      /* int dofId = num_vts; */
-
-      /* // Edge Dofs */
-      /* if (field_shape->hasNodesIn(apf::Mesh::EDGE)) */
-      /* { */
-      /*    int ndOnEdge = field_shape->countNodesOn(apf::Mesh::EDGE); */
-      /*    Array<int> order(ndOnEdge); */
-
-      /*    apf::Downward edges; */
-      /*    int num_edge =  apf_mesh->getDownward(ent, apf::Mesh::EDGE, edges); */
-      /*    for (int ii = 0 ; ii < num_edge; ++ii) */
-      /*    { */
-      /*       es->alignSharedNodes(apf_mesh, ent, edges[ii], order); */
-      /*       for (int jj = 0; jj < ndOnEdge; jj++) */
-      /*       { */
-      /*          int cnt = dofId + order[jj]; */
-      /*          double mag = u_vel[cnt] * u_vel[cnt] + */
-      /*                       v_vel[cnt] * v_vel[cnt] + */
-      /*                       w_vel[cnt] * w_vel[cnt]; */
-      /*          mag = sqrt(mag); */
-      /*          apf::setScalar(vel_mag_field, edges[ii], jj, mag); */
-
-      /*          // Set vel */
-      /*          double vels[3] = {u_vel[cnt], v_vel[cnt], w_vel[cnt]}; */
-      /*          apf::setComponents(vel_field, edges[ii], jj, vels); */
-
-      /*          // Set Pr */
-      /*          apf::setScalar(pr_field, edges[ii], jj, pr[cnt]); */
-
-      /*       } */
-      /*       // Counter */
-      /*       dofId += ndOnEdge; */
-      /*    } */
-      /* } */
-      /* // Face Dofs */
-      /* if (field_shape->hasNodesIn(apf::Mesh::TRIANGLE)) */
-      /* { */
-      /*    int ndOnFace = field_shape->countNodesOn(apf::Mesh::TRIANGLE); */
-      /*    Array<int> order(ndOnFace); */
-
-      /*    apf::Downward faces; */
-      /*    int num_face = apf_mesh->getDownward(ent, apf::Mesh::TRIANGLE, faces); */
-      /*    for (int ii = 0; ii < num_face; ii++) */
-      /*    { */
-      /*       if ( ndOnFace > 1) */
-      /*       { */
-      /*          es->alignSharedNodes(apf_mesh, ent, faces[ii], order); */
-      /*       } */
-      /*       else */
-      /*       { */
-      /*          order[0] = 0; */
-      /*       } */
-      /*       for (int jj = 0; jj < ndOnFace; jj++) */
-      /*       { */
-      /*          int cnt = dofId + order[jj]; */
-      /*          double mag = u_vel[cnt] * u_vel[cnt] + */
-      /*                       v_vel[cnt] * v_vel[cnt] + */
-      /*                       w_vel[cnt] * w_vel[cnt]; */
-      /*          mag = sqrt(mag); */
-      /*          apf::setScalar(vel_mag_field, faces[ii], jj, mag); */
-
-      /*          // Set vel */
-      /*          double vels[3] = {u_vel[cnt], v_vel[cnt], w_vel[cnt]}; */
-      /*          apf::setComponents(vel_field, faces[ii], jj, vels); */
-
-      /*          // Set Pr */
-      /*          apf::setScalar(pr_field, faces[ii], jj, pr[cnt]); */
-      /*       } */
-      /*       // Counter */
-      /*       dofId += ndOnFace; */
-      /*    } */
-      /* } */
-
-      /* iel++; */
+      iel++;
    }
    apf_mesh->end(itr);
 }
@@ -1188,197 +1049,42 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 // Transfer a scalar field its magnitude to use for mesh adaptation.
 void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                   ParGridFunction* grid_pr,
-                                  apf::Field* PrField,
-                                  apf::Field* PrMagField)
+                                  apf::Field* pr_field,
+                                  apf::Field* pr_mag_field)
 {
-   apf::FieldShape* PrFieldShape = getShape(PrField);
-   int num_nodes = 4 * PrFieldShape->countNodesOn(0) + // Vertex
-                   6 * PrFieldShape->countNodesOn(1) + // Edge
-                   4 * PrFieldShape->countNodesOn(2) + // Triangle
-                   PrFieldShape->countNodesOn(4); // Tetrahedron
+   apf::FieldShape* field_shape = getShape(pr_field);
+   int dim = apf_mesh->getDimension();
 
-   // Define integration points
-   IntegrationRule pumi_nodes(num_nodes);
-   int ip_cnt = 0;
-   apf::Vector3 xi_crd(0.,0.,0.);
-
-   // Create a template of dof holders coordinates in parametric coordinates.
-   // The ordering is taken care of when the field is transferred to PUMI.
-
-   // Dofs on Vertices
-   IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-   double pt_crd[3] = {0., 0., 0.};
-   ip.Set(pt_crd, 3);
-   for (int kk = 0; kk < 3; kk++)
-   {
-      IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-      double pt_crd[3] = {0.,0.,0.};
-      pt_crd[kk] = 1.0;
-      ip.Set(pt_crd, 3);
-   }
-   // Dofs on Edges
-   if (PrFieldShape->hasNodesIn(apf::Mesh::EDGE))
-   {
-      const int nn = PrFieldShape->countNodesOn(apf::Mesh::EDGE);
-      for (int ii = 0; ii < 6; ii++)
-      {
-         for (int jj = 0; jj < nn; jj++)
-         {
-            PrFieldShape->getNodeXi(apf::Mesh::EDGE, jj, xi_crd);
-            xi_crd[0] = 0.5 * (xi_crd[0] + 1.); // from (-1,1) to (0,1)
-            double pt_crd[3] = {0., 0., 0.};
-            switch (ii)
-            {
-               case 0:
-                  pt_crd[0] = xi_crd[0];
-                  break;
-               case 1:
-                  pt_crd[0] = 1. - xi_crd[0];
-                  pt_crd[1] = xi_crd[0];
-                  break;
-               case 2:
-                  pt_crd[1] = xi_crd[0];
-                  break;
-               case 3:
-                  pt_crd[2] = xi_crd[0];
-                  break;
-               case 4:
-                  pt_crd[0] = 1. - xi_crd[0];
-                  pt_crd[2] = xi_crd[0];
-                  break;
-               case 5:
-                  pt_crd[1] = 1. - xi_crd[0];
-                  pt_crd[2] = xi_crd[0];
-                  break;
-            }
-            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-            ip.Set(pt_crd, 3);
-         }
-      }
-   }
-   // Dofs on Faces
-   if (PrFieldShape->hasNodesIn(apf::Mesh::TRIANGLE))
-   {
-      const int nn = PrFieldShape->countNodesOn(apf::Mesh::TRIANGLE);
-      for (int ii = 0; ii < 4; ii++)
-      {
-         for (int jj = 0; jj < nn; jj++)
-         {
-            PrFieldShape->getNodeXi(apf::Mesh::TRIANGLE, jj, xi_crd);
-            double pt_crd[3] = {0., 0., 0.};
-            switch (ii)
-            {
-               case 0:
-                  pt_crd[0] = xi_crd[0];
-                  pt_crd[1] = xi_crd[1];
-                  break;
-               case 1:
-                  pt_crd[0] = xi_crd[0];
-                  pt_crd[2] = xi_crd[2];
-                  break;
-               case 2:
-                  pt_crd[0] = xi_crd[0];
-                  pt_crd[1] = xi_crd[1];
-                  pt_crd[2] = xi_crd[2];
-                  break;
-               case 3:
-                  pt_crd[1] = xi_crd[0];
-                  pt_crd[2] = xi_crd[1];
-                  break;
-            }
-            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-            ip.Set(pt_crd, 3);
-         }
-      }
-   }
-   MFEM_ASSERT(ip_cnt == num_nodes, "");
-
-   // Other dofs
    apf::MeshEntity* ent;
-   apf::MeshIterator* itr = apf_mesh->begin(3);
+   apf::MeshIterator* itr = apf_mesh->begin(dim);
    int iel = 0;
    while ((ent = apf_mesh->iterate(itr)))
    {
+      apf::NewArray<apf::Vector3> pumi_nodes;
+      apf::getElementNodeXis(field_shape, apf_mesh, ent, pumi_nodes);
+      IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
+     	  apf_mesh, ent, iel, pumi_nodes, true);
       // Get the solution
-      Vector pr;
-      grid_pr->GetValues(iel, pumi_nodes, pr, 1);
+      Vector vals;
+      grid_pr->GetValues(iel, mfem_nodes, vals, 1);
 
-      // Transfer
-      apf::Downward vtxs;
-      int num_vts = apf_mesh->getDownward(ent, 0, vtxs);
-      for (int kk = 0; kk < num_vts; kk++)
-      {
-         double mag;
-         (pr[kk] >= 0. ? mag = pr[kk] : mag = -pr[kk]);
-         apf::setScalar(PrMagField, vtxs[kk], 0, mag);
-
-         // Set Pr
-         apf::setScalar(PrField, vtxs[kk], 0, pr[kk]);
+      int non = 0;
+      for (int d = 0; d <= dim; d++) {
+	if (!field_shape->hasNodesIn(d)) continue;
+	apf::Downward a;
+	int na = apf_mesh->getDownward(ent,d,a);
+	for (int i = 0; i < na; i++) {
+	  int type = apf_mesh->getType(a[i]);
+	  int nan = field_shape->countNodesOn(type);
+	  for (int n = 0; n < nan; n++) {
+	    double pr = vals[non];
+	    double pr_mag = pr >= 0 ? pr : -pr;
+	    apf::setScalar(pr_field, a[i], n, pr);
+	    apf::setScalar(pr_mag_field, a[i], n, pr_mag);
+	    non++;
+	  }
+	}
       }
-
-      int dofId = num_vts;
-
-      apf::EntityShape* es = PrFieldShape->getEntityShape(apf::Mesh::TET);
-      // Edge Dofs
-      if (PrFieldShape->hasNodesIn(apf::Mesh::EDGE))
-      {
-         int ndOnEdge = PrFieldShape->countNodesOn(apf::Mesh::EDGE);
-         Array<int> order(ndOnEdge);
-
-         apf::Downward edges;
-         int num_edge =  apf_mesh->getDownward(ent, apf::Mesh::EDGE, edges);
-         for (int ii = 0 ; ii < num_edge; ++ii)
-         {
-            es->alignSharedNodes(apf_mesh, ent, edges[ii], order);
-            for (int jj = 0; jj < ndOnEdge; jj++)
-            {
-               int cnt = dofId + order[jj];
-               double mag;
-               (pr[cnt] >= 0. ? mag = pr[cnt] : mag = -pr[cnt]);
-               apf::setScalar(PrMagField, edges[ii], jj, mag);
-
-               // Set Pr
-               apf::setScalar(PrField, edges[ii], jj, pr[cnt]);
-
-            }
-            // Counter
-            dofId += ndOnEdge;
-         }
-      }
-
-      // Face Dofs
-      if (PrFieldShape->hasNodesIn(apf::Mesh::TRIANGLE))
-      {
-         int ndOnFace = PrFieldShape->countNodesOn(apf::Mesh::TRIANGLE);
-         Array<int> order(ndOnFace);
-
-         apf::Downward faces;
-         int num_face = apf_mesh->getDownward(ent, apf::Mesh::TRIANGLE, faces);
-         for (int ii = 0; ii < num_face; ii++)
-         {
-            if ( ndOnFace > 1)
-            {
-               es->alignSharedNodes(apf_mesh, ent, faces[ii], order);
-            }
-            else
-            {
-               order[0] = 0;
-            }
-            for (int jj = 0; jj < ndOnFace; jj++)
-            {
-               int cnt = dofId + order[jj];
-               double mag;
-               (pr[cnt] >= 0. ? mag = pr[cnt] : mag = -pr[cnt]);
-               apf::setScalar(PrMagField, faces[ii], jj, mag);
-
-               // Set Pr
-               apf::setScalar(PrField, faces[ii], jj, pr[cnt]);
-            }
-            // Counter
-            dofId += ndOnFace;
-         }
-      }
-
       iel++;
    }
    apf_mesh->end(itr);
@@ -1392,202 +1098,38 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                         apf::Field* vel_mag_field)
 {
    apf::FieldShape* field_shape = getShape(vel_field);
+   int dim = apf_mesh->getDimension();
 
-   int num_nodes = 4 * field_shape->countNodesOn(0) + // Vertex
-                   6 * field_shape->countNodesOn(1) + // Edge
-                   4 * field_shape->countNodesOn(2) + // Triangle
-                   field_shape->countNodesOn(4);// Tetrahedron
-
-   // Define integration points
-   IntegrationRule pumi_nodes(num_nodes);
-   int ip_cnt = 0;
-   apf::Vector3 xi_crd(0.,0.,0.);
-
-   // Create a template of dof holders coordinates in parametric coordinates.
-   // The ordering is taken care of when the field is transferred to PUMI.
-
-   // Dofs on Vertices
-   IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-   double pt_crd[3] = {0., 0., 0.};
-   ip.Set(pt_crd, 3);
-   for (int kk = 0; kk < 3; kk++)
-   {
-      IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-      double pt_crd[3] = {0.,0.,0.};
-      pt_crd[kk] = 1.0;
-      ip.Set(pt_crd, 3);
-   }
-   // Dofs on Edges
-   if (field_shape->hasNodesIn(apf::Mesh::EDGE))
-   {
-      const int nn = field_shape->countNodesOn(apf::Mesh::EDGE);
-      for (int ii = 0; ii < 6; ii++)
-      {
-         for (int jj = 0; jj < nn; jj++)
-         {
-            field_shape->getNodeXi(apf::Mesh::EDGE, jj, xi_crd);
-            xi_crd[0] = 0.5 * (xi_crd[0] + 1.); // from (-1,1) to (0,1)
-            double pt_crd[3] = {0., 0., 0.};
-            switch (ii)
-            {
-               case 0:
-                  pt_crd[0] = xi_crd[0];
-                  break;
-               case 1:
-                  pt_crd[0] = 1. - xi_crd[0];
-                  pt_crd[1] = xi_crd[0];
-                  break;
-               case 2:
-                  pt_crd[1] = xi_crd[0];
-                  break;
-               case 3:
-                  pt_crd[2] = xi_crd[0];
-                  break;
-               case 4:
-                  pt_crd[0] = 1. - xi_crd[0];
-                  pt_crd[2] = xi_crd[0];
-                  break;
-               case 5:
-                  pt_crd[1] = 1. - xi_crd[0];
-                  pt_crd[2] = xi_crd[0];
-                  break;
-            }
-            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-            ip.Set(pt_crd, 3);
-         }
-      }
-   }
-   // Dofs on Faces
-   if (field_shape->hasNodesIn(apf::Mesh::TRIANGLE))
-   {
-      const int nn = field_shape->countNodesOn(apf::Mesh::TRIANGLE);
-      for (int ii = 0; ii < 4; ii++)
-      {
-         for (int jj = 0; jj < nn; jj++)
-         {
-            field_shape->getNodeXi(apf::Mesh::TRIANGLE, jj, xi_crd);
-            double pt_crd[3] = {0., 0., 0.};
-            switch (ii)
-            {
-               case 0:
-                  pt_crd[0] = xi_crd[0];
-                  pt_crd[1] = xi_crd[1];
-                  break;
-               case 1:
-                  pt_crd[0] = xi_crd[0];
-                  pt_crd[2] = xi_crd[2];
-                  break;
-               case 2:
-                  pt_crd[0] = xi_crd[0];
-                  pt_crd[1] = xi_crd[1];
-                  pt_crd[2] = xi_crd[2];
-                  break;
-               case 3:
-                  pt_crd[1] = xi_crd[0];
-                  pt_crd[2] = xi_crd[1];
-                  break;
-            }
-            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
-            ip.Set(pt_crd, 3);
-         }
-      }
-   }
-   MFEM_ASSERT(ip_cnt == num_nodes, "");
-
-   // Other dofs
    apf::MeshEntity* ent;
-   apf::MeshIterator* itr = apf_mesh->begin(3);
+   apf::MeshIterator* itr = apf_mesh->begin(dim);
    int iel = 0;
    while ((ent = apf_mesh->iterate(itr)))
    {
+      apf::NewArray<apf::Vector3> pumi_nodes;
+      apf::getElementNodeXis(field_shape, apf_mesh, ent, pumi_nodes);
+      IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
+     	  apf_mesh, ent, iel, pumi_nodes, true);
       // Get the solution
-      Vector u_vel, v_vel, w_vel;
-      grid_vel->GetValues(iel, pumi_nodes, u_vel, 1);
-      grid_vel->GetValues(iel, pumi_nodes, v_vel, 2);
-      grid_vel->GetValues(iel, pumi_nodes, w_vel, 3);
+      ElementTransformation* eltr = this->GetElementTransformation(iel);
+      DenseMatrix vel;
+      grid_vel->GetVectorValues(*eltr, mfem_nodes, vel);
 
-      // Transfer
-      apf::Downward vtxs;
-      int num_vts = apf_mesh->getDownward(ent, 0, vtxs);
-      for (int kk = 0; kk < num_vts; kk++)
-      {
-         double mag = u_vel[kk] * u_vel[kk] + v_vel[kk] * v_vel[kk] +
-                      w_vel[kk] * w_vel[kk];
-         mag = sqrt(mag);
-         apf::setScalar(vel_mag_field, vtxs[kk], 0, mag);
-         // Set vel
-         double vels[3] = {u_vel[kk], v_vel[kk], w_vel[kk]};
-         apf::setComponents(vel_field, vtxs[kk], 0, vels);
+      int non = 0;
+      for (int d = 0; d <= dim; d++) {
+	if (!field_shape->hasNodesIn(d)) continue;
+	apf::Downward a;
+	int na = apf_mesh->getDownward(ent,d,a);
+	for (int i = 0; i < na; i++) {
+	  int type = apf_mesh->getType(a[i]);
+	  int nan = field_shape->countNodesOn(type);
+	  for (int n = 0; n < nan; n++) {
+	    apf::Vector3 v(vel.GetColumn(non));
+	    apf::setScalar(vel_mag_field, a[i], n, v.getLength());
+	    apf::setVector(vel_field, a[i], n, v);
+	    non++;
+	  }
+	}
       }
-
-      int dofId = num_vts;
-
-      apf::EntityShape* es = field_shape->getEntityShape(apf::Mesh::TET);
-      // Edge Dofs
-      if (field_shape->hasNodesIn(apf::Mesh::EDGE))
-      {
-         int ndOnEdge = field_shape->countNodesOn(apf::Mesh::EDGE);
-         Array<int> order(ndOnEdge);
-
-         apf::Downward edges;
-         int num_edge =  apf_mesh->getDownward(ent, apf::Mesh::EDGE, edges);
-         for (int ii = 0 ; ii < num_edge; ++ii)
-         {
-            es->alignSharedNodes(apf_mesh, ent, edges[ii], order);
-            for (int jj = 0; jj < ndOnEdge; jj++)
-            {
-               int cnt = dofId + order[jj];
-               double mag = u_vel[cnt] * u_vel[cnt] +
-                            v_vel[cnt] * v_vel[cnt] +
-                            w_vel[cnt] * w_vel[cnt];
-               mag = sqrt(mag);
-               apf::setScalar(vel_mag_field, edges[ii], jj, mag);
-
-               // Set vel
-               double vels[3] = {u_vel[cnt], v_vel[cnt], w_vel[cnt]};
-               apf::setComponents(vel_field, edges[ii], jj, vels);
-            }
-            // Counter
-            dofId += ndOnEdge;
-         }
-      }
-
-      // Face Dofs
-      if (field_shape->hasNodesIn(apf::Mesh::TRIANGLE))
-      {
-         int ndOnFace = field_shape->countNodesOn(apf::Mesh::TRIANGLE);
-         Array<int> order(ndOnFace);
-
-         apf::Downward faces;
-         int num_face = apf_mesh->getDownward(ent, apf::Mesh::TRIANGLE, faces);
-         for (int ii = 0; ii < num_face; ii++)
-         {
-            if ( ndOnFace > 1)
-            {
-               es->alignSharedNodes(apf_mesh, ent, faces[ii], order);
-            }
-            else
-            {
-               order[0] = 0;
-            }
-            for (int jj = 0; jj < ndOnFace; jj++)
-            {
-               int cnt = dofId + order[jj];
-               double mag = u_vel[cnt] * u_vel[cnt] +
-                            v_vel[cnt] * v_vel[cnt] +
-                            w_vel[cnt] * w_vel[cnt];
-               mag = sqrt(mag);
-               apf::setScalar(vel_mag_field, faces[ii], jj, mag);
-
-               // Set vel
-               double vels[3] = {u_vel[cnt], v_vel[cnt], w_vel[cnt]};
-               apf::setComponents(vel_field, faces[ii], jj, vels);
-            }
-            // Counter
-            dofId += ndOnFace;
-         }
-      }
-
       iel++;
    }
    apf_mesh->end(itr);
