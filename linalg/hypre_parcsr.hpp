@@ -23,7 +23,7 @@
 
 // Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
 // mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
-// Note: the same macros are used in hypre.cpp, hypre_parcsr.cpp, and perhaps
+// Note: these macros are used in hypre.cpp, hypre_parcsr.cpp, and perhaps
 // other locations in the future.
 #if MFEM_HYPRE_VERSION < 21400
 
