@@ -174,7 +174,24 @@ void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   Mesh *mesh = GridFunc->FESpace()->GetMesh();
+   if (mesh->Dimension() == T.GetDimension())
+   {
+      GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   }
+   else // Assuming T is a boundary element transformation
+   {
+      int el_id, el_info;
+      mesh->GetBdrElementAdjacentElement(T.ElementNo, el_id, el_info);
+      IntegrationPointTransformation loc_T;
+      mesh->GetLocalFaceTransformation(mesh->GetBdrElementType(T.ElementNo),
+                                       mesh->GetElementType(el_id),
+                                       loc_T.Transf,
+                                       el_info);
+      IntegrationPoint eip;
+      loc_T.Transform(ip, eip);
+      GridFunc->GetVectorValue(el_id, eip, V);
+   }
 }
 
 void VectorGridFunctionCoefficient::Eval(

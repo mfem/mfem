@@ -25,8 +25,8 @@
 namespace mfem
 {
 
-/// Enumeration defining the assembly level for bilinear and nonlinear form
-/// classes derived from Operator.
+/** @brief Enumeration defining the assembly level for bilinear and nonlinear form
+    classes derived from Operator. */
 enum class AssemblyLevel
 {
    /// Fully assembled form, i.e. a global sparse matrix in MFEM, Hypre or PETSC
@@ -160,13 +160,12 @@ public:
        This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
-   /// Get the assembly level
-   AssemblyLevel GetAssemblyLevel() {return assembly;}
-
-   /** Enable the use of static condensation. For details see the description
-       for class StaticCondensation in fem/staticcond.hpp This method should be
-       called before assembly. If the number of unknowns after static
+   /** @brief Enable the use of static condensation. For details see the 
+       description for class StaticCondensation in fem/staticcond.hpp This method 
+       should be called before assembly. If the number of unknowns after static
        condensation is not reduced, it is not enabled. */
    void EnableStaticCondensation();
 
