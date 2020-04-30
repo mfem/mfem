@@ -1773,10 +1773,10 @@ int FiniteElementSpace::AssignFaceDofs()
       }
    }
 
-   /*if (IsVariableOrder() && Nonconforming() && !relaxed_hp)
+   if (IsVariableOrder() && Nonconforming() && !relaxed_hp)
    {
-      // in the strict hp case, add minimum slave orders to their master edges
-      const NCMesh::NCList &list = mesh->ncmesh->GetNCList(1);
+      // in the strict hp case, add minimum slave orders to their master faces
+      const NCMesh::NCList &list = mesh->ncmesh->GetNCList(2);
       for (const NCMesh::Master &master : list.masters)
       {
          int slave_min_o = INT_MAX;
@@ -1791,7 +1791,7 @@ int FiniteElementSpace::AssignFaceDofs()
             face_orders.Append(Connection(master.index, slave_min_o));
          }
       }
-   }*/
+   }
 
    int nfdofs = MakeDofTable(2, face_orders, face_dof);
 
