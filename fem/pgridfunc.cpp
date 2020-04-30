@@ -126,9 +126,11 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,
       n_rfes_ranks = tmp[0];
       nfiles = tmp[1];
 
-      MFEM_ASSERT(n_fes_ranks == n_rfes_ranks, "ParGridFunction::ParGridFunction\n"
-                  "\tThe number of MPI ranks used to save the GridFunction is\n"
-                  "\tnot the same as the number used to load it!");
+      MFEM_ASSERT(n_fes_ranks == n_rfes_ranks,
+         "ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf,"
+               " const char *_filename):\n"
+               "\tThe number of MPI ranks used to save the GridFunction is\n"
+               "\tnot the same as the number used to load it!");
    }
    MPI_Bcast(&nfiles, 1, MPI_INT, 0, fes_comm);
 
