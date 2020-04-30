@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
@@ -227,7 +227,7 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, Device::GetDeviceMemoryType());
    Vector coeff;
    if (Q == nullptr)
    {
@@ -1543,7 +1543,9 @@ static void PADiffusionApply(const int dim,
          case 0x23: return SmemPADiffusionApply3D<2,3>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x34: return SmemPADiffusionApply3D<3,4>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x45: return SmemPADiffusionApply3D<4,5>(NE,B,G,Bt,Gt,D,X,Y);
+         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x56: return SmemPADiffusionApply3D<5,6>(NE,B,G,Bt,Gt,D,X,Y);
+         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x67: return SmemPADiffusionApply3D<6,7>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(NE,B,G,Bt,Gt,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(NE,B,G,Bt,Gt,D,X,Y);

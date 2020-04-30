@@ -17,6 +17,11 @@
 //    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
 //    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
 //
+// Device sample runs:
+//    ex9 -pa
+//    ex9 -pa -m ../data/periodic-cube.mesh
+//    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
+//
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
 //               u0(x)=u(0,x) is a given initial condition.
@@ -111,22 +116,21 @@ public:
 class FE_Evolution : public TimeDependentOperator
 {
 private:
-   SparseMatrix &M, &K;
+   BilinearForm &M, &K;
    const Vector &b;
-   DSmoother M_prec;
+   Solver *M_prec;
    CGSolver M_solver;
-   DG_Solver dg_solver;
+   DG_Solver *dg_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
-                const FiniteElementSpace &fes);
+   FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
-   virtual ~FE_Evolution() { }
+   virtual ~FE_Evolution();
 };
 
 
@@ -137,6 +141,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
+   bool pa = false;
+   const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
    double dt = 0.01;
@@ -158,6 +164,10 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
@@ -190,6 +200,9 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   Device device(device_config);
+   device.Print();
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
@@ -237,7 +250,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -250,8 +263,13 @@ int main(int argc, char *argv[])
    FunctionCoefficient u0(u0_function);
 
    BilinearForm m(&fes);
-   m.AddDomainIntegrator(new MassIntegrator);
    BilinearForm k(&fes);
+   if (pa)
+   {
+      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   m.AddDomainIntegrator(new MassIntegrator);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
@@ -263,11 +281,11 @@ int main(int argc, char *argv[])
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
    m.Assemble();
-   m.Finalize();
    int skip_zeros = 0;
    k.Assemble(skip_zeros);
-   k.Finalize(skip_zeros);
    b.Assemble();
+   m.Finalize();
+   k.Finalize(skip_zeros);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -311,11 +329,15 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("PVExample9S", &mesh);
+      pd = new ParaViewDataCollection("Example9", &mesh);
+      pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", &u);
-      pd->SetLevelsOfDetail(2);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
       pd->SetTime(0.0);
+      pd->Save();
    }
 
    socketstream sout;
@@ -345,7 +367,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k.SpMat(), b, fes);
+   FE_Evolution adv(m, k, b);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -403,14 +425,24 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
-                           const FiniteElementSpace &fes)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), dg_solver(M, K, fes),
-     z(_M.Size())
+FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
-
+   bool pa = M.GetAssemblyLevel() == AssemblyLevel::PARTIAL;
+   Array<int> ess_tdof_list;
+   if (pa)
+   {
+      M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
+      M_solver.SetOperator(M);
+      dg_solver = NULL;
+   }
+   else
+   {
+      M_prec = new DSmoother(M.SpMat());
+      dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
+      M_solver.SetOperator(M.SpMat());
+   }
+   M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -428,10 +460,18 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
+   MFEM_VERIFY(dg_solver != NULL,
+               "Implicit time integration is not supported with partial assembly");
    K.Mult(x, z);
    z += b;
-   dg_solver.SetTimeStep(dt);
-   dg_solver.Mult(z, k);
+   dg_solver->SetTimeStep(dt);
+   dg_solver->Mult(z, k);
+}
+
+FE_Evolution::~FE_Evolution()
+{
+   delete M_prec;
+   delete dg_solver;
 }
 
 // Velocity coefficient

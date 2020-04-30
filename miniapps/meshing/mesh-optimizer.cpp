@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            --------------------------------------------------
 //            Mesh Optimizer Miniapp: Optimize high-order meshes
@@ -34,11 +34,25 @@
 // Sample runs:
 //   Adapted analytic Hessian:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Adapted analytic Hessian with size+orientation:
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//   Adapted analytic Hessian with shape+size+orientation
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//
+//   Adapted size+aspect ratio to discrete material indicator
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Adapted discrete size+orientation
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//   Adapted discrete aspect-ratio+orientation
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
+//   Adapted discrete aspect ratio (3D)
+//     mesh-optimizer -m cube.mesh -o 2 -rs 0 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
+
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Blade shape with FD-based solver:
+//     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1
 //   Blade limited shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -69,7 +83,7 @@ class HessianCoefficient : public MatrixCoefficient
 {
 private:
    int type;
-   int typemod = 1;
+   int typemod = 5;
 
 public:
    HessianCoefficient(int dim, int type_)
@@ -251,16 +265,6 @@ public:
    }
 };
 
-double GetTargetSum(Mesh &mesh, GridFunction &size)
-{
-   L2_FECollection avg_fec(0, mesh.Dimension());
-   FiniteElementSpace avg_fes(&mesh, &avg_fec);
-   GridFunction elsize_avgs(&avg_fes);
-
-   size.GetElementAverages(elsize_avgs);
-   return elsize_avgs.Sum();
-}
-
 class TMOPEstimator : public ErrorEstimator
 {
 protected:
@@ -376,6 +380,7 @@ void TMOPEstimator::ComputeEstimates()
    {
       double curr_size = fespace->GetMesh()->GetElementVolume(i);
       double tar_size  = tarsize(i);
+
       SizeErr(i) = curr_size/tar_size;
    }
 
@@ -443,6 +448,8 @@ void TMOPEstimator::ComputeEstimates()
       double curr_aspr = curr_aspr_vec(i);
       double tar_aspr  = taraspr(i);
       AspErr(i) = curr_aspr/tar_aspr;
+//      std::cout << i << " "  << SizeErr(i) << " "
+//                << AspErr(i) << " k10sizeasprerr\n";
    }
 
    current_sequence = size->FESpace()->GetMesh()->GetSequence();
@@ -466,7 +473,7 @@ protected:
 
    double GetNorm(const Vector &local_err, Mesh &mesh) const;
 
-   /** @brief Apply the operator to the mesh.
+   /** @brief Apply the operator to theG mesh->
        @return STOP if a stopping criterion is satisfied or no elements were
        marked for refinement; REFINED + CONTINUE otherwise. */
    virtual int ApplyImpl(Mesh &mesh);
@@ -574,123 +581,89 @@ void TMOPRefiner::Reset()
 
 
 double weight_fun(const Vector &x);
+void DiffuseField(GridFunction &field, int smooth_steps);
 
-double ind_values(const Vector &x)
+double discrete_size_2d(const Vector &x)
 {
    const int opt = 2;
    const double small = 0.001, big = 0.01;
+   double val = 0.;
 
-   // Sine wave.
-   if (opt==1)
+   if (opt == 1) // sine wave.
    {
       const double X = x(0), Y = x(1);
-      double ind = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-                   std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-
-      if (ind > 1.0) {ind = 1.;}
-      if (ind < 0.0) {ind = 0.;}
-      return ind * small + (1.0 - ind) * big;
+      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
+            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
    }
-
-   if (opt==2)
+   else if (opt == 2) // semi-circle
    {
-      // Circle in the middle.
-      double val = 0.;
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-      val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-
-      return val * small + (1.0 - val) * big;
-   }
-
-   if (opt == 3)
-   {
-      // cross
-      const double X = x(0), Y = x(1);
-      const double r1 = 0.45, r2 = 0.55;
-      const double sf = 40.0;
-
-      double val = 0.5 * ( std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
-                           std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)) );
-      if (val > 1.) { val = 1.0; }
-
-      return val * small + (1.0 - val) * big;
-   }
-
-   if (opt==4)
-   {
-      // Multiple circles
-      double r1,r2,val,rval;
-      double sf = 10;
-      val = 0.;
-      // circle 1
-      r1= 0.25; r2 = 0.25; rval = 0.1;
-      double xc = x(0) - r1, yc = x(1) - r2;
-      double r = sqrt(xc*xc+yc*yc);
-      val =  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                               (r-rval)));// std::exp(val1);
-      // circle 2
-      r1= 0.75; r2 = 0.75;
-      xc = x(0) - r1, yc = x(1) - r2;
-      r = sqrt(xc*xc+yc*yc);
-      val +=  (0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                                 (r-rval))));// std::exp(val1);
-      // circle 3
-      r1= 0.75; r2 = 0.25;
-      xc = x(0) - r1, yc = x(1) - r2;
-      r = sqrt(xc*xc+yc*yc);
-      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*
-                                                                (r-rval)));// std::exp(val1);
-      // circle 4
-      r1= 0.25; r2 = 0.75;
-      xc = x(0) - r1, yc = x(1) - r2;
-      r = sqrt(xc*xc+yc*yc);
-      val +=  0.5*(1+std::tanh(sf*(r+rval))) - 0.5*(1+std::tanh(sf*(r-rval)));
-      if (val > 1.0) {val = 1.;}
-      if (val < 0.0) {val = 0.;}
-
-      return val * small + (1.0 - val) * big;
-   }
-
-   if (opt==5)
-   {
-      // cross
-      double val = 0.;
-      double X = x(0)-0.5, Y = x(1)-0.5;
-      double rval = std::sqrt(X*X + Y*Y);
-      double thval = 60.*M_PI/180.;
-      double Xmod,Ymod;
-      Xmod = X*std::cos(thval) + Y*std::sin(thval);
-      Ymod= -X*std::sin(thval) + Y*std::cos(thval);
-      X = Xmod+0.5; Y = Ymod+0.5;
-      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = ( 0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2)))
-              + 0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))) );
-      if (rval > 0.4) {val = 0.;}
-      if (val > 1.0) {val = 1.;}
-      if (val < 0.0) {val = 0.;}
-
-      return val * small + (1.0 - val) * big;
-   }
-
-   if (opt==6)
-   {
-      double val = 0.;
       const double xc = x(0) - 0.0, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
       double r1 = 0.45; double r2 = 0.55; double sf=30.0;
       val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-      if (val > 1.) {val = 1;}
-      if (val < 0.) {val = 0;}
-
-      return val * small + (1.0 - val) * big;
    }
 
-   return 0.0;
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+
+   return val * small + (1.0 - val) * big;
 }
 
+double material_indicator_2d(const Vector &x)
+{
+   double xc = x(0)-0.5, yc = x(1)-0.5;
+   double th = 22.5*M_PI/180.;
+   double xn =  cos(th)*xc + sin(th)*yc;
+   double yn = -sin(th)*xc + cos(th)*yc;
+   double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+   double stretch = 1/cos(th2);
+   xc = xn/stretch; yc = yn/stretch;
+   double tfac = 20;
+   double s1 = 3;
+   double s2 = 3;
+   double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
+   if (wgt > 1) { wgt = 1; }
+   if (wgt < 0) { wgt = 0; }
+   return wgt;
+}
+
+double discrete_ori_2d(const Vector &x)
+{
+   return M_PI * x(1) * (1.0 - x(1)) * cos(2 * M_PI * x(0));
+}
+
+double discrete_aspr_2d(const Vector &x)
+{
+   double xc = x(0)-0.5, yc = x(1)-0.5;
+   double th = 22.5*M_PI/180.;
+   double xn =  cos(th)*xc + sin(th)*yc;
+   double yn = -sin(th)*xc + cos(th)*yc;
+   double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+   double stretch = 1/cos(th2);
+   xc = xn; yc = yn;
+
+   double tfac = 20;
+   double s1 = 3;
+   double s2 = 2;
+   double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
+                - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
+   if (wgt > 1) { wgt = 1; }
+   if (wgt < 0) { wgt = 0; }
+   return 0.1 + 1*(1-wgt)*(1-wgt);
+}
+
+void discrete_aspr_3d(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+   v.SetSize(dim);
+   double l1, l2, l3;
+   l1 = 1.;
+   l2 = 1. + 5*x(1);
+   l3 = 1. + 10*x(2);
+   v[0] = l1/pow(l2*l3,0.5);
+   v[1] = l2/pow(l1*l3,0.5);
+   v[2] = l3/pow(l2*l1,0.5);
+}
 
 void TMOPupdate(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
                 bool move_bnd)
@@ -752,7 +725,7 @@ IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
 
 
-int main (int argc, char *argv[])
+int main(int argc, char *argv[])
 {
    // 0. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
@@ -765,7 +738,7 @@ int main (int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
-   double newton_rtol    = 1e-12;
+   double newton_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -776,6 +749,8 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int verbosity_level   = 0;
    int hessiantype       = 1;
+   int fdscheme          = 0;
+   int adapt_eval        = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -793,6 +768,7 @@ int main (int argc, char *argv[])
                   "2  : 0.5|T|^2/tau-1                 -- 2D shape (condition number)\n\t"
                   "7  : |T-T^-t|^2                     -- 2D shape+size\n\t"
                   "9  : tau*|T-T^-t|^2                 -- 2D shape+size\n\t"
+                  "14: 0.5*(1-cos(theta_A - theta_W)   -- 2D Sh+Sz+Alignment\n\t"
                   "22 : 0.5(|T|^2-2*tau)/(tau-tau_0)   -- 2D untangling\n\t"
                   "50 : 0.5|T^tT|^2/tau^2-1            -- 2D shape\n\t"
                   "55 : (tau-1)^2                      -- 2D size\n\t"
@@ -845,11 +821,15 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
+   args.AddOption(&fdscheme, "-fd", "--fd_approximation",
+                  "Enable finite difference based derivative computations.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
+   args.AddOption(&adapt_eval, "-ae", "--adaptivity evaluatior",
+                  "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.Parse();
    if (!args.Good())
    {
@@ -858,26 +838,26 @@ int main (int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Initialize and refine the starting mesh.
-   Mesh mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
-   const int dim = mesh.Dimension();
+   // 2. Initialize and refine the starting mesh->
+   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   const int dim = mesh->Dimension();
    cout << "Mesh curvature: ";
-   if (mesh.GetNodes()) { cout << mesh.GetNodes()->OwnFEC()->Name(); }
+   if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
    else { cout << "(NONE)"; }
    cout << endl;
 
-   // 3. Define a finite element space on the mesh. Here we use vector finite
+   // 3. Define a finite element space on the mesh-> Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
    //    number of components in the vector finite element space is specified by
    //    the last parameter of the FiniteElementSpace constructor.
    H1_FECollection fec(mesh_poly_deg, dim);
-   FiniteElementSpace fespace(&mesh, &fec, dim);
+   FiniteElementSpace fespace(mesh, &fec, dim);
 
    // 4. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
    //    transformation of the reference element.
-   mesh.SetNodalFESpace(&fespace);
+   mesh->SetNodalFESpace(&fespace);
 
    // 5. Set up an empty right-hand side vector b, which is equivalent to b=0.
    Vector b(0);
@@ -888,28 +868,28 @@ int main (int argc, char *argv[])
    GridFunction x(&fespace);
    GridFunction xnew(&fespace);
    GridFunction x0new(&fespace);
-   mesh.SetNodalGridFunction(&x);
+   mesh->SetNodalGridFunction(&x);
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
+   //    freedom in fespace. Note: this is partition-dependent.
    //
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace.GetNDofs());
    h0 = infinity();
    double volume = 0.0;
    Array<int> dofs;
-   for (int i = 0; i < mesh.GetNE(); i++)
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
       fespace.GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = mesh.GetElementSize(i);
+      const double hi = mesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
-      volume += mesh.GetElementVolume(i);
+      volume += mesh->GetElementVolume(i);
    }
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
 
@@ -946,7 +926,7 @@ int main (int argc, char *argv[])
    //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
    {
       ofstream mesh_ofs("perturbed.mesh");
-      mesh.Print(mesh_ofs);
+      mesh->Print(mesh_ofs);
    }
 
    // 10. Store the starting (prior to the optimization) positions.
@@ -962,12 +942,14 @@ int main (int argc, char *argv[])
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
+      case 14: metric = new TMOP_Metric_SSA2D; break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
+      case 87: metric = new TMOP_Metric_SS2D; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
@@ -983,17 +965,18 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
-   FiniteElementSpace ind_fes(&mesh, &ind_fec);
-   GridFunction size; size.SetSpace(&ind_fes);
-   GridFunction aspr; aspr.SetSpace(&ind_fes);
    DiscreteAdaptTC *tcd = NULL;
    AnalyticAdaptTC *tca = NULL;
+   FiniteElementSpace ind_fes(mesh, &ind_fec);
+   FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
+   GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
+   GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      case 4:
+      case 4: // Analytic
       {
          target_t = TargetConstructor::GIVEN_FULL;
          tca = new AnalyticAdaptTC(target_t);
@@ -1002,27 +985,190 @@ int main (int argc, char *argv[])
          target_c = tca;
          break;
       }
-      case 5:
+      case 5: // Discrete size 2D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          tcd = new DiscreteAdaptTC(target_t);
-         size.SetSpace(&ind_fes);
-         FunctionCoefficient ind_coeff(ind_values);
+         if (adapt_eval == 0)
+         {
+            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
+#ifdef MFEM_USE_GSLIB
+            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+#endif
+         }
+         FunctionCoefficient ind_coeff(discrete_size_2d);
          size.ProjectCoefficient(ind_coeff);
-         tcd->SetSerialDiscreteTargetSpec(size);
+         tcd->SetSerialDiscreteTargetSize(size);
+         tcd->FinalizeSerialDiscreteTargetSpec();
+         target_c = tcd;
+         break;
+      }
+      case 6: // Discrete size + aspect ratio - 2D
+      {
+         GridFunction d_x(&ind_fes), d_y(&ind_fes);
+
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         tcd = new DiscreteAdaptTC(target_t);
+         FunctionCoefficient ind_coeff(material_indicator_2d);
+         disc.ProjectCoefficient(ind_coeff);
+         if (adapt_eval == 0)
+         {
+            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
+#ifdef MFEM_USE_GSLIB
+            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+#endif
+         }
+
+         //Diffuse the interface
+         DiffuseField(disc,2);
+
+         //Get  partials with respect to x and y of the grid function
+         disc.GetDerivative(1,0,d_x);
+         disc.GetDerivative(1,1,d_y);
+
+         //Compute the squared magnitude of the gradient
+         for (int i = 0; i < size.Size(); i++)
+         {
+            size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
+         }
+         const double max = size.Max();
+
+         for (int i = 0; i < d_x.Size(); i++)
+         {
+            d_x(i) = std::abs(d_x(i));
+            d_y(i) = std::abs(d_y(i));
+         }
+         const double eps = 0.01;
+         const double ratio = 20.0;
+         const double big_small_ratio = 40.0;
+
+         for (int i = 0; i < size.Size(); i++)
+         {
+            size(i) = (size(i)/max);
+            aspr(i) = (d_x(i)+eps)/(d_y(i)+eps);
+            aspr(i) = 0.1 + 0.9*(1-size(i))*(1-size(i));
+            if (aspr(i) > ratio) {aspr(i) = ratio;}
+            if (aspr(i) < 1.0/ratio) {aspr(i) = 1.0/ratio;}
+         }
+         Vector vals;
+         const int NE = mesh->GetNE();
+         double volume = 0.0, volume_ind = 0.0;
+
+         for (int i = 0; i < NE; i++)
+         {
+            ElementTransformation *Tr = mesh->GetElementTransformation(i);
+            const IntegrationRule &ir =
+               IntRules.Get(mesh->GetElementBaseGeometry(i), Tr->OrderJ());
+            size.GetValues(i, ir, vals);
+            for (int j = 0; j < ir.GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(j);
+               Tr->SetIntPoint(&ip);
+               volume     += ip.weight * Tr->Weight();
+               volume_ind += vals(j) * ip.weight * Tr->Weight();
+            }
+         }
+
+         const double avg_zone_size = volume / NE;
+
+         const double small_avg_ratio = (volume_ind + (volume - volume_ind) /
+                                         big_small_ratio) /
+                                        volume;
+
+         const double small_zone_size = small_avg_ratio * avg_zone_size;
+         const double big_zone_size   = big_small_ratio * small_zone_size;
+
+         for (int i = 0; i < size.Size(); i++)
+         {
+            const double val = size(i);
+            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            size(i) = big_zone_size / (1.0+a*val);
+         }
+
+
+         DiffuseField(size, 2);
+         DiffuseField(aspr, 2);
+
+         tcd->SetSerialDiscreteTargetSize(size);
+         tcd->SetSerialDiscreteTargetAspectRatio(aspr);
+         tcd->FinalizeSerialDiscreteTargetSpec();
+         target_c = tcd;
+         break;
+      }
+      case 7: // Discrete aspect ratio 3D
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         tcd = new DiscreteAdaptTC(target_t);
+         if (adapt_eval == 0)
+         {
+            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
+#ifdef MFEM_USE_GSLIB
+            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+#endif
+         }
+         VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
+         aspr3d.ProjectCoefficient(fd_aspr3d);
+
+         tcd->SetSerialDiscreteTargetAspectRatio(aspr3d);
+         tcd->FinalizeSerialDiscreteTargetSpec();
+         target_c = tcd;
+         break;
+      }
+      case 8: // shape/size + orientation 2D
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         tcd = new DiscreteAdaptTC(target_t);
+         if (adapt_eval == 0)
+         {
+            tcd->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
+#ifdef MFEM_USE_GSLIB
+            tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+#endif
+         }
+
+         if (metric_id == 14)
+         {
+            ConstantCoefficient ind_coeff(0.1*0.1);
+            size.ProjectCoefficient(ind_coeff);
+            tcd->SetSerialDiscreteTargetSize(size);
+         }
+
+         if (metric_id == 87)
+         {
+            FunctionCoefficient aspr_coeff(discrete_aspr_2d);
+            aspr.ProjectCoefficient(aspr_coeff);
+            DiffuseField(aspr,2);
+            tcd->SetSerialDiscreteTargetAspectRatio(aspr);
+         }
+
+         FunctionCoefficient ori_coeff(discrete_ori_2d);
+         ori.ProjectCoefficient(ori_coeff);
+         tcd->SetSerialDiscreteTargetOrientation(ori);
+         tcd->FinalizeSerialDiscreteTargetSpec();
          target_c = tcd;
          break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
-
    if (target_c == NULL)
    {
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-
+   if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
@@ -1072,6 +1218,7 @@ int main (int argc, char *argv[])
       he_nlf_integ->SetCoefficient(*coeff1);
       a.AddDomainIntegrator(he_nlf_integ);
 
+      // Second metric.
       metric2 = new TMOP_Metric_077;
       target_c2 = new TargetConstructor(
          TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
@@ -1079,6 +1226,7 @@ int main (int argc, char *argv[])
       target_c2->SetNodes(x0);
       TMOP_Integrator *he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2);
       he_nlf_integ2->SetIntegrationRule(*ir);
+      if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
 
       // Weight of metric2.
       he_nlf_integ2->SetCoefficient(coeff2);
@@ -1092,17 +1240,17 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Initial metric values";
-      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title, 0);
+      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 0);
    }
 
    // 16. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh. Attributes 1/2/3 correspond to
+   //     boundary attributes of the given mesh-> Attributes 1/2/3 correspond to
    //     fixed x/y/z components of the node. Attribute 4 corresponds to an
    //     entirely fixed node. Other boundary attributes do not affect the node
    //     movement boundary conditions.
    if (move_bnd == false)
    {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
       a.SetEssentialBC(ess_bdr);
    }
@@ -1110,9 +1258,9 @@ int main (int argc, char *argv[])
    {
       const int nd  = fespace.GetBE(0)->GetDof();
       int n = 0;
-      for (int i = 0; i < mesh.GetNBE(); i++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
-         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         const int attr = mesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
@@ -1122,9 +1270,9 @@ int main (int argc, char *argv[])
       }
       Array<int> ess_vdofs(n), vdofs;
       n = 0;
-      for (int i = 0; i < mesh.GetNBE(); i++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
-         const int attr = mesh.GetBdrElement(i)->GetAttribute();
+         const int attr = mesh->GetBdrElement(i)->GetAttribute();
          fespace.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
@@ -1177,12 +1325,12 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
-   // 18. Compute the minimum det(J) of the starting mesh.
+   // 18. Compute the minimum det(J) of the starting mesh->
    tauval = infinity();
-   const int NE = mesh.GetNE();
+   const int NE = mesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
-      ElementTransformation *transf = mesh.GetElementTransformation(i);
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir->IntPoint(j));
@@ -1197,10 +1345,6 @@ int main (int argc, char *argv[])
    {
       tauval = 0.0;
       TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir);
-      if (target_id == 5)
-      {
-         tns->SetDiscreteAdaptTC(dynamic_cast<DiscreteAdaptTC *>(target_c));
-      }
       newton = tns;
       cout << "TMOPNewtonSolver is used (as all det(J) > 0).\n";
    }
@@ -1223,8 +1367,8 @@ int main (int argc, char *argv[])
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPEstimator tmope(ind_fes,size,aspr);
-   if (target_id==4) {tmope.SetAnalyticTargetSpec(adapt_coeff);}
+   TMOPEstimator tmope(ind_fes, size, aspr);
+   if (target_id == 4) { tmope.SetAnalyticTargetSpec(adapt_coeff); }
    TMOPRefiner tmopr(tmope, amrmetric, dim);
    int newtonstop = 0;
 
@@ -1259,46 +1403,52 @@ int main (int argc, char *argv[])
          }
          char title1[10];
          sprintf(title1, "%s %d","Newton", it);
-         //vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
 
          for (int amrit=0; amrit<nc_limit; amrit++)
          {
+            // need to remap discrete functions from old mesh to new mesh here
+             if (target_id > 4)
+             {
+                 tcd->GetSerialDiscreteTargetSize(size);
+                 tcd->GetSerialDiscreteTargetAspectRatio(aspr);
+                 tcd->ResetDiscreteFields();
+             }
+
             tmopr.Reset();
-            if (nc_limit!=0 && amrstop==0) {tmopr.Apply(mesh);}
+            if (nc_limit!=0 && amrstop==0) {tmopr.Apply(*mesh);}
             //Update stuff
             ind_fes.Update(); fespace.Update();
-            size.Update(); aspr.Update();
-            x.Update(); x.SetTrueVector();
-            x0.Update(); x0.SetTrueVector();
-            ind_fes.UpdatesFinished();
-            fespace.UpdatesFinished();
-            if (target_id == 5)
+            size.Update();    aspr.Update();
+            x.Update();       x.SetTrueVector();
+            x0.Update();      x0.SetTrueVector();
+            if (target_id > 4)
             {
-               tcd->SetSerialDiscreteTargetSpec(size);
+               tcd->SetAdaptivityEvaluator(new InterpolatorFP);
+               tcd->SetSerialDiscreteTargetSize(size);
+               tcd->SetSerialDiscreteTargetAspectRatio(aspr);
+               tcd->FinalizeSerialDiscreteTargetSpec();
                target_c = tcd;
                he_nlf_integ->UpdateTargetConstructor(target_c);
             }
             a.Update();
-            TMOPupdate(a,mesh,fespace,move_bnd);
+            //MFEM_ABORT(" ");
+            TMOPupdate(a, *mesh, fespace, move_bnd);
             if (amrstop==0)
             {
                if (tmopr.Stop())
                {
+                  newtonstop = 1;
                   amrstop = 1;
                   cout << it << " " << amrit <<
                        " AMR stopping criterion satisfied. Stop." << endl;
                }
                else
-               {std::cout << mesh.GetNE() << " Number of elements after AMR\n";}
+               {std::cout << mesh->GetNE() << " Number of elements after AMR\n";}
             }
          }
-         if (it==nic_limit-1) {amrstop=1;}
-         //double newabstol = newton->GetNormGoal();
-         //newton->SetAbsTol(newabstol);
-         //newton->SetRelTol(0.);
+         if (it==nic_limit-1) { amrstop=1; }
 
          sprintf(title1, "%s %d","AMR", it);
-         //qqvis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title1, 600);
       } //ni_limit
    } //amr_flag==1
    if (newtonstop == 0)
@@ -1313,7 +1463,7 @@ int main (int argc, char *argv[])
    {
       ofstream mesh_ofs("optimized.mesh");
       mesh_ofs.precision(14);
-      mesh.Print(mesh_ofs);
+      mesh->Print(mesh_ofs);
    }
    string namefile;
    char numstr[1]; // enough to hold all numbers up to 64-bits
@@ -1321,7 +1471,7 @@ int main (int argc, char *argv[])
    {
       ofstream mesh_ofs(numstr);
       mesh_ofs.precision(14);
-      mesh.Print(mesh_ofs);
+      mesh->Print(mesh_ofs);
    }
 
    // 22. Compute the amount of energy decrease.
@@ -1346,7 +1496,7 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char title[] = "Final metric values";
-      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, mesh, title, 600);
+      vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
    }
 
    // 23. Visualize the mesh displacement.
@@ -1354,7 +1504,7 @@ int main (int argc, char *argv[])
    {
       osockstream sock(19916, "localhost");
       sock << "solution\n";
-      mesh.Print(sock);
+      mesh->Print(sock);
       x0 -= x;
       x0.Save(sock);
       sock.send();
@@ -1372,12 +1522,13 @@ int main (int argc, char *argv[])
    delete metric2;
    delete coeff1;
    delete target_c;
+   delete adapt_coeff;
    delete metric;
 
    return 0;
 }
 
-// Defined with respect to the icf mesh.
+// Defined with respect to the icf mesh->
 double weight_fun(const Vector &x)
 {
    const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
@@ -1385,4 +1536,25 @@ double weight_fun(const Vector &x)
    double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
                + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
    return l2;
+}
+
+void DiffuseField(GridFunction &field, int smooth_steps)
+{
+   //Setup the Laplacian operator
+   BilinearForm *Lap = new BilinearForm(field.FESpace());
+   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   Lap->Assemble();
+   Lap->Finalize();
+
+   //Setup the smoothing operator
+   DSmoother *S = new DSmoother(0,1.0,smooth_steps);
+   S->iterative_mode = true;
+   S->SetOperator(Lap->SpMat());
+
+   Vector tmp(field.Size());
+   tmp = 0.0;
+   S->Mult(tmp, field);
+
+   delete S;
+   delete Lap;
 }

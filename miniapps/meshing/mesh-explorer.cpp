@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
 //            Mesh Explorer Miniapp:  Explore and manipulate meshes
@@ -336,7 +336,7 @@ int main (int argc, char *argv[])
            "S) Save in MFEM format\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
            "q) Quit\n"
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
            "Z) Save in MFEM format with compression\n"
 #endif
            "--> " << flush;
@@ -622,16 +622,47 @@ int main (int argc, char *argv[])
       if (mk == 'o')
       {
          cout << "What type of reordering?\n"
+              "g) Gecko edge-product minimization\n"
               "h) Hilbert spatial sort\n"
-              //"g) Gecko edge-product minimization\n" // TODO future
               "--> " << flush;
          char rk;
          cin >> rk;
 
-         Array<int> ordering;
+         Array<int> ordering, tentative;
          if (rk == 'h')
          {
             mesh->GetHilbertElementOrdering(ordering);
+            mesh->ReorderElements(ordering);
+         }
+         else if (rk == 'g')
+         {
+            int outer, inner, window, period;
+            cout << "Enter number of outer iterations (default 5): " << flush;
+            cin >> outer;
+            cout << "Enter number of inner iterations (default 4): " << flush;
+            cin >> inner;
+            cout << "Enter window size (default 4, beware of exponential cost): "
+                 << flush;
+            cin >> window;
+            cout << "Enter period for window size increment (default 2): "
+                 << flush;
+            cin >> period;
+
+            double best_cost = infinity();
+            for (int i = 0; i < outer; i++)
+            {
+               int seed = i+1;
+               double cost = mesh->GetGeckoElementOrdering(
+                                tentative, inner, window, period, seed, true);
+
+               if (cost < best_cost)
+               {
+                  ordering = tentative;
+                  best_cost = cost;
+               }
+            }
+            cout << "Final cost: " << best_cost << endl;
+
             mesh->ReorderElements(ordering);
          }
       }
@@ -967,7 +998,7 @@ int main (int argc, char *argv[])
          cout << "New VTK mesh file: " << mesh_file << endl;
       }
 
-#ifdef MFEM_USE_GZSTREAM
+#ifdef MFEM_USE_ZLIB
       if (mk == 'Z')
       {
          const char mesh_file[] = "mesh-explorer.mesh.gz";
