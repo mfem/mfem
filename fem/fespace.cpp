@@ -748,28 +748,31 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          }
       }
 
-      // variable order spaces: handle face constraints
-      MFEM_ASSERT(face_dof.Size() == mesh->GetNFaces()+1, "");
-      for (int face = 0; face < mesh->GetNFaces(); face++)
+      // handle face constraints
+      if (mesh->Dimension() > 2)
       {
-         if (face_dof.RowSize(face) <= 1) { continue; }
-
-         Geometry::Type geom = mesh->GetFaceGeometry(face);
-         T.SetIdentityTransformation(geom);
-
-         int p = GetFaceDofs(face, master_dofs, 0); // lowest order DOFs
-         const auto *master_fe = fec->GetFE(geom, p);
-
-         // constrain all higher order faces: interpolate the lowest order face
-         for (int variant = 1; ; variant++)
+         MFEM_ASSERT(face_dof.Size() == mesh->GetNFaces()+1, "");
+         for (int face = 0; face < mesh->GetNFaces(); face++)
          {
-            int q = GetFaceDofs(face, slave_dofs, variant);
-            if (q < 0) { break; }
+            if (face_dof.RowSize(face) <= 1) { continue; }
 
-            const auto *slave_fe = fec->GetFE(geom, q);
-            slave_fe->GetTransferMatrix(*master_fe, T, I);
+            Geometry::Type geom = mesh->GetFaceGeometry(face);
+            T.SetIdentityTransformation(geom);
 
-            AddDependencies(deps, master_dofs, slave_dofs, I);
+            int p = GetFaceDofs(face, master_dofs, 0); // lowest order DOFs
+            const auto *master_fe = fec->GetFE(geom, p);
+
+            // constrain all higher order faces: interpolate the lowest order face
+            for (int variant = 1; ; variant++)
+            {
+               int q = GetFaceDofs(face, slave_dofs, variant);
+               if (q < 0) { break; }
+
+               const auto *slave_fe = fec->GetFE(geom, q);
+               slave_fe->GetTransferMatrix(*master_fe, T, I);
+
+               AddDependencies(deps, master_dofs, slave_dofs, I);
+            }
          }
       }
    }
