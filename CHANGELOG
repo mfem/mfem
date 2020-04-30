@@ -80,7 +80,7 @@ Miscellaneous
     - x86 (SSE/AVX/AVX2/AVX512),
     - Power8 & Power9 (VSX),
     - BG/Q (QPX).
-  It can be enabled with MFEM_USE_SIMD=YES.
+  It is now enabled by default, and can be disabled with MFEM_USE_SIMD=NO.
 
 - In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
   solver can work with non-SPD preconditioner B.
