@@ -457,6 +457,16 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   /// Support for use in BilinearForm. Can be used only when appropriate.
+   /** Appropriate use cases are classes derived from
+       MixedScalarVectorIntegrator where the trial and test spaces can be the
+       same. Examples of such classes are: MixedVectorDivergenceIntegrator,
+       MixedScalarWeakDivergenceIntegrator, etc. */
+   virtual void AssembleElementMatrix(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   { AssembleElementMatrix2(fe, fe, Trans, elmat); }
+
 protected:
 
    MixedScalarVectorIntegrator(VectorCoefficient &vq, bool _transpose = false,
@@ -2410,14 +2420,12 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
 private:
-   DenseMatrix Jinv;
-   DenseMatrix dshape;
-   DenseMatrix gshape;
-   DenseMatrix pelmat;
+   DenseMatrix dshape, dshapedxt, pelmat;
+   DenseMatrix Jinv, gshape;
 
 public:
    VectorDiffusionIntegrator() { Q = NULL; }
