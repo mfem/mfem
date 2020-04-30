@@ -78,17 +78,28 @@ public:
    ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
                int refine = 1, bool fix_orientation = true);
 
+
+   /// Returns the permutation (aka rotation, aka orientation) needed to
+   /// convert PUMI tet to an MFEM tet. This represents the change in
+   /// tet-to-vertex connectivity between the PUMI and MFEM meshes.
+   /// e.g.:
+   /// PUMI_tet{v0,v1,v2,v3}  --->  MFEM_tet{v1,v0,v3,v2}
+   /// * Note that change in the orientation can be caused by
+   ///   a) fixing wrong boundary element orientations
+   ///   b) a call to ReorientTetMesh() which is required for Nedelec
+   int RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
+                          apf::MeshEntity* tet,
+                          int elemId);
    /// Convert the parent coordinate from PUMI to MFEM
-   /// * By default this functions assumes that there is no change
-   ///   in the orientations of elements.
-   /// * In case there is a change in the orientation (e.g., for
-   ///   higher-order Nedelec shapes, call the functions with last
-   ///   argument = true
+   /// * By default this functions assumes that there is always
+   ///   change in the orientations of some of the elements.
+   /// * In case it is know for sure that there is NO change in
+   ///   the orientation, call the functions with last argument = true
    IntegrationRule ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
                                        apf::MeshEntity* tet,
                                        int elemId,
                                        apf::NewArray<apf::Vector3>& pumi_xi,
-                                       bool checkOrientation = false);
+                                       bool checkOrientation = true);
    /// Transfer field from MFEM mesh to PUMI mesh [Mixed].
    void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                         ParGridFunction* Vel,
