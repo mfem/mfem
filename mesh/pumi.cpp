@@ -48,6 +48,22 @@ static void getPumiNodeXis(apf::FieldShape* fs,
   }
 }
 
+static void getPumiNodeXis(apf::FieldShape* fs,
+                           apf::Mesh2* m,
+                           apf::MeshEntity* e,
+                           IntegrationRule& xis)
+{
+  apf::NewArray<apf::Vector3> pumiXis;
+  apf::getElementNodeXis(fs, m, e, pumiXis);
+  xis.SetSize(pumiXis.size());
+  for (size_t i = 0; i < pumiXis.size(); i++) {
+    IntegrationPoint& ip = xis.IntPoint(i);
+    double xi[3];
+    pumiXis[i].toArray(xi);
+    ip.Set(xi, 3);
+  }
+}
+
 
 static void ReadPumiElement(apf::MeshEntity* Ent, /* ptr to pumi entity */
 			    apf::Downward Verts,
@@ -936,35 +952,42 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
 IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
 					         apf::MeshEntity* tet,
 					         int elemId,
-					         std::vector<apf::Vector3>& pumi_xi)
+					         apf::NewArray<apf::Vector3>& pumi_xi,
+					         bool checkOrientation)
 {
-  MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
-  std::size_t num_nodes = pumi_xi.size();
-  // get downward vertices of PUMI element
-  apf::Downward vs;
-  int nv = apf_mesh->getDownward(tet,0,vs);
-  int pumi_vid[nv];
-  for (int i = 0; i < nv; i++)
-    pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
-
-  // get downward vertices of MFEM element
-  mfem::Array<int> mfem_vid;
-  this->GetElementVertices(elemId, mfem_vid);
-
-  // get rotated indices of PUMI element
-  int pumi_vid_rot[nv];
-  for (int i = 0; i < nv; i++)
-    pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
-  apf::Downward vs_rot;
-  for (int i = 0; i < nv; i++)
-    vs_rot[i] = vs[pumi_vid_rot[i]];
-  int rotation = ma::findTetRotation(apf_mesh, tet, vs_rot);
-
-  // map the coordinates computed on the original set of vertices
-  // to the coordinates computed based on a rotated set of vertices
+  int num_nodes = pumi_xi.size();
   IntegrationRule mfem_xi(num_nodes);
+  int rotation = 0;
+
+  // if check orientation is on then find the rotation
+  if (checkOrientation) {
+    // by this point
+    MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
+    // get downward vertices of PUMI element
+    apf::Downward vs;
+    int nv = apf_mesh->getDownward(tet,0,vs);
+    int pumi_vid[nv];
+    for (int i = 0; i < nv; i++)
+      pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
+
+    // get downward vertices of MFEM element
+    mfem::Array<int> mfem_vid;
+    this->GetElementVertices(elemId, mfem_vid);
+
+    // get rotated indices of PUMI element
+    int pumi_vid_rot[nv];
+    for (int i = 0; i < nv; i++)
+      pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
+    apf::Downward vs_rot;
+    for (int i = 0; i < nv; i++)
+      vs_rot[i] = vs[pumi_vid_rot[i]];
+    rotation = ma::findTetRotation(apf_mesh, tet, vs_rot);
+  }
+
   for(int i = 0; i < num_nodes; i++) {
-    ma::rotateTetXi(pumi_xi[i], rotation);
+    // for non zero "rotation", rotate the xi
+    if (rotation)
+      ma::rotateTetXi(pumi_xi[i], rotation);
     IntegrationPoint& ip = mfem_xi.IntPoint(i);
     double tmp_xi[3];
     pumi_xi[i].toArray(tmp_xi);
@@ -1549,49 +1572,25 @@ void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                             apf::Field* NedelecField)
 {
   apf::FieldShape* nedelecFieldShape = NedelecField->getShape();
-  int num_nodes = 4 * nedelecFieldShape->countNodesOn(0) + // Vertex
-                  6 * nedelecFieldShape->countNodesOn(1) + // Edge
-                  4 * nedelecFieldShape->countNodesOn(2) + // Triangle
-                      nedelecFieldShape->countNodesOn(4);  // Tetrahedron
   int dim = apf_mesh->getDimension();
-  std::vector<apf::Vector3> pumi_nodes(num_nodes);
 
+  // loop over all elements
   size_t elemNo = 0;
   apf::MeshEntity* ent;
   apf::MeshIterator* it = apf_mesh->begin(dim);
   while ( ent = apf_mesh->iterate(it) ) {
-
-    // TODO use getPumiNodeXis to collect pumi nodes when fixed
-    // collect pumi nodes
-    int non = 0;
-    for (int d = 0; d <= dim; d++) {
-      if (!nedelecFieldShape->hasNodesIn(d)) continue;
-      apf::Downward a;
-      int na = apf_mesh->getDownward(ent,d,a);
-      for (int i = 0; i < na; i++) {
-        int type = apf_mesh->getType(a[i]);
-        int nan = nedelecFieldShape->countNodesOn(type);
-        for (int n = 0; n < nan; n++) {
-          apf::Vector3 xi;
-          nedelecFieldShape->getNodeXi(type, n, xi);
-          pumi_nodes[non++] = apf::boundaryToElementXi(apf_mesh, a[i], ent, xi);
-        }
-      }
-    }
-
-    // Get the parent coordinates with respect to the MFEM element
-    IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(apf_mesh,
-    	                                             ent,
-    	                                             elemNo,
-    	                                             pumi_nodes);
-
+    // get all the pumi nodes and rotate them
+    apf::NewArray<apf::Vector3> pumi_nodes;
+    apf::getElementNodeXis(nedelecFieldShape, apf_mesh, ent, pumi_nodes);
+    IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
+    	apf_mesh, ent, elemNo, pumi_nodes, true);
     // evaluate the vector field on the mfem nodes
     ElementTransformation* eltr = this->GetElementTransformation(elemNo);
     DenseMatrix mfem_field_vals;
     gf->GetVectorValues(*eltr, mfem_nodes, mfem_field_vals);
 
     // compute and store dofs on ND field
-    non = 0;
+    int non = 0;
     for (int d = 0; d <= dim; d++) {
       if (!nedelecFieldShape->hasNodesIn(d)) continue;
       apf::Downward a;
