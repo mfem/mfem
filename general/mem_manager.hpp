@@ -288,7 +288,11 @@ public:
    /** The new memory object will have the device MemoryType set as valid.
 
        The given @a h_ptr and @a d_ptr must be allocated appropriately for the
-       given host MemoryType and its associated device MemoryType.
+       given host MemoryType and its associated device MemoryType:
+          - MANAGED => MANAGED,
+          - HOST_DEBUG => DEVICE_DEBUG,
+          - HOST_UMPIRE => DEVICE_UMPIRE,
+          - HOST, HOST_32, HOST_64 => DEVICE.
 
        The parameter @a own determines whether both @a h_ptr and @a d_ptr will
        be deleted when the method Delete() is called.
