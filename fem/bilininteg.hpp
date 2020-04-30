@@ -453,6 +453,16 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   /// Support for use in BilinearForm. Can be used only when appropriate.
+   /** Appropriate use cases are classes derived from
+       MixedScalarVectorIntegrator where the trial and test spaces can be the
+       same. Examples of such classes are: MixedVectorDivergenceIntegrator,
+       MixedScalarWeakDivergenceIntegrator, etc. */
+   virtual void AssembleElementMatrix(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   { AssembleElementMatrix2(fe, fe, Trans, elmat); }
+
 protected:
 
    MixedScalarVectorIntegrator(VectorCoefficient &vq, bool _transpose = false,
@@ -674,10 +684,12 @@ protected:
              "vector field";
    }
 
+   // Subtract one due to the divergence and add one for the coefficient
+   // which is assumed to be at least linear.
    inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
                                           const FiniteElement & test_fe,
                                           ElementTransformation &Trans)
-   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -710,6 +722,11 @@ protected:
              "Trial space must be a scalar field "
              "and the test space must be H(Div)";
    }
+
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
    virtual void CalcTestShape(const FiniteElement & test_fe,
                               ElementTransformation &Trans,
@@ -870,6 +887,13 @@ public:
              "Trial space must be a vector field "
              "and the test space must be a vector field with a divergence";
    }
+
+   // Subtract one due to the gradient and add one for the coefficient
+   // which is assumed to be at least linear.
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -2391,14 +2415,12 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
 private:
-   DenseMatrix Jinv;
-   DenseMatrix dshape;
-   DenseMatrix gshape;
-   DenseMatrix pelmat;
+   DenseMatrix dshape, dshapedxt, pelmat;
+   DenseMatrix Jinv, gshape;
 
 public:
    VectorDiffusionIntegrator() { Q = NULL; }

@@ -70,9 +70,10 @@ mfem-test = \
 mfem-test-file = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) -no-vis > $(1).stderr 2>&1); \
+   err="$$3"; \
    if [ "$$3" = 0 ] && [ -e $(4) ]; \
-   then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
-   rm -f $(1).stderr; exit $$3
+   then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; err=64; fi; \
+   rm -f $(1).stderr; exit $$err
 
 .PHONY: test test-par-YES test-par-NO test-ser test-par test-clean test-print
 

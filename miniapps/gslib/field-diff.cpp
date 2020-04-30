@@ -24,8 +24,8 @@
 // Compile with: make field-diff
 //
 // Sample runs:
-//    compare
-//    compare -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-1.gf -p 200
+//    field-diff
+//    field-diff -m1 triple-pt-1.mesh -s1 triple-pt-1.gf -m2 triple-pt-2.mesh -s2 triple-pt-1.gf -p 200
 
 #include "mfem.hpp"
 #include <fstream>
