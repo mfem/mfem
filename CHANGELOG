@@ -52,6 +52,12 @@ New and updated examples and miniapps
 - Added a new Example 26/26p to demonstrate the construction of a matrix-free
   geometric and p-multigrid preconditioner for the Laplace problem.
 
+- Added a new example, Example 27/27p, to demonstrate the enforcement of
+  various boundary conditions with the Laplace operator.  The example shows the
+  procedures for applying Dirichlet, Neumann (both homogeneous and
+  inhomogeneous), Robin, and periodic boundary conditions with either H1 or DG
+  discretizations.
+
 - Added a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.
