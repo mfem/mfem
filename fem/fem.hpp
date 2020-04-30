@@ -37,6 +37,9 @@
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
+#include "transfer.hpp"
+#include "fespacehierarchy.hpp"
+#include "multigrid.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -52,6 +55,10 @@
 
 #ifdef MFEM_USE_CONDUIT
 #include "conduitdatacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_ADIOS2
+#include "adios2datacollection.hpp"
 #endif
 
 #endif
