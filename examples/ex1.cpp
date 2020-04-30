@@ -114,12 +114,12 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 1;
+      int ref_levels = 0;
          //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
-         //mesh->RandomRefinement(0.5);
+         mesh->RandomRefinement(0.5);
       }
    }
 
@@ -145,21 +145,23 @@ int main(int argc, char *argv[])
    // 6. At this point all elements have the default order (specified when
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
-   /*{
+   fespace->SetRelaxedHpConformity(true);
+   {
       Array<int> refs;
-      refs.Append(1);
+      refs.Append(0);
       mesh->GeneralRefinement(refs);
       //mesh->GeneralRefinement(refs);
    }
-   fespace->Update(false);*/
-  /* for (int i = 0; i < mesh->GetNE(); i++)
+   fespace->Update(false);
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
-      fespace->SetElementOrder(i, (rand()%4)+1);
+      fespace->SetElementOrder(i, (rand()%3)+1);
+      //fespace->SetElementOrder(i, i ? 3 : 2);
    }
    fespace->Update(false);
-*/
-   fespace->SetElementOrder(0, order+1);
-   fespace->Update(false);
+
+   /*fespace->SetElementOrder(0, order+1);
+   fespace->Update(false);*/
 
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -171,6 +173,7 @@ int main(int argc, char *argv[])
       }
       mfem::out << std::endl;
    }
+   cout << "Space size (all DOFs): " << fespace->GetNDofs() << endl;
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -188,6 +191,8 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+   cout << "Essential DOFs: " << ess_tdof_list.Size() << endl;
+   ess_tdof_list.Print();
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -263,6 +268,8 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
+   x.Print();
+
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -275,8 +282,9 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x
-               << "keys Rjlm\n" << flush;
-      //delete vis_x;
+               //<< "keys Rjlm\n"
+               << flush;
+      delete vis_x;
 
       L2_FECollection l2fec(0, dim);
       FiniteElementSpace l2fes(mesh, &l2fec);
@@ -290,7 +298,8 @@ int main(int argc, char *argv[])
       socketstream ord_sock(vishost, visport);
       ord_sock.precision(8);
       ord_sock << "solution\n" << *mesh << orders
-               << "keys Rjlmc\n" << flush;
+               //<< "keys Rjlmc\n"
+               << flush;
 
       // visualize the basis functions
       if (1)
