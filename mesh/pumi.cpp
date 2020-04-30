@@ -307,11 +307,11 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    // Create local numbering that respects the global ordering
    apf::Field* apf_field_crd = apf_mesh->getCoordinateField();
    apf::FieldShape* crd_shape = apf::getShape(apf_field_crd);
-   apf::Numbering* v_num_loc = apf::createNumbering(apf_mesh,
-                                                    "LocalVertexNumbering",
-                                                    crd_shape, 1);
+   v_num_loc = apf::createNumbering(apf_mesh,
+                                    "LocalVertexNumbering",
+                                    crd_shape, 1);
 
-   // Construct the numbering v_loc_num and set the coordinates of the vertices.
+   // Construct the numbering v_num_loc and set the coordinates of the vertices.
    NumOfVertices = thisVertIds.Size();
    vertices.SetSize(NumOfVertices);
    itr = apf_mesh->begin(0);
@@ -691,6 +691,15 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    Finalize(refine, fix_orientation);
 }
 
+ParPumiMesh::~ParPumiMesh()
+{
+  // clean ups
+
+  // This is used during some of the field transfers, and therefore
+  // unlike the PumiMesh class, we cannot destroy this inside the
+  // constructor of the class.
+  apf::destroyNumbering(v_num_loc);
+}
 
 // GridFunctionPumi Implementation needed for high order meshes
 GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
@@ -920,6 +929,48 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
       *Nodes = *(AdaptedpMesh->Nodes);
       own_nodes = 1;
    }
+}
+
+
+// Convert parent coordinate form a PUMI tet to an MFEM tet
+IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
+					         apf::MeshEntity* tet,
+					         int elemId,
+					         std::vector<apf::Vector3>& pumi_xi)
+{
+  MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
+  std::size_t num_nodes = pumi_xi.size();
+  // get downward vertices of PUMI element
+  apf::Downward vs;
+  int nv = apf_mesh->getDownward(tet,0,vs);
+  int pumi_vid[nv];
+  for (int i = 0; i < nv; i++)
+    pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
+
+  // get downward vertices of MFEM element
+  mfem::Array<int> mfem_vid;
+  this->GetElementVertices(elemId, mfem_vid);
+
+  // get rotated indices of PUMI element
+  int pumi_vid_rot[nv];
+  for (int i = 0; i < nv; i++)
+    pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
+  apf::Downward vs_rot;
+  for (int i = 0; i < nv; i++)
+    vs_rot[i] = vs[pumi_vid_rot[i]];
+  int rotation = ma::findTetRotation(apf_mesh, tet, vs_rot);
+
+  // map the coordinates computed on the original set of vertices
+  // to the coordinates computed based on a rotated set of vertices
+  IntegrationRule mfem_xi(num_nodes);
+  for(int i = 0; i < num_nodes; i++) {
+    ma::rotateTetXi(pumi_xi[i], rotation);
+    IntegrationPoint& ip = mfem_xi.IntPoint(i);
+    double tmp_xi[3];
+    pumi_xi[i].toArray(tmp_xi);
+    ip.Set(tmp_xi,3);
+  }
+  return mfem_xi;
 }
 
 // Transfer a mixed vector-scalar field (i.e. velocity,pressure) and the
@@ -1493,85 +1544,46 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    apf_mesh->end(itr);
 }
 
-static int findIndex(mfem::Array<int> array, int value)
-{
-  int size = array.Size();
-  for (int i = 0; i < size; i++) {
-    if (value == array[i] ) return i;
-  }
-  return -1;
-}
 void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                             ParGridFunction* gf,
                             apf::Field* NedelecField)
 {
-  apf::Numbering* local_vtx_numbering = apf_mesh->getNumbering(0); // TODO
-
   apf::FieldShape* nedelecFieldShape = NedelecField->getShape();
   int num_nodes = 4 * nedelecFieldShape->countNodesOn(0) + // Vertex
                   6 * nedelecFieldShape->countNodesOn(1) + // Edge
                   4 * nedelecFieldShape->countNodesOn(2) + // Triangle
                       nedelecFieldShape->countNodesOn(4);  // Tetrahedron
   int dim = apf_mesh->getDimension();
-  apf::NewArray<apf::Vector3> pumi_nodes (num_nodes);
+  std::vector<apf::Vector3> pumi_nodes(num_nodes);
 
   size_t elemNo = 0;
-  apf::MeshEntity* el_ent;
-  apf::MeshIterator* el_it;
-  el_it = apf_mesh->begin(dim);
-  while ( el_ent = apf_mesh->iterate(el_it) ) {
+  apf::MeshEntity* ent;
+  apf::MeshIterator* it = apf_mesh->begin(dim);
+  while ( ent = apf_mesh->iterate(it) ) {
 
     // TODO use getPumiNodeXis to collect pumi nodes when fixed
     // collect pumi nodes
-    int node_number = 0;
+    int non = 0;
     for (int d = 0; d <= dim; d++) {
-      if (nedelecFieldShape->hasNodesIn(d)) {
-        apf::Downward a;
-        int na = apf_mesh->getDownward(el_ent,d,a);
-        for (int i = 0; i < na; i++) {  // loop over downward entities
-          int type = apf_mesh->getType(a[i]);
-          int nan = nedelecFieldShape->countNodesOn(type);
-          for (int n = 0; n < nan; n++) {   // loop over entity nodes
-            apf::Vector3 ent_xi;
-            nedelecFieldShape->getNodeXi(type, n, ent_xi); // getNodeXi
-            apf::Vector3 elem_xi = apf::boundaryToElementXi(
-                            apf_mesh, a[i], el_ent, ent_xi); // transform entity nodeXi to parent element nodeXi.
-            pumi_nodes[node_number++] = elem_xi;
-          }
+      if (!nedelecFieldShape->hasNodesIn(d)) continue;
+      apf::Downward a;
+      int na = apf_mesh->getDownward(ent,d,a);
+      for (int i = 0; i < na; i++) {
+        int type = apf_mesh->getType(a[i]);
+        int nan = nedelecFieldShape->countNodesOn(type);
+        for (int n = 0; n < nan; n++) {
+          apf::Vector3 xi;
+          nedelecFieldShape->getNodeXi(type, n, xi);
+          pumi_nodes[non++] = apf::boundaryToElementXi(apf_mesh, a[i], ent, xi);
         }
       }
     }
 
-    // get downward vertices of PUMI element
-    apf::Downward v;
-    int nv = apf_mesh->getDownward(el_ent,0,v);
-    std::vector<int> pumi_vtx_indices (nv);
-    for (int i = 0; i < nv; i++)
-      pumi_vtx_indices[i] = apf::getNumber(local_vtx_numbering, v[i], 0, 0);
-
-    // get downward vertices of MFEM element
-    mfem::Array<int> mfem_vtx_indices;
-    this->GetElementVertices(elemNo, mfem_vtx_indices);
-
-    // get rotated indices of PUMI element
-    int pumi_tetv[nv];
-    for (int i = 0; i < nv; i++)
-      pumi_tetv[i] = findIndex(mfem_vtx_indices, pumi_vtx_indices[i]);
-    apf::Downward rv;
-    for (int i = 0; i < nv; i++)
-      rv[i] = v[ pumi_tetv[i] ];
-    int rotation = ma::findTetRotation(apf_mesh, el_ent, rv);
-
-    // map the coordinates computed on the original set of vertices
-    // to the coordinates computed based on a rotated set of vertices
-    IntegrationRule mfem_nodes (num_nodes);
-    for(int i = 0; i < num_nodes; i++) {
-      ma::rotateTetXi(pumi_nodes[i], rotation);
-      IntegrationPoint& ip = mfem_nodes.IntPoint(i);
-      double xi[3];
-      pumi_nodes[i].toArray(xi);
-      ip.Set(xi,3);
-    }
+    // Get the parent coordinates with respect to the MFEM element
+    IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(apf_mesh,
+    	                                             ent,
+    	                                             elemNo,
+    	                                             pumi_nodes);
 
     // evaluate the vector field on the mfem nodes
     ElementTransformation* eltr = this->GetElementTransformation(elemNo);
@@ -1579,41 +1591,32 @@ void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
     gf->GetVectorValues(*eltr, mfem_nodes, mfem_field_vals);
 
     // compute and store dofs on ND field
-    node_number = 0;
+    non = 0;
     for (int d = 0; d <= dim; d++) {
-      if (nedelecFieldShape->hasNodesIn(d)) {
-        apf::Downward a;
-        int na = apf_mesh->getDownward(el_ent,d,a);
-        for (int i = 0; i < na; i++) {  // loop over downward entities
-          int type = apf_mesh->getType(a[i]);
-          int nan = nedelecFieldShape->countNodesOn(type);
-          apf::MeshElement* me = apf::createMeshElement(apf_mesh, a[i]);
-          for (int n = 0; n < nan; n++) {   // loop over entity nodes
-            apf::Vector3 xi, tangent;
-            nedelecFieldShape->getNodeXi(type, n, xi); // getNodeXi
-            nedelecFieldShape->getNodeTangent(type, n, tangent); // getNodeTangent
-
-            apf::Vector3 pumi_field_vector; // getVectorValue in PUMI
-            pumi_field_vector[0] = mfem_field_vals(0,node_number);
-            pumi_field_vector[1] = mfem_field_vals(1,node_number);
-            pumi_field_vector[2] = mfem_field_vals(2,node_number);
-
-            apf::Matrix3x3 J; // get Jacobian
-            apf::getJacobian(me, xi, J);
-
-            apf::Vector3 temp = J * pumi_field_vector; // compute scalar dof
-            double dof = temp * tangent;
-            apf::setScalar(NedelecField, a[i], n, dof);
-
-            node_number++;
-          }
-          apf::destroyMeshElement(me);
+      if (!nedelecFieldShape->hasNodesIn(d)) continue;
+      apf::Downward a;
+      int na = apf_mesh->getDownward(ent,d,a);
+      for (int i = 0; i < na; i++) {
+        int type = apf_mesh->getType(a[i]);
+        int nan = nedelecFieldShape->countNodesOn(type);
+        apf::MeshElement* me = apf::createMeshElement(apf_mesh, a[i]);
+        for (int n = 0; n < nan; n++) {
+          apf::Vector3 xi, tangent;
+          nedelecFieldShape->getNodeXi(type, n, xi);
+          nedelecFieldShape->getNodeTangent(type, n, tangent);
+          apf::Vector3 pumi_field_vector(mfem_field_vals.GetColumn(non));
+          apf::Matrix3x3 J;
+          apf::getJacobian(me, xi, J);
+          double dof = (J * pumi_field_vector) * tangent;
+          apf::setScalar(NedelecField, a[i], n, dof);
+          non++;
         }
+        apf::destroyMeshElement(me);
       }
     }
     elemNo++;
   }
-  apf_mesh->end(el_it); // end loop over all elements
+  apf_mesh->end(it); // end loop over all elements
 }
 
 void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,

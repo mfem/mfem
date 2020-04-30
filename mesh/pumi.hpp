@@ -78,6 +78,13 @@ public:
    ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
                int refine = 1, bool fix_orientation = true);
 
+   /// Convert the parent coordinate from PUMI to MFEM
+   /// This will only be used for Reoriented tet meshes during
+   /// field transfer
+   IntegrationRule ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
+                                       apf::MeshEntity* tet,
+                                       int elemId,
+                                       std::vector<apf::Vector3>& pumi_xi);
    /// Transfer field from MFEM mesh to PUMI mesh [Mixed].
    void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                         ParGridFunction* Vel,
@@ -110,7 +117,7 @@ public:
                         apf::Field* ScalarField,
                         ParGridFunction* Pr);
 
-   virtual ~ParPumiMesh() { }
+   virtual ~ParPumiMesh();
 };
 
 
