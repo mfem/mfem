@@ -751,7 +751,7 @@ void b_exact(const Vector &x, double t, Vector &B)
    B[2] = 0.0;
 }
 
-double t_exact(Vector &x)
+double t_exact(const Vector &x)
 {
    double T = 0.0;
    return T;
