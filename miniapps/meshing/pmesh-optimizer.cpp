@@ -32,9 +32,9 @@
 // Compile with: make pmesh-optimizer
 //
 //   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -vl 1 -al
-//   Adaptive limiting through FD:
-//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -vl 1 -al -fd
+//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -vl 1 -al -ae 0
+//   Adaptive limiting through FD (required GSLIB):
+//     * mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -vl 1 -al -fd -ae 1
 //
 // Sample runs:
 //   Adapted analytic Hessian:
@@ -285,6 +285,7 @@ int main (int argc, char *argv[])
    bool visualization    = true;
    int verbosity_level   = 0;
    bool fdscheme         = false;
+   int adapt_eval        = 0;
    bool adapt_lim        = false;
 
    // 2. Parse command-line options.
@@ -363,6 +364,8 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
+   args.AddOption(&adapt_eval, "-ae", "--adaptivity evaluatior",
+                  "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.Parse();
    if (!args.Good())
    {
@@ -599,13 +602,13 @@ int main (int argc, char *argv[])
 
    // Adaptive limiting.
    ParGridFunction zeta_0(&ind_fes), zeta(&ind_fes);
-   ConstantCoefficient coeff_zeta(10.0);
+   ConstantCoefficient coef_zeta(10.0);
    if (adapt_lim)
    {
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta.ProjectCoefficient(alim_coeff);
       zeta_0.ProjectCoefficient(alim_coeff);
-      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coeff_zeta, 1);
+      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coef_zeta, adapt_eval);
       socketstream vis1;
       common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
                              300, 600, 300, 300);
