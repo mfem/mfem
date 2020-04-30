@@ -878,8 +878,6 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    int nd1 = el1.GetDof();
    double w;
 
-   Trans.SetActiveSide(0);
-
 #ifdef MFEM_THREAD_SAFE
    Vector shape;
 #endif
@@ -2552,7 +2550,6 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       el1.CalcShape(eip1, shape1);
 
       Trans.SetIntPoint(&ip);
-      Trans.Elem1->SetIntPoint(&eip1);
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
@@ -2577,7 +2574,6 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          double rho_p;
          if (un >= 0.0 && ndof2)
          {
-            Trans.Elem2->SetIntPoint(&eip2);
             rho_p = rho->Eval(*Trans.Elem2, eip2);
          }
          else
@@ -2716,7 +2712,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 
       el1.CalcShape(eip1, shape1);
       el1.CalcDShape(eip1, dshape1);
-      Trans.Elem1->SetIntPoint(&eip1);
       w = ip.weight/Trans.Elem1->Weight();
       if (ndof2)
       {
@@ -2765,7 +2760,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          Trans.Loc2.Transform(ip, eip2);
          el2.CalcShape(eip2, shape2);
          el2.CalcDShape(eip2, dshape2);
-         Trans.Elem2->SetIntPoint(&eip2);
          w = ip.weight/2/Trans.Elem2->Weight();
          if (!MQ)
          {
@@ -2984,7 +2978,6 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       IntegrationPoint eip1, eip2; // integration point in the reference space
       Trans.Loc1.Transform(ip, eip1);
       Trans.SetIntPoint(&ip);
-      Trans.Elem1->SetIntPoint(&eip1);
 
       el1.CalcShape(eip1, shape1);
       el1.CalcDShape(eip1, dshape1);
@@ -3005,7 +2998,6 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       if (ndofs2)
       {
          Trans.Loc2.Transform(ip, eip2);
-         Trans.Elem2->SetIntPoint(&eip2);
          el2.CalcShape(eip2, shape2);
          el2.CalcDShape(eip2, dshape2);
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
@@ -3150,13 +3142,11 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
       // Side 1 finite element shape function
       Trans.Loc1.Transform(ip, eip1);
       test_fe1.CalcShape(eip1, shape1);
-      Trans.Elem1->SetIntPoint(&eip1);
       if (ndof2)
       {
          // Side 2 finite element shape function
          Trans.Loc2.Transform(ip, eip2);
          test_fe2.CalcShape(eip2, shape2);
-         Trans.Elem2->SetIntPoint(&eip2);
       }
       w = ip.weight;
       if (trial_face_fe.GetMapType() == FiniteElement::VALUE)

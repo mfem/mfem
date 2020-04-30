@@ -317,7 +317,6 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
       Tr.Loc1.Transform(ip, eip);
 
       Tr.SetIntPoint(&ip);
-      Tr.SetActiveSide(0);
 
       // Use Tr transformation in case Q depends on boundary attribute
       Q.Eval(vec, Tr, ip);
@@ -528,7 +527,6 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       el.CalcShape(eip, shape);
 
       Tr.SetIntPoint(&ip);
-      Tr.SetActiveSide(0);
 
       // Use Tr.Elem1 transformation for u so that it matches the
       // coefficient used with the ConvectionIntegrator and/or the
@@ -599,7 +597,6 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
 
       Tr.Loc1.Transform(ip, eip);
       Tr.SetIntPoint(&ip);
-      Tr.SetActiveSide(0);
       if (dim == 1)
       {
          nor(0) = 2*eip.x - 1.0;
@@ -611,7 +608,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
-      Tr.Elem1->SetIntPoint(&eip);
+
       // compute uD through the face transformation
       w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
       if (!MQ)
@@ -693,8 +690,6 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       IntegrationPoint eip;
       Tr.Loc1.Transform(ip, eip);
       Tr.SetIntPoint(&ip);
-      Tr.SetActiveSide(0);
-      Tr.Elem1->SetIntPoint(&eip);
 
       // Evaluate the Dirichlet b.c. using the face transformation.
       uD.Eval(u_dir, Tr, ip);
