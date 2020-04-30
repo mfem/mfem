@@ -333,11 +333,16 @@ public:
 
    /** Save the local grid functions to n number of files, where each file will
        contain the grid functions from potentially multiple ranks. This is
-       similar to the syncIO approach from "Scalable Parallel I/O Alternatives
-       for Massively Parallel Partitioned Solver Systems" 
+       similar to the syncIO approach from "Fu, Jing, et al. 'Scalable parallel
+       I/O alternatives for massively parallel partitioned solver systems.'
+       2010 IEEE International Symposium on Parallel & Distributed Processing,
+       Workshops and Phd Forum (IPDPSW). IEEE, 2010." 
        @param[in] filename - filename for output files with extension
        @param[in] nfiles - number of files to write using MPI-IO
-       @note - takes into account the signs of the local dofs. */
+       @note - takes into account the signs of the local dofs.
+       @note - writes a binary file without the FESpace header; the saved file
+       should only be loaded by the accompanying constructor:
+       ParGridFunction(ParFiniteElementSpace *pf, const char *filename) */
    void Save(const char *filename, const int nfiles = 1);
 
    /// Merge the local grid functions
