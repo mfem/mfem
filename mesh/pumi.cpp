@@ -947,6 +947,32 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    }
 }
 
+int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
+                                    apf::MeshEntity* tet,
+                                    int elemId)
+{
+  MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
+  // get downward vertices of PUMI element
+  apf::Downward vs;
+  int nv = apf_mesh->getDownward(tet,0,vs);
+  int pumi_vid[nv];
+  for (int i = 0; i < nv; i++)
+    pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
+
+  // get downward vertices of MFEM element
+  mfem::Array<int> mfem_vid;
+  this->GetElementVertices(elemId, mfem_vid);
+
+  // get rotated indices of PUMI element
+  int pumi_vid_rot[nv];
+  for (int i = 0; i < nv; i++)
+    pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
+  apf::Downward vs_rot;
+  for (int i = 0; i < nv; i++)
+    vs_rot[i] = vs[pumi_vid_rot[i]];
+
+  return ma::findTetRotation(apf_mesh, tet, vs_rot);
+}
 
 // Convert parent coordinate form a PUMI tet to an MFEM tet
 IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
