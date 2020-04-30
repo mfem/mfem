@@ -77,12 +77,12 @@ double func_3D_quad(const Vector &x)
 
 void dfunc_3D_quad(const Vector &x, Vector &v)
 {
-  v.SetSize(3);
-  v[0] = 1.0 * x[1] + 3.0 * x[2];
-  v[1] = 2.0 * x[2] + 1.0 * x[0];
-  v[2] = 3.0 * x[0] + 2.0 * x[1];
+   v.SetSize(3);
+   v[0] = 1.0 * x[1] + 3.0 * x[2];
+   v[1] = 2.0 * x[2] + 1.0 * x[0];
+   v[2] = 3.0 * x[0] + 2.0 * x[1];
 }
-  
+
 TEST_CASE("1D GetValue",
           "[GridFunction]"
           "[GridFunctionCoefficient]")
@@ -140,8 +140,8 @@ TEST_CASE("1D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[1];
-               Vector tip(tip_data, 1);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -202,8 +202,8 @@ TEST_CASE("1D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[1];
-               Vector tip(tip_data, 1);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -263,8 +263,8 @@ TEST_CASE("1D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[1];
-               Vector tip(tip_data, 1);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -374,8 +374,8 @@ TEST_CASE("2D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[2];
-               Vector tip(tip_data, 2);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -436,8 +436,8 @@ TEST_CASE("2D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[2];
-               Vector tip(tip_data, 2);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -497,8 +497,8 @@ TEST_CASE("2D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[2];
-               Vector tip(tip_data, 2);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -608,8 +608,8 @@ TEST_CASE("3D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[3];
-               Vector tip(tip_data, 3);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -670,8 +670,8 @@ TEST_CASE("3D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[3];
-               Vector tip(tip_data, 3);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -731,8 +731,8 @@ TEST_CASE("3D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[3];
-               Vector tip(tip_data, 3);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -869,8 +869,8 @@ TEST_CASE("2D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[2];
-               Vector tip(tip_data, 2);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -887,12 +887,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 2);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 2);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -977,8 +977,8 @@ TEST_CASE("2D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[2];
-               Vector tip(tip_data, 2);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -995,12 +995,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 2);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 2);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1085,8 +1085,8 @@ TEST_CASE("2D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[2];
-               Vector tip(tip_data, 2);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -1104,12 +1104,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 2);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 2);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1266,8 +1266,8 @@ TEST_CASE("3D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[3];
-               Vector tip(tip_data, 3);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -1284,12 +1284,12 @@ TEST_CASE("3D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 3);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 3);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 3);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 3);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1386,8 +1386,8 @@ TEST_CASE("3D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[3];
-               Vector tip(tip_data, 3);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -1404,12 +1404,12 @@ TEST_CASE("3D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 3);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 3);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 3);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 3);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1506,8 +1506,8 @@ TEST_CASE("3D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[3];
-               Vector tip(tip_data, 3);
+               double tip_data[dim];
+               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -1525,12 +1525,12 @@ TEST_CASE("3D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 3);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 3);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 3);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 3);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 3);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 3);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
