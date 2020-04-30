@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_JOULE_SOLVER
 #define MFEM_JOULE_SOLVER
@@ -27,10 +27,11 @@ namespace electromagnetics
 {
 
 // Some global variable for convenience
-static const double      SOLVER_TOL = 1.0e-9;
-static const int      SOLVER_MAX_IT = 1000;
-static       int SOLVER_PRINT_LEVEL = 0;
-static       int        STATIC_COND = 0;
+const double       SOLVER_TOL = 1.0e-9;
+const int       SOLVER_MAX_IT = 1000;
+// Initialized in joule.cpp and used in joule_solver.cpp:
+extern int SOLVER_PRINT_LEVEL;
+extern int        STATIC_COND;
 
 // These are defined in joule.cpp
 void edot_bc(const Vector &x, Vector &E);
