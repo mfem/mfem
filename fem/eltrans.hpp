@@ -55,7 +55,7 @@ public:
 
    ElementTransformation();
 
-   /** @brief Set the integration point @a ip that weights and jacobians will
+   /** @brief Set the integration point @a ip that weights and Jacobians will
        be evaluated at. */
    void SetIntPoint(const IntegrationPoint *ip)
    { IntPoint = ip; EvalState = 0; }
@@ -93,17 +93,17 @@ public:
    { return (EvalState & HESSIAN_MASK) ? d2Fdx2 : EvalHessian(); }
 
    /** @brief Return the weight of the Jacobian matrix of the transformation
-       at the currently set IntegrationPoint, using the metion SetIntPoint().
+       at the currently set IntegrationPoint.
        The Weight evaluates to \f$ \sqrt{\lvert J^T J \rvert} \f$. */
    double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
    /** @brief Return the adjugate of the Jacobian matrix of the transformation
-        at the currently set IntegrationPoint, using the method SetIntPoint(). */
+        at the currently set IntegrationPoint. */
    const DenseMatrix &AdjugateJacobian()
    { return (EvalState & ADJUGATE_MASK) ? adjJ : EvalAdjugateJ(); }
 
    /** @brief Return the inverse of the Jacobian matrix of the transformation
-        at the currently set IntegrationPoint, using the method SetIntPoint(). */
+        at the currently set IntegrationPoint. */
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
