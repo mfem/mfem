@@ -294,6 +294,15 @@ public:
           CURL  ///< Implements CalcCurlShape methods
         };
 
+   /** @brief Enumeration for ContType: defines the continuity of the
+       field across element interfaces.
+   */
+   enum { CONTINUOUS,   ///< Field is continuous across element interfaces
+          TANGENTIAL,   ///< Tangential components of vector field
+          NORMAL,       ///< Normal component of vector field
+          DISCONTINUOUS ///< Field is discontinuous across element interfaces
+        };
+
    /** Construct FiniteElement with given
        @param D    Reference space dimension
        @param G    Geometry type (of type Geometry::Type)
@@ -336,6 +345,8 @@ public:
    int GetDerivType() const { return DerivType; }
 
    int GetDerivMapType() const { return DerivMapType; }
+
+   virtual int GetContType() const = 0;
 
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -814,6 +825,8 @@ class PointFiniteElement : public NodalFiniteElement
 public:
    PointFiniteElement();
 
+   virtual int GetContType() const { return DISCONTINUOUS; }
+
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -826,6 +839,9 @@ class Linear1DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a linear FE on interval
    Linear1DFiniteElement();
+
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -846,6 +862,9 @@ class Linear2DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a linear FE on triangle
    Linear2DFiniteElement();
+
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -869,6 +888,9 @@ public:
    /// Construct a bilinear FE on quadrilateral
    BiLinear2DFiniteElement();
 
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
+
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (4) */
@@ -891,6 +913,7 @@ class GaussLinear2DFiniteElement : public NodalFiniteElement
 {
 public:
    GaussLinear2DFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -905,6 +928,7 @@ private:
 
 public:
    GaussBiLinear2DFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -915,6 +939,7 @@ class P1OnQuadFiniteElement : public NodalFiniteElement
 {
 public:
    P1OnQuadFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -928,6 +953,9 @@ class Quad1DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a quadratic FE on interval
    Quad1DFiniteElement();
+
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -946,6 +974,7 @@ class QuadPos1DFiniteElement : public PositiveFiniteElement
 {
 public:
    QuadPos1DFiniteElement();
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -957,6 +986,9 @@ class Quad2DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a quadratic FE on triangle
    Quad2DFiniteElement();
+
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -985,6 +1017,7 @@ private:
    mutable Vector pol;
 public:
    GaussQuad2DFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -997,6 +1030,9 @@ class BiQuad2DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a biquadratic FE on quadrilateral
    BiQuad2DFiniteElement();
+
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -1016,6 +1052,7 @@ class BiQuadPos2DFiniteElement : public PositiveFiniteElement
 {
 public:
    BiQuadPos2DFiniteElement();
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1035,6 +1072,7 @@ class GaussBiQuad2DFiniteElement : public NodalFiniteElement
 {
 public:
    GaussBiQuad2DFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1045,6 +1083,7 @@ class BiCubic2DFiniteElement : public NodalFiniteElement
 {
 public:
    BiCubic2DFiniteElement();
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1057,6 +1096,8 @@ class Cubic1DFiniteElement : public NodalFiniteElement
 public:
    Cubic1DFiniteElement();
 
+   virtual int GetContType() const { return CONTINUOUS; }
+
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1067,6 +1108,8 @@ class Cubic2DFiniteElement : public NodalFiniteElement
 {
 public:
    Cubic2DFiniteElement();
+
+   virtual int GetContType() const { return CONTINUOUS; }
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
@@ -1084,6 +1127,8 @@ public:
    /// Construct a cubic FE on tetrahedron
    Cubic3DFiniteElement();
 
+   virtual int GetContType() const { return CONTINUOUS; }
+
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1096,6 +1141,8 @@ class P0TriangleFiniteElement : public NodalFiniteElement
 public:
    /// Construct P0 triangle finite element
    P0TriangleFiniteElement();
+
+   virtual int GetContType() const { return DISCONTINUOUS; }
 
    /// evaluate shape function - constant 1
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -1112,6 +1159,7 @@ class P0QuadFiniteElement : public NodalFiniteElement
 {
 public:
    P0QuadFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1126,6 +1174,9 @@ class Linear3DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a linear FE on tetrahedron
    Linear3DFiniteElement();
+
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -1152,6 +1203,9 @@ public:
    /// Construct a quadratic FE on tetrahedron
    Quadratic3DFiniteElement();
 
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
+
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1164,6 +1218,9 @@ class TriLinear3DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a tri-linear FE on cube
    TriLinear3DFiniteElement();
+
+   /// Returns the continuity of the field
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -1187,6 +1244,7 @@ class CrouzeixRaviartFiniteElement : public NodalFiniteElement
 {
 public:
    CrouzeixRaviartFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1199,6 +1257,7 @@ class CrouzeixRaviartQuadFiniteElement : public NodalFiniteElement
 {
 public:
    CrouzeixRaviartQuadFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1208,6 +1267,7 @@ class P0SegmentFiniteElement : public NodalFiniteElement
 {
 public:
    P0SegmentFiniteElement(int Ord = 0);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1220,6 +1280,8 @@ private:
 
 public:
    RT0TriangleFiniteElement();
+
+   virtual int GetContType() const { return NORMAL; }
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -1248,6 +1310,8 @@ private:
 public:
    RT0QuadFiniteElement();
 
+   virtual int GetContType() const { return NORMAL; }
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
@@ -1274,6 +1338,8 @@ private:
 
 public:
    RT1TriangleFiniteElement();
+
+   virtual int GetContType() const { return NORMAL; }
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -1302,6 +1368,8 @@ private:
 public:
    RT1QuadFiniteElement();
 
+   virtual int GetContType() const { return NORMAL; }
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
@@ -1328,6 +1396,8 @@ private:
 public:
    RT2TriangleFiniteElement();
 
+   virtual int GetContType() const { return NORMAL; }
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
@@ -1348,6 +1418,8 @@ private:
 
 public:
    RT2QuadFiniteElement();
+
+   virtual int GetContType() const { return NORMAL; }
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -1373,6 +1445,7 @@ class P1SegmentFiniteElement : public NodalFiniteElement
 {
 public:
    P1SegmentFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1383,6 +1456,7 @@ class P2SegmentFiniteElement : public NodalFiniteElement
 {
 public:
    P2SegmentFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1397,6 +1471,7 @@ private:
 #endif
 public:
    Lagrange1DFiniteElement (int degree);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1406,6 +1481,7 @@ class P1TetNonConfFiniteElement : public NodalFiniteElement
 {
 public:
    P1TetNonConfFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1415,6 +1491,7 @@ class P0TetFiniteElement : public NodalFiniteElement
 {
 public:
    P0TetFiniteElement ();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1426,6 +1503,7 @@ class P0HexFiniteElement : public NodalFiniteElement
 {
 public:
    P0HexFiniteElement ();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1447,6 +1525,7 @@ private:
 
 public:
    LagrangeHexFiniteElement (int degree);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1460,6 +1539,8 @@ class RefinedLinear1DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a quadratic FE on interval
    RefinedLinear1DFiniteElement();
+
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -1481,6 +1562,8 @@ public:
    /// Construct a quadratic FE on triangle
    RefinedLinear2DFiniteElement();
 
+   virtual int GetContType() const { return CONTINUOUS; }
+
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
        them in the vector shape of dimension Dof (6) */
@@ -1501,6 +1584,8 @@ public:
    /// Construct a quadratic FE on tetrahedron
    RefinedLinear3DFiniteElement();
 
+   virtual int GetContType() const { return CONTINUOUS; }
+
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
 
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -1513,6 +1598,8 @@ class RefinedBiLinear2DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a biquadratic FE on quadrilateral
    RefinedBiLinear2DFiniteElement();
+
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -1533,6 +1620,8 @@ class RefinedTriLinear3DFiniteElement : public NodalFiniteElement
 public:
    /// Construct a biquadratic FE on quadrilateral
    RefinedTriLinear3DFiniteElement();
+
+   virtual int GetContType() const { return CONTINUOUS; }
 
    /** virtual function which evaluates the values of all
        shape functions at a given point ip and stores
@@ -1555,6 +1644,7 @@ private:
 
 public:
    Nedelec1HexFiniteElement();
+   virtual int GetContType() const { return TANGENTIAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -1577,6 +1667,7 @@ private:
 
 public:
    Nedelec1TetFiniteElement();
+   virtual int GetContType() const { return TANGENTIAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -1599,6 +1690,8 @@ private:
 
 public:
    RT0HexFiniteElement();
+
+   virtual int GetContType() const { return NORMAL; }
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -1628,6 +1721,8 @@ private:
 public:
    RT1HexFiniteElement();
 
+   virtual int GetContType() const { return NORMAL; }
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
@@ -1656,6 +1751,8 @@ private:
 public:
    RT0TetFiniteElement();
 
+   virtual int GetContType() const { return NORMAL; }
+
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
@@ -1680,6 +1777,7 @@ class RotTriLinearHexFiniteElement : public NodalFiniteElement
 {
 public:
    RotTriLinearHexFiniteElement();
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1941,6 +2039,7 @@ private:
 
 public:
    H1_SegmentElement(const int p, const int btype = BasisType::GaussLobatto);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1958,6 +2057,7 @@ private:
 public:
    H1_QuadrilateralElement(const int p,
                            const int btype = BasisType::GaussLobatto);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1974,6 +2074,7 @@ private:
 
 public:
    H1_HexahedronElement(const int p, const int btype = BasisType::GaussLobatto);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -1994,6 +2095,7 @@ private:
 
 public:
    H1Pos_SegmentElement(const int p);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2011,6 +2113,7 @@ private:
 
 public:
    H1Pos_QuadrilateralElement(const int p);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2022,6 +2125,7 @@ class H1Ser_QuadrilateralElement : public ScalarFiniteElement
 {
 public:
    H1Ser_QuadrilateralElement(const int p);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2040,6 +2144,7 @@ private:
 
 public:
    H1Pos_HexahedronElement(const int p);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2059,6 +2164,7 @@ private:
 
 public:
    H1_TriangleElement(const int p, const int btype = BasisType::GaussLobatto);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2081,6 +2187,7 @@ private:
 public:
    H1_TetrahedronElement(const int p,
                          const int btype = BasisType::GaussLobatto);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2100,6 +2207,8 @@ protected:
 
 public:
    H1Pos_TriangleElement(const int p);
+
+   virtual int GetContType() const { return CONTINUOUS; }
 
    // The size of shape is (p+1)(p+2)/2 (dof).
    static void CalcShape(const int p, const double x, const double y,
@@ -2126,6 +2235,8 @@ protected:
 
 public:
    H1Pos_TetrahedronElement(const int p);
+
+   virtual int GetContType() const { return CONTINUOUS; }
 
    // The size of shape is (p+1)(p+2)(p+3)/6 (dof).
    static void CalcShape(const int p, const double x, const double y,
@@ -2156,6 +2267,7 @@ private:
 public:
    H1_WedgeElement(const int p,
                    const int btype = BasisType::GaussLobatto);
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2200,6 +2312,7 @@ protected:
 public:
    H1Pos_WedgeElement(const int p);
 
+   virtual int GetContType() const { return CONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2215,6 +2328,7 @@ private:
 
 public:
    L2_SegmentElement(const int p, const int btype = BasisType::GaussLegendre);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2231,6 +2345,7 @@ private:
 
 public:
    L2Pos_SegmentElement(const int p);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2248,6 +2363,7 @@ private:
 public:
    L2_QuadrilateralElement(const int p,
                            const int btype = BasisType::GaussLegendre);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2268,6 +2384,7 @@ private:
 
 public:
    L2Pos_QuadrilateralElement(const int p);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2285,6 +2402,7 @@ private:
 public:
    L2_HexahedronElement(const int p,
                         const int btype = BasisType::GaussLegendre);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2301,6 +2419,7 @@ private:
 
 public:
    L2Pos_HexahedronElement(const int p);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2320,6 +2439,7 @@ private:
 public:
    L2_TriangleElement(const int p,
                       const int btype = BasisType::GaussLegendre);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2340,6 +2460,7 @@ private:
 
 public:
    L2Pos_TriangleElement(const int p);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2360,6 +2481,7 @@ private:
 public:
    L2_TetrahedronElement(const int p,
                          const int btype = BasisType::GaussLegendre);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2376,6 +2498,7 @@ private:
 
 public:
    L2Pos_TetrahedronElement(const int p);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2398,6 +2521,7 @@ private:
 public:
    L2_WedgeElement(const int p,
                    const int btype = BasisType::GaussLegendre);
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2424,6 +2548,7 @@ protected:
 public:
    L2Pos_WedgeElement(const int p);
 
+   virtual int GetContType() const { return DISCONTINUOUS; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
@@ -2446,6 +2571,7 @@ public:
    RT_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
                            const int ob_type = BasisType::GaussLegendre);
+   virtual int GetContType() const { return NORMAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2502,6 +2628,7 @@ public:
                         const int cb_type = BasisType::GaussLobatto,
                         const int ob_type = BasisType::GaussLegendre);
 
+   virtual int GetContType() const { return NORMAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2551,6 +2678,7 @@ class RT_TriangleElement : public VectorFiniteElement
 
 public:
    RT_TriangleElement(const int p);
+   virtual int GetContType() const { return NORMAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2606,6 +2734,7 @@ class RT_TetrahedronElement : public VectorFiniteElement
 
 public:
    RT_TetrahedronElement(const int p);
+   virtual int GetContType() const { return NORMAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2653,6 +2782,8 @@ public:
    ND_HexahedronElement(const int p,
                         const int cb_type = BasisType::GaussLobatto,
                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual int GetContType() const { return TANGENTIAL; }
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
@@ -2718,6 +2849,7 @@ public:
    ND_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
                            const int ob_type = BasisType::GaussLegendre);
+   virtual int GetContType() const { return TANGENTIAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2767,6 +2899,7 @@ class ND_TetrahedronElement : public VectorFiniteElement
 
 public:
    ND_TetrahedronElement(const int p);
+   virtual int GetContType() const { return TANGENTIAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2821,6 +2954,7 @@ class ND_TriangleElement : public VectorFiniteElement
 
 public:
    ND_TriangleElement(const int p);
+   virtual int GetContType() const { return TANGENTIAL; }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
    virtual void CalcVShape(ElementTransformation &Trans,
@@ -2865,6 +2999,7 @@ class ND_SegmentElement : public VectorFiniteElement
 
 public:
    ND_SegmentElement(const int p, const int ob_type = BasisType::GaussLegendre);
+   virtual int GetContType() const { return TANGENTIAL; }
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const
    { obasis1d.Eval(ip.x, shape); }
    virtual void CalcVShape(const IntegrationPoint &ip,
@@ -2920,6 +3055,8 @@ public:
       weights.SetSize(Dof);
       weights = 1.0;
    }
+
+   virtual int GetContType() const { return CONTINUOUS; }
 
    void                 Reset      ()         const { patch = elem = -1; }
    void                 SetIJK     (const int *IJK) const { ijk = IJK; }
