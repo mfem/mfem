@@ -231,6 +231,14 @@ miniapps/gslib/field-diff
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
 
+miniapps/navier/navier_mms
+miniapps/navier/navier_kovasznay
+miniapps/navier/navier_tgv
+miniapps/navier/navier_shear
+miniapps/navier/navier_3dfoc
+miniapps/navier/tgv_out*.txt
+miniapps/navier/*_output
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
