@@ -21,9 +21,10 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = mobius-strip klein-bottle toroid \
-	mesh-explorer shaper extruder mesh-optimizer
-PAR_MINIAPPS = pmesh-optimizer
+SEQ_MINIAPPS = mobius-strip klein-bottle toroid twist \
+	mesh-explorer shaper extruder mesh-optimizer \
+	minimal-surface
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -66,9 +67,15 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
 toroid-test-seq: toroid
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-wedge-o3-s0.mesh)
+twist-test-seq: twist
+	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-hex-o3-s2-p.mesh)
 mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+minimal-surface-test-seq: minimal-surface
+	@$(call mfem-test,$<,, Meshing miniapp)
+pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 
 # Testing: Specific execution options
@@ -86,13 +93,14 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle toroid
+	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder
 	rm -f mesh-optimizer pmesh-optimizer
+	rm -f minimal-surface pminimal-surface
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f toroid-*.mesh
+	@rm -f toroid-*.mesh twist-*.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed*

@@ -31,6 +31,9 @@ list(APPEND ALL_EXE_SRCS
   ex22.cpp
   ex23.cpp
   ex24.cpp
+  ex25.cpp
+  ex26.cpp
+  ex27.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -58,6 +61,9 @@ if (MFEM_USE_MPI)
     ex21p.cpp
     ex22p.cpp
     ex24p.cpp
+    ex25p.cpp
+    ex26p.cpp
+    ex27p.cpp
     )
 endif()
 
@@ -77,6 +83,8 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
     list(APPEND THIS_TEST_OPTIONS "-tf" "5")
   elseif(${TEST_NAME} MATCHES "ex15p*")
     list(APPEND THIS_TEST_OPTIONS "-e" "1")
+  elseif(${TEST_NAME} MATCHES "ex27p*")
+    list(APPEND THIS_TEST_OPTIONS "-dg")
   endif()
 
   if (NOT (${TEST_NAME} MATCHES ".*p$"))

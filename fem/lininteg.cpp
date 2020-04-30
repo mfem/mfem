@@ -93,6 +93,37 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void BoundaryLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);        // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;    // <------ user control
+      ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      IntegrationPoint eip;
+      Tr.Loc1.Transform(ip, eip);
+
+      Tr.Face->SetIntPoint (&ip);
+      double val = Tr.Face->Weight() * ip.weight * Q.Eval(*Tr.Face, ip);
+
+      el.CalcShape(eip, shape);
+
+      add(elvect, val, shape, elvect);
+   }
+}
+
 void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -395,11 +426,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
-      if (F == NULL)
-      {
-         intorder -= el.GetOrder() + 1;
-      }
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
@@ -434,7 +461,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int intorder = 2*el.GetOrder();  // <----------
+      int intorder = oa * el.GetOrder() + ob;  // <----------
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
