@@ -902,6 +902,22 @@ protected:
       nodes0 = NULL; coeff0 = NULL; lim_dist = NULL; lim_func = NULL;
    }
 
+   const IntegrationRule *EnergyIntegrationRule(const FiniteElement &el) const
+   {
+      return (IntRule) ? IntRule
+      /* */            : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
+   }
+   const IntegrationRule *ActionIntegrationRule(const FiniteElement &el) const
+   {
+      // TODO the energy most likely needs less integration points.
+      return EnergyIntegrationRule(el);
+   }
+   const IntegrationRule *GradientIntegrationRule(const FiniteElement &el) const
+   {
+      // TODO the action and energy most likely need less integration points.
+      return EnergyIntegrationRule(el);
+   }
+
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
