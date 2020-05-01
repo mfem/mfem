@@ -307,8 +307,13 @@ public:
 /** @brief The LpErrorEstimator class compares the solution to a known
     coefficient.
 
-    The class supports either scalar or vector coefficients and works both
-    in serial and in parallel.
+    This class can be used, for example, to adapt a mesh to a
+    non-trivial initial condition in a time-dependent simulation.  It
+    can also be used to force refinement in the neighborhood of small
+    features before switching to a more traditional error estimator.
+
+    The LpErrorEstimator supports either scalar or vector coefficients
+    and works both in serial and in parallel.
 */
 class LpErrorEstimator : public ErrorEstimator
 {
