@@ -46,8 +46,8 @@ endif
 #	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 # Shit, I'm doing it by hand
-hptest: hptest.o exact.o util.o
-	$(MFEM_CXX) $(MFEM_FLAGS) $(<) -o $(@) exact.o util.o $(MFEM_LIBS)
+hptest: hptest.o exact.o util.o error.o
+	$(MFEM_CXX) $(MFEM_FLAGS) $(<) -o $(@) exact.o util.o error.o $(MFEM_LIBS)
 
 all: $(MINIAPPS)
 
