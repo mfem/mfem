@@ -759,7 +759,41 @@ public:
        where the "_i" subscripts denote all the nonessential (boundary) trial
        indices and the "_j" subscript denotes the essential test indices */
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
+};
+
+/** @brief PowerMethod helper class to estimate the largest eigenvalue of an
+           operator using the iterative power method. */
+class PowerMethod
+{
+   Vector v1;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+
+public:
+
+#ifdef MFEM_USE_MPI
+   PowerMethod() : comm(MPI_COMM_NULL) {}
+#else
+   PowerMethod() {}
+#endif
+
+#ifdef MFEM_USE_MPI
+   PowerMethod(MPI_Comm _comm) : comm(_comm) {}
+#endif
+
+   /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr
+   /// using the iterative power method.
+   /** \p v0 is being used as the vector for the iterative process and will contain
+       the eigenvector corresponding to the largest eigenvalue after convergence.
+       The maximum number of iterations may set with \p numSteps, the relative
+       tolerance with \p tolerance and the seed of the random initialization of
+       \p v0 with \p seed. */
+   double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                    int numSteps = 10, double tolerance = 1e-8,
+                                    int seed = 12345);
 };
 
 }
