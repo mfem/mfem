@@ -1033,7 +1033,7 @@ public:
    /// Adds a new TMOP_Integrator to the combination.
    void AddTMOPIntegrator(TMOP_Integrator *ti) { tmopi.Append(ti); }
 
-   Array<TMOP_Integrator *> GetTMOPIntegrators() const { return tmopi; }
+   const Array<TMOP_Integrator *> &GetTMOPIntegrators() const { return tmopi; }
 
    /// Adds the limiting term to the first integrator. Disables it for the rest.
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
