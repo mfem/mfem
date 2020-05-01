@@ -292,7 +292,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 
 // Data and methods for element-assembled bilinear forms
 EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
-   : PABilinearFormExtension(form)
+   : PABilinearFormExtension(form), simplify(form->FESpace()->IsDGSpace())
 {
 }
 
@@ -347,10 +347,15 @@ void EABilinearFormExtension::Assemble()
       bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr);
    }
 
-   bool simplify = false;
-   if (simplify)
+   if (simplify && int_face_restrict_lex)
    {
-      // Factorize(ea_data_int, ea_data_bdr, ea_data);
+      auto restFint = dynamic_cast<const L2FaceRestriction&>(*int_face_restrict_lex);
+      restFint.FactorizeBlocks(ea_data_int, elemDofs, ne, ea_data);
+   }
+   if (simplify && bdr_face_restrict_lex)
+   {
+      auto restFbdr = dynamic_cast<const L2FaceRestriction&>(*bdr_face_restrict_lex);
+      restFbdr.FactorizeBlocks(ea_data_bdr, elemDofs, ne, ea_data);
    }
 }
 
@@ -404,24 +409,27 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          const int NDOFS = faceDofs;
          auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
          auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
-         auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
-         MFEM_FORALL(glob_j, nf_int*NDOFS,
+         if(!simplify)
          {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            double res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
+            auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
+            MFEM_FORALL(glob_j, nf_int*NDOFS,
             {
-               res += A_int(i, j, 0, f)*X(i, 0, f);
-            }
-            Y(j, 0, f) += res;
-            res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A_int(i, j, 1, f)*X(i, 1, f);
-            }
-            Y(j, 1, f) += res;
-         });
+               const int f = glob_j/NDOFS;
+               const int j = glob_j%NDOFS;
+               double res = 0.0;
+               for (int i = 0; i < NDOFS; i++)
+               {
+                  res += A_int(i, j, 0, f)*X(i, 0, f);
+               }
+               Y(j, 0, f) += res;
+               res = 0.0;
+               for (int i = 0; i < NDOFS; i++)
+               {
+                  res += A_int(i, j, 1, f)*X(i, 1, f);
+               }
+               Y(j, 1, f) += res;
+            });
+         }
          auto A_ext = Reshape(ea_data_ext.Read(), NDOFS, NDOFS, 2, nf_int);
          MFEM_FORALL(glob_j, nf_int*NDOFS,
          {
@@ -448,7 +456,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    // Treatment of boundary faces
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int bFISz = bdrFaceIntegrators.Size();
-   if (bdr_face_restrict_lex && bFISz>0)
+   if (!simplify && bdr_face_restrict_lex && bFISz>0)
    {
       //Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);
@@ -599,6 +607,92 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       }
    }
 }
+
+// Data and methods for fully-assembled bilinear forms
+FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
+   : EABilinearFormExtension(form),
+     mat(form->FESpace()->GetVSize()+1)//Multiply by vd?
+{
+}
+
+void FABilinearFormExtension::Assemble()
+{
+   //TODO something is missing
+   SetupRestrictionOperators(L2FaceValues::SingleValued);
+   FiniteElementSpace &fes = *a->FESpace();
+   if (fes.IsDGSpace())
+   {
+      const L2ElementRestriction &restE = static_cast<const L2ElementRestriction&>(*elem_restrict);
+      const L2FaceRestriction &restF = static_cast<const L2FaceRestriction&>(*int_face_restrict_lex);
+      //1. Fill I
+      Vector elem_nnz(ne);
+      //  1.1 Increment with restE
+      restE.FillElemNnz(elem_nnz);
+      //  1.2 Increment with restF
+      restF.FillElemNnz(elem_nnz);
+      //    Init the indirection vector
+      Vector elem_begin(ne);
+      Vector face_begin(ne);// face_begin(e) + i_B*elem_nnz(e)
+      const int elem_dofs = 1;
+      auto I = mat.HostWriteI();
+      int cpt = 0;
+      //TODO take into account vd
+      for (int e = 0; e < ne; e++)
+      {
+         elem_begin[e] = cpt;
+         face_begin[e] = cpt + elem_dofs;
+         const int row_nnz = elem_nnz[e];
+         for (int dof = 0; dof < elem_dofs; dof++)
+         {
+            const int row = e*elem_dofs+dof;
+            I[row] = cpt;
+            cpt += row_nnz;
+         }
+      }
+      I[ne*elem_dofs] = cpt;
+      //2. Fill J and Data with Elem ea_data
+      restE.FillJandData(elem_begin, elem_nnz, ea_data, elem_dofs, mat);
+      //3. Fill J and Data with Face ea_data_ext
+      restF.FillJandData(elem_begin, elem_nnz, ea_data_ext, elem_dofs, mat);
+   }
+   else // CG case
+   {
+      const ElementRestriction &rest = static_cast<const ElementRestriction&>(*elem_restrict);
+      rest.FillSpMat(mat, ea_data);
+   }
+   
+}
+
+void FABilinearFormExtension::Update()
+{
+   //TODO
+}
+
+void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                               OperatorHandle &A)
+{
+   //TODO
+}
+
+void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                               Vector &x, Vector &b,
+                                               OperatorHandle &A,
+                                               Vector &X, Vector &B,
+                                               int copy_interior)
+{
+   //TODO
+}
+
+void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   mat.Mult(x, y);
+}
+
+void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
+{
+   mat.MultTranspose(x, y);
+}
+
 
 MixedBilinearFormExtension::MixedBilinearFormExtension(MixedBilinearForm *form)
    : Operator(form->Height(), form->Width()), a(form)
