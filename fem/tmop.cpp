@@ -1279,11 +1279,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = EnergyIntegrationRule(el);
 
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
@@ -1418,11 +1414,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = ActionIntegrationRule(el);
    const int nqp = ir->GetNPoints();
 
    elvect = 0.0;
@@ -1516,11 +1508,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = GradientIntegrationRule(el);
    const int nqp = ir->GetNPoints();
 
    elmat = 0.0;
@@ -1771,11 +1759,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    // Contributions from adaptive limiting.
    if (zeta)
    {
-      const IntegrationRule *ir = IntRule;
-      if (!ir)
-      {
-         ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-      }
+      const IntegrationRule *ir = ActionIntegrationRule(el);
       const int nqp = ir->GetNPoints();
       DenseTensor Jtr(dim, dim, nqp);
       targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
@@ -1868,11 +1852,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    // Contributions from adaptive limiting.
    if (zeta)
    {
-      const IntegrationRule *ir = IntRule;
-      if (!ir)
-      {
-         ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-      }
+      const IntegrationRule *ir = GradientIntegrationRule(el);
       const int nqp = ir->GetNPoints();
       DenseTensor Jtr(dim, dim, nqp);
       targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
@@ -1928,12 +1908,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    Jpr.SetSize(dim);
    Jpt.SetSize(dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3)); // <---
-   }
-
+   const IntegrationRule *ir = EnergyIntegrationRule(*fe);
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
 
    metric_energy = 0.0;
@@ -1967,14 +1942,10 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 void TMOP_Integrator::ComputeMinJac(const Vector &x,
                                     const FiniteElementSpace &fes)
 {
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(fes.GetFE(0)->GetGeomType(),
-                          2*fes.GetFE(0)->GetOrder() + 3)); // <---
-   }
-   const int NE = fes.GetMesh()->GetNE(), dim = fes.GetFE(0)->GetDim(),
-             dof = fes.GetFE(0)->GetDof(), nsp = ir->GetNPoints();
+   const FiniteElement *fe = fes.GetFE(0);
+   const IntegrationRule *ir = EnergyIntegrationRule(*fe);
+   const int NE = fes.GetMesh()->GetNE(), dim = fe->GetDim(),
+             dof = fe->GetDof(), nsp = ir->GetNPoints();
 
    Array<int> xdofs(dof * dim);
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
