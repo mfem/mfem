@@ -1,10 +1,13 @@
-//                           hp-Refinement Test
+//                           hp-Refinement Demo
 //
 // Compile with: make hptest
 //
-// Sample runs:
+// Sample runs: TODO
 //
-// Description:
+// Description: This is a demo of the hp-refinement capability of MFEM.
+//              One of the benchmark problems with a known exact solution is
+//              solved on a sequence of meshes where both the size (h) and the
+//              polynomial order (p) of elements is adapted.
 //
 
 #include "mfem.hpp"
@@ -12,6 +15,7 @@
 
 #include "exact.hpp"
 #include "util.hpp"
+#include "error.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -25,6 +29,8 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   double ref_threshold = 0.7;
+   bool aniso = true;
    int int_order = 10;
 
    OptionsParser args(argc, argv);
@@ -175,22 +181,35 @@ int main(int argc, char *argv[])
          break;
       }
 
+      // Calculate the H^1_0 errors of elements as well as the total error.
+      Array<double> elem_error;
+      Array<int> ref_type;
+      double error;
+      {
+         error = CalculateH10Error2(&x, &exgrad, &elem_error, &ref_type, int_order);
+         error = std::sqrt(error);
+      }
 
-      // TODO refine
-      mesh.RandomRefinement(0.5);
+      // Refine elements
+      Array<Refinement> refinements;
+      {
+         double err_max = elem_error.Max();
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            if (elem_error[i] > ref_threshold * err_max)
+            {
+               int type = aniso ? ref_type[i] : 7;
+               refinements.Append(Refinement(i, type));
+            }
+         }
+      }
+      mesh.GeneralRefinement(refinements);
 
-
-      // 21. Update the space to reflect the new state of the mesh. Also,
-      //     interpolate the solution x so that it lies in the new space but
-      //     represents the same function. This saves solver iterations later
-      //     since we'll have a good initial guess of x in the next step.
-      //     Internally, FiniteElementSpace::Update() calculates an
-      //     interpolation matrix which is then used by GridFunction::Update().
+      // Update the space, interpolate the solution.
       fespace.Update();
       x.Update();
 
-      // 22. Inform also the bilinear and linear forms that the space has
-      //     changed.
+      // Inform also the bilinear and linear forms that the space has changed.
       bf.Update();
       lf.Update();
    }
