@@ -397,6 +397,7 @@ int main(int argc, char *argv[])
    delete u;
    delete p;
    delete darcyOp;
+   delete darcyMat;
    delete darcyPr;
    delete invM;
    delete invS;

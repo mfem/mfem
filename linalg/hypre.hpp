@@ -572,8 +572,12 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 
 /// Returns the matrix constructed from blocks.
 /** It is assumed that all block matrices use the same communicator, and the
-    block sizes are consistent in rows and columns. Some blocks can be null.
-    Each block and the entire system can be rectangular.
+    block sizes are consistent in rows and columns. Rows and columns are
+    renumbered but not redistributed in parallel, e.g. the block rows owned by
+    each process remain on that process in the resulting matrix. Some blocks can
+    be null. Each block and the entire system can be rectangular. Scalability to
+    extremely large processor counts is limited by global MPI communication, see
+    GatherBlockOffsetData in hypre.cpp.
 */
 HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                                           Array2D<double> *blockCoeff=NULL);

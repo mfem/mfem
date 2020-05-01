@@ -1713,7 +1713,8 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
    return new HypreParMatrix(rap);
 }
 
-// Helper function for HypreParMatrixFromBlocks
+// Helper function for HypreParMatrixFromBlocks. Note that scalability to
+// extremely large processor counts is limited by the use of MPI_Allgather.
 void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
                            const int num_loc, Array<int> &offsets,
                            std::vector<int> &all_num_loc, const int numBlocks,
