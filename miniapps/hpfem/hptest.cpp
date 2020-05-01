@@ -21,6 +21,25 @@ using namespace std;
 using namespace mfem;
 
 
+struct HPError
+{
+   double err_h, err_p;
+   int dof_h, dof_p;
+};
+
+void EstimateHPErrors(const GridFunction &sol,
+                      const Coefficient &exsol,
+                      const VectorCoefficient &exgrad,
+                      Array<HPError> &elem_hp_error)
+{
+   // TODO: copy mesh and h-refine it
+   // TODO: copy space and p-refine it
+   // TODO: project exsol on both
+   // TODO: calculate H10 element errors using exgrad
+   // TODO: sum h errors, calculate approx DOFs, return HPError for each elem
+}
+
+
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
@@ -31,6 +50,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double ref_threshold = 0.7;
    bool aniso = true;
+   bool hp = true;
    int int_order = 10;
 
    OptionsParser args(argc, argv);
@@ -139,6 +159,7 @@ int main(int argc, char *argv[])
       // Set Dirichlet boundary values in the GridFunction x.
       // Determine the list of Dirichlet true DOFs in the linear system.
       Array<int> ess_tdof_list;
+      x = 0; // FIXME
       x.ProjectBdrCoefficient(exsol, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -190,7 +211,19 @@ int main(int argc, char *argv[])
          error = std::sqrt(error);
       }
 
-      // Refine elements
+      // Project the exact solution to h-refined and p-refined versions of the
+      // mesh and determine whether to refine elements in 'h' or in 'p'.
+      Array<int> hp_ref;
+      if (hp)
+      {
+         Array<HPError> elem_hp_error;
+         EstimateHPErrors(x, exsol, exgrad, elem_hp_error);
+
+         // compare if going from elem_error/dof -> elem_error_h/dof_h
+         // is steeper than from elem_error/dof -> elem_error_p/dof_p
+      }
+
+      // h-refine elements
       Array<Refinement> refinements;
       {
          double err_max = elem_error.Max();
@@ -198,8 +231,11 @@ int main(int argc, char *argv[])
          {
             if (elem_error[i] > ref_threshold * err_max)
             {
-               int type = aniso ? ref_type[i] : 7;
-               refinements.Append(Refinement(i, type));
+               if (!hp || hp_ref[i] == 0) // h-refinements only (if doing hp)
+               {
+                  int type = aniso ? ref_type[i] : 7;
+                  refinements.Append(Refinement(i, type));
+               }
             }
          }
       }
@@ -209,6 +245,18 @@ int main(int argc, char *argv[])
       fespace.Update();
       x.Update();
 
+      // p-refine elements
+      if (hp)
+      {
+         // TODO:
+         // - increase orders of elements that need to be p-refined
+         // - halve order of elements that were h-refined above
+
+         // Update the space, interpolate the solution. FIXME
+         fespace.Update(false);
+         //x.Update(); // NOT IMPLEMENTED YET
+      }
+
       // Inform also the bilinear and linear forms that the space has changed.
       bf.Update();
       lf.Update();
@@ -216,3 +264,6 @@ int main(int argc, char *argv[])
 
    return 0;
 }
+
+
+
