@@ -205,6 +205,8 @@ public:
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double c=1.0) const = 0;
 
+   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
+
    virtual void Update() = 0;
 };
 
@@ -255,6 +257,9 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /// y += c*A^T*x
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   /// Assemble the diagonal of ADA^T for a diagonal vector D.
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+
    /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
 };
