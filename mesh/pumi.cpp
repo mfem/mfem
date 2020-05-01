@@ -37,15 +37,16 @@ static void getPumiNodeXis(apf::FieldShape* fs,
                            int type,
                            IntegrationRule& xis)
 {
-  apf::NewArray<apf::Vector3> pumiXis;
-  apf::getElementNodeXis(fs, type, pumiXis);
-  xis.SetSize(pumiXis.size());
-  for (size_t i = 0; i < pumiXis.size(); i++) {
-    IntegrationPoint& ip = xis.IntPoint(i);
-    double xi[3];
-    pumiXis[i].toArray(xi);
-    ip.Set(xi, 3);
-  }
+   apf::NewArray<apf::Vector3> pumiXis;
+   apf::getElementNodeXis(fs, type, pumiXis);
+   xis.SetSize(pumiXis.size());
+   for (size_t i = 0; i < pumiXis.size(); i++)
+   {
+      IntegrationPoint& ip = xis.IntPoint(i);
+      double xi[3];
+      pumiXis[i].toArray(xi);
+      ip.Set(xi, 3);
+   }
 }
 
 static void getPumiNodeXis(apf::FieldShape* fs,
@@ -53,23 +54,24 @@ static void getPumiNodeXis(apf::FieldShape* fs,
                            apf::MeshEntity* e,
                            IntegrationRule& xis)
 {
-  apf::NewArray<apf::Vector3> pumiXis;
-  apf::getElementNodeXis(fs, m, e, pumiXis);
-  xis.SetSize(pumiXis.size());
-  for (size_t i = 0; i < pumiXis.size(); i++) {
-    IntegrationPoint& ip = xis.IntPoint(i);
-    double xi[3];
-    pumiXis[i].toArray(xi);
-    ip.Set(xi, 3);
-  }
+   apf::NewArray<apf::Vector3> pumiXis;
+   apf::getElementNodeXis(fs, m, e, pumiXis);
+   xis.SetSize(pumiXis.size());
+   for (size_t i = 0; i < pumiXis.size(); i++)
+   {
+      IntegrationPoint& ip = xis.IntPoint(i);
+      double xi[3];
+      pumiXis[i].toArray(xi);
+      ip.Set(xi, 3);
+   }
 }
 
 
 static void ReadPumiElement(apf::MeshEntity* Ent, /* ptr to pumi entity */
-			    apf::Downward Verts,
-			    const int Attr, apf::Numbering* vert_num,
-			    Element* el /* ptr to mfem entity being created */
-			    )
+                            apf::Downward Verts,
+                            const int Attr, apf::Numbering* vert_num,
+                            Element* el /* ptr to mfem entity being created */
+                           )
 {
    int nv, *v;
 
@@ -244,8 +246,8 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
          apf_mesh->getDownward(ent, 0, verts);
          int attr = 1;
          int geom_type = apf_mesh->getType(ent);
-	 boundary[j] = NewElement(geom_type);
-	 ReadPumiElement(ent, verts, attr, v_num_loc, boundary[j]);
+         boundary[j] = NewElement(geom_type);
+         ReadPumiElement(ent, verts, attr, v_num_loc, boundary[j]);
          j++;
       }
    }
@@ -396,9 +398,9 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
          apf_mesh->getDownward(ent, 0, verts);
          int attr = 1 ;
          int geom_type = apf_mesh->getType(ent);
-	 boundary[bdr_ctr] = NewElement(geom_type);
-	 ReadPumiElement(ent, verts, attr, v_num_loc, boundary[bdr_ctr]);
-	 bdr_ctr++;
+         boundary[bdr_ctr] = NewElement(geom_type);
+         ReadPumiElement(ent, verts, attr, v_num_loc, boundary[bdr_ctr]);
+         bdr_ctr++;
       }
    }
    apf_mesh->end(itr);
@@ -709,12 +711,12 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
 
 ParPumiMesh::~ParPumiMesh()
 {
-  // clean ups
+   // clean ups
 
-  // This is used during some of the field transfers, and therefore
-  // unlike the PumiMesh class, we cannot destroy this inside the
-  // constructor of the class.
-  apf::destroyNumbering(v_num_loc);
+   // This is used during some of the field transfers, and therefore
+   // unlike the PumiMesh class, we cannot destroy this inside the
+   // constructor of the class.
+   apf::destroyNumbering(v_num_loc);
 }
 
 // GridFunctionPumi Implementation needed for high order meshes
@@ -951,49 +953,58 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
                                     apf::MeshEntity* tet,
                                     int elemId)
 {
-  MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
-  // get downward vertices of PUMI element
-  apf::Downward vs;
-  int nv = apf_mesh->getDownward(tet,0,vs);
-  int pumi_vid[nv];
-  for (int i = 0; i < nv; i++)
-    pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
+   MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
+   // get downward vertices of PUMI element
+   apf::Downward vs;
+   int nv = apf_mesh->getDownward(tet,0,vs);
+   int pumi_vid[nv];
+   for (int i = 0; i < nv; i++)
+   {
+      pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
+   }
 
-  // get downward vertices of MFEM element
-  mfem::Array<int> mfem_vid;
-  this->GetElementVertices(elemId, mfem_vid);
+   // get downward vertices of MFEM element
+   mfem::Array<int> mfem_vid;
+   this->GetElementVertices(elemId, mfem_vid);
 
-  // get rotated indices of PUMI element
-  int pumi_vid_rot[nv];
-  for (int i = 0; i < nv; i++)
-    pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
-  apf::Downward vs_rot;
-  for (int i = 0; i < nv; i++)
-    vs_rot[i] = vs[pumi_vid_rot[i]];
+   // get rotated indices of PUMI element
+   int pumi_vid_rot[nv];
+   for (int i = 0; i < nv; i++)
+   {
+      pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
+   }
+   apf::Downward vs_rot;
+   for (int i = 0; i < nv; i++)
+   {
+      vs_rot[i] = vs[pumi_vid_rot[i]];
+   }
 
-  return ma::findTetRotation(apf_mesh, tet, vs_rot);
+   return ma::findTetRotation(apf_mesh, tet, vs_rot);
 }
 
 // Convert parent coordinate form a PUMI tet to an MFEM tet
 IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
-					         apf::MeshEntity* tet,
-					         int elemId,
-					         apf::NewArray<apf::Vector3>& pumi_xi,
-					         bool checkOrientation)
+                                                 apf::MeshEntity* tet,
+                                                 int elemId,
+                                                 apf::NewArray<apf::Vector3>& pumi_xi,
+                                                 bool checkOrientation)
 {
-  int num_nodes = pumi_xi.size();
-  IntegrationRule mfem_xi(num_nodes);
-  int rotation = checkOrientation ? RotationPUMItoMFEM(apf_mesh, tet, elemId):0;
-  for(int i = 0; i < num_nodes; i++) {
-    // for non zero "rotation", rotate the xi
-    if (rotation)
-      ma::rotateTetXi(pumi_xi[i], rotation);
-    IntegrationPoint& ip = mfem_xi.IntPoint(i);
-    double tmp_xi[3];
-    pumi_xi[i].toArray(tmp_xi);
-    ip.Set(tmp_xi,3);
-  }
-  return mfem_xi;
+   int num_nodes = pumi_xi.size();
+   IntegrationRule mfem_xi(num_nodes);
+   int rotation = checkOrientation ? RotationPUMItoMFEM(apf_mesh, tet, elemId):0;
+   for (int i = 0; i < num_nodes; i++)
+   {
+      // for non zero "rotation", rotate the xi
+      if (rotation)
+      {
+         ma::rotateTetXi(pumi_xi[i], rotation);
+      }
+      IntegrationPoint& ip = mfem_xi.IntPoint(i);
+      double tmp_xi[3];
+      pumi_xi[i].toArray(tmp_xi);
+      ip.Set(tmp_xi,3);
+   }
+   return mfem_xi;
 }
 
 // Transfer a mixed vector-scalar field (i.e. velocity,pressure) and the
@@ -1016,7 +1027,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       apf::NewArray<apf::Vector3> pumi_nodes;
       apf::getElementNodeXis(field_shape, apf_mesh, ent, pumi_nodes);
       IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
-     	  apf_mesh, ent, iel, pumi_nodes, true);
+                                      apf_mesh, ent, iel, pumi_nodes, true);
       // Get the solution
       ElementTransformation* eltr = this->GetElementTransformation(iel);
       DenseMatrix vel;
@@ -1025,21 +1036,24 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       grid_pr->GetValues(iel, mfem_nodes, pr, 1);
 
       int non = 0;
-      for (int d = 0; d <= dim; d++) {
-	if (!field_shape->hasNodesIn(d)) continue;
-	apf::Downward a;
-	int na = apf_mesh->getDownward(ent,d,a);
-	for (int i = 0; i < na; i++) {
-	  int type = apf_mesh->getType(a[i]);
-	  int nan = field_shape->countNodesOn(type);
-	  for (int n = 0; n < nan; n++) {
-	    apf::Vector3 v(vel.GetColumn(non));
-	    apf::setVector(vel_field, a[i], n, v);
-	    apf::setScalar(pr_field, a[i], n, pr[non]);
-	    apf::setScalar(vel_mag_field, a[i], n, v.getLength());
-	    non++;
-	  }
-	}
+      for (int d = 0; d <= dim; d++)
+      {
+         if (!field_shape->hasNodesIn(d)) { continue; }
+         apf::Downward a;
+         int na = apf_mesh->getDownward(ent,d,a);
+         for (int i = 0; i < na; i++)
+         {
+            int type = apf_mesh->getType(a[i]);
+            int nan = field_shape->countNodesOn(type);
+            for (int n = 0; n < nan; n++)
+            {
+               apf::Vector3 v(vel.GetColumn(non));
+               apf::setVector(vel_field, a[i], n, v);
+               apf::setScalar(pr_field, a[i], n, pr[non]);
+               apf::setScalar(vel_mag_field, a[i], n, v.getLength());
+               non++;
+            }
+         }
       }
       iel++;
    }
@@ -1063,27 +1077,30 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       apf::NewArray<apf::Vector3> pumi_nodes;
       apf::getElementNodeXis(field_shape, apf_mesh, ent, pumi_nodes);
       IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
-     	  apf_mesh, ent, iel, pumi_nodes, true);
+                                      apf_mesh, ent, iel, pumi_nodes, true);
       // Get the solution
       Vector vals;
       grid_pr->GetValues(iel, mfem_nodes, vals, 1);
 
       int non = 0;
-      for (int d = 0; d <= dim; d++) {
-	if (!field_shape->hasNodesIn(d)) continue;
-	apf::Downward a;
-	int na = apf_mesh->getDownward(ent,d,a);
-	for (int i = 0; i < na; i++) {
-	  int type = apf_mesh->getType(a[i]);
-	  int nan = field_shape->countNodesOn(type);
-	  for (int n = 0; n < nan; n++) {
-	    double pr = vals[non];
-	    double pr_mag = pr >= 0 ? pr : -pr;
-	    apf::setScalar(pr_field, a[i], n, pr);
-	    apf::setScalar(pr_mag_field, a[i], n, pr_mag);
-	    non++;
-	  }
-	}
+      for (int d = 0; d <= dim; d++)
+      {
+         if (!field_shape->hasNodesIn(d)) { continue; }
+         apf::Downward a;
+         int na = apf_mesh->getDownward(ent,d,a);
+         for (int i = 0; i < na; i++)
+         {
+            int type = apf_mesh->getType(a[i]);
+            int nan = field_shape->countNodesOn(type);
+            for (int n = 0; n < nan; n++)
+            {
+               double pr = vals[non];
+               double pr_mag = pr >= 0 ? pr : -pr;
+               apf::setScalar(pr_field, a[i], n, pr);
+               apf::setScalar(pr_mag_field, a[i], n, pr_mag);
+               non++;
+            }
+         }
       }
       iel++;
    }
@@ -1108,27 +1125,30 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       apf::NewArray<apf::Vector3> pumi_nodes;
       apf::getElementNodeXis(field_shape, apf_mesh, ent, pumi_nodes);
       IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
-     	  apf_mesh, ent, iel, pumi_nodes, true);
+                                      apf_mesh, ent, iel, pumi_nodes, true);
       // Get the solution
       ElementTransformation* eltr = this->GetElementTransformation(iel);
       DenseMatrix vel;
       grid_vel->GetVectorValues(*eltr, mfem_nodes, vel);
 
       int non = 0;
-      for (int d = 0; d <= dim; d++) {
-	if (!field_shape->hasNodesIn(d)) continue;
-	apf::Downward a;
-	int na = apf_mesh->getDownward(ent,d,a);
-	for (int i = 0; i < na; i++) {
-	  int type = apf_mesh->getType(a[i]);
-	  int nan = field_shape->countNodesOn(type);
-	  for (int n = 0; n < nan; n++) {
-	    apf::Vector3 v(vel.GetColumn(non));
-	    apf::setScalar(vel_mag_field, a[i], n, v.getLength());
-	    apf::setVector(vel_field, a[i], n, v);
-	    non++;
-	  }
-	}
+      for (int d = 0; d <= dim; d++)
+      {
+         if (!field_shape->hasNodesIn(d)) { continue; }
+         apf::Downward a;
+         int na = apf_mesh->getDownward(ent,d,a);
+         for (int i = 0; i < na; i++)
+         {
+            int type = apf_mesh->getType(a[i]);
+            int nan = field_shape->countNodesOn(type);
+            for (int n = 0; n < nan; n++)
+            {
+               apf::Vector3 v(vel.GetColumn(non));
+               apf::setScalar(vel_mag_field, a[i], n, v.getLength());
+               apf::setVector(vel_field, a[i], n, v);
+               non++;
+            }
+         }
       }
       iel++;
    }
@@ -1136,54 +1156,58 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 }
 
 void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
-                            ParGridFunction* gf,
-                            apf::Field* NedelecField)
+                                         ParGridFunction* gf,
+                                         apf::Field* NedelecField)
 {
-  apf::FieldShape* nedelecFieldShape = NedelecField->getShape();
-  int dim = apf_mesh->getDimension();
+   apf::FieldShape* nedelecFieldShape = NedelecField->getShape();
+   int dim = apf_mesh->getDimension();
 
-  // loop over all elements
-  size_t elemNo = 0;
-  apf::MeshEntity* ent;
-  apf::MeshIterator* it = apf_mesh->begin(dim);
-  while ( ent = apf_mesh->iterate(it) ) {
-    // get all the pumi nodes and rotate them
-    apf::NewArray<apf::Vector3> pumi_nodes;
-    apf::getElementNodeXis(nedelecFieldShape, apf_mesh, ent, pumi_nodes);
-    IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
-    	apf_mesh, ent, elemNo, pumi_nodes, true);
-    // evaluate the vector field on the mfem nodes
-    ElementTransformation* eltr = this->GetElementTransformation(elemNo);
-    DenseMatrix mfem_field_vals;
-    gf->GetVectorValues(*eltr, mfem_nodes, mfem_field_vals);
+   // loop over all elements
+   size_t elemNo = 0;
+   apf::MeshEntity* ent;
+   apf::MeshIterator* it = apf_mesh->begin(dim);
+   while ( ent = apf_mesh->iterate(it) )
+   {
+      // get all the pumi nodes and rotate them
+      apf::NewArray<apf::Vector3> pumi_nodes;
+      apf::getElementNodeXis(nedelecFieldShape, apf_mesh, ent, pumi_nodes);
+      IntegrationRule mfem_nodes = ParentXisPUMItoMFEM(
+                                      apf_mesh, ent, elemNo, pumi_nodes, true);
+      // evaluate the vector field on the mfem nodes
+      ElementTransformation* eltr = this->GetElementTransformation(elemNo);
+      DenseMatrix mfem_field_vals;
+      gf->GetVectorValues(*eltr, mfem_nodes, mfem_field_vals);
 
-    // compute and store dofs on ND field
-    int non = 0;
-    for (int d = 0; d <= dim; d++) {
-      if (!nedelecFieldShape->hasNodesIn(d)) continue;
-      apf::Downward a;
-      int na = apf_mesh->getDownward(ent,d,a);
-      for (int i = 0; i < na; i++) {
-        int type = apf_mesh->getType(a[i]);
-        int nan = nedelecFieldShape->countNodesOn(type);
-        apf::MeshElement* me = apf::createMeshElement(apf_mesh, a[i]);
-        for (int n = 0; n < nan; n++) {
-          apf::Vector3 xi, tangent;
-          nedelecFieldShape->getNodeXi(type, n, xi);
-          nedelecFieldShape->getNodeTangent(type, n, tangent);
-          apf::Vector3 pumi_field_vector(mfem_field_vals.GetColumn(non));
-          apf::Matrix3x3 J;
-          apf::getJacobian(me, xi, J);
-          double dof = (J * pumi_field_vector) * tangent;
-          apf::setScalar(NedelecField, a[i], n, dof);
-          non++;
-        }
-        apf::destroyMeshElement(me);
+      // compute and store dofs on ND field
+      int non = 0;
+      for (int d = 0; d <= dim; d++)
+      {
+         if (!nedelecFieldShape->hasNodesIn(d)) { continue; }
+         apf::Downward a;
+         int na = apf_mesh->getDownward(ent,d,a);
+         for (int i = 0; i < na; i++)
+         {
+            int type = apf_mesh->getType(a[i]);
+            int nan = nedelecFieldShape->countNodesOn(type);
+            apf::MeshElement* me = apf::createMeshElement(apf_mesh, a[i]);
+            for (int n = 0; n < nan; n++)
+            {
+               apf::Vector3 xi, tangent;
+               nedelecFieldShape->getNodeXi(type, n, xi);
+               nedelecFieldShape->getNodeTangent(type, n, tangent);
+               apf::Vector3 pumi_field_vector(mfem_field_vals.GetColumn(non));
+               apf::Matrix3x3 J;
+               apf::getJacobian(me, xi, J);
+               double dof = (J * pumi_field_vector) * tangent;
+               apf::setScalar(NedelecField, a[i], n, dof);
+               non++;
+            }
+            apf::destroyMeshElement(me);
+         }
       }
-    }
-    elemNo++;
-  }
-  apf_mesh->end(it); // end loop over all elements
+      elemNo++;
+   }
+   apf_mesh->end(it); // end loop over all elements
 }
 
 void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
