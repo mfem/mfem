@@ -609,9 +609,12 @@ int main (int argc, char *argv[])
       zeta.ProjectCoefficient(alim_coeff);
       zeta_0.ProjectCoefficient(alim_coeff);
       he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coef_zeta, adapt_eval);
-      socketstream vis1;
-      common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
-                             300, 600, 300, 300);
+      if (visualization)
+      {
+         socketstream vis1;
+         common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
+                                300, 600, 300, 300);
+      }
    }
 
    // 15. Setup the final NonlinearForm (which defines the integral of interest,
@@ -846,7 +849,7 @@ int main (int argc, char *argv[])
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
    }
 
-   if (adapt_lim)
+   if (adapt_lim && visualization)
    {
       socketstream vis0;
       common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
