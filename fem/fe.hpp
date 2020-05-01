@@ -1891,6 +1891,22 @@ public:
    }
 };
 
+class CutNodalTensorFiniteElement : public NodalFiniteElement,
+   public TensorBasisElement
+{
+public:
+   CutNodalTensorFiniteElement(const int dims, const int p, const int btype,
+                            const DofMapType dmtype);
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const
+   {
+      return (mode == DofToQuad::FULL) ?
+             ScalarFiniteElement::GetDofToQuad(ir, mode) :
+             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
+   }
+};
+
 class PositiveTensorFiniteElement : public PositiveFiniteElement,
    public TensorBasisElement
 {
@@ -1964,7 +1980,7 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
-class H1_CutQuadElement : public NodalTensorFiniteElement
+class H1_CutQuadElement : public CutNodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE

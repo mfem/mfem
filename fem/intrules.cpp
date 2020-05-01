@@ -1527,10 +1527,10 @@ IntegrationRule *IntegrationRules::CutSquareIntegrationRule(int Order)
       SegmentIntegrationRule(RealOrder);
    }
    AllocIntRule(CutSquareIntRules, RealOrder); // RealOrder >= Order
-   CutSquareIntRules[RealOrder-1] =
-      CutSquareIntRules[RealOrder] =
-         new IntegrationRule(*SegmentIntRules[RealOrder],
-                             *SegmentIntRules[RealOrder]);
+   // CutSquareIntRules[RealOrder-1] =
+   //    CutSquareIntRules[RealOrder] =
+   //       new IntegrationRule(*SegmentIntRules[RealOrder],
+   //                           *SegmentIntRules[RealOrder]);
    return CutSquareIntRules[Order];
 }
 

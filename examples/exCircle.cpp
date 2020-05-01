@@ -1,31 +1,33 @@
-#include "mfem.hpp"
-#include <fstream>
-#include <iostream>
-#include "algoim_quad.hpp"
-
+#include "exCircle.hpp"
 using namespace std;
 using namespace mfem;
-// function that checks if an element is `cut` by `embedded circle` or  not
-bool cutByCircle(Mesh *mesh, int &elemid);
-// function to get element center
-void GetElementCenter(Mesh *mesh, int id, mfem::Vector &cent);
-// find bounding box for a given cut element
-template <int N>
-void findBoundingBox(Mesh *mesh, int id, blitz::TinyVector<double,N> &xmin, blitz::TinyVector<double,N> &xmax);
+
 template <int N>
 struct circle
 {
+   double xscale;
+   double yscale;
+   double xmin;
+   double ymin;
    template <typename T>
    T operator()(const blitz::TinyVector<T, N> &x) const
    {
-      return -1 * (((x[0] - 5) * (x[0] - 5)) + ((x[1] - 5) * (x[1] - 5)) - (0.5 * 0.5));
+      // level-set function to work in physical space
+      // return -1 * (((x[0] - 5) * (x[0] - 5)) + 
+      //               ((x[1]- 5) * (x[1] - 5)) - (0.5 * 0.5));
+      // level-set function for reference elements 
+      return -1 * ((((x[0]*xscale) + xmin - 5) * ((x[0]*xscale) + xmin - 5)) + 
+                    (((x[1]*yscale) + ymin- 5) * ((x[1]*yscale) + ymin - 5)) - (0.5 * 0.5));
    }
    template <typename T>
    blitz::TinyVector<T, N> grad(const blitz::TinyVector<T, N> &x) const
    {
-      return blitz::TinyVector<T, N>(-1 * (2.0 * (x(0) - 5)), -1 * (2.0 * (x(1) - 5)));
+     // return blitz::TinyVector<T, N>(-1 * (2.0 * (x(0) - 5)), -1 * (2.0 * (x(1) - 5)));
+      return blitz::TinyVector<T, N>(-1 * (2.0 * xscale* ((x(0) *xscale) + xmin- 5)),
+                                       -1 * (2.0 * yscale* ((x(1) * yscale) + ymin- 5)));
    }
 };
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -51,131 +53,139 @@ int main(int argc, char *argv[])
    int dim = mesh2->Dimension();
    cout << dim << endl;
    std::cout << "Number of elements " << mesh2->GetNE() << '\n';
-
-   // std::cout<< mesh->GetBdrElement(0)->GetNVertices() << endl;
-   // std::cout << "Number of boundary elements " << mesh->GetNBE() << endl;
-  // std::cout <<"boundary element id " << mesh->boundary[0] << endl;
-   std::cout << "Attributes for all elements " << endl;
-   for (int i = 0; i < mesh2->GetNE(); ++i)
-   {
-      cout << mesh2->GetElement(i)->GetAttribute()<< endl;
-   }
-   cout << "element type is " << endl;                                                 
-   cout << mesh2->GetElement(1)->GetGeometryType() << endl;
-   mesh2->GetElement(21)->SetAttribute(5);
-   cout << "element attribute is " << endl;
-   cout << mesh2->GetElement(21)->GetAttribute()<< endl;
-   // Geometry::Type CUTSQUARE;
-   // Element *el;
-   // //el[21] = mesh->NewElement(7);
-   // mesh->GetElement(21)->SetGeometryType(CUTSQUARE);
-   cout << "element geometry type now is " << endl;                                                 
-   cout << mesh2->GetElement(21)->GetGeometryType() << endl;
+   // mesh2->GetElement(21)->SetAttribute(5);
+   // mesh2->GetElement(20)->SetAttribute(5);
    cout << "element type now is " << endl;                                                 
-   cout << mesh2->GetElement(21)->GetType() << endl;
-   Array<int> v1;
-   mesh2->GetElement(21)->GetVertices(v1);
-   cout << mesh2->GetElement(21)->GetNVertices() << endl;
-   cout << v1[0] << ", " << v1[1] << ", " <<v1[2] << ", " << v1[3] <<endl;
    ofstream sol_ofs("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.mesh");
    sol_ofs.precision(14);
    mesh2->Print(sol_ofs);
    const char *mesh_file = "/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.mesh";
+   FiniteElementCollection *fec;
+   fec = new H1_FECollection(1, dim);
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   cout << "element geometry type for cut element is " << endl;                                                 
-   cout << mesh->GetElement(21)->GetGeometryType() << endl;
-   cout << "check GetGeomType() for cut element  " << endl;                                                 
-   //cout << mesh->GetElement(21)->GetGeomType() << endl;
-   cout << "element type for cut element is " << endl;                                                 
-   cout << mesh->GetElement(21)->GetType() << endl;
-   Array<int> v;
-   mesh->GetElement(21)->GetVertices(v);
-   cout << v[0] << ", " << v[1] << ", " << v[2]  << ", " << v[3] << endl;
+   cout << "type of el 20 " << mesh->GetElement(20)->GetType() << endl;
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   cout << "Number of finite element unknowns: "
+        << fespace->GetTrueVSize() << endl;
+   Array<int> ess_tdof_list;
+   if (mesh->bdr_attributes.Size())
+   {
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+   LinearForm *b = new LinearForm(fespace);
+   ConstantCoefficient one(1.0);
+   // define map for integration rule for cut elements
+   std::map<int, IntegrationRule *> CutSquareIntRules;
+   //find the elements cut by boundary 
+   vector<int> cutelems;
+   for (int i = 0; i < mesh->GetNE(); ++i)
+   {
+      if (cutByCircle(mesh, i) == true)
+      {
+         cutelems.push_back(i);
+      }
+   }
+   GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
+   b->AddDomainIntegrator(new CutDomainIntegrator(one, CutSquareIntRules));
+   b->Assemble();
+   // cout << "element geometry type for cut element is " << endl;                                                 
+   // cout << mesh->GetElement(21)->GetGeometryType() << endl;
+   // cout << "check GetGeomType() for cut element  " << endl;                                                 
+   // //cout << mesh->GetElement(21)->GetGeomType() << endl;
+   // cout << "element type for cut element is " << endl;                                                 
+   // cout << mesh->GetElement(21)->GetType() << endl;
    ofstream sol_ofv("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.vtk");
    sol_ofv.precision(14);
-   mesh->PrintVTK(sol_ofv,2);
-   Array<int> nearbody_elements;
-   nearbody_elements.Append(21);
-   mesh->GeneralRefinement(nearbody_elements, 1);
+   mesh->PrintVTK(sol_ofv,0);
+   // Array<int> nearbody_elements;
+   // nearbody_elements.Append(21);
+   // mesh->GeneralRefinement(nearbody_elements, 1);
    ofstream sol_ofr("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh_ref.mesh");
    sol_ofr.precision(14);
    mesh->Print(sol_ofr);
-    // center of circle
-   // double xc = 5.0;
-   // double yc = 5.0;
-   // // find near-body elements to refine
-   // for (int k = 0; k < 0; ++k)
-   // {
-   //    Array<int> nearbody_elements;
-   //    for (int i = 0; i < mesh->GetNE(); ++i)
-   //    {
-   //       Vector center(dim);
-   //       GetElementCenter(mesh, i, center);
-   //       if ((center(0) > xc - 2) && (center(1) > yc - 2) && (center(0) < xc + 2) && (center(1) < yc + 2))
-   //       {
-   //          nearbody_elements.Append(i);
-   //       }
-   //    }
-   //    mesh->GeneralRefinement(nearbody_elements, 1);
-   // }
-   // get elements `cut` by circle
-  // cout << "elements cut by circle before refinement " << endl;
-   // find boundary elements to refine
-   // for (int k = 0; k <1; ++k)
-   // {
-   //    Array<int> marked_elements;
-   //    for (int i = 0; i < mesh->GetNE(); ++i)
-   //    {
-   //       if (cutByCircle(mesh, i) == true)
-   //       {
-   //          //cout << i << endl;
-   //          marked_elements.Append(i);
-   //       }
-   //    }
-   //    //mesh->GeneralRefinement(marked_elements, 1);
-   // }
-   // ofstream sol_ofs("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.vtk");
-   // sol_ofs.precision(14);
-   // mesh->PrintVTK(sol_ofs, 0);
-   // find the elements cut by boundary after refinement
-   // vector<int> cutelems;
-   // for (int i = 0; i < mesh->GetNE(); ++i)
-   // {
-   //    if (cutByCircle(mesh, i) == true)
-   //    {
-   //       cutelems.push_back(i);
-   //    }
-   // }
-   //find the quadrature rule for cut elements
-  // std::cout << "under the quadrature rule for cut elements:\n";
-   // {
-   //    for (int i = 0; i < cutelems.size(); ++i)
-   //    {
-   //       int elemid = cutelems.at(i);
-   //       blitz::TinyVector<double,2> xmin;
-   //       blitz::TinyVector<double,2> xmax;
-   //       findBoundingBox(mesh, elemid, xmin, xmax);
-   //       circle<2> phi;
-   //     //  cout << "----------------------- " << endl;
-   //      // cout << "cut element id is " << elemid << endl;
-   //      // cout << "Bounding box: " << xmin << " , " << xmax << endl;
-   //       auto q = Algoim::quadGen<2>(phi, Algoim::BoundingBox<double,2>(xmin, xmax), 2, -1, 2);
-   //       // cout << "number of quadrature nodes: " << q.nodes.size() << endl;
-   //       // cout << "Node coordinates and weight: " << endl;
-   //       for (const auto &pt : q.nodes)
-   //       {
-   //          // cout << pt.x << endl;
-   //          // cout << pt.w <<endl;
-   //          // cout << phi(pt.x) << endl;
-   //       }
-   //    }
-   // }
-  // cout << "elements cut by circle after refinement " << endl;
-   // for (int k = 0; k < cutelems.size(); ++k)
-   // {
-   //   // cout << cutelems.at(k) << endl;
-   // }
 }
+
+template <int N>
+void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems, 
+                              std::map<int, IntegrationRule *> &CutSquareIntRules )
+{
+   for (int k=0; k<cutelems.size(); ++k)
+   {
+      IntegrationRule *ir;
+      blitz::TinyVector<double,N> xmin;
+      blitz::TinyVector<double,N> xmax;
+      blitz::TinyVector<double,N> xupper;
+      blitz::TinyVector<double,N> xlower;
+      // standard reference element
+      xlower={0, 0};
+      xupper={1,1};
+      int elemid= cutelems.at(k);
+      findBoundingBox<N>(mesh, elemid, xmin, xmax); 
+      circle<N> phi;
+      phi.xscale= xmax[0] - xmin[0];
+      phi.yscale = xmax[1]- xmin[1];
+      phi.xmin=xmin[0];
+      phi.ymin=xmin[1];
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xlower, xupper), -1, -1, 1);
+      //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
+      cout << "number of quadrature nodes: " << q.nodes.size() << endl;
+      int i=0;
+      ir = new IntegrationRule(q.nodes.size());
+      cout << "quadrature rule for mapped elements " << endl;
+      for (const auto &pt : q.nodes)
+      {
+         IntegrationPoint &ip = ir->IntPoint(i);
+         ip.x = pt.x[0];
+         ip.y = pt.x[1];
+         ip.weight = pt.w;
+         i = i + 1;
+         // cout << pt.x[0] << " , " << pt.x[1] << endl;
+         // cout << "mapped back " << endl;
+         cout << (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin  << endl;
+      }
+      cout << "element id for cut element " << elemid << endl;
+      CutSquareIntRules[elemid] = ir;
+   }
+}
+void CutDomainIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+                                                ElementTransformation &Tr,
+                                                Vector &elvect)
+{
+   int dof = el.GetDof();
+   shape.SetSize(dof);       // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+   const IntegrationRule *ir;
+   ir = CutIntRules[Tr.ElementNo]; 
+   if (ir == NULL)
+   {
+      cout << Tr.ElementNo << endl;
+      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+   }
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      double val = Tr.Weight() * Q.Eval(Tr, ip);
+
+      el.CalcShape(ip, shape);
+
+      add(elvect, ip.weight * val, shape, elvect);
+   }
+}
+
+void CutDomainIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   elvect.SetSize(fe.GetDof());
+   fe.CalcPhysShape(Trans, elvect);
+   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+}
+
 // function to see if an element is cut-element
 bool cutByCircle(Mesh *mesh, int &elemid)
 {
@@ -210,6 +220,7 @@ bool cutByCircle(Mesh *mesh, int &elemid)
       return true;
    }
 }
+
 // function to get element center
 void GetElementCenter(Mesh *mesh, int id, mfem::Vector &cent)
 {
@@ -218,6 +229,7 @@ void GetElementCenter(Mesh *mesh, int id, mfem::Vector &cent)
    ElementTransformation *eltransf = mesh->GetElementTransformation(id);
    eltransf->Transform(Geometries.GetCenter(geom), cent);
 }
+
 // find bounding box for a given cut element
 template <int N>
 void findBoundingBox(Mesh *mesh, int id, blitz::TinyVector<double, N> &xmin, blitz::TinyVector<double, N> &xmax)

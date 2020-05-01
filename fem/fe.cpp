@@ -7561,6 +7561,15 @@ NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
      TensorBasisElement(dims, p, VerifyNodal(btype), dmtype) { }
 
 
+CutNodalTensorFiniteElement::CutNodalTensorFiniteElement(const int dims,
+                                                   const int p,
+                                                   const int btype,
+                                                   const DofMapType dmtype)
+   : NodalFiniteElement(dims, Geometry::CUTSQUARE , Pow(p + 1, dims),
+                        p, dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
+     TensorBasisElement(dims, p, VerifyNodal(btype), dmtype) { }
+
+
 PositiveTensorFiniteElement::PositiveTensorFiniteElement(
    const int dims, const int p, const DofMapType dmtype)
    : PositiveFiniteElement(dims, GetTensorProductGeometry(dims),
@@ -7779,7 +7788,7 @@ void H1_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 // finite element for 2d cut element
 H1_CutQuadElement::H1_CutQuadElement(const int p, const int btype)
-   : NodalTensorFiniteElement(2, p, VerifyClosed(btype), H1_DOF_MAP)
+   : CutNodalTensorFiniteElement(2, p, VerifyClosed(btype), H1_DOF_MAP)
 {
    const double *cp = poly1d.ClosedPoints(p, b_type);
 
@@ -7792,13 +7801,13 @@ H1_CutQuadElement::H1_CutQuadElement(const int p, const int btype)
    dshape_y.SetSize(p1);
 #endif
    int o = 0;
-   for (int j = 0; j <= p; j++)
-   {
-      for (int i = 0; i <= p; i++)
-      {
-         Nodes.IntPoint(dof_map[o++]).Set2(cp[i], cp[j]);
-      }
-   }
+   // for (int j = 0; j <= p; j++)
+   // {
+   //    for (int i = 0; i <= p; i++)
+   //    {
+   //       Nodes.IntPoint(dof_map[o++]).Set2(cp[i], cp[j]);
+   //    }
+   // }
 }
 
 void H1_CutQuadElement::CalcShape(const IntegrationPoint &ip,
