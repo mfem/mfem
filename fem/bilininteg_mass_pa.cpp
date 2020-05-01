@@ -56,13 +56,13 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    bool own_coeff{true};
    if (Q == nullptr)
    {
-      coeff = new Vector[1];
+      coeff = new Vector;
       coeff->SetSize(1);   
       (*coeff)(0) = 1.0;
    }
    else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
    {
-      coeff = new Vector[1];
+      coeff = new Vector;
       coeff->SetSize(1);
       (*coeff)(0) = 1.0;
    }
@@ -73,7 +73,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    }
    else
    {
-      coeff = new Vector[1];
+      coeff = new Vector;
       coeff->SetSize(nq * ne);
       auto C = Reshape(coeff->HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
