@@ -212,15 +212,16 @@ void GradientGridFunctionCoefficient::Eval(
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
    const GridFunction *gf)
    : VectorCoefficient ((gf) ?
-                        gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
+                        (2 * gf -> FESpace() -> GetMesh() -> SpaceDimension()
+                         - 3) : 0)
 {
    GridFunc = gf;
 }
 
 void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
-   GridFunc = gf; vdim = (gf) ?
-                         gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
+   GridFunc = gf;
+   vdim = (gf) ? (2 * gf -> FESpace() -> GetMesh() -> SpaceDimension() - 3) : 0;
 }
 
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
