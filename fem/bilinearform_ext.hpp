@@ -58,26 +58,6 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for fully-assembled bilinear forms
-class FABilinearFormExtension : public BilinearFormExtension
-{
-public:
-   FABilinearFormExtension(BilinearForm *form)
-      : BilinearFormExtension(form) { }
-
-   /// TODO
-   void Assemble() {}
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) {}
-   void Mult(const Vector &x, Vector &y) const {}
-   void MultTranspose(const Vector &x, Vector &y) const {}
-   void Update() {}
-   ~FABilinearFormExtension() {}
-};
-
 /// Data and methods for partially-assembled bilinear forms
 class PABilinearFormExtension : public BilinearFormExtension
 {
@@ -118,6 +98,7 @@ protected:
    int nf_int, nf_bdr;
    int faceDofs;
    Vector ea_data_int, ea_data_ext, ea_data_bdr;
+   bool simplify;
 
 public:
    EABilinearFormExtension(BilinearForm *form);
@@ -125,6 +106,28 @@ public:
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/// Data and methods for fully-assembled bilinear forms
+class FABilinearFormExtension : public EABilinearFormExtension
+{
+private:
+   SparseMatrix mat;
+
+public:
+   FABilinearFormExtension(BilinearForm *form);
+
+   /// TODO
+   void Assemble();
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+   void Update();
+   ~FABilinearFormExtension() {}
 };
 
 /// Data and methods for matrix-free bilinear forms
