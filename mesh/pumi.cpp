@@ -331,7 +331,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    if (!v_num_loc)
       v_num_loc = apf::createNumbering(apf_mesh,
                                        "LocalVertexNumbering",
-                                        crd_shape, 1);
+                                       crd_shape, 1);
 
    // Construct the numbering v_num_loc and set the coordinates of the vertices.
    NumOfVertices = thisVertIds.Size();
