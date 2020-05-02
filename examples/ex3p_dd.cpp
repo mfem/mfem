@@ -42,7 +42,7 @@
 #include "ddmesh.hpp"
 #include "ddoper.hpp"
 
-#include "testStrumpack.hpp"
+//#include "testStrumpack.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -261,8 +261,8 @@ void TestHypreRectangularSerial()
 
   cout << "Hypre serial test y norm " << y.Norml2() << endl;
 
-  delete I_nnz;
-  delete J_col;
+  delete [] I_nnz;
+  delete [] J_col;
   delete A;
 }
 
@@ -332,11 +332,11 @@ void TestHypreIdentity(MPI_Comm comm)
 
   cout << sdrank << ": Hypre test y norm " << y.Norml2() << endl;
   
-  delete I_nnz;
-  delete J_col;
-  delete rowStarts;
-  delete rowStarts2;
-  delete all_num_loc_rows;
+  delete [] I_nnz;
+  delete [] J_col;
+  delete [] rowStarts;
+  delete [] rowStarts2;
+  delete [] all_num_loc_rows;
   delete A;
 }
 
@@ -910,7 +910,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool visit = true;
 #ifdef MFEM_USE_STRUMPACK
-   bool use_strumpack = false;
+   bool use_strumpack = true;
 #endif
 
    OptionsParser args(argc, argv);
@@ -2450,7 +2450,7 @@ int main(int argc, char *argv[])
 #ifdef NO_GLOBAL_FEM
    x.SetFromTrueDofs(X);
 #else
-#ifdef MFEM_USE_STRUMPACK
+   //#ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
        const bool fullDirect = true;
@@ -2524,7 +2524,7 @@ int main(int argc, char *argv[])
 	 }
      }
    else
-#endif
+     //#endif
      {
        // 12. Define and apply a parallel PCG solver for AX=B with the AMS
        //     preconditioner from hypre.

@@ -644,7 +644,7 @@ private:
    mutable Array<int> block_OffsetsI;
    mutable Array<int> block_OffsetsJ;
 public:
-   enum CoarseSolver { PETSC, SUPERLU, STRUMPACK};
+  enum CoarseSolver { PETSC, SUPERLU, STRUMPACK, UMFPACK };
 
   ComplexGMGSolver(ComplexHypreParMatrix * Af_, std::vector<HypreParMatrix *> P_, CoarseSolver cs, bool printCoarse=false);
    virtual void SetOperator(const Operator &op) {}

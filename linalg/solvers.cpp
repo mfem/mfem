@@ -2035,22 +2035,40 @@ ComplexGMGSolver::ComplexGMGSolver(ComplexHypreParMatrix * Af_,
 #ifndef MFEM_USE_STRUMPACK
          MFEM_ABORT("Invalid choice of CoarseSolver. MFEM is not linked with STRUMPACK");
 #else
-	 HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
-	 if (printCoarse)
-	   Ahyp0->Print("A0FA.txt");
+	 {
+	   HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
+	   if (printCoarse)
+	     Ahyp0->Print("A0FA.txt");
 	 
-         StpA = new STRUMPACKRowLocMatrix(*Ahyp0);
-	 // StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
-         strumpack = new STRUMPACKSolver(*StpA);
-         strumpack->SetPrintFactorStatistics(false);
-         strumpack->SetPrintSolveStatistics(false);
-         strumpack->SetOperator(*StpA);
-         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         strumpack->DisableMatching();
-         invAc = strumpack;
+	   StpA = new STRUMPACKRowLocMatrix(*Ahyp0);
+	   // StpA = new STRUMPACKRowLocMatrix(*A[0]->GetSystemMatrix());
+	   strumpack = new STRUMPACKSolver(*StpA);
+	   strumpack->SetPrintFactorStatistics(false);
+	   strumpack->SetPrintSolveStatistics(false);
+	   strumpack->SetOperator(*StpA);
+	   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+	   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+	   strumpack->DisableMatching();
+	   invAc = strumpack;
+	 }
 #endif
          break;
+   case UMFPACK:
+         {
+	   HypreParMatrix *Ahyp0 = A[0]->GetSystemMatrix();
+	   {
+	     int nprocs = 0;
+	     MPI_Comm_size(Ahyp0->GetComm(), &nprocs);
+	     MFEM_VERIFY(nprocs == 1, "");
+	   }
+	   SparseMatrix *Asp = new SparseMatrix();
+	   Ahyp0->GetDiag(*Asp);  // Asp does not own the data
+	   UMFPackSolver *umf_solver = new UMFPackSolver();
+	   umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+	   umf_solver->SetOperator(*Asp);
+	   invAc = umf_solver;
+	 }
+	 break;
    }   
    // Check if direct solver is found 
    if (!invAc) MFEM_ABORT("Direct Solver of coarse solve not found");
@@ -2315,7 +2333,9 @@ void ComplexGMGPASolver::Mult(const Vector &r, Vector &z) const
 ComplexGMGPASolver::~ComplexGMGPASolver()
 {
   delete invAc;
+#ifdef MFEM_USE_STRUMPACK
   delete StpA;
+#endif
   delete Ac;
 }
 #endif

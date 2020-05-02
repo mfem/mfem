@@ -1954,6 +1954,7 @@ HypreParMatrix* blockgmg::CreateHypreParMatrixFromBlocks2(MPI_Comm comm, Array<i
   return hmat;
 }
 
+#ifdef MFEM_USE_STRUMPACK
 Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> & offsets, const Array2D<HypreParMatrix*> & blocks,
 					       const Array2D<std::vector<int>*> & leftInjection,
 					       const Array2D<std::vector<int>*> & rightInjection,
@@ -2124,6 +2125,7 @@ Operator* CreateStrumpackMatrixFromHypreBlocks(MPI_Comm comm, const Array<int> &
   
   return op;
 }
+#endif
 
 // Should this be in ParFiniteElementSpace?
 void FindBoundaryTrueDOFs(ParFiniteElementSpace *pfespace, set<int>& tdofsBdry)
@@ -7130,7 +7132,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #endif
 #endif
 #ifndef SDFOSLS
+#ifdef MFEM_USE_STRUMPACK
 		ComplexGMGSolver *cgmg = new ComplexGMGSolver(AZ, sdP[m], ComplexGMGSolver::CoarseSolver::STRUMPACK); //, (m == 0));
+#else
+		ComplexGMGSolver *cgmg = new ComplexGMGSolver(AZ, sdP[m], ComplexGMGSolver::CoarseSolver::UMFPACK); //, (m == 0));
+#endif
 		cgmg->SetSmootherType(HypreSmoother::Jacobi);  // Some options: Jacobi, l1Jacobi, l1GS, GS
 #endif
 #endif
@@ -7202,8 +7208,12 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		ComplexHypreParMatrix tmpSDComplex(AsdRe_HypreBlocks[m](0,0), AsdIm_HypreBlocks[m](0,0), false, false);
 		HypreParMatrix *HypreSDComplex = tmpSDComplex.GetSystemMatrix();
 
+#ifdef MFEM_USE_STRUMPACK
 		sdNDinv[m] = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreSDComplex)), sd_com[m]);
 		delete HypreSDComplex;
+#else
+		sdNDinv[m] = CreateSerialUMFPackSolver(HypreSDComplex, sd_com[m]);
+#endif
 	      }
 #endif
 #else  // not SD_ITERATIVE_COMPLEX
@@ -7229,7 +7239,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #ifdef SDFOSLS_PA
 	      IdentityOperator *auxInv = new IdentityOperator(2*trueOffsetsAuxSD[m][trueOffsetsAuxSD[m].Size() - 1]);
 #else
+#ifdef MFEM_USE_STRUMPACK
 	      STRUMPACKSolver *auxInv = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*(HypreDsdComplex[m])), sd_com[m]);
+#else
+	      Solver *auxInv = CreateSerialUMFPackSolver(HypreDsdComplex[m], sd_com[m]);
+#endif
 #endif
 #endif
 #ifndef SDFOSLS
@@ -7796,7 +7810,7 @@ void DDMInterfaceOperator::GaussSeidelPreconditionerMult(const Vector & x, Vecto
 	}
 
       // Now w equals the offdiagonal terms for block row i.
-      MFEM_VERIFY((globalSubdomainOp->IsZeroBlock(i,i) == NULL) == (block_trueOffsets2[i] == block_trueOffsets2[i+1]), "");
+      MFEM_VERIFY((globalSubdomainOp->IsZeroBlock(i,i) == 0) == (block_trueOffsets2[i] == block_trueOffsets2[i+1]), "");
       
       if (!globalSubdomainOp->IsZeroBlock(i,i))
 	{
@@ -10552,6 +10566,7 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
   //MFEM_VERIFY(false, "TODO: add boundary terms");
 }
 
+#ifdef MFEM_USE_STRUMPACK
 Solver* DDMInterfaceOperator::CreateSubdomainPreconditionerStrumpack(const int subdomain)
 {
   const bool sdNull = (fespace[subdomain] == NULL);
@@ -10646,6 +10661,7 @@ Solver* DDMInterfaceOperator::CreateSubdomainPreconditionerStrumpack(const int s
 
   return op;
 }
+#endif
 
 #ifdef SD_ITERATIVE
 void DDMInterfaceOperator::SetOffsetsAuxSD(const int subdomain)
@@ -12140,6 +12156,7 @@ void DDMInterfaceOperator::CreateSubdomainHypreBlocks(const int subdomain, Array
     }    
 }
 
+#ifdef MFEM_USE_STRUMPACK
 Operator* DDMInterfaceOperator::CreateSubdomainOperatorStrumpack(const int subdomain)
 {
   const int numBlocks = (2*subdomainLocalInterfaces[subdomain].size()) + 1;  // 1 for the subdomain, 2 for each interface (f_{mn} and \rho_{mn}).
@@ -12268,6 +12285,7 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperatorStrumpack(const int subdo
   return CreateStrumpackMatrixFromHypreBlocks(fespace[subdomain]->GetComm(), trueOffsetsSD[subdomain],
 					      blocks, blockLeftInjection, blockRightInjection, blockCoefficient);
 }
+#endif
 
 #ifndef SERIAL_INTERFACES
 void DDMInterfaceOperator::TestProjectionError()

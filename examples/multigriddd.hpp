@@ -31,8 +31,10 @@ private:
   std::vector<BlockOperator *> BlkA;
   std::vector<BlockOperator *> S;
   HypreParMatrix * Ac;
+  SparseMatrix AcSp;
   int numGrids, numBlocks;
-  STRUMPACKSolver *invAc = nullptr;
+  //STRUMPACKSolver *invAc = nullptr;
+  Operator *invAc = nullptr;
   double theta = 0.5;
 
 public:
@@ -125,7 +127,7 @@ public:
       }
 
     // Convert to HypreParMatrix
-    HypreParMatrix * Ac;
+    //HypreParMatrix * Ac;
 
     std::vector<std::vector<int> > blockProcOffsets(numBlocks);
     std::vector<std::vector<int> > all_block_num_loc_rows(numBlocks);
@@ -162,9 +164,16 @@ public:
     Ac = CreateHypreParMatrixFromBlocks2(comm, offsets, A[0], Asp,
 					 Acoef, blockProcOffsets, all_block_num_loc_rows);
 
+#ifdef MFEM_USE_STRUMPACK
     invAc = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*Ac), comm);
-
     delete Ac;
+#else
+    Ac->GetDiag(AcSp);  // AcSp does not own the data
+    UMFPackSolver *umf_solver = new UMFPackSolver();
+    umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+    umf_solver->SetOperator(AcSp);
+    invAc = umf_solver;
+#endif
   }
     
   virtual void SetOperator(const Operator &op) {}
@@ -243,6 +252,7 @@ public:
     A.clear();
   }
 
+#ifdef MFEM_USE_STRUMPACK
   STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
   {
     //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
@@ -255,7 +265,7 @@ public:
     strumpack->SetFromCommandLine();
     return strumpack;
   }
-
+#endif
 
 };
 
@@ -278,8 +288,10 @@ private:
   std::vector<OperatorJacobiSmoother*> Jacobi;
 
   HypreParMatrix * Ac;
+  SparseMatrix AcSp;
   int numGrids, numBlocks;
-  STRUMPACKSolver *invAc = nullptr;
+  //STRUMPACKSolver *invAc = nullptr;
+  Operator *invAc = nullptr;
   double theta = 0.5;
 
 public:
@@ -423,9 +435,16 @@ public:
     Ac = CreateHypreParMatrixFromBlocks2(comm, offsets, BlkAc, Asp,
 					 Acoef, blockProcOffsets, all_block_num_loc_rows);
 
+#ifdef MFEM_USE_STRUMPACK
     invAc = CreateStrumpackSolver(new STRUMPACKRowLocMatrix(*Ac), comm);
-
     delete Ac;
+#else
+    Ac->GetDiag(AcSp);  // AcSp does not own the data
+    UMFPackSolver *umf_solver = new UMFPackSolver();
+    umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+    umf_solver->SetOperator(AcSp);
+    invAc = umf_solver;
+#endif
   }
     
   virtual void SetOperator(const Operator &op) {}
@@ -504,6 +523,7 @@ public:
     A.clear();
   }
 
+#ifdef MFEM_USE_STRUMPACK
   STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
   {
     //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
@@ -516,7 +536,7 @@ public:
     strumpack->SetFromCommandLine();
     return strumpack;
   }
-
+#endif
 
 };
 

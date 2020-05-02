@@ -1677,7 +1677,8 @@ private:
 #ifdef SD_ITERATIVE
   Operator* CreateSubdomainImaginaryPart(const int subdomain);
 #endif
-  
+
+#ifdef MFEM_USE_STRUMPACK
   STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
   {
     //STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, comm);
@@ -1690,6 +1691,22 @@ private:
     strumpack->SetFromCommandLine();
     return strumpack;
   }
+#else
+  Solver* CreateSerialUMFPackSolver(HypreParMatrix *A, MPI_Comm comm)
+  {
+    int nprocs = 0;
+    MPI_Comm_size(comm, &nprocs);
+    MFEM_VERIFY(nprocs == 1, "");
+
+    SparseMatrix *Asp = new SparseMatrix();
+    A->GetDiag(*Asp);  // Asp does not own the data
+
+    UMFPackSolver *umf_solver = new UMFPackSolver();
+    umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+    umf_solver->SetOperator(*Asp);
+    return umf_solver;
+  }
+#endif
 
   /*
   STRUMPACKSolver* CreateStrumpackSolverApprox(Operator *Arow, MPI_Comm comm)
@@ -1726,7 +1743,9 @@ private:
   }
   */
   
+#ifdef MFEM_USE_STRUMPACK
   Solver* CreateSubdomainPreconditionerStrumpack(const int subdomain);
+#endif
 
   void SetOffsetsSD(const int subdomain);
 #ifdef SD_ITERATIVE  
@@ -1758,8 +1777,10 @@ private:
 #endif
   
   // This is the same operator as CreateSubdomainOperator, except it is stored as a strumpack matrix rather than a block operator. 
+#ifdef MFEM_USE_STRUMPACK
   Operator* CreateSubdomainOperatorStrumpack(const int subdomain);
-  
+#endif
+
   void CheckContinuityOfUS(const Vector & solReduced, const bool imag);
 };
 
@@ -2475,6 +2496,7 @@ public:
       y[n + i] = trueSol->GetBlock(2)[i];  // Set y_Im = E_Im
   }
 
+#ifdef MFEM_USE_STRUMPACK
   // TODO: just have one version of this 
   STRUMPACKSolver* CreateStrumpackSolver(Operator *Arow, MPI_Comm comm)
   {
@@ -2488,6 +2510,7 @@ public:
     strumpack->SetFromCommandLine();
     return strumpack;
   }
+#endif
 
   void GetMatrixPointers(Array2D<HypreParMatrix*>& A)
   {
