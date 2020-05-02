@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
+   double eta = 1.0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -162,6 +164,8 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+   a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
    a->Assemble();
    a->Finalize();
 
