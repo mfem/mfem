@@ -843,7 +843,20 @@ void TargetConstructor::ComputeAvgVolume() const
 #endif
 }
 
-// virtual method
+bool TargetConstructor::ContainsVolumeInfo() const
+{
+   switch(target_type)
+   {
+      case IDEAL_SHAPE_UNIT_SIZE: return false;
+      case IDEAL_SHAPE_EQUAL_SIZE:
+      case IDEAL_SHAPE_GIVEN_SIZE:
+      case GIVEN_SHAPE_AND_SIZE:
+      case GIVEN_FULL: return true;
+      default: MFEM_ABORT("TargetType not added to ContainsVolumeInfo.");
+      /* */    return false;
+   }
+}
+
 void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                               const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -1867,7 +1880,8 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
    ComputeNormalizationEnergies(x, loc[0], loc[1]);
    double rdc[2];
    MPI_Allreduce(loc, rdc, 2, MPI_DOUBLE, MPI_SUM, x.ParFESpace()->GetComm());
-   metric_normal = 1.0 / rdc[0]; lim_normal = 1.0 / rdc[1];
+   metric_normal = 1.0 / rdc[0];
+   lim_normal    = 1.0 / rdc[1];
 }
 #endif
 
@@ -1915,6 +1929,11 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          metric_energy += weight * metric->EvalW(Jpt);
          lim_energy += weight;
       }
+   }
+   if (targetC->ContainsVolumeInfo() == false)
+   {
+      // Special case when the targets don't contain volumetric information.
+      lim_energy = fes->GetNE();
    }
 }
 
