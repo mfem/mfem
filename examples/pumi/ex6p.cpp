@@ -332,7 +332,6 @@ int main(int argc, char *argv[])
 
       apf::destroyField(Tmag_field);
       apf::destroyField(ipfield);
-      apf::destroyNumbering(pumi_mesh->findNumbering("LocalVertexNumbering"));
 
       // 18. Perform MesAdapt.
       ma::Input* erinput = ma::configure(pumi_mesh, sizefield);
