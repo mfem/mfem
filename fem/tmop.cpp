@@ -1266,6 +1266,9 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    const int dof = el.GetDof(), dim = el.GetDim();
    double energy;
 
+   // No adaptive limiting terms if this is a FD computation.
+   const bool adaptive_limiting = (zeta && fd_call_flag == false);
+
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
    Jpr.SetSize(dim);
@@ -1303,7 +1306,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0 || zeta)
+   if (coeff1 || coeff0 || adaptive_limiting)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -1320,7 +1323,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    //       coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
 
    Vector zeta_q, zeta0_q;
-   if (zeta)
+   if (adaptive_limiting)
    {
       zeta->GetValues(T.ElementNo, *ir, zeta_q);
       zeta_0->GetValues(T.ElementNo, *ir, zeta0_q);
@@ -1350,7 +1353,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                 lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
       }
 
-      if (zeta)
+      if (adaptive_limiting)
       {
          const double diff = zeta_q(i) - zeta0_q(i);
          val += coeff_zeta->Eval(*Tpr, ip) * lim_normal * diff * diff;
@@ -1731,8 +1734,11 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    elvect.SetSize(dof*dim);
    Vector elfunmod(elfun);
 
+   // In GetElementEnergy(), skip terms that have exact derivative calculations.
+   fd_call_flag = true;
+
    // Energy for unperturbed configuration.
-   double e_fx = GetElementEnergy(el, T, elfun);
+   const double e_fx = GetElementEnergy(el, T, elfun);
 
    for (int j = 0; j < dim; j++)
    {
@@ -1747,8 +1753,9 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
          if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
       }
    }
+   fd_call_flag = false;
 
-   // Contributions from adaptive limiting.
+   // Contributions from adaptive limiting (exact derivatives).
    if (zeta)
    {
       const IntegrationRule *ir = ActionIntegrationRule(el);
@@ -1787,6 +1794,8 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    const Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
    const Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
 
+   // In GetElementEnergy(), skip terms that have exact derivative calculations.
+   fd_call_flag = true;
    for (int i = 0; i < dof; i++)
    {
       for (int j = 0; j < i+1; j++)
@@ -1840,6 +1849,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          }
       }
    }
+   fd_call_flag = false;
 
    // Contributions from adaptive limiting.
    if (zeta)

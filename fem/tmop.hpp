@@ -840,6 +840,9 @@ protected:
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool   fdflag;
+   // Specifies that ComputeElementTargets is being called by a FD function.
+   // It's used to skip terms that have exact derivative calculations.
+   bool fd_call_flag;
    double dx;
    double dxscale;
 
@@ -931,7 +934,7 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), dxscale(1.0e3)
+        fdflag(false), fd_call_flag(false), dxscale(1.0e3)
    { }
 
    ~TMOP_Integrator()
