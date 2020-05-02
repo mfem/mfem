@@ -34,7 +34,7 @@
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -ae 0
 //   Adaptive limiting through FD (required GSLIB):
-//     * mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 8 -nor -vl 1 -al -fd -ae 1
+//     * mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -fd -ae 1
 //
 // Sample runs:
 //   Adapted analytic Hessian:
