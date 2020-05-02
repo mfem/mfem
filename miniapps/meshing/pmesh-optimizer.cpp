@@ -32,7 +32,7 @@
 // Compile with: make pmesh-optimizer
 //
 //   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 8 -nor -vl 1 -al -ae 0
+//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -ae 0
 //   Adaptive limiting through FD (required GSLIB):
 //     * mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 8 -nor -vl 1 -al -fd -ae 1
 //
@@ -602,7 +602,7 @@ int main (int argc, char *argv[])
 
    // Adaptive limiting.
    ParGridFunction zeta_0(&ind_fes), zeta(&ind_fes);
-   ConstantCoefficient coef_zeta(5.0);
+   ConstantCoefficient coef_zeta(0.5);
    AdaptivityEvaluator *adapt_evaluator = NULL;
    if (adapt_lim)
    {
