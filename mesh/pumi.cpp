@@ -1157,9 +1157,9 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 
 void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                          ParGridFunction* gf,
-                                         apf::Field* NedelecField)
+                                         apf::Field* nedelec_field)
 {
-   apf::FieldShape* nedelecFieldShape = NedelecField->getShape();
+   apf::FieldShape* nedelecFieldShape = nedelec_field->getShape();
    int dim = apf_mesh->getDimension();
 
    // loop over all elements
@@ -1199,7 +1199,7 @@ void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                apf::Matrix3x3 J;
                apf::getJacobian(me, xi, J);
                double dof = (J * pumi_field_vector) * tangent;
-               apf::setScalar(NedelecField, a[i], n, dof);
+               apf::setScalar(nedelec_field, a[i], n, dof);
                non++;
             }
             apf::destroyMeshElement(me);
