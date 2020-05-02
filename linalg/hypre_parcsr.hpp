@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HYPRE_PARCSR_HPP
 #define MFEM_HYPRE_PARCSR_HPP
@@ -45,7 +45,14 @@ void hypre_ParCSRMatrixEliminateAXB(hypre_ParCSRMatrix *A,
 void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
                                     hypre_ParCSRMatrix **Ae,
                                     HYPRE_Int num_rowscols_to_elim,
-                                    HYPRE_Int *rowscols_to_elim);
+                                    HYPRE_Int *rowscols_to_elim,
+                                    int ignore_rows = 0);
+
+/** Eliminate rows from a hypre ParCSRMatrix, setting all entries in the listed
+    rows of the matrix to zero. */
+void hypre_ParCSRMatrixEliminateRows(hypre_ParCSRMatrix *A,
+                                     HYPRE_Int num_rows_to_elim,
+                                     const HYPRE_Int *rows_to_elim);
 
 /** Split matrix 'A' into nr x nc blocks, return nr x nc pointers to
     new parallel matrices. The array 'blocks' needs to be preallocated to hold
@@ -115,8 +122,9 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B);
 
 /** Perform the operation A += beta*B, assuming that both matrices use the same
-    row and column partitions and the same col_map_offd arrays. We also assume
-    that the sparsity pattern of A contains that of B. */
+    row and column partitions and the same col_map_offd arrays, or B has an empty
+    off-diagonal block. We also assume that the sparsity pattern of A contains
+    that of B. */
 HYPRE_Int
 hypre_ParCSRMatrixSum(hypre_ParCSRMatrix *A,
                       HYPRE_Complex       beta,

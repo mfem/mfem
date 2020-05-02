@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -19,6 +19,10 @@
 // SuperLU headers
 #include "superlu_defs.h"
 #include "superlu_ddefs.h"
+
+#if XSDK_INDEX_SIZE == 64
+#error "SuperLUDist has been built with 64bit integers. This is not supported"
+#endif
 
 using namespace std;
 
@@ -130,6 +134,11 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    // hypre_CSRMatrix.
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
+#if MFEM_HYPRE_VERSION >= 21600
+   MFEM_VERIFY(csr_op->num_rows < INT_MAX,"SuperLU: number of local rows "
+               "is too large to store as an integer.");
+   hypre_CSRMatrixBigJtoJ(csr_op);
+#endif
 
    int m         = parcsr_op->global_num_rows;
    int n         = parcsr_op->global_num_cols;
@@ -289,7 +298,7 @@ void SuperLUSolver::Init()
    }
 
    npcol_ = (int)(numProcs_ / nprow_);
-   assert(nprow_ * npcol_ == numProcs_);
+   MFEM_ASSERT(nprow_ * npcol_ == numProcs_, "");
 
    PStatInit(stat); // Initialize the statistics variables.
 }
@@ -423,7 +432,7 @@ void SuperLUSolver::SetupGrid()
       }
 
       npcol_ = (int)(numProcs_ / nprow_);
-      assert(nprow_ * npcol_ == numProcs_);
+      MFEM_ASSERT(nprow_ * npcol_ == numProcs_, "");
    }
 
    superlu_gridinit(comm_, nprow_, npcol_, grid);

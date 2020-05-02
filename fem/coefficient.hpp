@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_COEFFICIENT
 #define MFEM_COEFFICIENT
@@ -91,12 +91,12 @@ public:
    { constants = 0.0; }
 
    /** c should be a vector defined by attributes, so for region with
-       attribute i  c[i] is the coefficient in that region */
+       attribute i  c[i-1] is the coefficient in that region */
    PWConstCoefficient(Vector &c)
    { constants.SetSize(c.Size()); constants=c; }
 
    /// Update constants
-   void UpdateConstants(Vector &c) {constants.SetSize(c.Size()); constants=c;}
+   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
 
    /// Member function to access or modify the value of the i-th constant
    double &operator()(int i) { return constants(i-1); }
@@ -111,6 +111,7 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
+
 
 /// class for C-function coefficient
 class FunctionCoefficient : public Coefficient
@@ -137,7 +138,7 @@ public:
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a f, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*f)(Vector &))
+   MFEM_DEPRECATED FunctionCoefficient(double (*f)(Vector &))
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
@@ -146,7 +147,7 @@ public:
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a tdf, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*tdf)(Vector &, double))
+   MFEM_DEPRECATED FunctionCoefficient(double (*tdf)(Vector &, double))
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
@@ -327,6 +328,7 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+   const Vector& GetVec() { return vec; }
 };
 
 class VectorFunctionCoefficient : public VectorCoefficient
@@ -368,6 +370,7 @@ class VectorArrayCoefficient : public VectorCoefficient
 {
 private:
    Array<Coefficient*> Coeff;
+   Array<bool> ownCoeff;
 
 public:
    /// Construct vector of dim coefficients.
@@ -379,7 +382,7 @@ public:
    Coefficient **GetCoeffs() { return Coeff; }
 
    /// Sets coefficient in the vector.
-   void Set(int i, Coefficient *c) { delete Coeff[i]; Coeff[i] = c; }
+   void Set(int i, Coefficient *c, bool own=true);
 
    /// Evaluates i'th component of the vector.
    double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
@@ -448,6 +451,7 @@ public:
    void SetGridFunction(GridFunction *gf);
    GridFunction * GetGridFunction() const { return GridFunc; }
 
+   using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -498,9 +502,13 @@ public:
    void SetDeltaCoefficient(const DeltaCoefficient& _d) { d = _d; }
    /// Return the associated scalar DeltaCoefficient.
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
+
+   void SetScale(double s) { d.SetScale(s); }
    void SetDirection(const Vector& _d);
 
+   void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
+
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
@@ -626,6 +634,7 @@ class MatrixArrayCoefficient : public MatrixCoefficient
 {
 private:
    Array<Coefficient *> Coeff;
+   Array<bool> ownCoeff;
 
 public:
 
@@ -633,7 +642,7 @@ public:
 
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   void Set(int i, int j, Coefficient * c) { delete Coeff[i*width+j]; Coeff[i*width+j] = c; }
+   void Set(int i, int j, Coefficient * c, bool own=true);
 
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
@@ -790,6 +799,7 @@ public:
    /// Evaluate the coefficient
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a product of a scalar and a vector
@@ -804,6 +814,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a cross product of two vectors
@@ -821,6 +832,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a matrix vector product
@@ -838,6 +850,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Matrix coefficient defined as the identity of dimension d

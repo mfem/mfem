@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_COMMUNICATION
 #define MFEM_COMMUNICATION
@@ -179,6 +179,12 @@ public:
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
 
+   /// Dofs to be sent to communication neighbors
+   void GetNeighborLTDofTable(Table &nbr_ltdof) const;
+
+   /// Dofs to be received from communication neighbors
+   void GetNeighborLDofTable(Table &nbr_ldof) const;
+
    /** @brief Data structure on which we define reduce operations.
 
      The data is associated with (and the operation is performed on) one group
@@ -316,7 +322,9 @@ struct VarMessage
    std::string data;
    MPI_Request send_request;
 
-   /// Non-blocking send to processor 'rank'.
+   /** Non-blocking send to processor 'rank'. Returns immediately. Completion
+       (as tested by MPI_Wait/Test) does not mean the message was received --
+       it may be on its way or just buffered locally. */
    void Isend(int rank, MPI_Comm comm)
    {
       Encode(rank);
@@ -324,12 +332,20 @@ struct VarMessage
                 &send_request);
    }
 
+   /** Non-blocking synchronous send to processor 'rank'. Returns immediately.
+       Completion (MPI_Wait/Test) means that the message was received. */
+   void Issend(int rank, MPI_Comm comm)
+   {
+      Encode(rank);
+      MPI_Issend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
+                 &send_request);
+   }
+
    /// Helper to send all messages in a rank-to-message map container.
    template<typename MapT>
    static void IsendAll(MapT& rank_msg, MPI_Comm comm)
    {
-      typename MapT::iterator it;
-      for (it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
       {
          it->second.Isend(it->first, comm);
       }
@@ -339,12 +355,30 @@ struct VarMessage
    template<typename MapT>
    static void WaitAllSent(MapT& rank_msg)
    {
-      typename MapT::iterator it;
-      for (it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
       {
          MPI_Wait(&it->second.send_request, MPI_STATUS_IGNORE);
          it->second.Clear();
       }
+   }
+
+   /** Return true if all messages in the map container were sent, otherwise
+       return false, without waiting. */
+   template<typename MapT>
+   static bool TestAllSent(MapT& rank_msg)
+   {
+      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      {
+         VarMessage &msg = it->second;
+         if (msg.send_request != MPI_REQUEST_NULL)
+         {
+            int sent;
+            MPI_Test(&msg.send_request, &sent, MPI_STATUS_IGNORE);
+            if (!sent) { return false; }
+            msg.Clear();
+         }
+      }
+      return true;
    }
 
    /** Blocking probe for incoming message of this type from any rank.

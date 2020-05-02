@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_GRIDFUNC
 #define MFEM_GRIDFUNC
@@ -16,6 +16,9 @@
 #include "fespace.hpp"
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include <limits>
 #include <ostream>
 #include <string>
@@ -56,7 +59,7 @@ protected:
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Array<int>& counts,
-                        int wcoef,
+                        bool wcoef,
                         int subdomain);
 
    /** Project a discontinuous vector coefficient in a continuous space and
@@ -68,15 +71,16 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec = NULL; sequence = 0; }
+   GridFunction() { fes = NULL; fec = NULL; sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
+      : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence)
+   { UseDevice(true); }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -84,8 +88,9 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   GridFunction(FiniteElementSpace *f, double *data)
+      : Vector(data, f->GetVSize())
+   { fes = f; fec = NULL; sequence = f->GetSequence(); UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -104,7 +109,9 @@ public:
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
 
-   /// Make the GridFunction the owner of 'fec' and 'fes'
+   /// Make the GridFunction the owner of #fec and #fes.
+   /** If the new FiniteElementCollection, @a _fec, is NULL, ownership of #fec
+       and #fes is taken away. */
    void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
 
    FiniteElementCollection *OwnFEC() { return fec; }
@@ -122,6 +129,7 @@ public:
 
    /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
    /// then `tv` will be set to point to the data of `*this`.
+   /** @warning This method breaks const-ness when all dofs are true. */
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
@@ -146,6 +154,18 @@ public:
 
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
+
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      int vdim = 1) const;
+
+   void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
+                      DenseMatrix &tr, int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    int vdim = 1) const;
+
+   void GetHessians(int i, const IntegrationRule &ir, DenseMatrix &hess,
+                    DenseMatrix &tr, int vdim = 1) const;
 
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
@@ -409,7 +429,7 @@ public:
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
-                            int wcoef = 1, int subdomain = -1);
+                            bool wcoef = true, int subdomain = -1);
 
    /// Redefine '=' for GridFunction = constant.
    GridFunction &operator=(double value);
@@ -428,6 +448,8 @@ public:
    /// Associate a new FiniteElementSpace with the GridFunction.
    /** The GridFunction is resized using the SetSize() method. */
    virtual void SetSpace(FiniteElementSpace *f);
+
+   using Vector::MakeRef;
 
    /** @brief Make the GridFunction reference external data on a new
        FiniteElementSpace. */
@@ -466,6 +488,13 @@ public:
 
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
+
+#ifdef MFEM_USE_ADIOS2
+   /// Save the GridFunction to a binary output stream using adios2 bp format.
+   virtual void Save(adios2stream &out, const std::string& variable_name,
+                     const adios2stream::data_type
+                     type = adios2stream::data_type::point_data) const;
+#endif
 
    /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
        called first. The parameter ref > 0 must match the one used in
@@ -635,7 +664,8 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
                         Vector &error_estimates,
                         Array<int> *aniso_flags = NULL,
-                        int with_subdomains = 1);
+                        int with_subdomains = 1,
+                        bool with_coeff = false);
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
@@ -700,7 +730,7 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim*sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
    {
       values(i) = *(q++);
@@ -720,12 +750,14 @@ inline void QuadratureFunction::GetElementValues(int idx,
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
-   double *q = data + vdim*s_offset;
+   const double *q = data + vdim*s_offset;
    for (int j = 0; j<sl_size; j++)
+   {
       for (int i = 0; i<vdim; i++)
       {
          values(i,j) = *(q++);
       }
+   }
 }
 
 } // namespace mfem
