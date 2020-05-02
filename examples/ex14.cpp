@@ -1,4 +1,22 @@
-//                             MFEM DG Diffusion with BR2
+//                                MFEM Example 14
+//
+// Compile with: make ex14
+//
+// Sample runs:  ex14 -m ../data/inline-quad.mesh -o 0
+//               ex14 -m ../data/star.mesh -r 4 -o 2
+//               ex14 -m ../data/star-mixed.mesh -r 4 -o 2
+//               ex14 -m ../data/escher.mesh -s 1
+//               ex14 -m ../data/fichera.mesh -s 1 -k 1
+//               ex14 -m ../data/fichera-mixed.mesh -s 1 -k 1
+//               ex14 -m ../data/square-disc-p2.vtk -r 3 -o 2
+//               ex14 -m ../data/square-disc-p3.mesh -r 2 -o 3
+//               ex14 -m ../data/square-disc-nurbs.mesh -o 1
+//               ex14 -m ../data/disc-nurbs.mesh -r 3 -o 2 -s 1 -k 0
+//               ex14 -m ../data/pipe-nurbs.mesh -o 1
+//               ex14 -m ../data/inline-segment.mesh -r 5
+//               ex14 -m ../data/amr-quad.mesh -r 3
+//               ex14 -m ../data/amr-hex.mesh
+//               ex14 -m ../data/fichera-amr.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
@@ -8,10 +26,8 @@
 //               highlights the use of discontinuous spaces and DG-specific face
 //               integrators.
 //
-//               This example differs from example 14 in that it uses the "second
-//               method of Bassi and Rebay" (BR2) instead of variants of the
-//               interior penalty method. This requires a custom integrator in
-//               order to implement the face lifting operators.
+//               We recommend viewing examples 1 and 9 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -44,8 +60,7 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&eta, "-e", "--eta",
-                  "BR2 penalty parameter. Should probably just be set to one.");
+   args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -118,9 +133,6 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-
-   // The lifting operators (BR2 terms) require knowledge of the finite element space
-   // to precompute the local mass matrix inverses
    a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
    a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
 
