@@ -71,6 +71,8 @@ public:
 class ParPumiMesh : public ParMesh
 {
 private:
+   // This has to persist during an adaptive simulation, and therefore
+   // needs to be updated each time the mesh changes.
    apf::Numbering* v_num_loc;
 
 public:
@@ -132,7 +134,7 @@ public:
                         apf::Field* ScalarField,
                         ParGridFunction* Pr);
 
-   virtual ~ParPumiMesh();
+   virtual ~ParPumiMesh() {}
 };
 
 

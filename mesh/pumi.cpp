@@ -325,9 +325,13 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    // Create local numbering that respects the global ordering
    apf::Field* apf_field_crd = apf_mesh->getCoordinateField();
    apf::FieldShape* crd_shape = apf::getShape(apf_field_crd);
-   v_num_loc = apf::createNumbering(apf_mesh,
-                                    "LocalVertexNumbering",
-                                    crd_shape, 1);
+   // v_num_loc might already be associated the mesh. In that case
+   // there is no need to create it again.
+   v_num_loc = apf_mesh->findNumbering("LocalVertexNumbering");
+   if (!v_num_loc)
+      v_num_loc = apf::createNumbering(apf_mesh,
+                                       "LocalVertexNumbering",
+                                        crd_shape, 1);
 
    // Construct the numbering v_num_loc and set the coordinates of the vertices.
    NumOfVertices = thisVertIds.Size();
@@ -707,16 +711,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    }
 
    Finalize(refine, fix_orientation);
-}
-
-ParPumiMesh::~ParPumiMesh()
-{
-   // clean ups
-
-   // This is used during some of the field transfers, and therefore
-   // unlike the PumiMesh class, we cannot destroy this inside the
-   // constructor of the class.
-   apf::destroyNumbering(v_num_loc);
 }
 
 // GridFunctionPumi Implementation needed for high order meshes
@@ -1216,7 +1210,7 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
 {
    // Pr->Update();
    // Find local numbering
-   v_num_loc = apf_mesh->findNumbering("LocalVertexNumbering");
+   /* v_num_loc = apf_mesh->findNumbering("LocalVertexNumbering"); */
 
    // Loop over field to copy
    getShape(ScalarField);
