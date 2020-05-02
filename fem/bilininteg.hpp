@@ -2627,31 +2627,40 @@ public:
    The parameter eta can be chosen to be one to obtain a stable
    discretization. The constructor for this integrator requires the
    finite element space because the lifting operator depends on the
-   element-wise inverse mass matrix */
-class FiniteElementSpace;
+   element-wise inverse mass matrix.
+
+   BR2 stands for the second method of Bassi and Rebay:
+
+   - F. Bassi and S. Rebay. A high order discontinuous Galerkin method for
+     compressible turbulent flows. In B. Cockburn, G. E. Karniadakis, and
+     C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77–88. Springer
+     Berlin Heidelberg, 2000.
+   - D. N. Arnold, F. Brezzi, B. Cockburn, and L. D. Marini. Unified analysis
+     of discontinuous Galerkin methods for elliptic problems. SIAM Journal on
+     Numerical Analysis, 39(5):1749–1779, 2002.
+*/
 class DGDiffusionBR2Integrator : public BilinearFormIntegrator
 {
 protected:
-   FiniteElementSpace *fespace;
    double eta;
 
-   DenseTensor Minv;
+   Vector Minv;
+   Array<int> ipiv, ipiv_offsets, Minv_offsets;
 
    Vector shape1, shape2;
 
-   DenseMatrix R11, R12, R21, R22, M1inv, M2inv;
+   DenseMatrix R11, R12, R21, R22;
    DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
    DenseMatrix Re, MinvRe;
 
 public:
-   DGDiffusionBR2Integrator(FiniteElementSpace *fes, double e = 1.0);
+   DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 };
-
 
 /** Integrator for the DG elasticity form, for the formulations see:
     - PhD Thesis of Jonas De Basabe, High-Order Finite %Element Methods for

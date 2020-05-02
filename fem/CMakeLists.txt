@@ -13,6 +13,7 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
+  bilininteg_br2.cpp
   bilininteg_convection.cpp
   bilininteg_dgtrace.cpp
   bilininteg_diffusion.cpp
