@@ -42,7 +42,10 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
    if (pfes != NULL)
    {
       ParMesh *pmesh = pfes->GetParMesh();
-      int nel_nbr = pmesh->GetNFaceNeighbors();
+      pfes->ExchangeFaceNbrData();
+      int nel_nbr = pmesh->GetNFaceNeighborElements();
+      Minv_offsets.SetSize(nel+nel_nbr+1);
+      ipiv_offsets.SetSize(nel+nel_nbr+1);
       for (int i=0; i<nel_nbr; ++i)
       {
          int dof = pfes->GetFaceNbrFE(i)->GetDof();
@@ -63,7 +66,7 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
       const FiniteElement *fe;
       ElementTransformation *tr;
       IsoparametricTransformation iso_tr;
-      if (i <= fes->GetNE())
+      if (i < fes->GetNE())
       {
          fe = fes->GetFE(i);
          tr = fes->GetElementTransformation(i);
@@ -73,7 +76,7 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
 #ifdef MFEM_USE_MPI
          int inbr = i - fes->GetNE();
          fe = pfes->GetFaceNbrFE(inbr);
-         pfes->GetParMesh()->GetFaceNbrElementTransformation(i, &iso_tr);
+         pfes->GetParMesh()->GetFaceNbrElementTransformation(inbr, &iso_tr);
          tr = &iso_tr;
 #endif
       }
