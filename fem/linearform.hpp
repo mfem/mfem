@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_LINEARFORM
 #define MFEM_LINEARFORM
@@ -64,7 +64,7 @@ public:
    /// Creates linear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
    LinearForm(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; extern_lfs = 0; }
+   { fes = f; extern_lfs = 0; UseDevice(true); }
 
    /** @brief Create a LinearForm on the FiniteElementSpace @a f, using the
        same integrators as the LinearForm @a lf.
@@ -79,20 +79,28 @@ public:
    /** The associated FiniteElementSpace can be set later using one of the
        methods: Update(FiniteElementSpace *) or
        Update(FiniteElementSpace *, Vector &, int). */
-   LinearForm() { fes = NULL; extern_lfs = 0; }
+   LinearForm() { fes = NULL; extern_lfs = 0; UseDevice(true); }
+
+   /// Construct a LinearForm using previously allocated array @a data.
+   /** The LinearForm does not assume ownership of @a data which is assumed to
+       be of size at least `f->GetVSize()`. Similar to the Vector constructor
+       for externally allocated array, the pointer @a data can be NULL. The data
+       array can be replaced later using the method SetData(). */
+   LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
+   { fes = f; extern_lfs = 0; }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
        have the same size.
 
        @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    LinearForm &operator=(const LinearForm &rhs)
    { return operator=((const Vector &)rhs); }
 
    /// (DEPRECATED) Return the FE space associated with the LinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Read+write access to the associated FiniteElementSpace.
    FiniteElementSpace *FESpace() { return fes; }
@@ -151,7 +159,7 @@ public:
    void AssembleDelta();
 
    /// Update the object according to the associated FE space #fes.
-   /** This method should be called when the asscociated FE space #fes has been
+   /** This method should be called when the associated FE space #fes has been
        updated, e.g. after its associated Mesh object has been refined.
 
        @note This method does not perform assembly. */

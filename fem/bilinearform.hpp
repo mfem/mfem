@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BILINEARFORM
 #define MFEM_BILINEARFORM
@@ -18,11 +18,31 @@
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
+#include "bilinearform_ext.hpp"
 #include "staticcond.hpp"
 #include "hybridization.hpp"
 
 namespace mfem
 {
+
+/// Enumeration defining the assembly level for bilinear and nonlinear form
+/// classes derived from Operator.
+enum class AssemblyLevel
+{
+   /// Fully assembled form, i.e. a global sparse matrix in MFEM, Hypre or PETSC
+   /// format.
+   FULL,
+   /// Form assembled at element level, which computes and stores dense element
+   /// matrices.
+   ELEMENT,
+   /// Partially-assembled form, which computes and stores data only at
+   /// quadrature points.
+   PARTIAL,
+   /// "Matrix-free" form that computes all of its action on-the-fly without any
+   /// substantial storage.
+   NONE,
+};
+
 
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
@@ -37,6 +57,14 @@ protected:
 
    /// FE space on which the form lives. Not owned.
    FiniteElementSpace *fes;
+
+   /// The assembly level of the form (full, partial, etc.)
+   AssemblyLevel assembly;
+   /// Element batch size used in the form action (1, 8, num_elems, etc.)
+   int batch;
+   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
+       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   BilinearFormExtension *ext;
 
    /// Indicates the Mesh::sequence corresponding to the current state of the
    /// BilinearForm.
@@ -68,11 +96,9 @@ protected:
    StaticCondensation *static_cond; ///< Owned.
    Hybridization *hybridization; ///< Owned.
 
-   /**
-    * This member allows one to specify what should be done
-    * to the diagonal matrix entries and corresponding RHS
-    * values upon elimination of the constrained DoFs.
-    */
+   /** This data member allows one to specify what should be done to the
+       diagonal matrix entries and corresponding RHS values upon elimination of
+       the constrained DoFs. */
    DiagonalPolicy diag_policy;
 
    int precompute_sparsity;
@@ -89,6 +115,9 @@ protected:
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
+      assembly = AssemblyLevel::FULL;
+      batch = 1;
+      ext = NULL;
    }
 
 private:
@@ -117,6 +146,13 @@ public:
 
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }
+
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
@@ -192,7 +228,7 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const { mat->Mult(x, y); }
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
@@ -284,18 +320,33 @@ public:
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
 
+   /** @brief Assemble the diagonal of the bilinear form into diag
+
+       For adaptively refined meshes, this returns P^T d_e, where d_e is the
+       locally assembled diagonal on each element and P^T is the transpose of
+       the conforming prolongation. In general this is not the correct diagonal
+       for an AMR mesh. */
+   void AssembleDiagonal(Vector &diag) const;
+
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return fes->GetConformingProlongation(); }
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return fes->GetConformingRestriction(); }
+   /// Get the output finite element space prolongation matrix
+   virtual const Operator *GetOutputProlongation() const
+   { return GetProlongation(); }
+   /// Get the output finite element space restriction matrix
+   virtual const Operator *GetOutputRestriction() const
+   { return GetRestriction(); }
 
-   /// Form a linear system, A X = B.
-   /** Form the linear system A X = B, corresponding to the current bilinear
-       form and b(.), by applying any necessary transformations such as:
-       eliminating boundary conditions; applying conforming constraints for
-       non-conforming AMR; static condensation; hybridization.
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and the linear form @a b(.). */
+   /** This method applies any necessary transformations to the linear system
+       such as: eliminating boundary conditions; applying conforming constraints
+       for non-conforming AMR; parallel assembly; static condensation;
+       hybridization.
 
        The GridFunction-size vector @a x must contain the essential b.c. The
        BilinearForm and the LinearForm-size vector @a b must be assembled.
@@ -316,12 +367,52 @@ public:
 
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                 Vector &b, OperatorHandle &A, Vector &X,
+                                 Vector &B, int copy_interior = 0);
+
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and the linear form @a b(.). */
+   /** Version of the method FormLinearSystem() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         SparseMatrix &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
+                         OpType &A, Vector &X, Vector &B,
+                         int copy_interior = 0)
+   {
+      OperatorHandle Ah;
+      FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
+   /// Form the linear system matrix @a A, see FormLinearSystem() for details.
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A);
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
+   /** Version of the method FormSystemMatrix() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
+   {
+      OperatorHandle Ah;
+      FormSystemMatrix(ess_tdof_list, Ah);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
 
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
@@ -337,9 +428,49 @@ public:
    void FreeElementMatrices()
    { delete element_matrices; element_matrices = NULL; }
 
+   /// Compute the element matrix of the given element
+   /** The element matrix is computed by calling the domain integrators
+       or the one stored internally by a prior call of ComputeElementMatrices()
+       is returned when available.
+   */
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Compute the boundary element matrix of the given boundary element
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The flag @a skip_zeros skips the zero
+       elements of the matrix, unless they are breaking the symmetry of
+       the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              int skip_zeros = 1);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The vdofs of the element are returned
+       in @a vdofs. The flag @a skip_zeros skips the zero elements of the
+       matrix, unless they are breaking the symmetry of the system matrix.
+   */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The vdofs of the element
+       are returned in @a vdofs. The flag @a skip_zeros skips the zero elements
+       of the matrix, unless they are breaking the symmetry of the system matrix.
+   */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &vdofs, int skip_zeros = 1);
 
@@ -399,7 +530,7 @@ public:
 
    /// (DEPRECATED) Return the FE space associated with the BilinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *FESpace() { return fes; }
@@ -409,9 +540,13 @@ public:
    /// Sets diagonal policy used upon construction of the linear system
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
+   /// Indicate that integrators are not owned by the BilinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; };
+
    /// Destroys bilinear form.
    virtual ~BilinearForm();
 };
+
 
 /**
    Class for assembling of bilinear forms `a(u,v)` defined on different
@@ -432,20 +567,38 @@ class MixedBilinearForm : public Matrix
 {
 protected:
    SparseMatrix *mat; ///< Owned.
+   SparseMatrix *mat_e; ///< Owned.
 
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #dom, #bdr, and
-       #skt are owned by another MixedBilinearForm. */
+   /// The form assembly level (full, partial, etc.)
+   AssemblyLevel assembly;
+
+   /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
+       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   MixedBilinearFormExtension *ext;
+
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
+       #tfbfi and #btfbfi are owned by another MixedBilinearForm. */
    int extern_bfs;
 
    /// Domain integrators.
-   Array<BilinearFormIntegrator*> dom;
+   Array<BilinearFormIntegrator*> dbfi;
+
    /// Boundary integrators.
-   Array<BilinearFormIntegrator*> bdr;
+   Array<BilinearFormIntegrator*> bbfi;
+   Array<Array<int>*>             bbfi_marker;///< Entries are not owned.
+
    /// Trace face (skeleton) integrators.
-   Array<BilinearFormIntegrator*> skt;
+   Array<BilinearFormIntegrator*> tfbfi;
+
+   /// Boundary trace face (skeleton) integrators.
+   Array<BilinearFormIntegrator*> btfbfi;
+   Array<Array<int>*>             btfbfi_marker;///< Entries are not owned.
+
+   DenseMatrix elemmat;
+   Array<int>  trial_vdofs, test_vdofs;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -480,15 +633,12 @@ public:
    virtual const double &Elem(int i, int j) const;
 
    virtual void Mult(const Vector & x, Vector & y) const;
-
    virtual void AddMult(const Vector & x, Vector & y,
                         const double a = 1.0) const;
 
+   virtual void MultTranspose(const Vector & x, Vector & y) const;
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const;
-
-   virtual void MultTranspose(const Vector & x, Vector & y) const
-   { y = 0.0; AddMultTranspose (x, y); }
 
    virtual MatrixInverse *Inverse() const;
 
@@ -509,6 +659,10 @@ public:
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
+   /// Adds a boundary integrator. Assumes ownership of @a bfi.
+   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
+                               Array<int> &bdr_marker);
+
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
        This type of integrator assembles terms over all faces of the mesh using
@@ -516,18 +670,60 @@ public:
        test space. */
    void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi);
 
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
+                                   Array<int> &bdr_marker);
+
    /// Access all integrators added with AddDomainIntegrator().
-   Array<BilinearFormIntegrator*> *GetDBFI() { return &dom; }
+   Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
    /// Access all integrators added with AddBoundaryIntegrator().
-   Array<BilinearFormIntegrator*> *GetBBFI() { return &bdr; }
+   Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
+   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
+   Array<BilinearFormIntegrator*> *GetTFBFI() { return &tfbfi; }
+
+   /// Access all integrators added with AddBdrTraceFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBTFBFI() { return &btfbfi; }
+   /** @brief Access all boundary markers added with AddBdrTraceFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBTFBFI_Marker() { return &btfbfi_marker; }
 
    void operator=(const double a) { *mat = a; }
 
+   /// Set the desired assembly level. The default is AssemblyLevel::FULL.
+   /** This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    void Assemble(int skip_zeros = 1);
+
+   /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
+       bilinear form and D is a diagonal. */
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+
+   /// Get the input finite element space prolongation matrix
+   virtual const Operator *GetProlongation() const
+   { return trial_fes->GetProlongationMatrix(); }
+
+   /// Get the input finite element space restriction matrix
+   virtual const Operator *GetRestriction() const
+   { return trial_fes->GetRestrictionMatrix(); }
+
+   /// Get the test finite element space prolongation matrix
+   virtual const Operator *GetOutputProlongation() const
+   { return test_fes->GetProlongationMatrix(); }
+
+   /// Get the test finite element space restriction matrix
+   virtual const Operator *GetOutputRestriction() const
+   { return test_fes->GetRestrictionMatrix(); }
 
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal
@@ -536,15 +732,134 @@ public:
        MixedBilinearForm becomes an operator on the conforming FE spaces. */
    void ConformingAssemble();
 
-   void EliminateTrialDofs(Array<int> &bdr_attr_is_ess,
+   /// Compute the element matrix of the given element
+   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Compute the boundary element matrix of the given boundary element
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The flag @a skip_zeros skips the zero
+       elements of the matrix, unless they are breaking the symmetry of
+       the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              int skip_zeros = 1);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The vdofs of the element are returned
+       in @a trial_vdofs and @a test_vdofs. The flag @a skip_zeros skips
+       the zero elements of the matrix, unless they are breaking the symmetry
+       of the system matrix.
+   */
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                              int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The vdofs of the element
+       are returned in @a trial_vdofs and @a test_vdofs. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                                 int skip_zeros = 1);
+
+   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
                            const Vector &sol, Vector &rhs);
 
-   void EliminateEssentialBCFromTrialDofs(Array<int> &marked_vdofs,
+   void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
                                           const Vector &sol, Vector &rhs);
 
-   virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
+   virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+
+   /** @brief Return in @a A that is column-constrained.
+
+      This returns the same operator as FormRectangularLinearSystem(), but does
+      without the transformations of the right-hand side. */
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    OperatorHandle &A);
+
+   /** @brief Form the column-constrained linear system matrix A.
+       See FormRectangularSystemMatrix() for details.
+
+       Version of the method FormRectangularSystemMatrix() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list, OpType &A)
+   {
+      OperatorHandle Ah;
+      FormRectangularSystemMatrix(trial_tdof_list, test_tdof_list, Ah);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
+   /** @brief Form the linear system A X = B, corresponding to this mixed bilinear
+       form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OperatorHandle &A, Vector &X, Vector &B);
+
+   /** @brief Form the linear system A X = B, corresponding to this bilinear
+       form and the linear form @a b(.).
+
+       Version of the method FormRectangularLinearSystem() where the system matrix is
+       returned in the variable @a A, of type OpType, holding a *reference* to
+       the system matrix (created with the method OpType::MakeRef()). The
+       reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called.
+
+       Currently, this method can be used only with AssemblyLevel::FULL. */
+   template <typename OpType>
+   void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                    const Array<int> &test_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OpType &A, Vector &X, Vector &B)
+   {
+      OperatorHandle Ah;
+      FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, Ah, X, B);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
 
    void Update();
+
+   /// Return the trial FE space associated with the BilinearForm.
+   FiniteElementSpace *TrialFESpace() { return trial_fes; }
+   /// Read-only access to the associated trial FiniteElementSpace.
+   const FiniteElementSpace *TrialFESpace() const { return trial_fes; }
+
+   /// Return the test FE space associated with the BilinearForm.
+   FiniteElementSpace *TestFESpace() { return test_fes; }
+   /// Read-only access to the associated test FiniteElementSpace.
+   const FiniteElementSpace *TestFESpace() const { return test_fes; }
 
    virtual ~MixedBilinearForm();
 };
@@ -607,7 +922,7 @@ public:
    { AddTraceFaceIntegrator(di); }
 
    /// Access all interpolators added with AddDomainInterpolator().
-   Array<BilinearFormIntegrator*> *GetDI() { return &dom; }
+   Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */

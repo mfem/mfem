@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PBILINEARFORM
 #define MFEM_PBILINEARFORM
@@ -75,7 +75,8 @@ public:
        those rows. Must be called before the first Assemble call. */
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
-   /// Set the operator type id for the parallel matrix/operator.
+   /** @brief Set the operator type id for the parallel matrix/operator when
+       using AssemblyLevel::FULL. */
    /** If using static condensation or hybridization, call this method *after*
        enabling it. */
    void SetOperatorType(Operator::Type tid)
@@ -163,65 +164,15 @@ public:
    virtual const Operator *GetRestriction() const
    { return pfes->GetRestrictionMatrix(); }
 
-   /** Form the linear system A X = B, corresponding to the current bilinear
-       form and b(.), by applying any necessary transformations such as:
-       eliminating boundary conditions; applying conforming constraints for
-       non-conforming AMR; parallel assembly; static condensation;
-       hybridization.
+   using BilinearForm::FormLinearSystem;
+   using BilinearForm::FormSystemMatrix;
 
-       The ParGridFunction-size vector x must contain the essential b.c. The
-       ParBilinearForm and the ParLinearForm-size vector b must be assembled.
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                 Vector &b, OperatorHandle &A, Vector &X,
+                                 Vector &B, int copy_interior = 0);
 
-       The vector X is initialized with a suitable initial guess: when using
-       hybridization, the vector X is set to zero; otherwise, the essential
-       entries of X are set to the corresponding b.c. and all other entries are
-       set to zero (copy_interior == 0) or copied from x (copy_interior != 0).
-
-       This method can be called multiple times (with the same ess_tdof_list
-       array) to initialize different right-hand sides and boundary condition
-       values.
-
-       After solving the linear system, the finite element solution x can be
-       recovered by calling RecoverFEMSolution (with the same vectors X, b, and
-       x). */
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-
-   /** Version of the method FormLinearSystem() where the system matrix is
-       returned in the variable @a A, of type OpType, holding a *reference* to
-       the system matrix (created with the method OpType::MakeRef()). The
-       reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called. */
-   template <typename OpType>
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         OpType &A, Vector &X, Vector &B,
-                         int copy_interior = 0)
-   {
-      OperatorHandle Ah;
-      FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
-      OpType *A_ptr = Ah.Is<OpType>();
-      MFEM_VERIFY(A_ptr, "invalid OpType used");
-      A.MakeRef(*A_ptr);
-   }
-
-   /// Form the linear system matrix @a A, see FormLinearSystem() for details.
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
-
-   /** Version of the method FormSystemMatrix() where the system matrix is
-       returned in the variable @a A, of type OpType, holding a *reference* to
-       the system matrix (created with the method OpType::MakeRef()). The
-       reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called. */
-   template <typename OpType>
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
-   {
-      OperatorHandle Ah;
-      FormSystemMatrix(ess_tdof_list, Ah);
-      OpType *A_ptr = Ah.Is<OpType>();
-      MFEM_VERIFY(A_ptr, "invalid OpType used");
-      A.MakeRef(*A_ptr);
-   }
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
@@ -244,6 +195,9 @@ protected:
    /// Auxiliary objects used in TrueAddMult().
    mutable ParGridFunction X, Y;
 
+   /// Matrix and eliminated matrix
+   OperatorHandle p_mat, p_mat_e;
+
 private:
    /// Copy construction is not supported; body is undefined.
    ParMixedBilinearForm(const ParMixedBilinearForm &);
@@ -258,7 +212,8 @@ public:
        constructed object. */
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes)
-      : MixedBilinearForm(trial_fes, test_fes)
+      : MixedBilinearForm(trial_fes, test_fes),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -276,7 +231,8 @@ public:
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes,
                         ParMixedBilinearForm * mbf)
-      : MixedBilinearForm(trial_fes, test_fes, mbf)
+      : MixedBilinearForm(trial_fes, test_fes, mbf),
+        p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -289,6 +245,25 @@ public:
        @a A = P_test^t A_local P_trial, in the format (type id) specified by
        @a A. */
    void ParallelAssemble(OperatorHandle &A);
+
+   /** @brief Return in @a A a parallel (on truedofs) version of this operator.
+
+       This returns the same operator as FormRectangularLinearSystem(), but does
+       without the transformations of the right-hand side. */
+   virtual void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list,
+                                            OperatorHandle &A);
+
+   /** @brief Form the parallel linear system A X = B, corresponding to this mixed
+       bilinear form and the linear form @a b(.).
+
+       Return in @a A a *reference* to the system matrix that is column-constrained.
+       The reference will be invalidated when SetOperatorType(), Update(), or the
+       destructor is called. */
+   virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
+                                            const Array<int> &test_tdof_list, Vector &x,
+                                            Vector &b, OperatorHandle &A, Vector &X,
+                                            Vector &B);
 
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;

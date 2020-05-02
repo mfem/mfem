@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 make="${MAKE:-make}"
 mpiexec="${MPIEXEC:-mpirun}"
@@ -18,6 +18,8 @@ run_prefix=""
 run_vg="valgrind --leak-check=full --show-reachable=yes --track-origins=yes"
 run_suffix="-no-vis"
 skip_gen_meshes="yes"
+# filter-out device runs ("no") or non-device runs ("yes"):
+device_runs="no"
 cur_dir="${PWD}"
 mfem_dir="$(cd "$(dirname "$0")"/.. && pwd)"
 mfem_build_dir=""
@@ -45,7 +47,7 @@ groups_serial=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    mesh-optimizer.cpp"'
+    mesh-optimizer.cpp minimal-surface.cpp"'
 )
 # Parallel groups
 groups_parallel=(
@@ -70,7 +72,7 @@ groups_parallel=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp"'
+   "pmesh-optimizer.cpp pminimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -99,7 +101,7 @@ groups_all=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp"'
+    {,p}mesh-optimizer.cpp {,p}minimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -148,6 +150,20 @@ function extract_sample_runs()
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi
+   if [ "$device_runs" == "yes" ]; then
+      runs=`printf "%s" "$runs" | grep ".* -d .*"`
+      if [ "$have_occa" == "no" ]; then
+         runs=`printf "%s" "$runs" | grep -v ".* -d occa-.*"`
+      fi
+      if [ "$have_raja" == "no" ]; then
+         runs=`printf "%s" "$runs" | grep -v ".* -d raja-.*"`
+      fi
+      if [ "$have_ceed" == "no" ]; then
+         runs=`printf "%s" "$runs" | grep -v ".* -d ceed-.*"`
+      fi
+   else
+      runs=`printf "%s" "$runs" | grep -v ".* -d .*"`
+   fi
    IFS=$'\n'
    runs=(${runs})
    IFS="${old_IFS}"
@@ -169,6 +185,9 @@ function help_message()
       -g <dir> <pattern>
                   Specify explicitly a group (dir + file pattern) to run; This
                   option can be used multiple times to define multiple groups
+      -dev        configure only sample runs using devices.
+                  To test with a parallel build, the parallel (-p|-par) option
+                  should be set first on the command line.
       -v          Enable valgrind
       -o <dir>    [${output_dir:-"<empty>: output goes to stdout"}]
                   If not empty, save output to files inside <dir>
@@ -182,11 +201,11 @@ function help_message()
       -s|-show    Show all configured sample runs and exit
       -n          Dry run: replace "\$sample_run" with "echo \$sample_run"
       <var>=<value>
-                  Set a shell script varible; see below for valid variables
+                  Set a shell script variable; see below for valid variables
        *          Any other parameter is treated as <mfem_dir>
       <mfem_dir>  [${mfem_dir}] is the MFEM source directory
 
-   This script tests all the sample runs listed in the begining comments of
+   This script tests all the sample runs listed in the beginning comments of
    MFEM's serial or parallel example and miniapp codes. The list of sample runs
    is auto-generated and can be viewed with the -s|-show option.
 
@@ -253,7 +272,7 @@ case "$1" in
    -h|-help)
       opt_help="yes"
       ;;
-   -p|-parallel)
+   -p|-par)
       mfem_config="MFEM_USE_MPI=YES MFEM_DEBUG=NO"
       ;;
    -g)
@@ -263,6 +282,11 @@ case "$1" in
       test_group="\"${gname}\" \"${gtitle}\" \"$2\" \"$3\""
       groups=("${groups[@]}" "${test_group}")
       shift 2
+      ;;
+   -dev)
+       device_runs="yes"
+       mfem_config+=" MFEM_USE_CUDA=YES MFEM_USE_OPENMP=YES"
+       # OCCA, RAJA, libCEED are enabled below, if available
       ;;
    -v)
       valgrind="yes"
@@ -293,6 +317,10 @@ case "$1" in
       ;;
    -n)
       run_prefix="echo"
+      ;;
+   -*)
+      echo "unknown option: '$1'"
+      exit 1
       ;;
    *=*)
       eval $1
@@ -438,6 +466,30 @@ if [ ! -z "$output_dir" ]; then
 fi
 
 TIMEFORMAT="${base_timeformat}"
+
+# Setup optional libraries when not using externally built MFEM:
+if [ "${built}" == "no" ]; then
+   have_occa="no"
+   have_raja="no"
+   have_ceed="no"
+   if [ "${device_runs}" == "yes" ]; then
+      if [ -n "${CUDA_ARCH}" ]; then
+         mfem_config+=" CUDA_ARCH=${CUDA_ARCH}"
+      fi
+      if [ -d "${mfem_dir}/../occa" ]; then
+         mfem_config+=" MFEM_USE_OCCA=YES"
+         have_occa="yes"
+      fi
+      if [ -d "${mfem_dir}/../raja" ]; then
+         mfem_config+=" MFEM_USE_RAJA=YES"
+         have_raja="yes"
+      fi
+      if [ -d "${mfem_dir}/../libCEED" ]; then
+         mfem_config+=" MFEM_USE_CEED=YES"
+         have_ceed="yes"
+      fi
+   fi
+fi
 
 function set_echo_log()
 {
