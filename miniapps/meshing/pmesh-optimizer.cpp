@@ -32,9 +32,9 @@
 // Compile with: make pmesh-optimizer
 //
 //   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -nor -vl 1 -al -ae 0
+//     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 8 -nor -vl 1 -al -ae 0
 //   Adaptive limiting through FD (required GSLIB):
-//     * mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 50 -ls 2 -bnd -qt 1 -qo 8 -nor -vl 1 -al -fd -ae 1
+//     * mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 8 -nor -vl 1 -al -fd -ae 1
 //
 // Sample runs:
 //   Adapted analytic Hessian:
@@ -602,13 +602,27 @@ int main (int argc, char *argv[])
 
    // Adaptive limiting.
    ParGridFunction zeta_0(&ind_fes), zeta(&ind_fes);
-   ConstantCoefficient coef_zeta(10.0);
+   ConstantCoefficient coef_zeta(5.0);
+   AdaptivityEvaluator *adapt_evaluator = NULL;
    if (adapt_lim)
    {
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta.ProjectCoefficient(alim_coeff);
       zeta_0.ProjectCoefficient(alim_coeff);
-      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coef_zeta, adapt_eval);
+
+      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
+      else if (adapt_eval == 1)
+      {
+#ifdef MFEM_USE_GSLIB
+         adapt_evaluator = new InterpolatorFP;
+#else
+         MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+      }
+      else { MFEM_ABORT("Bad interpolation option."); }
+
+      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coef_zeta,
+                                           *adapt_evaluator);
       if (visualization)
       {
          socketstream vis1;
@@ -882,6 +896,7 @@ int main (int argc, char *argv[])
    delete target_c2;
    delete metric2;
    delete coeff1;
+   delete adapt_evaluator;
    delete target_c;
    delete adapt_coeff;
    delete metric;

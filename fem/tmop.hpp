@@ -828,10 +828,10 @@ protected:
    double lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *zeta_0;
-   GridFunction *zeta;
-   Coefficient *coeff_zeta;
-   AdaptivityEvaluator *adapt_eval;
+   const GridFunction *zeta_0;       // Not owned.
+   GridFunction *zeta;               // Not owned.
+   Coefficient *coeff_zeta;          // Not owned.
+   AdaptivityEvaluator *adapt_eval;  // Not owned.
 
    DiscreteAdaptTC *discr_tc;
 
@@ -970,11 +970,11 @@ public:
 
    void EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
                                GridFunction &zeta_gf, Coefficient &coeff,
-                               int interp_type);
+                               AdaptivityEvaluator &ad);
    #ifdef MFEM_USE_MPI
    void EnableAdaptiveLimiting(const ParGridFunction &zeta0_gf,
                                ParGridFunction &zeta_gf, Coefficient &coeff,
-                               int interp_type);
+                               AdaptivityEvaluator &ad);
    #endif
 
    /// Update the original/reference nodes used for limiting.

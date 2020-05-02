@@ -1217,22 +1217,12 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
 void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
                                              GridFunction &zeta_gf,
                                              Coefficient &coeff,
-                                             int interp_type)
+                                             AdaptivityEvaluator &ad)
 {
    zeta_0 = &zeta0_gf;
    zeta = &zeta_gf;
    coeff_zeta = &coeff;
-
-   if (interp_type == 0) { adapt_eval = new AdvectorCG; }
-   else if (interp_type == 1)
-   {
-#ifdef MFEM_USE_GSLIB
-      adapt_eval = new InterpolatorFP;
-#elif
-      MFEM_ABORT("MFEM is not built with GSLIB support!");
-#endif
-   }
-   else { MFEM_ABORT("Bad interpolation option."); }
+   adapt_eval = &ad;
 
    adapt_eval->SetSerialMetaInfo(*zeta->FESpace()->GetMesh(),
                                  *zeta->FESpace()->FEColl(), 1);
@@ -1243,22 +1233,12 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
 void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &zeta0_gf,
                                              ParGridFunction &zeta_gf,
                                              Coefficient &coeff,
-                                             int interp_type)
+                                             AdaptivityEvaluator &ad)
 {
    zeta_0 = &zeta0_gf;
    zeta = &zeta_gf;
    coeff_zeta = &coeff;
-
-   if (interp_type == 0) { adapt_eval = new AdvectorCG; }
-   else if (interp_type == 1)
-   {
-#ifdef MFEM_USE_GSLIB
-      adapt_eval = new InterpolatorFP;
-#elif
-      MFEM_ABORT("MFEM is not built with GSLIB support!");
-#endif
-   }
-   else { MFEM_ABORT("Bad interpolation option."); }
+   adapt_eval = &ad;
 
    adapt_eval->SetParMetaInfo(*zeta_gf.ParFESpace()->GetParMesh(),
                               *zeta_gf.ParFESpace()->FEColl(), 1);
@@ -1556,9 +1536,8 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       const DenseMatrix &Jtr_q = Jtr(q);
       metric->SetTargetJacobian(Jtr_q);
       CalcInverse(Jtr_q, Jrt);
-      const double weight = ip.weight * Jtr_q.Det();
       weights(q) = ip.weight * Jtr_q.Det();
-      double weight_m = weight * metric_normal;
+      double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
