@@ -9,15 +9,24 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TEMPLATE_CONFIG_SIMD_M128
-#define MFEM_TEMPLATE_CONFIG_SIMD_M128
+#ifndef MFEM_SIMD_M128_HPP
+#define MFEM_SIMD_M128_HPP
+
+#ifdef __SSE2__
 
 #include "../tconfig.hpp"
+#include <x86intrin.h>
+
+namespace mfem
+{
+
+template <typename, int, int> struct AutoSIMD;
 
 template <> struct AutoSIMD<double,2,2>
 {
+   typedef double scalar_type;
    static constexpr int size = 2;
-   static constexpr int align_size = 16;
+   static constexpr int align_size = 2;
 
    union
    {
@@ -233,5 +242,9 @@ AutoSIMD<double,2,2> operator/(const double &e,
    return r;
 }
 
-#endif // MFEM_TEMPLATE_CONFIG_SIMD_M128
+} // namespace mfem
+
+#endif // __SSE2__
+
+#endif // MFEM_SIMD_M128_HPP
 

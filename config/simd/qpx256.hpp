@@ -9,15 +9,24 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TEMPLATE_CONFIG_SIMD_QPX_256
-#define MFEM_TEMPLATE_CONFIG_SIMD_QPX_256
+#ifndef MFEM_SIMD_QPX_256_HPP
+#define MFEM_SIMD_QPX_256_HPP
+
+#ifdef __bgq__
 
 #include "../tconfig.hpp"
+#include <builtins.h>
+
+namespace mfem
+{
+
+template <typename,int,int> struct AutoSIMD;
 
 template <> struct AutoSIMD<double,4,4>
 {
+   typedef double scalar_type;
    static constexpr int size = 4;
-   static constexpr int align_size = 32;
+   static constexpr int align_size = 4;
 
    union
    {
@@ -225,4 +234,8 @@ AutoSIMD<double,4,4> operator/(const double &e,
    return r;
 }
 
-#endif // MFEM_TEMPLATE_CONFIG_SIMD_QPX_256
+} // namespace mfem
+
+#endif // __bgq__
+
+#endif // MFEM_SIMD_QPX_256_HPP

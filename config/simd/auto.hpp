@@ -9,13 +9,16 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TEMPLATE_CONFIG_SIMD_AUTO
-#define MFEM_TEMPLATE_CONFIG_SIMD_AUTO
+#ifndef MFEM_SIMD_AUTO_HPP
+#define MFEM_SIMD_AUTO_HPP
 
 #include "../tconfig.hpp"
 
+namespace mfem
+{
+
 template <typename scalar_t, int S, int align_S>
-struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
+struct alignas(align_S*sizeof(scalar_t)) AutoSIMD
 {
    typedef scalar_t scalar_type;
    static const int size = S;
@@ -262,4 +265,6 @@ AutoSIMD<scalar_t,S,A> operator/(const scalar_t &e,
    return r;
 }
 
-#endif // MFEM_TEMPLATE_CONFIG_SIMD_AUTO
+} // namespace mfem
+
+#endif // MFEM_SIMD_AUTO_HPP

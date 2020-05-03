@@ -24,7 +24,6 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     "-fcolor-diagnostics"
     "-fvectorize"
     "-fslp-vectorize"
-    "-fslp-vectorize-aggressive"
     "-ffp-contract=fast")
 elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   list(APPEND PERFORMANCE_CXX_OPTIONS
