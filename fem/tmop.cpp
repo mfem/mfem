@@ -1240,13 +1240,13 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
 
 void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
-                                             AdaptivityEvaluator &ad)
+                                             AdaptivityEvaluator &ae)
 {
    zeta_0 = &z0;
    delete zeta;
    zeta   = new GridFunction(z0);
    coeff_zeta = &coeff;
-   adapt_eval = &ad;
+   adapt_eval = &ae;
 
    adapt_eval->SetSerialMetaInfo(*zeta->FESpace()->GetMesh(),
                                  *zeta->FESpace()->FEColl(), 1);
@@ -1256,13 +1256,13 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
 
 void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
-                                             AdaptivityEvaluator &ad)
+                                             AdaptivityEvaluator &ae)
 {
    zeta_0 = &z0;
    delete zeta;
    zeta   = new GridFunction(z0);
    coeff_zeta = &coeff;
-   adapt_eval = &ad;
+   adapt_eval = &ae;
 
    adapt_eval->SetParMetaInfo(*z0.ParFESpace()->GetParMesh(),
                               *z0.ParFESpace()->FEColl(), 1);
