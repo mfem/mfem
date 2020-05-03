@@ -32,9 +32,9 @@
 // Compile with: make mesh-optimizer
 //
 //   Adaptive limiting:
-//     mesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -ae 0
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -ae 0
 //   Adaptive limiting through FD (requires GSLIB):
-//     *  mesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -fd -ae 1
+//     *  mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -fd -ae 1
 //
 // Sample runs:
 //   Adapted analytic Hessian:
