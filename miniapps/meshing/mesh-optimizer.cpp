@@ -31,6 +31,11 @@
 //
 // Compile with: make mesh-optimizer
 //
+//   Adaptive limiting:
+//     mesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -ae 0
+//   Adaptive limiting through FD (required GSLIB):
+//     *  mesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -fd -ae 1
+//
 // Sample runs:
 //   Adapted analytic Hessian:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -64,6 +69,7 @@
 
 
 #include "mfem.hpp"
+#include "miniapps/common/fem_extras.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -71,6 +77,8 @@ using namespace mfem;
 using namespace std;
 
 double weight_fun(const Vector &x);
+
+double adapt_lim_fun(const Vector &x);
 
 double ind_values(const Vector &x)
 {
@@ -270,7 +278,9 @@ int main(int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int fdscheme          = 0;
+   bool fdscheme         = 0;
+   int adapt_eval        = 0;
+   bool adapt_lim        = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -338,13 +348,17 @@ int main(int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
-   args.AddOption(&fdscheme, "-fd", "--fd_approximation",
+   args.AddOption(&fdscheme, "-fd", "--fd_approximation", "no-fd", "no-fd-app",
                   "Enable finite difference based derivative computations.");
+   args.AddOption(&adapt_lim, "-al", "--adapt-limit", "no-ad", "no-adapt-limit",
+                  "Enable adaptive limiting.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
+   args.AddOption(&adapt_eval, "-ae", "--adaptivity evaluator",
+                  "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.Parse();
    if (!args.Good())
    {
@@ -550,6 +564,37 @@ int main(int argc, char *argv[])
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+
+   // Adaptive limiting.
+   GridFunction zeta_0(&ind_fes), zeta(&ind_fes);
+   ConstantCoefficient coef_zeta(0.5);
+   AdaptivityEvaluator *adapt_evaluator = NULL;
+   if (adapt_lim)
+   {
+      FunctionCoefficient alim_coeff(adapt_lim_fun);
+      zeta.ProjectCoefficient(alim_coeff);
+      zeta_0.ProjectCoefficient(alim_coeff);
+
+      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
+      else if (adapt_eval == 1)
+      {
+#ifdef MFEM_USE_GSLIB
+         adapt_evaluator = new InterpolatorFP;
+#else
+         MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+      }
+      else { MFEM_ABORT("Bad interpolation option."); }
+
+      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coef_zeta,
+                                           *adapt_evaluator);
+      if (visualization)
+      {
+         socketstream vis1;
+         common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
+                                300, 600, 300, 300);
+      }
+   }
 
    // 14. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -770,6 +815,13 @@ int main(int argc, char *argv[])
       vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
    }
 
+   if (adapt_lim && visualization)
+   {
+      socketstream vis0;
+      common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
+                             600, 600, 300, 300);
+   }
+
    // 23. Visualize the mesh displacement.
    if (visualization)
    {
@@ -807,4 +859,16 @@ double weight_fun(const Vector &x)
    double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
                + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
    return l2;
+}
+
+double adapt_lim_fun(const Vector &x)
+{
+   const double xc = x(0) - 0.1, yc = x(1) - 0.2;
+   const double r = sqrt(xc*xc + yc*yc);
+   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+   return val;
 }

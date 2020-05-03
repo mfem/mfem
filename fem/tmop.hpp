@@ -839,12 +839,12 @@ protected:
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
-   bool   fdflag;
+   bool fdflag;
+   double dx;
+   double dxscale;
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
-   double dx;
-   double dxscale;
 
    Array <Vector *> ElemDer;        //f'(x)
    Array <Vector *> ElemPertEnergy; //f(x+h)
