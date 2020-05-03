@@ -1202,6 +1202,17 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
 #endif
 }
 
+TMOP_Integrator::~TMOP_Integrator()
+{
+   delete lim_func;
+   delete zeta;
+   for (int i = 0; i < ElemDer.Size(); i++)
+   {
+      delete ElemDer[i];
+      delete ElemPertEnergy[i];
+   }
+}
+
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      const GridFunction &dist, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
@@ -1227,13 +1238,13 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    }
 }
 
-void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
-                                             GridFunction &zeta_gf,
+void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ad)
 {
-   zeta_0 = &zeta0_gf;
-   zeta = &zeta_gf;
+   zeta_0 = &z0;
+   delete zeta;
+   zeta   = new GridFunction(z0);
    coeff_zeta = &coeff;
    adapt_eval = &ad;
 
@@ -1243,18 +1254,18 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
    (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
 }
 
-void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &zeta0_gf,
-                                             ParGridFunction &zeta_gf,
+void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ad)
 {
-   zeta_0 = &zeta0_gf;
-   zeta = &zeta_gf;
+   zeta_0 = &z0;
+   delete zeta;
+   zeta   = new GridFunction(z0);
    coeff_zeta = &coeff;
    adapt_eval = &ad;
 
-   adapt_eval->SetParMetaInfo(*zeta_gf.ParFESpace()->GetParMesh(),
-                              *zeta_gf.ParFESpace()->FEColl(), 1);
+   adapt_eval->SetParMetaInfo(*z0.ParFESpace()->GetParMesh(),
+                              *z0.ParFESpace()->FEColl(), 1);
    adapt_eval->SetInitialField
    (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
 }

@@ -832,7 +832,7 @@ protected:
 
    // Adaptive limiting.
    const GridFunction *zeta_0;       // Not owned.
-   GridFunction *zeta;               // Not owned.
+   GridFunction *zeta;               // Owned. Updated by adapt_eval.
    Coefficient *coeff_zeta;          // Not owned.
    AdaptivityEvaluator *adapt_eval;  // Not owned.
 
@@ -937,15 +937,7 @@ public:
         fdflag(false), fd_call_flag(false), dxscale(1.0e3)
    { }
 
-   ~TMOP_Integrator()
-   {
-      delete lim_func;
-      for (int i = 0; i < ElemDer.Size(); i++)
-      {
-         delete ElemDer[i];
-         delete ElemPertEnergy[i];
-      }
-   }
+   ~TMOP_Integrator();
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -974,12 +966,10 @@ public:
    void EnableLimiting(const GridFunction &n0, Coefficient &w0,
                        TMOP_LimiterFunction *lfunc = NULL);
 
-   void EnableAdaptiveLimiting(const GridFunction &zeta0_gf,
-                               GridFunction &zeta_gf, Coefficient &coeff,
+   void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ad);
    #ifdef MFEM_USE_MPI
-   void EnableAdaptiveLimiting(const ParGridFunction &zeta0_gf,
-                               ParGridFunction &zeta_gf, Coefficient &coeff,
+   void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ad);
    #endif
 
