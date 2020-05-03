@@ -13,6 +13,7 @@
 #define MFEM_TEMPLATE_BILINEAR_FORM
 
 #include "../config/tconfig.hpp"
+#include "../config/simd.hpp"
 #include "../linalg/ttensor.hpp"
 #include "bilinearform.hpp"
 #include "tevaluator.hpp"
@@ -29,10 +30,9 @@ namespace mfem
 // real_t - mesh nodes, sol basis, mesh basis data type
 template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
-          bool simd = true,
           typename solVecLayout_t = ScalarLayout,
           typename complex_t = double, typename real_t = double,
-          typename impl_traits_t = AutoImplTraits<complex_t,real_t,simd> >
+          typename impl_traits_t = AutoImplTraits<complex_t,real_t> >
 class TBilinearForm : public Operator
 {
 public:

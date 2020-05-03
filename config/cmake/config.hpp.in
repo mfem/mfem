@@ -107,6 +107,9 @@
 // Enable MFEM functionality based on the Sidre library
 #cmakedefine MFEM_USE_SIDRE
 
+// Enable the high performance templated classes to use SIMD
+#cmakedefine MFEM_USE_SIMD
+
 // Enable MFEM functionality based on Conduit
 #cmakedefine MFEM_USE_CONDUIT
 

@@ -9,15 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TEMPLATE_CONFIG_QPX_HPP
-#define MFEM_TEMPLATE_CONFIG_QPX_HPP
-
-#include "builtins.h"
-
-template <typename,int,int> struct AutoSIMD;
-
-#include "qpx64.hpp"
+#ifndef MFEM_SIMD_QPX_HPP
+#define MFEM_SIMD_QPX_HPP
 
 #include "qpx256.hpp"
 
-#endif // MFEM_TEMPLATE_CONFIG_QPX_HPP
+#endif // MFEM_SIMD_QPX_HPP

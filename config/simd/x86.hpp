@@ -9,14 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
-#define MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
-
-#include "x86intrin.h"
-
-template <typename, int, int> struct AutoSIMD;
-
-#include "m64.hpp"
+#ifndef MFEM_SIMD_X86_HPP
+#define MFEM_SIMD_X86_HPP
 
 #include "m128.hpp"
 
@@ -24,4 +18,4 @@ template <typename, int, int> struct AutoSIMD;
 
 #include "m512.hpp"
 
-#endif // MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
+#endif // MFEM_SIMD_X86_HPP
