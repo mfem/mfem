@@ -33,7 +33,7 @@
 //
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -ae 0
-//   Adaptive limiting through FD (required GSLIB):
+//   Adaptive limiting through FD (requires GSLIB):
 //     * mpirun -np 4 pmesh-optimizer -m adaptivity_2.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -fd -ae 1
 //
 // Sample runs:
@@ -364,7 +364,7 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
-   args.AddOption(&adapt_eval, "-ae", "--adaptivity evaluatior",
+   args.AddOption(&adapt_eval, "-ae", "--adaptivity evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.Parse();
    if (!args.Good())
@@ -601,13 +601,12 @@ int main (int argc, char *argv[])
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
-   ParGridFunction zeta_0(&ind_fes), zeta(&ind_fes);
+   ParGridFunction zeta_0(&ind_fes);
    ConstantCoefficient coef_zeta(0.5);
    AdaptivityEvaluator *adapt_evaluator = NULL;
    if (adapt_lim)
    {
       FunctionCoefficient alim_coeff(adapt_lim_fun);
-      zeta.ProjectCoefficient(alim_coeff);
       zeta_0.ProjectCoefficient(alim_coeff);
 
       if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG; }
@@ -621,8 +620,7 @@ int main (int argc, char *argv[])
       }
       else { MFEM_ABORT("Bad interpolation option."); }
 
-      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, zeta, coef_zeta,
-                                           *adapt_evaluator);
+      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, coef_zeta, *adapt_evaluator);
       if (visualization)
       {
          socketstream vis1;
