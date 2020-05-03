@@ -947,15 +947,15 @@ public:
        not in the target configuration which may be undefined. */
    void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
 
-   /// Adds a limiting term to the integrator (general version).
-   /** With this addition, the integrator becomes
-          @f$ \int w1 W(Jpt) + w0 f(x, x_0, d) dx @f$,
-       where the second term measures the change with respect to the original
-       physical positions, @a n0.
-       @param[in] n0     Original mesh node coordinates.
-       @param[in] dist   Limiting physical distances.
-       @param[in] w0     Coefficient scaling the limiting term.
-       @param[in] lfunc  TMOP_LimiterFunction defining the limiting term f. If
+   /** @brief Limiting of the mesh displacements (general version).
+
+       Adds the term @f$ \int w_0 f(x, x_0, d) dx @f$, where f is a measure of
+       the displacement between x and x_0, given the max allowed displacement d.
+
+       @param[in] n0     Original mesh node coordinates (x0 above).
+       @param[in] dist   Allowed displacement in physical space (d above).
+       @param[in] w0     Coefficient scaling the limiting integral.
+       @param[in] lfunc  TMOP_LimiterFunction defining the function f. If
                          NULL, a TMOP_QuadraticLimiter will be used. The
                          TMOP_Integrator assumes ownership of this pointer. */
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
@@ -966,11 +966,23 @@ public:
    void EnableLimiting(const GridFunction &n0, Coefficient &w0,
                        TMOP_LimiterFunction *lfunc = NULL);
 
+   /** @brief Restriction of the node positions to certain regions.
+
+       Adds the term @f$ \int c (z(x) - z_0(x_0))^2 @f$, where z0(x0) is a given
+       function on the starting mesh, and z(x) is its image on the new mesh.
+       Minimizing this, means that a node at x0 is allowed to move to a
+       position x(x0) only if z(x) ~ z0(x0).
+       Such term can be used for tangential mesh relaxation.
+
+       @param[in] z0     Function z0 that controls the adaptive limiting.
+       @param[in] coeff  Coefficient c for the above integral.
+       @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0). */
    void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ad);
+                               AdaptivityEvaluator &ae);
    #ifdef MFEM_USE_MPI
+   /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
-                               AdaptivityEvaluator &ad);
+                               AdaptivityEvaluator &ae);
    #endif
 
    /// Update the original/reference nodes used for limiting.
