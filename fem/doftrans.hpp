@@ -78,6 +78,8 @@ public:
    inline void SetFaceOrientations(const Array<int> & face_orientation)
    { Fo = face_orientation; }
 
+   inline const Array<int> & GetFaceOrientations() const { return Fo; }
+
    /** Transform local DoFs to align with the global DoFs.  For example, this
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
