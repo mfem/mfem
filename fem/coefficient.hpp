@@ -27,8 +27,8 @@ class ParMesh;
 #endif
 
 
-/** @brief Base class Coefficients that optionally depend on space and 
-    time.  These are used by the BilinearFormIntegrator, 
+/** @brief Base class Coefficients that optionally depend on space and
+    time.  These are used by the BilinearFormIntegrator,
     LinearFormIntegrator, and NonlinearFormIntegrator classes to represent
     the physical coeffiencients in the PDEs that are being discretized. */
 class Coefficient
@@ -490,7 +490,7 @@ public:
        grid function is not owned by the coefficient. */
    VectorGridFunctionCoefficient(GridFunction *gf);
 
-   /** @brief Set the grid function for this coefficient.  Also sets the Vector 
+   /** @brief Set the grid function for this coefficient.  Also sets the Vector
        dimension to match that of the @a gf. */
    void SetGridFunction(GridFunction *gf);
 
