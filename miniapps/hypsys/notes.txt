@@ -2,8 +2,8 @@ ATTENTION
 
 
 DEBUG
-   1) Galerkin reproduzieren
-   2) Limitierte DG Flussterme einbauen
+   0) Galerkin reproduzierbar
+   1) (Limitierte) DG Flussterme einbauen
 
 next steps
    On quads it works well.

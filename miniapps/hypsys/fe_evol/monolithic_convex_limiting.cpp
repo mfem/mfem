@@ -10,14 +10,14 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    Geometry::Type gtype = el->GetGeomType();
    int order = el->GetOrder();
    H1_FECollection fec(order, dim, BasisType::Positive);
-   fesH1 = new FiniteElementSpace(mesh, &fec);
+   fesH1 = new FiniteElementSpace(mesh, &fec); // TODO
    // xMin()
 
-   IntegrationRule nodes =  el->GetNodes();
-   Vector shape(nd), dx_shape(nd), RefMassLumped(nd);
-   DenseMatrix dshape(nd,dim), GradAux(nd,nd), RefMass(nd,nd), InvRefMass(nd,nd);
+   // IntegrationRule nodes =  el->GetNodes();
+   Vector shape(nd), dx_shape(nd);
+   DenseMatrix dshape(nd,dim);
    DenseTensor GradOp(nd,nd,dim);
-   double tol = 1.e-12;
+   GradOp = 0.;
 
    // ShapeNodes.SetSize(nd,nd); // TODO unnecessary?
    NodalFluxes.SetSize(hyp->NumEq, dim, nd);
@@ -27,13 +27,14 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    CTilde.SetSize(nd,dim,nd);
    CFull.SetSize(nd,dim,nd);
    OuterUnitNormals.SetSize(dim, dofs.NumBdrs, ne);
-   C_eij.SetSize(dim); // TODO rename
-   eldofs.SetSize(hyp->NumEq*nd);
+   // C_eij.SetSize(dim); // TODO remove
+   // eldofs.SetSize(hyp->NumEq*nd);
    DistributionMatrix.SetSize(nd,nd);
+   DetJ.SetSize(ne);
 
    if (gtype == Geometry::TRIANGLE)
    {
-      Dof2LocNbr.SetSize(nd, 6);
+      Dof2LocNbr.SetSize(nd, 6); // TODO incorporate order into size
    }
    else
    {
@@ -44,11 +45,6 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 
    uFace.SetSize(hyp->NumEq, dofs.NumFaceDofs);
    uNbrFace.SetSize(hyp->NumEq, dofs.NumFaceDofs);
-
-   RefMassLumped =  0.;
-   RefMass = 0.;
-   PrecGradOp = 0.;
-   GradOp = 0.;
 
    Array <int> bdrs, orientation;
 
@@ -64,8 +60,6 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       const IntegrationPoint &ip = IntRuleElem->IntPoint(k);
       el->CalcShape(ip, shape);
       el->CalcDShape(ip, dshape);
-      RefMassLumped.Add(ip.weight, shape);
-      AddMult_a_VVt(ip.weight, shape, RefMass);
 
       for (int l = 0; l < dim; l++)
       {
@@ -74,47 +68,18 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       }
    }
 
-   DenseMatrixInverse inv(&RefMass);
-   inv.Factor();
-   inv.GetInverseMatrix(InvRefMass);
-
    for (int l = 0; l < dim; l++)
    {
-      GradAux = 0.;
-      AddMult(InvRefMass, GradOp(l), GradAux);
-      GradAux.LeftScaling(RefMassLumped);
-
       for (int i = 0; i < nd; i++)
       {
          for (int j = 0; j < nd; j++)
          {
-            if (abs(GradAux(i,j)) > tol)
-            {
-               PrecGradOp(i,l,j) = GradAux(i,j);
-            }
             GradProd(i,l,j) = GradOp(i,j,l) + GradOp(j,i,l);
          }
       }
    }
 
-   for (int i = 0; i < nd; i++)
-   {
-      int ctr = 0;
-      for (int j = 0; j < nd; j++)
-      {
-         if (i==j) { continue; }
-
-         for (int l = 0; l < dim; l++)
-         {
-            if (abs(PrecGradOp(i,l,j)) > tol)
-            {
-               Dof2LocNbr(i,ctr) = j;
-               ctr++;
-               break;
-            }
-         }
-      }
-   }
+   ComputePrecGradOp(); // TODO remove stuff above, maybe SparseMatrix - check multiplication first
 
    FaceMat.SetSize(dofs.NumFaceDofs, dofs.NumFaceDofs);
    FaceMat = 0.;
@@ -140,6 +105,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       CalcAdjugate(eltrans->Jacobian(), mat_aux);
       mat_aux.Transpose();
       Adjugates(e) = mat_aux;
+      DetJ(e) = eltrans->Weight();
 
       if (dim==1)      { mesh->GetElementVertices(e, bdrs); }
       else if (dim==2) { mesh->GetElementEdges(e, bdrs, orientation); }
@@ -308,7 +274,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
    DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq),
                uDot(nd, hyp->NumEq), DTilde(nd, nd), sif(dofs.NumBdrs, dofs.NumFaceDofs);
    DenseTensor AntiDiff(nd, nd, hyp->NumEq), wij(nd, nd, hyp->NumEq),
-               wfi(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq), // TODO order, no i?
+               wfi(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq), // TODO ordering, no i?
                wfiNbr(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq),
                BdrFlux(dofs.NumFaceDofs, dofs.NumBdrs, hyp->NumEq);
    Vector sums(hyp->NumEq*nd);
@@ -357,9 +323,11 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       }
 
       // Using the fact that mass matrices are the same for all components.
-      AddMult(InvMassMat->Minv(e), galerkin, uDot);
+      AddMult(MassMatRefInv, galerkin, uDot);
+      uDot *= 1. / DetJ(e);
 
       // TODO: Optimization possible by just using flux terms
+      //       As long as there are no additional (entropy) terms in target scheme.
       Add(mat2, galerkin, -1., ElFlux); // ElFlux = int f(u_h) \nabla \phi - M_C uDot
 
       mat2 = mat3 = 0.;
@@ -384,7 +352,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       }
 
       ElFlux += mat2; // ElFlux_i += sum_j f_j cTilde_ij
-      ElFlux -= mat3; // ElFlux_i -= sum_j f_j (c_ij + c_ji) )
+      ElFlux -= mat3; // ElFlux_i -= sum_j f_j (c_ij + c_ji)
       Vector ElTerms(mat2.GetData(), nd*hyp->NumEq);
       z.AddElementVector(vdofs, -1., ElTerms);
 
@@ -506,8 +474,6 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             uNbrFace.GetColumn(j, uNbrEval);
 
-            // LinearFluxLumping(uEval, uNbrEval, normal, NumFlux, e, j, i);
-
             double ws = max( hyp->GetWaveSpeed(uEval, normal, e, 0, i),
                              hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
 
@@ -522,10 +488,12 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             for (int n = 0; n < hyp->NumEq; n++)
             {
                wfi(i,j,n) = sif(i,j) * (uEval(n) + uNbrEval(n));
+               wfiNbr(i,j,n) = wfi(i,j,n);
                // wfiNbr(i,j,n) = ws * (uEval(n) + uNbrEval(n));
                for (int l = 0; l < dim; l++)
                {
                   wfi(i,j,n) -= (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
+                  wfiNbr(i,j,n) += (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
                   // cout << FluxNbr(n,l) - Flux(n,l) << endl;
                   // wfiNbr(i,j,n) += (FluxNbr(n,l) - Flux(n,l)) * normal(l);
                }
@@ -573,16 +541,17 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                   gif = max( gif, max( 2.*sif(i,j) * dofs.xi_min(e*nd+J) - wfi(i,j,n), wfiNbr(i,j,n) - 2.*sif(i,j) * dofs.xi_max(e*nd+J) ) );
                   // gif = max( gif, max( 2.*sif(i,j) * 0. - wfi(i,j,n), wfi(i,j,n) - 2.*sif(i,j) * 1. ) );
                }
-               // cout << e << " " << i << " " << j << " " /* << sif(i,j) << " " */ << wfi(i,j,n) << endl;
+               // // cout << e << " " << i << " " << j << " " /* << sif(i,j) << " " */ << wfi(i,j,n) << endl;
 
                // BdrFlux(n*nd + dofs.BdrDofs(j,i), i) = gif;
-               // sums(n*nd+dofs.BdrDofs(j,i)) += gif;
+               sums(n*nd+dofs.BdrDofs(j,i)) += gif;
+               // sums(n*nd+dofs.BdrDofs(j,i)) += BdrFlux(j,i,n);
             }
          }
       }
 
-      // BdrFlux.GetRowSums(sums);
-      z.AddElementVector(vdofs, sums);
+      // // BdrFlux.GetRowSums(sums);
+      // z.AddElementVector(vdofs, sums);
 
       // for (int n = 0; n < hyp->NumEq; n++)
       // {
@@ -644,6 +613,174 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       // z.SetSubVector(vdofs, galerkin.GetData());
    }
    // InvMassMat->Mult(z, y);
+}
+
+void MCL_Evolution::ComputePrecGradOp()
+{
+   const FiniteElement *el = fes->GetFE(0);
+   int p = el->GetOrder();
+   Geometry::Type gtype = el->GetGeomType();
+
+   MassMatRefInv.SetSize(nd,nd);
+
+   if (gtype == Geometry::TRIANGLE)
+   {
+      IntegrationRule ir = IntRules.Get(gtype, 2*p);
+      Vector shape(nd);
+      DenseMatrix MassMat(nd,nd);
+
+      for (int k = 0; k < ir.GetNPoints(); k++)
+      {
+         IntegrationPoint ip = ir.IntPoint(k);
+         el->CalcShape(ip, shape);
+         AddMult_a_VVt(ip.weight, shape, MassMat);
+      }
+
+      DenseMatrixInverse inv(&MassMat);
+      inv.Factor();
+      inv.GetInverseMatrix(MassMatRefInv);
+
+      Vector a(3), b(3);
+      Array<int> aux(2);
+      aux[0] = 0;
+      PrecGradOp = 0.;
+
+      for (int l = 0; l < dim; l++)
+      {
+         aux[1] = l+1;
+
+         for (int j = 0; j < nd; j++)
+         {
+            dofs.Loc2Multiindex.GetRow(j, a);
+
+            for (int m = 0; m < 2; m++)
+            {
+               for (int k = 0; k < dim+1; k++)
+               {
+                  b = a;
+                  b(aux[m])--;
+                  b(k)++;
+
+                  if (b(aux[m]) < 0 || b(k) > p) { continue; }
+
+                  int i = dofs.GetLocFromMultiindex(p, b);
+                  PrecGradOp(i,l,j) += pow(-1., m+1) * (a(k) - (k==aux[m]) + 1) / (2.*nd);
+               }
+            }
+         }
+      }
+
+      for (int i = 0; i < nd; i++)
+      {
+         int ctr = 0;
+         for (int j = 0; j < nd; j++)
+         {
+            if (i==j) { continue; }
+
+            for (int l = 0; l < dim; l++)
+            {
+               if (PrecGradOp(i,l,j) != 0.)
+               {
+                  Dof2LocNbr(i,ctr) = j;
+                  ctr++;
+                  break;
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      const int p = el->GetOrder();
+
+      L2Pos_SegmentElement el1D(p);
+      IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*p);
+      Vector shape(p+1);
+      DenseMatrix MassMat1D(p+1,p+1), InvMassMat1D(p+1,p+1),
+                  PrecGradOp1D(p+1,p+1);
+      DenseTensor PrecGradOpAux(nd,nd,dim);
+
+      MassMat1D = PrecGradOp1D = 0.;
+
+      PrecGradOp1D(0,0) = p;
+      for (int j = 1; j < p+1; j++)
+      {
+         PrecGradOp1D(j,j) = p-2*j;
+         PrecGradOp1D(j-1,j) = j-1-p;
+         PrecGradOp1D(j,j-1) = j;
+      }
+      PrecGradOp1D *= -1./pow(p+1, dim);
+
+      for (int k = 0; k < ir.GetNPoints(); k++)
+      {
+         IntegrationPoint ip = ir.IntPoint(k);
+         el1D.CalcShape(ip, shape);
+         AddMult_a_VVt(ip.weight, shape, MassMat1D);
+      }
+
+      DenseMatrixInverse inv(&MassMat1D);
+      inv.Factor();
+      inv.GetInverseMatrix(InvMassMat1D);
+      InvMassMat1D.Print();
+
+      switch (dim)
+      {
+         case 1:
+         {
+            MassMatRefInv = InvMassMat1D;
+            PrecGradOpAux(0) = PrecGradOp1D;
+            break;
+         }
+         case 2:
+         {
+            DenseMatrix eye(p+1,p+1);
+            eye = 0.;
+            for (int i = 0; i < p+1; i++) { eye(i,i) = 1.; }
+
+            MassMatRefInv = *OuterProduct(InvMassMat1D, InvMassMat1D);
+            PrecGradOpAux(0) = *OuterProduct(eye, PrecGradOp1D);
+            PrecGradOpAux(1) = *OuterProduct(PrecGradOp1D, eye);
+            break;
+         }
+         case 3:
+         {
+            DenseMatrix eye(p+1,p+1);
+            eye = 0.;
+            for (int i = 0; i < p+1; i++) { eye(i,i) = 1.; }
+
+            MassMatRefInv = *OuterProduct( *OuterProduct(InvMassMat1D, InvMassMat1D), InvMassMat1D );
+            PrecGradOpAux(0) = *OuterProduct( eye, *OuterProduct(eye, PrecGradOp1D) );
+            PrecGradOpAux(1) = *OuterProduct( eye, *OuterProduct(PrecGradOp1D, eye) );
+            PrecGradOpAux(2) = *OuterProduct( PrecGradOp1D, *OuterProduct(eye, eye) );
+            break;
+         }
+      }
+
+      // Reshape and fill Dof2LocNbr.
+      for (int i = 0; i < nd; i++)
+      {
+         int ctr = 0;
+         for (int j = 0; j < nd; j++)
+         {
+            for (int l = 0; l < dim; l++)
+            {
+               PrecGradOp(i,l,j) = PrecGradOpAux(i,j,l);
+            }
+
+            if (i==j) { continue; }
+
+            for (int l = 0; l < dim; l++)
+            {
+               if (PrecGradOp(i,l,j) != 0.)
+               {
+                  Dof2LocNbr(i,ctr) = j;
+                  ctr++;
+                  break;
+               }
+            }
+         }
+      }
+   }
 }
 
 void MCL_Evolution::ComputeLORMassMatrix(DenseMatrix &RefMat, Geometry::Type gtype, bool UseDiagonalNbrs)
