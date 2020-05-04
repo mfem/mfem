@@ -951,7 +951,7 @@ void DofInfo::FillClosestNbrs()
       }
       case Geometry::CUBE:
       {
-         // TODO
+         MFEM_ABORT("TODO");
       }
    }
    // ClosestNbrs.Print();
@@ -1065,10 +1065,8 @@ void DofInfo::ComputeBounds(const Vector &x)
          {
             if (ClosestNbrs(i,j) == -1) { break; }
 
-            // x_min(dofsCG[DofMapH1[i]]) = min(x_min(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
-            // x_max(dofsCG[DofMapH1[i]]) = max(x_max(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
-            x_min(dofsCG[DofMapH1[i]]) = 0.;
-            x_max(dofsCG[DofMapH1[i]]) = 1.;
+            x_min(dofsCG[DofMapH1[i]]) = min(x_min(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
+            x_max(dofsCG[DofMapH1[i]]) = max(x_max(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
          }
       }
    }
