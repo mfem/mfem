@@ -279,6 +279,7 @@ int main(int argc, char *argv[])
    }
    if (myid == 0)
    {
+      std::cout << "Num ranks: " << num_procs << "\n";
       args.PrintOptions(cout);
    }
    Device device(device_config);
