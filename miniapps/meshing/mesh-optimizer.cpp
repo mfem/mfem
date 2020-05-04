@@ -32,9 +32,9 @@
 // Compile with: make mesh-optimizer
 //
 //   Adaptive limiting:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -ae 0
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -ae 0
 //   Adaptive limiting through FD (requires GSLIB):
-//     *  mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -al -fd -ae 1
+//     *  mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 // Sample runs:
 //   Adapted analytic Hessian:
@@ -267,6 +267,7 @@ int main(int argc, char *argv[])
    int metric_id         = 1;
    int target_id         = 1;
    double lim_const      = 0.0;
+   double adapt_lim_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int newton_iter       = 10;
@@ -280,7 +281,6 @@ int main(int argc, char *argv[])
    int verbosity_level   = 0;
    bool fdscheme         = 0;
    int adapt_eval        = 0;
-   bool adapt_lim        = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -322,6 +322,8 @@ int main(int argc, char *argv[])
                   "4: Given full analytic Jacobian (in physical space)\n\t"
                   "5: Ideal shape, given size (in physical space)");
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
+   args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
+                  "Adaptive limiting coefficient constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -350,8 +352,6 @@ int main(int argc, char *argv[])
                   "Make all terms in the optimization functional unitless.");
    args.AddOption(&fdscheme, "-fd", "--fd_approximation", "no-fd", "no-fd-app",
                   "Enable finite difference based derivative computations.");
-   args.AddOption(&adapt_lim, "-al", "--adapt-limit", "no-ad", "no-adapt-limit",
-                  "Enable adaptive limiting.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -567,9 +567,9 @@ int main(int argc, char *argv[])
 
    // Adaptive limiting.
    GridFunction zeta_0(&ind_fes);
-   ConstantCoefficient coef_zeta(0.5);
+   ConstantCoefficient coef_zeta(adapt_lim_const);
    AdaptivityEvaluator *adapt_evaluator = NULL;
-   if (adapt_lim)
+   if (adapt_lim_const > 0.0)
    {
       FunctionCoefficient alim_coeff(adapt_lim_fun);
       zeta_0.ProjectCoefficient(alim_coeff);
@@ -791,11 +791,13 @@ int main(int argc, char *argv[])
    // 21. Compute the amount of energy decrease.
    const double fin_energy = a.GetGridFunctionEnergy(x);
    double metric_part = fin_energy;
-   if (lim_const != 0.0)
+   if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
+      coef_zeta.constant = 0.0;
       metric_part = a.GetGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
+      coef_zeta.constant = adapt_lim_const;
    }
    cout << "Initial strain energy: " << init_energy
         << " = metrics: " << init_energy
@@ -813,7 +815,7 @@ int main(int argc, char *argv[])
       vis_tmop_metric_s(mesh_poly_deg, *metric, *target_c, *mesh, title, 600);
    }
 
-   if (adapt_lim && visualization)
+   if (adapt_lim_const > 0.0 && visualization)
    {
       socketstream vis0;
       common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
