@@ -760,6 +760,10 @@ public:
 
    void Assemble(int skip_zeros = 1);
 
+   /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
+       bilinear form and D is a diagonal. */
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+
    /// Get the input finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
    { return trial_fes->GetProlongationMatrix(); }
