@@ -1254,6 +1254,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
    (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
 }
 
+#ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
@@ -1269,6 +1270,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
    adapt_eval->SetInitialField
    (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
 }
+#endif
 
 double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
