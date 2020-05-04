@@ -10289,9 +10289,9 @@ RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
                                                  const int ob_type)
    : VectorTensorFiniteElement(2, 2*(p + 1)*(p + 2), p + 1, cb_type, ob_type,
                                H_DIV, DofMapType::L2_DOF_MAP),
-     dof2nk(Dof)
+     dof2nk(dof)
 {
-   dof_map.SetSize(Dof);
+   dof_map.SetSize(dof);
 
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
@@ -10500,9 +10500,9 @@ RT_HexahedronElement::RT_HexahedronElement(const int p,
                                            const int ob_type)
    : VectorTensorFiniteElement(3, 3*(p + 1)*(p + 1)*(p + 2), p + 1, cb_type,
                                ob_type, H_DIV, DofMapType::L2_DOF_MAP),
-     dof2nk(Dof)
+     dof2nk(dof)
 {
-   dof_map.SetSize(Dof);
+   dof_map.SetSize(dof);
 
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
