@@ -934,7 +934,7 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-        fdflag(false), fd_call_flag(false), dxscale(1.0e3)
+        fdflag(false), dxscale(1.0e3), fd_call_flag(false)
    { }
 
    ~TMOP_Integrator();
