@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementation of Bilinear Form Integrators
-
 #include "bilininteg.hpp"
 #include "pfespace.hpp"
 #include <algorithm>
@@ -113,8 +111,8 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       R12.SetSize(ndof1, ndof2);
       R21.SetSize(ndof2, ndof1);
       R22.SetSize(ndof2, ndof2);
-      M2inv.data = &Minv[Minv_offsets[Trans.Elem2No]];
-      M2inv.ipiv = &ipiv[ipiv_offsets[Trans.Elem2No]];
+      M2inv.data = &Minv[Minv_offsets[Trans.Elem2->ElementNo]];
+      M2inv.ipiv = &ipiv[ipiv_offsets[Trans.Elem2->ElementNo]];
 
       R12 = 0.0;
       R21 = 0.0;

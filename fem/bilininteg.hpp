@@ -2644,8 +2644,11 @@ class DGDiffusionBR2Integrator : public BilinearFormIntegrator
 protected:
    double eta;
 
-   Vector Minv;
-   Array<int> ipiv, ipiv_offsets, Minv_offsets;
+   // Block factorizations of local mass matrices, with offsets for the case
+   // of not equally sized blocks (mixed meshes, p-refinement)
+   Array<double> Minv;
+   Array<int> ipiv;
+   Array<int> ipiv_offsets, Minv_offsets;
 
    Vector shape1, shape2;
 
