@@ -2083,6 +2083,8 @@ public:
    const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir,
                                        DofToQuad::Mode mode,
                                        const bool closed) const;
+
+   ~VectorTensorFiniteElement();
 };
 
 /// Arbitrary H1 elements in 1D
@@ -2631,17 +2633,16 @@ public:
 };
 
 /// Arbitrary order Raviart-Thomas elements in 2D on a square
-class RT_QuadrilateralElement : public VectorFiniteElement
+class RT_QuadrilateralElement : public VectorTensorFiniteElement
 {
 private:
    static const double nk[8];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2nk;
+   Array<int> dof2nk;
 
 public:
    /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and open
@@ -2688,17 +2689,17 @@ public:
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
+
 /// Arbitrary order Raviart-Thomas elements in 3D on a cube
-class RT_HexahedronElement : public VectorFiniteElement
+class RT_HexahedronElement : public VectorTensorFiniteElement
 {
    static const double nk[18];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
-   Array<int> dof_map, dof2nk;
+   Array<int> dof2nk;
 
 public:
    /** @brief Construct the RT_HexahedronElement of order @a p and closed and open
