@@ -1940,8 +1940,6 @@ static void PAHcurlH1Apply3D(const int D1D,
 // see high-order/element-tensor/TensorNedelec.cpp : TensorGradMult
 // see also PAHcurlH1Apply2D below
 
-// NOBODY CALLS OR REFERENCES THIS - what's the plan?
-
 // nothing in this kernel is actually correct, so future me should feel
 // free to go through wholesale, renumber and reindex everything, etc.
 
@@ -1950,11 +1948,11 @@ static void PAHcurlH1Apply3D(const int D1D,
 
 // so _Bc comes from
 
-static void PAHcurlApplyGradient2D(const int D1Dclosed,
-                                   const int Q1D,
+static void PAHcurlApplyGradient2D(const int c_dofs1D,
+                                   const int o_dofs1D,
                                    const int NE,
-                                   const Array<double> &_Bc,
-                                   const Array<double> &_Gc,
+                                   const Array<double> &_B,
+                                   const Array<double> &_G,
                                    const Vector &_x,
                                    Vector &_y)
 {
@@ -2184,11 +2182,11 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    ne = trial_fes.GetNE();
    geom = mesh->GetGeometricFactors(*old_ir, GeometricFactors::JACOBIANS);
-   mapsC = &test_el->GetDofToQuad(*old_ir, DofToQuad::TENSOR);
-   mapsO = &test_el->GetDofToQuadOpen(*old_ir, DofToQuad::TENSOR);
+   // mapsC = &test_el->GetDofToQuad(*old_ir, DofToQuad::TENSOR);
+   // mapsO = &test_el->GetDofToQuadOpen(*old_ir, DofToQuad::TENSOR);
 
    const int order = trial_el->GetOrder();
-   H1_SegmentElement fake_fe(order);
+   fake_fe = new H1_SegmentElement(order);
    mfem::QuadratureFunctions1D qf1d;
    mfem::IntegrationRule closed_ir;
    closed_ir.SetSize(order + 1);
@@ -2197,9 +2195,8 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    open_ir.SetSize(order);
    qf1d.GaussLegendre(order, &open_ir);
 
-   // (TODO should I try trial_el for something? instead of the hacks above?)
-   auto mapsotherC = &fake_fe.GetDofToQuad(closed_ir, DofToQuad::TENSOR);
-   auto mapsotherO = &fake_fe.GetDofToQuad(open_ir, DofToQuad::TENSOR);
+   maps_C_C = &fake_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
+   maps_O_C = &fake_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
 
    // we want B1d with Lobatto rows (weird integration rule), lobatto columns (normal dofs), (identity)
    // should be mapsotherC->B [size at least looks right]
@@ -2207,29 +2204,14 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    // want G1d with Legendre rows (normal integration rule), lobatto columns (normal dofs), but slightly different order from usual defaults
    // should be mapsotherO->G 
 
-   dofs1D = mapsC->ndof;
-   quad1D = mapsC->nqpt;
-   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   // dofs1D = mapsC->ndof;
+   // quad1D = mapsC->nqpt;
+   // MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   /*
-   std::cout << "order = " << trial_el->GetOrder()
-             << ", mapsC->nqpt = " << mapsC->nqpt
-             << ", mapsC->ndof = " << mapsC->ndof
-             << ", mapsO->nqpt = " << mapsO->nqpt
-             << ", mapsO->ndof = " << mapsO->ndof
-             << ", mapsotherO->nqpt = " << mapsotherO->nqpt
-             << ", mapsotherO->ndof = " << mapsotherO->ndof
-             << ", mapsotherC->nqpt = " << mapsotherC->nqpt
-             << ", mapsotherC->ndof = " << mapsotherC->ndof
-             << std::endl;
-   */
-
-   /*
-   o_dofs1D = mapsO->nqpt;
-   c_dofs1D = mapsC->nqpt;
-   MFEM_VERIFY(mapsO->ndof == c_dofs1D, "Bad programming!");
-   MFEM_VERIFY(mapsC->ndof == c_dofs1D, "Bad programming!");
-   */
+   o_dofs1D = maps_O_C->nqpt;
+   c_dofs1D = maps_C_C->nqpt;
+   MFEM_VERIFY(maps_O_C->ndof == c_dofs1D, "Bad programming!");
+   MFEM_VERIFY(maps_C_C->ndof == c_dofs1D, "Bad programming!");
 
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
@@ -2239,13 +2221,16 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    // Use the same setup functions as VectorFEMassIntegrator.
    // (but we aren't doing integration so it's probably wrong)
+   // (might not have to do this at all?)
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
+      int quad1D = o_dofs1D; // ??? probably wrong
       PAHcurlSetup3D(quad1D, ne, old_ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
+      int quad1D = o_dofs1D; // ??? probably wrong
       PAHcurlSetup2D(quad1D, ne, old_ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
@@ -2262,8 +2247,10 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
    std::cout << "GradientInterpolator::AddMultPA" << std::endl;
    if (dim == 3)
    {
-      PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+      /*
+      PAHcurlH1Apply3D(c_dofs1D, o_dofs1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
+      */
    }
    else if (dim == 2)
    {
@@ -2272,7 +2259,7 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
       PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
       */
-      PAHcurlApplyGradient2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+      PAHcurlApplyGradient2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
                              x, y);
    }
    else

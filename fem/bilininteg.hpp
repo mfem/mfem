@@ -2726,6 +2726,8 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 class GradientInterpolator : public DiscreteInterpolator
 {
 public:
+   virtual ~GradientInterpolator() { delete fake_fe; }
+
    virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,
                                        const FiniteElement &nd_fe,
                                        ElementTransformation &Trans,
@@ -2747,11 +2749,14 @@ public:
 private:
    // PA extension
    Vector pa_data;
-   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
-   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   // const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   // const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   FiniteElement * fake_fe;
+   const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, dofs1D, quad1D;
-   // int dim, ne, o_dofs1D, c_dofs1D;  // no actual quadrature here, should name like this
+   // int dim, ne, dofs1D, quad1D;
+   int dim, ne, o_dofs1D, c_dofs1D;  // no actual quadrature here, should name like this TODO
 };
 
 
