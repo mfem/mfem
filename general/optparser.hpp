@@ -76,7 +76,7 @@ public:
       error_type = error_idx = 0;
    }
 
-   /** @brief Add a boolean option and set 'var' to recieve the value.  
+   /** @brief Add a boolean option and set 'var' to recieve the value.
        Enable/disable tags are used to set the bool to true/false respectively. */
    void AddOption(bool *var, const char *enable_short_name,
                   const char *enable_long_name, const char *disable_short_name,

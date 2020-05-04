@@ -536,21 +536,21 @@ public:
    int GetElementForDof(int i) const { return dof_elem_array[i]; }
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
 
-   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection 
+   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th element in the mesh object. */
    const FiniteElement *GetFE(int i) const;
 
-   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection 
+   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th boundary face in the mesh object. */
    const FiniteElement *GetBE(int i) const;
 
-   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection 
+   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th face in the mesh object.  Faces in this case refer
-        to the MESHDIM-1 primitive so in 2D they are segments and in 1D they are 
+        to the MESHDIM-1 primitive so in 2D they are segments and in 1D they are
         points.*/
    const FiniteElement *GetFaceElement(int i) const;
 
-   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection 
+   /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th edge in the mesh object. */
    const FiniteElement *GetEdgeElement(int i) const;
 

@@ -384,7 +384,7 @@ struct VarMessage
       }
    }
 
-   /** @brief Return true if all messages in the map container were sent, 
+   /** @brief Return true if all messages in the map container were sent,
        otherwise return false, without waiting. */
    template<typename MapT>
    static bool TestAllSent(MapT& rank_msg)
