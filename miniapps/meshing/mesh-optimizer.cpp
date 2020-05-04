@@ -842,6 +842,7 @@ int main(int argc, char *argv[])
    delete target_c2;
    delete metric2;
    delete coeff1;
+   delete adapt_evaluator;
    delete target_c;
    delete metric;
    delete fespace;
