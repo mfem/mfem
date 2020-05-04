@@ -31,6 +31,18 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
          L2_Projection(ic, u0);
          break;
       }
+      case 2:
+      {
+         ProblemName = "Burgers Equation - 1D";
+         glvis_scale = "on";
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = false;
+
+         ProjType = 1;
+         L2_Projection(ic, u0);
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -111,6 +123,33 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
          }
 
          break;
+      }
+      case 2:
+      {
+         if (dim != 1) { MFEM_ABORT("Test case only implemented in 1D."); }
+
+         X(0) = 0.5 * (X(0) + 1.);
+
+         double un = sin(2.*M_PI*X(0));
+         double unp1 = 0., fn = 0., fpn = 0.;
+         double tol = 1E-15;
+         double error = 1.0;
+         int iter = 0, maxiter = 100;
+
+         while(error > tol)
+         {
+            // There's no warning here. Don't trust the solution at a later time than 0.5.
+            if (iter == maxiter) { break; }
+
+            fn = sin(2.*M_PI*(X(0)-un*t))-un;
+            fpn = -2.*M_PI*t*cos(2.*M_PI*(X(0)-un*t))-1.0;
+            unp1 = un - fn/fpn;
+            un = unp1;
+            error = abs(sin(2.*M_PI*(X(0)-unp1*t))-unp1);
+            iter++;
+         }
+
+         return unp1;
       }
       default:
          MFEM_ABORT("No such test case implemented.");

@@ -295,11 +295,13 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
 
    FillNeighborDofs();
    FillSubcell2CellDof();
+   FillClosestNbrs();
 
    const FiniteElement *el = fes->GetFE(0);
    if (el->GetGeomType() == Geometry::TRIANGLE)
    {
       FillTriangleDofMap(el->GetOrder());
+      FillLoc2Multiindex(el->GetOrder());
    }
    else
    {
@@ -307,7 +309,6 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
       dynamic_cast<const TensorBasisElement *>(fes_bounds->GetFE(0));
       DofMapH1 = TensorElem->GetDofMap();
    }
-
 }
 
 void DofInfo::FillTriangleDofMap(int p)
@@ -347,6 +348,42 @@ void DofInfo::FillTriangleDofMap(int p)
       }
       ctr1 += 2;
    }
+}
+
+void DofInfo::FillLoc2Multiindex(int p)
+{
+   int nd = (p+1)*(p+2)/2;
+   Loc2Multiindex.SetSize(nd,3);
+   Vector a(3);
+   a = 0.;
+   a(0) = p;
+   int ctr = 0;
+
+   for (int j = 0; j <= p; j++)
+   {
+      for (int i = 0; i <= p-j; i++)
+      {
+         Loc2Multiindex.SetRow(ctr,a);
+         ctr = ctr+1;
+         a(0)--;
+         a(1)++;
+      }
+
+      a(0) = p-1-j;
+      a(1) = 0;
+      a(2)++;
+
+      if (a.Sum() != p)
+         MFEM_ABORT("Invalid Multiindex");
+   }
+}
+
+int DofInfo::GetLocFromMultiindex(int p, const Vector &a) const
+{
+   if (a.Sum() != p || a.Min() < 0 || a.Size() != 3)
+      MFEM_ABORT("Invalid Multiindex");
+
+   return (p+1)*a(2) - a(2)*(a(2)-1)/2 + a(1);
 }
 
 void DofInfo::FillNeighborDofs()
@@ -790,6 +827,136 @@ void DofInfo::ExtractBdrDofs()
    }
 }
 
+void DofInfo::FillClosestNbrs()
+{
+   const FiniteElement &el = *fes->GetFE(0);
+   const int nd = el.GetDof();
+   const int p = el.GetOrder();
+   Geometry::Type gtype = el.GetGeomType();
+
+   switch (gtype)
+   {
+      case Geometry::SEGMENT:
+      {
+         ClosestNbrs.SetSize(nd,3);
+         ClosestNbrs = -1;
+
+         ClosestNbrs(0,0) = 0;
+         ClosestNbrs(0,1) = 1;
+
+         for (int i = 1; i < p; i++)
+         {
+            ClosestNbrs(i,0) = i-1;
+            ClosestNbrs(i,1) = i;
+            ClosestNbrs(i,2) = i+1;
+         }
+
+         ClosestNbrs(p,0) = p-1;
+         ClosestNbrs(p,1) = p;
+         break;
+      }
+      case Geometry::TRIANGLE:
+      {
+         ClosestNbrs.SetSize(nd,7);
+         ClosestNbrs = -1;
+
+         ClosestNbrs(0,0) = 0;
+         ClosestNbrs(0,1) = 1;
+         ClosestNbrs(0,2) = p+1;
+
+         for (int i = 1; i < p; i++)
+         {
+            ClosestNbrs(i,0) = i-1;
+            ClosestNbrs(i,1) = i;
+            ClosestNbrs(i,2) = i+1;
+            ClosestNbrs(i,3) = p+i;
+            ClosestNbrs(i,4) = p+i+1;
+         }
+
+         ClosestNbrs(p,0) = p-1;
+         ClosestNbrs(p,1) = p;
+         ClosestNbrs(p,2) = 2*p;
+
+         int ctr = p+1;
+         for (int j = 1; j < p; j++)
+         {
+            int lower = (j-1)*(p+2) - (j-1)*j/2;
+            int upper = lower + 2*(p-j) + 3;
+
+            ClosestNbrs(ctr,0) = lower;
+            ClosestNbrs(ctr,1) = lower+1;
+            ClosestNbrs(ctr,2) = ctr;
+            ClosestNbrs(ctr,3) = ctr+1;
+            ClosestNbrs(ctr,4) = upper;
+            ctr++;
+
+            for (int i = 1; i < p-j; i++)
+            {
+               ClosestNbrs(ctr,0) = lower+i;
+               ClosestNbrs(ctr,1) = lower+i+1;
+               ClosestNbrs(ctr,2) = ctr-1;
+               ClosestNbrs(ctr,3) = ctr;
+               ClosestNbrs(ctr,4) = ctr+1;
+               ClosestNbrs(ctr,5) = upper+i-1;
+               ClosestNbrs(ctr,6) = upper+i;
+               ctr++;
+            }
+
+            ClosestNbrs(ctr,0) = lower + p-j;
+            ClosestNbrs(ctr,1) = lower + p-j+1;
+            ClosestNbrs(ctr,2) = ctr-1;
+            ClosestNbrs(ctr,3) = ctr;
+            ClosestNbrs(ctr,4) = upper+p-j-1;
+            ctr++;
+         }
+
+         ClosestNbrs(nd-1,0) = nd-3;
+         ClosestNbrs(nd-1,1) = nd-2;
+         ClosestNbrs(nd-1,2) = nd-1;
+
+         break;
+      }
+      case Geometry::SQUARE:
+      {
+         ClosestNbrs.SetSize(nd, 9);
+         ClosestNbrs = -1;
+
+         for (int i = 0; i < nd; i++)
+         {
+            int ctr = 0;
+
+            // lower neighbors
+            if (i > p)
+            {
+               if (i % (p+1) != 0) { ClosestNbrs(i,ctr) = i-p-2; ctr++; }
+               ClosestNbrs(i,ctr) = i-p-1; ctr++;
+               if ((i+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = i-p; ctr++; }
+            }
+
+            // horizontal neighbors
+            if (i % (p+1) != 0) { ClosestNbrs(i,ctr) = i-1; ctr++; }
+            ClosestNbrs(i,ctr) = i; ctr++;
+            if ((i+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = i+1; ctr++; }
+
+            // upper neighbors
+            if (i < p*(p+1))
+            {
+               if (i % (p+1) != 0) { ClosestNbrs(i,ctr) = i+p; ctr++; }
+               ClosestNbrs(i,ctr) = i+p+1; ctr++;
+               if ((i+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = i+p+2; ctr++; }
+            }
+         }
+
+         break;
+      }
+      case Geometry::CUBE:
+      {
+         // TODO
+      }
+   }
+   // ClosestNbrs.Print();
+}
+
 void DofInfo::FillSubcellCross()
 {
    const FiniteElement &el = *fes->GetFE(0);
@@ -878,16 +1045,31 @@ void DofInfo::ComputeBounds(const Vector &x)
       double xe_min =  std::numeric_limits<double>::infinity();
       double xe_max = -std::numeric_limits<double>::infinity();
 
-      for (int j = 0; j < nd; j++)
-      {
-         xe_min = min(xe_min, x(e*nd+j));
-         xe_max = max(xe_max, x(e*nd+j));
-      }
+      // // These are less restrictive bounds
+      // for (int j = 0; j < nd; j++)
+      // {
+      //    xe_min = min(xe_min, x(e*nd+j));
+      //    xe_max = max(xe_max, x(e*nd+j));
+      // }
 
-      for (int j = 0; j < nd; j++)
+      // for (int j = 0; j < nd; j++)
+      // {
+      //    x_min(dofsCG[j]) = min(x_min(dofsCG[j]), xe_min);
+      //    x_max(dofsCG[j]) = max(x_max(dofsCG[j]), xe_max);
+      // }
+
+      // Tight bounds
+      for (int i = 0; i < nd; i++)
       {
-         x_min(dofsCG[j]) = min(x_min(dofsCG[j]), xe_min);
-         x_max(dofsCG[j]) = max(x_max(dofsCG[j]), xe_max);
+         for (int j = 0; j < ClosestNbrs.Width(); j++)
+         {
+            if (ClosestNbrs(i,j) == -1) { break; }
+
+            // x_min(dofsCG[DofMapH1[i]]) = min(x_min(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
+            // x_max(dofsCG[DofMapH1[i]]) = max(x_max(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
+            x_min(dofsCG[DofMapH1[i]]) = 0.;
+            x_max(dofsCG[DofMapH1[i]]) = 1.;
+         }
       }
    }
 

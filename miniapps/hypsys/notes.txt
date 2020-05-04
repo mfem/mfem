@@ -2,14 +2,17 @@ ATTENTION
 
 
 DEBUG
--TODO pdofs?
+   1) Galerkin reproduzieren
+   2) Limitierte DG Flussterme einbauen
 
 next steps
-
+   On quads it works well.
 
 If possible: try to make advection with non-constant velocity and MCL work
 
 minor tasks:
+   -TODO check pdofs
+   -Remove all MFEM_ABORTS in repeated switches
    -Use either tensor product formula for PrecGrad or Dmitris result for triangles
    -Use mfem::Mult for matrix multiplication
    -Using  extremely high order is not feasable, probably due to inexact mass matrix inversion.

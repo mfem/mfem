@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
    // The min/max bounds are represented as H1 functions of the same order
    // as the solution, thus having 1:1 dof correspondence inside each element.
    H1_FECollection fecBounds(max(config.order, 1), dim,
-                             BasisType::GaussLobatto);
+                             BasisType::GaussLobatto); // TODO
    FiniteElementSpace fesBounds(&mesh, &fecBounds);
    DofInfo dofs(&fes, &fesBounds);
 

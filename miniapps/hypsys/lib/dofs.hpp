@@ -17,7 +17,7 @@ public:
 
    Vector xi_min, xi_max; // min/max values for each dof
 
-   DenseMatrix BdrDofs, Sub2Ind, SubcellCross;
+   DenseMatrix BdrDofs, Sub2Ind, SubcellCross, Loc2Multiindex, ClosestNbrs;
    DenseTensor NbrDofs; // Negative values correspond to the boundary attributes.
 
    int dim, NumBdrs, NumFaceDofs, numSubcells, numDofsSubcell;
@@ -37,8 +37,13 @@ public:
 
    void ExtractBdrDofs(); // TODO rename
    void FillSubcell2CellDof();
-   void FillTriangleDofMap(int p);
+   void FillClosestNbrs();
    void FillSubcellCross();
+
+   // The following three routines work only for TRIANGLES.
+   void FillTriangleDofMap(int p);
+   void FillLoc2Multiindex(int p);
+   int GetLocFromMultiindex(int p, const Vector &a) const;
 
    // Auxiliary routines.
    int GetLocalFaceDofIndex3D(int loc_face_id, int face_orient,
