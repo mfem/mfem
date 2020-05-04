@@ -2146,9 +2146,10 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 }
 
 /**
-   This implementation COPIED from MixedVectorGradientIntegrator::AssemblePA
-   @fixme share the code
-   @todo share the code
+   This implementation originally from MixedVectorGradientIntegrator::AssemblePA
+
+   (but now modified, so there's probably code that could be shared, but
+   not the whole method)
 */
 void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
                                       const FiniteElementSpace &test_fes)
@@ -2168,27 +2169,60 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const IntegrationRule *ir
+   const IntegrationRule *old_ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
                                                      *mesh->GetElementTransformation(0));
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
+   const int nq = old_ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
    MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "");
 
    ne = trial_fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   geom = mesh->GetGeometricFactors(*old_ir, GeometricFactors::JACOBIANS);
+   mapsC = &test_el->GetDofToQuad(*old_ir, DofToQuad::TENSOR);
+   mapsO = &test_el->GetDofToQuadOpen(*old_ir, DofToQuad::TENSOR);
+
+   const int order = trial_el->GetOrder();
+   H1_SegmentElement fake_fe(order);
+   mfem::QuadratureFunctions1D qf1d;
+   mfem::IntegrationRule closed_ir;
+   closed_ir.SetSize(order + 1);
+   qf1d.GaussLobatto(order + 1, &closed_ir);
+   mfem::IntegrationRule open_ir;
+   open_ir.SetSize(order);
+   qf1d.GaussLegendre(order, &open_ir);
+
+   // (TODO should I try trial_el for something? instead of the hacks above?)
+   auto mapsotherC = &fake_fe.GetDofToQuad(closed_ir, DofToQuad::TENSOR);
+   auto mapsotherO = &fake_fe.GetDofToQuad(open_ir, DofToQuad::TENSOR);
+
+   // we want B1d with Lobatto rows (weird integration rule), lobatto columns (normal dofs), (identity)
+   // should be mapsotherC->B [size at least looks right]
+
+   // want G1d with Legendre rows (normal integration rule), lobatto columns (normal dofs), but slightly different order from usual defaults
+   // should be mapsotherO->G 
 
    dofs1D = mapsC->ndof;
    quad1D = mapsC->nqpt;
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+   /*
+   std::cout << "order = " << trial_el->GetOrder()
+             << ", mapsC->nqpt = " << mapsC->nqpt
+             << ", mapsC->ndof = " << mapsC->ndof
+             << ", mapsO->nqpt = " << mapsO->nqpt
+             << ", mapsO->ndof = " << mapsO->ndof
+             << ", mapsotherO->nqpt = " << mapsotherO->nqpt
+             << ", mapsotherO->ndof = " << mapsotherO->ndof
+             << ", mapsotherC->nqpt = " << mapsotherC->nqpt
+             << ", mapsotherC->ndof = " << mapsotherC->ndof
+             << std::endl;
+   */
 
    /*
    o_dofs1D = mapsO->nqpt;
@@ -2197,21 +2231,22 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(mapsC->ndof == c_dofs1D, "Bad programming!");
    */
 
-    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
    Vector coeff(ne * nq);
    coeff = 1.0;
    // no coefficient in this topological gradient, so if (Q) block removed
 
    // Use the same setup functions as VectorFEMassIntegrator.
+   // (but we aren't doing integration so it's probably wrong)
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHcurlSetup3D(quad1D, ne, old_ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHcurlSetup2D(quad1D, ne, old_ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else
