@@ -18,6 +18,8 @@ set(SRCS
   bilininteg_diffusion.cpp
   bilininteg_divergence.cpp
   bilininteg_hcurl.cpp
+  bilininteg_hdiv.cpp
+  bilininteg_vectorfe.cpp
   bilininteg_gradient.cpp
   bilininteg_mass.cpp
   bilininteg_vecdiffusion.cpp
