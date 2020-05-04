@@ -65,6 +65,7 @@ if (MFEM_USE_MPI)
     ex26p.cpp
     ex27p.cpp
     pa_oper.cpp
+    io_benchmark.cpp
     )
 endif()
 
