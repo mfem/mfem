@@ -375,19 +375,29 @@ int main(int argc, char *argv[])
    pso.setParameters(dt, U);
    pso_pa.setParameters(dt, U);
 
+   MPI_Barrier(MPI_COMM_WORLD);
    mfem::Vector pso_r(U->Size());
    double t1 = MPI_Wtime();
    pso.Mult(*U, pso_r);
    double t2 = MPI_Wtime();
+   double fa_mult_time = t2 - t1;
+   double average_fa_mult_time;
+   MPI_Reduce(&fa_mult_time, &average_fa_mult_time, 1,
+              MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
    if (myid == 0)
-      std::cout << "FA Mult time: " << t2-t1 << std::endl;
+      std::cout << "FA Mult time: " << average_fa_mult_time / num_procs << endl;
 
+   MPI_Barrier(MPI_COMM_WORLD);
    mfem::Vector pso_pa_r(U->Size());
    double t3 = MPI_Wtime();
    pso_pa.Mult(*U, pso_pa_r);
    double t4 = MPI_Wtime();
+   double pa_mult_time = t4 - t3;
+   double average_pa_mult_time;
+   MPI_Reduce(&pa_mult_time, &average_pa_mult_time, 1,
+              MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
    if (myid == 0)
-      std::cout << "PA Mult time: " << t4-t3 << std::endl;
+      std::cout << "FA Mult time: " << average_pa_mult_time / num_procs << endl;
    
    double local_mult_speedup = (t2-t1) / (t4-t3);
    double global_mult_speedup;
@@ -395,7 +405,7 @@ int main(int argc, char *argv[])
               MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
    if (myid == 0)
-      std::cout << "PA speedup: " << global_mult_speedup / num_procs << endl;
+      std::cout << "PA mult speedup: " << global_mult_speedup / num_procs << endl;
 
    mfem::Vector diff_r(pso_pa_r);
    diff_r -= pso_r;
@@ -404,34 +414,36 @@ int main(int argc, char *argv[])
    mfem::Operator &pso_jac = pso.GetGradient(*U);
    mfem::Operator &pso_pa_jac = pso_pa.GetGradient(*U);
 
+   MPI_Barrier(MPI_COMM_WORLD);
    mfem::Vector pso_jac_r(U->Size());
    double t5 = MPI_Wtime();
    pso_jac.Mult(*U, pso_jac_r);
    double t6 = MPI_Wtime();
+   double fa_jac_mult_time = t6-t5;
+   double average_fa_jac_time;
+   MPI_Reduce(&fa_jac_mult_time, &average_fa_jac_time, 1,
+              MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
    if (myid == 0)
-      std::cout << "FA Jac Mult time: " << t6-t5 << std::endl;
+      std::cout << "FA Jac Mult time: " << average_fa_jac_time / num_procs << endl;
 
+   MPI_Barrier(MPI_COMM_WORLD);
    mfem::Vector pso_pa_jac_r(U->Size());
    double t7 = MPI_Wtime();
    pso_pa_jac.Mult(*U, pso_pa_jac_r);
    double t8 = MPI_Wtime();
+   double pa_jac_mult_time = t8-t7;
+   double average_pa_jac_time;
+   MPI_Reduce(&pa_jac_mult_time, &average_pa_jac_time, 1,
+              MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
    if (myid == 0)
-      std::cout << "PA Jac Mult time: " << t8-t7 << std::endl;
+      std::cout << "PA Jac Mult time: " << average_pa_jac_time / num_procs << endl;
 
    double local_jac_speedup = (t6-t5) / (t8-t7);
    double global_jac_speedup;
    MPI_Reduce(&local_jac_speedup, &global_jac_speedup, 1,
               MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
    if (myid == 0)
-      std::cout << "PA Jac speedup: " << global_jac_speedup / num_procs << endl;
-
-
-   mfem::Vector diff_jac(pso_pa_jac_r);
-   diff_jac -= pso_jac_r;
-
-   // std::cout << "jac diff: " << diff_jac.Norml2() << std::endl;
-
-   *u = *U;
+      std::cout << "PA Jac mult speedup: " << global_jac_speedup / num_procs << endl;
 
    // 13. Free the used memory.
    delete U;
