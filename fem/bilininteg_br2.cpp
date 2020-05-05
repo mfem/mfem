@@ -20,7 +20,8 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
                                                    double e) : eta(e)
 {
    // Precompute local mass matrix inverses needed for the lifting operators
-   // First compute offsets and total size needed (for p-refinement case)
+   // First compute offsets and total size needed (e.g. for mixed meshes or
+   // p-refinement)
    int nel = fes->GetNE();
    Minv_offsets.SetSize(nel+1);
    ipiv_offsets.SetSize(nel+1);
@@ -61,8 +62,8 @@ DGDiffusionBR2Integrator::DGDiffusionBR2Integrator(FiniteElementSpace *fes,
    MassIntegrator mi;
    for (int i=0; i<nel; ++i)
    {
-      const FiniteElement *fe;
-      ElementTransformation *tr;
+      const FiniteElement *fe = NULL;
+      ElementTransformation *tr = NULL;
       IsoparametricTransformation iso_tr;
       if (i < fes->GetNE())
       {
