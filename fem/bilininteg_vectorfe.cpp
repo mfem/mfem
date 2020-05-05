@@ -15,6 +15,7 @@ namespace mfem
 {
 
 void PAHcurlSetup2D(const int Q1D,
+                    const int coeffDim,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
@@ -22,6 +23,7 @@ void PAHcurlSetup2D(const int Q1D,
                     Vector &op);
 
 void PAHcurlSetup3D(const int Q1D,
+                    const int coeffDim,
                     const int NE,
                     const Array<double> &w,
                     const Vector &j,
@@ -172,16 +174,35 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
 
-   Vector coeff(ne * nq);
+   const int coeffDim = VQ ? VQ->GetVDim() : 1;
+
+   Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
-   if (Q)
+   if (Q || VQ)
    {
+      Vector D(VQ ? coeffDim : 0);
+      if (VQ)
+      {
+         MFEM_VERIFY(coeffDim == dim, "");
+      }
+
       for (int e=0; e<ne; ++e)
       {
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+            if (VQ)
+            {
+               VQ->Eval(D, *tr, ir->IntPoint(p));
+               for (int i=0; i<coeffDim; ++i)
+               {
+                  coeff[i + (coeffDim * (p + (e * nq)))] = D[i];
+               }
+            }
+            else
+            {
+               coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+            }
          }
       }
    }
@@ -190,12 +211,12 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHcurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHcurlSetup2D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
@@ -348,12 +369,12 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    // Use the same setup functions as VectorFEMassIntegrator.
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHcurlSetup3D(quad1D, 1, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
+      PAHcurlSetup2D(quad1D, 1, ne, ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else
