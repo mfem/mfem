@@ -119,6 +119,33 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+
+class DomainLFGradIntegrator : public DeltaLFIntegrator
+{
+private:
+   Vector shape, Qvec;
+   VectorCoefficient &Q;
+   DenseMatrix dshape;
+
+public:
+   /// Constructs the domain integrator (Q, grad v)
+   DomainLFGradIntegrator(VectorCoefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+
 /// Class for boundary integration L(v) := (g, v)
 class BoundaryLFIntegrator : public LinearFormIntegrator
 {
@@ -252,7 +279,64 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+/// \f$ (Q, curl v)_{\Omega} \f$ for Nedelec Elements)
+class VectorFEDomainLFCurlIntegrator : public DeltaLFIntegrator
+{
+private:
+   VectorCoefficient *QF=nullptr;
+   Coefficient *Q=nullptr;
+   DenseMatrix curlshape;
+   Vector vec;
 
+public:
+   /// Constructs the domain integrator (Q, curl v)
+   VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
+      : DeltaLFIntegrator(F), QF(&F) { }
+   VectorFEDomainLFCurlIntegrator(Coefficient &F)
+      : DeltaLFIntegrator(F), Q(&F) { }   
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/// \f$ (Q, div v)_{\Omega} \f$ for RT Elements)
+class VectorFEDomainLFDivIntegrator : public DeltaLFIntegrator
+{
+private:
+   Vector divshape;
+   Coefficient &Q;
+   int oa, ob;
+
+public:
+   /// Constructs the domain integrator (Q, div v)
+   VectorFEDomainLFDivIntegrator(Coefficient &QF, int a = 2, int b = 0)
+   // the old default was a = 1, b = 1
+   // for simple elliptic problems a = 2, b = -2 is OK
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
+
+   /// Constructs a domain integrator with a given Coefficient
+   VectorFEDomainLFDivIntegrator(Coefficient &QF, const IntegrationRule *ir)
+      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 /** \f$ (f, v \cdot n)_{\partial\Omega} \f$ for vector test function
     v=(v1,...,vn) where all vi are in the same scalar FE space and f is a
     scalar function. */
