@@ -1658,6 +1658,19 @@ protected:
    {
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 3D and
@@ -1697,6 +1710,19 @@ protected:
    {
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+
+private:
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D, testType, trialType, coeffDim;
 };
 
 /** Class for integrating the bilinear form a(u,v) := - (Q u, grad v) in either
