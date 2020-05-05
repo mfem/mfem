@@ -3585,9 +3585,11 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-
-   GetElementToFaceTable(false);
-   GenerateFaces();
+   if (Dim >= 3)
+   {
+      GetElementToFaceTable(false);
+      GenerateFaces();
+   }
 
    if (orig_mesh->GetNodes())
    {
