@@ -144,7 +144,7 @@ void LinearForm::Assemble()
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-         fes -> GetBdrElementVDofs (i, vdofs);
+         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
          for (int k=0; k < blfi.Size(); k++)
          {
@@ -153,7 +153,16 @@ void LinearForm::Assemble()
 
             blfi[k]->AssembleRHSElementVect(*fes->GetBE(i), *eltrans, elemvect);
 
-            AddElementVector (vdofs, elemvect);
+            if (doftrans)
+            {
+               elemvect_t.SetSize(elemvect.Size());
+               doftrans->TransformDual(elemvect, elemvect_t);
+               AddElementVector (vdofs, elemvect_t);
+            }
+            else
+            {
+               AddElementVector (vdofs, elemvect);
+            }
          }
       }
    }

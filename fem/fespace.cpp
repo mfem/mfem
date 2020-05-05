@@ -60,7 +60,7 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
-     elem_dof(NULL), elem_fos(NULL), bdrElem_dof(NULL),
+     elem_dof(NULL), elem_fos(NULL), bdrElem_dof(NULL), bdrElem_fos(NULL),
      NURBSext(NULL), own_ext(false),
      DoFTrans(0),
      VDoFTrans(vdim, ordering),
@@ -188,10 +188,20 @@ FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
    }
 }
 
-void FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
+DofTransformation *
+FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
 {
-   GetBdrElementDofs(i, vdofs);
+   DofTransformation * doftrans = GetBdrElementDofs(i, vdofs);
    DofsToVDofs(vdofs);
+   if (vdim == 1 || doftrans == NULL)
+   {
+      return doftrans;
+   }
+   else
+   {
+      VDoFTrans.SetDofTransformation(*doftrans);
+      return &VDoFTrans;
+   }
 }
 
 void FiniteElementSpace::GetFaceVDofs(int i, Array<int> &vdofs) const
@@ -1160,6 +1170,14 @@ void FiniteElementSpace::RefinementOperator
    const FiniteElementCollection *fec = fespace->FEColl();
    if (dynamic_cast<const ND_FECollection*>(fec))
    {
+      const FiniteElement * nd_tri =
+         fec->FiniteElementForGeometry(Geometry::TRIANGLE);
+      if (nd_tri)
+      {
+         old_DoFTrans[Geometry::TRIANGLE] =
+            new ND_TriDofTransformation(nd_tri->GetOrder());
+      }
+
       const FiniteElement * nd_tet =
          fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
@@ -1672,6 +1690,14 @@ void FiniteElementSpace::ConstructDoFTrans()
    }
    if (dynamic_cast<const ND_FECollection*>(fec))
    {
+      const FiniteElement * nd_tri =
+         fec->FiniteElementForGeometry(Geometry::TRIANGLE);
+      if (nd_tri)
+      {
+         DoFTrans[Geometry::TRIANGLE] =
+            new ND_TriDofTransformation(nd_tri->GetOrder());
+      }
+
       const FiniteElement * nd_tet =
          fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
@@ -1717,6 +1743,7 @@ void FiniteElementSpace::Construct()
    elem_dof = NULL;
    elem_fos = NULL;
    bdrElem_dof = NULL;
+   bdrElem_fos = NULL;
 
    ndofs = 0;
    nedofs = nfdofs = nbdofs = 0;
@@ -1916,15 +1943,23 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    return FE;
 }
 
-void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+DofTransformation *
+FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 {
    if (bdrElem_dof)
    {
       bdrElem_dof->GetRow(i, dofs);
+
+      if (DoFTrans[mesh->GetBdrElementBaseGeometry(i)])
+      {
+         Array<int> Fo;
+         bdrElem_fos -> GetRow (i, Fo);
+         DoFTrans[mesh->GetBdrElementBaseGeometry(i)]->SetFaceOrientations(Fo);
+      }
    }
    else
    {
-      Array<int> V, E, Eo;
+      Array<int> V, E, Eo, Fo;
       int k, j, nv, ne, nf, nd, iF, oF, dim;
       const int *ind;
 
@@ -1946,6 +1981,12 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
       {
          nd += nf;
          mesh->GetBdrElementFace(i, &iF, &oF);
+         if (DoFTrans[mesh->GetBdrElementBaseGeometry(i)])
+         {
+            Fo.Append(oF);
+            DoFTrans[mesh->GetBdrElementBaseGeometry(i)]
+            -> SetFaceOrientations(Fo);
+         }
       }
       dofs.SetSize(nd);
       if (nv > 0)
@@ -1997,6 +2038,7 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
          }
       }
    }
+   return DoFTrans[mesh->GetBdrElementBaseGeometry(i)];
 }
 
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
@@ -2245,6 +2287,7 @@ void FiniteElementSpace::Destroy()
       delete elem_dof;
       delete elem_fos;
       delete bdrElem_dof;
+      delete bdrElem_fos;
 
       delete [] bdofs;
       delete [] fdofs;

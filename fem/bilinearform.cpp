@@ -474,7 +474,7 @@ void BilinearForm::Assemble(int skip_zeros)
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
          const FiniteElement &be = *fes->GetBE(i);
-         fes -> GetBdrElementVDofs (i, vdofs);
+         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
          int k = 0;
          for (; k < bbfi.Size(); k++)
@@ -494,17 +494,26 @@ void BilinearForm::Assemble(int skip_zeros)
             bbfi[k]->AssembleElementMatrix(be, *eltrans, elemmat);
             elmat += elemmat;
          }
+         if ( doftrans )
+         {
+            doftrans->TransformDual(elmat, elmat_t);
+            elmat_p = &elmat_t;
+         }
+         else
+         {
+            elmat_p = &elmat;
+         }
          if (!static_cond)
          {
-            mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+            mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
             if (hybridization)
             {
-               hybridization->AssembleBdrMatrix(i, elmat);
+               hybridization->AssembleBdrMatrix(i, *elmat_p);
             }
          }
          else
          {
-            static_cond->AssembleBdrMatrix(i, elmat);
+            static_cond->AssembleBdrMatrix(i, *elmat_p);
          }
       }
    }

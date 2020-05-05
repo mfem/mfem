@@ -114,6 +114,7 @@ protected:
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    mutable Table *elem_fos; // face orientations by element index
    Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
+   mutable Table *bdrElem_fos; // bdr face orientations by bdr element index
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -481,10 +482,10 @@ public:
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   virtual DofTransformation * GetElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetElementDofs(int i, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
-   virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetBdrElementDofs(int i, Array<int> &dofs) const;
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
@@ -517,10 +518,10 @@ public:
    static void AdjustVDofs(Array<int> &vdofs);
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   DofTransformation * GetElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
-   void GetBdrElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th face element (2D and 3D).
    void GetFaceVDofs(int i, Array<int> &vdofs) const;
