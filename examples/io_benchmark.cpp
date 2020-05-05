@@ -258,8 +258,8 @@ int main(int argc, char *argv[])
                MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
       if (myid == 0)
       {
-         std::cout << "Average write time: " << average_write_time / num_procs << "for "
-                   << nfiles << " and "  << num_procs << " ranks\n";
+         std::cout << "Average write time: " << average_write_time / num_procs << " for "
+                   << nfiles << " files and "  << num_procs << " ranks\n";
       }
    }
    {
@@ -274,8 +274,8 @@ int main(int argc, char *argv[])
                  MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
       if (myid == 0)
       {
-         std::cout << "Average read time: " << average_read_time / num_procs << "for "
-                   << nfiles << " and "  << num_procs << " ranks\n";
+         std::cout << "Average read time: " << average_read_time / num_procs << " for "
+                   << nfiles << " files and "  << num_procs << " ranks\n";
       }
    }
 
