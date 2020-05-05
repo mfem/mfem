@@ -221,13 +221,6 @@ int main(int argc, char *argv[])
 
       a.RecoverFEMSolution(X,B,u_gf);
 
-      int order_quad = max(2, 2*order+1);
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i=0; i < Geometry::NumGeom; ++i)
-      {
-         irs[i] = &(IntRules.Get(i, order_quad));
-      }
-
       double L2err = 0.0;
       switch (prob)
       {
