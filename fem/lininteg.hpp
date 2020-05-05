@@ -293,7 +293,7 @@ public:
    VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
       : DeltaLFIntegrator(F), QF(&F) { }
    VectorFEDomainLFCurlIntegrator(Coefficient &F)
-      : DeltaLFIntegrator(F), Q(&F) { }   
+      : DeltaLFIntegrator(F), Q(&F) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,

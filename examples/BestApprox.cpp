@@ -16,7 +16,7 @@
 using namespace std;
 using namespace mfem;
 
-// H1                               
+// H1
 double u_exact(const Vector &x);
 void gradu_exact(const Vector &x, Vector &gradu);
 
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&prob, "-prob", "--problem",
-                  "Problem kind: 0: H1, 1: H(curl), 2: H(div)");               
+                  "Problem kind: 0: H1, 1: H(curl), 2: H(div)");
    args.AddOption(&ref, "-ref", "--ref",
                   "Number of refinements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -71,8 +71,8 @@ int main(int argc, char *argv[])
    // Mesh *mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, 1.0, 1.0, false);
    dim = mesh->Dimension();
 
-   alpha.SetSize(dim); 
-   for (int i=0; i<dim; i++) alpha(i) = 2.0*M_PI*(double)(i+1);
+   alpha.SetSize(dim);
+   for (int i=0; i<dim; i++) { alpha(i) = 2.0*M_PI*(double)(i+1); }
    // 3. Executing uniform h-refinement
    for (int i = 0; i < ref; i++ )
    {
@@ -86,12 +86,12 @@ int main(int argc, char *argv[])
       case 0: fec = new H1_FECollection(order,dim);   break;
       case 1: fec = new ND_FECollection(order,dim);   break;
       case 2: fec = new RT_FECollection(order-1,dim); break;
-   default: break;
+      default: break;
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl;
-   
+
    Array<int> ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
@@ -101,8 +101,8 @@ int main(int argc, char *argv[])
    }
 
    GridFunction u_gf(fespace);
-   FunctionCoefficient * u, *divU,  *curlU2D; 
-   VectorFunctionCoefficient * U, *gradu, *curlU; 
+   FunctionCoefficient * u, *divU,  *curlU2D;
+   VectorFunctionCoefficient * U, *gradu, *curlU;
 
    FunctionCoefficient *u_ex=nullptr;
    VectorFunctionCoefficient *U_ex=nullptr;
@@ -115,53 +115,53 @@ int main(int argc, char *argv[])
 
    switch (prob)
    {
-   case 0: //(grad u_ex, grad v) + (u_ex,v)
-      u_ex = new FunctionCoefficient(u_exact);
+      case 0: //(grad u_ex, grad v) + (u_ex,v)
+         u_ex = new FunctionCoefficient(u_exact);
 
-      u = new FunctionCoefficient(u_exact);
-      gradu = new VectorFunctionCoefficient(dim,gradu_exact);
-      b.AddDomainIntegrator(new DomainLFGradIntegrator(*gradu)); 
-      b.AddDomainIntegrator(new DomainLFIntegrator(*u));
+         u = new FunctionCoefficient(u_exact);
+         gradu = new VectorFunctionCoefficient(dim,gradu_exact);
+         b.AddDomainIntegrator(new DomainLFGradIntegrator(*gradu));
+         b.AddDomainIntegrator(new DomainLFIntegrator(*u));
 
-      // (grad u, grad v) + (u,v)
-      a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      a.AddDomainIntegrator(new MassIntegrator(one));
+         // (grad u, grad v) + (u,v)
+         a.AddDomainIntegrator(new DiffusionIntegrator(one));
+         a.AddDomainIntegrator(new MassIntegrator(one));
 
-      break;
-   case 1: //(curl u_ex, curl v + (u_ex,v)
-      U_ex = new VectorFunctionCoefficient(dim,U_exact);
+         break;
+      case 1: //(curl u_ex, curl v + (u_ex,v)
+         U_ex = new VectorFunctionCoefficient(dim,U_exact);
 
-      U = new VectorFunctionCoefficient(dim,U_exact);
-      if (dim == 3)
-      {
-         curlU = new VectorFunctionCoefficient(dim,curlU_exact);
-         b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU));
-      }
-      else if (dim == 2)
-      {
-         curlU2D = new FunctionCoefficient(curlU2D_exact);
-         b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU2D));
-      }
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
-      // (curl u, curl v) + (u,v)
-      a.AddDomainIntegrator(new CurlCurlIntegrator(one));
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
-      break;
+         U = new VectorFunctionCoefficient(dim,U_exact);
+         if (dim == 3)
+         {
+            curlU = new VectorFunctionCoefficient(dim,curlU_exact);
+            b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU));
+         }
+         else if (dim == 2)
+         {
+            curlU2D = new FunctionCoefficient(curlU2D_exact);
+            b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU2D));
+         }
+         b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
+         // (curl u, curl v) + (u,v)
+         a.AddDomainIntegrator(new CurlCurlIntegrator(one));
+         a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+         break;
 
-   case 2: //(div u_ex, div v) + (u_ex,v)   
-      U_ex = new VectorFunctionCoefficient(dim,U_exact);
-      U = new VectorFunctionCoefficient(dim,U_exact);
-      divU = new FunctionCoefficient(divU_exact);
-      b.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*divU));
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
+      case 2: //(div u_ex, div v) + (u_ex,v)
+         U_ex = new VectorFunctionCoefficient(dim,U_exact);
+         U = new VectorFunctionCoefficient(dim,U_exact);
+         divU = new FunctionCoefficient(divU_exact);
+         b.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*divU));
+         b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
 
-      // (div u, div v) + (u,v)
-      a.AddDomainIntegrator(new DivDivIntegrator(one));
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
-      break;
+         // (div u, div v) + (u,v)
+         a.AddDomainIntegrator(new DivDivIntegrator(one));
+         a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+         break;
 
-   default:
-      break;
+      default:
+         break;
    }
    b.Assemble();
    a.Assemble();
@@ -186,15 +186,15 @@ int main(int argc, char *argv[])
    double L2err = 0.0;
    switch (prob)
    {
-   case 0:
-      L2err = u_gf.ComputeL2Error(*u_ex);
-      break;
+      case 0:
+         L2err = u_gf.ComputeL2Error(*u_ex);
+         break;
       case 1:
       case 2:
-      L2err = u_gf.ComputeL2Error(*U_ex);
-      break;   
-   default:
-      break;
+         L2err = u_gf.ComputeL2Error(*U_ex);
+         break;
+      default:
+         break;
    }
 
    cout << " || u_h - u ||_{L^2} = " << L2err <<  endl;
@@ -270,7 +270,7 @@ void curlU_exact(const Vector &x, Vector &curlU)
    curlU[2] = -alpha(1)*sin(alpha(1) * s) + alpha(0)*sin(alpha(0) * s);
 }
 
-double curlU2D_exact(const Vector &x) 
+double curlU2D_exact(const Vector &x)
 {
    MFEM_VERIFY(dim == 2, "This should be called only for 2D cases");
    double s = x(0) + x(1);
