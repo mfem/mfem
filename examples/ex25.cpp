@@ -252,10 +252,8 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 5. Reorient mesh in case of a tet mesh
-   mesh->ReorientTetMesh();
-
-   // Set element attributes in order to distinguish elements in the PML region
+   // 5. Set element attributes in order to distinguish elements in the
+   //    PML region
    pml->SetAttributes(mesh);
 
    // 6. Define a finite element space on the mesh. Here we use the Nedelec
