@@ -4762,7 +4762,6 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      type++;
       Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
 
       SECTION("Operators on ND for element type " + std::to_string(type))
