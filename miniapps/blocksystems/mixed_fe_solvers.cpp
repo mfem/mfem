@@ -164,26 +164,63 @@ void BBTSolver::Mult(const Vector &x, Vector &y) const
 }
 
 LocalSolver::LocalSolver(const DenseMatrix& B)
-    : Solver(B.NumCols()), BT_(B, 't'), BBT_(B.NumRows())
+    : Solver(B.NumCols()), BT_(B, 't'), local_system_(B.NumRows()), offset_(0)
 {
-    mfem::Mult(B, BT_, BBT_);
-    BBT_.SetRow(0, 0.0);
-    BBT_.SetCol(0, 0.0);
-    BBT_(0, 0) = 1.;
-    BBT_solver_.SetOperator(BBT_);
+    mfem::Mult(B, BT_, local_system_);
+    local_system_.SetRow(0, 0.0);
+    local_system_.SetCol(0, 0.0);
+    local_system_(0, 0) = 1.;
+    local_solver_.SetOperator(local_system_);
+}
+
+LocalSolver::LocalSolver(const DenseMatrix& M, const DenseMatrix& B)
+    : Solver(M.NumRows()+B.NumRows()), local_system_(height), offset_(M.NumRows())
+{
+    local_system_.CopyMN(M, 0, 0);
+    local_system_.CopyMN(B, offset_, 0);
+    local_system_.CopyMNt(B, 0, offset_);
+
+    local_system_.SetRow(offset_, 0.0);
+    local_system_.SetCol(offset_, 0.0);
+    local_system_(offset_, offset_) = 1.0;
+    local_solver_.SetOperator(local_system_);
 }
 
 void LocalSolver::Mult(const Vector &x, Vector &y) const
 {
-    double x0 = x[0];
-    const_cast<Vector&>(x)[0] = 0.0;
+    if (x.Size() == BT_.NumCols())
+    {
+        double x0 = x[0];
+        const_cast<Vector&>(x)[0] = 0.0;
 
-    Vector u(BT_.NumCols());
-    BBT_solver_.Mult(x, u);
+        Vector u(BT_.NumCols());
+        local_solver_.Mult(x, u);
 
-    y.SetSize(BT_.NumRows());
-    BT_.Mult(u, y);
-    const_cast<Vector&>(x)[0] = x0;
+        y.SetSize(BT_.NumRows());
+        BT_.Mult(u, y);
+        const_cast<Vector&>(x)[0] = x0;
+    }
+    else
+    {
+        Vector rhs(local_system_.NumRows());
+        for (int i = 0; i < offset_+1; i++)
+        {
+            rhs[i] = 0.0;
+        }
+        for (int i = offset_+1; i < local_system_.NumRows(); i++)
+        {
+            rhs[i] = x[i - offset_];
+        }
+
+        Vector sol(local_system_.NumRows());
+        local_solver_.Mult(rhs, sol);
+
+        y.SetSize(offset_);
+        for (int i = 0; i < offset_; i++)
+        {
+            y[i] = sol[i];
+        }
+    }
 }
 
 BlockDiagSolver::BlockDiagSolver(const OperatorPtr &A, SparseMatrix block_dof)
@@ -394,7 +431,7 @@ MLDivSolver::MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const
     const unsigned int num_levels = agg_solver_.Size()+1;
 
     OperatorPtr B_l(const_cast<HypreParMatrix*>(&B), false);
-    OperatorPtr M_l;//(M.NumRows() ? const_cast<HypreParMatrix*>(&M) : NULL, false);
+    OperatorPtr M_l(M.NumRows() ? const_cast<HypreParMatrix*>(&M) : NULL, false);
 
     Array<int> loc_hdivdofs, loc_l2dofs;
     SparseMatrix B_l_diag, M_l_diag;
@@ -415,7 +452,8 @@ MLDivSolver::MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const
             GetRowColumnsRef(agg_l2dof_l, agg, loc_l2dofs);
             if (M_l.Ptr()) GetSubMatrix(M_l_diag, loc_hdivdofs, loc_hdivdofs, M_a);
             GetSubMatrix(B_l_diag, loc_l2dofs, loc_hdivdofs, B_a);
-            agg_solver_[l][agg].Reset(new LocalSolver(B_a));
+//            agg_solver_[l][agg].Reset(new LocalSolver(B_a));
+            agg_solver_[l][agg].Reset(new LocalSolver(M_a, B_a));
         }
 
         B_l.Reset(TwoStepsRAP(data.P_l2[l], B_l, data.P_hdiv[l]), l < num_levels-2);

@@ -62,11 +62,14 @@ public:
 
 class LocalSolver : public Solver // TODO: make it a template?
 {
+    DenseMatrix M_;
     DenseMatrix BT_;
-    DenseMatrix BBT_;
-    DenseMatrixInverse BBT_solver_;
+    DenseMatrix local_system_;
+    DenseMatrixInverse local_solver_;
+    const int offset_;
 public:
     LocalSolver(const DenseMatrix &B);
+    LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
     virtual void Mult(const Vector &x, Vector &y) const;
     virtual void SetOperator(const Operator &op) { }
 };
