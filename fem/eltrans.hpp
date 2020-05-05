@@ -397,10 +397,11 @@ public:
 
    /** @brief Method to set the geometry type of the face.
 
-       @note This method should only be used when
-       [Par]Mesh::GetFaceTransformation will not be called i.e. when the
-       face transformation will not be needed but the neighboring
-       element transformations will be.
+       @note This method is designed to be used when
+       [Par]Mesh::GetFaceTransformation will not be called i.e. when
+       the face transformation will not be needed but the neighboring
+       element transformations will be.  Using this method to override
+       the GeometryType should only be done with great care.
    */
    void SetGeometryType(Geometry::Type g) { geom = g; }
 
