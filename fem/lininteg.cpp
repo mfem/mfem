@@ -63,7 +63,8 @@ void DomainLFIntegrator::AssembleDeltaElementVect(
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
-void DomainLFGradIntegrator::AssembleRHSElementVect(const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+void DomainLFGradIntegrator::AssembleRHSElementVect(const FiniteElement &el,
+                                                    ElementTransformation &Tr, Vector &elvect)
 {
    int dof = el.GetDof();
    int spaceDim = Tr.GetSpaceDim();
@@ -94,7 +95,8 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(const FiniteElement &el, Ele
    }
 }
 
-void DomainLFGradIntegrator::AssembleDeltaElementVect(const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+void DomainLFGradIntegrator::AssembleDeltaElementVect(const FiniteElement &fe,
+                                                      ElementTransformation &Trans, Vector &elvect)
 {
    MFEM_ASSERT(vec_delta != NULL, "coefficient must be VectorDeltaCoefficient");
    int dof = fe.GetDof();
@@ -445,22 +447,22 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      
+
       Tr.SetIntPoint (&ip);
       el.CalcPhysCurlShape(Tr, curlshape);
 
       switch (spaceDim)
       {
-      case 3:
-         MFEM_VERIFY(QF, "VectorFunctionCoefficient not provided");
-         QF->Eval(vec, Tr, ip);
-         break;
-      case 2:
-         MFEM_VERIFY(Q, "FunctionCoefficient (Scalar) not provided");
-         vec[0] = Q->Eval(Tr, ip);
-         break;   
-      default:
-         break; // This should be unreachable
+         case 3:
+            MFEM_VERIFY(QF, "VectorFunctionCoefficient not provided");
+            QF->Eval(vec, Tr, ip);
+            break;
+         case 2:
+            MFEM_VERIFY(Q, "FunctionCoefficient (Scalar) not provided");
+            vec[0] = Q->Eval(Tr, ip);
+            break;
+         default:
+            break; // This should be unreachable
       }
       vec *= ip.weight * Tr.Weight();
       curlshape.AddMult (vec, elvect);
@@ -480,24 +482,25 @@ void VectorFEDomainLFCurlIntegrator::AssembleDeltaElementVect(
 
    switch (spaceDim)
    {
-   case 3:
-      vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
-      curlshape.Mult(vec, elvect);
-      break;
-   case 2:
-      // Extract 1st column of curlshape to elvect
-      curlshape.GetColumn(0,elvect);
-      elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
-      break;   
-   default:
-      break; // This should be unreachable
+      case 3:
+         vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
+         curlshape.Mult(vec, elvect);
+         break;
+      case 2:
+         // Extract 1st column of curlshape to elvect
+         curlshape.GetColumn(0,elvect);
+         elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+         break;
+      default:
+         break; // This should be unreachable
    }
 
 }
 
-void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-                                                ElementTransformation &Tr,
-                                                Vector &elvect)
+void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el,
+   ElementTransformation &Tr,
+   Vector &elvect)
 {
    int dof = el.GetDof();
 
