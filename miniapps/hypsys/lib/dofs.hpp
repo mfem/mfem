@@ -20,10 +20,10 @@ public:
    DenseMatrix BdrDofs, Sub2Ind, SubcellCross, Loc2Multiindex, ClosestNbrs;
    DenseTensor NbrDofs; // Negative values correspond to the boundary attributes.
 
-   int dim, NumBdrs, NumFaceDofs, numSubcells, numDofsSubcell;
+   int dim, NumBdrs, NumFaceDofs, numSubcells, numDofsSubcell, NumEq;
    Array<int> DofMapH1;
 
-   DofInfo(FiniteElementSpace *fes_sltn, FiniteElementSpace *fes_bounds);
+   DofInfo(FiniteElementSpace *fes_sltn, FiniteElementSpace *fes_bounds, int NumEq_);
 
    ~DofInfo() { }
 

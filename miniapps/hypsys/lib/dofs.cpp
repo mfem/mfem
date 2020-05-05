@@ -277,17 +277,17 @@ int DofInfo::GetLocalFaceDofIndex(int dim, int loc_face_id, int face_orient,
 }
 
 DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
-                 FiniteElementSpace *fes_bounds)
+                 FiniteElementSpace *fes_bounds, int NumEq_)
    : mesh(fes_sltn->GetMesh()), fes(fes_sltn),
-     x_min(fes_bounds), x_max(fes_bounds)
+     x_min(fes_bounds), x_max(fes_bounds), NumEq(NumEq_)
 {
    dim = mesh->Dimension();
 
    int n = fes->GetVSize();
    int ne = mesh->GetNE();
 
-   xi_min.SetSize(n);
-   xi_max.SetSize(n);
+   xi_min.SetSize(n*NumEq);
+   xi_max.SetSize(n*NumEq);
 
    ExtractBdrDofs();
    NumFaceDofs = BdrDofs.Height();
@@ -1033,52 +1033,61 @@ void DofInfo::ComputeBounds(const Vector &x)
 {
    FiniteElementSpace *fesCG = x_min.FESpace();
    const int nd = fesCG->GetFE(0)->GetDof();
+   const int ne = mesh->GetNE();
    Array<int> dofsCG;
 
    // Form min/max at each CG dof, considering element overlaps.
-   x_min =  std::numeric_limits<double>::infinity();
-   x_max = -std::numeric_limits<double>::infinity();
-
-   for (int e = 0; e < mesh->GetNE(); e++)
+   for (int n = 0; n < NumEq; n++)
    {
-      x_min.FESpace()->GetElementDofs(e, dofsCG);
-      double xe_min =  std::numeric_limits<double>::infinity();
-      double xe_max = -std::numeric_limits<double>::infinity();
+      x_min =  std::numeric_limits<double>::infinity();
+      x_max = -std::numeric_limits<double>::infinity();
 
-      // // These are less restrictive bounds
-      // for (int j = 0; j < nd; j++)
-      // {
-      //    xe_min = min(xe_min, x(e*nd+j));
-      //    xe_max = max(xe_max, x(e*nd+j));
-      // }
-
-      // for (int j = 0; j < nd; j++)
-      // {
-      //    x_min(dofsCG[j]) = min(x_min(dofsCG[j]), xe_min);
-      //    x_max(dofsCG[j]) = max(x_max(dofsCG[j]), xe_max);
-      // }
-
-      // Tight bounds
-      for (int i = 0; i < nd; i++)
+      for (int e = 0; e < ne; e++)
       {
-         for (int j = 0; j < ClosestNbrs.Width(); j++)
-         {
-            if (ClosestNbrs(i,j) == -1) { break; }
+         x_min.FESpace()->GetElementDofs(e, dofsCG);
 
-            x_min(dofsCG[DofMapH1[i]]) = min(x_min(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
-            x_max(dofsCG[DofMapH1[i]]) = max(x_max(dofsCG[DofMapH1[i]]), x(e*nd+ClosestNbrs(i,j)));
+         // These are less restrictive bounds.
+         /*
+         double xe_min =  std::numeric_limits<double>::infinity();
+         double xe_max = -std::numeric_limits<double>::infinity();
+
+         for (int j = 0; j < nd; j++)
+         {
+            xe_min = min(xe_min, x(e*nd+j));
+            xe_max = max(xe_max, x(e*nd+j));
+         }
+
+         for (int j = 0; j < nd; j++)
+         {
+            x_min(dofsCG[j]) = min(x_min(dofsCG[j]), xe_min);
+            x_max(dofsCG[j]) = max(x_max(dofsCG[j]), xe_max);
+         }
+         */
+
+         // Tight bounds.
+         for (int i = 0; i < nd; i++)
+         {
+            for (int j = 0; j < ClosestNbrs.Width(); j++)
+            {
+               if (ClosestNbrs(i,j) == -1) { break; }
+
+               const int I = dofsCG[DofMapH1[i]];
+               const int J = n*ne*nd + e*nd+ClosestNbrs(i,j);
+               x_min(I) = min(x_min(I), x(J));
+               x_max(I) = max(x_max(I), x(J));
+            }
          }
       }
-   }
 
-   // Use (x_min, x_max) to fill (xi_min, xi_max) for each DG dof.
-   for (int e = 0; e < mesh->GetNE(); e++)
-   {
-      x_min.FESpace()->GetElementDofs(e, dofsCG);
-      for (int j = 0; j < nd; j++)
+      // Use (x_min, x_max) to fill (xi_min, xi_max) for each DG dof.
+      for (int e = 0; e < ne; e++)
       {
-         xi_min(e*nd + j) = x_min(dofsCG[DofMapH1[j]]);
-         xi_max(e*nd + j) = x_max(dofsCG[DofMapH1[j]]);
+         x_min.FESpace()->GetElementDofs(e, dofsCG);
+         for (int j = 0; j < nd; j++)
+         {
+            xi_min(n*ne*nd + e*nd + j) = x_min(dofsCG[DofMapH1[j]]);
+            xi_max(n*ne*nd + e*nd + j) = x_max(dofsCG[DofMapH1[j]]);
+         }
       }
    }
 }
