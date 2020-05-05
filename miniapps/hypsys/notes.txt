@@ -2,11 +2,8 @@ ATTENTION
 
 
 DEBUG
-   0) Galerkin reproduzierbar
-   1) (Limitierte) DG Flussterme einbauen
 
 next steps
-   On quads it works well.
 
 If possible: try to make advection with non-constant velocity and MCL work
 

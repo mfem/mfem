@@ -275,7 +275,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                uDot(nd, hyp->NumEq), DTilde(nd, nd), sif(dofs.NumBdrs, dofs.NumFaceDofs);
    DenseTensor AntiDiff(nd, nd, hyp->NumEq), wij(nd, nd, hyp->NumEq),
                wfi(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq), // TODO ordering, no i?
-               wfiNbr(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq),
+               // wfiNbr(dofs.NumBdrs, dofs.NumFaceDofs, hyp->NumEq),
                BdrFlux(dofs.NumFaceDofs, dofs.NumBdrs, hyp->NumEq);
    Vector sums(hyp->NumEq*nd);
 
@@ -487,24 +487,12 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               wfi(i,j,n) = sif(i,j) * (uEval(n) + uNbrEval(n));
-               wfiNbr(i,j,n) = wfi(i,j,n);
-               // wfiNbr(i,j,n) = ws * (uEval(n) + uNbrEval(n));
+               wfi(i,j,n) = 0.5 * sif(i,j) * (uEval(n) + uNbrEval(n));
                for (int l = 0; l < dim; l++)
                {
-                  wfi(i,j,n) -= (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
-                  wfiNbr(i,j,n) += (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
-                  // cout << FluxNbr(n,l) - Flux(n,l) << endl;
-                  // wfiNbr(i,j,n) += (FluxNbr(n,l) - Flux(n,l)) * normal(l);
+                  wfi(i,j,n) -= 0.5 * (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
                }
-
-               // cout << i << " " << ws << endl;
-               // wfiNbr(n) *= FaceMatLumped;
             }
-
-            // cout << e << " " << i << " " << j << " " << wfi(i,j,0) << endl;
-            // if (e==0 && i == 2)
-            //    cout << wfi(i,0,0) << endl;
 
             Vector helper(hyp->NumEq);
             Flux.Mult(normal, helper);
@@ -522,9 +510,6 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             }
          }
 
-         // if (e==0 && i == 2)
-         //    cout << wfi(i,0,0) << endl;
-
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
             for (int n = 0; n < hyp->NumEq; n++)
@@ -533,39 +518,18 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                int J = dofs.BdrDofs(j,i);
                if (gif > 0.)
                {
-                  gif = min( gif, min( 2.*sif(i,j) * dofs.xi_max(e*nd+J) - wfi(i,j,n), wfiNbr(i,j,n) - 2.*sif(i,j) * dofs.xi_min(e*nd+J) ) );
-                  // gif = min( gif, min( 2.*sif(i,j) * 1. - wfi(i,j,n), wfi(i,j,n) - 2.*sif(i,j) * 0. ) );
+                  gif = min( gif, min( sif(i,j) * dofs.xi_max(e*nd+J) - wfi(i,j,n), wfi(i,j,n) - sif(i,j) * dofs.xi_min(e*nd+J) ) );
                }
                else
                {
-                  gif = max( gif, max( 2.*sif(i,j) * dofs.xi_min(e*nd+J) - wfi(i,j,n), wfiNbr(i,j,n) - 2.*sif(i,j) * dofs.xi_max(e*nd+J) ) );
-                  // gif = max( gif, max( 2.*sif(i,j) * 0. - wfi(i,j,n), wfi(i,j,n) - 2.*sif(i,j) * 1. ) );
+                  gif = max( gif, max( sif(i,j) * dofs.xi_min(e*nd+J) - wfi(i,j,n), wfi(i,j,n) - sif(i,j) * dofs.xi_max(e*nd+J) ) );
                }
-               // // cout << e << " " << i << " " << j << " " /* << sif(i,j) << " " */ << wfi(i,j,n) << endl;
-
-               // BdrFlux(n*nd + dofs.BdrDofs(j,i), i) = gif;
                sums(n*nd+dofs.BdrDofs(j,i)) += gif;
-               // sums(n*nd+dofs.BdrDofs(j,i)) += BdrFlux(j,i,n);
             }
          }
       }
 
-      // // BdrFlux.GetRowSums(sums);
-      // z.AddElementVector(vdofs, sums);
-
-      // for (int n = 0; n < hyp->NumEq; n++)
-      // {
-      //    double test = 0.;
-      //    for (int j = 0; j < nd; j++)
-      //    {
-      //       test += ElFlux(j,n);
-      //    }
-      //    if (abs(test) > 1.E-12)
-      //    {
-      //       cout << abs(test) << endl;
-      //       MFEM_ABORT("non-zero sum.");
-      //    }
-      // }
+      z.AddElementVector(vdofs, sums);
 
       DenseMatrix AuxiliaryVectors(nd, hyp->NumEq);
       mfem::Mult(DistributionMatrix, ElFlux, AuxiliaryVectors);
@@ -721,7 +685,6 @@ void MCL_Evolution::ComputePrecGradOp()
       DenseMatrixInverse inv(&MassMat1D);
       inv.Factor();
       inv.GetInverseMatrix(InvMassMat1D);
-      InvMassMat1D.Print();
 
       switch (dim)
       {
