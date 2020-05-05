@@ -29,45 +29,50 @@ using namespace mfem;
 
 // Method to use FindPointsGSLIB to determine the boundary points of a mesh
 // that are interior to another mesh.
-void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,       FindPointsGSLIB &finder2,
+void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
+                                  FindPointsGSLIB &finder2,
                                   Vector &vxyz1,                  Vector &vxyz2,
                                   Array<int> ess_tdof_list1,      Array<int> ess_tdof_list2,
                                   Array<int> &ess_tdof_list1_int, Array<int> &ess_tdof_list2_int,
                                   const int dim)
 {
-    int nb1 = ess_tdof_list1.Size(),
-        nb2 = ess_tdof_list2.Size(),
-        nt1 = vxyz1.Size()/dim,
-        nt2 = vxyz2.Size()/dim;
+   int nb1 = ess_tdof_list1.Size(),
+       nb2 = ess_tdof_list2.Size(),
+       nt1 = vxyz1.Size()/dim,
+       nt2 = vxyz2.Size()/dim;
 
-    Vector bnd1(nb1*dim);
-    for (int i = 0; i < nb1; i++) {
-        int idx = ess_tdof_list1[i];
-        for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
-    }
+   Vector bnd1(nb1*dim);
+   for (int i = 0; i < nb1; i++)
+   {
+      int idx = ess_tdof_list1[i];
+      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
+   }
 
-    Vector bnd2(nb2*dim);
-    for (int i = 0; i < nb2; i++) {
-        int idx = ess_tdof_list2[i];
-        for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
-    }
+   Vector bnd2(nb2*dim);
+   for (int i = 0; i < nb2; i++)
+   {
+      int idx = ess_tdof_list2[i];
+      for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
+   }
 
-    finder1.FindPoints(bnd2);
-    finder2.FindPoints(bnd1);
+   finder1.FindPoints(bnd2);
+   finder2.FindPoints(bnd1);
 
-    const Array<unsigned int> &code_out1 = finder1.GetCode();
-    const Array<unsigned int> &code_out2 = finder2.GetCode();
+   const Array<unsigned int> &code_out1 = finder1.GetCode();
+   const Array<unsigned int> &code_out2 = finder2.GetCode();
 
-    //Setup ess_tdof_list_int
-    for (int i = 0; i < nb1; i++) {
-            int idx = ess_tdof_list1[i];
-            if (code_out2[i] != 2) { ess_tdof_list1_int.Append(idx); }
-    }
+   //Setup ess_tdof_list_int
+   for (int i = 0; i < nb1; i++)
+   {
+      int idx = ess_tdof_list1[i];
+      if (code_out2[i] != 2) { ess_tdof_list1_int.Append(idx); }
+   }
 
-    for (int i = 0; i < nb2; i++) {
-            int idx = ess_tdof_list2[i];
-            if (code_out1[i] != 2) { ess_tdof_list2_int.Append(idx); }
-    }
+   for (int i = 0; i < nb2; i++)
+   {
+      int idx = ess_tdof_list2[i];
+      if (code_out1[i] != 2) { ess_tdof_list2_int.Append(idx); }
+   }
 }
 
 int main(int argc, char *argv[])
@@ -140,20 +145,20 @@ int main(int argc, char *argv[])
    Array <FiniteElementSpace*> fespacearr(nmeshes);
    for (int i = 0; i< nmeshes; i ++)
    {
-       if (order > 0)
-       {
-          fecarr[i] =  new H1_FECollection(order, dim);
-       }
-       else if (mesharr[i]->GetNodes())
-       {
-          fecarr[i] =  mesharr[i]->GetNodes()->OwnFEC();
-          cout << "Using isoparametric FEs: " << fecarr[0]->Name() << endl;
-       }
-       else
-       {
-          fecarr[i] = new H1_FECollection(order = 1, dim);
-       }
-       fespacearr[i] = new FiniteElementSpace(mesharr[i], fecarr[i]);
+      if (order > 0)
+      {
+         fecarr[i] =  new H1_FECollection(order, dim);
+      }
+      else if (mesharr[i]->GetNodes())
+      {
+         fecarr[i] =  mesharr[i]->GetNodes()->OwnFEC();
+         cout << "Using isoparametric FEs: " << fecarr[0]->Name() << endl;
+      }
+      else
+      {
+         fecarr[i] = new H1_FECollection(order = 1, dim);
+      }
+      fespacearr[i] = new FiniteElementSpace(mesharr[i], fecarr[i]);
    }
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -182,9 +187,9 @@ int main(int argc, char *argv[])
    Array<LinearForm*> b_ar(nmeshes);
    for (int i = 0; i< nmeshes; i ++)
    {
-       b_ar[i] = new LinearForm(fespacearr[i]);
-       b_ar[i]->AddDomainIntegrator(new DomainLFIntegrator(one));
-       b_ar[i]->Assemble();
+      b_ar[i] = new LinearForm(fespacearr[i]);
+      b_ar[i]->AddDomainIntegrator(new DomainLFIntegrator(one));
+      b_ar[i]->Assemble();
    }
 
    // 8. Define the solution vector x as a finite element grid function
@@ -220,15 +225,17 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(nb1!=0 || nb2!=0, " Please use overlapping grids.");
 
    Vector bnd1(nb1*dim);
-   for (int i = 0; i < nb1; i++) {
-       int idx = ess_tdof_list1_int[i];
-       for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
+   for (int i = 0; i < nb1; i++)
+   {
+      int idx = ess_tdof_list1_int[i];
+      for (int d = 0; d < dim; d++) { bnd1(i+d*nb1) = vxyz1(idx + d*nt1); }
    }
 
    Vector bnd2(nb2*dim);
-   for (int i = 0; i < nb2; i++) {
-       int idx = ess_tdof_list2_int[i];
-       for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
+   for (int i = 0; i < nb2; i++)
+   {
+      int idx = ess_tdof_list2_int[i];
+      for (int d = 0; d < dim; d++) { bnd2(i+d*nb2) = vxyz2(idx + d*nt2); }
    }
 
    Vector interp_vals1(nb1), interp_vals2(nb2);
@@ -261,76 +268,78 @@ int main(int argc, char *argv[])
    int NiterSchwarz = 100;
    for (int schwarz = 0; schwarz < NiterSchwarz; schwarz++)
    {
-       for (int i = 0; i< nmeshes; i ++)
-       {
-           b_ar[i] = new LinearForm(fespacearr[i]);
-           b_ar[i]->AddDomainIntegrator(new DomainLFIntegrator(one));
-           b_ar[i]->Assemble();
-       }
+      for (int i = 0; i< nmeshes; i ++)
+      {
+         b_ar[i] = new LinearForm(fespacearr[i]);
+         b_ar[i]->AddDomainIntegrator(new DomainLFIntegrator(one));
+         b_ar[i]->Assemble();
+      }
 
-       OperatorPtr A1, A2;
-       Vector B1, X1, B2, X2;
+      OperatorPtr A1, A2;
+      Vector B1, X1, B2, X2;
 
-       a_ar[0]->FormLinearSystem(ess_tdof_list1, x1, *b_ar[0], A1, X1, B1);
-       a_ar[1]->FormLinearSystem(ess_tdof_list2, x2, *b_ar[1], A2, X2, B2);
+      a_ar[0]->FormLinearSystem(ess_tdof_list1, x1, *b_ar[0], A1, X1, B1);
+      a_ar[1]->FormLinearSystem(ess_tdof_list2, x2, *b_ar[1], A2, X2, B2);
 
-       // 11. Solve the linear system A X = B.
-       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-       GSSmoother M1((SparseMatrix&)(*A1));
-       PCG(*A1, M1, B1, X1, 0, 200, 1e-12, 0.0);
-       GSSmoother M2((SparseMatrix&)(*A2));
-       PCG(*A2, M2, B2, X2, 0, 200, 1e-12, 0.0);
+      // 11. Solve the linear system A X = B.
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+      GSSmoother M1((SparseMatrix&)(*A1));
+      PCG(*A1, M1, B1, X1, 0, 200, 1e-12, 0.0);
+      GSSmoother M2((SparseMatrix&)(*A2));
+      PCG(*A2, M2, B2, X2, 0, 200, 1e-12, 0.0);
 
-       // 12. Recover the solution as a finite element grid function.
-       a_ar[0]->RecoverFEMSolution(X1, *b_ar[0], x1);
-       a_ar[1]->RecoverFEMSolution(X2, *b_ar[1], x2);
+      // 12. Recover the solution as a finite element grid function.
+      a_ar[0]->RecoverFEMSolution(X1, *b_ar[0], x1);
+      a_ar[1]->RecoverFEMSolution(X2, *b_ar[1], x2);
 
-       // Interpolate boundary condition
-       finder1.Interpolate(x1, interp_vals2);
-       finder2.Interpolate(x2, interp_vals1);
+      // Interpolate boundary condition
+      finder1.Interpolate(x1, interp_vals2);
+      finder2.Interpolate(x2, interp_vals1);
 
-       double dxmax = std::numeric_limits<float>::min();
-       double x1inf = x1.Normlinf();
-       double x2inf = x2.Normlinf();
-       for (int i = 0; i < nb1; i++) {
-           int idx = ess_tdof_list1_int[i];
-           double dx = std::abs(x1(idx)-interp_vals1(i))/x1inf;
-           if (dx > dxmax) { dxmax = dx; }
-           x1(idx) = interp_vals1(i);
-       }
+      double dxmax = std::numeric_limits<float>::min();
+      double x1inf = x1.Normlinf();
+      double x2inf = x2.Normlinf();
+      for (int i = 0; i < nb1; i++)
+      {
+         int idx = ess_tdof_list1_int[i];
+         double dx = std::abs(x1(idx)-interp_vals1(i))/x1inf;
+         if (dx > dxmax) { dxmax = dx; }
+         x1(idx) = interp_vals1(i);
+      }
 
-       for (int i = 0; i < nb2; i++) {
-           int idx = ess_tdof_list2_int[i];
-           double dx = std::abs(x2(idx)-interp_vals2(i))/x2inf;
-           if (dx > dxmax) { dxmax = dx; }
-           x2(idx) = interp_vals2(i);
-       }
+      for (int i = 0; i < nb2; i++)
+      {
+         int idx = ess_tdof_list2_int[i];
+         double dx = std::abs(x2(idx)-interp_vals2(i))/x2inf;
+         if (dx > dxmax) { dxmax = dx; }
+         x2(idx) = interp_vals2(i);
+      }
 
-       delete b_ar[0];
-       delete b_ar[1];
+      delete b_ar[0];
+      delete b_ar[1];
 
-       std::cout << std::setprecision(8)    <<
-                    "Iteration: "           << schwarz <<
-                    ", Relative residual: " << dxmax   << endl;
-       if (dxmax < rel_tol) { break; }
+      std::cout << std::setprecision(8)    <<
+                "Iteration: "           << schwarz <<
+                ", Relative residual: " << dxmax   << endl;
+      if (dxmax < rel_tol) { break; }
    }
 
    // 14. Send the solution by socket to a GLVis server.
    {
-       char vishost[] = "localhost";
-       int  visport   = 19916;
-       for (int ip = 0; ip<mesharr.Size(); ++ip)
-       {
-           socketstream sol_sock(vishost, visport);
-           sol_sock.precision(8);
-           sol_sock << "parallel " << mesharr.Size() << " " << ip << "\n";
-           if (ip==0) { sol_sock << "solution\n" << *mesharr[ip] << x1 << flush; }
-           if (ip==1) { sol_sock << "solution\n" << *mesharr[ip] << x2 << flush; }
-           sol_sock << "window_title 'Overlapping grid solution'\n"
-                    << "window_geometry "
-                    << 0 << " " << 0 << " " << 450 << " " << 350 << "\n"
-                    << "keys jmcA]]]" << endl;
-       }
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      for (int ip = 0; ip<mesharr.Size(); ++ip)
+      {
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "parallel " << mesharr.Size() << " " << ip << "\n";
+         if (ip==0) { sol_sock << "solution\n" << *mesharr[ip] << x1 << flush; }
+         if (ip==1) { sol_sock << "solution\n" << *mesharr[ip] << x2 << flush; }
+         sol_sock << "window_title 'Overlapping grid solution'\n"
+                  << "window_geometry "
+                  << 0 << " " << 0 << " " << 450 << " " << 350 << "\n"
+                  << "keys jmcA]]]" << endl;
+      }
    }
 
    // 15. Free the used memory.
@@ -338,10 +347,10 @@ int main(int argc, char *argv[])
    finder2.FreeData();
    for (int i = 0; i < nmeshes; i++)
    {
-       delete a_ar[i];
-       delete fespacearr[i];
-       if (order > 0) { delete fecarr[i]; }
-       delete mesharr[i];
+      delete a_ar[i];
+      delete fespacearr[i];
+      if (order > 0) { delete fecarr[i]; }
+      delete mesharr[i];
    }
 
    return 0;
