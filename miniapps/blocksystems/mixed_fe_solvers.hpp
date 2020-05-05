@@ -21,6 +21,7 @@ struct DFSParameters
     MG_Type MG_type = GeometricMG;
     bool verbose = false;
     bool B_has_nullity_one = false;
+    bool use_schwarz_smoother = false;
     IterSolveParameters CTMC_solve_param;
     IterSolveParameters BBT_solve_param;
 };
@@ -166,7 +167,7 @@ public:
     virtual int GetNumIterations() const { return CTMC_solver_.GetNumIterations(); }
 };
 
-class Multigrid : public Solver
+class AbsMultigrid : public Solver
 {
     const Array<OperatorPtr>& P_;
 
@@ -180,14 +181,16 @@ class Multigrid : public Solver
 
     void MG_Cycle(int level) const;
 public:
-    Multigrid(HypreParMatrix& op, const Array<OperatorPtr>& P,
-              OperatorPtr coarse_solver=OperatorPtr());
+    AbsMultigrid(HypreParMatrix& op, const Array<OperatorPtr>& P,
+                 OperatorPtr coarse_solver=OperatorPtr());
 
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 };
 
-/// Wrapper for the block diagonally preconditioned solver defined in ex5p.cpp
+
+
+/// Wrapper for the block-diagonally preconditioned MINRES defined in ex5p.cpp
 class BDPMinresSolver : public DarcySolver
 {
     BlockOperator op_;
@@ -199,6 +202,7 @@ public:
     BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
+    const Operator& GetOperator() const { return op_; }
     virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
 

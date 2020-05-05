@@ -167,8 +167,8 @@ LocalSolver::LocalSolver(const DenseMatrix& B)
     : Solver(B.NumCols()), BT_(B, 't'), BBT_(B.NumRows())
 {
     mfem::Mult(B, BT_, BBT_);
-    BBT_.SetRow(0, 0);
-    BBT_.SetCol(0, 0);
+    BBT_.SetRow(0, 0.0);
+    BBT_.SetCol(0, 0.0);
     BBT_(0, 0) = 1.;
     BBT_solver_.SetOperator(BBT_);
 }
@@ -444,6 +444,7 @@ void MLDivSolver::Mult(const Vector & x, Vector & y) const
         sigma[l] = 0.0;
 
         // Right hand side: F_l = F - W_l P_l2[l] (W_{l+1})^{-1} P_l2[l]^T F
+        // TODO modularize this few lines
         F_l = l == 0 ? x : PT_F_l;
         PT_F_l.SetSize(data_.P_l2[l]->NumCols());
         data_.P_l2[l]->MultTranspose(F_l, PT_F_l);
@@ -497,7 +498,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
     }
     else
     {
-        CTMC_prec_.Reset(new Multigrid(*CTMC_.As<HypreParMatrix>(), data_.P_curl));
+        CTMC_prec_.Reset(new AbsMultigrid(*CTMC_.As<HypreParMatrix>(), data_.P_curl));
     }
     CTMC_solver_.SetPreconditioner(*CTMC_prec_.As<Solver>());
     SetOptions(CTMC_solver_, data_.param.CTMC_solve_param);
@@ -536,12 +537,13 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
     MFEM_VERIFY(x.Size() == offsets_[2], "MLDivFreeSolver: x size is invalid");
     MFEM_VERIFY(y.Size() == offsets_[2], "MLDivFreeSolver: y size is invalid");
 
-    StopWatch ch;
-    ch.Start();
     BlockVector blk_x(x.GetData(), offsets_);
-    Vector x_blk0_copy(blk_x.GetBlock(0));
     BlockVector blk_y(y.GetData(), offsets_);
 
+    StopWatch ch;
+    ch.Start();
+
+    Vector x_blk0_copy(blk_x.GetBlock(0));
     Vector particular_flux(blk_y.BlockSize(0));
     SolveParticular(blk_x.GetBlock(1), particular_flux);
     blk_y.GetBlock(0) += particular_flux;
@@ -570,9 +572,9 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
         cout << "Scalar potential found in " << ch.RealTime() << "s.\n";
 }
 
-Multigrid::Multigrid(HypreParMatrix& op,
-                     const Array<OperatorPtr>& P,
-                     OperatorPtr coarse_solver)
+AbsMultigrid::AbsMultigrid(HypreParMatrix& op,
+                           const Array<OperatorPtr>& P,
+                           OperatorPtr coarse_solver)
     : Solver(op.GetNumRows()),
       P_(P),
       ops_(P.Size()+1),
@@ -594,14 +596,14 @@ Multigrid::Multigrid(HypreParMatrix& op,
     }
 }
 
-void Multigrid::Mult(const Vector& x, Vector& y) const
+void AbsMultigrid::Mult(const Vector& x, Vector& y) const
 {
     resid_[0] = x;
     correct_[0].SetDataAndSize(y.GetData(), y.Size());
     MG_Cycle(0);
 }
 
-void Multigrid::MG_Cycle(int level) const
+void AbsMultigrid::MG_Cycle(int level) const
 {
     const HypreParMatrix* op_l = ops_[level].As<HypreParMatrix>();
 
