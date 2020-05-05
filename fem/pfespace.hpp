@@ -263,10 +263,10 @@ public:
    virtual int GetTrueVSize() const { return ltdof_size; }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   virtual DofTransformation * GetElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetElementDofs(int i, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
-   virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation *GetBdrElementDofs(int i, Array<int> &dofs) const;
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */

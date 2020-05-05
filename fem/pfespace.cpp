@@ -473,18 +473,21 @@ ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
    return doftrans;
 }
 
-void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
+DofTransformation *
+ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 {
    if (bdrElem_dof)
    {
       bdrElem_dof->GetRow(i, dofs);
-      return;
+      return NULL;
    }
-   FiniteElementSpace::GetBdrElementDofs(i, dofs);
+   DofTransformation * doftrans =
+      FiniteElementSpace::GetBdrElementDofs(i, dofs);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
+   return doftrans;
 }
 
 void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const

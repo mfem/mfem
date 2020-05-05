@@ -222,6 +222,23 @@ public:
    { return TInv(ori); }
 };
 
+/// DoF transformation implementation for the Nedelec basis on triangles
+class ND_TriDofTransformation : public ND_DofTransformation
+{
+public:
+   ND_TriDofTransformation(int order);
+
+   using DofTransformation::TransformPrimal;
+   using DofTransformation::InvTransformPrimal;
+   using DofTransformation::TransformDual;
+
+   void TransformPrimal(const double *, double *) const;
+
+   void InvTransformPrimal(const double *, double *) const;
+
+   void TransformDual(const double *, double *) const;
+};
+
 /// DoF transformation implementation for the Nedelec basis on tetrahedra
 class ND_TetDofTransformation : public ND_DofTransformation
 {
