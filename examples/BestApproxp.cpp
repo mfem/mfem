@@ -34,6 +34,12 @@ Vector alpha;
 
 int main(int argc, char *argv[])
 {
+   // 1. Initialize MPI.
+   int num_procs, myid;
+   MPI_Init(&argc, &argv);
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
    // geometry file
    const char *mesh_file = "../data/inline-quad.mesh";
    // finite element order of approximation
@@ -41,7 +47,8 @@ int main(int argc, char *argv[])
    // static condensation flag
    bool visualization = 1;
    // number of initial ref
-   int ref = 1;
+   int sr = 1;
+   int pr = 1;
 
    // optional command line inputs
    OptionsParser args(argc, argv);
@@ -52,8 +59,10 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&prob, "-prob", "--problem",
                   "Problem kind: 0: H1, 1: H(curl), 2: H(div)");
-   args.AddOption(&ref, "-ref", "--ref",
-                  "Number of refinements.");
+   args.AddOption(&sr, "-sr", "--serial_ref",
+                  "Number of serial refinements.");
+   args.AddOption(&pr, "-pr", "--parallel_ref",
+                  "Number of parallel refinements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -61,10 +70,17 @@ int main(int argc, char *argv[])
    // check if the inputs are correct
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
       return 1;
    }
-   args.PrintOptions(cout);
+   if (myid == 0)
+   {
+      args.PrintOptions(cout);
+   }
 
    // 3. Read the mesh from the given mesh file.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -74,9 +90,16 @@ int main(int argc, char *argv[])
    alpha.SetSize(dim);
    for (int i=0; i<dim; i++) { alpha(i) = 2.0*M_PI*(double)(i+1); }
    // 3. Executing uniform h-refinement
-   for (int i = 0; i < ref; i++ )
+   for (int i = 0; i < sr; i++ )
    {
       mesh->UniformRefinement();
+   }
+
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   delete mesh;
+   for (int l = 0; l < pr; l++)
+   {
+      pmesh->UniformRefinement();
    }
 
    // 6. Define a finite element space on the mesh.
@@ -88,19 +111,17 @@ int main(int argc, char *argv[])
       case 2: fec = new RT_FECollection(order-1,dim); break;
       default: break;
    }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
-        << endl;
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
    Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
+   if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 0;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   GridFunction u_gf(fespace);
+   ParGridFunction u_gf(fespace);
    FunctionCoefficient * u, *divU,  *curlU2D;
    VectorFunctionCoefficient * U, *gradu, *curlU;
 
@@ -110,8 +131,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
 
    // Calculate H1 projection
-   LinearForm b(fespace);
-   BilinearForm a(fespace);
+   ParLinearForm b(fespace);
+   ParBilinearForm a(fespace);
 
    switch (prob)
    {
@@ -169,10 +190,27 @@ int main(int argc, char *argv[])
    Vector X, B;
    a.FormLinearSystem(ess_tdof_list, u_gf, b, A, X,B);
 
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(*A);
-   umf_solver.Mult(B, X);
+   Solver *prec = NULL;
+   switch (prob)
+   {
+      case 0: prec = new HypreBoomerAMG(*A.As<HypreParMatrix>());    break;
+      case 1: prec = new HypreAMS(*A.As<HypreParMatrix>(), fespace); break;
+      case 2:
+         if (dim == 2) {prec = new HypreAMS(*A.As<HypreParMatrix>(), fespace);}
+         else          {prec = new HypreADS(*A.As<HypreParMatrix>(), fespace);}
+         break;
+      default:
+         break;
+   }
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   if (prec) { cg.SetPreconditioner(*prec); }
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   delete prec;
 
    a.RecoverFEMSolution(X,B,u_gf);
 
@@ -197,8 +235,10 @@ int main(int argc, char *argv[])
          break;
    }
 
-   cout << " || u_h - u ||_{L^2} = " << L2err <<  endl;
-
+   if (myid == 0)
+   {
+      cout << " || u_h - u ||_{L^2} = " << L2err <<  endl;
+   }
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -206,23 +246,25 @@ int main(int argc, char *argv[])
       string keys;
       if (dim ==2 )
       {
-         // keys = "keys mrRljc\n";
-         keys = "keys \n";
+         keys = "keys UUmrRljc\n";
       }
       else
       {
          keys = "keys mc\n";
       }
       socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << u_gf <<
+      sol_sock << "solution\n" << *pmesh << u_gf <<
                "window_title 'Numerical Pressure (real part)' "
                << keys << flush;
    }
 
    delete fespace;
    delete fec;
-   delete mesh;
+   delete pmesh;
+   MPI_Finalize();
+
    return 0;
 }
 
