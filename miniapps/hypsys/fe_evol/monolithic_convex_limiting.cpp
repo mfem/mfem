@@ -8,10 +8,6 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
    Geometry::Type gtype = el->GetGeomType();
-   int order = el->GetOrder();
-   H1_FECollection fec(order, dim, BasisType::Positive);
-   fesH1 = new FiniteElementSpace(mesh, &fec); // TODO
-   // xMin()
 
    // IntegrationRule nodes =  el->GetNodes();
    Vector shape(nd), dx_shape(nd);
@@ -518,11 +514,13 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                int J = dofs.BdrDofs(j,i);
                if (gif > 0.)
                {
-                  gif = min( gif, min( sif(i,j) * dofs.xi_max(e*nd+J) - wfi(i,j,n), wfi(i,j,n) - sif(i,j) * dofs.xi_min(e*nd+J) ) );
+                  gif = min( gif, min( sif(i,j) * dofs.xi_max(n*ne*nd + e*nd+J) - wfi(i,j,n),
+                                       wfi(i,j,n) - sif(i,j) * dofs.xi_min(n*ne*nd + e*nd+J) ) );
                }
                else
                {
-                  gif = max( gif, max( sif(i,j) * dofs.xi_min(e*nd+J) - wfi(i,j,n), wfi(i,j,n) - sif(i,j) * dofs.xi_max(e*nd+J) ) );
+                  gif = max( gif, max( sif(i,j) * dofs.xi_min(n*ne*nd + e*nd+J) - wfi(i,j,n),
+                                       wfi(i,j,n) - sif(i,j) * dofs.xi_max(n*ne*nd + e*nd+J) ) );
                }
                sums(n*nd+dofs.BdrDofs(j,i)) += gif;
             }
@@ -533,7 +531,6 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
       DenseMatrix AuxiliaryVectors(nd, hyp->NumEq);
       mfem::Mult(DistributionMatrix, ElFlux, AuxiliaryVectors);
-      DenseTensor UnlimitedFluxes(nd, nd, hyp->NumEq);
 
       ElFlux = 0.;
       for (int I = 0; I < nd; I++)
@@ -545,20 +542,19 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               UnlimitedFluxes(I,J,n) = AntiDiff(I,J,n) + MassMatLOR(I,J)
-                                        * (AuxiliaryVectors(I,n) - AuxiliaryVectors(J,n));
+               double fij = AntiDiff(I,J,n) + MassMatLOR(I,J) * (AuxiliaryVectors(I,n) - AuxiliaryVectors(J,n));
 
-               if (UnlimitedFluxes(I,J,n) > 0.)
+               if (fij > 0.)
                {
-                  ElFlux(I,n) += min( UnlimitedFluxes(I,J,n), min( 2.*DTilde(I,J) * dofs.xi_max(e*nd+I) - wij(I,J,n),
-                                 wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_min(e*nd+J) ) );
+                  fij = min( fij, min( 2.*DTilde(I,J) * dofs.xi_max(n*ne*nd + e*nd+I) - wij(I,J,n),
+                                       wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_min(n*ne*nd + e*nd+J) ) );
                }
                else
                {
-                  ElFlux(I,n) += max( UnlimitedFluxes(I,J,n), max( 2.*DTilde(I,J) * dofs.xi_min(e*nd+I) - wij(I,J,n),
-                                 wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_max(e*nd+J) ) );
+                  fij = max( fij, max( 2.*DTilde(I,J) * dofs.xi_min(n*ne*nd + e*nd+I) - wij(I,J,n),
+                                       wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_max(n*ne*nd + e*nd+J) ) );
                }
-               // ElFlux(I,n) += UnlimitedFluxes(I,J,n);
+               ElFlux(I,n) += fij;
             }
          }
       }
@@ -655,8 +651,6 @@ void MCL_Evolution::ComputePrecGradOp()
    }
    else
    {
-      const int p = el->GetOrder();
-
       L2Pos_SegmentElement el1D(p);
       IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*p);
       Vector shape(p+1);

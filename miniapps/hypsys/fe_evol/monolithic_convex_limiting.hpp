@@ -24,7 +24,7 @@ public:
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                           DofInfo &dofs_);
 
-   virtual ~MCL_Evolution() { delete fesH1;}
+   virtual ~MCL_Evolution() { }
 
    void Mult(const Vector&x, Vector &y) const override;
 
