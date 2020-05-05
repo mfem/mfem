@@ -25,12 +25,12 @@ public:
 
    DofInfo(FiniteElementSpace *fes_sltn, FiniteElementSpace *fes_bounds, int NumEq_);
 
-   ~DofInfo() { }
+   virtual ~DofInfo() { cout << "destroy!" << endl; }
 
    // Computes the admissible interval of values for each DG dof from the
    // values of all elements that feature the dof at its physical location.
    // Assumes that xe_min and xe_max are already computed.
-   void ComputeBounds(const Vector &x);
+   virtual void ComputeBounds(const Vector &x);
 
    // NOTE: This approach will not work for meshes with hanging nodes.
    void FillNeighborDofs();

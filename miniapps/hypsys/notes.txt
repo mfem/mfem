@@ -2,6 +2,11 @@ ATTENTION
 
 
 DEBUG
+   -1) Understand why and how DofInfo constructor is called more times than destructor
+      * Maybe copy constructors are necessary for dofs (and pdofs) and hypsys?
+   -discrepancy between serial and parallel.
+   -some methods and apps don't work when finer resolved.
+   -mass error for swe for example
 
 next steps
 
@@ -9,6 +14,8 @@ If possible: try to make advection with non-constant velocity and MCL work
 
 minor tasks:
    -TODO check pdofs
+   -Maybe move stuff thats not needed within main routines (e.g. dofs) into fe_evol.cpp
+   -If difficult, move bound computation to MCL Evolution.
    -Remove all MFEM_ABORTS in repeated switches
    -Use either tensor product formula for PrecGrad or Dmitris result for triangles
    -Use mfem::Mult for matrix multiplication

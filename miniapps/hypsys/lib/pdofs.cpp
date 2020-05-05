@@ -7,6 +7,7 @@ ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_sltn,
      px_min(pfes_bounds), px_max(pfes_bounds)
 {
    FillNeighborDofs();
+   cout << "ParDofInfo constructor" << endl;
 }
 
 void ParDofInfo::FillNeighborDofs()
@@ -193,6 +194,8 @@ void ParDofInfo::FillNeighborDofs()
 
 void ParDofInfo::ComputeBounds(const Vector &x)
 {
+   cout << "ParDofInfo" << endl;
+
    ParFiniteElementSpace *pfesCG = px_min.ParFESpace();
    GroupCommunicator &gcomm = pfesCG->GroupComm();
    const int nd = pfesCG->GetFE(0)->GetDof();
@@ -260,5 +263,10 @@ void ParDofInfo::ComputeBounds(const Vector &x)
             xi_max(n*ne*nd + e*nd + j) = px_max(dofsCG[DofMapH1[j]]);
          }
       }
+   }
+   cout << pfesCG->GetMyRank() << endl;
+   if (pfesCG->GetMyRank()==0)
+   {
+      xi_min.Print();
    }
 }

@@ -281,6 +281,7 @@ DofInfo::DofInfo(FiniteElementSpace *fes_sltn,
    : mesh(fes_sltn->GetMesh()), fes(fes_sltn),
      x_min(fes_bounds), x_max(fes_bounds), NumEq(NumEq_)
 {
+   cout << "DofInfo constructor" << endl;
    dim = mesh->Dimension();
 
    int n = fes->GetVSize();
@@ -1031,6 +1032,8 @@ void DofInfo::FillSubcellCross()
 
 void DofInfo::ComputeBounds(const Vector &x)
 {
+   cout << "DofInfo" << endl;
+
    FiniteElementSpace *fesCG = x_min.FESpace();
    const int nd = fesCG->GetFE(0)->GetDof();
    const int ne = mesh->GetNE();
