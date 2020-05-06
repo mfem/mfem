@@ -2,8 +2,7 @@
 #define HYPSYS_PARGALERKINEVOLUTION
 
 #include "galerkin.hpp"
-#include "../lib/pdofs.hpp"
-#include "../lib/ptools.hpp"
+#include "../lib/plib.hpp"
 
 using namespace std;
 using namespace mfem;

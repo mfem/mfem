@@ -8,7 +8,7 @@ class Advection : public HyperbolicSystem
 {
 public:
    explicit Advection(FiniteElementSpace *fes_, BlockVector &u_block,
-                      Configuration &config_, bool NodalQuadRule, DofInfo &dofs);
+                      Configuration &config_, bool NodalQuadRule);
    ~Advection() { };
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,

@@ -13,19 +13,11 @@ public:
    ParMesh *pmesh;
    ParFiniteElementSpace *pfes;
 
-   ParGridFunction px_min, px_max;
+   ParDofInfo(ParFiniteElementSpace *pfes_);
 
-   ParDofInfo(ParFiniteElementSpace *pfes_sltn,
-              ParFiniteElementSpace *pfes_bounds, int NumEq_);
+   ~ParDofInfo() { }
 
-   ~ParDofInfo() { cout << "seek and "; }
-
-   // Computes the admissible interval of values for each DG dof from the
-   // values of all elements that feature the dof at its physical location.
-   // Assumes that xe_min and xe_max are already computed.
-   virtual void ComputeBounds(const Vector &x) override;
-
-   // NOTE: This approach will not work for meshes with hanging nodes.
+   // NOTE: This approach will not work for meshes with hanging h- or p-nodes.
    void FillNeighborDofs();
 };
 

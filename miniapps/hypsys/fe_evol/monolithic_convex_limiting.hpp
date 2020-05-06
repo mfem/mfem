@@ -14,8 +14,8 @@ public:
    Vector DetJ;
    DenseTensor PrecGradOp, GradProd, Adjugates;
    DenseMatrix FaceMat, DistributionMatrix, MassMatLOR, Dof2LocNbr, MassMatRefInv;
+   Bounds *bounds;
 
-   mutable GridFunction xMin, xMax; // TODO
    mutable DenseTensor CTilde, CFull, NodalFluxes;
    mutable DenseMatrix uFace, uNbrFace;
    mutable Vector C_eij; // TODO remove
@@ -24,7 +24,7 @@ public:
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                           DofInfo &dofs_);
 
-   virtual ~MCL_Evolution() { }
+   virtual ~MCL_Evolution() { delete bounds; delete fesH1; }
 
    void Mult(const Vector&x, Vector &y) const override;
 

@@ -8,7 +8,7 @@ void InflowFunctionAdv(const Vector &x, double t, Vector &u);
 void VelocityFunctionAdv(const Vector &x, Vector &v);
 
 Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
-                     Configuration &config_, bool NodalQuadRule, DofInfo &dofs)
+                     Configuration &config_, bool NodalQuadRule)
    : HyperbolicSystem(fes_, u_block, 1, config_,
                       VectorFunctionCoefficient (1, InflowFunctionAdv))
 {
@@ -57,6 +57,7 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
 
    // The following computes and stores all necessary evaluations of the time-independent velocity.
    Mesh *mesh = fes->GetMesh();
+   DofInfo dofs(fes);
    const int dim = mesh->Dimension();
    const int ne = fes->GetNE();
    const IntegrationRule *IntRuleElem = GetElementIntegrationRule(fes,

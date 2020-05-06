@@ -3,7 +3,13 @@
 ParMCL_Evolution::ParMCL_Evolution(ParFiniteElementSpace *pfes_,
                                    HyperbolicSystem *hyp_,
                                    DofInfo &dofs_)
-   : MCL_Evolution(pfes_, hyp_, dofs_), x_gf_MPI(pfes_) { }
+   : MCL_Evolution(pfes_, hyp_, dofs_), x_gf_MPI(pfes_)
+{
+   H1_FECollection fec(fes->GetFE(0)->GetOrder(), dim);
+   pfesH1 = new ParFiniteElementSpace(pfes_->GetParMesh(), &fec);
+   delete bounds; // Serial version is deleted.
+   bounds = new ParTightBounds(pfes_, pfesH1);
+}
 
 void ParMCL_Evolution::Mult(const Vector &x, Vector &y) const
 {

@@ -2,8 +2,7 @@
 #define HYPSYS_PARTEMPLATE_EVOLUTION
 
 #include "template.hpp"
-#include "../lib/pdofs.hpp"
-#include "../lib/ptools.hpp"
+#include "../lib/plib.hpp"
 
 using namespace std;
 using namespace mfem;

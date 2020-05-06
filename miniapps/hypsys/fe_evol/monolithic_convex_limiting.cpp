@@ -9,6 +9,10 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    const FiniteElement *el = fes->GetFE(0);
    Geometry::Type gtype = el->GetGeomType();
 
+   H1_FECollection fec(el->GetOrder(), dim);
+   fesH1 = new FiniteElementSpace(mesh, &fec);
+   bounds = new TightBounds(fes, fesH1);
+
    // IntegrationRule nodes =  el->GetNodes();
    Vector shape(nd), dx_shape(nd);
    DenseMatrix dshape(nd,dim);
@@ -264,7 +268,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       }
    }
 
-   dofs.ComputeBounds(x);
+   bounds->ComputeBounds(x);
 
    DenseMatrix mat3(nd, hyp->NumEq);
    DenseMatrix galerkin(nd, hyp->NumEq), ElFlux(nd, hyp->NumEq),
@@ -514,13 +518,13 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                int J = dofs.BdrDofs(j,i);
                if (gif > 0.)
                {
-                  gif = min( gif, min( sif(i,j) * dofs.xi_max(n*ne*nd + e*nd+J) - wfi(i,j,n),
-                                       wfi(i,j,n) - sif(i,j) * dofs.xi_min(n*ne*nd + e*nd+J) ) );
+                  gif = min( gif, min( sif(i,j) * bounds->xi_max(n*ne*nd + e*nd+J) - wfi(i,j,n),
+                                       wfi(i,j,n) - sif(i,j) * bounds->xi_min(n*ne*nd + e*nd+J) ) );
                }
                else
                {
-                  gif = max( gif, max( sif(i,j) * dofs.xi_min(n*ne*nd + e*nd+J) - wfi(i,j,n),
-                                       wfi(i,j,n) - sif(i,j) * dofs.xi_max(n*ne*nd + e*nd+J) ) );
+                  gif = max( gif, max( sif(i,j) * bounds->xi_min(n*ne*nd + e*nd+J) - wfi(i,j,n),
+                                       wfi(i,j,n) - sif(i,j) * bounds->xi_max(n*ne*nd + e*nd+J) ) );
                }
                sums(n*nd+dofs.BdrDofs(j,i)) += gif;
             }
@@ -546,13 +550,13 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
                if (fij > 0.)
                {
-                  fij = min( fij, min( 2.*DTilde(I,J) * dofs.xi_max(n*ne*nd + e*nd+I) - wij(I,J,n),
-                                       wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_min(n*ne*nd + e*nd+J) ) );
+                  fij = min( fij, min( 2.*DTilde(I,J) * bounds->xi_max(n*ne*nd + e*nd+I) - wij(I,J,n),
+                                       wij(J,I,n) - 2.*DTilde(I,J) * bounds->xi_min(n*ne*nd + e*nd+J) ) );
                }
                else
                {
-                  fij = max( fij, max( 2.*DTilde(I,J) * dofs.xi_min(n*ne*nd + e*nd+I) - wij(I,J,n),
-                                       wij(J,I,n) - 2.*DTilde(I,J) * dofs.xi_max(n*ne*nd + e*nd+J) ) );
+                  fij = max( fij, max( 2.*DTilde(I,J) * bounds->xi_min(n*ne*nd + e*nd+I) - wij(I,J,n),
+                                       wij(J,I,n) - 2.*DTilde(I,J) * bounds->xi_max(n*ne*nd + e*nd+J) ) );
                }
                ElFlux(I,n) += fij;
             }

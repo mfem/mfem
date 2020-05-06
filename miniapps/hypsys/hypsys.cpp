@@ -101,11 +101,7 @@ int main(int argc, char *argv[])
    const int ProblemSize = vfes.GetVSize();
    cout << "Number of unknowns: " << ProblemSize << endl;
 
-   // The min/max bounds are represented as H1 functions of the same order
-   // as the solution, thus having 1:1 dof correspondence inside each element.
-   H1_FECollection fecBounds(max(config.order, 1), dim);
-   FiniteElementSpace fesBounds(&mesh, &fecBounds);
-   DofInfo dofs(&fes, &fesBounds, NumEq);
+   DofInfo dofs(&fes);
 
    bool NodalQuadRule = false;
    if (scheme == MonolithicConvexLimiting)
@@ -116,7 +112,7 @@ int main(int argc, char *argv[])
    HyperbolicSystem *hyp;
    switch (config.ProblemNum)
    {
-      case 0: { hyp = new Advection(&vfes, u_block, config, NodalQuadRule, dofs); break; }
+      case 0: { hyp = new Advection(&vfes, u_block, config, NodalQuadRule); break; }
       case 1: { hyp = new Burgers(&vfes, u_block, config); break; }
       case 2: { hyp = new KPP(&vfes, u_block, config); break; }
       case 3: { hyp = new ShallowWater(&vfes, u_block, config); break; }

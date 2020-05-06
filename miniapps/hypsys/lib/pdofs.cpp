@@ -1,14 +1,10 @@
 #include "pdofs.hpp"
 
-ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_sltn,
-                       ParFiniteElementSpace *pfes_bounds, int NumEq_)
-   : DofInfo(pfes_sltn, pfes_bounds, NumEq_),
-     pmesh(pfes_sltn->GetParMesh()), pfes(pfes_sltn),
-     px_min(pfes_bounds), px_max(pfes_bounds)
+ParDofInfo::ParDofInfo(ParFiniteElementSpace *pfes_)
+   : DofInfo(pfes_), pmesh(pfes_->GetParMesh()), pfes(pfes_)
 {
    FillNeighborDofs();
-   cout << "ParDofInfo constructor" << endl;
-}
+ }
 
 void ParDofInfo::FillNeighborDofs()
 {
@@ -190,83 +186,4 @@ void ParDofInfo::FillNeighborDofs()
    }
 
    delete face_to_el;
-}
-
-void ParDofInfo::ComputeBounds(const Vector &x)
-{
-   cout << "ParDofInfo" << endl;
-
-   ParFiniteElementSpace *pfesCG = px_min.ParFESpace();
-   GroupCommunicator &gcomm = pfesCG->GroupComm();
-   const int nd = pfesCG->GetFE(0)->GetDof();
-   const int ne = mesh->GetNE();
-   Array<int> dofsCG;
-
-   // Form min/max at each CG dof, considering element overlaps.
-   for (int n = 0; n < NumEq; n++)
-   {
-      x_min =  std::numeric_limits<double>::infinity();
-      x_max = -std::numeric_limits<double>::infinity();
-
-      for (int e = 0; e < ne; e++)
-      {
-         px_min.FESpace()->GetElementDofs(e, dofsCG);
-
-         // These are less restrictive bounds.
-         /*
-         double xe_min =  std::numeric_limits<double>::infinity();
-         double xe_max = -std::numeric_limits<double>::infinity();
-
-         for (int j = 0; j < nd; j++)
-         {
-            xe_min = min(xe_min, x(e*nd+j));
-            xe_max = max(xe_max, x(e*nd+j));
-         }
-
-         for (int j = 0; j < nd; j++)
-         {
-            px_min(dofsCG[j]) = min(px_min(dofsCG[j]), xe_min);
-            px_max(dofsCG[j]) = max(px_max(dofsCG[j]), xe_max);
-         }
-         */
-
-         // Tight bounds.
-         for (int i = 0; i < nd; i++)
-         {
-            for (int j = 0; j < ClosestNbrs.Width(); j++)
-            {
-               if (ClosestNbrs(i,j) == -1) { break; }
-
-               const int I = dofsCG[DofMapH1[i]];
-               const int J = n*ne*nd + e*nd+ClosestNbrs(i,j);
-               px_min(I) = min(px_min(I), x(J));
-               px_max(I) = max(px_max(I), x(J));
-            }
-         }
-      }
-
-      Array<double> minvals(px_min.GetData(), px_min.Size()),
-            maxvals(px_max.GetData(), px_max.Size());
-
-      gcomm.Reduce<double>(minvals, GroupCommunicator::Min);
-      gcomm.Bcast(minvals);
-      gcomm.Reduce<double>(maxvals, GroupCommunicator::Max);
-      gcomm.Bcast(maxvals);
-
-      // Use (px_min, px_max) to fill (xi_min, xi_max) for each DG dof.
-      for (int e = 0; e < ne; e++)
-      {
-         px_min.FESpace()->GetElementDofs(e, dofsCG);
-         for (int j = 0; j < nd; j++)
-         {
-            xi_min(n*ne*nd + e*nd + j) = px_min(dofsCG[DofMapH1[j]]);
-            xi_max(n*ne*nd + e*nd + j) = px_max(dofsCG[DofMapH1[j]]);
-         }
-      }
-   }
-   cout << pfesCG->GetMyRank() << endl;
-   if (pfesCG->GetMyRank()==0)
-   {
-      xi_min.Print();
-   }
 }
