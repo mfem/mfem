@@ -6,8 +6,8 @@
 //               mpirun -np 4 ex24p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex24p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex24p -m ../data/beam-hex.mesh -o 2 -pa
-//               mpirun -np 4 ex24p -m ../data/beam-hex.mesh -o 2 -p 1
-//               mpirun -np 4 ex24p -m ../data/beam-hex.mesh -o 2 -p 2 -pa
+//               mpirun -np 4 ex24p -m ../data/beam-hex.mesh -o 2 -pa -p 1
+//               mpirun -np 4 ex24p -m ../data/beam-hex.mesh -o 2 -pa -p 2
 //               mpirun -np 4 ex24p -m ../data/escher.mesh
 //               mpirun -np 4 ex24p -m ../data/escher.mesh -o 2
 //               mpirun -np 4 ex24p -m ../data/fichera.mesh
@@ -28,7 +28,7 @@
 //               spaces, with two variants:
 //
 //               1) (grad p, u) for p in H^1 tested against u in H(curl)
-//               2) (curl v, u) for v in H(curl) tested against u in H(div)
+//               2) (curl v, u) for v in H(curl) tested against u in H(div), 3D
 //               3) (div v, q) for v in H(div) tested against q in L_2
 //
 //               Using different approaches, we project the gradient, curl, or
@@ -377,10 +377,10 @@ int main(int argc, char *argv[])
       if (myid == 0)
       {
          cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in "
-              "H(curl): || E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
-         cout << " Curl interpolant E_h = curl v_h in H(curl): || E_h - curl v "
+              "H(div): || E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
+         cout << " Curl interpolant E_h = curl v_h in H(div): || E_h - curl v "
               "||_{L_2} = " << errInterp << '\n' << endl;
-         cout << " Projection E_h of exact curl v in H(curl): || E_h - curl v "
+         cout << " Projection E_h of exact curl v in H(div): || E_h - curl v "
               "||_{L_2} = " << errProj << '\n' << endl;
       }
    }
