@@ -40,6 +40,15 @@ protected:
                               const int face_info);
 
 public:
+   /** @brief Enumeration for ContType: defines the continuity of the
+       field across element interfaces.
+   */
+   enum { CONTINUOUS,   ///< Field is continuous across element interfaces
+          TANGENTIAL,   ///< Tangential components of vector field
+          NORMAL,       ///< Normal component of vector field
+          DISCONTINUOUS ///< Field is discontinuous across element interfaces
+        };
+
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
 
@@ -104,7 +113,7 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return h1_name; }
-   virtual int GetContType() const { return FiniteElement::CONTINUOUS; }
+   virtual int GetContType() const { return CONTINUOUS; }
    FiniteElementCollection *GetTraceCollection() const;
 
    int GetBasisType() const { return b_type; }
@@ -177,7 +186,7 @@ public:
                                              int Or) const;
    virtual const char *Name() const { return d_name; }
 
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 
    virtual const FiniteElement *TraceFiniteElementForGeometry(
       Geometry::Type GeomType) const
@@ -226,7 +235,7 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return rt_name; }
-   virtual int GetContType() const { return FiniteElement::NORMAL; }
+   virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~RT_FECollection();
@@ -276,7 +285,7 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char *Name() const { return nd_name; }
-   virtual int GetContType() const { return FiniteElement::TANGENTIAL; }
+   virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~ND_FECollection();
@@ -341,7 +350,7 @@ public:
 
    virtual const char *Name() const { return name; }
 
-   virtual int GetContType() const { return FiniteElement::CONTINUOUS; }
+   virtual int GetContType() const { return CONTINUOUS; }
 
    FiniteElementCollection *GetTraceCollection() const;
 
@@ -373,7 +382,7 @@ public:
 
    virtual const char * Name() const { return "Linear"; }
 
-   virtual int GetContType() const { return FiniteElement::CONTINUOUS; }
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Piecewise-(bi)quadratic continuous finite elements.
@@ -401,7 +410,7 @@ public:
 
    virtual const char * Name() const { return "Quadratic"; }
 
-   virtual int GetContType() const { return FiniteElement::CONTINUOUS; }
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Version of QuadraticFECollection with positive basis functions.
@@ -424,7 +433,7 @@ public:
 
    virtual const char * Name() const { return "QuadraticPos"; }
 
-   virtual int GetContType() const { return FiniteElement::CONTINUOUS; }
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Piecewise-(bi)cubic continuous finite elements.
@@ -453,7 +462,7 @@ public:
 
    virtual const char * Name() const { return "Cubic"; }
 
-   virtual int GetContType() const { return FiniteElement::CONTINUOUS; }
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /// Crouzeix-Raviart nonconforming elements in 2D.
@@ -476,7 +485,7 @@ public:
 
    virtual const char * Name() const { return "CrouzeixRaviart"; }
 
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Piecewise-linear nonconforming finite elements in 3D.
@@ -501,7 +510,7 @@ public:
 
    virtual const char * Name() const { return "LinearNonConf3D"; }
 
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 
@@ -526,7 +535,7 @@ public:
 
    virtual const char * Name() const { return "RT0_2D"; }
 
-   virtual int GetContType() const { return FiniteElement::NORMAL; }
+   virtual int GetContType() const { return NORMAL; }
 };
 
 /** Second order Raviart-Thomas finite elements in 2D. This class is kept only
@@ -550,7 +559,7 @@ public:
 
    virtual const char * Name() const { return "RT1_2D"; }
 
-   virtual int GetContType() const { return FiniteElement::NORMAL; }
+   virtual int GetContType() const { return NORMAL; }
 };
 
 /** Third order Raviart-Thomas finite elements in 2D. This class is kept only
@@ -574,7 +583,7 @@ public:
 
    virtual const char * Name() const { return "RT2_2D"; }
 
-   virtual int GetContType() const { return FiniteElement::NORMAL; }
+   virtual int GetContType() const { return NORMAL; }
 };
 
 /** Piecewise-constant discontinuous finite elements in 2D. This class is kept
@@ -597,7 +606,7 @@ public:
 
    virtual const char * Name() const { return "Const2D"; }
 
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /** Piecewise-linear discontinuous finite elements in 2D. This class is kept
@@ -621,7 +630,7 @@ public:
 
    virtual const char * Name() const { return "LinearDiscont2D"; }
 
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Version of LinearDiscont2DFECollection with dofs in the Gaussian points.
@@ -645,7 +654,7 @@ public:
 
    virtual const char * Name() const { return "GaussLinearDiscont2D"; }
 
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Linear (P1) finite elements on quadrilaterals.
@@ -661,7 +670,7 @@ public:
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const;
    virtual const char * Name() const { return "P1OnQuad"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /** Piecewise-quadratic discontinuous finite elements in 2D. This class is kept
@@ -684,7 +693,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "QuadraticDiscont2D"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with positive basis functions.
@@ -702,7 +711,7 @@ public:
                                              int Or) const
    { return NULL; }
    virtual const char * Name() const { return "QuadraticPosDiscont2D"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Version of QuadraticDiscont2DFECollection with dofs in the Gaussian points.
@@ -725,7 +734,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "GaussQuadraticDiscont2D"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /** Piecewise-cubic discontinuous finite elements in 2D. This class is kept
@@ -748,7 +757,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "CubicDiscont2D"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /** Piecewise-constant discontinuous finite elements in 3D. This class is kept
@@ -772,7 +781,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "Const3D"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /** Piecewise-linear discontinuous finite elements in 3D. This class is kept
@@ -795,7 +804,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "LinearDiscont3D"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /** Piecewise-quadratic discontinuous finite elements in 3D. This class is kept
@@ -818,7 +827,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "QuadraticDiscont3D"; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 /// Finite element collection on a macro-element.
@@ -844,7 +853,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RefinedLinear"; }
-   virtual int GetContType() const { return FiniteElement::CONTINUOUS; }
+   virtual int GetContType() const { return CONTINUOUS; }
 };
 
 /** Lowest order Nedelec finite elements in 3D. This class is kept only for
@@ -867,7 +876,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "ND1_3D"; }
-   virtual int GetContType() const { return FiniteElement::TANGENTIAL; }
+   virtual int GetContType() const { return TANGENTIAL; }
 };
 
 /** First order Raviart-Thomas finite elements in 3D. This class is kept only
@@ -891,7 +900,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT0_3D"; }
-   virtual int GetContType() const { return FiniteElement::NORMAL; }
+   virtual int GetContType() const { return NORMAL; }
 };
 
 /** Second order Raviart-Thomas finite elements in 3D. This class is kept only
@@ -914,7 +923,7 @@ public:
                                              int Or) const;
 
    virtual const char * Name() const { return "RT1_3D"; }
-   virtual int GetContType() const { return FiniteElement::NORMAL; }
+   virtual int GetContType() const { return NORMAL; }
 };
 
 /// Discontinuous collection defined locally by a given finite element.
@@ -939,7 +948,7 @@ public:
    virtual const char *Name() const { return d_name; }
 
    virtual ~Local_FECollection() { delete Local_Element; }
-   virtual int GetContType() const { return FiniteElement::DISCONTINUOUS; }
+   virtual int GetContType() const { return DISCONTINUOUS; }
 };
 
 }
