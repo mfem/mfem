@@ -136,12 +136,14 @@ class MLDivSolver : public Solver
 {
     const DFSData& data_;
     Array<Array<OperatorPtr> > agg_solver_;
+    OperatorPtr coarsest_M_;
     OperatorPtr coarsest_B_;
     OperatorPtr coarsest_solver_;
 public:
     MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
+//    void Mult(int level, const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 };
 
