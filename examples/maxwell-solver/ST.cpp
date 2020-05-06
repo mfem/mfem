@@ -362,7 +362,7 @@ void STP::Mult(const Vector &r, Vector &z) const
    char vishost[] = "localhost";
    int  visport   = 19916;
    // socketstream subsol_sock1(vishost, visport);
-   socketstream subsol_sock(vishost, visport);
+   // socketstream subsol_sock(vishost, visport);
 
    // source transfer algorithm
    for (int ip = 0; ip < nrpatch; ip++)
@@ -437,6 +437,9 @@ void STP::Mult(const Vector &r, Vector &z) const
    znew.SetSubVector(*Dof2GlobalDof,sol_local);
    z.SetSubVector(*Dof2GlobalDof,sol_local);
    z1+=znew;
+
+
+   // z = z1;
 
    // PlotSolution(z1, subsol_sock1,0); cin.get();
 

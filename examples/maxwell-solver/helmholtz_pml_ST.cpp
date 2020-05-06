@@ -13,7 +13,8 @@
 #include <fstream>
 #include <iostream>
 #include "pml.hpp"
-#include "PST.hpp"
+// #include "PST.hpp"
+#include "ST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -209,7 +210,7 @@ int main(int argc, char *argv[])
 
 
    // PSTP S(&a,lengths, omega, &ws, nrlayers);
-   PSTP S(&a,lengths, omega, &ws, nrlayers);
+   STP S(&a,lengths, omega, &ws, nrlayers);
 	S.SetOperator(*A);
    // S.SetLoadVector(B);
    
@@ -220,7 +221,7 @@ int main(int argc, char *argv[])
 	GMRESSolver gmres;
 	gmres.SetPreconditioner(S);
 	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-12);
+	gmres.SetRelTol(1e-8);
 	gmres.SetMaxIter(50);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
@@ -234,7 +235,7 @@ int main(int argc, char *argv[])
    Vector r(B);
    Vector ztemp(r.Size());
    Vector Ax(X.Size());
-   double tol = 1e-12;
+   double tol = 1e-8;
    cout << endl;
    
    for (int i = 0; i<n; i++)
@@ -269,8 +270,8 @@ int main(int argc, char *argv[])
       //                << keys << flush;
    }
 
-   KLUSolver klu(*A);
-   klu.Mult(B,X);
+   // KLUSolver klu(*A);
+   // klu.Mult(B,X);
    a.RecoverFEMSolution(X,B,p_gf);
 
 
@@ -315,7 +316,7 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.05;
+   x0 = 0.1;
    x1 = 0.5;
    double alpha,beta;
    double n = 5.0*omega/M_PI;
