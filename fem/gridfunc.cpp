@@ -695,7 +695,8 @@ double GridFunction::GetValue(ElementTransformation &T,
          fes->GetElementDofs(T.ElementNo, dofs);
          break;
       case ElementTransformation::EDGE:
-         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         if (fes->FEColl()->GetContType() ==
+             FiniteElementCollection::CONTINUOUS)
          {
             fe = fes->GetEdgeElement(T.ElementNo);
             fes->GetEdgeDofs(T.ElementNo, dofs);
@@ -709,7 +710,8 @@ double GridFunction::GetValue(ElementTransformation &T,
          }
          break;
       case ElementTransformation::FACE:
-         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         if (fes->FEColl()->GetContType() ==
+             FiniteElementCollection::CONTINUOUS)
          {
             fe = fes->GetFaceElement(T.ElementNo);
             fes->GetFaceDofs(T.ElementNo, dofs);
@@ -724,7 +726,8 @@ double GridFunction::GetValue(ElementTransformation &T,
          break;
       case ElementTransformation::BDR_ELEMENT:
       {
-         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         if (fes->FEColl()->GetContType() ==
+             FiniteElementCollection::CONTINUOUS)
          {
             // This is a continuous field so we can evaluate it on the boudnary
             fe = fes->GetBE(T.ElementNo);
@@ -828,7 +831,8 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
          fe = fes->GetFE(T.ElementNo);
          break;
       case ElementTransformation::EDGE:
-         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         if (fes->FEColl()->GetContType() ==
+             FiniteElementCollection::CONTINUOUS)
          {
             fe = fes->GetEdgeElement(T.ElementNo);
             fes->GetEdgeVDofs(T.ElementNo, vdofs);
@@ -842,7 +846,8 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
          }
          break;
       case ElementTransformation::FACE:
-         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         if (fes->FEColl()->GetContType() ==
+             FiniteElementCollection::CONTINUOUS)
          {
             fe = fes->GetFaceElement(T.ElementNo);
             fes->GetFaceVDofs(T.ElementNo, vdofs);
@@ -857,7 +862,8 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
          break;
       case ElementTransformation::BDR_ELEMENT:
       {
-         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         if (fes->FEColl()->GetContType() ==
+             FiniteElementCollection::CONTINUOUS)
          {
             // This is a continuous field so we can evaluate it on the boudnary
             fes->GetBdrElementVDofs(T.ElementNo, vdofs);
