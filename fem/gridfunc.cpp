@@ -694,6 +694,34 @@ double GridFunction::GetValue(ElementTransformation &T,
          fe = fes->GetFE(T.ElementNo);
          fes->GetElementDofs(T.ElementNo, dofs);
          break;
+      case ElementTransformation::EDGE:
+         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         {
+            fe = fes->GetEdgeElement(T.ElementNo);
+            fes->GetEdgeDofs(T.ElementNo, dofs);
+         }
+         else
+         {
+            MFEM_ABORT("GridFunction::GetValue: Field continuity type \""
+                       << fes->FEColl()->GetContType() << "\" not supported "
+                       << "on mesh edges.");
+            return NAN;
+         }
+         break;
+      case ElementTransformation::FACE:
+         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         {
+            fe = fes->GetFaceElement(T.ElementNo);
+            fes->GetFaceDofs(T.ElementNo, dofs);
+         }
+         else
+         {
+            MFEM_ABORT("GridFunction::GetValue: Field continuity type \""
+                       << fes->FEColl()->GetContType() << "\" not supported "
+                       << "on mesh faces.");
+            return NAN;
+         }
+         break;
       case ElementTransformation::BDR_ELEMENT:
       {
          if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
@@ -798,6 +826,34 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
       case ElementTransformation::ELEMENT:
          fes->GetElementVDofs(T.ElementNo, vdofs);
          fe = fes->GetFE(T.ElementNo);
+         break;
+      case ElementTransformation::EDGE:
+         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         {
+            fe = fes->GetEdgeElement(T.ElementNo);
+            fes->GetEdgeVDofs(T.ElementNo, vdofs);
+         }
+         else
+         {
+            MFEM_ABORT("GridFunction::GetVectorValue: Field continuity type \""
+                       << fes->FEColl()->GetContType() << "\" not supported "
+                       << "on mesh edges.");
+            return;
+         }
+         break;
+      case ElementTransformation::FACE:
+         if (fes->FEColl()->GetContType() == FiniteElement::CONTINUOUS)
+         {
+            fe = fes->GetFaceElement(T.ElementNo);
+            fes->GetFaceVDofs(T.ElementNo, vdofs);
+         }
+         else
+         {
+            MFEM_ABORT("GridFunction::GetVectorValue: Field continuity type \""
+                       << fes->FEColl()->GetContType() << "\" not supported "
+                       << "on mesh faces.");
+            return;
+         }
          break;
       case ElementTransformation::BDR_ELEMENT:
       {
