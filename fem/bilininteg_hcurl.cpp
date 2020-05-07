@@ -125,6 +125,8 @@ void PAHcurlMassApply2D(const int D1D,
                         Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -248,6 +250,8 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    Vector &_diag)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -703,6 +707,8 @@ static void PACurlCurlApply2D(const int D1D,
                               Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -1344,6 +1350,8 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
                                          Vector &_diag)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
@@ -1810,6 +1818,8 @@ void PAHcurlH1Apply2D(const int D1D,
                       Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
