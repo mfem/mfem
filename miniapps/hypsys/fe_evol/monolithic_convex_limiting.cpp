@@ -198,6 +198,20 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 
 void MCL_Evolution::Mult(const Vector &x, Vector &y) const
 {
+   if (hyp->TimeDepBC)
+   {
+      hyp->BdrCond.SetTime(t);
+      if (!hyp->ProjType)
+      {
+         hyp->L2_Projection(hyp->BdrCond, inflow);
+      }
+      else
+      {
+         inflow.ProjectCoefficient(hyp->BdrCond);
+      }
+   }
+
+   z = 0.;
    ComputeTimeDerivative(x, y);
 }
 
@@ -212,22 +226,8 @@ void MCL_Evolution::GetNodeVal(const Vector &uElem, Vector &uEval, int j) const
 void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                                           const Vector &xMPI) const
 {
-   if (hyp->TimeDepBC)
-   {
-      hyp->BdrCond.SetTime(t);
-      if (!hyp->ProjType)
-      {
-         hyp->L2_Projection(hyp->BdrCond, inflow);
-      }
-      else
-      {
-         inflow.ProjectCoefficient(hyp->BdrCond);
-      }
-   }
-
    bounds->ComputeBounds(x);
 
-   z = 0.;
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);

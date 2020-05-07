@@ -9,6 +9,20 @@ TEMPLATE::TEMPLATE(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
 
 void TEMPLATE::Mult(const Vector &x, Vector &y) const
 {
+   if (hyp->TimeDepBC)
+   {
+      hyp->BdrCond.SetTime(t);
+      if (!hyp->ProjType)
+      {
+         hyp->L2_Projection(hyp->BdrCond, inflow);
+      }
+      else
+      {
+         inflow.ProjectCoefficient(hyp->BdrCond);
+      }
+   }
+
+   z = 0.;
    ComputeTimeDerivative(x, y);
 }
 

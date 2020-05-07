@@ -16,6 +16,21 @@ void ParMCL_Evolution::Mult(const Vector &x, Vector &y) const
    x_gf_MPI = x;
    x_gf_MPI.ExchangeFaceNbrData();
    Vector &xMPI = x_gf_MPI.FaceNbrData();
+
+   if (hyp->TimeDepBC)
+   {
+      hyp->BdrCond.SetTime(t);
+      if (!hyp->ProjType)
+      {
+         hyp->L2_Projection(hyp->BdrCond, inflow);
+      }
+      else
+      {
+         inflow.ProjectCoefficient(hyp->BdrCond);
+      }
+   }
+
+   z = 0.;
    ComputeTimeDerivative(x, y, xMPI);
 }
 

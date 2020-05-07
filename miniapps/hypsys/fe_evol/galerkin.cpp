@@ -9,12 +9,6 @@ GalerkinEvolution::GalerkinEvolution(FiniteElementSpace *fes_,
 
 void GalerkinEvolution::Mult(const Vector &x, Vector &y) const
 {
-   ComputeTimeDerivative(x, y);
-}
-
-void GalerkinEvolution::ComputeTimeDerivative(const Vector &x, Vector &y,
-                                              const Vector &xMPI) const
-{
    if (hyp->TimeDepBC)
    {
       hyp->BdrCond.SetTime(t);
@@ -29,6 +23,12 @@ void GalerkinEvolution::ComputeTimeDerivative(const Vector &x, Vector &y,
    }
 
    z = 0.;
+   ComputeTimeDerivative(x, y);
+}
+
+void GalerkinEvolution::ComputeTimeDerivative(const Vector &x, Vector &y,
+                                              const Vector &xMPI) const
+{
    for (int e = 0; e < ne; e++)
    {
       fes->GetElementVDofs(e, vdofs);
