@@ -12,9 +12,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "pml.hpp"
-// #include "PST.hpp"
-#include "ST.hpp"
+#include "DiagST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -101,7 +99,7 @@ int main(int argc, char *argv[])
    if (nd == 2)
    {
       // mesh = new Mesh(mesh_file,1,1);
-      mesh = new Mesh(1, 1, Element::QUADRILATERAL, true, length, length, false);
+      mesh = new Mesh(4, 4, Element::QUADRILATERAL, true, length, length, false);
    }
    else
    {
@@ -214,8 +212,7 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   // PSTP S(&a,lengths, omega, &ws, nrlayers);
-   STP S(&a,lengths, omega, &ws, nrlayers);
+   DiagST S(&a,lengths, omega, &ws, nrlayers);
 	S.SetOperator(*A);
    // S.SetLoadVector(B);
    
