@@ -175,9 +175,6 @@ void TMOPEstimator::ComputeDeRefEstimates()
    }
 
    const Table& DeRefTable = ncmesh->GetDerefinementTable();
-   //DeRefTable.Print();
-   //std::cout << DeRefTable.Size() <<  " k10c\n";
-   //   DeRefTable.Print();
 
    int nrows = DeRefTable.Size();
    amrdrefenergy.SetSize(nrows); amrdrefenergy *= 0;
