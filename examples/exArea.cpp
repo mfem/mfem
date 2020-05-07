@@ -48,39 +48,11 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh2 = new Mesh(20, 20, Element::QUADRILATERAL, true,
+   Mesh *mesh = new Mesh(20, 20, Element::QUADRILATERAL, true,
                          10, 10, true);
-   Mesh *mesh3; 
-   cout << "flag 1 " << endl;                  
-   // CutMesh newmesh;
-   mesh3->updateMesh();
-   cout << "flag 4 " << endl;   
-   std::cout << "Number of elements for mesh 3 inside " << mesh3->GetNE() << '\n';
-   //mesh2->elements.SetSize(100);
-   int dim = mesh2->Dimension();
-   cout << dim << endl;
-   std::cout << "Number of elements " << mesh2->GetNE() << '\n';                             
-   ofstream sol_ofs("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.mesh");
-   sol_ofs.precision(14);
-   mesh2->Print(sol_ofs);
-   const char *mesh_file = "/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.mesh";
-   FiniteElementCollection *fec;
-   fec = new H1_FECollection(1, dim);
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   cout << "type of el 20 " << mesh->GetElement(20)->GetType() << endl;
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
-   Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-   LinearForm *b = new LinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   // define map for integration rule for cut elements
+   ofstream sol_ofv("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.vtk");
+   sol_ofv.precision(14);
+   mesh->PrintVTK(sol_ofv,0);
    std::map<int, IntegrationRule *> CutSquareIntRules;
    //find the elements cut by boundary 
    vector<int> cutelems;
@@ -96,29 +68,55 @@ int main(int argc, char *argv[])
          innerelems.push_back(i);
       }
    }
-   cout << "elements completely inside boundary " << endl;
+   cout << "elements cut by circle:  " << endl;
+   for (int i=0; i<cutelems.size(); ++i)
+   {
+      cout << cutelems.at(i) << endl;
+   }
+   cout << "elements completely inside circle:  " << endl;
    for (int i=0; i<innerelems.size(); ++i)
    {
-      //cout << innerelems.at(i) << endl;
+      cout << innerelems.at(i) << endl;
    }
+   int dim = mesh->Dimension();
+   cout << "dimension is " << dim << endl;
+   std::cout << "Number of elements: " << mesh->GetNE() << '\n';                      
+   FiniteElementCollection *fec;
+   fec = new H1_FECollection(1, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   cout << "Number of finite element unknowns: "
+        << fespace->GetTrueVSize() << endl;
+   GridFunction x(fespace);    
+   // Array<int> ess_tdof_list;
+   // if (mesh->bdr_attributes.Size())
+   // {
+   //    Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   //    ess_bdr = 1;
+   //    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   // }
+   //LinearForm *b = new LinearForm(fespace);
+   NonlinearForm *b = new NonlinearForm(fespace);
+   //ConstantCoefficient one(1.0);
+   // define map for integration rule for cut elements
+   
    GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
-   b->AddDomainIntegrator(new CutDomainIntegrator(one, CutSquareIntRules));
-   b->Assemble();
-   // cout << "element geometry type for cut element is " << endl;                                                 
-   // cout << mesh->GetElement(21)->GetGeometryType() << endl;
-   // cout << "check GetGeomType() for cut element  " << endl;                                                 
-   // //cout << mesh->GetElement(21)->GetGeomType() << endl;
-   // cout << "element type for cut element is " << endl;                                                 
-   // cout << mesh->GetElement(21)->GetType() << endl;
-   ofstream sol_ofv("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh.vtk");
-   sol_ofv.precision(14);
-   mesh->PrintVTK(sol_ofv,0);
-   // Array<int> nearbody_elements;
-   // nearbody_elements.Append(21);
-   // mesh->GeneralRefinement(nearbody_elements, 1);
-   ofstream sol_ofr("/users/kaurs3/Sharan/Research/Spring_2020/quadrature_rule/test_quadrature/square_mesh_ref.mesh");
-   sol_ofr.precision(14);
-   mesh->Print(sol_ofr);
+   std::vector<bool> EmbeddedElems;
+   for (int i=0; i<mesh->GetNE(); ++i)
+   {
+      if (insideBoundary(mesh, i) == true)
+      {
+         EmbeddedElems.push_back(true);
+      }
+      else
+      {
+         EmbeddedElems.push_back(false);
+      }
+   }
+   b->AddDomainIntegrator(new CutDomainNLFIntegrator(CutSquareIntRules, EmbeddedElems));
+   double area;
+   area= b->GetEnergy(x);
+   cout << "area of desired domain is " << area << endl;
+   //b->Assemble();
 }
 
 template <int N>
@@ -142,7 +140,7 @@ void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems,
       phi.yscale = xmax[1]- xmin[1];
       phi.xmin=xmin[0];
       phi.ymin=xmin[1];
-      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xlower, xupper), -1, -1, 1);
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xlower, xupper), -1, -1, 4);
       //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
       //cout << "number of quadrature nodes: " << q.nodes.size() << endl;
       int i=0;
@@ -199,32 +197,22 @@ void CutDomainIntegrator::AssembleDeltaElementVect(
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
-void Mesh::updateMesh()
-{
-   //Mesh* mesh2;
-   //  Element *el = mesh2->NewElement(Element::QUADRILATERAL);
-   cout << "flag 2 inside " << endl; 
-   cout << elements.Size() << endl;  
-   NumOfElements= 200;
-   elements.SetSize( NumOfElements);
-   cout << "flag 3 inside " << endl;   
-   cout << elements.Size() << endl;  
-}
 // function to see if an element is cut-element
 bool cutByCircle(Mesh *mesh, int &elemid)
 {
    Element *el = mesh->GetElement(elemid);
    Array<int> v;
    el->GetVertices(v);
-   int k, l;
+   int k, l, n;
    k = 0;
    l = 0;
+   n = 0;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
       //cout << x[1] << endl;
-      lvsval(i) = ((coord[0] - 5) * (coord[0] - 5)) + ((coord[1] - 5) * (coord[1] - 5)) - (1.0);
+      lvsval(i) = ((coord[0] - 5.0) * (coord[0] - 5.0)) + ((coord[1] - 5.0) * (coord[1] - 5.0)) - (1.0);
       if ((lvsval(i) < 0))
       {
          k = k + 1;
@@ -233,8 +221,16 @@ bool cutByCircle(Mesh *mesh, int &elemid)
       {
          l = l + 1;
       }
+      if ((lvsval(i) == 0))
+      {
+         n = n + 1;
+      }
    }
    if ((k == v.Size()) || (l == v.Size()))
+   {
+      return false;
+   }
+   if ((k==3) || (l==3) && (n==1))
    {
       return false;
    }
@@ -256,17 +252,21 @@ bool insideBoundary(Mesh *mesh, int &elemid)
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
       lvsval(i) = ((coord[0] - 5) * (coord[0] - 5)) + ((coord[1] - 5) * (coord[1] - 5)) - (1.0);
-      if ((lvsval(i) < 0))
+      if ((lvsval(i) < 0) || (lvsval(i) == 0))
       {
          k = k + 1;
+         
       }
    }
    if (k == v.Size())
    {
       return true;
    }
+   else
+   {
+      return false;
+   }
 }
-
 // function to get element center
 void GetElementCenter(Mesh *mesh, int id, mfem::Vector &cent)
 {
@@ -303,4 +303,32 @@ void findBoundingBox(Mesh *mesh, int id, blitz::TinyVector<double, N> &xmin, bli
    //cout << min[0] << " , " << max[0] << endl;   
    xmin={min[0], min[1]};
    xmax={max[0], max[1]};
+}
+
+double CutDomainNLFIntegrator::GetElementEnergy(const FiniteElement &el,
+                                                   ElementTransformation &Ttr,
+                                                   const Vector &elfun)
+{
+   if (EmbeddedElements.at(Ttr.ElementNo)==true)
+   {
+      return 0;
+   }
+   int dof = el.GetDof(), dim = el.GetDim();
+   double energy;
+   DSh.SetSize(dof, dim);// this is not required 
+   const IntegrationRule *ir;
+   ir = CutIntRules[Ttr.ElementNo];
+   //ir=NULL;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
+   }
+   energy = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Ttr.SetIntPoint(&ip);
+      energy += ip.weight * Ttr.Weight();
+   }
+   return energy;
 }

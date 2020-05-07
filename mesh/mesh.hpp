@@ -508,7 +508,7 @@ public:
    ///@{
 
    Element *NewElement(int geom);
-
+   void updateMesh();
    void AddVertex(const double *);
    void AddSegment(const int *vi, int attr = 1);
    void AddTri(const int *vi, int attr = 1);

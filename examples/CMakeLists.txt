@@ -33,6 +33,7 @@ list(APPEND ALL_EXE_SRCS
   ex24.cpp
   ex25.cpp
   exCircle.cpp
+  exArea.cpp
   )
 
 if (MFEM_USE_MPI)
