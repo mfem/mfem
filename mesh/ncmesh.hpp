@@ -331,6 +331,8 @@ public:
        stretching and curvature). */
    int GetElementSizeReduction(int i) const;
 
+   int GetElementParentRefType(int i) const;
+
    /// Return the faces and face attributes of leaf element 'i'.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
