@@ -1881,7 +1881,7 @@ const int* H1_FECollection::GetDofOrdering(Geometry::Type geom, int p,
 }
 */
 
-const int *H1_FECollection::GetDofMap(int p, Geometry::Type GeomType) const
+const int *H1_FECollection::GetDofMap(Geometry::Type GeomType, int p) const
 {
    MFEM_VERIFY(HaveOrder(p), "The finite element collection does not have "
                              " the requested order");
