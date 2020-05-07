@@ -11,15 +11,16 @@ class MCL_Evolution : public FE_Evolution
 public:
    FiniteElementSpace *fesH1;
 
+   double MassMatLumpedRef;
    Vector DetJ;
    DenseTensor PrecGradOp, GradProd, Adjugates;
    DenseMatrix FaceMat, DistributionMatrix, MassMatLOR, Dof2LocNbr, MassMatRefInv;
    Bounds *bounds;
 
-   mutable DenseTensor CTilde, CFull, NodalFluxes;
-   mutable DenseMatrix uFace, uNbrFace;
-   mutable Vector C_eij; // TODO remove
-   mutable Array<int> eldofs; // TODO remove
+   mutable DenseTensor CTilde, CFull, NodalFluxes, AntiDiffEl, wij;
+   mutable DenseMatrix uFace, uNbrFace, mat3, DGFluxTerms, GalerkinRhs,
+                       ElFlux, uDot, DTilde, wfi, BdrFlux;
+   mutable Vector AntiDiffBdr, sif, vec1;
 
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                           DofInfo &dofs_);
@@ -29,11 +30,7 @@ public:
    void Mult(const Vector&x, Vector &y) const override;
 
    virtual void GetNodeVal(const Vector &uElem, Vector &uEval, int ) const;
-   virtual void FaceTerm(const Vector &x, Vector &y1, Vector &y2,
-                         const Vector &xMPI, const Vector &normal,
-                         int e, int i, int k) const;
-   virtual void LinearFluxLumping(const Vector &x1, const Vector &x2, const Vector &normal,
-                                  Vector &y, int e, int j, int i) const;
+
    void ComputeTimeDerivative(const Vector &x, Vector &y,
                               const Vector &xMPI = serial) const;
    void ComputePrecGradOp();

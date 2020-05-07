@@ -4,6 +4,9 @@ ATTENTION
 DEBUG
    -some methods and apps don't work when finer resolved.
    -mass error for swe for example
+      -> There should not be a mass error for dam break with land bdrs!
+      -> It seems to be the limited DG fluxes.
+      -> In 1D they should equal the high order ones - which they are not.
 
 next steps
 
