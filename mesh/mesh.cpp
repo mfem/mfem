@@ -3586,8 +3586,8 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
       const FiniteElement *rfe = rfes.GetFE(el);
       orig_mesh->GetElementTransformation(el)->Transform(rfe->GetNodes(),
                                                          phys_pts);
-      const int *c2h_map = rfec.GetDofMap(ref, geom);
-      const int *vertex_map = vertex_fec.GetDofMap(1, geom);
+      const int *c2h_map = rfec.GetDofMap(geom, ref);
+      const int *vertex_map = vertex_fec.GetDofMap(geom, 1);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
          vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
@@ -3653,7 +3653,7 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
       }
       else
       {
-         const int *c2h_map = rfec.GetDofMap(ref, geom);
+         const int *c2h_map = rfec.GetDofMap(geom, ref);
          for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
          {
             Element *elem = NewElement(geom);
@@ -3713,7 +3713,7 @@ void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
 
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
-      const int *c2h_map = rfec.GetDofMap(ref, geom);
+      const int *c2h_map = rfec.GetDofMap(geom, ref);
       const IntegrationRule &r_nodes = rfes.GetFE(el_coarse)->GetNodes();
       for (int j = 0; j < r_elem_factor; j++)
       {
