@@ -39,11 +39,11 @@ void vectorCoeffFunction(const Vector & x, Vector & f)
    if (dimension > 1)
    {
       f[0] = sin(M_PI * x[1]);
-      f[1] = sin(2.5 * M_PI * x[2]);
+      f[1] = sin(2.5 * M_PI * x[0]);
    }
    if (dimension == 3)
    {
-      f[2] = sin(6.1 * M_PI * x[0]);
+      f[2] = sin(6.1 * M_PI * x[2]);
    }
 }
 
@@ -237,10 +237,7 @@ TEST_CASE("Hcurl/Hdiv pa_coeff")
 
                   // Set essential boundary conditions on the entire boundary.
                   Array<int> tdof_ess(fespace.GetVSize());
-                  for (int i=0; i<fespace.GetVSize(); ++i)
-                  {
-                     tdof_ess[i] = 0;
-                  }
+                  tdof_ess = 0;
 
                   for (int i=0; i<mesh->GetNBE(); ++i)
                   {
@@ -382,7 +379,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff")
          }
          else if (coeffType == 2)
          {
-            vcoeff = new VectorFunctionCoefficient(3, &vectorCoeffFunction);
+            vcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
          }
 
          enum MixedSpaces {HcurlH1, HcurlL2, HdivL2};
