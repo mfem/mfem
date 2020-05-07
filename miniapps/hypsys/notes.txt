@@ -2,7 +2,7 @@ ATTENTION
 
 
 DEBUG
-   -some methods and apps don't work when finer resolved.
+   -some methods and apps don't work when finer resolved (e.g. in time)
    -mass error for swe for example
       -> There should not be a mass error for dam break with land bdrs!
       -> It seems to be the limited DG fluxes.
