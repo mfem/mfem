@@ -3077,6 +3077,7 @@ HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
 
 void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 {
+#if 0 // FIXME
    int cycle_type       = 13;
    int rlx_type         = 2;
    int rlx_sweeps       = 1;
@@ -3252,6 +3253,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                               theta, amg_interp_type, amg_Pmax);
 
+#endif
    // The AMS preconditioner may sometimes require inverting singular matrices
    // with BoomerAMG, which are handled correctly in hypre's Solve method, but
    // can produce hypre errors in the Setup (specifically in the l1 row norm
@@ -3308,6 +3310,7 @@ HypreADS::HypreADS(HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
 
 void HypreADS::Init(ParFiniteElementSpace *face_fespace)
 {
+#if 0 // FIXME hp
    int cycle_type       = 11;
    int rlx_type         = 2;
    int rlx_sweeps       = 1;
@@ -3521,6 +3524,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
                           theta, amg_interp_type, amg_Pmax);
    HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
                           amg_rlx_type, theta, amg_interp_type, amg_Pmax);
+#endif
 
    // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
    // which are handled correctly in hypre's Solve method, but can produce hypre
