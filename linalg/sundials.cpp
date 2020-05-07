@@ -359,6 +359,20 @@ void CVODESolver::SetMaxStep(double dt_max)
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxStep()");
 }
 
+void CVODESolver::SetMaxNSteps(int mxsteps)
+{
+   flag = CVodeSetMaxNumSteps(sundials_mem, mxsteps);
+   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSetMaxNSteps()");
+}
+
+long CVODESolver::GetNumSteps()
+{
+   long nsteps;
+   flag = CVodeGetNumSteps(sundials_mem, &nsteps);
+   MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeGetNumSteps()");
+   return nsteps;
+}
+
 void CVODESolver::SetMaxOrder(int max_order)
 {
    flag = CVodeSetMaxOrd(sundials_mem, max_order);
