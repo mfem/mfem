@@ -5552,13 +5552,14 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		  }
 		  
 		Vector vsd((fespace[m] != NULL) ? fespace[m]->GetTrueVSize() : 0);
-
 		if (fespace[m] != NULL)
 		  {
 		    ParGridFunction gfsd(fespace[m]);
 		    gfsd.ProjectCoefficient(E);
-		    gfsd.GetTrueDofs(vsd);
+		    gfsd.GetTrueDofs(vsd); // After this, vsd uses device
 		  }
+
+		double *vsd_host = (fespace[m] != NULL) ? vsd.HostReadWrite() : nullptr;
 
 		const bool testHex = false;
 		if (testHex && fespace[m] != NULL)
@@ -5594,7 +5595,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		    for (int j=0; j<fespace[m]->GetTrueVSize(); ++j)
 		      {
 			if (dofori[j] != 0)
-			  vsd[j] *= dofori[j];
+			  vsd_host[j] *= dofori[j];
 		      }
 		  }
 
@@ -5611,16 +5612,17 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 			
 			if (itm != flippedSDDofs.end())
 			  {
-			    vsd[j] *= -1.0;
+			    vsd_host[j] *= -1.0;
 			  }
 		      }
 		  }
 		
-		injOp->MultTranspose(vsd, injIF);
+		injOp->MultTransposeRaw(vsd_host, injIF);
 
+		auto vif_host = vif.HostRead();
 		for (int j=0; j<ifsize; ++j)
 		  {
-		    if (fabs(injIF[j] - vif[j]) > 1.0e-8)
+		    if (fabs(injIF[j] - vif_host[j]) > 1.0e-8)
 		      cout << m_rank << ": DISCREPANCY A sd " << m << ", entry " << j << ", inj " << injIF[j] << ", if " << vif[j] << endl;
 		  }
 	      }

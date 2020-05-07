@@ -348,7 +348,8 @@ public:
 	vert_elem->Mult(vert_marker, elem_marker);
 
 	vert_marker_gf.SetFromTrueDofs(vert_marker);
-	
+	auto vert_marker_gf_host = vert_marker_gf.HostRead();
+
 	// If elem_marker(j) > 0.0, then j is a neighbor of an element marked above, or j was marked above.
 	for (int i=0; i<pmesh->GetNE(); ++i)
 	  {
@@ -385,7 +386,7 @@ public:
 		
 		for (int j = 0; j < v.Size(); j++)
 		  {
-		    if (vert_marker_gf[v[j]] > 0.1)
+		    if (vert_marker_gf_host[v[j]] > 0.1)
 		      interfaces[interfaceIndex].InsertVertexIndex(v[j]);
 		  }
 
@@ -396,7 +397,7 @@ public:
 		    bool edgeOn = true;
 		    for (int j=0; j<ev.Size(); ++j)
 		      {
-			if (vert_marker_gf[ev[j]] < 0.1)
+			if (vert_marker_gf_host[ev[j]] < 0.1)
 			  edgeOn = false;
 		      }
 
@@ -416,7 +417,7 @@ public:
 		    //bool yhalf = true;
 		    for (int j=0; j<fv.Size(); ++j)
 		      {
-			if (vert_marker_gf[fv[j]] < 0.1)
+			if (vert_marker_gf_host[fv[j]] < 0.1)
 			  faceOn = false;
 
 			//if (fabs(pmesh->GetVertex(fv[j])[1] - 0.5) > 1.0e-8)

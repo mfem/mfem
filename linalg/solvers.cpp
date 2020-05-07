@@ -2917,7 +2917,7 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    {
       int status =
          umfpack_di_solve(UMFPACK_At, mat->GetI(), mat->GetJ(),
-                          mat->GetData(), x, b, Numeric, Control, Info);
+                          mat->GetData(), x.HostWrite(), b.HostRead(), Numeric, Control, Info);
       umfpack_di_report_info(Control, Info);
       if (status < 0)
       {
@@ -2928,7 +2928,7 @@ void UMFPackSolver::Mult(const Vector &b, Vector &x) const
    else
    {
       SuiteSparse_long status =
-         umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x, b,
+	umfpack_dl_solve(UMFPACK_At, AI, AJ, mat->GetData(), x.HostWrite(), b.HostRead(),
                           Numeric, Control, Info);
       umfpack_dl_report_info(Control, Info);
       if (status < 0)

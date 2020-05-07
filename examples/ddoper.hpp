@@ -305,7 +305,7 @@ public:
     for (int i=0; i<m_recv.size(); ++i)
       {
 #ifdef USE_SIGN_FLIP
-	m_recv[i] = (m_alltrueSDflip[i] == 1) ? -x[m_alltrueSD[i]] : x[m_alltrueSD[i]];	
+	m_recv[i] = (m_alltrueSDflip[i] == 1) ? -x(m_alltrueSD[i]) : x(m_alltrueSD[i]);
 #else
 	m_recv[i] = x[m_alltrueSD[i]];
 #endif
@@ -340,6 +340,42 @@ public:
     
     gf.GetTrueDofs(y);
     */
+  }
+
+  void MultTransposeRaw(double *x, Vector &y) const
+  {
+    // Given an input vector x of local true SD DOF's, set the output vector y of local true interface DOF's, which may require values from other processes.
+    MFEM_VERIFY(y.Size() == m_send.size(), "");
+
+    y = 0.0;
+
+    for (int i=0; i<m_recv.size(); ++i)
+      {
+#ifdef USE_SIGN_FLIP
+	m_recv[i] = (m_alltrueSDflip[i] == 1) ? -x[m_alltrueSD[i]] : x[m_alltrueSD[i]];
+#else
+	m_recv[i] = x[m_alltrueSD[i]];
+#endif
+      }
+
+    // The roles of receive and send data are reversed.
+    MPI_Alltoallv(m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, m_comm);
+
+    std::vector<int> cnt;
+    cnt.assign(m_nprocs, 0);
+
+    for (int i=0; i<y.Size(); ++i) // loop over local true interface DOF's
+      {
+	y[i] = m_send[m_sdspl[m_iftToSDrank[i]] + cnt[m_iftToSDrank[i]]];
+	cnt[m_iftToSDrank[i]]++;
+      }
+
+    { // debugging
+      for (int i=0; i<m_nprocs; ++i)
+	{
+	  MFEM_VERIFY(cnt[i] == m_scnt[i], "");
+	}
+    }
   }
 
   void GetAllTrueSD(std::set<int> tdof)

@@ -912,6 +912,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    bool use_strumpack = true;
 #endif
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -925,6 +926,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
 #ifdef MFEM_USE_STRUMPACK
    args.AddOption(&use_strumpack, "-strumpack", "--strumpack-solver",
                   "-no-strumpack", "--no-strumpack-solver",
@@ -953,6 +956,11 @@ int main(int argc, char *argv[])
    mfem::out.SetStream(outfile);
    */
    
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -984,7 +992,7 @@ int main(int argc, char *argv[])
       // Note: with nx=6 in inline-tetHalf2.mesh, 1/64 becomes 1/96; 1/128 becomes 1/192.
       
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      for (int l = 0; l < ref_levels-1; l++)
       {
          mesh->UniformRefinement();
       }
@@ -993,7 +1001,7 @@ int main(int argc, char *argv[])
 #ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {4, 4, 4};
+   int nxyzSubdomains[3] = {2, 2, 2};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -1144,10 +1152,10 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {1, 1, 4};
        //int nxyzGlobal[3] = {1, 2, 1};
-       //int nxyzGlobal[3] = {2, 2, 2};
+       int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {3, 3, 4};
-       int nxyzGlobal[3] = {4, 4, 4};
+       //int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {6, 6, 6};
        //int nxyzGlobal[3] = {6, 6, 12};  // 432
        //int nxyzGlobal[3] = {6, 12, 12};  // 864
