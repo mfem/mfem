@@ -197,6 +197,12 @@ public:
    /// Set the maximum time step.
    void SetMaxStep(double dt_max);
 
+   /// Set the maxinum number of time steps
+   void SetMaxNSteps(int steps);
+
+   /// Get the number of internal steps taken so far
+   long GetNumSteps();
+
    /** @brief Set the maximum method order.
 
        CVODE uses adaptive-order integration, based on the local truncation
@@ -281,8 +287,8 @@ public:
    /** Integrate the ODE with CVODE using the specified step mode.
 
        @param[out]    x  Solution vector at the requested output timem x=x(t).
-       @param[in/out] t  On output, the output time reached.
-       @param[in/out] dt On output, the last time step taken.
+       @param[in,out] t  On output, the output time reached.
+       @param[in,out] dt On output, the last time step taken.
 
        @note On input, the values of t and dt are used to compute desired
        output time for the integration, tout = t + dt.
