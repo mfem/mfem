@@ -4555,6 +4555,12 @@ int NCMesh::GetElementSizeReduction(int i) const
    return reduction;
 }
 
+int NCMesh::GetElementParentRefType(int i) const
+{
+   int elem = leaf_elements[i];
+   return elements[elements[elem].parent].ref_type;
+}
+
 void NCMesh::GetElementFacesAttributes(int i,
                                        Array<int> &faces,
                                        Array<int> &fattr) const

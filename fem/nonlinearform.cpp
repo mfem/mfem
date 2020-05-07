@@ -94,7 +94,6 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
       for (int i = 0; i < fes->GetNE(); i++)
       {
          if (ncmesh) { redfactor = ncmesh->GetElementSizeReduction(i); }
-         if (redfactor == 1) { NEorig += 1;}
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -105,7 +104,6 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
             energy += elenergy;
          }
       }
-      energy /= NEorig;
    }
 
 
