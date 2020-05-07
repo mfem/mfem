@@ -4,6 +4,7 @@ ATTENTION
 DEBUG
    -some methods and apps don't work when finer resolved (e.g. in time)
    -mass error for swe for example
+   ./hypsys -p 3 -c 2 -vs 100 -tf 0.004 -s 1 -dt 0.001 -m data/wall-bdr-4segment.mesh -r 0 -o 2 -e 1
       -> There should not be a mass error for dam break with land bdrs!
       -> It seems to be the limited DG fluxes.
       -> In 1D they should equal the high order ones - which they are not.

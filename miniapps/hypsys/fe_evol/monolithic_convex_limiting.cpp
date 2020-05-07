@@ -8,18 +8,17 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
    Geometry::Type gtype = el->GetGeomType();
+   const int order = el->GetOrder();
 
-   H1_FECollection fec(el->GetOrder(), dim);
+   H1_FECollection fec(order, dim);
    fesH1 = new FiniteElementSpace(mesh, &fec);
    bounds = new TightBounds(fes, fesH1);
 
-   // IntegrationRule nodes =  el->GetNodes();
    Vector shape(nd), dx_shape(nd);
    DenseMatrix dshape(nd,dim);
    DenseTensor GradOp(nd,nd,dim);
    GradOp = 0.;
 
-   // ShapeNodes.SetSize(nd,nd); // TODO unnecessary?
    NodalFluxes.SetSize(hyp->NumEq, dim, nd);
    Adjugates.SetSize(dim,dim,ne);
    PrecGradOp.SetSize(nd,dim,nd);
@@ -46,12 +45,12 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 
    if (gtype == Geometry::TRIANGLE)
    {
-      Dof2LocNbr.SetSize(nd, 6); // TODO incorporate order into size
+      Dof2LocNbr.SetSize(nd, order < 3 ? 2*order : 6);
       MassMatLumpedRef = 0.5 / (double (nd));
    }
    else
    {
-      Dof2LocNbr.SetSize(nd, 2*dim);
+      Dof2LocNbr.SetSize(nd, order < 2 ? dim : 2*dim);
       MassMatLumpedRef =  1.0 / (double (nd));
    }
 
@@ -61,13 +60,6 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    uNbrFace.SetSize(hyp->NumEq, dofs.NumFaceDofs);
 
    Array <int> bdrs, orientation;
-
-   // for (int j = 0; j < nd; j++)
-   // {
-   //    const IntegrationPoint &ip = nodes.IntPoint(j);
-   //    el->CalcShape(ip, shape);
-   //    ShapeNodes.SetCol(j, shape);
-   // }
 
    for (int k = 0; k < nqe; k++)
    {
@@ -93,7 +85,7 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
       }
    }
 
-   ComputePrecGradOp(); // TODO remove stuff above, maybe SparseMatrix - check multiplication first
+   ComputePrecGradOp();
 
    FaceMat.SetSize(dofs.NumFaceDofs, dofs.NumFaceDofs);
    FaceMat = 0.;
@@ -165,7 +157,8 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
 
    ComputeLORMassMatrix(RefMat, gtype, false);
 
-   RefMat *= 1. / ((double) dofs.numSubcells); // TODO unnecessary
+   // TODO should be unnecessary, why isn't it (for very high orders)?
+   RefMat *= 1. / ((double) dofs.numSubcells);
 
    for (int m = 0; m < dofs.numSubcells; m++)
    {
@@ -514,7 +507,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
    }
 }
 
-void MCL_Evolution::ComputePrecGradOp()
+void MCL_Evolution::ComputePrecGradOp()// TODO maybe SparseMatrix - check multiplication first
 {
    const FiniteElement *el = fes->GetFE(0);
    int p = el->GetOrder();

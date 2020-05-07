@@ -147,7 +147,7 @@ void FillClosestNbrs(const FiniteElement *el, DenseMatrix &ClosestNbrs)
    {
       case Geometry::SEGMENT:
       {
-         ClosestNbrs.SetSize(nd,3);
+         ClosestNbrs.SetSize(nd, p==1 ? 2 : 3);
          ClosestNbrs = -1;
 
          ClosestNbrs(0,0) = 0;
@@ -166,7 +166,7 @@ void FillClosestNbrs(const FiniteElement *el, DenseMatrix &ClosestNbrs)
       }
       case Geometry::TRIANGLE:
       {
-         ClosestNbrs.SetSize(nd,7);
+         ClosestNbrs.SetSize(nd, p==1 ? 3 : (p==2 ? 5 : 7));
          ClosestNbrs = -1;
 
          ClosestNbrs(0,0) = 0;
@@ -227,7 +227,7 @@ void FillClosestNbrs(const FiniteElement *el, DenseMatrix &ClosestNbrs)
       }
       case Geometry::SQUARE:
       {
-         ClosestNbrs.SetSize(nd, 9);
+         ClosestNbrs.SetSize(nd, p == 1 ? 4: 9);
          ClosestNbrs = -1;
 
          for (int i = 0; i < nd; i++)
@@ -260,6 +260,9 @@ void FillClosestNbrs(const FiniteElement *el, DenseMatrix &ClosestNbrs)
       }
       case Geometry::CUBE:
       {
+         ClosestNbrs.SetSize(nd, p==1 ? 8 : 27);
+         ClosestNbrs = -1;
+
          MFEM_ABORT("TODO");
       }
    }
