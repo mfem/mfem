@@ -132,20 +132,6 @@ public:
    virtual void ProcessNewState(const Vector &x) const;
 };
 
-/// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public TMOPNewtonSolver
-{
-public:
-#ifdef MFEM_USE_MPI
-   TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : TMOPNewtonSolver(comm, irule) { }
-#endif
-   TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : TMOPNewtonSolver(irule) { }
-
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
-};
-
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &pmesh,
                        char *title, int position);
