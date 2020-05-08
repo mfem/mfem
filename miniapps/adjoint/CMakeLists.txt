@@ -9,19 +9,13 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
+  add_mfem_miniapp(cvsRoberts_ASAi_dns
+    MAIN cvsRoberts_ASAi_dns.cpp
+    LIBRARIES mfem mfem-common)
 
-set(MINIAPPS_COMMON_SOURCES "")
-set(MINIAPPS_COMMON_HEADERS "")
-if (MFEM_USE_SUNDIALS)
-   add_subdirectory(adjoint)
+
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(ex9p_adjoint
+    MAIN ex9p.cpp
+    LIBRARIES mfem mfem-common)
 endif()
-add_subdirectory(common)
-add_subdirectory(electromagnetics)
-add_subdirectory(meshing)
-add_subdirectory(performance)
-add_subdirectory(tools)
-add_subdirectory(toys)
-add_subdirectory(nurbs)
-add_subdirectory(gslib)

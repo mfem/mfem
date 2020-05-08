@@ -4,8 +4,8 @@
 // Compile with: make ex9
 //
 // Sample runs:
-//    sundials_ex26 -dt 0.01
-//    sundials_ex26 -dt 0.005
+//    cvsRoberts_ASAi_dns -dt 0.01
+//    cvsRoberts_ASAi_dns -dt 0.005
 //
 // Description:  This example is a port of cvodes/serial/cvsRoberts_ASAi_dns example that is part of SUNDIALS.
 //               The goal is to demonstrate how to use the adjoint SUNDIALS CVODES interface from MFEM.

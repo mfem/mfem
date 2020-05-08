@@ -96,7 +96,7 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
    virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
-   virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB,
+   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                          Vector &qbdot) const;
    virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
                                  const Vector &fyB, int jokB, int *jcurB, double gammaB);
@@ -519,8 +519,8 @@ void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
 
 }
 
-void AdvDiffSUNDIALS::ObjectiveSensitivityMult(const Vector &y,
-                                               const Vector &yB, Vector &qBdot) const
+void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
+						const Vector &yB, Vector &qBdot) const
 {
    mfem_error("Not implemented.");
 }
@@ -532,8 +532,6 @@ int AdvDiffSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
    mfem_error("Not implemented.");
 }
 
-// Is b = -fB ?
-// is tol reltol or abstol?
 int AdvDiffSUNDIALS::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
 {
    mfem_error("Not implemented.");
