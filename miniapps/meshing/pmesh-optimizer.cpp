@@ -100,8 +100,9 @@ int main (int argc, char *argv[])
    double lim_const      = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
-   int newton_iter       = 10;
-   double newton_rtol    = 1e-10;
+   int solver_type       = 0;
+   int solver_iter       = 10;
+   double solver_rtol    = 1e-10;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -160,9 +161,11 @@ int main (int argc, char *argv[])
                   "3: Closed uniform points");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
-   args.AddOption(&newton_iter, "-ni", "--newton-iters",
+   args.AddOption(&solver_type, "-st", "--solver-type",
+                  " Type of solver: (default) 0: Newton, 1: LBFGS");
+   args.AddOption(&solver_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
-   args.AddOption(&newton_rtol, "-rtol", "--newton-rel-tolerance",
+   args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver: 0 - l1-Jacobi, 1 - CG, 2 - MINRES.");
@@ -744,47 +747,53 @@ int main (int argc, char *argv[])
    tauval = minJ0;
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
+   double h0min = h0.Min(), h0min_all;
+   MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
    // 20. Finally, perform the nonlinear optimization.
-   NewtonSolver *newton = NULL;
-   if (tauval > 0.0)
+   NewtonSolver *solver = NULL;
+   if (solver_type == 0)
    {
-      tauval = 0.0;
       TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
-      newton = tns;
-      if (myid == 0)
-      { cout << "TMOPNewtonSolver is used (as all det(J) > 0)." << endl; }
+      solver = tns;
+      solver->SetPreconditioner(*S);
+      solver->SetMaxIter(solver_iter);
+      solver->SetRelTol(solver_rtol);
+      solver->SetAbsTol(0.0);
+      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+      solver->SetOperator(a);
+      solver->Mult(b, x.GetTrueVector());
+      if (solver->GetConverged() == false)
+      {
+         cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
+              << endl;
+      }
    }
    else
    {
-      if ( (dim == 2 && metric_id != 22 && metric_id != 252) ||
-           (dim == 3 && metric_id != 352) )
+      TMOPLBFGSOptimizer *tns = new TMOPLBFGSOptimizer(pfespace->GetComm(), *ir);
+      tns->SetKDim(40);
+      solver = tns;
+      cout << "TMOPLBFGSOptimizer is used (as all det(J) > 0).\n";
+      solver->SetMaxIter(solver_iter);
+      solver->SetRelTol(solver_rtol);
+      solver->SetAbsTol(0.0);
+      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+      solver->SetOperator(a);
+      solver->Mult(b, x.GetTrueVector());
+      if (solver->GetConverged() == false)
       {
-         if (myid == 0)
-         { cout << "The mesh is inverted. Use an untangling metric.\n"; }
-         return 3;
+         cout << "LBFGSIteration: rtol = " << solver_rtol << " not achieved."
+              << endl;
       }
-      double h0min = h0.Min(), h0min_all;
-      MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-      tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
-      newton = new TMOPDescentNewtonSolver(pfespace->GetComm(), *ir);
-      if (myid == 0)
-      { cout << "TMOPDescentNewtonSolver is used (as some det(J) < 0).\n"; }
    }
-   newton->SetPreconditioner(*S);
-   newton->SetMaxIter(newton_iter);
-   newton->SetRelTol(newton_rtol);
-   newton->SetAbsTol(0.0);
-   newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   newton->SetOperator(a);
-   newton->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
-   if (myid == 0 && newton->GetConverged() == false)
+   if (myid == 0 && solver->GetConverged() == false)
    {
-      cout << "NewtonIteration: rtol = " << newton_rtol << " not achieved."
+      cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
            << endl;
    }
-   delete newton;
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
@@ -846,6 +855,7 @@ int main (int argc, char *argv[])
    }
 
    // 24. Free the used memory.
+   delete solver;
    delete S;
    delete target_c2;
    delete metric2;
