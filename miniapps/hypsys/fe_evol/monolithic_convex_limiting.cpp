@@ -507,7 +507,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
    }
 }
 
-void MCL_Evolution::ComputePrecGradOp()// TODO maybe SparseMatrix - check multiplication first
+void MCL_Evolution::ComputePrecGradOp()
 {
    const FiniteElement *el = fes->GetFE(0);
    int p = el->GetOrder();

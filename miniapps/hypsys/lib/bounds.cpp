@@ -263,8 +263,88 @@ void FillClosestNbrs(const FiniteElement *el, DenseMatrix &ClosestNbrs)
          ClosestNbrs.SetSize(nd, p==1 ? 8 : 27);
          ClosestNbrs = -1;
 
-         MFEM_ABORT("TODO");
+         for (int i = 0; i < nd; i++)
+         {
+            int ctr = 0;
+
+            if (i >= (p+1)*(p+1)) // There is a lower plane
+            {
+               int k = i - (p+1)*(p+1); // lower neighbor in z direction
+               int j = k % ((p+1)*(p+1));
+
+               // lower neighbors in y direction
+               if (j > p)
+               {
+                  if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = k-p-2; ctr++; }
+                  ClosestNbrs(i,ctr) = k-p-1; ctr++;
+                  if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = k-p; ctr++; }
+               }
+
+               // horizontal neighbors
+               if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = k-1; ctr++; }
+               ClosestNbrs(i,ctr) = k; ctr++;
+               if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = k+1; ctr++; }
+
+               // upper neighbors
+               if (j < p*(p+1))
+               {
+                  if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = k+p; ctr++; }
+                  ClosestNbrs(i,ctr) = k+p+1; ctr++;
+                  if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = k+p+2; ctr++; }
+               }
+            }
+
+            int j = i % ((p+1)*(p+1));
+
+            // lower neighbors
+            if (j > p)
+            {
+               if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = i-p-2; ctr++; }
+               ClosestNbrs(i,ctr) = i-p-1; ctr++;
+               if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = i-p; ctr++; }
+            }
+
+            // horizontal neighbors
+            if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = i-1; ctr++; }
+            ClosestNbrs(i,ctr) = i; ctr++;
+            if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = i+1; ctr++; }
+
+            // upper neighbors
+            if (j < p*(p+1))
+            {
+               if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = i+p; ctr++; }
+               ClosestNbrs(i,ctr) = i+p+1; ctr++;
+               if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = i+p+2; ctr++; }
+            }
+
+            if (i < p*(p+1)*(p+1)) // There is an upper plane
+            {
+               int k = i + (p+1)*(p+1); // upper neighbor in z direction
+               int j = k % ((p+1)*(p+1));
+
+               // lower neighbors in y direction
+               if (j > p)
+               {
+                  if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = k-p-2; ctr++; }
+                  ClosestNbrs(i,ctr) = k-p-1; ctr++;
+                  if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = k-p; ctr++; }
+               }
+
+               // horizontal neighbors
+               if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = k-1; ctr++; }
+               ClosestNbrs(i,ctr) = k; ctr++;
+               if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = k+1; ctr++; }
+
+               // upper neighbors
+               if (j < p*(p+1))
+               {
+                  if (j % (p+1) != 0) { ClosestNbrs(i,ctr) = k+p; ctr++; }
+                  ClosestNbrs(i,ctr) = k+p+1; ctr++;
+                  if ((j+1) % (p+1) != 0) { ClosestNbrs(i,ctr) = k+p+2; ctr++; }
+               }
+            }
+
+         }
       }
    }
-   // ClosestNbrs.Print();
 }
