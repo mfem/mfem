@@ -1521,6 +1521,7 @@ loop_end:
    {
       mfem::out << "MINRES: No convergence!\n";
    }
+   x.HostRead();
 }
 
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
