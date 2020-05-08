@@ -1,29 +1,59 @@
-//                                MFEM Example 9
-//                             SUNDIALS Modification
+//                                MFEM Example 26
+//                             SUNDIALS Example in MFEM
 //
 // Compile with: make ex9
 //
 // Sample runs:
-//    ex9 -m ../../data/periodic-segment.mesh -p 0 -r 2 -s 11 -dt 0.005
-//    ex9 -m ../../data/periodic-square.mesh  -p 1 -r 2 -s 12 -dt 0.005 -tf 9
-//    ex9 -m ../../data/periodic-hexagon.mesh -p 0 -r 2 -s 11 -dt 0.0018 -vs 25
-//    ex9 -m ../../data/periodic-hexagon.mesh -p 0 -r 2 -s 13 -dt 0.01 -vs 15
-//    ex9 -m ../../data/amr-quad.mesh         -p 1 -r 2 -s 13 -dt 0.002 -tf 9
-//    ex9 -m ../../data/star-q3.mesh          -p 1 -r 2 -s 13 -dt 0.005 -tf 9
-//    ex9 -m ../../data/disc-nurbs.mesh       -p 1 -r 3 -s 11 -dt 0.005 -tf 9
-//    ex9 -m ../../data/periodic-cube.mesh    -p 0 -r 2 -s 12 -dt 0.02 -tf 8 -o 2
+//    sundials_ex26 -dt 0.01
+//    sundials_ex26 -dt 0.005
 //
-// Description:  This example code solves the time-dependent advection equation
-//               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
-//               u0(x)=u(0,x) is a given initial condition.
+// Description:  This example is a port of cvodes/serial/cvsRoberts_ASAi_dns example that is part of SUNDIALS.
+//               The goal is to demonstrate how to use the adjoint SUNDIALS CVODES interface from MFEM.
+//               The following is an exerpt description from the aforementioned file.
 //
-//               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of explicit
-//               ODE time integrators, the definition of periodic boundary
-//               conditions through periodic meshes, as well as the use of GLVis
-//               for persistent visualization of a time-evolving solution. The
-//               saving of time-dependent data files for external visualization
-//               with VisIt (visit.llnl.gov) is also illustrated.
+//
+// * Adjoint sensitivity example problem.
+// * The following is a simple example problem, with the coding
+// * needed for its solution by CVODES. The problem is from chemical
+// * kinetics, and consists of the following three rate equations.
+// *    dy1/dt = -p1*y1 + p2*y2*y3
+// *    dy2/dt =  p1*y1 - p2*y2*y3 - p3*(y2)^2
+// *    dy3/dt =  p3*(y2)^2
+// * on the interval from t = 0.0 to t = 4.e10, with initial
+// * conditions: y1 = 1.0, y2 = y3 = 0. The reaction rates are:
+// * p1=0.04, p2=1e4, and p3=3e7. The problem is stiff.
+// * This program solves the problem with the BDF method, Newton
+// * iteration with the DENSE linear solver, and a user-supplied
+// * Jacobian routine.
+// * It uses a scalar relative tolerance and a vector absolute
+// * tolerance.
+// * Output is printed in decades from t = .4 to t = 4.e10.
+// * Run statistics (optional outputs) are printed at the end.
+// * 
+// * Optionally, CVODES can compute sensitivities with respect to
+// * the problem parameters p1, p2, and p3 of the following quantity:
+// *   G = int_t0^t1 g(t,p,y) dt
+// * where
+// *   g(t,p,y) = y3
+// *        
+// * The gradient dG/dp is obtained as:
+// *   dG/dp = int_t0^t1 (g_p - lambda^T f_p ) dt - lambda^T(t0)*y0_p
+// *         = - xi^T(t0) - lambda^T(t0)*y0_p
+// * where lambda and xi are solutions of:
+// *   d(lambda)/dt = - (f_y)^T * lambda - (g_y)^T
+// *   lambda(t1) = 0
+// * and
+// *   d(xi)/dt = - (f_p)^T * lambda + (g_p)^T
+// *   xi(t1) = 0
+// * 
+// * During the backward integration, CVODES also evaluates G as
+// *   G = - phi(t0)
+// * where
+// *   d(phi)/dt = g(t,y,p)
+// *   phi(t1) = 0
+
+
+
 
 #include "mfem.hpp"
 #include <fstream>
@@ -37,15 +67,8 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
-int problem;
 
-// Mesh bounding box
-Vector bb_min, bb_max;
-
-
-/** Reimplement Roberts problem here */
+/// We create a TimeDependentAdjointOperator implementation of the rate equations to recreate the cvsRoberts_ASAi_dns problem
 class RobertsSUNDIALS : public TimeDependentAdjointOperator
 {
 public:
@@ -55,16 +78,25 @@ public:
       adjointMatrix(NULL)
    {}
 
+   /// Rate equation for forward problem
    virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Quadrature integration for G
    virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
+
+   /// Adjoint rate equation corresponding to d(lambda)/dt
    virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
-   virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB,
+
+   /// Quadrature sensitivity equations corresponding to dG/dp
+   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                          Vector &qbdot) const;
+
+   /// Setup custom MFEM solvers using GMRES since the Jacobian matrix is not symmetric
    virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
                                  const Vector &fyB, int jokB, int *jcurB, double gammaB);
+
+   /// Setup custom MFEM solve
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
-
-
 
    ~RobertsSUNDIALS()
    {
@@ -79,42 +111,11 @@ protected:
    SparseMatrix* adjointMatrix;
 };
 
-// class SundialsJacSolverB : public SundialsLinearSolver
-// {
-// public:
-//   SundialsJacSolverB(TimeDependentAdjointOperator &oper_) : oper(&oper_) {}
-
-//   virtual int ODELinSysB(double t, Vector y, Vector yB, Vector fyB, int jokB, int *jcurB,
-//           double gammaB)
-//   {
-//     return oper->ImplicitSetupB(t, y, yB, fyB, jokB, jcurB, gammaB);
-//   }
-
-//   virtual int Solve(Vector &x, Vector b) {
-//     double ignored = 0.0;
-//     return oper->ImplicitSolveB(x, b, ignored);
-//   }
-
-// private:
-//   TimeDependentAdjointOperator *oper;
-
-// };
-
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 0;
-   const char *mesh_file = "../../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
-   int order = 3;
-   int ode_solver_type = 4;
    double t_final = 4e7;
    double dt = 0.01;
-   bool visualization = true;
-   bool visit = false;
-   bool binary = false;
-   int vis_steps = 5;
 
    // Relative and absolute tolerances for CVODE and ARKODE.
    const double reltol = 1e-4, abstol = 1e-6;
@@ -123,34 +124,8 @@ int main(int argc, char *argv[])
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
-   args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use. See options in velocity_function().");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order, "-o", "--order",
-                  "Order (degree) of the finite elements.");
-   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - CVODE (adaptive order) implicit Adams,\n\t"
-                  "            2 - ARKODE default (4th order) explicit,\n\t"
-                  "            3 - ARKODE, \n\t"
-                  "            4 - CVODES for adjoint sensitivities");
-   args.AddOption(&t_final, "-tf", "--t-final",
-                  "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
-                  "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
-   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
-                  "--ascii-datafiles",
-                  "Use binary (Sidre) or ascii format for VisIt data files.");
-   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
-                  "Visualize every n-th timestep.");
 
    args.Parse();
    if (!args.Good())
@@ -158,137 +133,100 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   // check for vaild ODE solver option
-   if (ode_solver_type < 1 || ode_solver_type > 4)
-   {
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 3;
-   }
+   
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle geometrically
-   //    periodic meshes in this code.
-   Mesh *mesh = new Mesh(1,1,1,Element::HEXAHEDRON);
-   int dim = mesh->Dimension();
-
-   // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter. If the mesh is of NURBS type, we convert it to
-   //    a (piecewise-polynomial) high-order mesh.
-   for (int lev = 0; lev < ref_levels; lev++)
-   {
-      mesh->UniformRefinement();
-   }
-   if (mesh->NURBSext)
-   {
-      mesh->SetCurvature(max(order, 1));
-   }
-   mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
-
-   // 7. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and define the ODE solver used for time integration.
-
-   Vector p(3);
-   p[0] = 0.04;
-   p[1] = 1.0e4;
-   p[2] = 3.0e7;
-   // 3 is the size of the solution vector
-   RobertsSUNDIALS adv(3, p);
-
-   double t = 0.0;
-   adv.SetTime(t);
-
-   // Create the time integrator
-   ODESolver *ode_solver = NULL;
-   CVODESolver *cvode = NULL;
-   CVODESSolver *cvodes = NULL;
-   ARKStepSolver *arkode = NULL;
-
+   // 2. The original cvsRoberts_ASAi_dns problem is a fixed sized problem of size 3. Define the solution vector.
    Vector u(3);
    u = 0.;
    u[0] = 1.;
 
+   // 3. Define the TimeDependentAdjointOperator which implements the various rate equations: rate, quadrature rate, adjoint rate, and quadrature sensitivity rate equation
+
+   // Define material parameters p
+   Vector p(3);
+   p[0] = 0.04;
+   p[1] = 1.0e4;
+   p[2] = 3.0e7;
+   // 3 is the size of the adjoint solution vector
+   RobertsSUNDIALS adv(3, p);
+
+   // 4. Set the inital time
+   double t = 0.0;
+   adv.SetTime(t);
+
+   // 5. Create the CVODES solver and set the various tolerances
+
+   // Set absolute tolerances for the solution
    Vector abstol_v(3);
    abstol_v[0] = 1.0e-8;
    abstol_v[1] = 1.0e-14;
    abstol_v[2] = 1.0e-6;
 
+   // Initialize the quadrature result
    Vector q(1);
    q = 0.;
 
-   switch (ode_solver_type)
-   {
-      case 1:
-         cvode = new CVODESolver(CV_BDF);
-         cvode->Init(adv);
-         cvode->SetSVtolerances(reltol, abstol_v);
-         cvode->SetMaxStep(dt);
-         cvode->UseSundialsLinearSolver();
-         ode_solver = cvode;
-         break;
-      case 2:
-      case 3:
-         arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
-         arkode->Init(adv);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         if (ode_solver_type == 3) { arkode->SetERKTableNum(FEHLBERG_13_7_8); }
-         ode_solver = arkode; break;
-      case 4:
-         cvodes = new CVODESSolver(CV_BDF);
-         cvodes->Init(adv);
-         cvodes->SetWFTolerances([reltol, abstol_v]
-                                 (Vector y, Vector w, CVODESolver * self)
-         {
-            for (int i = 0; i < y.Size(); i++)
-            {
-               double ww = reltol * abs(y[i]) + abstol_v[i];
-               if (ww <= 0.) { return -1; }
-               w[i] = 1./ww;
-            }
-            return 0;
-         }
-                                );
-         cvodes->SetSVtolerances(reltol, abstol_v);
-         cvodes->UseSundialsLinearSolver();
-         cvodes->InitQuadIntegration(q, 1.e-6, 1.e-6);
-         cvodes->InitAdjointSolve(150, CV_HERMITE);
-         ode_solver = cvodes; break;
-   }
+   // Create the solver
+   CVODESSolver *cvodes = new CVODESSolver(CV_BDF);
 
-   // 8. Perform time-integration (looping over the time iterations, ti,
+   // Initialize the forward problem (this must be done first)
+   cvodes->Init(adv);
+
+   // Set error control function
+   cvodes->SetWFTolerances([reltol, abstol_v]
+			   (Vector y, Vector w, CVODESolver * self)
+			   {
+			     for (int i = 0; i < y.Size(); i++)
+			       {
+				 double ww = reltol * abs(y[i]) + abstol_v[i];
+				 if (ww <= 0.) { return -1; }
+				 w[i] = 1./ww;
+			       }
+			     return 0;
+			   }
+			   );
+
+   // Set weighted tolerances
+   cvodes->SetSVtolerances(reltol, abstol_v);
+
+   // Use the builtin sundials solver for the forward solver
+   cvodes->UseSundialsLinearSolver();
+
+   // Initialize the quadrature integration and set the tolerances
+   cvodes->InitQuadIntegration(q, 1.e-6, 1.e-6);
+
+   // Initialize the adjoint solve
+   cvodes->InitAdjointSolve(150, CV_HERMITE);
+
+   // 6. Perform time-integration (looping over the time iterations, ti,
    //    with a time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = max(dt, t_final - t);
-      ode_solver->Step(u, t, dt_real);
+      cvodes->Step(u, t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
 
-      if (done || ti % vis_steps == 0)
+      if (done)
       {
-         //         cout << "time step: " << ti << ", time: " << t << endl;
-         if (cvode) { cvode->PrintInfo(); }
-         if (arkode) { arkode->PrintInfo(); }
-         if (cvodes) { cvodes->PrintInfo(); }
-
+	cvodes->PrintInfo();
       }
    }
 
    cout << "Final Solution: " << t << endl;
    u.Print();
 
-   if (cvodes)
-   {
-      Vector q;
-      cout << " Final Quadrature " << endl;
-      cvodes->EvalQuadIntegration(t, q);
-      q.Print();
-   }
+   q = 0.;
+   cout << " Final Quadrature " << endl;
+   cvodes->EvalQuadIntegration(t, q);
+   q.Print();
 
-   // backward portion
+   // 7. Solve the adjoint problem at different points in time
+
+   // Create the adjoint solution vector
    Vector w(3);
    w=0.;
    double TBout1 = 40.;
@@ -300,9 +238,6 @@ int main(int argc, char *argv[])
       adv.SetTime(t);
       cvodes->InitB(adv);
       cvodes->InitQuadIntegrationB(dG_dp, 1.e-6, 1.e-6);
-
-      //     SundialsJacSolverB jacB(adv);
-      //     cvodes->SetLinearSolverB(jacB);
 
       // Results at time TBout1
       double dt_real = max(dt, t - TBout1);
@@ -333,13 +268,13 @@ int main(int argc, char *argv[])
 
    }
 
-   // 10. Free the used memory.
-   delete ode_solver;
+   // 8. Free the used memory.
+   delete cvodes;
 
    return 0;
 }
 
-// Roberts Implementation
+// cvsRoberts_ASAi_dns rate equation
 void RobertsSUNDIALS::Mult(const Vector &x, Vector &y) const
 {
    y[0] = -p_[0]*x[0] + p_[1]*x[1]*x[2];
@@ -347,13 +282,13 @@ void RobertsSUNDIALS::Mult(const Vector &x, Vector &y) const
    y[1] = -y[0] - y[2];
 }
 
-
+// cvsRoberts_ASAi_dns quadrature rate equation
 void RobertsSUNDIALS::QuadratureIntegration(const Vector &y, Vector &qdot) const
 {
    qdot[0] = y[2];
 }
 
-
+// cvsRoberts_ASAi_dns adjoint rate equation
 void RobertsSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
                                       Vector &yBdot) const
 {
@@ -367,7 +302,8 @@ void RobertsSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
    yBdot[2] = p2 * y[1] * l21 - 1.0;
 }
 
-void RobertsSUNDIALS::ObjectiveSensitivityMult(const Vector &y,
+// cvsRoberts_ASAi_dns quadrature sensitivity rate equation
+void RobertsSUNDIALS::QuadratureSensitivityMult(const Vector &y,
                                                const Vector &yB, Vector &qBdot) const
 {
    double l21 = (yB[1]-yB[0]);
@@ -379,6 +315,7 @@ void RobertsSUNDIALS::ObjectiveSensitivityMult(const Vector &y,
    qBdot[2] = y[1]*y[1]*l32;
 }
 
+// cvsRoberts_ASAi_dns implicit solve setup for adjoint
 int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
                                        const Vector &yB,
                                        const Vector &fyB, int jokB, int *jcurB, double gammaB)
@@ -386,7 +323,6 @@ int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
 
    // M = I- gamma J
    // J = dfB/dyB
-   // fB
    // Let's create a SparseMatrix and fill in the entries since this example doesn't contain finite elements
 
    delete adjointMatrix;
@@ -407,17 +343,15 @@ int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
 
    *jcurB = 1;
    adjointMatrix->Finalize();
-   //  adjointMatrix->PrintMatlab();
-   //  y.Print();
    adjointSolver.SetOperator(*adjointMatrix);
 
    return 0;
 }
 
-// Is b = -fB ?
-// is tol reltol or abstol?
+// cvsRoberts_ASAi_dns implicit solve for adjoint 
 int RobertsSUNDIALS::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
 {
+  // The tolerance is ignored in this example as we're trying to replicate CVODES cvsRoberts_ASAi_dns
    adjointSolver.SetRelTol(1e-14);
    adjointSolver.Mult(b, x);
    return (0);
