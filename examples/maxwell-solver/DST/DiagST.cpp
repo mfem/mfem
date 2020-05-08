@@ -15,28 +15,48 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // 
    int partition_kind;
 
-   // 1. Non ovelapping 
-   partition_kind = 1; // Non Ovelapping partition 
-   pnovlp = new MeshPartition(mesh, partition_kind);
-
-   // 2. Overlapping to the right
-   partition_kind = 3; // Ovelapping partition for the full space
-   povlp = new MeshPartition(mesh, partition_kind);
+   // 1. Ovelapping partition with overlap = 2h 
+   partition_kind = 2; // Non Overlapping partition 
+   int nx=2;
+   int ny=3; 
+   int nz=2;
+   povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz);
+   // povlp = new MeshPartition(mesh, partition_kind);
+   nxyz[0] = povlp->nxyz[0];
+   nxyz[1] = povlp->nxyz[1];
+   nxyz[2] = povlp->nxyz[2];
    nrpatch = povlp->nrpatch;
-   cout<< povlp->nrpatch << endl;
-   cout<< pnovlp->nrpatch << endl;
-   MFEM_VERIFY(povlp->nrpatch+1 == pnovlp->nrpatch,"Check nrpatch");
+   cout<< "nrpatch = " << nrpatch << endl;
+   cout << "nx = " << nx << endl;
+   cout << "ny = " << ny << endl;
+   cout << "nz = " << nz << endl;
+   subdomains = povlp->subdomains;
+   for (int k = 0; k<nxyz[2]; k++)
+   {
+      for (int j = 0; j<nxyz[1]; j++)
+      {
+         for (int i = 0; i<nxyz[0]; i++)
+         {
+            cout << "("<<i<<","<<j<<","<<k<<") = " << povlp->subdomains(i,j,k) << endl;
+         }
+      }   
+   }
 
-   lmap = new LocalDofMap(bf->FESpace()->FEColl(),pnovlp,povlp);
+   for (int ip = 0; ip<nrpatch; ip++)
+   {
+      int i, j, k;
+      Getijk(ip, i,j,k);
+      cout << "ip = " << ip << ": ("<<i<<","<<j<<","<<k<<")"<< endl;
+
+   }
 
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
-   // SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
+   SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
 
-   // ------------------Step 2 --------------------
-   // Construct the dof maps from subdomains to global (for the extended and not)
-   novlp_prob = new DofMap(bf,pnovlp);
+   // // // ------------------Step 2 --------------------
+   // // // Construct the dof maps from subdomains to global (for the extended and not)
    ovlp_prob  = new DofMap(bf,povlp,nrlayers); 
 
    // ------------------Step 3 --------------------
@@ -56,13 +76,6 @@ SparseMatrix * DiagST::GetPmlSystemMatrix(int ip)
    double h = GetUniformMeshElementSize(ovlp_prob->PmlMeshes[ip]);
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
-   // if (ip == nrpatch-1 || ip == 0) 
-   // {
-   //    length[0][0] = Pmllength[0][0];
-   //    length[0][1] = Pmllength[0][1];
-   // }
-   // length[1][0] = Pmllength[1][0];
-   // length[1][1] = Pmllength[1][1];
 
    CartesianPML pml(ovlp_prob->PmlMeshes[ip], length);
    pml.SetOmega(omega);
@@ -109,121 +122,121 @@ SparseMatrix * DiagST::GetPmlSystemMatrix(int ip)
 
 void DiagST::Mult(const Vector &r, Vector &z) const
 {
-   z = 0.0; 
-   res.SetSize(nrpatch);
-   Vector rnew(r);
-   Vector znew(z);
-   Vector z1(z);
-   Vector z2(z);
-   Vector raux(znew.Size());
-   Vector res_local, sol_local;
-   znew = 0.0;
-   Array<Vector> fsol(nrpatch+1);
-   Array<Vector> bsol(nrpatch+1);
+   // z = 0.0; 
+   // res.SetSize(nrpatch);
+   // Vector rnew(r);
+   // Vector znew(z);
+   // Vector z1(z);
+   // Vector z2(z);
+   // Vector raux(znew.Size());
+   // Vector res_local, sol_local;
+   // znew = 0.0;
+   // Array<Vector> fsol(nrpatch+1);
+   // Array<Vector> bsol(nrpatch+1);
 
-   Array<Vector> fn(nrpatch+1);
-   Array<Vector> ftransf(nrpatch+1);
-   for (int ip=0; ip<=nrpatch; ip++)
-   {
-      Array<int> *Dof2GDof = &novlp_prob->Dof2GlobalDof[ip];
-      fn[ip].SetSize(Dof2GDof->Size()); fn[ip]=0.0;
-      ftransf[ip].SetSize(Dof2GDof->Size()); ftransf[ip]=0.0;
-      r.GetSubVector(*Dof2GDof,fn[ip]);
-   }
+   // Array<Vector> fn(nrpatch+1);
+   // Array<Vector> ftransf(nrpatch+1);
+   // for (int ip=0; ip<=nrpatch; ip++)
+   // {
+   //    Array<int> *Dof2GDof = &novlp_prob->Dof2GlobalDof[ip];
+   //    fn[ip].SetSize(Dof2GDof->Size()); fn[ip]=0.0;
+   //    ftransf[ip].SetSize(Dof2GDof->Size()); ftransf[ip]=0.0;
+   //    r.GetSubVector(*Dof2GDof,fn[ip]);
+   // }
 
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   // forward source transfer algorithm
-   for (int ip = 0; ip < nrpatch; ip++)
-   {
-      Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
-      Array<int> * Dof2PmlDof = &ovlp_prob->Dof2PmlDof[ip];
-      int ndofs = Dof2GlobalDof->Size();
-      res_local.SetSize(ndofs); res_local = 0.0;
-      sol_local.SetSize(ndofs);
-      rnew.GetSubVector(*Dof2GlobalDof, res_local);
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // // forward source transfer algorithm
+   // for (int ip = 0; ip < nrpatch; ip++)
+   // {
+   //    Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
+   //    Array<int> * Dof2PmlDof = &ovlp_prob->Dof2PmlDof[ip];
+   //    int ndofs = Dof2GlobalDof->Size();
+   //    res_local.SetSize(ndofs); res_local = 0.0;
+   //    sol_local.SetSize(ndofs);
+   //    rnew.GetSubVector(*Dof2GlobalDof, res_local);
 
-      // if (ip == 0)  ftransf[ip] = fn[ip];
+   //    // if (ip == 0)  ftransf[ip] = fn[ip];
 
-      // res_local = 0.0;
-      // res_local.SetSubVector(lmap->map1[ip],ftransf[ip]);
-      // res_local.SetSubVector(lmap->map2[ip],fn[ip+1]);
+   //    // res_local = 0.0;
+   //    // res_local.SetSubVector(lmap->map1[ip],ftransf[ip]);
+   //    // res_local.SetSubVector(lmap->map2[ip],fn[ip+1]);
       
 
-      //-----------------------------------------------
-      // Extend by zero to the PML mesh
-      int nrdof_ext = PmlMat[ip]->Height();
+   //    //-----------------------------------------------
+   //    // Extend by zero to the PML mesh
+   //    int nrdof_ext = PmlMat[ip]->Height();
          
-      Vector res_ext(nrdof_ext); res_ext = 0.0;
-      Vector sol_ext(nrdof_ext); sol_ext = 0.0;
+   //    Vector res_ext(nrdof_ext); res_ext = 0.0;
+   //    Vector sol_ext(nrdof_ext); sol_ext = 0.0;
 
-      res_ext.SetSubVector(*Dof2PmlDof,res_local.GetData());
-      PmlMatInv[ip]->Mult(res_ext, sol_ext);
+   //    res_ext.SetSubVector(*Dof2PmlDof,res_local.GetData());
+   //    PmlMatInv[ip]->Mult(res_ext, sol_ext);
 
-      //-----------------------------------------------
-      //          FOR PURE ST
-      //-----------------------------------------------
-      if (ip != nrpatch-1) 
-      {
-         int direction = 1;
-         GetCutOffSolution(sol_ext, ip, direction, true);
-         // find the residual
-         // Vector respml(sol_ext.Size());
-         // PmlMat[ip]->Mult(sol_ext,respml);
+   //    //-----------------------------------------------
+   //    //          FOR PURE ST
+   //    //-----------------------------------------------
+   //    if (ip != nrpatch-1) 
+   //    {
+   //       int direction = 1;
+   //       GetCutOffSolution(sol_ext, ip, direction, true);
+   //       // find the residual
+   //       // Vector respml(sol_ext.Size());
+   //       // PmlMat[ip]->Mult(sol_ext,respml);
 
-         // restrict to non-pml problem
-         // Vector res(ndofs); 
-         // respml.GetSubVector(*Dof2PmlDof, res);
-         // source to be transfered
-         // res.GetSubVector(lmap->map2[ip],ftransf[ip+1]);
+   //       // restrict to non-pml problem
+   //       // Vector res(ndofs); 
+   //       // respml.GetSubVector(*Dof2PmlDof, res);
+   //       // source to be transfered
+   //       // res.GetSubVector(lmap->map2[ip],ftransf[ip+1]);
 
-      }
-      //-----------------------------------------------
-      //-----------------------------------------------
-
-
-
-      sol_ext.GetSubVector(*Dof2PmlDof,sol_local);
-      znew = 0.0;
-      znew.SetSubVector(*Dof2GlobalDof,sol_local);
-
-      Array<int> * nDof2GlobalDof = &novlp_prob->Dof2GlobalDof[ip+1];
-      fsol[ip+1].SetSize(nDof2GlobalDof->Size());
-      znew.GetSubVector(*nDof2GlobalDof,fsol[ip+1]);
+   //    }
+   //    //-----------------------------------------------
+   //    //-----------------------------------------------
 
 
 
-      // Find residual;
-      Vector respml(sol_ext.Size());
-      Vector reslocal(sol_local.Size());
-      PmlMat[ip]->Mult(sol_ext,respml);
-      respml *= -1.0;
+   //    sol_ext.GetSubVector(*Dof2PmlDof,sol_local);
+   //    znew = 0.0;
+   //    znew.SetSubVector(*Dof2GlobalDof,sol_local);
 
-      respml.GetSubVector(*Dof2PmlDof,reslocal);
-      // source to be transfered
-      // reslocal.GetSubVector(lmap->map2[ip],ftransf[ip+1]);
-      // ftransf[ip+1]+= fn[ip+1];
-      rnew.AddElementVector(*Dof2GlobalDof,reslocal);
+   //    Array<int> * nDof2GlobalDof = &novlp_prob->Dof2GlobalDof[ip+1];
+   //    fsol[ip+1].SetSize(nDof2GlobalDof->Size());
+   //    znew.GetSubVector(*nDof2GlobalDof,fsol[ip+1]);
 
-      // Array<int> * nDof2GlobalDof = &novlp_prob->Dof2GlobalDof[ip+1];
-      // fsol[ip+1].SetSize(nDof2GlobalDof->Size());
-      // znew.GetSubVector(*nDof2GlobalDof,fsol[ip+1]);
 
-      // if (ip != nrpatch-1) 
-      // {
-      //    int direction = 1;
-      //    GetCutOffSolution(znew, ip, direction);
-      //    // find the residual
-      // }
+
+   //    // Find residual;
+   //    Vector respml(sol_ext.Size());
+   //    Vector reslocal(sol_local.Size());
+   //    PmlMat[ip]->Mult(sol_ext,respml);
+   //    respml *= -1.0;
+
+   //    respml.GetSubVector(*Dof2PmlDof,reslocal);
+   //    // source to be transfered
+   //    // reslocal.GetSubVector(lmap->map2[ip],ftransf[ip+1]);
+   //    // ftransf[ip+1]+= fn[ip+1];
+   //    rnew.AddElementVector(*Dof2GlobalDof,reslocal);
+
+   //    // Array<int> * nDof2GlobalDof = &novlp_prob->Dof2GlobalDof[ip+1];
+   //    // fsol[ip+1].SetSize(nDof2GlobalDof->Size());
+   //    // znew.GetSubVector(*nDof2GlobalDof,fsol[ip+1]);
+
+   //    // if (ip != nrpatch-1) 
+   //    // {
+   //    //    int direction = 1;
+   //    //    GetCutOffSolution(znew, ip, direction);
+   //    //    // find the residual
+   //    // }
       
-      // socketstream sockznew(vishost, visport);
-      // PlotSolution(znew,sockznew,0); cin.get();
-      z1+=znew;
+   //    // socketstream sockznew(vishost, visport);
+   //    // PlotSolution(znew,sockznew,0); cin.get();
+   //    z1+=znew;
 
       // A->Mult(znew, raux);
       // rnew -= raux;
-   }
+   // }
 
    // backward source transfer algorithm
    // for (int ip=0; ip<=nrpatch; ip++)
@@ -347,7 +360,7 @@ void DiagST::Mult(const Vector &r, Vector &z) const
    //    z.SetSubVector(*nDof2GlobalDof,gsol[ip]);
    //    // z.AddElementVector(*nDof2GlobalDof,gsol[ip]);
    // }
-   z = z1;
+   // z = z1;
 
 }
 
@@ -455,12 +468,24 @@ DiagST::~DiagST()
 {
    for (int ip = 0; ip<nrpatch; ++ip)
    {
-      delete PmlMatInv[ip];
-      delete PmlMat[ip];
+      // delete PmlMatInv[ip];
+      // delete PmlMat[ip];
    }
    PmlMat.DeleteAll();
    PmlMatInv.DeleteAll();
 }
 
+
+void DiagST::Getijk(int ip, int & i, int & j, int & k)
+{
+   k = ip/(nxyz[0]*nxyz[1]);
+   j = (ip-k*nxyz[0]*nxyz[1])/nxyz[0];
+   i = (ip-k*nxyz[0]*nxyz[1])%nxyz[0];
+}
+
+void SourceTransfer(Array<int> direction, int ip, Array<Vector> & src)
+{
+
+}
 
 

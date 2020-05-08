@@ -228,13 +228,11 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
 }
 
 // constructor
-OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
+   
+OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_,int & nx,int & ny,int & nz) : mesh(mesh_)
 {  // default overlap size is 2 elements 
    int dim = mesh->Dimension();
    int n = pow(mesh->GetNE(), 1.0/(double)dim);
-   nx = 5;
-   ny = 1;
-   nz = 1;
    if (nx > n) 
    {
       nx = n;
@@ -251,7 +249,8 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
       MFEM_WARNING("Changed partition in the z direction to nz = " << n << endl);
    } 
    if (dim == 2) nz = 1;
-   int nxyz[3] = {nx,ny,nz};
+   subdomains.SetSize(nx,ny,nz);
+   nxyz[0] = nx; nxyz[1]=ny; nxyz[2] = nz;
    nrpatch = nx*ny*nz;
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
@@ -277,7 +276,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
       for (int i = 0; i<dim; i++)
       {
          idx0[i]  = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
-         idx1[i] = (int)floor(nxyz[i]*((pt(i)-2*h - pmin[i])/(pmax[i] - pmin[i])));
+         idx1[i] = (int)floor(nxyz[i]*((pt(i)+h - pmin[i])/(pmax[i] - pmin[i])));
          idx2[i] = (int)floor(nxyz[i]*((pt(i)-h - pmin[i])/(pmax[i] - pmin[i])));
 
          if (idx0[i] < 0) idx0[i] = 0;
@@ -310,18 +309,30 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
          }
       }
    }
+   for (int k = 0; k<nz; k++)
+   {
+      for (int j = 0; j<ny; j++)
+      {
+         for (int i = 0; i<nx; i++)
+         {
+            subdomains(i,j,k) = k*ny*nx + j*nx + i;
+         }
+      }   
+   }
 }
 
 // constructor
-CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
+CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_,int & nx, int & ny, int & nz) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
    nx = 5;
    ny = 1;
    nz = 1;
-   int nxyz[3] = {nx,ny,nz};
+   nxyz[0] = nx;
+   nxyz[1] = ny;
+   nxyz[2] = nz;
    nrpatch = nx*ny*nz;
-
+   subdomains.SetSize(nx,ny,nz);
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
 
@@ -357,6 +368,16 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
    {
       int ip = partitioning[iel];
       element_map[ip].Append(iel);
+   }
+   for (int k = 0; k<nz; k++)
+   {
+      for (int j = 0; j<ny; j++)
+      {
+         for (int i = 0; i<nx; i++)
+         {
+            subdomains(i,j,k) = k*ny*nx + j*nx + i;
+         }
+      }   
    }
 }
 
@@ -417,27 +438,26 @@ STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh 
    }
 }
 
-MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
+MeshPartition::MeshPartition(Mesh* mesh_, int part,int nx, int ny, int nz): mesh(mesh_)
 {
    partition_kind = part;
    if (part == 1)
    {
       cout << "Non Overlapping Cartesian Partition " << endl;
-      CartesianMeshPartition partition(mesh);
+      CartesianMeshPartition partition(mesh,nx, ny, nz);
       element_map = partition.element_map;
-      nx = partition.nx;
-      ny = partition.ny;
-      nz = partition.nz;
+      // subdomains = partition.subdomains;
    }
    // else if (part == 3 || part == 4)
    else if (part == 2)
    {
       cout << "Overlapping Cartesian Partition " << endl;
-      OverlappingCartesianMeshPartition partition(mesh);
+      OverlappingCartesianMeshPartition partition(mesh,nx, ny, nz);
       element_map = partition.element_map;
-      nx = partition.nx;
-      ny = partition.ny;
-      nz = partition.nz;
+      subdomains = partition.subdomains;
+      nxyz[0] = partition.nxyz[0];
+      nxyz[1] = partition.nxyz[1];
+      nxyz[2] = partition.nxyz[2];
    }
    else if (part == 3 || part == 4)
    // else if (part == 2)
@@ -445,9 +465,6 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
       cout << "STP Overlapping Cartesian Partition " << endl;
       STPOverlappingCartesianMeshPartition partition(mesh);
       element_map = partition.element_map;
-      nx = partition.nx;
-      ny = partition.ny;
-      nz = partition.nz;
    }
    else
    {
@@ -455,6 +472,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part): mesh(mesh_)
    }
 
    nrpatch = element_map.size();
+
    int dim = mesh->Dimension();
 
    patch_mesh.SetSize(nrpatch);

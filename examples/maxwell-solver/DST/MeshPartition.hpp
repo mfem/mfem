@@ -14,10 +14,11 @@ private:
    Mesh *mesh=nullptr;
 public:
    int nrpatch;
-   int nx, ny, nz;
+   int nxyz[3];
    std::vector<Array<int>> element_map;
+   Array3D<int>subdomains;
    // constructor
-   CartesianMeshPartition(Mesh * mesh_);
+   CartesianMeshPartition(Mesh * mesh_,int & nx, int & ny, int & nz);
    ~CartesianMeshPartition() {};
 };
 
@@ -27,10 +28,11 @@ private:
    Mesh *mesh=nullptr;
 public:
    int nrpatch;
-   int nx, ny, nz;
+   int nxyz[3];
    std::vector<Array<int>> element_map;
+   Array3D<int> subdomains;
    // constructor
-   OverlappingCartesianMeshPartition(Mesh * mesh_);
+   OverlappingCartesianMeshPartition(Mesh * mesh_,int & nx, int & ny, int & nz);
    ~OverlappingCartesianMeshPartition() {};
 };
 
@@ -56,12 +58,13 @@ private:
    void PrintElementMap();
 public:
    int nrpatch;
-   int nx, ny, nz;
    std::vector<Array<int>> element_map;
+   Array3D<int> subdomains;
    Array<Mesh *> patch_mesh;
    int partition_kind;
+   int nxyz[3];
    // constructor
-   MeshPartition(Mesh * mesh_, int part);
+   MeshPartition(Mesh * mesh_, int part, int mx=1, int my=1, int mz=1);
    ~MeshPartition();
 };
 

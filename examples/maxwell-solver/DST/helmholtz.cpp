@@ -239,41 +239,41 @@ int main(int argc, char *argv[])
    double tol = 1e-8;
    cout << endl;
    
-   for (int i = 0; i<n; i++)
-   {
-      A->Mult(X,Ax); Ax *=-1.0;
-      r = b; r+=Ax;
-      cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
-      if (r.Norml2() < tol) 
-      {
-         // cout << "Convergence in " << i+1 << " iterations" << endl;
-         break;
-      }
-      S.Mult(r,z); 
-      X += z;
-      p_gf = 0.0;
-      a.RecoverFEMSolution(X,B,p_gf);
-         // char vishost[] = "localhost";
-         // int  visport   = 19916;
-         // string keys;
-         // if (dim ==2 )
-         // {
-         //    keys = "keys mrRljc\n";
-         // }
-         // else
-         // {
-         //    keys = "keys mc\n";
-         // }
-         // socketstream sol1_sock_re(vishost, visport);
-         // sol1_sock_re.precision(8);
-         // sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-         //             "window_title 'Numerical Pressure (real part)' "
-         //             << keys << flush;
-         // cin.get();
-   }
+   // for (int i = 0; i<n; i++)
+   // {
+   //    A->Mult(X,Ax); Ax *=-1.0;
+   //    r = b; r+=Ax;
+   //    cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
+   //    if (r.Norml2() < tol) 
+   //    {
+   //       // cout << "Convergence in " << i+1 << " iterations" << endl;
+   //       break;
+   //    }
+   //    S.Mult(r,z); 
+   //    X += z;
+   //    p_gf = 0.0;
+   //    a.RecoverFEMSolution(X,B,p_gf);
+   //       // char vishost[] = "localhost";
+   //       // int  visport   = 19916;
+   //       // string keys;
+   //       // if (dim ==2 )
+   //       // {
+   //       //    keys = "keys mrRljc\n";
+   //       // }
+   //       // else
+   //       // {
+   //       //    keys = "keys mc\n";
+   //       // }
+   //       // socketstream sol1_sock_re(vishost, visport);
+   //       // sol1_sock_re.precision(8);
+   //       // sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+   //       //             "window_title 'Numerical Pressure (real part)' "
+   //       //             << keys << flush;
+   //       // cin.get();
+   // }
 
-   // KLUSolver klu(*A);
-   // klu.Mult(B,X);
+   KLUSolver klu(*A);
+   klu.Mult(B,X);
    a.RecoverFEMSolution(X,B,p_gf);
 
 

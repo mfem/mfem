@@ -130,7 +130,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
       {
          for (int i=0; i<nrlayers; i++)
          {
-            if (partition_kind == 3) directions.Append(1);
+            if (partition_kind == 3 || partition_kind == 2) directions.Append(1);
          }
       }
       PmlMeshes[ip] = ExtendMesh(partition->patch_mesh[ip],directions);
@@ -139,7 +139,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
    // Save PML_meshes
    string meshpath;
    string solpath;
-   if (partition_kind == 3) 
+   if (partition_kind == 3 || partition_kind == 2) 
    {
       meshpath = "output/mesh_ovlp_pml.";
       solpath = "output/sol_ovlp_pml.";
