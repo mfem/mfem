@@ -114,8 +114,8 @@ protected:
    int nvdofs, nedofs, nfdofs, nbdofs;
    int *bdofs;
 
-   Table edge_dof; ///< Set of DOFs for each edge (variable order spaces only)
-   Table face_dof; ///< Set of DOFs for each face (var. order or mixed meshes)
+   Table edge_dofs; ///< Set of DOFs for each edge (variable order spaces only)
+   Table face_dofs; ///< Set of DOFs for each face (var. order or mixed meshes)
 
    Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    Table *bdr_elem_dof; // used only with NURBS FE spaces; not owned.
@@ -169,12 +169,15 @@ protected:
 
    void BuildElementToDofTable();
 
-   /// Build the table edge_dof in variable order space, return total edge DOFs.
-   int AssignEdgeDofs();
-   /// Build the table face_dof in variable order space, return total face DOFs.
-   int AssignFaceDofs();
+   /// Build the table edge_dofs in variable order space, return total edge DOFs.
+   /** NOTE: 'edge_orders' may already contain data from AssignFaceDofs. */
+   int AssignEdgeDofs(Array<Connection> &edge_orders);
 
-   /// Build the edge_dof or face_dof tables. Used by Assign{Edge,Face}Dofs().
+   /// Build the table face_dofs in variable order space, return total face DOFs.
+   /** NOTE: in 3D hp-refinement, faces influence the orders on adjacent edges.*/
+   int AssignFaceDofs(Array<Connection> &edge_orders);
+
+   /// Build the edge_dofs or face_dofs tables. Used by Assign{Edge,Face}Dofs().
    int MakeDofTable(int ent_dim, Array<Connection> &entity_order,
                     Table &entity_dof);
 
@@ -184,11 +187,11 @@ protected:
    /** In a variable order space, return edge DOFs associated with a polynomial
        order that has 'ndof' degrees of freedom. */
    int FindEdgeDof(int edge, int ndof) const
-   { return FindDofs(edge_dof, edge, ndof); }
+   { return FindDofs(edge_dofs, edge, ndof); }
 
    /// Similar to FindEdgeDof, but used for mixed meshes too.
    int FindFaceDof(int face, int ndof) const
-   { return FindDofs(face_dof, face, ndof); }
+   { return FindDofs(face_dofs, face, ndof); }
 
    /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
    static inline int EncodeDof(int entity_base, int idx)

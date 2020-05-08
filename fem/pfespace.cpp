@@ -235,7 +235,7 @@ void ParFiniteElementSpace::GetGroupComm(
    nvd = fec->DofForGeometry(Geometry::POINT);
    ned = fec->DofForGeometry(Geometry::SEGMENT);
 
-   if (face_dof.Size() > 0)
+   if (face_dofs.Size() > 0)
    {
       if (mesh->HasGeometry(Geometry::TRIANGLE))
       {
@@ -1449,7 +1449,7 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
 
          if (index < ghost) // regular face
          {
-            MFEM_VERIFY(face_dof.Size() <= 0, "FIXME");
+            MFEM_VERIFY(face_dofs.Size() <= 0, "FIXME");
             first = nvdofs + nedofs + /*(fdofs ? fdofs[index] :*/ index*ned/*)*/;
          }
          else // ghost face
@@ -1498,7 +1498,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 
          if (index < ghost) // regular face
          {
-            MFEM_VERIFY(face_dof.Size() <= 0, "FIXME");
+            MFEM_VERIFY(face_dofs.Size() <= 0, "FIXME");
             return nvdofs + nedofs + /*(fdofs ? fdofs[index] :*/ index*ned/*)*/ + edof;
          }
          else // ghost face
@@ -1543,7 +1543,7 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
-         MFEM_VERIFY(face_dof.Size() <= 0, "FIXME");
+         MFEM_VERIFY(face_dofs.Size() <= 0, "FIXME");
          /*if (fdofs) // have mixed faces
          {
             index = bisect(fdofs+1, mesh->GetNFaces(), dof);
