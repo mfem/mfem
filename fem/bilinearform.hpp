@@ -151,8 +151,8 @@ public:
    /** This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
-   /// Get the assembly level
-   AssemblyLevel GetAssemblyLevel() {return assembly;}
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
@@ -530,7 +530,7 @@ public:
 
    /// (DEPRECATED) Return the FE space associated with the BilinearForm.
    /** @deprecated Use FESpace() instead. */
-   FiniteElementSpace *GetFES() { return fes; }
+   MFEM_DEPRECATED FiniteElementSpace *GetFES() { return fes; }
 
    /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *FESpace() { return fes; }
@@ -704,6 +704,10 @@ public:
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    void Assemble(int skip_zeros = 1);
+
+   /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
+       bilinear form and D is a diagonal. */
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
    /// Get the input finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
