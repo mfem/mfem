@@ -48,5 +48,18 @@ public:
 };
 
 
-
+class LocalDofMap // Constructs dof mapbetween two partitions
+{
+   const FiniteElementCollection *fec=nullptr;
+   MeshPartition * part1=nullptr;
+   MeshPartition * part2=nullptr;
+public:
+   int nrpatch, nx, ny, nz;
+   vector<Array<int>> map1;
+   vector<Array<int>> map2;
+   // constructor
+   LocalDofMap(const FiniteElementCollection * fec_, MeshPartition * part1_, 
+               MeshPartition * part2_);
+   ~LocalDofMap();
+};
 

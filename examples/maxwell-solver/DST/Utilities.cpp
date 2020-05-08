@@ -211,3 +211,88 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
       }
    }
 }
+
+
+
+LocalDofMap::LocalDofMap(const FiniteElementCollection * fec_, MeshPartition * part1_, 
+               MeshPartition * part2_):fec(fec_), part1(part1_), part2(part2_)
+{
+   // Each overlapping patch has 2 non-overlapping subdomains
+   // Thre are n non-overlapping and and n-1 overlapping subdomains
+   int nrpatch = part2->nrpatch;
+   MFEM_VERIFY(part1->nrpatch-1 == part2->nrpatch, "Check number of subdomains");
+
+   cout << "Constructing local dof maps" << endl; 
+   map1.resize(nrpatch);
+   map2.resize(nrpatch);
+   for (int ip=0; ip<nrpatch; ip++)
+   {
+      // Get the 3 meshes involved
+      Mesh * mesh = part2->patch_mesh[ip];
+      Mesh * mesh1 = part1->patch_mesh[ip];
+      Mesh * mesh2 = part1->patch_mesh[ip+1];
+
+      // Define the fespaces
+      FiniteElementSpace fespace(mesh, fec);
+      FiniteElementSpace fespace1(mesh1, fec);
+      FiniteElementSpace fespace2(mesh2, fec);
+
+      int ndof1 = fespace1.GetTrueVSize();
+      int ndof2 = fespace2.GetTrueVSize();
+
+      map1[ip].SetSize(2*ndof1); // times 2 because it's complex
+      map2[ip].SetSize(2*ndof2); // times 2 because it's complex
+
+      // loop through the elements in the patches
+      // map 1 is constructed by the first half of elements
+      // map 2 is constructed by the second half of elements
+
+      for (int iel = 0; iel<part1->element_map[ip].Size(); ++iel)
+      {
+         // index in the overlapping mesh
+         int iel_idx = iel;
+         Array<int> ElemDofs;
+         Array<int> GlobalElemDofs;
+         fespace1.GetElementDofs(iel,ElemDofs);
+         fespace.GetElementDofs(iel_idx,GlobalElemDofs);
+         // the sizes have to match
+         MFEM_VERIFY(ElemDofs.Size() == GlobalElemDofs.Size(),
+                     "Size inconsistency");
+         // loop through the dofs and take into account the signs;
+         int ndof = ElemDofs.Size();
+         for (int i = 0; i<ndof; ++i)
+         {
+            int pdof_ = ElemDofs[i];
+            int gdof_ = GlobalElemDofs[i];
+            int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
+            int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
+            map1[ip][pdof] = gdof;
+            map1[ip][pdof+ndof1] = gdof+fespace.GetTrueVSize();
+         }
+      }
+      for (int iel = 0; iel<part1->element_map[ip+1].Size(); ++iel)
+      {
+         // index in the overlapping mesh
+         int k = part1->element_map[ip].Size();
+         int iel_idx = iel+k;
+         Array<int> ElemDofs;
+         Array<int> GlobalElemDofs;
+         fespace2.GetElementDofs(iel,ElemDofs);
+         fespace.GetElementDofs(iel_idx,GlobalElemDofs);
+         // the sizes have to match
+         MFEM_VERIFY(ElemDofs.Size() == GlobalElemDofs.Size(),
+                     "Size inconsistency");
+         // loop through the dofs and take into account the signs;
+         int ndof = ElemDofs.Size();
+         for (int i = 0; i<ndof; ++i)
+         {
+            int pdof_ = ElemDofs[i];
+            int gdof_ = GlobalElemDofs[i];
+            int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
+            int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
+            map2[ip][pdof] = gdof;
+            map2[ip][pdof+ndof2] = gdof+fespace.GetTrueVSize();
+         }
+      }
+   }
+}

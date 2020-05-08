@@ -232,7 +232,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
 {  // default overlap size is 2 elements 
    int dim = mesh->Dimension();
    int n = pow(mesh->GetNE(), 1.0/(double)dim);
-   nx = 16;
+   nx = 5;
    ny = 1;
    nz = 1;
    if (nx > n) 
@@ -363,7 +363,7 @@ CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh *mesh_) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
-   nx = 8;
+   nx = 5;
    ny = 1;
    nz = 1;
    int nxyz[3] = {nx,ny,nz};

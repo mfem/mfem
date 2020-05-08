@@ -198,7 +198,6 @@ int main(int argc, char *argv[])
 
    // Solution grid function
    ComplexGridFunction p_gf(fespace);
-
    OperatorHandle Ah;
    Vector X, B;
 
@@ -219,14 +218,14 @@ int main(int argc, char *argv[])
 
 
 
-   X = 0.0;
-	GMRESSolver gmres;
-	gmres.SetPreconditioner(S);
-	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-8);
-	gmres.SetMaxIter(50);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
+   // X = 0.0;
+	// GMRESSolver gmres;
+	// gmres.SetPreconditioner(S);
+	// gmres.SetOperator(*A);
+	// gmres.SetRelTol(1e-8);
+	// gmres.SetMaxIter(50);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
 
 
 
@@ -252,24 +251,25 @@ int main(int argc, char *argv[])
       }
       S.Mult(r,z); 
       X += z;
-      // p_gf = 0.0;
-      // a.RecoverFEMSolution(X,B,p_gf);
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
-      //    string keys;
-      //    if (dim ==2 )
-      //    {
-      //       keys = "keys mrRljc\n";
-      //    }
-      //    else
-      //    {
-      //       keys = "keys mc\n";
-      //    }
-      //    socketstream sol1_sock_re(vishost, visport);
-      //    sol1_sock_re.precision(8);
-      //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-      //                "window_title 'Numerical Pressure (real part)' "
-      //                << keys << flush;
+      p_gf = 0.0;
+      a.RecoverFEMSolution(X,B,p_gf);
+         // char vishost[] = "localhost";
+         // int  visport   = 19916;
+         // string keys;
+         // if (dim ==2 )
+         // {
+         //    keys = "keys mrRljc\n";
+         // }
+         // else
+         // {
+         //    keys = "keys mc\n";
+         // }
+         // socketstream sol1_sock_re(vishost, visport);
+         // sol1_sock_re.precision(8);
+         // sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+         //             "window_title 'Numerical Pressure (real part)' "
+         //             << keys << flush;
+         // cin.get();
    }
 
    // KLUSolver klu(*A);
@@ -318,7 +318,7 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.1;
+   x0 = 0.5;
    x1 = 0.5;
    double alpha,beta;
    double n = 5.0*omega/M_PI;
