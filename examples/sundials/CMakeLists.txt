@@ -14,7 +14,6 @@ list(APPEND SUNDIALS_EXAMPLES_SRCS
   ex9.cpp
   ex10.cpp
   ex16.cpp
-  ex26.cpp  
   )
 
 if (MFEM_USE_MPI)
@@ -22,7 +21,6 @@ if (MFEM_USE_MPI)
     ex9p.cpp
     ex10p.cpp
     ex16p.cpp
-    ex27p.cpp    
     )
 endif()
 
