@@ -202,6 +202,21 @@ Vector &Vector::Add(const double a, const Vector &Va)
    return *this;
 }
 
+Vector &Vector::AddOffset(const double a, const Vector &Va, const int offset)
+{
+   MFEM_ASSERT(size >= Va.size + offset, "incompatible Vectors!");
+
+   if (a != 0.0)
+   {
+      const int N = Va.size;
+      const bool use_dev = UseDevice() || Va.UseDevice();
+      auto y = ReadWrite(use_dev);
+      auto x = Va.Read(use_dev);
+      MFEM_FORALL_SWITCH(use_dev, i, N, y[offset + i] += a * x[i];);
+   }
+   return *this;
+}
+
 Vector &Vector::Set(const double a, const Vector &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
@@ -211,6 +226,18 @@ Vector &Vector::Set(const double a, const Vector &Va)
    auto x = Va.Read(use_dev);
    auto y = Write(use_dev);
    MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = a * x[i];);
+   return *this;
+}
+
+Vector &Vector::SetOffset(const double a, const Vector &Va, const int offset)
+{
+   MFEM_ASSERT(size + offset <= Va.size, "incompatible Vectors!");
+
+   const bool use_dev = UseDevice() || Va.UseDevice();
+   const int N = size;
+   auto x = Va.Read(use_dev);
+   auto y = Write(use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = a * x[offset + i];);
    return *this;
 }
 
