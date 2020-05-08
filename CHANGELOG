@@ -278,7 +278,9 @@ Miscellaneous
 
 - Upgraded the SUNDIALS interface to utilize SUNDIALS 5.0. This necessitated a
   complete rework of the interface and requires changes at the application
-  level. Basic support for using the CVODES has been added and requires using the cvodes interface instead of the cvode. Example usage of the new interface can be found in examples/sundials.
+  level. Basic support for using the CVODES has been added and requires using
+  the cvodes interface instead of the cvode. Example usage of the new interface
+  can be found in examples/sundials.
 
 - Switched from gzstream to zstr for the implementation of zlib-compressed C++
   output stream. The build system definition now uses MFEM_USE_ZLIB instead of
