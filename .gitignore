@@ -118,8 +118,6 @@ examples/sundials/ex16-mesh.*
 examples/sundials/ex16-init.*
 examples/sundials/ex16-final.*
 examples/sundials/Example16*
-examples/sundials/sundials_test
-examples/sundials/sundials_test_AdvDiff
 
 examples/petsc/ex[1-69]p
 examples/petsc/ex10p
@@ -230,6 +228,9 @@ miniapps/nurbs/Example1*
 miniapps/gslib/field-diff
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
+
+miniapps/adjoint/cvsRoberts_ASAi_dns
+miniapps/adjoint/ex9p_adjoint
 
 # Unit test binary and outputs
 tests/unit/output_meshes
