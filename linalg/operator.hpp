@@ -536,8 +536,8 @@ public:
 				 const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, double gammaB)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not 
-                 overridden!");
+      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
+                 "overridden!");
       return (-1);
    }
 
@@ -555,8 +555,8 @@ public:
        details, see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not 
-                  overridden!");
+      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
+                 "overridden!");
       return (-1);
    }
 
