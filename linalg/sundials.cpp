@@ -722,7 +722,7 @@ int CVODESSolver::RHSQB(realtype t, N_Vector y, N_Vector yB, N_Vector qBdot,
    TimeDependentAdjointOperator * f = static_cast<TimeDependentAdjointOperator *>
                                       (self->f);
    f->SetTime(t);
-   f->ObjectiveSensitivityMult(mfem_y, mfem_yB, mfem_qBdot);
+   f->QuadratureSensitivityMult(mfem_y, mfem_yB, mfem_qBdot);
    return 0;
 }
 

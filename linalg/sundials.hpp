@@ -119,13 +119,19 @@ protected:
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
                           N_Vector b, realtype tol);
 
+   /// Prototype to define root finding for CVODE
    static int root(realtype t, N_Vector y, realtype *gout, void *user_data);
 
+   /// Typdef for root finding functions
    typedef std::function<int(realtype t, Vector y, Vector gout, CVODESolver *)>
    RootFunction;
+   /// A class member to facilitate pointing to a user-specified root function
    RootFunction root_func;
 
+   /// Typedef declaration for error weight functions
    typedef std::function<int(Vector y, Vector w, CVODESolver*)> EWTFunction;
+
+   /// A class member to facilitate pointing to a user-specified error weight function
    EWTFunction ewt_func;
 
 public:
@@ -282,6 +288,7 @@ public:
        @note All other methods must be called after Init(). */
    void Init(TimeDependentAdjointOperator &f_);
 
+   /// Initialize the adjoint problem
    void InitB(TimeDependentAdjointOperator &f_);
 
    /** Integrate the ODE with CVODE using the specified step mode.
@@ -295,7 +302,7 @@ public:
    */
    virtual void Step(Vector &x, double &t, double &dt);
 
-   // Adjoint stuff
+   /// Solve one adjoint time step
    virtual void StepB(Vector &w, double &t, double &dt);
 
    /// Set multiplicative error weights
@@ -306,32 +313,46 @@ public:
                             double reltolQ = 1.e-3,
                             double abstolQ = 1.e-8);
 
-   // Initialize Quadrature Integration (Adjoint)
+   /// Initialize Quadrature Integration (Adjoint)
    void InitQuadIntegrationB(mfem::Vector &qB0, double reltolQB = 1.e-3,
                              double abstolQB = 1e-8);
 
-   // Initialize Adjoint
+   /// Initialize Adjoint
    void InitAdjointSolve(int steps, int interpolation);
 
    // Get Number of Steps for ForwardSolve
    long GetNumSteps();
 
-   // Evalute Quadrature
+   /// Evalute Quadrature
    void EvalQuadIntegration(double t, Vector &q);
 
-   // Evaluate Quadrature solution
+   /// Evaluate Quadrature solution
    void EvalQuadIntegrationB(double t, Vector &dG_dp);
 
-   // Get Interpolated Forward solution y at backward integration time tB
+   /// Get Interpolated Forward solution y at backward integration time tB
    void GetForwardSolution(double tB, mfem::Vector & yy);
 
-   // Set Linear Solver for the backward problem
+   /// Set Linear Solver for the backward problem
    void UseMFEMLinearSolverB();
 
-   // Use built in SUNDIALS Newton solver
+   /// Use built in SUNDIALS Newton solver
    void UseSundialsLinearSolverB();
 
+  /**
+     \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
+
+     \param[in] reltol the scalar relative error tolerance.
+     \param[in] abstol the scalar absolute error tolerance.
+  */
    void SetSStolerancesB(double reltol, double abstol);
+
+  /**
+     \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
+     
+     \param[in] reltol the scalar relative error tolerance
+     \param[in] abstol the vector of absolute error tolerances
+
+  */
    void SetSVtolerancesB(double reltol, Vector abstol);
 
    /// Setup the linear system A x = b
@@ -346,7 +367,7 @@ public:
                            N_Vector b, realtype tol);
 
 
-   /// Destroy the associated CVODE memory and SUNDIALS objects.
+   /// Destroy the associated CVODES memory and SUNDIALS objects.
    virtual ~CVODESSolver();
 
 };

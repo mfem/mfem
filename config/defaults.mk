@@ -187,6 +187,7 @@ OPENMP_LIB =
 POSIX_CLOCKS_LIB = -lrt
 
 # SUNDIALS library configuration
+# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON and modify cmake variables for hypre for sundials
 SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib64\

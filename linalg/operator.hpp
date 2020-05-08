@@ -442,44 +442,113 @@ public:
    virtual ~TimeDependentOperator() { }
 };
 
-// ---------------------------------------------------------------------------
-// TimeDependentAdjointOperator is a TimeDependentOperator with Adjoint rate equations to be used with CVODESSolver
-// ---------------------------------------------------------------------------
 
+/// TimeDependentAdjointOperator is a TimeDependentOperator with Adjoint rate equations to be used with CVODESSolver
 class TimeDependentAdjointOperator : public TimeDependentOperator
 {
 public:
+
+  /**
+     \brief The TimedependentAdjointOperator extends the TimeDependentOperator class to use features in SUNDIALS CVODESSolver for computing quadratures and solving adjoint problems.
+
+     To solve adjoint problems one needs to implement the AdjointRateMult method to tell CVODES what the adjoint rate equation is.
+
+     QuadratureIntegration (optional) can be used to compute values over the forward problem
+
+     QuadratureSensitivityMult (optional) can be used to find the sensitivity of the quadrature using the adjoint solution in part.
+
+     SUNImplicitSetupB (optional) can be used to setup custom solvers for the newton solve for the adjoint problem.
+
+     SUNImplicitSolveB (optional) actually uses the solvers from SUNImplicitSetupB to solve the adjoint problem.
+
+     See SUNDIALS user manuals for specifics.
+   **/
+  
    TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
                                 Type type = EXPLICIT) :
       TimeDependentOperator(dim, t, type),
       adjoint_height(adjdim)
    {}
 
+  /// Destructor
    virtual ~TimeDependentAdjointOperator() {};
 
+  /**
+     \brief Provide the operator integration of a quadrature equation
+
+     \param[in] y The current value at time t
+     \param[out] qdot The current quadrate rate value at t
+
+   */
    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const {};
+   /** @brief Perform the action of the operator: @a yBdot = k = f(@a y,@2 yB, t), where
+
+       @param[in] y The primal solution at time t
+       @param[in] yB The adjoint solution at time t
+       @param[out] yBdot the rate at time t
+
+    */  
    virtual void AdjointRateMult(const Vector &y, Vector & yB,
                                 Vector &yBdot) const = 0;
-   virtual void ObjectiveSensitivityMult(const Vector &y, const Vector &yB,
+
+  /**
+     \brief Provides the sensitivity of the quadrature w.r.t to primal and adjoint solutions
+
+     \param[in] y the value of the primal solution at time t
+     \param[in] yB the value of the adjoint solution at time t
+     \param[out] qBdot the value of the sensitivity of the qaudrature rate at time t
+
+   */
+   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                          Vector &qBdot) const {}
+
+   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
+       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+
+       @param[in]  t     The current time
+       @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
+       @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
+       @param[in]  fx    The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  jokB   Flag indicating if the Jacobian should be updated.
+       @param[out] jcurB  Flag to signal if the Jacobian was updated.
+       @param[in]  gammaB The scaled time step value.
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ODE solvers, for more
+       details, see the SUNDIALS User Guides. */
+  
    virtual int SUNImplicitSetupB(const double t, const Vector &x, const Vector &xB,
                                  const Vector &fxB,
                                  int jokB, int *jcurB, double gammaB)
    {
-      mfem_error("TimeDependentOperator::SUNImplicitSetupB() is not overridden!");
+      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not overridden!");
       return (-1);
    }
 
+
+   /** @brief Solve the ODE linear system \f$ A(x,xB,t) xB = b \f$ as setup by
+       the method SUNImplicitSetup().
+
+       @param[in]      b   The linear system right-hand side.
+       @param[in,out]  x   On input, the initial guess. On output, the solution.
+       @param[in]      tol Linear solve tolerance.
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by SUNDIALS ODE solvers, for more
+       details, see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
    {
-      mfem_error("TimeDependentOperator::SUNImplicitSolveB() is not overridden!");
+      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not overridden!");
       return (-1);
    }
 
+  /// Returns the size of the adjoint problem state space
    int GetAdjointHeight() {return adjoint_height;}
 
 protected:
-   int adjoint_height;
+  int adjoint_height; /// Size of the adjoint problem
 
 };
 
