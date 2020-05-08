@@ -12,14 +12,6 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
-int problem;
-
-// Mesh bounding box
-Vector bb_min, bb_max;
-
-
 /** Reimplement AdvDiff problem here */
 class AdvDiffSUNDIALS : public TimeDependentAdjointOperator
 {
@@ -28,7 +20,6 @@ public:
                    ParFiniteElementSpace *fes) :
       TimeDependentAdjointOperator(ydot_dim, ybdot_dim),
       p_(p),
-      adjointMatrix(NULL),
       M(NULL), K(NULL), K_adj(NULL),
       Mf(NULL), MK(NULL),
       m(NULL), k(NULL),
@@ -54,20 +45,24 @@ public:
       m->Finalize(skip_zeros);
 
       k = new ParBilinearForm(pfes);
-      k->AddDomainIntegrator(new DiffusionIntegrator(*(new ConstantCoefficient(
-                                                          -p_[0]))));
+      k->AddDomainIntegrator(
+	   new DiffusionIntegrator(
+		  *(new ConstantCoefficient(-p_[0]))));
       Vector p2(fes->GetParMesh()->SpaceDimension());
       p2 = p_[1];
-      k->AddDomainIntegrator(new ConvectionIntegrator(*(new VectorConstantCoefficient(
-                                                           p2))));
+      k->AddDomainIntegrator(
+	   new ConvectionIntegrator(
+		  *(new VectorConstantCoefficient(p2))));
       k->Assemble(skip_zeros);
       k->Finalize(skip_zeros);
 
       k1 = new ParBilinearForm(pfes);
-      k1->AddDomainIntegrator(new DiffusionIntegrator(*(new ConstantCoefficient(
-                                                           p_[0]))));
-      k1->AddDomainIntegrator(new ConvectionIntegrator(*(new
-                                                         VectorConstantCoefficient(p2))));
+      k1->AddDomainIntegrator(
+	   new DiffusionIntegrator(
+		  *(new ConstantCoefficient(p_[0]))));
+      k1->AddDomainIntegrator(
+	   new ConvectionIntegrator(
+		  *(new VectorConstantCoefficient(p2))));
       k1->Assemble(skip_zeros);
       k1->Finalize(skip_zeros);
 
@@ -94,16 +89,14 @@ public:
    }
 
    virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
-   virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
-   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                         Vector &qbdot) const;
-   virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
-                                 const Vector &fyB, int jokB, int *jcurB, double gammaB);
-   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
+  
+   virtual void AdjointRateMult(const Vector &y, Vector &yB,
+				Vector &yBdot) const;
 
    virtual int SUNImplicitSetup(const Vector &y,
-                                const Vector &fy, int jok, int *jcur, double gamma);
+                                const Vector &fy, int jok, int *jcur,
+				double gamma);
+  
    virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
 
@@ -127,32 +120,7 @@ protected:
 
    CGSolver M_solver;
    HypreSmoother M_prec;
-
-   // Solvers
-   GMRESSolver adjointSolver;
-   SparseMatrix* adjointMatrix;
 };
-
-// class SundialsJacSolver : public SundialsLinearSolver
-// {
-// public:
-//   SundialsJacSolver(TimeDependentOperator &oper_) : oper(&oper_) {}
-
-//   virtual int ODELinSys(double t, Vector y, Vector fy, int jok, int *jcur,
-//           double gamma)
-//   {
-//     return oper->ImplicitSetup(t, y, fy, jok, jcur, gamma);
-//   }
-
-//   virtual int Solve(Vector &x, Vector b) {
-//     double ignored = 0.0;
-//     return oper->ImplicitSolve(x, b, ignored);
-//   }
-
-// private:
-//   TimeDependentOperator *oper;
-
-// };
 
 double u_init(const Vector &x)
 {
@@ -176,11 +144,6 @@ int main(int argc, char *argv[])
    double dt = 0.01;
    int mx = 20;
 
-   bool visualization = true;
-   bool visit = false;
-   bool binary = false;
-   int vis_steps = 5;
-
    // Relative and absolute tolerances for CVODES
    double reltol = 1e-8, abstol = 1e-6;
 
@@ -201,17 +164,6 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
-                  "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
-   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
-                  "--ascii-datafiles",
-                  "Use binary (Sidre) or ascii format for VisIt data files.");
-   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
-                  "Visualize every n-th timestep.");
 
    args.Parse();
    if (!args.Good())
@@ -241,11 +193,6 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
-   if (mesh->NURBSext)
-   {
-      mesh->SetCurvature(max(order, 1));
-   }
-   mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
@@ -329,7 +276,7 @@ int main(int argc, char *argv[])
 
       done = (t >= t_final - 1e-8*dt);
 
-      if (done || ti % vis_steps == 0)
+      if (done )
       {
          if (cvodes) { cvodes->PrintInfo(); }
 
@@ -421,8 +368,7 @@ int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
 {
    // Mf = M(I - gamma J) = M - gamma * M * J
    // J = df/dy => K
-   // fB
-   *jcur = 1;
+  *jcur = 1; // We've updated the jacobian
 
    delete Mf;
    Mf = Add(1., *M, -gamma, *K);
@@ -447,12 +393,6 @@ int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 
    return (0);
 }
-
-void AdvDiffSUNDIALS::QuadratureIntegration(const Vector &y, Vector &qdot) const
-{
-   mfem_error("Not implemented.");
-}
-
 
 void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
                                       Vector &yBdot) const
@@ -517,22 +457,4 @@ void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
    }
 
 
-}
-
-void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
-						const Vector &yB, Vector &qBdot) const
-{
-   mfem_error("Not implemented.");
-}
-
-int AdvDiffSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
-                                       const Vector &yB,
-                                       const Vector &fyB, int jokB, int *jcurB, double gammaB)
-{
-   mfem_error("Not implemented.");
-}
-
-int AdvDiffSUNDIALS::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
-{
-   mfem_error("Not implemented.");
 }
