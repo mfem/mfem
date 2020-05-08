@@ -69,10 +69,10 @@ using namespace mfem;
 
 
 /// We create a TimeDependentAdjointOperator implementation of the rate equations to recreate the cvsRoberts_ASAi_dns problem
-class RobertsSUNDIALS : public TimeDependentAdjointOperator
+class RobertsTDAOperator : public TimeDependentAdjointOperator
 {
 public:
-   RobertsSUNDIALS(int dim, Vector p) :
+   RobertsTDAOperator(int dim, Vector p) :
       TimeDependentAdjointOperator(dim, 3),
       p_(p),
       adjointMatrix(NULL)
@@ -98,7 +98,7 @@ public:
    /// Setup custom MFEM solve
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
 
-   ~RobertsSUNDIALS()
+   ~RobertsTDAOperator()
    {
       delete adjointMatrix;
    }
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
    p[1] = 1.0e4;
    p[2] = 3.0e7;
    // 3 is the size of the adjoint solution vector
-   RobertsSUNDIALS adv(3, p);
+   RobertsTDAOperator adv(3, p);
 
    // 4. Set the inital time
    double t = 0.0;
@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
 }
 
 // cvsRoberts_ASAi_dns rate equation
-void RobertsSUNDIALS::Mult(const Vector &x, Vector &y) const
+void RobertsTDAOperator::Mult(const Vector &x, Vector &y) const
 {
    y[0] = -p_[0]*x[0] + p_[1]*x[1]*x[2];
    y[2] = p_[2]*x[1]*x[1];
@@ -283,13 +283,13 @@ void RobertsSUNDIALS::Mult(const Vector &x, Vector &y) const
 }
 
 // cvsRoberts_ASAi_dns quadrature rate equation
-void RobertsSUNDIALS::QuadratureIntegration(const Vector &y, Vector &qdot) const
+void RobertsTDAOperator::QuadratureIntegration(const Vector &y, Vector &qdot) const
 {
    qdot[0] = y[2];
 }
 
 // cvsRoberts_ASAi_dns adjoint rate equation
-void RobertsSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
+void RobertsTDAOperator::AdjointRateMult(const Vector &y, Vector & yB,
                                       Vector &yBdot) const
 {
    double l21 = (yB[1]-yB[0]);
@@ -303,7 +303,7 @@ void RobertsSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
 }
 
 // cvsRoberts_ASAi_dns quadrature sensitivity rate equation
-void RobertsSUNDIALS::QuadratureSensitivityMult(const Vector &y,
+void RobertsTDAOperator::QuadratureSensitivityMult(const Vector &y,
                                                const Vector &yB, Vector &qBdot) const
 {
    double l21 = (yB[1]-yB[0]);
@@ -316,7 +316,7 @@ void RobertsSUNDIALS::QuadratureSensitivityMult(const Vector &y,
 }
 
 // cvsRoberts_ASAi_dns implicit solve setup for adjoint
-int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
+int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
                                        const Vector &yB,
                                        const Vector &fyB, int jokB, int *jcurB, double gammaB)
 {
@@ -349,7 +349,7 @@ int RobertsSUNDIALS::SUNImplicitSetupB(const double t, const Vector &y,
 }
 
 // cvsRoberts_ASAi_dns implicit solve for adjoint 
-int RobertsSUNDIALS::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
+int RobertsTDAOperator::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
 {
   // The tolerance is ignored in this example as we're trying to replicate CVODES cvsRoberts_ASAi_dns
    adjointSolver.SetRelTol(1e-14);
