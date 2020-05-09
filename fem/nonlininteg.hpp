@@ -69,6 +69,15 @@ public:
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 
+   /// Compute the local energy on the device
+   virtual double GetElementEnergyMF(const FiniteElementSpace &fes,
+                                     const Vector &x)
+   {
+      mfem_error ("NonlinearFormIntegrator::GetElementEnergyMF(...)\n"
+                  "   is not implemented for this class.");
+      return 0.0;
+   }
+
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA(). */

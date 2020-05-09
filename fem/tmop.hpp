@@ -946,6 +946,8 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
+   virtual double GetElementEnergyMF(const FiniteElementSpace &fes,
+                                     const Vector &x);
 
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
@@ -1009,6 +1011,7 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
+   //virtual double GetElementEnergyMF(const Vector &x);
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
                                       const Vector &elfun, Vector &elvect);
