@@ -66,6 +66,9 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "../../../dbg.hpp"
+#include "general/forall.hpp"
+#include "linalg/kernels.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -271,6 +274,7 @@ int main(int argc, char *argv[])
    bool visualization    = true;
    int verbosity_level   = 0;
    int fdscheme          = 0;
+   const char *devopt    = "cpu";
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -345,6 +349,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
+   args.AddOption(&devopt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -352,6 +358,9 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   Device device(devopt);
+   device.Print();
 
    // 2. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -395,22 +404,61 @@ int main(int argc, char *argv[])
    //
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
+   h0.UseDevice(true);
    h0 = infinity();
+   h0.HostReadWrite();
    double volume = 0.0;
-   Array<int> dofs;
-   for (int i = 0; i < mesh->GetNE(); i++)
    {
-      // Get the local scalar element degrees of freedom in dofs.
-      fespace->GetElementDofs(i, dofs);
-      // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = mesh->GetElementSize(i);
-      for (int j = 0; j < dofs.Size(); j++)
+      Array<int> dofs;
+      for (int i = 0; i < mesh->GetNE(); i++)
       {
-         h0(dofs[j]) = min(h0(dofs[j]), hi);
+         // Get the local scalar element degrees of freedom in dofs.
+         fespace->GetElementDofs(i, dofs);
+         // Adjust the value of h0 in dofs based on the local mesh size.
+         const double hi = mesh->GetElementSize(i);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            h0(dofs[j]) = min(h0(dofs[j]), hi);
+         }
+         volume += mesh->GetElementVolume(i);
       }
-      volume += mesh->GetElementVolume(i);
    }
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+   dbg("\033[33msmall_phys_size:   %.15e", small_phys_size);
+
+   {
+      const int quad_order = mesh_poly_deg;
+      const int geom_type = fespace->GetFE(0)->GetGeomType();
+      const IntegrationRule &ir = IntRules.Get(geom_type, quad_order);
+
+      const int NQ = ir.GetNPoints();
+      const int NE = fespace->GetMesh()->GetNE();
+      const int Q1D = IntRules.Get(Geometry::SEGMENT, quad_order).GetNPoints();
+      const int flags = GeometricFactors::DETERMINANTS;
+      const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
+      MFEM_VERIFY(dim==2, "Only 2D is supported");
+      const auto W = ir.GetWeights().Read();
+      const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
+      Vector volume_d(NE*NQ), one_d(NE*NQ);
+      auto A = Reshape(volume_d.Write(), NQ, NE);
+      auto O = Reshape(one_d.Write(), NQ, NE);
+      MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const int q = qx + qy * Q1D;
+               const double det = detJ(q,e);
+               A(q,e) = W[q] * det;
+               O(q,e) = 1.0;
+            }
+         }
+      });
+      volume = volume_d * one_d;
+      const double small_phys_size_d = pow(volume, 1.0 / dim) / 100.0;
+      dbg("\033[33msmall_phys_size_d: %.15e", small_phys_size_d);
+   }
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -421,6 +469,7 @@ int main(int argc, char *argv[])
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
+   rdm.HostReadWrite();
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < fespace->GetNDofs(); i++)
    {
@@ -455,10 +504,11 @@ int main(int argc, char *argv[])
    // 11. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
+   MFEM_VERIFY(metric_id == 2, "");
    switch (metric_id)
    {
       case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break;
+      case 2: metric = new TMOP_Metric_002; break; // <== metric ID
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 14: metric = new TMOP_Metric_SSA2D; break;
@@ -486,9 +536,10 @@ int main(int argc, char *argv[])
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    GridFunction size;
+   MFEM_VERIFY(target_id == 1, "");
    switch (target_id)
    {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break; // <==
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
       case 4:
@@ -524,11 +575,13 @@ int main(int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
+   MFEM_VERIFY(!fdscheme,"");
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
+   MFEM_VERIFY(quad_type == 2,"");
    switch (quad_type)
    {
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
@@ -540,6 +593,7 @@ int main(int argc, char *argv[])
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
 
+   MFEM_VERIFY(!normalization, "");
    if (normalization) { he_nlf_integ->EnableNormalization(x0); }
 
    // 13. Limit the node movement.
@@ -549,6 +603,7 @@ int main(int argc, char *argv[])
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
+   MFEM_VERIFY(lim_const == 0.0, "");
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // 14. Setup the final NonlinearForm (which defines the integral of interest,
@@ -563,6 +618,7 @@ int main(int argc, char *argv[])
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
+   MFEM_VERIFY(combomet == 0,"");
    if (combomet > 0)
    {
       // First metric.
@@ -596,6 +652,11 @@ int main(int argc, char *argv[])
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
    const double init_energy = a.GetGridFunctionEnergy(x);
+   dbg("\033[33minit_energy: %.15e", init_energy);
+
+   const double init_energy_mf = a.GetGridFunctionEnergyMF(x);
+   dbg("\033[33minit_energy: %.15e", init_energy_mf);
+   return 0;
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)

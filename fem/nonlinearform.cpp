@@ -78,6 +78,31 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
+double NonlinearForm::GetGridFunctionEnergyMF(const Vector &x) const
+{
+   double energy = 0.0;
+
+   if (dnfi.Size())
+   {
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         energy += dnfi[k]->GetElementEnergyMF(*fes, x);
+      }
+   }
+
+   if (fnfi.Size())
+   {
+      MFEM_ABORT("TODO: add energy contribution from interior face terms");
+   }
+
+   if (bfnfi.Size())
+   {
+      MFEM_ABORT("TODO: add energy contribution from boundary face terms");
+   }
+
+   return energy;
+}
+
 double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    Array<int> vdofs;
