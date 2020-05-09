@@ -32,7 +32,6 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    shape.SetSize(dof);       // vector of size dof
    elvect.SetSize(dof);
    elvect = 0.0;
-   cout << Tr.ElementNo << endl;
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {

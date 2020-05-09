@@ -48,20 +48,38 @@ public:
 
    //using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
+/// Class for domain integration L(v) := (f, v)
+class CutDomainLFIntegrator : public DeltaLFIntegrator
+{
+   Vector shape;
+   Coefficient &Q;
+   int oa, ob;
+   std::map<int, IntegrationRule *> CutIntRules;
+   std::vector<bool> EmbeddedElements;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+   CutDomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0, 
+   std::map<int, IntegrationRule *> CutSqIntRules, std::vector<bool> EmbeddedElems)
+   // the old default was a = 1, b = 1
+   // for simple elliptic problems a = 2, b = -2 is OK
+      :  CutIntRules(CutSqIntRules), EmbeddedElements(EmbeddedElems),
+         DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
+};
+
 class CutDomainNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
-  
-   //   Jrt: the Jacobian of the target-to-reference-element transformation.
-   //   Jpr: the Jacobian of the reference-to-physical-element transformation.
-   //   Jpt: the Jacobian of the target-to-physical-element transformation.
-   //     P: represents dW_d(Jtp) (dim x dim).
-   //   DSh: gradients of reference shape functions (dof x dim).
-   //    DS: gradients of the shape functions in the target (stress-free)
-   //        configuration (dof x dim).
-   // PMatI: coordinates of the deformed configuration (dof x dim).
-   // PMatO: reshaped view into the local element contribution to the operator
-   //        output - the result of AssembleElementVector() (dof x dim).
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
    std::map<int, IntegrationRule *> CutIntRules;
    std::vector<bool> EmbeddedElements;
