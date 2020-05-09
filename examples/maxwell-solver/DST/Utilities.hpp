@@ -1,5 +1,41 @@
 #include "MeshPartition.hpp"
 
+struct hash_pair {
+   template <class T1, class T2>
+   size_t operator()(const pair<T1, T2>& p) const{
+      auto hash1 = hash<T1>{}(p.first);
+      auto hash2 = hash<T2>{}(p.second);
+      return hash1 ^ hash2;
+   }
+};
+
+struct UniqueIndexGenerator
+{
+   int counter = 0;
+   std::unordered_map<pair<int,int>,int, hash_pair> idx;
+   int Get(int i, int j)
+   {
+      pair<int,int> p1(i,j);
+      std::unordered_map<pair<int,int>,int, hash_pair>::iterator f = idx.find(p1);
+      if (f == idx.end())
+      {
+         idx[p1] = counter;
+         return counter++;
+      }
+      else
+      {
+         return (*f).second;
+      }
+   }
+   void Reset()
+   {
+      counter = 0;
+      idx.clear();
+   }
+};
+
+
+
 // Function coefficient that takes the boundingbox of the mesh as an input
 class CutOffFnCoefficient : public Coefficient
 {

@@ -17,37 +17,35 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=2;
+   int nx=3;
    int ny=3; 
-   int nz=2;
+   int nz=1;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz);
-   // povlp = new MeshPartition(mesh, partition_kind);
    nxyz[0] = povlp->nxyz[0];
    nxyz[1] = povlp->nxyz[1];
    nxyz[2] = povlp->nxyz[2];
    nrpatch = povlp->nrpatch;
-   cout<< "nrpatch = " << nrpatch << endl;
-   cout << "nx = " << nx << endl;
-   cout << "ny = " << ny << endl;
-   cout << "nz = " << nz << endl;
+   // cout<< "nrpatch = " << nrpatch << endl;
+   // cout << "nx = " << nx << endl;
+   // cout << "ny = " << ny << endl;
+   // cout << "nz = " << nz << endl;
    subdomains = povlp->subdomains;
-   for (int k = 0; k<nxyz[2]; k++)
-   {
-      for (int j = 0; j<nxyz[1]; j++)
-      {
-         for (int i = 0; i<nxyz[0]; i++)
-         {
-            cout << "("<<i<<","<<j<<","<<k<<") = " << povlp->subdomains(i,j,k) << endl;
-         }
-      }   
-   }
+   // for (int k = 0; k<nxyz[2]; k++)
+   // {
+   //    for (int j = 0; j<nxyz[1]; j++)
+   //    {
+   //       for (int i = 0; i<nxyz[0]; i++)
+   //       {
+   //          cout << "("<<i<<","<<j<<","<<k<<") = " << povlp->subdomains(i,j,k) << endl;
+   //       }
+   //    }   
+   // }
 
    for (int ip = 0; ip<nrpatch; ip++)
    {
       int i, j, k;
       Getijk(ip, i,j,k);
-      cout << "ip = " << ip << ": ("<<i<<","<<j<<","<<k<<")"<< endl;
-
+      // cout << "ip = " << ip << ": ("<<i<<","<<j<<","<<k<<")"<< endl;
    }
 
    //
@@ -68,6 +66,24 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
       PmlMat[ip] = GetPmlSystemMatrix(ip);
       PmlMatInv[ip] = new KLUSolver;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
+   }
+
+   // Set up src arrays size
+   f_orig.SetSize(nrpatch);
+   f_transf.SetSize(nrpatch);
+
+
+   // Construct a simple map used for directions of transfer
+   ConstructDirectionsMap();
+   for (int ip=0; ip<nrpatch; ip++)
+   {
+      int n = ovlp_prob->fespaces[ip]->GetTrueVSize();
+      f_orig[ip] = new Vector(n); *f_orig[ip] = 0.0;
+      f_transf[ip].SetSize(ntransf_directions);
+      for (int i=0;i<ntransf_directions; i++)
+      {
+         f_transf[ip][i] = new Vector(nz); *f_transf[ip][i] = 0.0;
+      }
    }
 }
 
@@ -468,11 +484,19 @@ DiagST::~DiagST()
 {
    for (int ip = 0; ip<nrpatch; ++ip)
    {
-      // delete PmlMatInv[ip];
-      // delete PmlMat[ip];
+      delete PmlMatInv[ip];
+      delete PmlMat[ip];
    }
    PmlMat.DeleteAll();
    PmlMatInv.DeleteAll();
+   for (int ip=0; ip<nrpatch; ip++)
+   {
+      delete f_orig[ip];
+      for (int i=0;i<ntransf_directions; i++)
+      {
+         delete f_transf[ip][i];
+      }
+   }
 }
 
 
@@ -483,9 +507,69 @@ void DiagST::Getijk(int ip, int & i, int & j, int & k)
    i = (ip-k*nxyz[0]*nxyz[1])%nxyz[0];
 }
 
-void SourceTransfer(Array<int> direction, int ip, Array<Vector> & src)
+void DiagST::SourceTransfer(const Vector & Psi, Array<int> direction, int ip)
 {
+   // For now 2D problems only
+   // Directions
+   // direction (1,1)
+   int i,j,k;
+   Getijk(ip,i,j,k);
+   // Up-right direction
+   // the source will be trasfered to (i+1,j), (i,j+1) and (i+1,j+1) if (i+1,j+1) < nx,ny 
+   if (direction[0]==1 && direction[1]==1)
+   { //Trasfer to (i+1,j), (i,j+1) and (i+1,j+1) if (i+1,j+1) < (nx,ny) 
+
+   }
+   //down-right direction
+   else if (direction[0]==1 && direction[1]==-1)
+   { //Trasfer to (i+1,j), (i,j-1) and (i+1,j-1) if i+1 < nx, j-1 >= 0 
+      
+   }
+   //Up-left direction
+   else if (direction[0]==-1 && direction[1]==1)
+   { //Trasfer to (i-1,j), (i,j+1) and (i-1,j+1) if i-1 >=0, j+1 < ny 
+      
+   }
+   else if (direction[0]==-1 && direction[1]==-1)
+   { //Trasfer to (i-1,j), (i,j-1) and (i-1,j-1) if i-1 >=0, j-1 >=0 
+      
+   }
+   else
+   {
+      MFEM_ABORT("SourceTransfer: Wrong direction of transfer given");
+   }
+   
 
 }
 
 
+
+void DiagST::ConstructDirectionsMap()
+{
+   // total of 8 possible directions of transfer (2D)
+   // form left            ( 1 ,  0)
+   // form left-above      ( 1 , -1)
+   // form left-below      ( 1 ,  1)
+   // form right           (-1 ,  0)
+   // form right-below     (-1 ,  1)
+   // form right-above     (-1 , -1)
+   // form above           ( 0 , -1)
+   // form below           ( 0 ,  1)
+   ntransf_directions = pow(3,dim) - 1;
+
+   directionsx = new std::vector<int>{1,1,1,-1,-1,-1,0,0};
+   directionsy = new std::vector<int>{0,-1,1,0,1,-1,-1,1};
+
+   gen.Reset();
+   for (int k=0; k<ntransf_directions; k++)
+   {
+      int i = (*directionsx)[k];
+      int j = (*directionsy)[k];
+      gen.Get(i,j);
+   }
+   
+   cout << "Direction -1,1 is no " << gen.Get(-1,1) << endl;
+   cout << "no 5 is the directions " << "( " <<
+   (*directionsx)[5] << ", " << (*directionsy)[5] << ")" << endl;
+  
+}
