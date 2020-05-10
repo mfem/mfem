@@ -189,20 +189,30 @@ public:
   
   virtual void Mult(const Vector & x, Vector & y) const
   {
-    y = 0.0;
+    auto x_host = x.HostRead();
+    auto y_host = y.HostReadWrite();
+
+    //y = 0.0;
+    for (int j=0; j<y.Size(); ++j)
+      y_host[j] = 0.0;
 
     int i = 0;
     for (std::set<int>::const_iterator it = id->begin(); it != id->end(); ++it, ++i)
-      y[*it] = x[i];
+      y_host[*it] = x_host[i];
   }
 
   virtual void MultTranspose(const Vector &x, Vector &y) const
   {
-    y = 0.0;
+    auto x_host = x.HostRead();
+    auto y_host = y.HostReadWrite();
+
+    //y = 0.0;
+    for (int j=0; j<y.Size(); ++j)
+      y_host[j] = 0.0;
 
     int i = 0;
     for (std::set<int>::const_iterator it = id->begin(); it != id->end(); ++it, ++i)
-      y[i] = x[*it];
+      y_host[i] = x_host[*it];
   }
 };
 
@@ -257,10 +267,12 @@ public:
     std::vector<int> cnt;
     cnt.assign(m_nprocs, 0);
 
+    auto x_host = x.HostRead();
+
     //for (int ifp=0; ifp<m_nprocs; ++ifp)
     for (int i=0; i<x.Size(); ++i) // loop over local true interface DOF's
       {
-	m_send[m_sdspl[m_iftToSDrank[i]] + cnt[m_iftToSDrank[i]]] = x[i];
+	m_send[m_sdspl[m_iftToSDrank[i]] + cnt[m_iftToSDrank[i]]] = x_host[i];
 	cnt[m_iftToSDrank[i]]++;
       }
 
@@ -300,7 +312,11 @@ public:
     // Given an input vector x of local true SD DOF's, set the output vector y of local true interface DOF's, which may require values from other processes.
     MFEM_VERIFY(y.Size() == m_send.size(), "");
 
-    y = 0.0;
+    auto y_host = y.HostReadWrite();
+
+    //y = 0.0;
+    for (int j=0; j<y.Size(); ++j)
+      y_host[j] = 0.0;
 
     for (int i=0; i<m_recv.size(); ++i)
       {
@@ -319,7 +335,7 @@ public:
 
     for (int i=0; i<y.Size(); ++i) // loop over local true interface DOF's
       {
-	y[i] = m_send[m_sdspl[m_iftToSDrank[i]] + cnt[m_iftToSDrank[i]]];
+	y_host[i] = m_send[m_sdspl[m_iftToSDrank[i]] + cnt[m_iftToSDrank[i]]];
 	cnt[m_iftToSDrank[i]]++;
       }
 
@@ -409,7 +425,8 @@ public:
 
     if (isSender)
       {
-	MPI_Send(x.GetData(), n, MPI_DOUBLE, otherRank, id, MPI_COMM_WORLD);
+	auto x_host = x.HostRead();
+	MPI_Send(x_host, n, MPI_DOUBLE, otherRank, id, MPI_COMM_WORLD);
 	y = x;
       }
     else
@@ -1134,9 +1151,10 @@ public:
       return;
     
     Vector uSD(fespace[sd]->GetTrueVSize());
+    auto u_host = u.HostRead();
 
     for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
-      uSD[i] = u[i];
+      uSD[i] = u_host[i];
     
 #ifdef DEBUG_RECONSTRUCTION
     ComputeF(sd, uSD, u, rhs);
@@ -1161,7 +1179,7 @@ public:
 
     for (int i=fespace[sd]->GetTrueVSize(); i<block_ComplexOffsetsSD[sd][1]; ++i)
       {
-	normIFRe = u[i] * u[i];
+	normIFRe = u_host[i] * u_host[i];
       }
 #endif
     /*
@@ -1209,7 +1227,7 @@ public:
 
     // Overwrite real part with imaginary part, only for the subdomain true DOF's.
     for (int i=0; i<fespace[sd]->GetTrueVSize(); ++i)
-      uSD[i] = u[block_ComplexOffsetsSD[sd][1] + i];
+      uSD[i] = u_host[block_ComplexOffsetsSD[sd][1] + i];
 
     MFEM_VERIFY(u.Size() == block_ComplexOffsetsSD[sd][2], "");
     MFEM_VERIFY(u.Size() == 2*block_ComplexOffsetsSD[sd][1], "");
@@ -1217,7 +1235,7 @@ public:
 #ifdef IFFOSLS
     for (int i=fespace[sd]->GetTrueVSize() + block_ComplexOffsetsSD[sd][1]; i < u.Size(); ++i)
       {
-	normIFIm = u[i] * u[i];
+	normIFIm = u_host[i] * u_host[i];
       }
 #endif
     

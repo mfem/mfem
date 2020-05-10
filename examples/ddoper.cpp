@@ -4349,6 +4349,7 @@ void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
 
   ParGridFunction ssd_gf(fespaceSD);
   ssd_gf.SetFromTrueDofs(ssd);
+  auto ssd_gf_host = ssd_gf.HostRead();
 
   MFEM_VERIFY(ssd_gf.Size() == fespaceSD->GetVSize(), "");
 
@@ -4375,7 +4376,7 @@ void SetDomainDofsFromSubdomainDofs(ParFiniteElementSpace *fespaceSD, ParFiniteE
 	  if (ldof >= 0)
 	    {
 	      const double flip = ((dofs[i] >= 0 && sddofs[i] < 0) || (dofs[i] < 0 && sddofs[i] >= 0)) ? -1.0 : 1.0;
-	      s[ldof] = ssd_gf[sddof_i] * flip;
+	      s[ldof] = ssd_gf_host[sddof_i] * flip;
 	    }
 	}
     }
@@ -4580,13 +4581,15 @@ void CompareOperators(Operator *A, Operator *B, MPI_Comm comm)
 void BlockSubdomainPreconditioner::Mult(const Vector & x, Vector & y) const
 {
   // TODO: In the case of ROBIN_TC, instead of block diagonal preconditioning, just solve the block lower triangular system?
-  
+
+  auto x_host = x.HostRead();
+
   // First, precondition the complex auxiliary block.
   
   for (int i=0; i<nAux; ++i) // Extract the complex auxiliary entries from x.
     {
-      xaux[i] = x[nSD + i];
-      xaux[nAux + i] = x[osIm + nSD + i];
+      xaux[i] = x_host[nSD + i];
+      xaux[nAux + i] = x_host[osIm + nSD + i];
     }
   
   invAuxComplex->Mult(xaux, yaux);
@@ -4600,8 +4603,8 @@ void BlockSubdomainPreconditioner::Mult(const Vector & x, Vector & y) const
 #ifdef SD_ITERATIVE_COMPLEX
   for (int i=0; i<nSD; ++i)
     {
-      xsd[i] = x[i];
-      xsd[nSD + i] = x[osIm + i];
+      xsd[i] = x_host[i];
+      xsd[nSD + i] = x_host[osIm + i];
     }
 
   invSD->Mult(xsd, ysd);
@@ -8235,6 +8238,7 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 
   // globalInterfaceOp represents the off-diagonal blocks C_{ij} R_j^T
   globalInterfaceOp->Mult(solReduced, w);
+  auto w_host = w.HostRead();
 
   cout << m_rank << ": global w norm " << w.Norml2() << endl;
   
@@ -8292,7 +8296,7 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	  wSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
 
 	  for (int i=0; i<block_trueOffsets2[m+1] - block_trueOffsets2[m]; ++i)
-	    wSD[i] = w[block_trueOffsets2[m] + i];
+	    wSD[i] = w_host[block_trueOffsets2[m] + i];
 #endif
 
 	  uSD.SetSize(invAsdComplex[m]->Height());
@@ -10555,7 +10559,11 @@ void DDMInterfaceOperator::CreateSubdomainMatrices(const int subdomain, const bo
 #endif
 
 #ifndef SD_ITERATIVE_GMG_PA
-	sd_ess_tdof_list[subdomain] = ess_tdof_list;  // deep copy
+	//sd_ess_tdof_list[subdomain] = ess_tdof_list;  // deep copy
+	sd_ess_tdof_list[subdomain].SetSize(ess_tdof_list.Size());
+	auto ess_tdof_list_host = ess_tdof_list.HostRead();
+	for (int i=0; i<ess_tdof_list.Size(); ++i)
+	  sd_ess_tdof_list[subdomain][i] = ess_tdof_list_host[i];
 #endif
 
 	  delete b;

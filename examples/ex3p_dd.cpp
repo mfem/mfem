@@ -992,7 +992,7 @@ int main(int argc, char *argv[])
       // Note: with nx=6 in inline-tetHalf2.mesh, 1/64 becomes 1/96; 1/128 becomes 1/192.
       
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels-1; l++)
+      for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -1001,7 +1001,7 @@ int main(int argc, char *argv[])
 #ifndef SUBDOMAIN_MESH
    // 4.5. Partition the mesh in serial, to define subdomains.
    // Note that the mesh attribute is overwritten here for convenience, which is bad if the attribute is needed.
-   int nxyzSubdomains[3] = {2, 2, 2};
+   int nxyzSubdomains[3] = {4, 4, 4};
    const int numSubdomains = nxyzSubdomains[0] * nxyzSubdomains[1] * nxyzSubdomains[2];
    {
      int *subdomain = mesh->CartesianPartitioning(nxyzSubdomains);
@@ -1152,10 +1152,10 @@ int main(int argc, char *argv[])
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {1, 1, 4};
        //int nxyzGlobal[3] = {1, 2, 1};
-       int nxyzGlobal[3] = {2, 2, 2};
+       //int nxyzGlobal[3] = {2, 2, 2};
        //int nxyzGlobal[3] = {2, 2, 4};
        //int nxyzGlobal[3] = {3, 3, 4};
-       //int nxyzGlobal[3] = {4, 4, 4};
+       int nxyzGlobal[3] = {4, 4, 4};
        //int nxyzGlobal[3] = {6, 6, 6};
        //int nxyzGlobal[3] = {6, 6, 12};  // 432
        //int nxyzGlobal[3] = {6, 12, 12};  // 864

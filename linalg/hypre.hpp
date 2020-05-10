@@ -1056,6 +1056,7 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
 
+  /*
   virtual HYPRE_ParCSRMatrix* Get_Restriction() const
   {
     //int m = hypre_ParAMGData_GetMaxLevels(amg_precond);
@@ -1064,7 +1065,8 @@ public:
     //hypre_ParCSRMatrix** hypre_AMGGetRestriction(void *solver);
     //return (HYPRE_ParCSRMatrix) hypre_ParAMGDataRArray(amg_precond);  // See hypre/src/parcsr_ls/par_amg.h
   }
-  
+  */
+
    virtual ~HypreBoomerAMG();
 };
 

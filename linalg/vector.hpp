@@ -244,8 +244,14 @@ public:
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
 
+   /// (*this) += a * Va, with an offset for this
+   Vector &AddOffset(const double a, const Vector &Va, const int offset);
+
    /// (*this) = a * x
    Vector &Set(const double a, const Vector &x);
+
+   /// (*this) = a * x, with an offset for x
+   Vector &SetOffset(const double a, const Vector &Va, const int offset);
 
    void SetVector(const Vector &v, int offset);
 
