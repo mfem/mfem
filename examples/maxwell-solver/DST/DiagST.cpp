@@ -538,8 +538,6 @@ void DiagST::SourceTransfer(const Vector & Psi, Array<int> direction, int ip)
    {
       MFEM_ABORT("SourceTransfer: Wrong direction of transfer given");
    }
-   
-
 }
 
 
@@ -555,21 +553,103 @@ void DiagST::ConstructDirectionsMap()
    // form right-above     (-1 , -1)
    // form above           ( 0 , -1)
    // form below           ( 0 ,  1)
-   ntransf_directions = pow(3,dim) - 1;
+   ntransf_directions = pow(3,dim);
 
-   directionsx = new std::vector<int>{1,1,1,-1,-1,-1,0,0};
-   directionsy = new std::vector<int>{0,-1,1,0,1,-1,-1,1};
-
-   gen.Reset();
-   for (int k=0; k<ntransf_directions; k++)
+   dirx.SetSize(ntransf_directions);
+   diry.SetSize(ntransf_directions);
+   int n=3;
+   Array<int> ijk(dim);
+   if (dim==2)
    {
-      int i = (*directionsx)[k];
-      int j = (*directionsy)[k];
-      gen.Get(i,j);
+      for (int i=-1; i<=1; i++) // directions x
+      {
+         for (int j=-1; j<=1; j++) // directions y
+         {
+            ijk[0]=i;
+            ijk[1]=j;
+            int k=GetDirectionId(ijk);
+            dirx[k]=i;
+            diry[k]=j;
+         }
+      }
+   }
+   else if (dim==3)
+   {
+      dirz.SetSize(ntransf_directions);
+      for (int i=-1; i<=1; i++) // directions x
+      {
+         for (int j=-1; j<=1; j++) // directions y
+         {
+            for (int k=-1; k<=1; k++) // directions zß
+            {
+               ijk[0]=i;
+               ijk[1]=j;
+               ijk[2]=k;
+               int l=GetDirectionId(ijk);
+               dirx[l]=i;
+               diry[l]=j;
+               dirz[l]=k;
+            }
+         }
+      }
+   }
+
+   cout << "dirx = " << endl;
+   dirx.Print(cout,ntransf_directions);
+   cout << "diry = " << endl;
+   diry.Print(cout,ntransf_directions);
+
+   if (dim==2)
+   {
+      for (int id=0; id<9; id++)
+      {
+         GetDirectionijk(id,ijk);
+         cout << "for id = " << id << ": (" <<ijk[0] << ", " << ijk[1] << ")" << endl;
+      }
+   }
+   else
+   {
+      cout << "dirz = " << endl;
+      dirz.Print(cout,ntransf_directions);
+      for (int id=0; id<27; id++)
+      {
+         GetDirectionijk(id,ijk);
+         cout << "for id = " << id << ": (" <<ijk[0] << ", " <<ijk[1] << ", " << ijk[2] << ")" << endl;
+      }
    }
    
-   cout << "Direction -1,1 is no " << gen.Get(-1,1) << endl;
-   cout << "no 5 is the directions " << "( " <<
-   (*directionsx)[5] << ", " << (*directionsy)[5] << ")" << endl;
-  
+   
+
+}
+
+
+int DiagST::GetDirectionId(const Array<int> & ijk)
+{
+   int d = ijk.Size();
+   int n=3;
+   if (d==2)
+   {
+      return (ijk[0]+1)*n+(ijk[1]+1);
+   }
+   else
+   {
+      return (ijk[0]+1)*n*n+(ijk[1]+1)*n+ijk[2]+1;
+   }
+}
+
+void DiagST::GetDirectionijk(int id, Array<int> & ijk)
+{
+   int d = ijk.Size();
+   int n=3;
+   if (d==2)
+   {
+      ijk[0]=id/n - 1;
+      ijk[1]=id%n - 1;
+   }
+   else
+   {
+      ijk[0]=id/(n*n)-1;
+      ijk[1]=(id-(ijk[0]+1)*n*n)/n - 1;
+      ijk[2]=(id-(ijk[0]+1)*n*n)%n - 1;
+   }
 }

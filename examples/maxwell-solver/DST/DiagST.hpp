@@ -25,15 +25,17 @@ private:
    mutable Array<Vector * > f_orig;
    int ntransf_directions;
    UniqueIndexGenerator gen;
-   std::vector<int> *directionsx;
-   std::vector<int> *directionsy;
-   std::vector<int> *directionsz;
+   Array<int> dirx;
+   Array<int> diry;
+   Array<int> dirz;
    mutable Array<Array<Vector * >> f_transf;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
    void GetCutOffSolution(Vector & sol, int ip, int direction, bool local=false) const;
    void SourceTransfer(const Vector & Psi, Array<int> direction, int ip);
+   int  GetDirectionId(const Array<int> & ijk);
+   void GetDirectionijk(int id, Array<int> & ijk);
    void ConstructDirectionsMap();
    void Getijk(int ip, int & i, int & j, int & k );
 public:
