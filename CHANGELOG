@@ -35,6 +35,9 @@ Discretization improvements
 
 - Added support for simplices in GSLIB-FindPoints.
 
+- Added new partial assembly kernels for H(div) bilinear forms, as well as
+  VectorFEDivergenceIntegrator.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -42,6 +45,10 @@ Linear and nonlinear solvers
 
 - Added initial support for h- and p-multigrid solvers and preconditioners for
   matrix-based and matrix-free discretizations with basic GPU capability.
+
+- Block arrays of parallel matrices can now be merged into a single parallel
+  matrix with the function HypreParMatrixFromBlocks. This could be useful for
+  solving block systems with parallel direct solvers such as STRUMPACK.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -65,6 +72,12 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
 
+- Added partial assembly support to examples 4/4p and 5/5p, with diagonal
+  preconditioning.
+
+- Added a new test problem in example 24/24p, demonstrating a mixed bilinear
+  form for H(div) and L_2, with partial assembly support.
+
 Improved testing
 ----------------
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
@@ -83,6 +96,9 @@ Miscellaneous
   entire spatial and temporal data. In addition, ADIOS2 allows for setting a
   user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
 
+- Added a new IterativeSolverMonitor class that allows to monitor the residual
+  and solution during the solving process of an IterativeSolver after every
+  iteration.
 
 Version 4.1, released on March 10, 2020
 =======================================

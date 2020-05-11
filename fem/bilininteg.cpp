@@ -51,6 +51,12 @@ void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleDiagonalPA_ADAt(const Vector &, Vector &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA_ADAt(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("BilinearFormIntegrator::MultAssembled(...)\n"
@@ -1974,7 +1980,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       D.SetSize(VQ ? VQ->GetVDim() : 0);
       K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
-      DenseMatrix tmp(trial_vshape.Height(), K.Width());
+      DenseMatrix tmp(test_vshape.Height(), K.Width());
 
       elmat.SetSize (test_dof, trial_dof);
 
