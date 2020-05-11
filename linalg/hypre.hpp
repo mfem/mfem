@@ -654,6 +654,8 @@ public:
    /// Set SOR-related parameters
    void SetSOROptions(double relax_weight, double omega);
    /// Set parameters for polynomial smoothing
+   /** By default, 10 iterations of CG are used to estimate the eigenvalues. 
+       Setting eig_est_cg_iter = 0 uses hypre's hypre_ParCSRMaxEigEstimate() instead. */
    void SetPolyOptions(int poly_order, double poly_fraction, int eig_est_cg_iter = 10);
    /// Set parameters for Taubin's lambda-mu method
    void SetTaubinOptions(double lambda, double mu, int iter);
