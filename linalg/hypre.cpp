@@ -1931,7 +1931,8 @@ void HypreSmoother::SetSOROptions(double _relax_weight, double _omega)
    omega = _omega;
 }
 
-void HypreSmoother::SetPolyOptions(int _poly_order, double _poly_fraction, int _eig_est_cg_iter)
+void HypreSmoother::SetPolyOptions(int _poly_order, double _poly_fraction,
+                                   int _eig_est_cg_iter)
 {
    poly_order = _poly_order;
    poly_fraction = _poly_fraction;
@@ -2022,7 +2023,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       if (eig_est_cg_iter > 0)
       {
          hypre_ParCSRMaxEigEstimateCG(*A, poly_scale, eig_est_cg_iter,
-                                    &max_eig_est, &min_eig_est);
+                                      &max_eig_est, &min_eig_est);
       }
       else
       {
@@ -2037,7 +2038,7 @@ void HypreSmoother::SetOperator(const Operator &op)
       if (eig_est_cg_iter > 0)
       {
          hypre_ParCSRMaxEigEstimateCG(*A, poly_scale, eig_est_cg_iter,
-                                    &max_eig_est, &min_eig_est);
+                                      &max_eig_est, &min_eig_est);
       }
       else
       {
