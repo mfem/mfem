@@ -520,8 +520,8 @@ void MLDivSolver::Mult(const Vector & x, Vector & y) const
         data_.Q_l2[l]->Mult(PT_F_l, Pi_F_l);
         F_l -= Pi_F_l;
 
-        SparseMatrix& agg_hdivdof_l = *data_.agg_hdivdof[l].As<SparseMatrix>();
-        SparseMatrix& agg_l2dof_l = *data_.agg_l2dof[l].As<SparseMatrix>();
+        auto& agg_hdivdof_l = *data_.agg_hdivdof[l].As<SparseMatrix>();
+        auto& agg_l2dof_l = *data_.agg_l2dof[l].As<SparseMatrix>();
 
         for (int agg = 0; agg < agg_hdivdof_l.NumRows(); agg++)
         {
@@ -576,44 +576,56 @@ void MLDivSolver::Mult(const Vector & x, Vector & y) const
     }
 }
 
-//void MLDivSolver::Mult(int l, const Vector & x, Vector & y) const
-//{
-//    y.SetSize(data_.agg_hdivdof[0]->NumCols());
+void MLDivSolver::Mult(int l, const Vector & x, Vector & y) const
+{
+    Array<int> offsets(3);
+    offsets[0] = 0;
+    offsets[1] = data_.agg_hdivdof[l]->NumCols();
+    offsets[2] = offsets[1] + data_.agg_l2dof[l]->NumCols();
 
-//    Array<int> loc_hdivdofs, loc_l2dofs;
-//    Vector F_l, PT_F_l, Pi_F_l, F_a, sigma_a;
+    y.SetSize(offsets[2]);
+    y = 0.0;
 
-//    if (l < agg_solver_.Size())
-//    {
-//        F_l = x ;
-//        PT_F_l.SetSize(data_.P_l2[l]->NumCols());
-//        data_.P_l2[l]->MultTranspose(F_l, PT_F_l);
-//        Pi_F_l.SetSize(data_.P_l2[l]->NumRows());
-//        data_.Q_l2[l]->Mult(PT_F_l, Pi_F_l);
-//        F_l -= Pi_F_l;
+    BlockVector blk_y(y.GetData(), offsets);
 
-//        SparseMatrix& agg_hdivdof_l = *data_.agg_hdivdof[l].As<SparseMatrix>();
-//        SparseMatrix& agg_l2dof_l = *data_.agg_l2dof[l].As<SparseMatrix>();
+    Array<int> hdivdofs_a, l2dofs_a;
 
-//        for (int agg = 0; agg < agg_hdivdof_l.NumRows(); agg++)
-//        {
-//            GetRowColumnsRef(agg_hdivdof_l, agg, loc_hdivdofs);
-//            GetRowColumnsRef(agg_l2dof_l, agg, loc_l2dofs);
-//            F_l.GetSubVector(loc_l2dofs, F_a);
-//            agg_solver_[l][agg]->Mult(F_a, sigma_a);
-//            y.AddElementVector(loc_hdivdofs, sigma_a);
-//        }
-//    }
-//    else
-//    {
-//        Vector u_c(coarsest_B_->NumRows());
-//        coarsest_solver_->Mult(x, u_c);
-//        //    sigma.Last().SetSize(coarsest_B_->NumCols());
-//        coarsest_B_->MultTranspose(u_c, y);
-//    }
-////    for (int l = agg_solver_.Size()-1; l>=0; l--)
-////        data_.P_hdiv[l].As<HypreParMatrix>()->Mult(1., sigma[l+1], 1., sigma[l]);
-//}
+    if (l < agg_solver_.Size())
+    {
+        auto& agg_hdivdof_l = *data_.agg_hdivdof[l].As<SparseMatrix>();
+        auto& agg_l2dof_l = *data_.agg_l2dof[l].As<SparseMatrix>();
+
+        Vector Pi_x(data_.P_l2[l]->NumRows());
+        data_.Q_l2[l]->Mult(x, Pi_x);
+        Pi_x -= x;
+        Pi_x *= -1.0;
+        BlockVector blk_Pi_x(Pi_x.GetData(), offsets);
+
+        for (int agg = 0; agg < agg_hdivdof_l.NumRows(); agg++)
+        {
+            GetRowColumnsRef(agg_hdivdof_l, agg, hdivdofs_a);
+            GetRowColumnsRef(agg_l2dof_l, agg, l2dofs_a);
+
+            Array<int> offsets_a(3);
+            offsets_a[0] = 0;
+            offsets_a[1] = hdivdofs_a.Size();
+            offsets_a[2] = offsets_a[1]+l2dofs_a.Size();
+
+            BlockVector rhs_a(offsets_a), sol_a(offsets_a);
+            blk_Pi_x.GetSubVector(hdivdofs_a, rhs_a);
+            blk_Pi_x.GetBlock(1).GetSubVector(l2dofs_a, rhs_a.GetBlock(1));
+
+            agg_solver_[l][agg]->Mult(rhs_a, sol_a);
+
+            y.AddElementVector(hdivdofs_a, sol_a);
+            blk_y.GetBlock(1).AddElementVector(l2dofs_a, sol_a.GetBlock(1));
+        }
+    }
+    else
+    {
+        coarsest_solver_->Mult(x, y);
+    }
+}
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              ParFiniteElementSpace* hcurl_fes, const DFSData& data)

@@ -143,7 +143,7 @@ public:
     MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
-//    void Mult(int level, const Vector & x, Vector & y) const;
+    void Mult(int level, const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 };
 
