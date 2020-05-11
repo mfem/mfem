@@ -107,6 +107,14 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_)
 DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers) 
                : bf(bf_), partition(partition_)
 {
+
+   nx = partition->nxyz[0];
+   ny = partition->nxyz[1];
+   nz = partition->nxyz[2];
+
+   // cout << "nx =" << nx << endl;
+   // cout << "ny =" << ny << endl;
+   // cout << "nz =" << nz << endl;
    int partition_kind = partition->partition_kind;
    fespace = bf->FESpace();
    Mesh * mesh = fespace->GetMesh();
@@ -116,17 +124,50 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
    fespaces.SetSize(nrpatch);
    PmlMeshes.SetSize(nrpatch);
    // Extend patch meshes to include pml
+
    for  (int ip = 0; ip<nrpatch; ip++)
    {
+      int k = ip/(nx*ny);
+      int j = (ip-k*nx*ny)/nx;
+      int i = (ip-k*nx*ny)%nx;
+      
       Array<int> directions;
-      if (ip > 0)
+      if (i > 0)
       {
          for (int i=0; i<nrlayers; i++)
          {
             directions.Append(-1);
          }
       }
-      if (ip < nrpatch-1)
+      if (j > 0)
+      {
+         for (int i=0; i<nrlayers; i++)
+         {
+            directions.Append(-2);
+         }
+      }
+      if (k > 0)
+      {
+         for (int i=0; i<nrlayers; i++)
+         {
+            directions.Append(-3);
+         }
+      }
+      if (i < nx-1)
+      {
+         for (int i=0; i<nrlayers; i++)
+         {
+            if (partition_kind == 3 || partition_kind == 2) directions.Append(1);
+         }
+      }
+      if (j < ny-1)
+      {
+         for (int i=0; i<nrlayers; i++)
+         {
+            if (partition_kind == 3 || partition_kind == 2) directions.Append(2);
+         }
+      }
+      if (k < nz-1)
       {
          for (int i=0; i<nrlayers; i++)
          {

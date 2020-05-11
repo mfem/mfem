@@ -241,15 +241,15 @@ int main(int argc, char *argv[])
    
    // for (int i = 0; i<n; i++)
    // {
-   //    A->Mult(X,Ax); Ax *=-1.0;
-   //    r = b; r+=Ax;
-   //    cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
-   //    if (r.Norml2() < tol) 
-   //    {
-   //       // cout << "Convergence in " << i+1 << " iterations" << endl;
-   //       break;
-   //    }
-   //    S.Mult(r,z); 
+      A->Mult(X,Ax); Ax *=-1.0;
+      r = b; r+=Ax;
+      // cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
+      // if (r.Norml2() < tol) 
+      // {
+      //    cout << "Convergence in " << i+1 << " iterations" << endl;
+      //    break;
+      // }
+      S.Mult(r,z); 
    //    X += z;
    //    p_gf = 0.0;
    //    a.RecoverFEMSolution(X,B,p_gf);

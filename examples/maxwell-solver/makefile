@@ -33,7 +33,7 @@ endif
 
 COMMON_O= schwarz.o complex_additive_schwarz.o \
 		    complex_additive_schwarzp.o additive_schwarz.o \
-			 additive_schwarzp.o pml.o PST.o ST.o utilities.o DiagST.o
+			 additive_schwarzp.o pml.o PST.o ST.o
 
 # Remove built-in rules
 %: %.cpp

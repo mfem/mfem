@@ -22,7 +22,7 @@ private:
    Array<KLUSolver *> PmlMatInv;
    Array2D<double> Pmllength;
    Array3D<int> subdomains;
-   mutable Array<Vector * > f_orig;
+   mutable Array<Vector *> f_orig;
    int ntransf_directions;
    UniqueIndexGenerator gen;
    Array<int> dirx;
@@ -32,12 +32,13 @@ private:
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
-   void GetCutOffSolution(Vector & sol, int ip, int direction, bool local=false) const;
+   void GetCutOffSolution(Vector & sol, int ip, Array<int> directions, bool local=false) const;
    void SourceTransfer(const Vector & Psi, Array<int> direction, int ip);
    int  GetDirectionId(const Array<int> & ijk);
-   void GetDirectionijk(int id, Array<int> & ijk);
+   void GetDirectionijk(int id, Array<int> & ijk) const;
    void ConstructDirectionsMap();
-   void Getijk(int ip, int & i, int & j, int & k );
+   int GetPatchId(const Array<int> & ijk) const;
+   void Getijk(int ip, int & i, int & j, int & k ) const;
 public:
    DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
        double omega_, Coefficient * ws_, int nrlayers_);
