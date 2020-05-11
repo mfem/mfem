@@ -67,7 +67,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
                "Mixed meshes are not currently supported in FindPointsGSLIB.");
 
-   //FreeData if FindPointsGSLIB::Setup has been called already
+   // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
 
    mesh = &m;
