@@ -231,7 +231,7 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
 class TMOPLBFGSOptimizer : public TMOPNewtonSolver
 {
 protected:
-   int m = 10;
+   int m = 20;
 
 public:
 #ifdef MFEM_USE_MPI
