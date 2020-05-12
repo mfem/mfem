@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
+#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -78,7 +79,7 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
-double NonlinearForm::GetGridFunctionEnergyMF(const Vector &x) const
+double NonlinearForm::GetGridFunctionEnergyPA(const Vector &x) const
 {
    double energy = 0.0;
 
@@ -86,7 +87,7 @@ double NonlinearForm::GetGridFunctionEnergyMF(const Vector &x) const
    {
       for (int k = 0; k < dnfi.Size(); k++)
       {
-         energy += dnfi[k]->GetElementEnergyMF(*fes, x);
+         energy += dnfi[k]->GetElementEnergyPA(*fes, x);
       }
    }
 
@@ -153,6 +154,7 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
+   dbg("");
    const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
@@ -160,9 +162,11 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    // In serial, place the result directly in y.
    Vector &py = P ? aux2 : y;
 
+   dbg("px:"); px.Print();
    if (ext)
    {
       ext->Mult(px, py);
+      dbg("py:"); py.Print();
       return;
    }
 
@@ -176,6 +180,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (dnfi.Size())
    {
+      dbg("dnfi");
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fe = fes->GetFE(i);
@@ -189,9 +194,11 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          }
       }
    }
+   dbg("py:"); py.Print();
 
    if (fnfi.Size())
    {
+      MFEM_ABORT("");
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
       Array<int> vdofs2;
@@ -221,6 +228,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (bfnfi.Size())
    {
+      MFEM_ABORT("");
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
 
@@ -283,6 +291,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       }
       // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
+   dbg("return py:"); py.Print();
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
@@ -451,6 +460,7 @@ void NonlinearForm::Update()
 
 void NonlinearForm::Setup()
 {
+   dbg("");
    if (ext) { return ext->AssemblePA(); }
 }
 

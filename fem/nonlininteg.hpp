@@ -70,7 +70,7 @@ public:
                                    const Vector &elfun);
 
    /// Compute the local energy on the device
-   virtual double GetElementEnergyMF(const FiniteElementSpace &fes,
+   virtual double GetElementEnergyPA(const FiniteElementSpace &fes,
                                      const Vector &x)
    {
       mfem_error ("NonlinearFormIntegrator::GetElementEnergyMF(...)\n"
