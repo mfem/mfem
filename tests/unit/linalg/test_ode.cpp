@@ -162,7 +162,7 @@ TEST_CASE("First order ODE methods",
                nstate = ode_solver->GetStateSize();
                for (int s = 0; s< nstate; s++)
                {
-                  ode_solver->GetStateVector(s,uh[s]);
+                  uh[s] = ode_solver->GetStateVector(s);
                }
             }
 
