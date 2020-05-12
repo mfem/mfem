@@ -33,6 +33,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
    elem_restrict_lex = fes.GetElementRestriction(ordering);
    if (elem_restrict_lex)
    {
+      dbg("elem_restrict_lex->Height(): %d",elem_restrict_lex->Height());
       localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
@@ -64,6 +65,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          integrators[i]->AddMultPA(localX, localY);
       }
+      dbg("localY:"); localY.Print();
       elem_restrict_lex->MultTranspose(localY, y);
    }
    else
