@@ -50,9 +50,8 @@ protected:
 public:
 
    /** This enumeration declares the values stored in
-       ElementTransformation::ElementType and indicates which group of
-       objects the index stored in ElementTransformation::ElementNo
-       refers:
+       ElementTransformation::ElementType and indicates which group of objects
+       the index stored in ElementTransformation::ElementNo refers:
 
        | ElementType | Range of ElementNo
        +-------------+-------------------------
@@ -398,17 +397,17 @@ public:
    /** @brief Method to set the geometry type of the face.
 
        @note This method is designed to be used when
-       [Par]Mesh::GetFaceTransformation will not be called i.e. when
-       the face transformation will not be needed but the neighboring
-       element transformations will be.  Using this method to override
-       the GeometryType should only be done with great care.
+       [Par]Mesh::GetFaceTransformation will not be called i.e. when the face
+       transformation will not be needed but the neighboring element
+       transformations will be.  Using this method to override the GeometryType
+       should only be done with great care.
    */
    void SetGeometryType(Geometry::Type g) { geom = g; }
 
    /// Set the mask indicating which portions of the object have been setup
    /** The argument @a m is a bitmask used in
-       Mesh::GetFaceElementTransformations to indicate which portions
-       of the FaceElement Transformations object have been configured.
+       Mesh::GetFaceElementTransformations to indicate which portions of the
+       FaceElement Transformations object have been configured.
 
        mask &  1: Elem1 is configured
        mask &  2: Elem2 is configured
