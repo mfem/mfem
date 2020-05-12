@@ -373,6 +373,16 @@ void AdamsBashforthSolver::GetStateVector(int i, Vector &state)
    state = k[idx[i]];
 }
 
+const Vector &AdamsBashforthSolver::GetStateVector(int i)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < s ),
+                " AdamsBashforthSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   return k[idx[i]];
+}
+
+
 void AdamsBashforthSolver::SetStateVector(int i, Vector &state)
 {
    MFEM_ASSERT( (i >= 0) && ( i < smax ),
@@ -445,6 +455,14 @@ AdamsMoultonSolver::AdamsMoultonSolver(int _s, const double *_a)
    {
       RKsolver = new SDIRK34Solver();
    }
+}
+
+const Vector &AdamsMoultonSolver::GetStateVector(int i)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < s ),
+                " AdamsMoultonSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+   return k[idx[i+1]];
 }
 
 void AdamsMoultonSolver::GetStateVector(int i, Vector &state)
@@ -676,6 +694,14 @@ void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
    xdot.SetSize(f->Width(), mem_type);
    xdot = 0.0;
    nstate = 0;
+}
+
+const Vector &GeneralizedAlphaSolver::GetStateVector(int i)
+{
+   MFEM_ASSERT( (i == 0) && (nstate == 1),
+                "GeneralizedAlphaSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+   return xdot;
 }
 
 void GeneralizedAlphaSolver::GetStateVector(int i, Vector &state)
@@ -945,6 +971,15 @@ void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &_f)
    d2xdt2 = 0.0;
    nstate = 0;
 }
+
+const Vector &GeneralizedAlpha2Solver::GetStateVector(int i)
+{
+   MFEM_ASSERT( (i == 0) && (nstate == 1),
+                "GeneralizedAlpha2Solver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+   return d2xdt2;
+}
+
 
 void GeneralizedAlpha2Solver::GetStateVector(int i, Vector &state)
 {

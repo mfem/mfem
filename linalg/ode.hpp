@@ -98,6 +98,11 @@ public:
    {
       mfem_error("ODESolver has no state vectors");
    }
+   virtual const Vector &GetStateVector(int i)
+   {
+      mfem_error("ODESolver has no state vectors");
+   }
+
    virtual void  SetStateVector(int i, Vector &state)
    {
       mfem_error("ODESolver has no state vectors");
@@ -237,6 +242,7 @@ public:
 
    int  GetMaxStateSize() override { return smax; };
    int  GetStateSize() override { return s; };
+   const Vector &GetStateVector(int i) override;
    void GetStateVector(int i, Vector &state) override;
    void SetStateVector(int i, Vector &state) override;
 
@@ -317,6 +323,7 @@ public:
 
    int  GetMaxStateSize() override { return smax-1; };
    int  GetStateSize() override { return s-1; };
+   const Vector &GetStateVector(int i) override;
    void GetStateVector(int i, Vector &state) override;
    void SetStateVector(int i, Vector &state) override;
 
@@ -475,6 +482,7 @@ public:
 
    int  GetMaxStateSize() override { return 1; };
    int  GetStateSize() override { return nstate; };
+   const Vector &GetStateVector(int i) override;
    void GetStateVector(int i, Vector &state) override;
    void SetStateVector(int i, Vector &state) override;
 };
@@ -636,6 +644,10 @@ public:
    /// Function for getting and setting the state vectors
    virtual int   GetMaxStateSize() { return 0; };
    virtual int   GetStateSize() { return 0; }
+   virtual const Vector &GetStateVector(int i)
+   {
+      mfem_error("ODESolver has no state vectors");
+   }
    virtual void  GetStateVector(int i, Vector &state)
    {
       mfem_error("ODESolver has no state vectors");
@@ -720,6 +732,7 @@ public:
 
    int  GetMaxStateSize() override { return 1; };
    int  GetStateSize() override { return nstate; };
+   const Vector &GetStateVector(int i) override;
    void GetStateVector(int i, Vector &state) override;
    void SetStateVector(int i, Vector &state) override;
 };
