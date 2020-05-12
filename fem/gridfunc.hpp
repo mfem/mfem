@@ -252,9 +252,7 @@ public:
        functions. They compute field values on the interface between elements,
        or on boundary elements, by interpolating the field in a neighboring
        element. The \a side argument indices which neighboring element should be
-       used: 0, 1, or 2 (automatically chosen). See the
-       FaceElementTransformations documentation in eltrans.hpp for more
-       information on the \a side parameter.
+       used: 0, 1, or 2 (automatically chosen).
 
        @warning These methods retrieve and use the FaceElementTransformations
        object from the mfem::Mesh. This can alter the state of the face element
