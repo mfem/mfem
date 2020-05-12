@@ -128,7 +128,7 @@ public:
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
    double GetGridFunctionEnergy(const Vector &x) const;
-   double GetGridFunctionEnergyMF(const Vector &x) const;
+   double GetGridFunctionEnergyPA(const Vector &x) const;
 
    /// Compute the enery corresponding to the state @a x.
    /** In general, @a x may have non-homogeneous essential boundary values.

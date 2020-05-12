@@ -13,6 +13,8 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
+#define MFEM_DBG_COLOR 141
+#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -26,6 +28,7 @@ NonlinearFormExtension::NonlinearFormExtension(NonlinearForm *form)
 PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
    NonlinearFormExtension(form), fes(*form->FESpace())
 {
+   dbg("");
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    elem_restrict_lex = fes.GetElementRestriction(ordering);
    if (elem_restrict_lex)
@@ -38,6 +41,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
 
 void PANonlinearFormExtension::AssemblePA()
 {
+   dbg("");
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int Ni = integrators.Size();
    for (int i = 0; i < Ni; ++i)
@@ -48,10 +52,12 @@ void PANonlinearFormExtension::AssemblePA()
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+   dbg("");
    Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
    {
+      dbg("elem_restrict_lex");
       elem_restrict_lex->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -62,6 +68,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
+      dbg("!elem_restrict_lex");
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)

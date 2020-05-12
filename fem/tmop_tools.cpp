@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DBG_COLOR 222
+#include "../general/dbg.hpp"
+
 #include "tmop_tools.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
@@ -29,6 +32,7 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
+   dbg("");
 #if defined(MFEM_DEBUG) || defined(MFEM_USE_MPI)
    int myid = 0;
 #endif
@@ -129,6 +133,7 @@ SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
      x0(x_start), x_now(*fes.GetMesh()->GetNodes()),
      u(vel), u_coeff(&u), M(&fes), K(&fes)
 {
+   dbg("");
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    K.AddDomainIntegrator(Kinteg);
    K.Assemble(0);
@@ -142,6 +147,7 @@ SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
 
 void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 {
+   dbg("");
    // Move the mesh.
    const double t = GetTime();
    add(x0, t, u, x_now);
@@ -287,6 +293,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
 double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
 {
+   dbg("");
    const FiniteElementSpace *fes = NULL;
    double energy_in = 0.0;
 #ifdef MFEM_USE_MPI
@@ -412,6 +419,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
 void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 {
+   dbg("");
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
 
@@ -425,12 +433,14 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
+         dbg("ti");
          dtc = ti->GetDiscreteAdaptTC();
          if (dtc) { dtc->ResetUpdateFlags(); }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
       if (co)
       {
+         dbg("co");
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
@@ -471,6 +481,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
    else
    {
+      dbg("Serial");
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
       Vector x_loc;
@@ -503,11 +514,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          }
       }
    }
+   dbg("done");
 }
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
                                         const Vector &x_new) const
 {
+   dbg("");
    const bool update_flag = true;
    DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
    if (discrtc)
@@ -525,6 +538,7 @@ void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
 double TMOPDescentNewtonSolver::ComputeScalingFactor(const Vector &x,
                                                      const Vector &b) const
 {
+   dbg("");
    const FiniteElementSpace *fes = NULL;
    double energy_in = 0.0;
 #ifdef MFEM_USE_MPI
@@ -656,6 +670,7 @@ void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &mesh,
                        char *title, int position)
 {
+   dbg("");
    L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec, 1);
    GridFunction metric(&fes);

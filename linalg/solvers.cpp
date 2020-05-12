@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DBG_COLOR 46
+#include "../general/dbg.hpp"
+
 #include "linalg.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
@@ -1562,13 +1565,14 @@ void NewtonSolver::SetOperator(const Operator &op)
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
+   dbg("");
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
-
+   dbg("ProcessNewState");
    ProcessNewState(x);
 
    if (!iterative_mode)
@@ -1576,12 +1580,17 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
+   dbg("oper->Mult, x:%.15e, r:%.15e", x*x, r*r);
    oper->Mult(x, r);
+   // Result: x:1.187477864219732e+03, r:1.548765981004901e+06
+   dbg("Result: x:%.15e, r:%.15e", x*x, r*r);
+   dbg("Exiting!"); exit(0);
    if (have_b)
    {
       r -= b;
    }
 
+   dbg("Norm");
    norm0 = norm = Norm(r);
    norm_goal = std::max(rel_tol*norm, abs_tol);
 
@@ -1590,6 +1599,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
    {
+      dbg("it: %d",it);
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
       if (print_level >= 0)
       {
@@ -1615,10 +1625,13 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
+      dbg("prec->SetOperator(oper->GetGradient(x));");
       prec->SetOperator(oper->GetGradient(x));
 
+      dbg("prec->Mult");
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
 
+      dbg("ComputeScalingFactor");
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
@@ -1627,13 +1640,16 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x);
 
+      dbg("ProcessNewState");
       ProcessNewState(x);
 
+      dbg("oper->Mult(x, r)");
       oper->Mult(x, r);
       if (have_b)
       {
          r -= b;
       }
+      dbg("Norm");
       norm = Norm(r);
    }
 

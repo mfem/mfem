@@ -849,6 +849,14 @@ protected:
    //        output - the result of AssembleElementVector() (dof x dim).
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
+   // PA extension
+   Vector D;
+   int dim, ne, nq;
+   const DofToQuad *maps;
+   const GeometricFactors *geom;
+   const FiniteElementSpace *fes;
+   DenseTensor JtrT, JrtT, DShT, DST, JptT, PT;//, PMatIT, PMatOT;
+
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      double &metric_energy, double &lim_energy);
 
@@ -946,8 +954,6 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
-   virtual double GetElementEnergyMF(const FiniteElementSpace &fes,
-                                     const Vector &x);
 
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
@@ -956,6 +962,15 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+   /// PA extension
+   using NonlinearFormIntegrator::AssemblePA;
+
+   virtual double GetElementEnergyPA(const FiniteElementSpace &fes,
+                                     const Vector &x);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 

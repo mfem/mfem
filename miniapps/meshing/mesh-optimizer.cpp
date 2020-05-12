@@ -63,10 +63,13 @@
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 
+#define EPS 1.e-13
+#define MFEM_DBG_COLOR 87
+#include "general/dbg.hpp"
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../../../dbg.hpp"
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
@@ -275,6 +278,7 @@ int main(int argc, char *argv[])
    int verbosity_level   = 0;
    int fdscheme          = 0;
    const char *devopt    = "cpu";
+   bool pa = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -351,6 +355,8 @@ int main(int argc, char *argv[])
                   "Set the verbosity level - 0, 1, or 2.");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -424,7 +430,7 @@ int main(int argc, char *argv[])
       }
    }
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
-   dbg("\033[33msmall_phys_size:   %.15e", small_phys_size);
+   dbg("small_phys_size:   %.15e", small_phys_size);
 
    {
       const int quad_order = mesh_poly_deg;
@@ -457,7 +463,7 @@ int main(int argc, char *argv[])
       });
       volume = volume_d * one_d;
       const double small_phys_size_d = pow(volume, 1.0 / dim) / 100.0;
-      dbg("\033[33msmall_phys_size_d: %.15e", small_phys_size_d);
+      dbg("small_phys_size_d: %.15e", small_phys_size_d);
    }
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
@@ -613,6 +619,7 @@ int main(int argc, char *argv[])
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
@@ -651,12 +658,14 @@ int main(int argc, char *argv[])
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
-   const double init_energy = a.GetGridFunctionEnergy(x);
-   dbg("\033[33minit_energy: %.15e", init_energy);
+   if (pa) { a.Setup(); }
 
-   const double init_energy_mf = a.GetGridFunctionEnergyMF(x);
-   dbg("\033[33minit_energy: %.15e", init_energy_mf);
-   return 0;
+   const double init_energy = a.GetGridFunctionEnergy(x);
+   dbg("init_energy: %.15e", init_energy);
+
+   const double init_energy_mf = a.GetGridFunctionEnergyPA(x);
+   dbg("init_energy: %.15e", init_energy_mf);
+   MFEM_VERIFY(fabs(init_energy-init_energy_mf)<EPS,"");
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
@@ -722,6 +731,7 @@ int main(int argc, char *argv[])
 
    // 17. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
+   MFEM_VERIFY(lin_solver == 1, "");
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
@@ -760,8 +770,39 @@ int main(int argc, char *argv[])
       }
    }
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
+   dbg("Minimum det(J) of the original mesh: %.15e", tauval);
+   {
+      // Compute the minimum det(J) of the starting mesh on the device.
+      const int NQ = ir->GetNPoints();
+      const int NE = mesh->GetNE();
+      const int Q1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+      dbg("[] NQ:%d, Q1D:%d", NQ, Q1D);
+      MFEM_VERIFY( Q1D*Q1D == NQ, "");
+      const int flags = GeometricFactors::DETERMINANTS;
+      const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags);
+      MFEM_VERIFY(dim==2, "Only 2D is supported");
+      const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
+      Vector tauval_d(NE*NQ);
+      auto A = Reshape(tauval_d.Write(), NQ, NE);
+      MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const int q = qx + qy * Q1D;
+               A(q,e) = detJ(q,e);
+            }
+         }
+      });
+      const double tauval_d_min = tauval_d.Min();
+      cout << "Minimum det(J) of the original mesh is " << tauval_d_min << endl;
+      dbg("Minimum det(J) of the original mesh: %.15e", tauval_d_min);
+      MFEM_VERIFY(fabs(tauval-tauval_d_min)<EPS,"");
+   }
 
    // 19. Finally, perform the nonlinear optimization.
+   MFEM_VERIFY(tauval > 0.0, "");
    NewtonSolver *newton = NULL;
    if (tauval > 0.0)
    {
@@ -787,9 +828,15 @@ int main(int argc, char *argv[])
    newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   dbg("newton->SetOperator(a)");
    newton->SetOperator(a);
+   dbg("newton->Mult");
+   //b.HostReadWrite();
+   //x.HostReadWrite();
    newton->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
+   dbg("returning...");
+   return 0;
 
    if (newton->GetConverged() == false)
    {
