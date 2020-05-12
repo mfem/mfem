@@ -37,7 +37,6 @@ protected:
       HESSIAN_MASK  = 16
    };
    Geometry::Type geom;
-   int space_dim;
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
@@ -82,11 +81,11 @@ public:
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
-   virtual int Order() = 0;
-   virtual int OrderJ() = 0;
-   virtual int OrderW() = 0;
+   virtual int Order() const = 0;
+   virtual int OrderJ() const = 0;
+   virtual int OrderW() const = 0;
    /// Order of adj(J)^t.grad(fi)
-   virtual int OrderGrad(const FiniteElement *fe) = 0;
+   virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
    Geometry::Type GetGeometryType() const { return geom; }
@@ -97,7 +96,7 @@ public:
    /// Get the dimension of the target (physical) space.
    /** We support 2D meshes embedded in 3D; in this case the function will
        return "3". */
-   int GetSpaceDim() const { return space_dim; }
+   virtual int GetSpaceDim() const = 0;
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
        reference space. */
@@ -307,19 +306,23 @@ public:
    void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
    const FiniteElement* GetFE() const { return FElem; }
 
-   /** @brief Read and write access to the underlying point matrix describing
-       the transformation. */
+   /// @brief Set the underlying point matrix describing the transformation.
    /** The dimensions of the matrix are space-dim x dof. The transformation is
        defined as
 
-           x=F(xh)=P.phi(xh),
+           x = F(xh) = P . phi(xh),
 
        where xh (x hat) is the reference point, x is the corresponding physical
        point, P is the point matrix, and phi(xh) is the column-vector of all
        basis functions evaluated at xh. The columns of P represent the control
        points in physical space defining the transformation. */
+   void SetPointMat(const DenseMatrix &pm) { PointMat = pm; }
+
+   /// Return the stored point matrix.
+   const DenseMatrix &GetPointMat() const { return PointMat; }
+
+   /// Write access to the stored point matrix. Use with caution.
    DenseMatrix &GetPointMat() { return PointMat; }
-   void FinalizeTransformation() { space_dim = PointMat.Height(); }
 
    void SetIdentityTransformation(Geometry::Type GeomType);
 
@@ -327,10 +330,12 @@ public:
    virtual void Transform(const IntegrationRule &, DenseMatrix &);
    virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
 
-   virtual int Order() { return FElem->GetOrder(); }
-   virtual int OrderJ();
-   virtual int OrderW();
-   virtual int OrderGrad(const FiniteElement *fe);
+   virtual int Order() const { return FElem->GetOrder(); }
+   virtual int OrderJ() const;
+   virtual int OrderW() const;
+   virtual int OrderGrad(const FiniteElement *fe) const;
+
+   virtual int GetSpaceDim() const { return PointMat.Height(); }
 
    virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
    {
@@ -339,6 +344,8 @@ public:
    }
 
    virtual ~IsoparametricTransformation() { }
+
+   MFEM_DEPRECATED void FinalizeTransformation() {}
 };
 
 class IntegrationPointTransformation

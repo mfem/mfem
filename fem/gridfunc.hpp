@@ -16,6 +16,9 @@
 #include "fespace.hpp"
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include <limits>
 #include <ostream>
 #include <string>
@@ -485,6 +488,13 @@ public:
 
    /// Save the GridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
+
+#ifdef MFEM_USE_ADIOS2
+   /// Save the GridFunction to a binary output stream using adios2 bp format.
+   virtual void Save(adios2stream &out, const std::string& variable_name,
+                     const adios2stream::data_type
+                     type = adios2stream::data_type::point_data) const;
+#endif
 
    /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
        called first. The parameter ref > 0 must match the one used in
