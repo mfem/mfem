@@ -72,6 +72,10 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/ex5-p-*.bp
+examples/ex9-p-*.bp
+examples/ex12-p-*.bp
+examples/ex16-p-*.bp
 examples/ex16.mesh
 examples/ex16-mesh.*
 examples/ex16-init.*
@@ -92,6 +96,9 @@ examples/ex21p_*.*
 examples/ex23-*.gf
 examples/ex23*.mesh
 examples/Example23*
+examples/ex25.mesh
+examples/ex25-*.gf
+examples/ex25p-*.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -156,15 +163,19 @@ miniapps/electromagnetics/Joule_*
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
 miniapps/meshing/toroid
+miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
+miniapps/meshing/minimal-surface
+miniapps/meshing/pminimal-surface
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
+miniapps/meshing/twist-*.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
@@ -219,6 +230,14 @@ miniapps/nurbs/Example1*
 miniapps/gslib/field-diff
 miniapps/gslib/findpts
 miniapps/gslib/pfindpts
+
+miniapps/navier/navier_mms
+miniapps/navier/navier_kovasznay
+miniapps/navier/navier_tgv
+miniapps/navier/navier_shear
+miniapps/navier/navier_3dfoc
+miniapps/navier/tgv_out*.txt
+miniapps/navier/*_output
 
 # Unit test binary and outputs
 tests/unit/output_meshes

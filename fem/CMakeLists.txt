@@ -18,6 +18,8 @@ set(SRCS
   bilininteg_diffusion.cpp
   bilininteg_divergence.cpp
   bilininteg_hcurl.cpp
+  bilininteg_hdiv.cpp
+  bilininteg_vectorfe.cpp
   bilininteg_gradient.cpp
   bilininteg_mass.cpp
   bilininteg_vecdiffusion.cpp
@@ -37,9 +39,11 @@ set(SRCS
   intrules.cpp
   linearform.cpp
   lininteg.cpp
+  multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
+  fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -48,6 +52,7 @@ set(SRCS
   tmop.cpp
   tmop_tools.cpp
   gslib.cpp
+  transfer.cpp
   )
 
 set(HDRS
@@ -70,12 +75,14 @@ set(HDRS
   intrules.hpp
   linearform.hpp
   lininteg.hpp
+  multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
+  fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
@@ -88,6 +95,7 @@ set(HDRS
   tmop.hpp
   tmop_tools.hpp
   gslib.hpp
+  transfer.hpp
   )
 
 if (MFEM_USE_SIDRE)
@@ -98,6 +106,11 @@ endif()
 if (MFEM_USE_CONDUIT)
   list(APPEND SRCS conduitdatacollection.cpp)
   list(APPEND HDRS conduitdatacollection.hpp)
+endif()
+
+if (MFEM_USE_ADIOS2)
+  list(APPEND SRCS adios2datacollection.cpp)
+  list(APPEND HDRS adios2datacollection.hpp)
 endif()
 
 if (MFEM_USE_MPI)

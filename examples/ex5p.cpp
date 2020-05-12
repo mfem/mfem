@@ -4,8 +4,10 @@
 //
 // Sample runs:  mpirun -np 4 ex5p -m ../data/square-disc.mesh
 //               mpirun -np 4 ex5p -m ../data/star.mesh
+//               mpirun -np 4 ex5p -m ../data/star.mesh -r 2 -pa
 //               mpirun -np 4 ex5p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex5p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh -pa
 //               mpirun -np 4 ex5p -m ../data/escher.mesh
 //               mpirun -np 4 ex5p -m ../data/fichera.mesh
 //
@@ -22,6 +24,8 @@
 //               The example demonstrates the use of the BlockMatrix class, as
 //               well as the collective saving of several grid functions in
 //               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               Optional saving with ADIOS2 (adios2.readthedocs.io) streams is
+//               also illustrated.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -52,21 +56,31 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int ref_levels = -1;
    int order = 1;
    bool par_format = false;
+   bool pa = false;
    bool visualization = 1;
+   bool adios2 = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
                   "--serial-format",
                   "Format to use when saving the results for VisIt.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
    args.Parse();
    if (!args.Good())
    {
@@ -91,10 +105,13 @@ int main(int argc, char *argv[])
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   //    more than 10,000 elements, unless the user specifies it as input.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels == -1)
+      {
+         ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      }
+
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -190,25 +207,47 @@ int main(int argc, char *argv[])
    ParBilinearForm *mVarf(new ParBilinearForm(R_space));
    ParMixedBilinearForm *bVarf(new ParMixedBilinearForm(R_space, W_space));
 
-   HypreParMatrix *M, *B;
+   HypreParMatrix *M = NULL;
+   HypreParMatrix *B = NULL;
 
+   if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
    mVarf->Assemble();
-   mVarf->Finalize();
-   M = mVarf->ParallelAssemble();
+   if (!pa) { mVarf->Finalize(); }
 
+   if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    bVarf->Assemble();
-   bVarf->Finalize();
-   B = bVarf->ParallelAssemble();
-   (*B) *= -1;
-
-   HypreParMatrix *BT = B->Transpose();
+   if (!pa) { bVarf->Finalize(); }
 
    BlockOperator *darcyOp = new BlockOperator(block_trueOffsets);
-   darcyOp->SetBlock(0,0, M);
-   darcyOp->SetBlock(0,1, BT);
-   darcyOp->SetBlock(1,0, B);
+
+   Array<int> empty_tdof_list;  // empty
+   OperatorPtr opM, opB;
+
+   TransposeOperator *Bt = NULL;
+
+   if (pa)
+   {
+      mVarf->FormSystemMatrix(empty_tdof_list, opM);
+      bVarf->FormRectangularSystemMatrix(empty_tdof_list, empty_tdof_list, opB);
+      Bt = new TransposeOperator(opB.Ptr());
+
+      darcyOp->SetBlock(0,0, opM.Ptr());
+      darcyOp->SetBlock(0,1, Bt, -1.0);
+      darcyOp->SetBlock(1,0, opB.Ptr(), -1.0);
+   }
+   else
+   {
+      M = mVarf->ParallelAssemble();
+      B = bVarf->ParallelAssemble();
+      (*B) *= -1;
+      Bt = new TransposeOperator(B);
+
+      darcyOp->SetBlock(0,0, M);
+      darcyOp->SetBlock(0,1, Bt);
+      darcyOp->SetBlock(1,0, B);
+   }
 
    // 11. Construct the operators for preconditioner
    //
@@ -217,17 +256,43 @@ int main(int argc, char *argv[])
    //
    //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
    //     pressure Schur Complement.
-   HypreParMatrix *MinvBt = B->Transpose();
-   HypreParVector *Md = new HypreParVector(MPI_COMM_WORLD, M->GetGlobalNumRows(),
-                                           M->GetRowStarts());
-   M->GetDiag(*Md);
+   HypreParMatrix *MinvBt = NULL;
+   HypreParVector *Md = NULL;
+   HypreParMatrix *S = NULL;
+   Vector Md_PA;
+   Solver *invM, *invS;
 
-   MinvBt->InvScaleRows(*Md);
-   HypreParMatrix *S = ParMult(B, MinvBt);
+   if (pa)
+   {
+      Md_PA.SetSize(R_space->GetTrueVSize());
+      mVarf->AssembleDiagonal(Md_PA);
+      Vector invMd(Md_PA.Size());
+      for (int i=0; i<Md_PA.Size(); ++i)
+      {
+         invMd(i) = 1.0 / Md_PA(i);
+      }
 
-   HypreSolver *invM, *invS;
-   invM = new HypreDiagScale(*M);
-   invS = new HypreBoomerAMG(*S);
+      Vector BMBt_diag(W_space->GetTrueVSize());
+      bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+      Array<int> ess_tdof_list;  // empty
+
+      invM = new OperatorJacobiSmoother(Md_PA, ess_tdof_list);
+      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+   }
+   else
+   {
+      Md = new HypreParVector(MPI_COMM_WORLD, M->GetGlobalNumRows(),
+                              M->GetRowStarts());
+      M->GetDiag(*Md);
+
+      MinvBt = B->Transpose();
+      MinvBt->InvScaleRows(*Md);
+      S = ParMult(B, MinvBt);
+
+      invM = new HypreDiagScale(*M);
+      invS = new HypreBoomerAMG(*S);
+   }
 
    invM->iterative_mode = false;
    invS->iterative_mode = false;
@@ -239,7 +304,7 @@ int main(int argc, char *argv[])
 
    // 12. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
-   int maxIter(500);
+   int maxIter(pa ? 1000 : 500);
    double rtol(1.e-6);
    double atol(1.e-10);
 
@@ -337,7 +402,27 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("pressure",p);
    paraview_dc.Save();
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 17. Optionally output a BP (binary pack) file using ADIOS2. This can be
+   //     visualized with the ParaView VTX reader.
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      const std::string collection_name = "ex5-p_" + postfix + ".bp";
+
+      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, pmesh);
+      adios2_dc.SetLevelsOfDetail(1);
+      adios2_dc.SetCycle(1);
+      adios2_dc.SetTime(0.0);
+      adios2_dc.RegisterField("velocity",u);
+      adios2_dc.RegisterField("pressure",p);
+      adios2_dc.Save();
+   }
+#endif
+
+   // 18. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -357,7 +442,7 @@ int main(int argc, char *argv[])
              << endl;
    }
 
-   // 18. Free the used memory.
+   // 19. Free the used memory.
    delete fform;
    delete gform;
    delete u;
@@ -369,7 +454,7 @@ int main(int argc, char *argv[])
    delete S;
    delete Md;
    delete MinvBt;
-   delete BT;
+   delete Bt;
    delete B;
    delete M;
    delete mVarf;

@@ -57,6 +57,9 @@ public:
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag);
 
+   /// Assemble diagonal of ADA^T (A is this integrator) and add it to @a diag.
+   virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
+
    /// Method for partially assembled action.
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
@@ -453,6 +456,16 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   /// Support for use in BilinearForm. Can be used only when appropriate.
+   /** Appropriate use cases are classes derived from
+       MixedScalarVectorIntegrator where the trial and test spaces can be the
+       same. Examples of such classes are: MixedVectorDivergenceIntegrator,
+       MixedScalarWeakDivergenceIntegrator, etc. */
+   virtual void AssembleElementMatrix(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   { AssembleElementMatrix2(fe, fe, Trans, elmat); }
+
 protected:
 
    MixedScalarVectorIntegrator(VectorCoefficient &vq, bool _transpose = false,
@@ -674,10 +687,12 @@ protected:
              "vector field";
    }
 
+   // Subtract one due to the divergence and add one for the coefficient
+   // which is assumed to be at least linear.
    inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
                                           const FiniteElement & test_fe,
                                           ElementTransformation &Trans)
-   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -710,6 +725,11 @@ protected:
              "Trial space must be a scalar field "
              "and the test space must be H(Div)";
    }
+
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1; }
 
    virtual void CalcTestShape(const FiniteElement & test_fe,
                               ElementTransformation &Trans,
@@ -870,6 +890,13 @@ public:
              "Trial space must be a vector field "
              "and the test space must be a vector field with a divergence";
    }
+
+   // Subtract one due to the gradient and add one for the coefficient
+   // which is assumed to be at least linear.
+   inline virtual int GetIntegrationOrder(const FiniteElement & trial_fe,
+                                          const FiniteElement & test_fe,
+                                          ElementTransformation &Trans)
+   { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW() - 1 + 1; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
@@ -2086,10 +2113,24 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *Q;
 
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
 private:
 #ifndef MFEM_THREAD_SAFE
    Vector divshape, shape;
 #endif
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *L2mapsO;       ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   int dim, ne, dofs1D, L2dofs1D, quad1D;
 
 public:
    VectorFEDivergenceIntegrator() { Q = NULL; }
@@ -2101,6 +2142,8 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
 };
 
 
@@ -2284,7 +2327,7 @@ protected:
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
+   int dim, ne, nq, dofs1D, quad1D, fetype;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
@@ -2363,10 +2406,22 @@ class DivDivIntegrator: public BilinearFormIntegrator
 protected:
    Coefficient *Q;
 
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AssembleDiagonalPA(Vector& diag);
+
 private:
 #ifndef MFEM_THREAD_SAFE
    Vector divshape;
 #endif
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, dofs1D, quad1D;
 
 public:
    DivDivIntegrator() { Q = NULL; }
@@ -2391,14 +2446,12 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, sdim, ne, dofs1D, quad1D;
    Vector pa_data;
 
 private:
-   DenseMatrix Jinv;
-   DenseMatrix dshape;
-   DenseMatrix gshape;
-   DenseMatrix pelmat;
+   DenseMatrix dshape, dshapedxt, pelmat;
+   DenseMatrix Jinv, gshape;
 
 public:
    VectorDiffusionIntegrator() { Q = NULL; }
