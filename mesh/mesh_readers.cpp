@@ -1291,7 +1291,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
-      else if (buff == "$Periodic") // reading master/slave node pairs
+      else if (buff == "$Periodic") // Reading master/slave node pairs
       {
          curved = 1;
          read_gf = 0;
@@ -1309,8 +1309,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          getline(input, buff); // Read end-of-line
          for (int i = 0; i < num_per_ent; i++)
          {
-            getline(input, buff); // Read entity dimension and tags
-            getline(input, buff); // Read affine mapping
+            getline(input, buff); // Read and ignore entity dimension and tags
+            getline(input, buff); // Read and ignore affine mapping
+            // Read master/slave vertex pairs
             input >> num_nodes;
             for (int j=0; j<num_nodes; j++)
             {
@@ -1323,7 +1324,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Convert nodes to discontinuous GridFunction
          this->SetCurvature(1, true, Dim, Ordering::byVDIM);
 
-         // renumber elements
+         // Renumber elements to remove slave vertices
          for (int i = 0; i < this->GetNE(); i++)
          {
             Element *el = this->GetElement(i);
@@ -1334,7 +1335,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                v[j] = v2v[v[j]];
             }
          }
-         // renumber boundary elements
+         // Renumber boundary elements to remove slave vertices
          for (int i = 0; i < this->GetNBE(); i++)
          {
             Element *el = this->GetBdrElement(i);
