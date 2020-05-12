@@ -218,14 +218,14 @@ int main(int argc, char *argv[])
 
 
 
-   // X = 0.0;
-	// GMRESSolver gmres;
-	// gmres.SetPreconditioner(S);
-	// gmres.SetOperator(*A);
-	// gmres.SetRelTol(1e-8);
-	// gmres.SetMaxIter(50);
-	// gmres.SetPrintLevel(1);
-	// gmres.Mult(B, X);
+   X = 0.0;
+	GMRESSolver gmres;
+	gmres.SetPreconditioner(S);
+	gmres.SetOperator(*A);
+	gmres.SetRelTol(1e-8);
+	gmres.SetMaxIter(50);
+	gmres.SetPrintLevel(1);
+	gmres.Mult(B, X);
 
 
 
@@ -318,8 +318,8 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.5;
-   x1 = 0.5;
+   x0 = 0.1;
+   x1 = 0.1;
    double alpha,beta;
    double n = 5.0*omega/M_PI;
    // double n = 1.0;
