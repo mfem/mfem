@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
       sol_sock_re.precision(8);
       sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
                   "window_title 'Numerical Pressure (real part from KLU)' "
-                  << keys << flush;
+                  << keys << "valuerange -0.1 0.1 \n" << flush;
       // socketstream diff_sock_re(vishost, visport);
       // diff_sock_re.precision(8);
       // diff_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
