@@ -102,7 +102,6 @@ public:
    {
       mfem_error("ODESolver has no state vectors");
    }
-
    virtual void  SetStateVector(int i, Vector &state)
    {
       mfem_error("ODESolver has no state vectors");
@@ -236,7 +235,7 @@ private:
 public:
    AdamsBashforthSolver(int _s, const double *_a);
 
-   void Init(TimeDependentOperator &_f) override;;
+   void Init(TimeDependentOperator &_f) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 
