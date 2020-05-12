@@ -911,7 +911,7 @@ protected:
    const IntegrationRule *EnergyIntegrationRule(const FiniteElement &el) const
    {
       return (IntRule) ? IntRule
-      /* */            : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
+             /*     */ : &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3));
    }
    const IntegrationRule *ActionIntegrationRule(const FiniteElement &el) const
    {
@@ -979,11 +979,11 @@ public:
        @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0). */
    void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae);
-   #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
    /// Parallel support for adaptive limiting.
    void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae);
-   #endif
+#endif
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }

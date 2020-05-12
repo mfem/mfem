@@ -845,7 +845,7 @@ void TargetConstructor::ComputeAvgVolume() const
 
 bool TargetConstructor::ContainsVolumeInfo() const
 {
-   switch(target_type)
+   switch (target_type)
    {
       case IDEAL_SHAPE_UNIT_SIZE: return false;
       case IDEAL_SHAPE_EQUAL_SIZE:
@@ -853,8 +853,8 @@ bool TargetConstructor::ContainsVolumeInfo() const
       case GIVEN_SHAPE_AND_SIZE:
       case GIVEN_FULL: return true;
       default: MFEM_ABORT("TargetType not added to ContainsVolumeInfo.");
-      /* */    return false;
    }
+   return false;
 }
 
 void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
@@ -1610,8 +1610,10 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 }
 
 void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
-         const Vector &weights, IsoparametricTransformation &Tpr,
-         const IntegrationRule &ir, DenseMatrix &mat)
+                                              const Vector &weights,
+                                              IsoparametricTransformation &Tpr,
+                                              const IntegrationRule &ir,
+                                              DenseMatrix &mat)
 {
    if (zeta == NULL) { return; }
 
@@ -1647,8 +1649,10 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
 }
 
 void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
-         const Vector &weights, IsoparametricTransformation &Tpr,
-         const IntegrationRule &ir, DenseMatrix &mat)
+                                               const Vector &weights,
+                                               IsoparametricTransformation &Tpr,
+                                               const IntegrationRule &ir,
+                                               DenseMatrix &mat)
 {
    if (zeta == NULL) { return; }
 
@@ -1696,11 +1700,11 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
          for (int j = 0; j <= i; j++)
          {
             const int jdof = j % dof, jdim = j / dof;
-            const double entry = w *
-               ( 2.0 * zeta_grad_q(idim) * shape(idof) *
-                   zeta_grad_q(jdim) * shape(jdof) +
-                 2.0 * (zeta_q(q) - zeta0_q(q)) *
-                   zeta_grad_grad_q(idim, jdim) * shape(idof) * shape(jdof));
+            const double entry =
+               w * ( 2.0 * zeta_grad_q(idim) * shape(idof) *
+                     /* */ zeta_grad_q(jdim) * shape(jdof) +
+                     2.0 * (zeta_q(q) - zeta0_q(q)) *
+                     zeta_grad_grad_q(idim, jdim) * shape(idof) * shape(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
