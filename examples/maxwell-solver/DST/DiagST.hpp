@@ -32,13 +32,15 @@ private:
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
-   void GetCutOffSolution(Vector & sol, int ip, Array<int> directions, bool local=false) const;
-   int SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
-   int  GetDirectionId(const Array<int> & ijk);
+   void GetCutOffSolution(const Vector & sol, Vector & cfsol,
+                          int ip, Array<int> directions, bool local=false) const;
+   void TransferSources(int ip, Vector & sol_ext) const;
+   int  GetDirectionId(const Array<int> & ijk) const;
    void GetDirectionijk(int id, Array<int> & ijk) const;
    void ConstructDirectionsMap();
    int GetPatchId(const Array<int> & ijk) const;
    void Getijk(int ip, int & i, int & j, int & k ) const;
+   int SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
 public:
    DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
        double omega_, Coefficient * ws_, int nrlayers_);
