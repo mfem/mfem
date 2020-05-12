@@ -319,6 +319,33 @@ void QuadratureInterpolator::Mult(
          }
       }
    }
+   else if (vdim == 3 && dim == 2)
+   {
+      switch (100*nd + nq)
+      {
+         // Q0
+         case 101: eval_func = &Eval2D<3,1,1>; break;
+         case 104: eval_func = &Eval2D<3,1,4>; break;
+         // Q1
+         case 404: eval_func = &Eval2D<3,4,4>; break;
+         case 409: eval_func = &Eval2D<3,4,9>; break;
+         // Q2
+         case 904: eval_func = &Eval2D<3,9,4>; break;
+         case 909: eval_func = &Eval2D<3,9,9>; break;
+         case 916: eval_func = &Eval2D<3,9,16>; break;
+         case 925: eval_func = &Eval2D<3,9,25>; break;
+         // Q3
+         case 1616: eval_func = &Eval2D<3,16,16>; break;
+         case 1625: eval_func = &Eval2D<3,16,25>; break;
+         case 1636: eval_func = &Eval2D<3,16,36>; break;
+         // Q4
+         case 2525: eval_func = &Eval2D<3,25,25>; break;
+         case 2536: eval_func = &Eval2D<3,25,36>; break;
+         case 2549: eval_func = &Eval2D<3,25,49>; break;
+         case 2564: eval_func = &Eval2D<3,25,64>; break;
+         default:   eval_func = &Eval2D<3>;
+      }
+   }
    else if (vdim == dim)
    {
       if (dim == 2)
