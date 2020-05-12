@@ -9,18 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-#configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/square-nurbs.mesh
-#               ${PROJECT_BINARY_DIR}/miniapps/nurbs/square-nurbs.mesh
-#               COPYONLY)
-
-#configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/cube-nurbs.mesh
-#               ${PROJECT_BINARY_DIR}/miniapps/nurbs/cube-nurbs.mesh
-#               COPYONLY)
-
-#configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
-#               ${PROJECT_BINARY_DIR}/miniapps/nurbs/pipe-nurbs-2d.mesh
-#               COPYONLY)
-
 add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
