@@ -40,8 +40,8 @@ protected:
                               const int face_info);
 
 public:
-   /** @brief Enumeration for ContType: defines the continuity of the
-       field across element interfaces.
+   /** @brief Enumeration for ContType: defines the continuity of the field
+       across element interfaces.
    */
    enum { CONTINUOUS,   ///< Field is continuous across element interfaces
           TANGENTIAL,   ///< Tangential components of vector field
