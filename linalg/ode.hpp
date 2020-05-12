@@ -114,9 +114,9 @@ private:
    Vector dxdt;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -134,9 +134,9 @@ private:
 public:
    RK2Solver(const double _a = 2./3.) : a(_a) { }
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -147,9 +147,9 @@ private:
    Vector y, k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -160,9 +160,9 @@ private:
    Vector y, k, z;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -186,9 +186,9 @@ public:
    ExplicitRKSolver(int _s, const double *_a, const double *_b,
                     const double *_c);
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
    virtual ~ExplicitRKSolver();
 };
@@ -231,14 +231,14 @@ private:
 public:
    AdamsBashforthSolver(int _s, const double *_a);
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
-   virtual int  GetMaxStateSize() { return smax; };
-   virtual int  GetStateSize() { return s; };
-   virtual void GetStateVector(int i, Vector &state);
-   virtual void SetStateVector(int i, Vector &state);
+   int  GetMaxStateSize() override { return smax; };
+   int  GetStateSize() override { return s; };
+   void GetStateVector(int i, Vector &state) override;
+   void SetStateVector(int i, Vector &state) override;
 
    ~AdamsBashforthSolver()
    {
@@ -311,14 +311,14 @@ private:
 public:
    AdamsMoultonSolver(int _s, const double *_a);
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
-   virtual int  GetMaxStateSize() { return smax-1; };
-   virtual int  GetStateSize() { return s-1; };
-   virtual void GetStateVector(int i, Vector &state);
-   virtual void SetStateVector(int i, Vector &state);
+   int  GetMaxStateSize() override { return smax-1; };
+   int  GetStateSize() override { return s-1; };
+   void GetStateVector(int i, Vector &state) override;
+   void SetStateVector(int i, Vector &state) override;
 
    ~AdamsMoultonSolver()
    {
@@ -385,9 +385,9 @@ protected:
    Vector k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -398,9 +398,9 @@ protected:
    Vector k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -419,9 +419,9 @@ protected:
 public:
    SDIRK23Solver(int gamma_opt = 1);
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -433,9 +433,9 @@ protected:
    Vector k, y, z;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -447,9 +447,9 @@ protected:
    Vector k, y;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 };
 
 
@@ -469,14 +469,14 @@ public:
 
    GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
-   virtual int  GetMaxStateSize() { return 1; };
-   virtual int  GetStateSize() { return nstate; };
-   virtual void GetStateVector(int i, Vector &state);
-   virtual void SetStateVector(int i, Vector &state);
+   int  GetMaxStateSize() override { return 1; };
+   int  GetStateSize() override { return nstate; };
+   void GetStateVector(int i, Vector &state) override;
+   void SetStateVector(int i, Vector &state) override;
 };
 
 
@@ -524,7 +524,7 @@ class SIA1Solver : public SIASolver
 {
 public:
    SIA1Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   void Step(Vector &q, Vector &p, double &t, double &dt) override;
 };
 
 // Second Order Symplectic Integration Algorithm
@@ -532,7 +532,7 @@ class SIA2Solver : public SIASolver
 {
 public:
    SIA2Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   void Step(Vector &q, Vector &p, double &t, double &dt) override;
 };
 
 // Variable order Symplectic Integration Algorithm (orders 1-4)
@@ -540,7 +540,7 @@ class SIAVSolver : public SIASolver
 {
 public:
    SIAVSolver(int order);
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   void Step(Vector &q, Vector &p, double &t, double &dt) override;
 
 private:
    int order_;
@@ -662,11 +662,11 @@ private:
 public:
    NewmarkSolver(double beta_ = 0.25, double gamma_ = 0.5) { beta = beta_; gamma = gamma_; };
 
-   virtual void PrintProperties(std::ostream &out = mfem::out);
+   void PrintProperties(std::ostream &out = mfem::out);
 
-   virtual void Init(SecondOrderTimeDependentOperator &_f);
+   void Init(SecondOrderTimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+   void Step(Vector &x, Vector &dxdt, double &t, double &dt) override;
 };
 
 class LinearAccelerationSolver : public NewmarkSolver
@@ -712,16 +712,16 @@ public:
       gamma   = 0.5 + alpha_m - alpha_f;
    };
 
-   virtual void PrintProperties(std::ostream &out = mfem::out);
+   void PrintProperties(std::ostream &out = mfem::out);
 
-   virtual void Init(SecondOrderTimeDependentOperator &_f);
+   void Init(SecondOrderTimeDependentOperator &_f) override;
 
-   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+   void Step(Vector &x, Vector &dxdt, double &t, double &dt) override;
 
-   virtual int  GetMaxStateSize() { return 1; };
-   virtual int  GetStateSize() { return nstate; };
-   virtual void GetStateVector(int i, Vector &state);
-   virtual void SetStateVector(int i, Vector &state);
+   int  GetMaxStateSize() override { return 1; };
+   int  GetStateSize() override { return nstate; };
+   void GetStateVector(int i, Vector &state) override;
+   void SetStateVector(int i, Vector &state) override;
 };
 
 /// The classical midpoint method.
