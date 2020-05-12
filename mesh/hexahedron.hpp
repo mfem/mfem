@@ -52,7 +52,7 @@ public:
    { return geom_t::Edges[ei]; }
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   virtual int GetNFaces(int &nFaceVertices) const
+   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
    { nFaceVertices = 4; return 6; }
 
    virtual int GetNFaces() const { return 6; }
