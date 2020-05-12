@@ -1532,7 +1532,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
             //printf("weight: %.15e",weight);
             const double w_detJ =  ((J11*J22)-(J21*J12));
             G(qx,qy,e) = w_detJ;
-            dbg("G: %.15e",G(qx,qy,e));
+            //dbg("G: %.15e",G(qx,qy,e));
          }
       }
    });
@@ -1557,6 +1557,7 @@ static void AddMultPA_Kernel_2D(const int NE,
                                 const int d1d = 0,
                                 const int q1d = 0)
 {
+   constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -1567,8 +1568,8 @@ static void AddMultPA_Kernel_2D(const int NE,
    auto b = Reshape(b_.Read(), Q1D, D1D);
    //auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -1590,111 +1591,114 @@ static void AddMultPA_Kernel_2D(const int NE,
       //double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
       double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
       //double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            X[dy][dx] = x(dx,dy,e);
-         }
-      }
-      if (tidz == 0)
+      for (int c = 0; c < VDIM; ++c)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               B[q][dy] = b(q,dy);
-               //G[q][dy] = g(q,dy);
+               X[dy][dx] = x(dx,dy,c,e);
             }
          }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         if (tidz == 0)
          {
-            double u = 0.0;
-            //double v = 0.0;
-            for (int dx = 0; dx < D1D; ++dx)
+            MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               const double coords = X[dy][dx];
-               u += B[qx][dx] * coords;
-               //v += /*G*/B[qx][dx] * coords;
+               MFEM_FOREACH_THREAD(q,x,Q1D)
+               {
+                  B[q][dy] = 1.0;//b(q,dy);
+                  //G[q][dy] = g(q,dy);
+               }
             }
-            DQ0[dy][qx] = u;
-            //DQ1[dy][qx] = v;
          }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double u = 0.0;
-            //double GyBxX = 0.0;
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               u += DQ0[dy][qx] * B[qy][dy];
-               //GyBxX += DQ0[dy][qx] * G[qy][dy];
-            }
-            QQ0[qy][qx] = u;
-            //QQ1[qy][qx] = GyBxX;
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            //const int q = (qx + ((qy) * Q1D));
-            //const double d = D(qx,qy,e);
-            //const double gX = QQ0[qy][qx];
-            //const double gY = QQ1[qy][qx];
-            QQ0[qy][qx] = 1.0/(Q1D*Q1D);//gX;//(d * gX) + (d * gY);
-            //QQ1[qy][qx] = /*d**/gY;//(d * gX) + (d * gY);
-         }
-      }
-      MFEM_SYNC_THREAD;
-      if (tidz == 0)
-      {
+         MFEM_SYNC_THREAD;
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               Bt[dy][q] = b(q,dy);
-               //Gt[dy][q] = g(q,dy);
+               double u = 0.0;
+               //double v = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double coords = X[dy][dx];
+                  u += B[qx][dx] * coords;
+                  //v += /*G*/B[qx][dx] * coords;
+               }
+               DQ0[dy][qx] = u;
+               //DQ1[dy][qx] = v;
             }
          }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            double u = 0.0;
-            //double v = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               u += /*G*/Bt[dx][qx] * QQ0[qy][qx];
-               //v += Bt[dx][qx] * QQ1[qy][qx];
+               double u = 0.0;
+               //double GyBxX = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  u += DQ0[dy][qx] * B[qy][dy];
+                  //GyBxX += DQ0[dy][qx] * G[qy][dy];
+               }
+               QQ0[qy][qx] = u;
+               //QQ1[qy][qx] = GyBxX;
             }
-            DQ0[qy][dx] = u;
-            //DQ1[qy][dx] = v;
          }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            double u = 0.0;
-            //double v = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               u += DQ0[qy][dx] * Bt[dy][qy];
-               //v += DQ1[qy][dx] * Gt[dy][qy];
+               //const int q = (qx + ((qy) * Q1D));
+               //const double d = D(qx,qy,e);
+               //const double gX = QQ0[qy][qx];
+               //const double gY = QQ1[qy][qx];
+               QQ0[qy][qx] = 1.0/(Q1D*Q1D);//gX;//(d * gX) + (d * gY);
+               //QQ1[qy][qx] = /*d**/gY;//(d * gX) + (d * gY);
             }
-            Y(dx,dy,e) += (u);// + v);
+         }
+         MFEM_SYNC_THREAD;
+         if (tidz == 0)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(q,x,Q1D)
+               {
+                  Bt[dy][q] = 1.0;//b(q,dy);
+                  //Gt[dy][q] = g(q,dy);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               //double v = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  u += /*G*/Bt[dx][qx] * QQ0[qy][qx];
+                  //v += Bt[dx][qx] * QQ1[qy][qx];
+               }
+               DQ0[qy][dx] = u;
+               //DQ1[qy][dx] = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double u = 0.0;
+               //double v = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  u += DQ0[qy][dx] * Bt[dy][qy];
+                  //v += DQ1[qy][dx] * Gt[dy][qy];
+               }
+               Y(dx,dy,c,e) += (u);// + v);
+            }
          }
       }
    });
