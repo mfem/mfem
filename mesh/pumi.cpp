@@ -951,7 +951,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
    // get downward vertices of PUMI element
    apf::Downward vs;
    int nv = apf_mesh->getDownward(tet,0,vs);
-   int pumi_vid[nv];
+   int pumi_vid[12];
    for (int i = 0; i < nv; i++)
    {
       pumi_vid[i] = apf::getNumber(v_num_loc, vs[i], 0, 0);
@@ -962,7 +962,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
    this->GetElementVertices(elemId, mfem_vid);
 
    // get rotated indices of PUMI element
-   int pumi_vid_rot[nv];
+   int pumi_vid_rot[12];
    for (int i = 0; i < nv; i++)
    {
       pumi_vid_rot[i] = mfem_vid.Find(pumi_vid[i]);
