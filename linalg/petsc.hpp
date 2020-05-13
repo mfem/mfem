@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Author: Stefano Zampini <stefano.zampini@gmail.com>
 
@@ -170,6 +170,7 @@ public:
    PetscParVector& operator+= (const PetscParVector &y);
    PetscParVector& operator-= (const PetscParVector &y);
    PetscParVector& operator*= (PetscScalar d);
+   PetscParVector& operator+= (PetscScalar d);
 
    /** @brief Temporarily replace the data of the PETSc Vec object. To return to
        the original data array, call ResetArray().
@@ -429,6 +430,10 @@ PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B);
 /// Returns the matrix Rt^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
+/// Returns the matrix R * A * P
+PetscParMatrix * TripleMatrixProduct(PetscParMatrix *R, PetscParMatrix *A,
+                                     PetscParMatrix *P);
+
 /// Returns the matrix P^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);
 
@@ -493,6 +498,12 @@ public:
 
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
    void FixResidualBC(const Vector& x, Vector& y);
+
+   /// Replace boundary dofs with 0
+   void Zero(Vector &x);
+
+   /// y = x on ess_tdof_list_c and y = 0 on ess_tdof_list
+   void ZeroBC(const Vector &x, Vector &y);
 
 private:
    enum Type bctype;
@@ -601,6 +612,7 @@ class PetscLinearSolver : public PetscSolver, public Solver
 private:
    /// Internal flag to handle HypreParMatrix conversion or not.
    bool wrap;
+   void MultKernel(const Vector &b, Vector &x, bool trans) const;
 
 public:
    PetscLinearSolver(MPI_Comm comm, const std::string &prefix = std::string(),
@@ -616,6 +628,8 @@ public:
                      const std::string &prefix = std::string());
    virtual ~PetscLinearSolver();
 
+   /// Sets the operator to be used for mat-vec operations and
+   /// for the construction of the preconditioner
    virtual void SetOperator(const Operator &op);
 
    /// Allows to prescribe a different operator (@a pop) to construct
@@ -623,10 +637,12 @@ public:
    void SetOperator(const Operator &op, const Operator &pop);
 
    /// Sets the solver to perform preconditioning
+   /// preserves the linear operator for the mat-vec
    void SetPreconditioner(Solver &precond);
 
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    /// Conversion function to PETSc's KSP type.
    operator KSP() const { return (KSP)obj; }
@@ -646,6 +662,9 @@ public:
 /// Abstract class for PETSc's preconditioners.
 class PetscPreconditioner : public PetscSolver, public Solver
 {
+private:
+   void MultKernel(const Vector &b, Vector &x, bool trans) const;
+
 public:
    PetscPreconditioner(MPI_Comm comm,
                        const std::string &prefix = std::string());
@@ -659,6 +678,7 @@ public:
 
    /// Application of the preconditioner.
    virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    /// Conversion function to PETSc's PC type.
    operator PC() const { return (PC)obj; }
