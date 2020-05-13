@@ -15,8 +15,7 @@ DOXYGEN_CONF = CodeDocumentation.conf
 # doxygen uses: graphviz, latex
 html: $(DOXYGEN_CONF)
 	doxygen $(DOXYGEN_CONF)
-	rm -f CodeDocumentation.html
-	ln -s CodeDocumentation/html/index.html CodeDocumentation.html
+	echo "<meta http-equiv=\"REFRESH\" content=\"0;URL=CodeDocumentation/html/index.html\">" > CodeDocumentation.html
 
 clean:
 	rm -rf $(DOXYGEN_CONF) CodeDocumentation CodeDocumentation.html *~
