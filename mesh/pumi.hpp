@@ -56,8 +56,6 @@ public:
    PumiMesh(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
             bool fix_orientation = true);
 
-   /* using Mesh::Load; */
-
    /// Load a PUMI mesh (following the steps in the MFEM Load function).
    void Load(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
              bool fix_orientation = true);
