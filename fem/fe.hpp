@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_FE
 #define MFEM_FE
@@ -36,7 +36,8 @@ public:
       OpenUniform     = 3,  ///< Nodes: x_i = (i+1)/(n+1), i=0,...,n-1
       ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
-      NumBasisTypes   = 6   /**< Keep track of maximum types to prevent
+      Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
+      NumBasisTypes   = 7   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -67,6 +68,7 @@ public:
          case OpenUniform:     return Quadrature1D::OpenUniform;
          case ClosedUniform:   return Quadrature1D::ClosedUniform;
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
+         case Serendipity:     return Quadrature1D::GaussLobatto;
       }
       return Quadrature1D::Invalid;
    }
@@ -110,6 +112,7 @@ public:
          case 'u': return OpenUniform;
          case 'U': return ClosedUniform;
          case 'o': return OpenHalfUniform;
+         case 's': return GaussLobatto;
       }
       MFEM_ABORT("unknown BasisType identifier");
       return -1;
@@ -419,10 +422,29 @@ public:
 
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 
-   /** each row of h contains the upper triangular part of the hessian
-       of one shape function; the order in 2D is {u_xx, u_xy, u_yy} */
+   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
+       part of the Hessian of one shape function.
+       The order in 2D is {u_xx, u_xy, u_yy}.
+       The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &h) const;
+                             DenseMatrix &Hessian) const;
+
+   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#Dof, #Dim*(#Dim+1)/2) of @a Hessian must be set in advance. */
+   virtual void CalcPhysHessian(ElementTransformation &Trans,
+                                DenseMatrix& Hessian) const;
+
+   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#Dof) of @a Laplacian must be set in advance. */
+   virtual void CalcPhysLaplacian(ElementTransformation &Trans,
+                                  Vector& Laplacian) const;
+
+   virtual void CalcPhysLinLaplacian(ElementTransformation &Trans,
+                                     Vector& Laplacian) const;
 
    /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given
@@ -1693,6 +1715,7 @@ private:
    typedef std::map< int, Array<double*>* > PointsMap;
    typedef std::map< int, Array<Basis*>* > BasisMap;
 
+   MemoryType h_mt;
    PointsMap points_container;
    BasisMap  bases_container;
 
@@ -1700,9 +1723,6 @@ private:
 
    static void CalcMono(const int p, const double x, double *u);
    static void CalcMono(const int p, const double x, double *u, double *d);
-
-   static void CalcLegendre(const int p, const double x, double *u);
-   static void CalcLegendre(const int p, const double x, double *u, double *d);
 
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
@@ -1712,7 +1732,7 @@ private:
    QuadratureFunctions1D quad_func;
 
 public:
-   Poly_1D() { }
+   Poly_1D(): h_mt(MemoryType::HOST) { }
 
    /** @brief Get a pointer to an array containing the binomial coefficients "p
        choose k" for k=0,...,p for the given p. */
@@ -1792,6 +1812,9 @@ public:
    static void CalcBernstein(const int p, const double x, double *u, double *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
 
+   static void CalcLegendre(const int p, const double x, double *u);
+   static void CalcLegendre(const int p, const double x, double *u, double *d);
+
    ~Poly_1D();
 };
 
@@ -1803,12 +1826,14 @@ protected:
    int b_type;
    Array<int> dof_map;
    Poly_1D::Basis &basis1d;
+   Array<int> inv_dof_map;
 
 public:
    enum DofMapType
    {
       L2_DOF_MAP = 0,
-      H1_DOF_MAP = 1
+      H1_DOF_MAP = 1,
+      Sr_DOF_MAP = 2,  // Sr = Serendipity
    };
 
    TensorBasisElement(const int dims, const int p, const int btype,
@@ -1880,6 +1905,33 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
+};
+
+class VectorTensorFiniteElement : public VectorFiniteElement,
+   public TensorBasisElement
+{
+private:
+   mutable Array<DofToQuad*> dof2quad_array_open;
+
+protected:
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   VectorTensorFiniteElement(const int dims, const int d, const int p,
+                             const int cbtype, const int obtype,
+                             const int M, const DofMapType dmtype);
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const;
+
+   const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
+                                     DofToQuad::Mode mode) const;
+
+   const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir,
+                                       DofToQuad::Mode mode,
+                                       const bool closed) const;
+
+   ~VectorTensorFiniteElement();
 };
 
 class H1_SegmentElement : public NodalTensorFiniteElement
@@ -1967,6 +2019,18 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 };
 
+
+class H1Ser_QuadrilateralElement : public ScalarFiniteElement
+{
+public:
+   H1Ser_QuadrilateralElement(const int p);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const;
+   using FiniteElement::Project;
+};
 
 class H1Pos_HexahedronElement : public PositiveTensorFiniteElement
 {
@@ -2368,17 +2432,16 @@ public:
 };
 
 
-class RT_QuadrilateralElement : public VectorFiniteElement
+class RT_QuadrilateralElement : public VectorTensorFiniteElement
 {
 private:
    static const double nk[8];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2nk;
+   Array<int> dof2nk;
 
 public:
    RT_QuadrilateralElement(const int p,
@@ -2424,16 +2487,15 @@ public:
 };
 
 
-class RT_HexahedronElement : public VectorFiniteElement
+class RT_HexahedronElement : public VectorTensorFiniteElement
 {
    static const double nk[18];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
-   Array<int> dof_map, dof2nk;
+   Array<int> dof2nk;
 
 public:
    RT_HexahedronElement(const int p,
@@ -2578,16 +2640,14 @@ public:
 };
 
 
-class ND_HexahedronElement : public VectorFiniteElement
+class ND_HexahedronElement : public VectorTensorFiniteElement
 {
    static const double tk[18];
-
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
-   Array<int> dof_map, dof2tk;
+   Array<int> dof2tk;
 
 public:
    ND_HexahedronElement(const int p,
@@ -2644,16 +2704,15 @@ public:
 };
 
 
-class ND_QuadrilateralElement : public VectorFiniteElement
+class ND_QuadrilateralElement : public VectorTensorFiniteElement
 {
    static const double tk[8];
 
-   Poly_1D::Basis &cbasis1d, &obasis1d;
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
-   Array<int> dof_map, dof2tk;
+   Array<int> dof2tk;
 
 public:
    ND_QuadrilateralElement(const int p,
@@ -2888,57 +2947,70 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 class NURBS2DFiniteElement : public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y;
+   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
+   mutable DenseMatrix du;
 
 public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1)
+        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
+        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(Dof,2)
    { Orders[0] = Orders[1] = p; }
 
    NURBS2DFiniteElement(int px, int py)
       : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
                            std::max(px, py), FunctionSpace::Qk),
         u(Dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
-        dshape_y(py + 1)
+        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(Dof,2)
    { Orders[0] = px; Orders[1] = py; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 class NURBS3DFiniteElement : public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
+   mutable Vector u, shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector d2shape_x, d2shape_y, d2shape_z;
+   mutable DenseMatrix du;
 
 public:
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
         u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
-        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1)
+        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
+        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(Dof,3)
    { Orders[0] = Orders[1] = Orders[2] = p; }
 
    NURBS3DFiniteElement(int px, int py, int pz)
       : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                            std::max(std::max(px,py),pz), FunctionSpace::Qk),
         u(Dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
-        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1)
+        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
+        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(Dof,3)
    { Orders[0] = px; Orders[1] = py; Orders[2] = pz; }
 
    virtual void SetOrder() const;
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 } // namespace mfem
