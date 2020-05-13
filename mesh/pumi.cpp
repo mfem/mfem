@@ -991,7 +991,7 @@ IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
       // for non zero "rotation", rotate the xi
       if (rotation)
       {
-         ma::rotateTetXi(pumi_xi[i], rotation);
+         ma::unrotateTetXi(pumi_xi[i], rotation);
       }
       IntegrationPoint& ip = mfem_xi.IntPoint(i);
       double tmp_xi[3];
@@ -1000,6 +1000,35 @@ IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
    }
    return mfem_xi;
 }
+
+// Convert parent coordinate from MFEM tet to PUMI tet
+void ParPumiMesh::ParentXisMFEMtoPUMI(apf::Mesh2* apf_mesh,
+                                      int elemId,
+                                      apf::MeshEntity* tet,
+                                      const IntegrationRule& mfem_xi,
+                                      apf::NewArray<apf::Vector3>& pumi_xi,
+                                      bool checkOrientation)
+{
+   int num_nodes = mfem_xi.Size();
+   if (!pumi_xi.allocated())
+     pumi_xi.allocate(num_nodes);
+   else
+     pumi_xi.resize(num_nodes);
+
+   int rotation = checkOrientation ? RotationPUMItoMFEM(apf_mesh, tet, elemId):0;
+   for (int i = 0; i < num_nodes; i++)
+   {
+      IntegrationPoint ip = mfem_xi.IntPoint(i);
+      pumi_xi[i] = apf::Vector3(ip.x, ip.y, ip.z);
+
+      // for non zero "rotation", un-rotate the xi
+      if (rotation)
+      {
+         ma::rotateTetXi(pumi_xi[i], rotation);
+      }
+   }
+}
+
 
 // Transfer a mixed vector-scalar field (i.e. velocity,pressure) and the
 // magnitude of the vector field to use for mesh adaptation.
@@ -1205,74 +1234,47 @@ void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 }
 
 void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
-                                  apf::Field* ScalarField,
-                                  ParGridFunction* Pr)
+                                  apf::Field* field,
+                                  ParGridFunction* grid)
 {
-   // Pr->Update();
-   // Find local numbering
-   /* v_num_loc = apf_mesh->findNumbering("LocalVertexNumbering"); */
+   int nc = apf::countComponents(field);
+   ParFiniteElementSpace* fes = grid->ParFESpace();
+   ParMesh* pmesh = fes->GetParMesh();
 
-   // Loop over field to copy
-   getShape(ScalarField);
-   apf::MeshEntity* ent;
-   apf::MeshIterator* itr = apf_mesh->begin(0);
-   while ((ent = apf_mesh->iterate(itr)))
-   {
-      unsigned int id = apf::getNumber(v_num_loc, ent, 0, 0);
-      double fieldVal = apf::getScalar(ScalarField, ent, 0);
+   int dim = apf_mesh->getDimension();
 
-      (Pr->GetData())[id] = fieldVal;
-   }
-   apf_mesh->end(itr);
-
-   // Check for higher order
-   getShape(ScalarField);
-   if ( Pr->FESpace()->GetOrder(1) > 1 )
-   {
-      // Assume all element type are the same i.e. tetrahedral
-      const FiniteElement* H1_elem = Pr->FESpace()->GetFE(1);
-      const IntegrationRule &All_nodes = H1_elem->GetNodes();
-      int nnodes = All_nodes.Size();
-
-      // Loop over elements
-      int nc = apf::countComponents(ScalarField);
-      int iel = 0;
-      itr = apf_mesh->begin(3);
-      while ((ent = apf_mesh->iterate(itr)))
+   apf::MeshIterator* it = apf_mesh->begin(dim);
+   for(int i = 0; i < pmesh->GetNE(); i++) {
+      const FiniteElement* mfem_elem = fes->GetFE(i);
+      const IntegrationRule &mfem_xi = mfem_elem->GetNodes();
+      int non = mfem_xi.Size();
+      apf::MeshEntity* ent = apf_mesh->iterate(it);
+      apf::NewArray<apf::Vector3> pumi_xi(non);
+      ParentXisMFEMtoPUMI(apf_mesh,
+                          i,
+                          ent,
+                          mfem_xi,
+                          pumi_xi,
+                          true);
+      Array<int> vdofs;
+      fes->GetElementVDofs(i, vdofs);
+      apf::MeshElement* me = apf::createMeshElement(apf_mesh, ent);
+      apf::Element* el = apf::createElement(field, me);
+      for(int j = 0; j < non; j++)
       {
-         Array<int> vdofs;
-         Pr->FESpace()->GetElementVDofs(iel, vdofs);
-
-         // Create PUMI element to interpolate
-         apf::MeshElement* mE = apf::createMeshElement(apf_mesh, ent);
-         apf::Element* elem = apf::createElement(ScalarField, mE);
-
-         // Vertices are already interpolated
-         for (int ip = 0; ip < nnodes; ip++) //num_vert
+      	 apf::DynamicVector values(nc);
+         apf::getComponents(el, pumi_xi[j], &values[0]);
+         // Fill the nodes list
+         for (int c = 0; c < nc; c++)
          {
-            // Take parametric coordinates of the node
-            apf::Vector3 param;
-            param[0] = All_nodes.IntPoint(ip).x;
-            param[1] = All_nodes.IntPoint(ip).y;
-            param[2] = All_nodes.IntPoint(ip).z;
-
-            // Compute the interpolating coordinates
-            apf::DynamicVector phCrd(nc);
-            apf::getComponents(elem, param, &phCrd[0]);
-
-            // Fill the nodes list
-            for (int kk = 0; kk < nc; ++kk)
-            {
-               int dof_ctr = ip + kk * nnodes;
-               (Pr->GetData())[vdofs[dof_ctr]] = phCrd[kk];
-            }
+	    int dof_loc = j + c * non;
+            (grid->GetData())[vdofs[dof_loc]] = values[c];
          }
-         iel++;
-         apf::destroyElement(elem);
-         apf::destroyMeshElement(mE);
       }
-      apf_mesh->end(itr);
+      apf::destroyElement(el);
+      apf::destroyMeshElement(me);
    }
+   apf_mesh->end(it);
 }
 
 }
