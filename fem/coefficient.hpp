@@ -335,7 +335,6 @@ class VectorFunctionCoefficient : public VectorCoefficient
 {
 private:
    void (*Function)(const Vector &, Vector &);
-   void (*Jacobian)(const Vector &, DenseMatrix &);
    void (*TDFunction)(const Vector &, double, Vector &);
    Coefficient *Q;
 
@@ -346,18 +345,6 @@ public:
       : VectorCoefficient(dim), Q(q)
    {
       Function = F;
-      TDFunction = NULL;
-   }
-
-   /// Construct a time-independent vector coefficient from a C-function and
-   /// that function's Jacobian
-   VectorFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
-                             void (*J)(const Vector &, DenseMatrix &),
-                             Coefficient *q = NULL)
-      : VectorCoefficient(dim), Q(q)
-   {
-      Function = F;
-      Jacobian = J;
       TDFunction = NULL;
    }
 
