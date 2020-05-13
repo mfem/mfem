@@ -1011,9 +1011,13 @@ void ParPumiMesh::ParentXisMFEMtoPUMI(apf::Mesh2* apf_mesh,
 {
    int num_nodes = mfem_xi.Size();
    if (!pumi_xi.allocated())
-     pumi_xi.allocate(num_nodes);
+   {
+      pumi_xi.allocate(num_nodes);
+   }
    else
-     pumi_xi.resize(num_nodes);
+   {
+      pumi_xi.resize(num_nodes);
+   }
 
    int rotation = checkOrientation ? RotationPUMItoMFEM(apf_mesh, tet, elemId):0;
    for (int i = 0; i < num_nodes; i++)
@@ -1244,7 +1248,8 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
    int dim = apf_mesh->getDimension();
 
    apf::MeshIterator* it = apf_mesh->begin(dim);
-   for(int i = 0; i < pmesh->GetNE(); i++) {
+   for (int i = 0; i < pmesh->GetNE(); i++)
+   {
       const FiniteElement* mfem_elem = fes->GetFE(i);
       const IntegrationRule &mfem_xi = mfem_elem->GetNodes();
       int non = mfem_xi.Size();
@@ -1260,14 +1265,14 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
       fes->GetElementVDofs(i, vdofs);
       apf::MeshElement* me = apf::createMeshElement(apf_mesh, ent);
       apf::Element* el = apf::createElement(field, me);
-      for(int j = 0; j < non; j++)
+      for (int j = 0; j < non; j++)
       {
-      	 apf::DynamicVector values(nc);
+         apf::DynamicVector values(nc);
          apf::getComponents(el, pumi_xi[j], &values[0]);
          // Fill the nodes list
          for (int c = 0; c < nc; c++)
          {
-	    int dof_loc = j + c * non;
+            int dof_loc = j + c * non;
             (grid->GetData())[vdofs[dof_loc]] = values[c];
          }
       }
