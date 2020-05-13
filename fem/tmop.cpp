@@ -1449,6 +1449,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
 {
    dbg("");
    //dbg("fdflag: %s", fdflag?"yes":"no");
+   MFEM_VERIFY(!fdflag,"");
    if (!fdflag)
    {
       AssembleElementVectorExact(el, T, elfun, elvect);
@@ -1479,7 +1480,8 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    nq = IntRule->GetNPoints();
    dbg("nq:%d",nq);
    maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-   geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+   const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
+   geom = mesh->GetGeometricFactors(ir, flags);
 
    const int D1D = maps->ndof;
    const FiniteElement *fe = fes->GetFE(0);
@@ -1491,7 +1493,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
 
    //DShT.SetSize(dof, dim, ne); // gradients of reference shape functions
    //DST.SetSize(dof, dim, ne);  // gradients of target shape functions, DS = DSh Jrt
-   JrtT.SetSize(dim, dim, ne); // inverse of the ref->tgt Jacobian, Jrt = Jtr^{-1}.
+   //JrtT.SetSize(dim, dim, ne); // inverse of the ref->tgt Jacobian, Jrt = Jtr^{-1}.
    //JptT.SetSize(dim, dim, ne); // the tgt->phy T Jacobian, Jpt = Jpr Jrt.
    //PT.SetSize(dim, dim, ne);   // represents dW_d(Jtp) (dim x dim).
 
@@ -1504,35 +1506,37 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    //const double JTR[4] = {Wideal(0,0), Wideal(0,1), Wideal(1,0), Wideal(1,1)};
    // same for all QPoints
 
-   D.SetSize(nq * ne, Device::GetDeviceMemoryType());
+   D.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
 
    const auto W = ir.GetWeights().Read();
    const auto J = Reshape(geom->J.Read(), nq, dim, dim, ne);
    //const auto Jtr = Reshape(JTR, dim, dim, ne);
    //auto Jrt = Reshape(JrtT.Write(), dim, dim, ne);
-   auto G = Reshape(D.Write(), Q1D, Q1D, ne);
+   auto G = Reshape(D.Write(), Q1D, Q1D, dim, dim, ne);
    MFEM_FORALL_2D(e, ne, Q1D, Q1D, 1,
    {
-      //constexpr int DIM = 2;
-      //constexpr int DIM2 = DIM*DIM;
-      //double Jinv[DIM2];
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             const int q = qx + qy * Q1D;
+            dbg("W:%.15e",W[q]);
             //const DenseMatrix &Jtr_i = Jtr;//(e);
             // metric->SetTargetJacobian(Jtr_i); => TMOP_Metric_002
             //kernels::CalcInverse<DIM>(Jtr.GetData(), &Jrt(0,0,e));
-            const double weight = W[q] ;/// Jtr_i.Det();
-            const double J11 = J(q,0,0,e);
-            const double J12 = J(q,0,1,e);
-            const double J21 = J(q,1,0,e);
-            const double J22 = J(q,1,1,e);
-            //printf("weight: %.15e",weight);
-            const double w_detJ =  ((J11*J22)-(J21*J12));
-            G(qx,qy,e) = w_detJ;
-            //dbg("G: %.15e",G(qx,qy,e));
+            const double J00 = J(q,0,0,e);
+            const double J01 = J(q,0,1,e);
+            const double J10 = J(q,1,0,e);
+            const double J11 = J(q,1,1,e);
+            //const double detJ = (J00*J11)-(J01*J10);
+            //G(qx,qy,0,0,e) =  detJ * J11;
+            //G(qx,qy,0,1,e) = -detJ * J01;
+            //G(qx,qy,1,0,e) = -detJ * J10;
+            //G(qx,qy,1,1,e) =  detJ * J00;
+            G(qx,qy,0,0,e) = J00;
+            G(qx,qy,0,1,e) = J01;
+            G(qx,qy,1,0,e) = J10;
+            G(qx,qy,1,1,e) = J11;
          }
       }
    });
@@ -1549,6 +1553,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void AddMultPA_Kernel_2D(const int NE,
+                                const Array<double> &w_,
                                 const Array<double> &b_,
                                 const Array<double> &g_,
                                 const Vector &d_,
@@ -1565,11 +1570,13 @@ static void AddMultPA_Kernel_2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   //auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   //const auto W = w_.Read();
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto D = Reshape(d_.Read(), Q1D, Q1D, VDIM, VDIM, NE);
+   auto X = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+   dbg("D1D:%d, Q1D:%d, nq:%d", D1D, Q1D, Q1D*Q1D);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -1580,125 +1587,211 @@ static void AddMultPA_Kernel_2D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       MFEM_SHARED double sBG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
-      //double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
       double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
-      //double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
-      MFEM_SHARED double Xz[NBZ][MD1][MD1];
-      MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
-      MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
-      double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
-      double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
-      //double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
-      double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
-      //double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
-      for (int c = 0; c < VDIM; ++c)
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+      MFEM_SHARED double Xz[2][NBZ][MD1][MD1];
+      MFEM_SHARED double GD[4][NBZ][MD1][MQ1];
+      MFEM_SHARED double GQ[4][NBZ][MD1][MQ1];
+      double (*Xx)[MD1]   = (double (*)[MD1])(Xz[0] + tidz);
+      double (*Xy)[MD1]   = (double (*)[MD1])(Xz[1] + tidz);
+
+      double (*DQx0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
+      double (*DQx1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
+      double (*DQy0)[MD1] = (double (*)[MD1])(GD[2] + tidz);
+      double (*DQy1)[MD1] = (double (*)[MD1])(GD[3] + tidz);
+
+      double (*QQx0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
+      double (*QQx1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
+      double (*QQy0)[MD1] = (double (*)[MD1])(GQ[2] + tidz);
+      double (*QQy1)[MD1] = (double (*)[MD1])(GQ[3] + tidz);
+
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            Xx[dy][dx] = X(dx,dy,0,e);
+            Xy[dy][dx] = X(dx,dy,1,e);
+         }
+      }
+      if (tidz == 0)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               X[dy][dx] = x(dx,dy,c,e);
+               B[q][dy] = b(q,dy);
+               G[q][dy] = g(q,dy);
             }
          }
-         if (tidz == 0)
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
+            double u[2] = {0.0,0.0};
+            double v[2] = {0.0,0.0};
+            for (int dx = 0; dx < D1D; ++dx)
             {
-               MFEM_FOREACH_THREAD(q,x,Q1D)
-               {
-                  B[q][dy] = 1.0;//b(q,dy);
-                  //G[q][dy] = g(q,dy);
-               }
+               const double coords_x = Xx[dy][dx];
+               const double coords_y = Xy[dy][dx];
+               u[0] += B[qx][dx] * coords_x;
+               v[0] += G[qx][dx] * coords_x;
+               u[1] += B[qx][dx] * coords_y;
+               v[1] += G[qx][dx] * coords_y;
             }
+            DQx0[dy][qx] = u[0];
+            DQx1[dy][qx] = v[0];
+            DQy0[dy][qx] = u[1];
+            DQy1[dy][qx] = v[1];
          }
-         MFEM_SYNC_THREAD;
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u[2] = {0.0,0.0};
+            double v[2] = {0.0,0.0};
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               u[0] += DQx1[dy][qx] * B[qy][dy];
+               v[0] += DQx0[dy][qx] * G[qy][dy];
+               u[1] += DQy1[dy][qx] * B[qy][dy];
+               v[1] += DQy0[dy][qx] * G[qy][dy];
+            }
+            QQx0[qy][qx] = u[0];
+            QQx1[qy][qx] = v[0];
+            QQy0[qy][qx] = u[1];
+            QQy1[qy][qx] = v[1];
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            //const int q = qx + qy*Q1D;
+
+            const double Jtr00 = D(qx,qy,0,0,e);
+            const double Jtr01 = D(qx,qy,0,1,e);
+            const double Jtr10 = D(qx,qy,1,0,e);
+            const double Jtr11 = D(qx,qy,1,1,e);
+            const double detJtr = (Jtr00*Jtr11)-(Jtr01*Jtr10);
+            //dbg("detJtr: %.15e", detJtr);
+            //dbg("Jtr: %.15e %.15e",Jtr00,Jtr01);
+            //dbg("Jtr: %.15e %.15e",Jtr10,Jtr11);
+
+            const double Jrt00 =  Jtr11 / detJtr;
+            const double Jrt01 = -Jtr01 / detJtr;
+            const double Jrt10 = -Jtr10 / detJtr;
+            const double Jrt11 =  Jtr00 / detJtr;
+            //const double detJrt = (Jrt00*Jrt11)-(Jrt01*Jrt10);
+            //dbg("detJrt: %.15e", detJrt);
+            //dbg("Jrt: %.15e %.15e",Jrt00,Jrt01);
+            //dbg("Jrt: %.15e %.15e",Jrt10,Jrt11);
+
+            //const double weight = W[q];
+            //dbg("w: %.15e, det: %.15e",weight, detJtr);
+            const double w = 1.0;//weight * detJtr;
+            //dbg("w: %.15e",w);
+
+            const double g00 = QQx0[qy][qx];
+            const double g10 = QQx1[qy][qx];
+            const double g01 = QQy0[qy][qx];
+            const double g11 = QQy1[qy][qx];
+            const double detJdbg = g00*g11 - g01*g10;
+            dbg("detJdbg: %.15e",detJdbg);
+            dbg("Jdbg: %.15e %.15e",g00,g01);
+            dbg("Jdbg: %.15e %.15e",g10,g11);
+
+            // Jpt = PMatI{^T}.DS = (PMatI{^T}.DSh).Jrt
+            //             |Jrt00 Jrt01|
+            //             |Jrt10 Jrt11|
+            //   |g00 g01|
+            //   |g10 g11|
+            const double Jpt00 = w * ((g00 * Jrt00) + (g01 * Jrt10));
+            const double Jpt01 = w * ((g00 * Jrt01) + (g01 * Jrt11));
+            const double Jpt10 = w * ((g10 * Jrt00) + (g11 * Jrt10));
+            const double Jpt11 = w * ((g10 * Jrt01) + (g11 * Jrt11));
+            //const double detJpt = Jpt00*Jpt11 - Jpt01*Jpt10;
+            //dbg("detJpt: %.15e",detJpt);
+            //dbg("Jpt: %.15e %.15e",Jpt00,Jpt01);
+            //dbg("Jpt: %.15e %.15e",Jpt10,Jpt11);
+
+            // PMatO +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)
+            // |Jpt00 Jpt01|^t    |Jpt00 Jpt10|
+            // |Jpt10 Jpt11|   =  |Jpt01 Jpt11|
+            //       Jrt00 Jrt01|   a     b
+            //       Jrt10 Jrt11|   c     d
+            const double a = Jrt00*Jpt00 + Jrt01*Jpt01;
+            const double b = Jrt00*Jpt10 + Jrt01*Jpt11;
+            const double c = Jrt10*Jpt00 + Jrt11*Jpt01;
+            const double d = Jrt10*Jpt10 + Jrt11*Jpt11;
+            QQx0[qy][qx] = a;
+            QQy0[qy][qx] = b;
+            QQx1[qy][qx] = c;
+            QQy1[qy][qx] = d;
+         }
+      }
+      /*
+      -0.125 0 0 -2.77556e-17 0.125 -0.25 0 0
+      -2.77556e-17 0.25 -0.25 0 0 -2.77556e-17 0.25 -0.25
+      0 0 -2.77556e-17 0.25 -0.125 0 0 0
+      0.125 -0.125 -0.25 -0.25 -0.25 -0.125 0 0
+      2.77556e-17 0 0 0 0 2.77556e-17 0 0
+      0 2.77556e-17 2.77556e-17 1.38778e-17 0 0.125 0.25 0.25
+      0.25 0.125 */
+
+      MFEM_SYNC_THREAD;
+      if (tidz == 0)
+      {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               double u = 0.0;
-               //double v = 0.0;
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double coords = X[dy][dx];
-                  u += B[qx][dx] * coords;
-                  //v += /*G*/B[qx][dx] * coords;
-               }
-               DQ0[dy][qx] = u;
-               //DQ1[dy][qx] = v;
+               Bt[dy][q] = b(q,dy);
+               Gt[dy][q] = g(q,dy);
             }
          }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            double u[2] = {0.0,0.0};
+            double v[2] = {0.0,0.0};
+            for (int qx = 0; qx < Q1D; ++qx)
             {
-               double u = 0.0;
-               //double GyBxX = 0.0;
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  u += DQ0[dy][qx] * B[qy][dy];
-                  //GyBxX += DQ0[dy][qx] * G[qy][dy];
-               }
-               QQ0[qy][qx] = u;
-               //QQ1[qy][qx] = GyBxX;
+               u[0] += Gt[dx][qx] * QQx0[qy][qx];
+               v[0] += Bt[dx][qx] * QQx1[qy][qx];
+               u[1] += Gt[dx][qx] * QQy0[qy][qx];
+               v[1] += Bt[dx][qx] * QQy1[qy][qx];
             }
+            DQx0[qy][dx] = u[0];
+            DQx1[qy][dx] = v[0];
+            DQy0[qy][dx] = u[1];
+            DQy1[qy][dx] = v[1];
          }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            double u[2] = {0.0,0.0};
+            double v[2] = {0.0,0.0};
+            for (int qy = 0; qy < Q1D; ++qy)
             {
-               //const int q = (qx + ((qy) * Q1D));
-               //const double d = D(qx,qy,e);
-               //const double gX = QQ0[qy][qx];
-               //const double gY = QQ1[qy][qx];
-               QQ0[qy][qx] = 1.0/(Q1D*Q1D);//gX;//(d * gX) + (d * gY);
-               //QQ1[qy][qx] = /*d**/gY;//(d * gX) + (d * gY);
+               u[0] += DQx0[qy][dx] * Bt[dy][qy];
+               v[0] += DQx1[qy][dx] * Gt[dy][qy];
+               u[1] += DQy0[qy][dx] * Bt[dy][qy];
+               v[1] += DQy1[qy][dx] * Gt[dy][qy];
             }
-         }
-         MFEM_SYNC_THREAD;
-         if (tidz == 0)
-         {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
-            {
-               MFEM_FOREACH_THREAD(q,x,Q1D)
-               {
-                  Bt[dy][q] = 1.0;//b(q,dy);
-                  //Gt[dy][q] = g(q,dy);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double u = 0.0;
-               //double v = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  u += /*G*/Bt[dx][qx] * QQ0[qy][qx];
-                  //v += Bt[dx][qx] * QQ1[qy][qx];
-               }
-               DQ0[qy][dx] = u;
-               //DQ1[qy][dx] = v;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double u = 0.0;
-               //double v = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  u += DQ0[qy][dx] * Bt[dy][qy];
-                  //v += DQ1[qy][dx] * Gt[dy][qy];
-               }
-               Y(dx,dy,c,e) += (u);// + v);
-            }
+            Y(dx,dy,0,e) += u[0] + v[0];
+            Y(dx,dy,1,e) += u[1] + v[1];
          }
       }
    });
@@ -1710,6 +1803,11 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
    const int NE = ne;
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
+
+   MFEM_VERIFY(IntRule,"");
+   const IntegrationRule *ir = IntRule;
+
+   const Array<double> &W = ir->GetWeights();
    const Array<double> &B = maps->B;
    const Array<double> &G = maps->G;
    const int id = (D1D << 4 ) | Q1D;
@@ -1717,9 +1815,9 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
    X.HostRead();
    switch (id)
    {
-      case 0x22: return AddMultPA_Kernel_2D<2,2,1>(NE,B,G,D,X,Y);
-      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(NE,B,G,D,X,Y);
-      case 0x25: return AddMultPA_Kernel_2D<2,5,1>(NE,B,G,D,X,Y);
+      case 0x22: return AddMultPA_Kernel_2D<2,2,1>(NE,W,B,G,D,X,Y);
+      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(NE,W,B,G,D,X,Y);
+      case 0x25: return AddMultPA_Kernel_2D<2,5,1>(NE,W,B,G,D,X,Y);
       //case 0x55: return AddMultPA_Kernel_2D<5,5,1>(NE,B,G,D,X,Y);
       default:  break;
    }
@@ -1750,7 +1848,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 {
    dbg("");
    int dof = el.GetDof(), dim = el.GetDim();
-   dbg("dof: %d, dim:%d", dof, dim);
+   //dbg("dof: %d, dim:%d", dof, dim);
 
    DSh.SetSize(dof, dim); // gradients of reference shape functions
    DS.SetSize(dof, dim);  // gradients of target shape functions, DS = DSh Jrt
@@ -1758,6 +1856,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Jpt.SetSize(dim);      // the tgt->phy transformation Jacobian, Jpt = Jpr Jrt.
    P.SetSize(dim);        // represents dW_d(Jtp) (dim x dim).
 
+   DenseMatrix Jdbg(dim);
    // PMatI: current coordinates of the nodes (dof x dim).
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
@@ -1769,15 +1868,15 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    MFEM_VERIFY(IntRule,"");
    const IntegrationRule *ir = IntRule;
    nq = ir->GetNPoints();
-   dbg("nq:%d",nq);
+   //dbg("nq:%d",nq);
    /*if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
    }*/
 
    elvect = 0.0;
-   DenseTensor Jtr(dim, dim, ir->GetNPoints());
-   targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+   //DenseTensor Jtr(dim, dim, ir->GetNPoints());
+   //targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
 
    // Limited case.
    DenseMatrix pos0;
@@ -1815,37 +1914,45 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }*/
 
-   DenseMatrix I(dim);
-   I = 0.0; I(0,0) = I(1,1) = 1.0;
-
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
-      //const IntegrationPoint &ip = ir->IntPoint(i);
-      //T.SetIntPoint(&ip);
-      //const DenseMatrix &Jtr_i = T.Jacobian();
-      // => const DenseMatrix &Jtr_i = Jtr(i);
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      T.SetIntPoint(&ip);
+
+      const DenseMatrix &Jtr_i = T.Jacobian(); // Jtr(i);
+      //dbg("Jtr_i.Print: (det: %.15e)", Jtr_i.Det()); Jtr_i.Print();
       //metric->SetTargetJacobian(Jtr_i);
-      //CalcInverse(Jtr_i, Jrt);
-      //const double weight = 1.0;//ip.weight * Jtr_i.Det();
-      //double weight_m = weight * metric_normal;
+      CalcInverse(Jtr_i, Jrt);
+      //dbg("Jrt.Print: (det: %.15e)", Jrt.Det());// Jrt.Print();
+      //const double weight = ip.weight * Jtr_i.Det();
+      double weight_m = 1.0;//weight ;//* metric_normal;
+      //dbg("w: %.15e, det: %.15e",ip.weight, Jtr_i.Det());
+      //dbg("w: %.15e",weight_m);
 
-      //Jrt = I;
+      el.CalcDShape(ip, DSh);
 
-      //el.CalcDShape(ip, DSh);
-      //Mult(DSh, Jrt, DS);          // DS = DSh * Jrt
-      // MultAtB(PMatI, DS, Jpt);
-      //MultAtB(PMatI, DSh, Jpt);
+      Mult(DSh, Jrt, DS);       // DS = DSh.Jrt
+      MultAtB(PMatI, DSh, Jdbg);
+      dbg("Jdbg.Print: (det: %.15e)", Jdbg.Det()); Jdbg.Print();
+      MultAtB(PMatI, DS, Jpt);
+      // Jpt = PMatI^t.DS = PMatI^t.(DSh.Jrt) = (PMatI^t.DSh).Jrt
+      // Jpt^t = Jrt^t.DSh^t.PMatI
 
       //metric->EvalP(Jpt, P);
+      //dbg("Jpt.Print: (det: %.15e)", Jpt.Det());// Jpt.Print();
+      P = Jpt;
 
       //if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
-      //P *= weight_m;
-      //AddMultABt(DS, P, PMatO);
-      //AddMultABt(DSh, Jpt, PMatO);
-      //AddMultABt(PMatI, I, PMatO);
-      PMatO = 1.0;//PMatI;
-      //PMatO.Print();
+      P *= weight_m;
+      //         A   B  ABt, ABt += A * B^t
+      AddMultABt(DS, P, PMatO);
+      // PMatO += DS . P^t
+      // PMatO += DS . Jpt^t
+      // PMatO += (DSh . Jrt) . Jpt^t
+      // PMatO += DSh . (Jrt . Jpt^t)
+      // PMatO += DSh . (Jrt . Jrt^t.DSh^t.PMatI)
+      // PMatO += DSh . (Jrt.Jrt^t) . DSh^t . PMatI
 
       // TODO: derivatives of adaptivity-based targets.
 

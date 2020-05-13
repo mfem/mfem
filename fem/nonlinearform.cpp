@@ -166,15 +166,19 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (ext)
    {
       ext->Mult(px, py);
-
-      MFEM_VERIFY(!cP,"");
-      if (cP) { cP->MultTranspose(py, y); }
-      py.HostReadWrite();
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
-      {
-         py(ess_tdof_list[i]) = 0.0;
-      }
       dbg("py:"); py.Print();
+      if (Serial())
+      {
+         dbg("Serial => y[bc] = 0.0;");
+         if (cP) { cP->MultTranspose(py, y); }
+         y.HostReadWrite();
+         for (int i = 0; i < ess_tdof_list.Size(); i++)
+         {
+            y(ess_tdof_list[i]) = 0.0;
+         }
+         // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
+      }
+      //dbg("return y:"); y.Print();
       return;
    }
 
@@ -301,7 +305,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       }
       // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
-   dbg("return y:"); y.Print();
+   //dbg("return y:"); y.Print();
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
