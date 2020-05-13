@@ -142,14 +142,14 @@ void VectorFunctionCoefficient::EvalRevDiff(const Vector &V_bar,
       MFEM_ASSERT(FunctionRevDiff != NULL, "EvalRevDiff: reverse-mode "
                                            "differentiated version of Function "
                                            "must be provided");
-      (*FunctionRevDiff)(V_bar, transip_bar);
+      (*FunctionRevDiff)(transip, V_bar, transip_bar);
    }
    else
    {
       MFEM_ASSERT(TDFunctionRevDiff != NULL, "EvalRevDiff: reverse-mode "
                                              "differentiated version of "
                                              "TDFunction must be provided");
-      (*TDFunctionRevDiff)(V_bar, GetTime(), transip_bar);
+      (*TDFunctionRevDiff)(transip, GetTime(), V_bar, transip_bar);
    }
    static_cast<IsoparametricTransformation &>(T).TransformRevDiff(
        ip, transip_bar, PointMat_bar);

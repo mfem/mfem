@@ -335,9 +335,9 @@ class VectorFunctionCoefficient : public VectorCoefficient
 {
 private:
    void (*Function)(const Vector &, Vector &);
-   void (*FunctionRevDiff)(const Vector &, Vector &);
+   void (*FunctionRevDiff)(const Vector &, const Vector &, Vector &);
    void (*TDFunction)(const Vector &, double, Vector &);
-   void (*TDFunctionRevDiff)(const Vector &, double, Vector &);
+   void (*TDFunctionRevDiff)(const Vector &, double, const Vector &, Vector &);
    Coefficient *Q;
    // Coefficient *dQ;
 
@@ -363,7 +363,7 @@ public:
 
    /// Construct time-independent vector coefficient that can be differentiated
    VectorFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
-                             void (*dF)(const Vector &, Vector &))
+                             void (*dF)(const Vector &, const Vector &, Vector &))
                              : VectorCoefficient(dim), Q(NULL)
    {
       Function = F;
@@ -374,7 +374,7 @@ public:
 
    /// Construct time-dependent vector coefficient that can be differentiated
    VectorFunctionCoefficient(int dim, void (*TDF)(const Vector &, double, Vector &),
-                             void (*dTDF)(const Vector &, double, Vector &))
+                             void (*dTDF)(const Vector &, double, const Vector &, Vector &))
                              : VectorCoefficient(dim), Q(NULL)
    {
       Function = NULL;
