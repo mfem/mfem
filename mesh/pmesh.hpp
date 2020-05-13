@@ -230,10 +230,10 @@ public:
 
    /** Map a global element number to a local element number. If the
        global element is not on this processor, return -1. */
-   virtual int GetLocalElementNum(long global_element_num) const;
+   int GetLocalElementNum(long global_element_num) const;
 
    /// Map a local element number to a global element number.
-   virtual long GetGlobalElementNum(int local_element_num) const;
+   long GetGlobalElementNum(int local_element_num) const;
 
    GroupTopology gtopo;
 

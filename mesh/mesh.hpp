@@ -690,16 +690,6 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
 
-   /// Map a global element number to a local element number.  (For a
-   /// serial mesh, the numberings are the same.)
-   virtual int GetLocalElementNum(long global_element_num) const
-   { return global_element_num; }
-
-   /// Map a local element number to a global element number.  (For a
-   /// serial mesh, the numberings are the same.)
-   virtual long GetGlobalElementNum(long local_element_num) const
-   { return local_element_num; }
-
    /// Return the total (global) number of elements.
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
