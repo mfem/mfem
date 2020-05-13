@@ -46,6 +46,10 @@ Linear and nonlinear solvers
 - Added initial support for h- and p-multigrid solvers and preconditioners for
   matrix-based and matrix-free discretizations with basic GPU capability.
 
+- Block arrays of parallel matrices can now be merged into a single parallel
+  matrix with the function HypreParMatrixFromBlocks. This could be useful for
+  solving block systems with parallel direct solvers such as STRUMPACK.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
@@ -92,6 +96,9 @@ Miscellaneous
   entire spatial and temporal data. In addition, ADIOS2 allows for setting a
   user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
 
+- Added a new IterativeSolverMonitor class that allows to monitor the residual
+  and solution during the solving process of an IterativeSolver after every
+  iteration.
 
 Version 4.1, released on March 10, 2020
 =======================================

@@ -105,6 +105,15 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
+void IterativeSolver::Monitor(int it, double norm, const Vector& r,
+                              const Vector& x, bool final) const
+{
+   if (monitor != nullptr)
+   {
+      monitor->MonitorResidual(it, norm, r, final);
+      monitor->MonitorSolution(it, norm, x, final);
+   }
+}
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
@@ -555,6 +564,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (print_level == 3 ? " ...\n" : "\n");
    }
+   Monitor(0, nom, r, x);
 
    if (nom < 0.0)
    {
@@ -633,6 +643,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                    << betanom << '\n';
       }
 
+      Monitor(i, betanom, r, x);
+
       if (betanom < r0)
       {
          if (print_level == 2)
@@ -701,6 +713,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
    final_norm = sqrt(betanom);
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -848,6 +862,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
    }
 
+   Monitor(0, beta, r, x);
+
    v.SetSize(m+1, NULL);
 
    for (j = 1; j <= max_iter; )
@@ -906,6 +922,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
          }
+
+         Monitor(j, resid, r, x);
       }
 
       if (print_level == 1 && j <= max_iter)
@@ -955,6 +973,9 @@ finish:
    {
       mfem::out << "GMRES: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
+
    for (i = 0; i < v.Size(); i++)
    {
       delete v[i];
@@ -999,6 +1020,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "   Iteration : " << setw(3) << 0
                 << "  || r || = " << beta << endl;
    }
+
+   Monitor(0, beta, r, x);
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -1060,6 +1083,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
          }
+         Monitor(j, resid, r, x, resid <= final_norm);
 
          if (resid <= final_norm)
          {
@@ -1192,6 +1216,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0
                 << "   ||r|| = " << resid << '\n';
 
+   Monitor(0, resid, r, x);
+
    tol_goal = std::max(resid*rel_tol, abs_tol);
 
    if (resid <= tol_goal)
@@ -1210,6 +1236,9 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          if (print_level >= 0)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
+
+         Monitor(i, resid, r, x);
+
          final_norm = resid;
          final_iter = i;
          converged = 0;
@@ -1252,6 +1281,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (print_level >= 0)
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
+      Monitor(i, resid, r, x);
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
@@ -1273,6 +1303,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
+      Monitor(i, resid, r, x);
       if (resid < tol_goal)
       {
          final_norm = resid;
@@ -1378,6 +1409,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
                 << eta << (print_level == 3 ? " ...\n" : "\n");
    }
+   Monitor(0, eta, *z, x);
 
    for (it = 1; it <= max_iter; it++)
    {
@@ -1445,6 +1477,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                    << fabs(eta) << '\n';
       }
+      Monitor(it, fabs(eta), *z, x);
 
       if (prec)
       {
@@ -1469,6 +1502,7 @@ loop_end:
    {
       mfem::out << "MINRES: number of iterations: " << final_iter << '\n';
    }
+   Monitor(final_iter, final_norm, *z, x, true);
 #if 0
    if (print_level >= 1)
    {
@@ -1567,6 +1601,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          }
          mfem::out << '\n';
       }
+      Monitor(it, norm, r, x);
 
       if (norm <= norm_goal)
       {
