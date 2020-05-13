@@ -94,12 +94,12 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       }
       case 6:
       {
-         ProblemName = "Euler Equations of Gas dynamics - MoST gimmick";
+         ProblemName = "Euler Equations of Gas dynamics - MoST Gimmick";
          glvis_scale = "on";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;
-         TimeDepBC = true;
+         TimeDepBC = false;
          ProjType = 1;
 
          Mesh *mesh = fes->GetMesh();

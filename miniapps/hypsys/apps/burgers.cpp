@@ -42,6 +42,48 @@ Burgers::Burgers(FiniteElementSpace *fes_, BlockVector &u_block,
          L2_Projection(ic, u0);
          break;
       }
+      case 2:
+      {
+         ProblemName = "Burgers Equation - MoST Gimmick";
+         glvis_scale = "on";
+         SolutionKnown = false;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+
+         Mesh *mesh = fes->GetMesh();
+         const int nd = fes->GetFE(0)->GetDof();
+         const int ne = fes->GetNE();
+         if (mesh->Dimension() != 2) { MFEM_ABORT("Test case is 2D."); }
+         u0 = 0.;
+
+         for (int e = 0; e < ne; e++)
+         {
+            int id = mesh->GetElement(e)->GetAttribute();
+            for (int j = 0; j < nd; j++)
+            {
+               switch (id)
+               {
+                  case 1:
+                  {
+                     u0(e*nd+j) = 1.;
+                     break;
+                  }
+                  case 2:
+                  case 3:
+                  case 4:
+                  {
+                     u0(e*nd+j) = 0.125;
+                     break;
+                  }
+                  default:
+                     MFEM_ABORT("Too many element IDs.");
+               }
+            }
+         }
+
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -121,6 +163,7 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
          return unp1;
       }
       case 1:
+      case 2:
       {
          if (dim != 2) { MFEM_ABORT("Test case only implemented in 2D."); }
 
@@ -159,10 +202,20 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
 
 double InitialConditionBurgers(const Vector &x)
 {
-   return AnalyticalSolutionBurgers(x, 0.);
+   switch (ConfigBurgers.ConfigNum)
+   {
+      case 0:
+      case 1: { return AnalyticalSolutionBurgers(x, 0.); }
+      case 2: { return 0.; }
+   }
 }
 
 void InflowFunctionBurgers(const Vector &x, double t, Vector &u)
 {
-   u(0) = AnalyticalSolutionBurgers(x, t);
+   switch (ConfigBurgers.ConfigNum)
+   {
+      case 0:
+      case 1: { u(0) = AnalyticalSolutionBurgers(x, t); break; }
+      case 2: { u(0) = 0.; }
+   }
 }

@@ -11,16 +11,16 @@ class MCL_Evolution : public FE_Evolution
 public:
    FiniteElementSpace *fesH1;
 
-   double MassMatLumpedRef;
+   double MassMatLumpedRef, tol = 0.;
    Vector DetJ;
    DenseTensor PrecGradOp, GradProd, Adjugates;
    DenseMatrix FaceMat, DistributionMatrix, MassMatLOR, Dof2LocNbr, MassMatRefInv;
    Bounds *bounds;
 
-   mutable DenseTensor CTilde, CFull, NodalFluxes, AntiDiffEl, wij;
+   mutable DenseTensor CTilde, CFull, NodalFluxes, uij;
    mutable DenseMatrix uFace, uNbrFace, mat3, DGFluxTerms, GalerkinRhs,
-                       ElFlux, uDot, DTilde, wfi, BdrFlux;
-   mutable Vector AntiDiffBdr, sif, vec1;
+                       ElFlux, uDot, DTilde, wfi, BdrFlux, AntiDiffBdr, uijMin, uijMax;
+   mutable Vector sif, vec1;
 
    explicit MCL_Evolution(FiniteElementSpace *fes_, HyperbolicSystem *hyp_,
                           DofInfo &dofs_);

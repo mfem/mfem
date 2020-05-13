@@ -20,17 +20,17 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    GradOp = 0.;
 
    NodalFluxes.SetSize(hyp->NumEq, dim, nd);
-   Adjugates.SetSize(dim,dim,ne);
-   PrecGradOp.SetSize(nd,dim,nd);
-   GradProd.SetSize(nd,dim,nd);
-   CTilde.SetSize(nd,dim,nd);
-   CFull.SetSize(nd,dim,nd);
+   Adjugates.SetSize(dim, dim, ne);
+   PrecGradOp.SetSize(nd, dim, nd);
+   GradProd.SetSize(nd, dim, nd);
+   CTilde.SetSize(nd, dim, nd);
+   CFull.SetSize(nd, dim, nd);
    OuterUnitNormals.SetSize(dim, dofs.NumBdrs, ne);
-   DistributionMatrix.SetSize(nd,nd);
-   DetJ.SetSize(ne);
+   uij.SetSize(nd, nd, hyp->NumEq);
 
-   AntiDiffEl.SetSize(nd, nd, hyp->NumEq);
-   wij.SetSize(nd, nd, hyp->NumEq);
+   DistributionMatrix.SetSize(nd, nd);
+   uijMin.SetSize(nd, hyp->NumEq);
+   uijMax.SetSize(nd, hyp->NumEq);
    mat3.SetSize(nd, hyp->NumEq);
    DGFluxTerms.SetSize(nd, hyp->NumEq);
    GalerkinRhs.SetSize(nd, hyp->NumEq);
@@ -39,9 +39,11 @@ MCL_Evolution::MCL_Evolution(FiniteElementSpace *fes_,
    DTilde.SetSize(nd, nd);
    wfi.SetSize(dofs.NumFaceDofs, hyp->NumEq);
    BdrFlux.SetSize(dofs.NumFaceDofs, hyp->NumEq);
-   AntiDiffBdr.SetSize(hyp->NumEq*nd);
+   AntiDiffBdr.SetSize(nd, hyp->NumEq);
+
    sif.SetSize(dofs.NumFaceDofs);
    vec1.SetSize(hyp->NumEq);
+   DetJ.SetSize(ne);
 
    if (gtype == Geometry::TRIANGLE)
    {
@@ -226,8 +228,9 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       fes->GetElementVDofs(e, vdofs);
       x.GetSubVector(vdofs, uElem);
       mat2 = mat3 = ElFlux = DGFluxTerms = 0.;
-      AntiDiffEl = 0.;
       AntiDiffBdr = 0.;
+      uijMin =  std::numeric_limits<double>::infinity();
+      uijMax = -std::numeric_limits<double>::infinity();
 
       for (int k = 0; k < nqe; k++)
       {
@@ -318,6 +321,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             uNbrFace.GetColumn(j, uNbrEval);
 
+            // double ws = hyp->GetGMS(uEval, uNbrEval, normal);
             double ws = max( hyp->GetWaveSpeed(uEval, normal, e, 0, i),
                              hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
 
@@ -359,24 +363,27 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             {
                double gif = BdrFlux(j,n);
 
+               if (abs(gif) >= 1.e-12 && dim==1)
+                  MFEM_ABORT("Low and high order boundary fluxes should be equal.");
+
                int J = dofs.BdrDofs(j,i);
-               if (gif > 0.)
+               if (gif > tol)
                {
-                  gif = min( gif, min( sif(j) * bounds->xi_max(n*ne*nd + e*nd+J) - wfi(j,n),
-                                       wfi(j,n) - sif(j) * bounds->xi_min(n*ne*nd + e*nd+J) ) );
+                  gif = min( gif, max(0., min( sif(j) * bounds->xi_max(n*ne*nd + e*nd+J) - wfi(j,n),
+                                       wfi(j,n) - sif(j) * bounds->xi_min(n*ne*nd + e*nd+J) ) ) );
                }
-               else
+               else if (gif < -tol)
                {
-                  gif = max( gif, max( sif(j) * bounds->xi_min(n*ne*nd + e*nd+J) - wfi(j,n),
-                                       wfi(j,n) - sif(j) * bounds->xi_max(n*ne*nd + e*nd+J) ) );
+                  gif = max( gif, min(0., max( sif(j) * bounds->xi_min(n*ne*nd + e*nd+J) - wfi(j,n),
+                                       wfi(j,n) - sif(j) * bounds->xi_max(n*ne*nd + e*nd+J) ) ) );
                }
 
-               AntiDiffBdr(n*nd+dofs.BdrDofs(j,i)) += gif;
+               AntiDiffBdr(dofs.BdrDofs(j,i),n) += gif;
             }
          }
       }
 
-      z.AddElementVector(vdofs, AntiDiffBdr);
+      z.AddElementVector(vdofs, AntiDiffBdr.GetData());
 
       Add(mat2, DGFluxTerms, -1., GalerkinRhs);
       mfem::Mult(MassMatRefInv, GalerkinRhs, uDot);
@@ -397,7 +404,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
          /* M_C uDot = M_C (M_C)^{-1} GalerkinRhs
                      = int_K \nabla \phi f(u_h) dx - \int_S \phi LF(u_h^-, u_h^+; n) ds,
-            ElFlux + = int_K \nabla \phi f(u_h) dx + (M_L - M_C) uDot
+          => ElFlux += int_K \nabla \phi f(u_h) dx + (M_L - M_C) uDot
                      = M_L uDot + \int_S \phi LF(u_h^-, u_h^+; n) ds. */
          for (int n = 0; n < hyp->NumEq; n++)
          {
@@ -429,33 +436,36 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             CTildeNorm1 = sqrt(CTildeNorm1);
             CTildeNorm2 = sqrt(CTildeNorm2);
 
-            // double dij = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
+            // DTilde(I,J) = max( 0., max( -CTilde(I,0,J), -CTilde(J,0,I) ) );
 
             CTilde(J).GetRow(I, normal);
             normal /= CTildeNorm1;
 
+            // double ws1 = hyp->GetGMS(uEval, uNbrEval, normal);
             double ws1 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
                              hyp->GetWaveSpeed(uNbrEval, normal, e, J));
 
             CTilde(I).GetRow(J, normal);
             normal /= CTildeNorm2;
 
+            // double ws2 = hyp->GetGMS(uEval, uNbrEval, normal);
             double ws2 = max(hyp->GetWaveSpeed(uEval, normal, e, I),
                              hyp->GetWaveSpeed(uNbrEval, normal, e, J));
-            double dij = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
-            DTilde(I,J) = dij;
+            DTilde(I,J) = max(CTildeNorm1 * ws1, CTildeNorm2 * ws2);
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               double rus = dij * (x(vdofs[n * nd + J]) - x(vdofs[n * nd + I]));
-               z(vdofs[n * nd + I]) += rus;
-               AntiDiffEl(I,J,n) -= rus;
-               wij(I,J,n) = dij * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
+               double rus = DTilde(I,J) * (x(vdofs[n*nd + J]) - x(vdofs[n*nd + I]));
+               z(vdofs[n*nd + I]) += rus;
+               uij(I,J,n) = 0.5 * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
 
                for (int l = 0; l < dim; l++)
                {
-                  wij(I,J,n) -= CTilde(I,l,J) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
+                  uij(I,J,n) -= CTilde(I,l,J) / (2.*DTilde(I,J)) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
                }
+
+               uijMin(I,n) = min(uijMin(I,n), uij(I,J,n));
+               uijMax(I,n) = max(uijMax(I,n), uij(I,J,n));
             }
          }
       }
@@ -476,17 +486,19 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               double fij = AntiDiffEl(I,J,n) + MassMatLOR(I,J) * (mat2(I,n) - mat2(J,n));
+               double fij = DTilde(I,J) * (x(vdofs[n*nd+I]) - x(vdofs[n*nd+J])) + MassMatLOR(I,J) * (mat2(I,n) - mat2(J,n));
 
-               if (fij > 0.)
+               if (fij > tol)
                {
-                  fij = min( fij, min( 2.*DTilde(I,J) * bounds->xi_max(n*ne*nd + e*nd+I) - wij(I,J,n),
-                                       wij(J,I,n) - 2.*DTilde(I,J) * bounds->xi_min(n*ne*nd + e*nd+J) ) );
+                  double lower = min(uijMin(J,n), bounds->xi_min(n*ne*nd + e*nd+J));
+                  double upper = max(uijMax(I,n), bounds->xi_max(n*ne*nd + e*nd+I));
+                  fij = min( fij, 2.*DTilde(I,J) * min( upper - uij(I,J,n), uij(J,I,n) - lower ) );
                }
-               else
+               else if (fij < -tol)
                {
-                  fij = max( fij, max( 2.*DTilde(I,J) * bounds->xi_min(n*ne*nd + e*nd+I) - wij(I,J,n),
-                                       wij(J,I,n) - 2.*DTilde(I,J) * bounds->xi_max(n*ne*nd + e*nd+J) ) );
+                  double lower = min(uijMin(I,n), bounds->xi_min(n*ne*nd + e*nd+I));
+                  double upper = max(uijMax(J,n), bounds->xi_max(n*ne*nd + e*nd+J));
+                  fij = max( fij, 2.*DTilde(I,J) * max( lower - uij(I,J,n), uij(J,I,n) - upper ) );
                }
 
                ElFlux(I,n) += fij;
