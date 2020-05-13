@@ -58,14 +58,12 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
    {
-      dbg("elem_restrict_lex");
       elem_restrict_lex->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(localX, localY);
       }
-      dbg("localY:"); localY.Print();
       elem_restrict_lex->MultTranspose(localY, y);
    }
    else
