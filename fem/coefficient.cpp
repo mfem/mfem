@@ -124,6 +124,37 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    }
 }
 
+void VectorFunctionCoefficient::EvalRevDiff(const Vector &V_bar,
+                                            ElementTransformation &T,
+                                            const IntegrationPoint &ip,
+                                            DenseMatrix &PointMat_bar)
+{
+   MFEM_ASSERT( Q == NULL, "EvalRevDiff: not implemented for use with Q.")
+
+   double x[3];
+   Vector transip(x, 3);
+   double x_bar[3];
+   Vector transip_bar(x_bar, 3);
+   T.Transform(ip, transip);  
+   transip_bar = 0.0;
+   if (Function)
+   {
+      MFEM_ASSERT(FunctionRevDiff != NULL, "EvalRevDiff: reverse-mode "
+                                           "differentiated version of Function "
+                                           "must be provided");
+      (*FunctionRevDiff)(V_bar, transip_bar);
+   }
+   else
+   {
+      MFEM_ASSERT(TDFunctionRevDiff != NULL, "EvalRevDiff: reverse-mode "
+                                             "differentiated version of "
+                                             "TDFunction must be provided");
+      (*TDFunctionRevDiff)(V_bar, GetTime(), transip_bar);
+   }
+   static_cast<IsoparametricTransformation &>(T).TransformRevDiff(
+       ip, transip_bar, PointMat_bar);
+}
+
 VectorArrayCoefficient::VectorArrayCoefficient (int dim)
    : VectorCoefficient(dim), Coeff(dim), ownCoeff(dim)
 {
