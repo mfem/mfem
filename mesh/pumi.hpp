@@ -101,6 +101,18 @@ public:
                                        int elemId,
                                        apf::NewArray<apf::Vector3>& pumi_xi,
                                        bool checkOrientation = true);
+   /// Convert the parent coordinate from MFEM to PUMI
+   /** This is the inverse of ParentXisPUMItoMFEM.
+       By default this functions assumes that there is always
+       change in the orientations of some of the elements. In case it
+       is known for sure that there is NO change in the orientation,
+       call the functions with last argument = false */
+   void ParentXisMFEMtoPUMI(apf::Mesh2* apf_mesh,
+                            int elemId,
+                            apf::MeshEntity* tet,
+                            const IntegrationRule& mfem_xi,
+                            apf::NewArray<apf::Vector3>& pumi_xi,
+                            bool checkOrientation = true);
    /// Transfer field from MFEM mesh to PUMI mesh [Mixed].
    void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                         ParGridFunction* grid_vel,
@@ -129,10 +141,10 @@ public:
    /// Update the mesh after adaptation.
    void UpdateMesh(const ParMesh* AdaptedpMesh);
 
-   /// Transfer a field from PUMI to MFEM after mesh adapt [Scalar].
+   /// Transfer a field from PUMI to MFEM after mesh adapt [Scalar and Vector].
    void FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
-                        apf::Field* ScalarField,
-                        ParGridFunction* Pr);
+                        apf::Field* field,
+                        ParGridFunction* grid);
 
    virtual ~ParPumiMesh() {}
 };
