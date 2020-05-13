@@ -335,8 +335,11 @@ class VectorFunctionCoefficient : public VectorCoefficient
 {
 private:
    void (*Function)(const Vector &, Vector &);
+   void (*FunctionRevDiff)(const Vector &, Vector &);
    void (*TDFunction)(const Vector &, double, Vector &);
+   void (*TDFunctionRevDiff)(const Vector &, double, Vector &);
    Coefficient *Q;
+   // Coefficient *dQ;
 
 public:
    /// Construct a time-independent vector coefficient from a C-function
@@ -358,9 +361,39 @@ public:
       TDFunction = TDF;
    }
 
+   /// Construct time-independent vector coefficient that can be differentiated
+   VectorFunctionCoefficient(int dim, void (*F)(const Vector &, Vector &),
+                             void (*dF)(const Vector &, Vector &))
+                             : VectorCoefficient(dim), Q(NULL)
+   {
+      Function = F;
+      FunctionRevDiff = dF;
+      TDFunction = NULL;
+      TDFunctionRevDiff = NULL;
+   }
+
+   /// Construct time-dependent vector coefficient that can be differentiated
+   VectorFunctionCoefficient(int dim, void (*TDF)(const Vector &, double, Vector &),
+                             void (*dTDF)(const Vector &, double, Vector &))
+                             : VectorCoefficient(dim), Q(NULL)
+   {
+      Function = NULL;
+      FunctionRevDiff = NULL;
+      TDFunction = TDF;
+      TDFunctionRevDiff = dTDF;
+   }
+
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+
+   /// Reverse-diff version of Eval
+   /// @param[in] V_bar - derivative of functional with respect to `V`
+   /// @param[in] T - an element transformation 
+   /// @param[in] ip - defines location in reference space
+   /// @param[out] PointMat_bar - derivative of function w.r.t. mesh nodes
+   void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                    const IntegrationPoint &ip, DenseMatrix &PointMat_bar);
 
    virtual ~VectorFunctionCoefficient() { }
 };
