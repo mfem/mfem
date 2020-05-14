@@ -152,9 +152,15 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
    return x;
 }
 
-void NonlinearForm::Mult(const Vector &x, Vector &y) const
+void NonlinearForm::Mult(const Vector &X, Vector &y) const
 {
    dbg("");
+   Vector x(X.Size());
+   srand48(0x1234abcd330e);
+   for (int k=0; k<X.Size(); k++)
+   {
+      x[k] = drand48();
+   }
    const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
