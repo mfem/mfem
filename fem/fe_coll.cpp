@@ -1879,11 +1879,14 @@ const int* H1_FECollection::GetDofOrdering(Geometry::Type geom, int p,
    }
    return (dim < 0) ? NULL : new H1_Trace_FECollection(p, dim, b_type);
 }
+*/
 
-const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
+const int *H1_FECollection::GetDofMap(Geometry::Type GeomType, int p) const
 {
+   MFEM_VERIFY(HaveOrder(p), "The finite element collection does not have "
+                             " the requested order");
    const int *dof_map = NULL;
-   const FiniteElement *fe = H1_Elements[GeomType];
+   const FiniteElement *fe = H1_Elements[GeomType][p];
    switch (GeomType)
    {
       case Geometry::SEGMENT:
@@ -1899,7 +1902,7 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
          // class GeometryRefiner.
    }
    return dof_map;
-}*/
+}
 
 H1_FECollection::~H1_FECollection()
 {

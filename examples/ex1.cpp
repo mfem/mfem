@@ -66,11 +66,13 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = 1;
    int seed = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
+   bool relaxed_hp = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -78,6 +80,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--ref-levels",
+                  "Number of mesh refinement levels.");
    args.AddOption(&seed, "-s", "--seed", "Random seed");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
@@ -85,6 +89,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&relaxed_hp, "-x", "--relaxed-hp", "-no-x",
+                  "--no-relaxed-hp", "Set relaxed hp conformity.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -107,21 +113,20 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    mesh->EnsureNCMesh();
-   srand(seed);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   srand(1);
    {
-      int ref_levels = 0;
-         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          //mesh->UniformRefinement();
          mesh->RandomRefinement(0.5);
       }
    }
+   srand(seed);
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -141,21 +146,22 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   fespace->SetRelaxedHpConformity(relaxed_hp);
 
    // 6. At this point all elements have the default order (specified when
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
-   fespace->SetRelaxedHpConformity(true);
    {
-      Array<int> refs;
-      refs.Append(0);
+      Array<Refinement> refs;
+      refs.Append(Refinement(1, 4));
       mesh->GeneralRefinement(refs);
-      //mesh->GeneralRefinement(refs);
+      refs[0].ref_type = 2;
+      mesh->GeneralRefinement(refs);
    }
    fespace->Update(false);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      fespace->SetElementOrder(i, (rand()%3)+1);
+      fespace->SetElementOrder(i, (rand()%3)+2);
       //fespace->SetElementOrder(i, i ? 3 : 2);
    }
    fespace->Update(false);
@@ -163,7 +169,7 @@ int main(int argc, char *argv[])
    /*fespace->SetElementOrder(0, order+1);
    fespace->Update(false);*/
 
-   Array<int> dofs;
+   /*Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       fespace->GetElementDofs(i, dofs);
@@ -172,7 +178,7 @@ int main(int argc, char *argv[])
          mfem::out << " " << dofs[j];
       }
       mfem::out << std::endl;
-   }
+   }*/
    cout << "Space size (all DOFs): " << fespace->GetNDofs() << endl;
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
@@ -192,7 +198,6 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
    cout << "Essential DOFs: " << ess_tdof_list.Size() << endl;
-   ess_tdof_list.Print();
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -268,8 +273,6 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   x.Print();
-
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -279,13 +282,16 @@ int main(int argc, char *argv[])
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
 
+#if 0
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x
                //<< "keys Rjlm\n"
                << flush;
+#endif
       delete vis_x;
 
+#if 1
       L2_FECollection l2fec(0, dim);
       FiniteElementSpace l2fes(mesh, &l2fec);
       GridFunction orders(&l2fes);
@@ -300,6 +306,7 @@ int main(int argc, char *argv[])
       ord_sock << "solution\n" << *mesh << orders
                //<< "keys Rjlmc\n"
                << flush;
+#endif
 
       // visualize the basis functions
       if (1)
@@ -307,17 +314,29 @@ int main(int argc, char *argv[])
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
 
-         for (int i = 0; i < X.Size(); i++)
+#if 0
+         int first = 0;
+#else
+         int first = fespace->GetNV() - 10;
+#endif
+         cout << "first = " << first << endl;
+
+         for (int i = first; i < first + 10; i++)
          {
             X = 0.0;
             X(i) = 1.0;
             a->RecoverFEMSolution(X, *b, x);
             vis_x = ProlongToMaxOrder(&x);
-            b_sock << "solution\n" << *mesh << *vis_x << "pause\n" << flush;
+
+            b_sock << "solution\n" << *mesh << *vis_x << flush;
+            if (i == first) { b_sock << "keys miIMA\n"; }
+            b_sock << "pause\n" << flush;
             // delete vis_x;
          }
       }
 
+      std::ofstream f("mesh.dump");
+      mesh->ncmesh->DebugDump(f);
    }
 
    // 15. Free the used memory.

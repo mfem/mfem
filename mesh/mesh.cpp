@@ -3511,31 +3511,55 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 {
-#if 0
+   Array<int> ref_factors(orig_mesh->GetNE());
+   ref_factors = ref_factor;
+   CreateRefinedMesh(orig_mesh, ref_factors, ref_type);
+}
+
+Mesh::Mesh(Mesh *orig_mesh, Array<int> &ref_factors, int ref_type)
+{
+   CreateRefinedMesh(orig_mesh, ref_factors, ref_type);
+}
+
+void Mesh::CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
+                             int ref_type)
+{
    Dim = orig_mesh->Dimension();
-   MFEM_VERIFY(ref_factor >= 1, "the refinement factor must be >= 1");
-   MFEM_VERIFY(ref_type == BasisType::ClosedUniform ||
-               ref_type == BasisType::GaussLobatto, "invalid refinement type");
-   MFEM_VERIFY(Dim == 1 || Dim == 2 || Dim == 3,
-               "only implemented for Segment, Quadrilateral and Hexahedron "
-               "elements in 1D/2D/3D");
-   MFEM_VERIFY(orig_mesh->GetNumGeometries(Dim) <= 1,
-               "meshes with mixed elements are not supported");
+
+   int r_num_elem = 0;
+   int r_num_bndr = 0;
 
    // Construct a scalar H1 FE space of order ref_factor and use its dofs as
    // the indices of the new, refined vertices.
-   H1_FECollection rfec(ref_factor, Dim, ref_type);
-   FiniteElementSpace rfes(orig_mesh, &rfec);
 
-   int r_bndr_factor = pow(ref_factor, Dim - 1);
-   int r_elem_factor = ref_factor * r_bndr_factor;
+   int min_ref = ref_factors.Min();
+   H1_FECollection rfec(min_ref, Dim, ref_type);
+   FiniteElementSpace rfes(orig_mesh, &rfec);
+   rfes.SetRelaxedHpConformity(false);
+   for (int i = 0; i < orig_mesh->GetNE(); i++)
+   {
+      int ref = ref_factors[i];
+      rfes.SetElementOrder(i, ref);
+
+      int r_elem_factor = pow(ref, Dim);
+      r_num_elem += r_elem_factor;
+   }
+   rfes.Update(false);
+
+   for (int ibdr=0; ibdr < orig_mesh->GetNBE(); ibdr++)
+   {
+      int i, info;
+      orig_mesh->GetBdrElementAdjacentElement(ibdr, i, info);
+      int r_bndr_factor = pow(ref_factors[i], Dim - 1);
+      r_num_bndr += r_bndr_factor;
+   }
 
    int r_num_vert = rfes.GetNDofs();
-   int r_num_elem = orig_mesh->GetNE() * r_elem_factor;
-   int r_num_bndr = orig_mesh->GetNBE() * r_bndr_factor;
 
    InitMesh(Dim, orig_mesh->SpaceDimension(), r_num_vert, r_num_elem,
             r_num_bndr);
+
+   EnsureNCMesh();
 
    // Set the number of vertices, set the actual coordinates later
    NumOfVertices = r_num_vert;
@@ -3549,10 +3573,12 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    for (int el = 0; el < orig_mesh->GetNE(); el++)
    {
+      int ref = ref_factors[el];
+
       Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
       int attrib = orig_mesh->GetAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
+      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
 
       max_nv = std::max(max_nv, nvert);
       rfes.GetElementDofs(el, rdofs);
@@ -3560,8 +3586,8 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       const FiniteElement *rfe = rfes.GetFE(el);
       orig_mesh->GetElementTransformation(el)->Transform(rfe->GetNodes(),
                                                          phys_pts);
-      const int *c2h_map = rfec.GetDofMap(geom);
-      const int *vertex_map = vertex_fec.GetDofMap(geom);
+      const int *c2h_map = rfec.GetDofMap(geom, ref);
+      const int *vertex_map = vertex_fec.GetDofMap(geom, 1);
       for (int i = 0; i < phys_pts.Width(); i++)
       {
          vertices[rdofs[i]].SetCoords(spaceDim, phys_pts.GetColumn(i));
@@ -3602,10 +3628,13 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    // Add refined boundary elements
    for (int el = 0; el < orig_mesh->GetNBE(); el++)
    {
+      int i, info;
+      orig_mesh->GetBdrElementAdjacentElement(el, i, info);
+      int ref = ref_factors[i];
       Geometry::Type geom = orig_mesh->GetBdrElementBaseGeometry(el);
       int attrib = orig_mesh->GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
+      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
 
       rfes.GetBdrElementDofs(el, rdofs);
       MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
@@ -3624,7 +3653,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
       else
       {
-         const int *c2h_map = rfec.GetDofMap(geom);
+         const int *c2h_map = rfec.GetDofMap(geom, ref);
          for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
          {
             Element *elem = NewElement(geom);
@@ -3646,38 +3675,65 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    // Setup the data for the coarse-fine refinement transformations
    CoarseFineTr.embeddings.SetSize(GetNE());
-   if (orig_mesh->GetNE() > 0)
+   // First, compute total number of point matrices that we need per geometry
+   // and the offsets into that array
+   std::map<std::pair<Geometry::Type,int>, int> point_matrices_offsets;
+   int n_point_matrices[Geometry::NumGeom] = {}; // initialize to zero
+   for (int el_coarse = 0; el_coarse < orig_mesh->GetNE(); ++el_coarse)
    {
-      const int el = 0;
-      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el);
-      CoarseFineTr.point_matrices[geom].SetSize(Dim, max_nv, r_elem_factor);
-      int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
-      const int *c2h_map = rfec.GetDofMap(geom);
-      const IntegrationRule &r_nodes = rfes.GetFE(el)->GetNodes();
-      for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
+      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el_coarse);
+      int r_elem_factor = pow(ref_factors[el_coarse], Dim);
+
+      // Have we seen this pair of (goemetry, refinement level) before?
+      std::pair<Geometry::Type,int> id = std::make_pair(geom, r_elem_factor);
+      if (point_matrices_offsets.find(id) == point_matrices_offsets.end())
       {
-         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](j);
+         // If not, then store the offset and add to the size required
+         point_matrices_offsets[id] = n_point_matrices[geom];
+         n_point_matrices[geom] += r_elem_factor;
+      }
+   }
+
+   // Set up the sizes
+   for (int geom = 0; geom < Geometry::NumGeom; ++geom)
+   {
+      int nmatrices = n_point_matrices[geom];
+      int nvert = Geometry::NumVerts[geom];
+      CoarseFineTr.point_matrices[geom].SetSize(Dim, nvert, nmatrices);
+   }
+
+   // Compute the point matrices and embeddings
+   int el_fine = 0;
+   for (int el_coarse = 0; el_coarse < orig_mesh->GetNE(); ++el_coarse)
+   {
+      Geometry::Type geom = orig_mesh->GetElementBaseGeometry(el_coarse);
+      int ref = ref_factors[el_coarse];
+      int r_elem_factor = pow(ref, Dim);
+      int offset = point_matrices_offsets[std::make_pair(geom, r_elem_factor)];
+
+      int nvert = Geometry::NumVerts[geom];
+      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref);
+      const int *c2h_map = rfec.GetDofMap(geom, ref);
+      const IntegrationRule &r_nodes = rfes.GetFE(el_coarse)->GetNodes();
+      for (int j = 0; j < r_elem_factor; j++)
+      {
+         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](offset + j);
          for (int k = 0; k < nvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             const IntegrationPoint &ip = r_nodes.IntPoint(c2h_map[cid]);
             ip.Get(Pj.GetColumn(k), Dim);
          }
+
+         Embedding &emb = CoarseFineTr.embeddings[el_fine];
+         emb.parent = el_coarse;
+         emb.matrix = offset + j;
+         ++el_fine;
       }
-   }
-   for (int el = 0; el < GetNE(); el++)
-   {
-      Embedding &emb = CoarseFineTr.embeddings[el];
-      emb.parent = el / r_elem_factor;
-      emb.matrix = el % r_elem_factor;
    }
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
-#else
-   MFEM_ABORT("TODO");
-#endif
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)
