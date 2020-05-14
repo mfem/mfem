@@ -300,11 +300,11 @@ int main(int argc, char *argv[])
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       if (strongBC)
       {
-         ess_bdr    = 1;
+         ess_bdr = 1;
       }
       else
       {
-         ess_bdr    = 0;
+         ess_bdr = 0;
       }
 
       // Remove periodic BCs
