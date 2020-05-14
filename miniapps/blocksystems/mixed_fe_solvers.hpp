@@ -32,7 +32,7 @@ struct DFSData
     Array<OperatorPtr> agg_l2dof;
     Array<OperatorPtr> P_hdiv;
     Array<OperatorPtr> P_l2;
-    Array<OperatorPtr> P_curl;
+    Array<OperatorPtr> P_hcurl;
     Array<OperatorPtr> Q_l2;            // Q_l2[l] = W_l P_l2[l] (W_{l+1})^{-1}
     Array<int> coarsest_ess_hdivdofs;
     OperatorPtr C;                      // discrete curl: ND -> RT
@@ -141,24 +141,49 @@ class MLDivSolver : public Solver
     OperatorPtr coarsest_solver_;
 public:
     MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data);
+    MLDivSolver(const Array<OperatorPtr>& M, const Array<OperatorPtr>& B, const DFSData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
     void Mult(int level, const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 };
 
+class HiptmairSmoother : public Solver
+{
+    Array<int> C_col_offsets_;
+    int level_;
+    BlockOperator& op_;
+    MLDivSolver& ml_div_solver_;
+    OperatorPtr blk_C_;
+    OperatorPtr div_kernel_system_;
+    OperatorPtr div_kernel_smoother_;
+public:
+    HiptmairSmoother(BlockOperator& op,
+                     MLDivSolver& ml_div_solver,
+                     int level,
+                     HypreParMatrix& C);
+    virtual void Mult(const Vector & x, Vector & y) const;
+    virtual void SetOperator(const Operator &op) { }
+};
+
 class DivFreeSolver : public DarcySolver
 {
+    const DFSData& data_;
     const HypreParMatrix& M_;
     const HypreParMatrix& B_;
 
     OperatorPtr particular_solver_;
     BBTSolver BBT_solver_;
+
     OperatorPtr CTMC_;
     OperatorPtr CTMC_prec_;
     CGSolver CTMC_solver_;
 
-    const DFSData& data_;
+    OperatorPtr BT_;
+    Array<OperatorPtr> Cs_;
+    Array<Array<int>> coarse_offsets_;
+    Array<OperatorPtr> ops_;
+    Array<OperatorPtr> smoothers_;
 
     // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
