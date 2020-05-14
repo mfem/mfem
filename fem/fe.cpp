@@ -139,6 +139,16 @@ void FiniteElement::Project (
    mfem_error ("FiniteElement::Project (...) (vector) is not overloaded !");
 }
 
+void FiniteElement::Project_RevDiff (
+   const Vector &P_bar,
+   VectorCoefficient &vc,
+   ElementTransformation &Trans,
+   DenseMatrix &PointMat_bar) const
+{
+   mfem_error ("FiniteElement::Project_RevDiff (...) (vector) is not "
+               "overloaded !");
+}
+
 void FiniteElement::ProjectMatrixCoefficient(
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
 {
@@ -925,6 +935,45 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
+void VectorFiniteElement::Project_RT_RevDiff(
+   const Vector &P_bar,
+   const double *nk, const Array<int> &d2n,
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   DenseMatrix &PointMat_bar) const
+{
+   double vk[Geometry::MaxDim];
+   const int sdim = Trans.GetSpaceDim();
+   MFEM_ASSERT(vc.GetVDim() == sdim, "");
+   Vector xk(vk, sdim);
+   MFEM_ASSERT(Dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
+                 "\tOnly implemented if space dim == reference dim!\n");
+
+   DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
+
+   IsoparametricTransformation &isotrans =
+                           dynamic_cast<IsoparametricTransformation&>(Trans);
+
+   for (int k = 0; k < Dof; k++)
+   {
+      temp_bar = 0.0;
+      isotrans.SetIntPoint(&Nodes.IntPoint(k));
+      vc.Eval(xk, isotrans, Nodes.IntPoint(k));
+      // dof_k = nk^t adj(J) xk
+      const Vector nk_vec(const_cast<double*>(nk + d2n[k]*Dim), sdim);
+      DenseMatrix adjJ_bar(Dim);
+      MultVWt(nk_vec, xk, adjJ_bar);
+      isotrans.AdjugateJacobianRevDiff(adjJ_bar, temp_bar);
+
+      Vector V_bar(sdim);
+      isotrans.AdjugateJacobian().MultTranspose(nk_vec, V_bar);
+      vc.EvalRevDiff(V_bar, isotrans,
+                     Nodes.IntPoint(k), temp_bar);
+
+      temp_bar *= P_bar(k);
+      PointMat_bar += temp_bar;
+   }
+}
+
 void VectorFiniteElement::ProjectMatrixCoefficient_RT(
    const double *nk, const Array<int> &d2n,
    MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
@@ -1098,6 +1147,46 @@ void VectorFiniteElement::Project_ND(
       vc.Eval(xk, Trans, Nodes.IntPoint(k));
       // dof_k = xk^t J tk
       dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*Dim, vk);
+   }
+}
+
+void VectorFiniteElement::Project_ND_RevDiff(
+   const Vector &P_bar,
+   const double *tk, const Array<int> &d2t,
+   VectorCoefficient &vc, ElementTransformation &Trans,
+   DenseMatrix &PointMat_bar) const
+{
+   double vk[Geometry::MaxDim];
+   const int sdim = Trans.GetSpaceDim();
+   MFEM_ASSERT(vc.GetVDim() == sdim, "");
+   Vector xk(vk, sdim);
+   MFEM_ASSERT(Dim == sdim, "VectorFiniteElement::Project_RT_RevDiff\n"
+                 "\tOnly implemented if space dim == reference dim!\n");
+   
+   DenseMatrix temp_bar(PointMat_bar.Height(), PointMat_bar.Width());
+
+   IsoparametricTransformation &isotrans =
+                           dynamic_cast<IsoparametricTransformation&>(Trans);
+
+   for (int k = 0; k < Dof; k++)
+   {
+      temp_bar = 0.0;
+      isotrans.SetIntPoint(&Nodes.IntPoint(k));
+      vc.Eval(xk, isotrans, Nodes.IntPoint(k));
+      // dof_k = nk^t J xk
+      const Vector tk_vec(const_cast<double*>(tk + d2t[k]*Dim), sdim);
+
+      DenseMatrix J_bar(sdim);
+      MultVWt(xk, tk_vec, J_bar);
+      isotrans.JacobianRevDiff(J_bar, temp_bar);
+
+      Vector V_bar(sdim);
+      isotrans.Jacobian().Mult(tk_vec, V_bar);
+      vc.EvalRevDiff(V_bar, isotrans,
+                     Nodes.IntPoint(k), temp_bar);
+
+      temp_bar *= P_bar(k);
+      PointMat_bar += temp_bar;
    }
 }
 

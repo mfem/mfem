@@ -300,6 +300,16 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
+   /** @brief Evaluate the derivative of a vector coefficient in the element 
+       described by @a T at the point @a ip, with respect to the mesh nodes,
+       storing the result in @a PointMat_bar. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
+
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at all points of @a ir, storing the result in @a M. */
    /** The dimensions of @a M are GetVDim() by ir.GetNPoints() and they must be
@@ -392,8 +402,9 @@ public:
    /// @param[in] T - an element transformation 
    /// @param[in] ip - defines location in reference space
    /// @param[out] PointMat_bar - derivative of function w.r.t. mesh nodes
-   void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
-                    const IntegrationPoint &ip, DenseMatrix &PointMat_bar);
+   virtual void EvalRevDiff(const Vector &V_bar, ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
 
    virtual ~VectorFunctionCoefficient() { }
 };

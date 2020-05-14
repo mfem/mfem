@@ -494,6 +494,14 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
+/** Given a vector coefficient and a transformation, compute the derivative of
+       its projection (approximation) in the local finite dimensional space
+       w.r.t. the mesh nodes (VectorFiniteElements) */
+   virtual void Project_RevDiff (const Vector &P_bar,
+                                 VectorCoefficient &vc,
+                                 ElementTransformation &Trans,
+                                 DenseMatrix &PointMat_bar) const;
+
    /** Given a matrix coefficient and a transformation, compute an approximation
        ("projection") in the local finite dimensional space in terms of the
        degrees of freedom. For VectorFiniteElements, the rows of the coefficient
@@ -740,6 +748,21 @@ protected:
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
+   /// Reverse-diff version of Project_RT
+   /// @param[in] P_bar - derivative of function with respect to the projection
+   /// @param[in] nk - ?
+   /// @param[in] d2n - ?
+   /// @param[in] vc - VectorCoefficient being projected
+   /// @param[in] Trans - an element transformation
+   /// @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
+   ///                        mesh nodes
+   /// @warning - only implemented for the same space and reference dimension
+   void Project_RT_RevDiff(const Vector &P_bar,
+                           const double *nk, const Array<int> &d2n,
+                           VectorCoefficient &vc,
+                           ElementTransformation &Trans,
+                           DenseMatrix &PointMat_bar) const;
+
    // rotated gradient in 2D
    void ProjectGrad_RT(const double *nk, const Array<int> &d2n,
                        const FiniteElement &fe, ElementTransformation &Trans,
@@ -758,6 +781,21 @@ protected:
    void Project_ND(const double *tk, const Array<int> &d2t,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
+
+   /// Reverse-diff version of Project_ND
+   /// @param[in] P_bar - derivative of function with respect to the projection
+   /// @param[in] tk - ?
+   /// @param[in] d2t - ?
+   /// @param[in] vc - VectorCoefficient being projected
+   /// @param[in] Trans - an element transformation
+   /// @param[out] PointMat_bar - derivative of projected degrees of freedom w.r.t.
+   ///                        mesh nodes
+   /// @warning - only implemented for the same space and reference dimension
+   void Project_ND_RevDiff(const Vector &P_bar,
+                           const double *tk, const Array<int> &d2t,
+                           VectorCoefficient &vc,
+                           ElementTransformation &Trans,
+                           DenseMatrix &PointMat_bar) const;
 
    // project the rows of the matrix coefficient in an ND space
    void ProjectMatrixCoefficient_ND(
@@ -2467,6 +2505,11 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void Project_RevDiff(const Vector &P_bar,
+                                VectorCoefficient &vc,
+                                ElementTransformation &Trans,
+                                DenseMatrix &dofs_bar) const
+   { Project_RT_RevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2627,6 +2670,11 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void Project_RevDiff(const Vector &P_bar,
+                                VectorCoefficient &vc,
+                                ElementTransformation &Trans,
+                                DenseMatrix &dofs_bar) const
+   { Project_RT_RevDiff(P_bar, nk, dof2nk, vc, Trans, dofs_bar); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2739,6 +2787,11 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void Project_RevDiff(const Vector &P_bar,
+                                VectorCoefficient &vc,
+                                ElementTransformation &Trans,
+                                DenseMatrix &dofs_bar) const
+   { Project_ND_RevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
@@ -2788,6 +2841,11 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   virtual void Project_RevDiff(const Vector &P_bar,
+                                VectorCoefficient &vc,
+                                ElementTransformation &Trans,
+                                DenseMatrix &dofs_bar) const
+   { Project_ND_RevDiff(P_bar, tk, dof2tk, vc, Trans, dofs_bar); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }

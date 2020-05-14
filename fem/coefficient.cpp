@@ -87,6 +87,15 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
    return weight ? weight->Eval(T, ip, GetTime())*w : w;
 }
 
+void VectorCoefficient::EvalRevDiff(const Vector &V_bar,
+                                    ElementTransformation &T,
+                                    const IntegrationPoint &ip,
+                                    DenseMatrix &PointMat_bar)
+{
+   MFEM_ABORT("VectorCoefficient::EvalRevDiff\n"
+              "\tEvalRevDiff not implemented for this coefficient!\n");
+}
+
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
 {
@@ -132,9 +141,9 @@ void VectorFunctionCoefficient::EvalRevDiff(const Vector &V_bar,
    MFEM_ASSERT( Q == NULL, "EvalRevDiff: not implemented for use with Q.")
 
    double x[3];
-   Vector transip(x, 3);
+   Vector transip(x, vdim);
    double x_bar[3];
-   Vector transip_bar(x_bar, 3);
+   Vector transip_bar(x_bar, vdim);
    T.Transform(ip, transip);  
    transip_bar = 0.0;
    if (Function)
