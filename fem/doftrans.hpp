@@ -179,7 +179,7 @@ public:
    inline DofTransformation * GetDofTransformation() const { return doftrans_; }
 
    inline void SetFaceOrientation(const Array<int> & face_orientation)
-   { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation);}
+   { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation); }
 
    using DofTransformation::TransformPrimal;
    using DofTransformation::InvTransformPrimal;

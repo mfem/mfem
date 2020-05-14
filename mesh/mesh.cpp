@@ -3585,7 +3585,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
    }
 
-   if (Dim >= 3)
+   if (Dim > 2)
    {
       GetElementToFaceTable(false);
       GenerateFaces();
