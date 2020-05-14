@@ -3505,12 +3505,29 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
-void BatchLUFactor(Vector &Minv,const int m,const int NE, Array<int> &P)
+void BatchLUFactor(Vector &Minv, const int m, const int NE, Array<int> &P)
 {
    P.SetSize(m*NE);
-   auto data_all = mfem::Reshape(Minv.ReadWrite(), m, m, NE);
-   auto piv_all = mfem::Reshape(P.Write(), m, NE);
+   BatchLUFactor_impl(Minv.ReadWrite(), m, NE, P.Write());
+}
 
+void BatchLUFactor(DenseTensor &Minv,const int NE, Array<int> &P)
+{
+   const int m = Minv.SizeI();
+   P.SetSize(m*NE);
+   BatchLUFactor_impl(Minv.ReadWrite(), m, NE, P.Write());
+}
+
+void BatchLUFactor_impl(double *Minv, const int m, const int NE, int *P)
+{
+
+   auto data_all = mfem::Reshape(Minv, m, m, NE);
+   auto piv_all = mfem::Reshape(P, m, NE);
+   Array<bool> pivot_flag(1); 
+   pivot_flag[0] = true;
+   bool *d_pivot_flag = pivot_flag.ReadWrite();
+   const double TOL = 1.e-9;
+   
    MFEM_FORALL(e, NE,
    {
 
@@ -3543,11 +3560,10 @@ void BatchLUFactor(Vector &Minv,const int m,const int NE, Array<int> &P)
             }
          }//pivot end
 
-         //Q: How to check for errors?
-         //if (abs(data[i + i*m]) <= TOL)
-         //{
-         //return false; // failed
-         //}
+         if (abs(data[i + i*m]) <= TOL)
+         {
+           d_pivot_flag[0] = false; 
+         }
 
          const double a_ii_inv = 1.0 / data[i+i*m];
          for (int j = i+1; j < m; j++)
@@ -3568,7 +3584,10 @@ void BatchLUFactor(Vector &Minv,const int m,const int NE, Array<int> &P)
 
    });
 
+   MFEM_ASSERT(pivot_flag[0].HostRead(), "Batch LU factorization failed \n");
+
 }
+
 
 void BatchLUSolve(Vector &Minv, int m, int NE,
                   Array<int> &P, Vector &X)
