@@ -1869,7 +1869,7 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
-   DofTransformation * doftrans;
+   DofTransformation * doftrans = NULL;
 
    if (delta_c == NULL)
    {
@@ -1932,7 +1932,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    Array<int> vdofs;
    Vector vals, vals_t;
 
-   DofTransformation * doftrans;
+   DofTransformation * doftrans = NULL;
 
    for (i = 0; i < fes->GetNE(); i++)
    {
