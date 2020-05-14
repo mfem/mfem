@@ -1034,7 +1034,7 @@ int main(int argc, char *argv[])
      }
 
    {
-     const int nh = numSubdomains / 2;
+     //const int nh = numSubdomains / 2;
 
      /*
      for (int i=0; i<numSubdomains; ++i)

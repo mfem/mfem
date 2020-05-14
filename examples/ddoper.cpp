@@ -521,8 +521,8 @@ void PrintNonzerosOfInterfaceOperator(Operator const& op, const int tsize0, cons
   std::vector<int> alltbdrysize1(nprocs);
   MPI_Allgather(&tbdrysize1, 1, MPI_INT, alltbdrysize1.data(), 1, MPI_INT, MPI_COMM_WORLD);
 
-  int myos0 = 0;
-  int myos1 = 0;
+  //int myos0 = 0;
+  //int myos1 = 0;
 
   int myosf0 = 0;
   int myosf1 = 0;
@@ -657,7 +657,7 @@ SparseMatrix* GatherHypreParMatrix(HypreParMatrix *A)
   int totalnnz = 0;
   for (int k=0; k<nrows; ++k)
     {
-      const int osk = csr->i[k];
+      //const int osk = csr->i[k];
       const int nnz_k = csr->i[k+1] - csr->i[k];
       /*
       for (int l=0; l<nnz_k; ++l)
@@ -723,6 +723,7 @@ SparseMatrix* GatherHypreParMatrix(HypreParMatrix *A)
       
       S->Finalize();
 
+      /*
       bool nnzmatch = true;
       for (int i=0; i<globalNumRows; ++i)
 	{
@@ -731,7 +732,7 @@ SparseMatrix* GatherHypreParMatrix(HypreParMatrix *A)
 	}
 
       // Note that alldata may have some zeros, so S may be more compressed than alldata.
-      
+      */
       //MFEM_VERIFY(nnzmatch, "");
       /*
       std::ofstream sfile("spmat.txt", std::ofstream::out);
@@ -2636,16 +2637,21 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 
 		  MFEM_VERIFY(vert.Size() == 2, "");
 
-		  bool onInterface = true;
+		  //bool onInterface = true;
 		  bool touchingInterface = false;
 		  
 		  for (int l=0; l<2; ++l)
 		    {
 		      std::set<int>::const_iterator itv = pmeshVerticesInInterface.find(vert[l]);
-			
+
+		      /*
 		      if (itv == pmeshVerticesInInterface.end())
 			onInterface = false;
 		      else
+			touchingInterface = true;
+		      */
+
+		      if (itv != pmeshVerticesInInterface.end())
 			touchingInterface = true;
 		    }
 
@@ -2858,7 +2864,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
       pmeshEdgeToEdgeInInterface[pmeshEdge] = i;
     }
   
-  bool nfpos = false;
+  //bool nfpos = false;
   i = 0;
 #endif
 
@@ -2889,8 +2895,8 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 #ifdef SERIAL_INTERFACES
       const bool faceInInterface = true;
 
-      if (nf > 0)
-	nfpos = true;
+      //if (nf > 0)
+      //nfpos = true;
 #else
       const bool faceInInterface = ((*it) >= 0);
 #endif
@@ -3486,14 +3492,14 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 
       sdMesh->GetElementFaces(sdMeshElem, elFaces, ori);
       int sdMeshFace = -1;
-      int sdMeshFaceOri = -1;
+      //int sdMeshFaceOri = -1;
       for (int j=0; j<elFaces.Size(); ++j)
 	{
 	  //if (FacesCoincideGeometrically(sdMesh, elFaces[j], ifMesh, i, true))
 	  if (FacesCoincideGeometrically(sdMesh, elFaces[j], pmesh, pmeshFace, false))
 	    {
 	      sdMeshFace = elFaces[j];
-	      sdMeshFaceOri = ori[j];
+	      //sdMeshFaceOri = ori[j];
 	    }
 	}
 
@@ -3696,7 +3702,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 
 	  for (int d=osf; d<sddofs.Size(); ++d)
 	    {
-	      const int fswitch = (pmeshFaceOri > 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
+	      //const int fswitch = (pmeshFaceOri > 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
 #ifdef SERIAL_INTERFACES
 	      const int fswitch2 = 0;
 	      //const int fswitch2 = (pmeshFaceOri == 0) ? (1 - (2*(d - osf))) : 0; // ((d - osf) + 1) % 2;  // TODO: this is valid only for second order!
@@ -4294,7 +4300,7 @@ void SetInterfaceToSurfaceDOFMap(MPI_Comm ifsdcomm,
 	if (dofmap[i] >= 0)
 	  {
 #ifdef SERIAL_INTERFACES	    
-	    const int gtdof = i;
+	    //const int gtdof = i;
 #else
 	    const int gtdof = ifespace->GetGlobalTDofNumber(i);
 	    
@@ -6903,7 +6909,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		Vector ej(Nm);
 		Vector Aej(Nm);
 
-		double ejnorm = 0.0;
+		//double ejnorm = 0.0;
 		double Aejnorm = 0.0;
 		
 		//for (int j=83024; j<(83024 + 2624); ++j)
@@ -6920,7 +6926,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 			ej[j] = 1.0;
 		      }
 
-		    ejnorm = ej.Norml2();
+		    //ejnorm = ej.Norml2();
 
 		    //HypreAsdComplexRe->Mult(ej, Aej);
 
@@ -7961,7 +7967,7 @@ void DDMInterfaceOperator::GetReducedSource(ParFiniteElementSpace *fespaceGlobal
 		}
 	    }
 	  */
-	  const bool explicitRHS = false;
+	  //const bool explicitRHS = false;
 	  /*
 	    if (explicitRHS)
 	    {
@@ -10762,9 +10768,9 @@ void DDMInterfaceOperator::SetOffsetsSD(const int subdomain)
     }
     
   trueOffsetsSD[subdomain].PartialSum();
-    
-  const bool debugging = false;
+
 #ifndef SERIAL_INTERFACES  
+  const bool debugging = false;
   if (debugging && subdomain == 1)
     {
       const int numTrueDofs = trueOffsetsSD[subdomain][numBlocks];
@@ -11042,7 +11048,7 @@ Operator* DDMInterfaceOperator::CreateSubdomainOperator(const int subdomain)
   if (trueOffsetsSD[subdomain][trueOffsetsSD[subdomain].Size()-1] < 1)
     return NULL;  // Nothing to do, and the communicator is different for this process than that for processes with data.
   
-  const double sd1pen = (subdomain == 1) ? PENALTY_U_S : 0.0;
+  //const double sd1pen = (subdomain == 1) ? PENALTY_U_S : 0.0;
     
 #ifdef DDMCOMPLEX
   if (realPart)

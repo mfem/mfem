@@ -2220,8 +2220,8 @@ public:
 	A_mix2 = A_mix2_ptr.As<HypreParMatrix>();
       }
     
-    HypreParMatrix *A_mix1_E = NULL;
-    if (!pa) A_mix1_E = A_mix2->Transpose();
+    //HypreParMatrix *A_mix1_E = NULL;
+    //if (!pa) A_mix1_E = A_mix2->Transpose();
 
     /*
     { // TODO: remove
