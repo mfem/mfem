@@ -317,11 +317,11 @@ int main(int argc, char *argv[])
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       if (strongBC)
       {
-         ess_bdr    = 1;
+         ess_bdr = 1;
       }
       else
       {
-         ess_bdr    = 0;
+         ess_bdr = 0;
       }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
