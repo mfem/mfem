@@ -869,7 +869,7 @@ void BatchLUSolve(const Vector &Minv, const int m, const int NE,
                   const Array<int> &P, Vector &X);
 
 void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X);
-                    
+
 
 void BatchLUSolve_impl(const double *Minv, const int m, const int NE,
                        const int *P, double *X);
