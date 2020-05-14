@@ -49,6 +49,7 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
+  fem/test_projection_revdiff.cpp
   fem/test_quadraturefunc.cpp
   miniapps/test_sedov.cpp
 )

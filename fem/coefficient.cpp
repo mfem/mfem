@@ -141,9 +141,9 @@ void VectorFunctionCoefficient::EvalRevDiff(const Vector &V_bar,
    MFEM_ASSERT( Q == NULL, "EvalRevDiff: not implemented for use with Q.")
 
    double x[3];
-   Vector transip(x, 3);
+   Vector transip(x, vdim);
    double x_bar[3];
-   Vector transip_bar(x_bar, 3);
+   Vector transip_bar(x_bar, vdim);
    T.Transform(ip, transip);  
    transip_bar = 0.0;
    if (Function)
