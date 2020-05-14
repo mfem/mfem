@@ -151,15 +151,15 @@ void GridFunction::Destroy()
 
 void GridFunction::Update()
 {
-   if (fes->GetSequence() == sequence)
-   {
-      return; // space and grid function are in sync, no-op
-   }
-   if (fes->GetSequence() != sequence + 1)
-   {
-      MFEM_ABORT("Error in update sequence. GridFunction needs to be updated "
-                 "right after the space is updated.");
-   }
+//   if (fes->GetSequence() == sequence)
+//   {
+//      return; // space and grid function are in sync, no-op
+//   }
+//   if (fes->GetSequence() != sequence + 1)
+//   {
+//      MFEM_ABORT("Error in update sequence. GridFunction needs to be updated "
+//                 "right after the space is updated.");
+//   }
    sequence = fes->GetSequence();
 
    const Operator *T = fes->GetUpdateOperator();
@@ -1894,7 +1894,8 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
    // this->HostReadWrite(); // done inside the next call
    AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
-#ifdef MFEM_DEBUG
+
+#if 0//def MFEM_DEBUG
    Array<int> ess_vdofs_marker;
    fes->GetEssentialVDofs(attr, ess_vdofs_marker);
    for (int i = 0; i < values_counter.Size(); i++)

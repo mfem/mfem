@@ -75,7 +75,7 @@ double CalculateH10Error2(GridFunction *sol, VectorCoefficient *exgrad,
       error += el_err;
       if (elemError)
       {
-         (*elemError)[i] = sqrt(fabs(el_err));
+         (*elemError)[i] = fabs(el_err);
       }
 
       // determine what type of anisotropic refinement (if any) is suitable
