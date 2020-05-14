@@ -68,7 +68,6 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
    double v_max = 0.0;
    const int s = u.FESpace()->GetVSize() / 2;
-   u.HostReadWrite();
    for (int i = 0; i < s; i++)
    {
       const double vel = u(i) * u(i) + u(i+s) * u(i+s);
@@ -85,6 +84,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    if (v_max == 0.0)
    {
       // No mesh motion --> no need to change the field.
+      delete oper;
       return;
    }
    v_max = std::sqrt(v_max);
@@ -109,7 +109,6 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
 
    // Trim the overshoots and undershoots.
-   field0.HostReadWrite(); field0.HostReadWrite(); new_field.HostReadWrite();
    const double minv = field0.Min(), maxv = field0.Max();
    for (int i = 0; i < new_field.Size(); i++)
    {
