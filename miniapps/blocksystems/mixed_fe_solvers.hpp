@@ -172,13 +172,12 @@ public:
     virtual int GetNumIterations() const { return CTMC_solver_.GetNumIterations(); }
 };
 
-class AbsMultigrid : public Solver
+class AbstractMultigrid : public Solver
 {
     const Array<OperatorPtr>& P_;
 
     Array<OperatorPtr> ops_;
     Array<OperatorPtr> smoothers_;
-    OperatorPtr coarse_solver_;
 
     mutable Array<Vector> correct_;
     mutable Array<Vector> resid_;
@@ -186,14 +185,11 @@ class AbsMultigrid : public Solver
 
     void MG_Cycle(int level) const;
 public:
-    AbsMultigrid(HypreParMatrix& op, const Array<OperatorPtr>& P,
-                 OperatorPtr coarse_solver=OperatorPtr());
+    AbstractMultigrid(HypreParMatrix& op, const Array<OperatorPtr>& P);
 
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 };
-
-
 
 /// Wrapper for the block-diagonally preconditioned MINRES defined in ex5p.cpp
 class BDPMinresSolver : public DarcySolver
