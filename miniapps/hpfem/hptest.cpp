@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double ref_threshold = 0.7;
    bool aniso = true;
-   bool hp = true;
+   bool hp = false;
    int int_order = 10;
 
    OptionsParser args(argc, argv);
@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
       {
          sol_sock.precision(8);
          sol_sock << "solution\n" << mesh << x << flush;
+         sol_sock << "pause\n" << flush;
       }
 
       if (cdofs > max_dofs)

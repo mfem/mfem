@@ -113,12 +113,12 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    mesh->EnsureNCMesh();
-   srand(seed);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   srand(1);
    {
       for (int l = 0; l < ref_levels; l++)
       {
@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
          mesh->RandomRefinement(0.5);
       }
    }
+   srand(seed);
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -151,10 +152,11 @@ int main(int argc, char *argv[])
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
    {
-      Array<int> refs;
-      refs.Append(1);
+      Array<Refinement> refs;
+      refs.Append(Refinement(1, 4));
       mesh->GeneralRefinement(refs);
-      //mesh->GeneralRefinement(refs);
+      refs[0].ref_type = 2;
+      mesh->GeneralRefinement(refs);
    }
    fespace->Update(false);
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -280,13 +282,16 @@ int main(int argc, char *argv[])
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
 
+#if 0
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x
                //<< "keys Rjlm\n"
                << flush;
+#endif
       delete vis_x;
 
+#if 1
       L2_FECollection l2fec(0, dim);
       FiniteElementSpace l2fes(mesh, &l2fec);
       GridFunction orders(&l2fes);
@@ -301,6 +306,7 @@ int main(int argc, char *argv[])
       ord_sock << "solution\n" << *mesh << orders
                //<< "keys Rjlmc\n"
                << flush;
+#endif
 
       // visualize the basis functions
       if (1)
@@ -308,17 +314,29 @@ int main(int argc, char *argv[])
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
 
-         for (int i = 0; i < X.Size(); i++)
+#if 0
+         int first = 0;
+#else
+         int first = fespace->GetNV() - 10;
+#endif
+         cout << "first = " << first << endl;
+
+         for (int i = first; i < first + 10; i++)
          {
             X = 0.0;
             X(i) = 1.0;
             a->RecoverFEMSolution(X, *b, x);
             vis_x = ProlongToMaxOrder(&x);
-            b_sock << "solution\n" << *mesh << *vis_x << "pause\n" << flush;
+
+            b_sock << "solution\n" << *mesh << *vis_x << flush;
+            if (i == first) { b_sock << "keys miIMA\n"; }
+            b_sock << "pause\n" << flush;
             // delete vis_x;
          }
       }
 
+      std::ofstream f("mesh.dump");
+      mesh->ncmesh->DebugDump(f);
    }
 
    // 15. Free the used memory.
