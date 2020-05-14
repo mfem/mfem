@@ -3343,9 +3343,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
    else if (NURBSext)
    {
-      {
-         Nodes->FESpace()->GenerateFaceDofsFromBdr();
-      }
+      Nodes->FESpace()->GenerateFaceDofsFromBdr();
    }
 
    // If a parse tag was supplied, keep reading the stream until the tag is
