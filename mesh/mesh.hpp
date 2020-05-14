@@ -896,7 +896,8 @@ public:
        Return the face index of boundary element i. (3D) */
    int GetBdrElementEdgeIndex(int i) const;
 
-   // Checks if the info required for the above function is available.
+   /** Checks if the boundary data structures required
+       for GetBdrElementFace() are available.*/
    bool BdrInfoAvailable() const;
 
    /** @brief For the given boundary element, bdr_el, return its adjacent

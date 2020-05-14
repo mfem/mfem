@@ -112,8 +112,8 @@ protected:
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
    Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
-   Table *face_dof; // used only with NURBS FE spaces;
-   Array<int> face_to_be; // used only with NURBS FE spaces;
+   Table *face_dof; // used only with NURBS FE spaces; owned.
+   Array<int> face_to_be; // used only with NURBS FE spaces; owned.
 
    Array<int> dof_elem_array, dof_ldof_array;
 
@@ -530,8 +530,8 @@ public:
 
    /** @brief  Generates partial face_dof table.
 
-       Table only defined for face on boundary. Uses bdrElem_dof table
-       and the mesh boundary information.*/
+       The table is only defined for exterior faces that coincide with a boundary.
+       The routine uses the bdrElem_dof table and the mesh boundary information.*/
    void GenerateFaceDofsFromBdr();
 
    void BuildDofToArrays();
