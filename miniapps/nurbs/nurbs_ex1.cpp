@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
                   "--weak-bc",
                   "Selects strong or weak enforcement of Dirichlet BCs.");
    args.AddOption(&kappa, "-k", "--kappa",
-                  "One of the two DG penalty parameters, should be positive."
+                  "Sets the SIPG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
