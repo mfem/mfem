@@ -651,7 +651,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
     }
     else
     {
-        CTMC_prec_.Reset(new AbsMultigrid(*CTMC_.As<HypreParMatrix>(), data_.P_curl));
+        CTMC_prec_.Reset(new AbstractMultigrid(*CTMC_.As<HypreParMatrix>(), data_.P_curl));
     }
     CTMC_solver_.SetPreconditioner(*CTMC_prec_.As<Solver>());
     SetOptions(CTMC_solver_, data_.param.CTMC_solve_param);
@@ -732,14 +732,12 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
 //    }
 }
 
-AbsMultigrid::AbsMultigrid(HypreParMatrix& op,
-                           const Array<OperatorPtr>& P,
-                           OperatorPtr coarse_solver)
+AbstractMultigrid::AbstractMultigrid(HypreParMatrix& op,
+                                     const Array<OperatorPtr>& P)
     : Solver(op.GetNumRows()),
       P_(P),
       ops_(P.Size()+1),
       smoothers_(ops_.Size()),
-      coarse_solver_(coarse_solver.Ptr(), false),
       correct_(ops_.Size()),
       resid_(ops_.Size())
 {
@@ -748,6 +746,9 @@ AbsMultigrid::AbsMultigrid(HypreParMatrix& op,
 
     for (int l = 1; l < ops_.Size(); ++l)
     {
+        HypreParMatrix* P = P_[l-1].Is<HypreParMatrix>();
+        MFEM_ASSERT(P, "P needs to be of type HypreParMatrix");
+
         ops_[l].Reset(TwoStepsRAP(P_[l-1], ops_[l-1], P_[l-1]));
         ops_[l].As<HypreParMatrix>()->Threshold(1e-14);
         smoothers_[l].Reset(new HypreSmoother(*ops_[l].As<HypreParMatrix>()));
@@ -756,14 +757,14 @@ AbsMultigrid::AbsMultigrid(HypreParMatrix& op,
     }
 }
 
-void AbsMultigrid::Mult(const Vector& x, Vector& y) const
+void AbstractMultigrid::Mult(const Vector& x, Vector& y) const
 {
     resid_[0] = x;
     correct_[0].SetDataAndSize(y.GetData(), y.Size());
     MG_Cycle(0);
 }
 
-void AbsMultigrid::MG_Cycle(int level) const
+void AbstractMultigrid::MG_Cycle(int level) const
 {
     const HypreParMatrix* op_l = ops_[level].As<HypreParMatrix>();
 
@@ -771,23 +772,15 @@ void AbsMultigrid::MG_Cycle(int level) const
     smoothers_[level]->Mult(resid_[level], correct_[level]);
     op_l->Mult(-1., correct_[level], 1., resid_[level]);
 
+    if (level == P_.Size()) { return; }
+
     // Coarse grid correction
     cor_cor_.SetSize(resid_[level].Size());
-    if (level < P_.Size())
-    {
-        P_[level]->MultTranspose(resid_[level], resid_[level+1]);
-        MG_Cycle(level+1);
-        cor_cor_.SetSize(resid_[level].Size());
-        P_[level]->Mult(correct_[level+1], cor_cor_);
-        correct_[level] += cor_cor_;
-        op_l->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
-    }
-    else if (coarse_solver_.Ptr())
-    {
-        coarse_solver_->Mult(resid_[level], cor_cor_);
-        correct_[level] += cor_cor_;
-        op_l->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
-    }
+    P_[level]->MultTranspose(resid_[level], resid_[level+1]);
+    MG_Cycle(level+1);
+    P_[level]->Mult(correct_[level+1], cor_cor_);
+    correct_[level] += cor_cor_;
+    op_l->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
 
     // PostSmoothing
     smoothers_[level]->Mult(resid_[level], cor_cor_);
