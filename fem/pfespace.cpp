@@ -463,6 +463,14 @@ ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
    if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
+
+      if (DoFTrans[mesh->GetElementBaseGeometry(i)])
+      {
+         Array<int> Fo;
+         elem_fos->GetRow(i, Fo);
+         DoFTrans[mesh->GetElementBaseGeometry(i)]->SetFaceOrientations(Fo);
+         return DoFTrans[mesh->GetElementBaseGeometry(i)];
+      }
       return NULL;
    }
    DofTransformation * doftrans = FiniteElementSpace::GetElementDofs(i, dofs);
@@ -479,6 +487,14 @@ ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
    if (bdrElem_dof)
    {
       bdrElem_dof->GetRow(i, dofs);
+
+      if (DoFTrans[mesh->GetBdrElementBaseGeometry(i)])
+      {
+         Array<int> Fo;
+         bdrElem_fos -> GetRow (i, Fo);
+         DoFTrans[mesh->GetBdrElementBaseGeometry(i)]->SetFaceOrientations(Fo);
+         return DoFTrans[mesh->GetBdrElementBaseGeometry(i)];
+      }
       return NULL;
    }
    DofTransformation * doftrans =
