@@ -859,10 +859,20 @@ public:
    ~DenseTensor() { tdata.Delete(); }
 };
 
-void BatchLUFactor(Vector &Minv,int m,int NE, Array<int> &P);
+void BatchLUFactor(Vector &Minv, const int m,const int NE, Array<int> &P);
 
-void BatchLUSolve(Vector &Minv, int m, int NE,
-                  Array<int> &P, Vector &X);
+void BatchLUFactor(DenseTensor &Minv, const int NE, Array<int> &P);
+
+void BatchLUFactor_impl(double *Minv, const int m, const int NE, int *P);
+
+void BatchLUSolve(const Vector &Minv, const int m, const int NE,
+                  const Array<int> &P, Vector &X);
+
+void BatchLUSolve(const DenseTensor &Minv, const int NE,
+                  const Array<int> &P, Vector &X);
+
+void BatchLU_impl(const double *Minv, const int m, const int NE,
+                  const int *P, Vector &X);
 
 // Inline methods
 
