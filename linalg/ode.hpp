@@ -94,11 +94,12 @@ public:
    /// Function for getting and setting the state vectors
    virtual int   GetMaxStateSize() { return 0; }
    virtual int   GetStateSize() { return 0; }
-   virtual void  GetStateVector(int i, Vector &state)
+   virtual const Vector &GetStateVector(int i)
    {
       mfem_error("ODESolver has no state vectors");
+      Vector *s = NULL; return *s; // Make some compiler happy
    }
-   virtual const Vector &GetStateVector(int i)
+   virtual void  GetStateVector(int i, Vector &state)
    {
       mfem_error("ODESolver has no state vectors");
    }
@@ -646,6 +647,7 @@ public:
    virtual const Vector &GetStateVector(int i)
    {
       mfem_error("ODESolver has no state vectors");
+      Vector *s = NULL; return *s; // Make some compiler happy
    }
    virtual void  GetStateVector(int i, Vector &state)
    {
