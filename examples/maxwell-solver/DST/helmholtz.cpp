@@ -218,19 +218,19 @@ int main(int argc, char *argv[])
 
 
 
-   X = 0.0;
-	GMRESSolver gmres;
-	gmres.SetPreconditioner(S);
-	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-8);
-	gmres.SetMaxIter(50);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
+   // X = 0.0;
+	// GMRESSolver gmres;
+	// gmres.SetPreconditioner(S);
+	// gmres.SetOperator(*A);
+	// gmres.SetRelTol(1e-8);
+	// gmres.SetMaxIter(50);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
 
 
 
 
-   int n= 50;
+   int n= 1;
    X = 0.0;
    Vector z(X.Size()); z = 0.0;
    Vector r(B);
@@ -271,9 +271,10 @@ int main(int argc, char *argv[])
    //       //             << keys << flush;
    //       // cin.get();
    }
-
    KLUSolver klu(*A);
-   klu.Mult(B,X);
+   Vector X1(X.Size());
+   klu.Mult(B,X1);
+   X-=X1;
    a.RecoverFEMSolution(X,B,p_gf);
 
 
@@ -294,7 +295,8 @@ int main(int argc, char *argv[])
       sol_sock_re.precision(8);
       sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
                   "window_title 'Numerical Pressure (real part from KLU)' "
-                  << keys << "valuerange -0.1 0.1 \n" << flush;
+                  << keys << flush;
+                  // << keys << "valuerange -0.1 0.1 \n" << flush;
       // socketstream diff_sock_re(vishost, visport);
       // diff_sock_re.precision(8);
       // diff_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
@@ -318,8 +320,8 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.1;
-   x1 = 0.1;
+   x0 = 0.5;
+   x1 = 0.5;
    double alpha,beta;
    double n = 5.0*omega/M_PI;
    // double n = 1.0;

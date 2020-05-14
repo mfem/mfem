@@ -24,7 +24,8 @@ private:
    Array3D<int> subdomains;
    mutable Array<Vector *> f_orig;
    int ntransf_directions;
-   UniqueIndexGenerator gen;
+   int nsweeps;
+   Array2D<int> sweeps;
    Array<int> dirx;
    Array<int> diry;
    Array<int> dirz;
@@ -34,7 +35,7 @@ private:
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                           int ip, Array<int> directions, bool local=false) const;
-   void TransferSources(int ip, Vector & sol_ext) const;
+   void TransferSources(int sweep, int ip, Vector & sol_ext) const;
    int  GetDirectionId(const Array<int> & ijk) const;
    void GetDirectionijk(int id, Array<int> & ijk) const;
    void ConstructDirectionsMap();
