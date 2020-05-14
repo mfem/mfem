@@ -1376,6 +1376,44 @@ have_aa:
    return sqrt(fabs(aa))*mult; // take abs before we sort?
 }
 
+
+MFEM_HOST_DEVICE
+inline void LUSolve(const double *data, const int m, int *ipiv,
+                    const double *b, double *x)
+{
+  for (int t = 0; t < m; ++t)
+    {
+      x[t] = b[t];
+    }
+
+  // X <- P X
+  for (int i = 0; i < m; i++)
+    {
+      internal::Swap<double>(x[i], x[ipiv[i]]);
+    }
+
+  // X <- L^{-1} X
+  for (int j = 0; j < m; j++)
+    {
+      const double x_j = x[j];
+      for (int i = j + 1; i < m; i++)
+        {
+          x[i] -= data[i + j * m] * x_j;
+        }
+    }
+
+  // X <- U^{-1} X
+  for (int j = m - 1; j >= 0; j--)
+    {
+      const double x_j = (x[j] /= data[j + j * m]);
+      for (int i = 0; i < j; i++)
+        {
+          x[i] -= data[i + j * m] * x_j;
+        }
+    }
+}
+
+
 } // namespace kernels
 
 } // namespace mfem
