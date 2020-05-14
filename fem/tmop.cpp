@@ -1124,18 +1124,20 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
 void DiscreteAdaptTC::GetSerialDiscreteTargetSize(GridFunction &tspec_)
 {
    const int cnt = tspec_fes->GetNDofs(),
-            vdim = tspec_.FESpace()->GetVDim();
-   for (int i = 0; i < cnt*vdim; i++) {
-       tspec_(i) = tspec(i + sizeidx*cnt);
+             vdim = tspec_.FESpace()->GetVDim();
+   for (int i = 0; i < cnt*vdim; i++)
+   {
+      tspec_(i) = tspec(i + sizeidx*cnt);
    }
 }
 
 void DiscreteAdaptTC::GetSerialDiscreteTargetAspectRatio(GridFunction &tspec_)
 {
    const int cnt = tspec_fes->GetNDofs(),
-            vdim = tspec_.FESpace()->GetVDim();
-   for (int i = 0; i < cnt*vdim; i++) {
-       tspec_(i) = tspec(i + aspectratioidx*cnt);
+             vdim = tspec_.FESpace()->GetVDim();
+   for (int i = 0; i < cnt*vdim; i++)
+   {
+      tspec_(i) = tspec(i + aspectratioidx*cnt);
    }
 }
 
@@ -1209,7 +1211,6 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          const int dim = Wideal.Height(),
                    ndofs = tspec_fes->GetFE(0)->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
-
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
@@ -1554,7 +1555,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       }
    }
 
-   // Define ref->physical transformation, when a Coefficient is specified.
+   // Define ref->physical transformation, wn a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
    if (coeff1 || coeff0)
    {
@@ -1601,6 +1602,235 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    return energy;
 }
+
+double TMOP_Integrator::GetAMRElementEnergy(const FiniteElement &el,
+                                            ElementTransformation &T,
+                                            const Vector &elfun, int reftype)
+{
+   int dof = el.GetDof(), dim = el.GetDim();
+   //const IntegrationRule *ir = AMRIntRules[reftype-1]; //0 index
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      MFEM_ABORT(" Please set AMR integration rule\n");
+   }
+   DenseMatrix AspFac(dim);
+   const DenseMatrix &Wideal =
+      Geometries.GetGeomToPerfGeomJac(el.GetGeomType());
+   AspFac = Wideal;
+   double sizefac = 1;
+   if (reftype & 1) { sizefac *= 1./2.; }
+   if (reftype & 2) { sizefac *= 1./2.; }
+   if (reftype & 4) { sizefac *= 1./2.; }
+   double sq2 = pow(2., 0.5),
+          isq2 = 1./sq2,
+          hlf = 0.5,
+          two = 2.;
+
+   sq2  = pow(sq2, 2./3.);
+   isq2 = pow(isq2, 2./3.);
+   hlf  = pow(hlf, 2./3.);
+   two  = pow(two, 2./3.);
+
+   if (dim == 2)
+   {
+      if ( reftype == 1 )
+      {
+         AspFac(0, 0) = 1./pow(2., 0.5);
+         AspFac(1, 1) = pow(2., 0.5);
+      }
+      else if (reftype == 2 )
+      {
+         AspFac(0, 0) = pow(2., 0.5);
+         AspFac(1, 1) = 1./pow(2., 0.5);
+      }
+   }
+   else if (dim == 3)
+   {
+      if ( reftype == 1 )   //x
+      {
+         AspFac(0, 0) = hlf; AspFac(1, 1) = sq2; AspFac(2, 2) = sq2;
+      }
+      else if (reftype == 2)   //y
+      {
+         AspFac(0, 0) = sq2; AspFac(1, 1) = hlf; AspFac(2, 2) = sq2;
+      }
+      else if (reftype == 4)   // z
+      {
+         AspFac(0, 0) = sq2; AspFac(1, 1) = sq2; AspFac(2, 2) = hlf;
+      }
+      else if (reftype == 3)   //xy
+      {
+         AspFac(0, 0) = isq2; AspFac(1, 1) = isq2; AspFac(2, 2) = two;
+      }
+      else if (reftype == 5)   //xz
+      {
+         AspFac(0, 0) = isq2; AspFac(1, 1) = two; AspFac(2, 2) = isq2;
+      }
+      else if (reftype == 6)   //yz
+      {
+         AspFac(0, 0) = two; AspFac(1, 1) = isq2; AspFac(2, 2) = isq2;
+      }
+   }
+   else
+   {
+      MFEM_ABORT(" Only dim = 2 or 3 supported.")
+   }
+
+   double energy1, energy2;
+
+   DSh.SetSize(dof, dim);
+   Jrt.SetSize(dim);
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   PMatI.UseExternalData(elfun.GetData(), dof, dim);
+
+   DenseMatrix Jpr2(dim);
+
+   energy1 = energy2 = 0.0;
+   DenseTensor Jtr(dim, dim, ir->GetNPoints());
+   targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      const DenseMatrix &Jtr_i = Jtr(i);
+      amrmetric->SetTargetJacobian(Jtr_i);
+      CalcInverse(Jtr_i, Jrt);
+      const double weight = ip.weight * Jtr_i.Det();
+
+      el.CalcDShape(ip, DSh);
+      MultAtB(PMatI, DSh, Jpr);
+      Mult(Jpr, Jrt, Jpt);
+
+      double val1 = amrmetric->EvalW(Jpt);
+      energy1 += weight * val1;
+
+      double sizeredfac = pow(sizefac, 1./dim);
+      Jpr *= sizeredfac;
+      Mult(AspFac, Jpr, Jpr2);
+      Mult(Jpr2, Jrt, Jpt);
+      double val2 = amrmetric->EvalW(Jpt);
+      energy2 += weight * val2;
+   }
+
+   return energy1-energy2;
+}
+
+double TMOP_Integrator::GetAMRDeRefElementEnergy(const FiniteElement &el,
+                                                 ElementTransformation &T,
+                                                 const Vector &elfun, int reftype)
+{
+   int dof = el.GetDof(), dim = el.GetDim();
+   //const IntegrationRule *ir = AMRIntRules[reftype-1]; //0 index
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      MFEM_ABORT(" Please set AMR integration rule\n");
+   }
+   DenseMatrix AspFac(dim);
+   const DenseMatrix &Wideal =
+      Geometries.GetGeomToPerfGeomJac(el.GetGeomType());
+   AspFac = Wideal;
+   double sizefac = 1;
+   if (reftype & 1) { sizefac *= 2; }
+   if (reftype & 2) { sizefac *= 2; }
+   if (reftype & 4) { sizefac *= 2; }
+   double sq2 = pow(2., 0.5),
+          isq2 = 1./sq2,
+          hlf = 0.5,
+          two = 2.;
+
+   sq2  = pow(sq2, 2./3.);
+   isq2 = pow(isq2, 2./3.);
+   hlf  = pow(hlf, 2./3.);
+   two  = pow(two, 2./3.);
+
+   if (dim == 2)
+   {
+      if ( reftype == 1 )
+      {
+         AspFac(0, 0) = pow(2., 0.5);
+         AspFac(1, 1) = 1./pow(2., 0.5);
+      }
+      else if (reftype == 2 )
+      {
+         AspFac(0, 0) = 1./pow(2., 0.5);
+         AspFac(1, 1) = pow(2., 0.5);
+      }
+   }
+   else if (dim == 3)
+   {
+      if ( reftype == 1 )   //x
+      {
+         AspFac(0, 0) = two; AspFac(1, 1) = isq2; AspFac(2, 2) = isq2;
+      }
+      else if (reftype == 2)   //y
+      {
+         AspFac(0, 0) = isq2; AspFac(1, 1) = two; AspFac(2, 2) = isq2;
+      }
+      else if (reftype == 4)   // z
+      {
+         AspFac(0, 0) = isq2; AspFac(1, 1) = isq2; AspFac(2, 2) = two;
+      }
+      else if (reftype == 3)   //xy
+      {
+         AspFac(0, 0) = sq2; AspFac(1, 1) = sq2; AspFac(2, 2) = hlf;
+      }
+      else if (reftype == 5)   //xz
+      {
+         AspFac(0, 0) = sq2; AspFac(1, 1) = hlf; AspFac(2, 2) = sq2;
+      }
+      else if (reftype == 6)   //yz
+      {
+         AspFac(0, 0) = hlf; AspFac(1, 1) = sq2; AspFac(2, 2) = sq2;
+      }
+   }
+   else
+   {
+      MFEM_ABORT(" Only dim = 2 or 3 supported.")
+   }
+
+   double energy1, energy2;
+
+   DSh.SetSize(dof, dim);
+   Jrt.SetSize(dim);
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+   PMatI.UseExternalData(elfun.GetData(), dof, dim);
+
+   DenseMatrix Jpr2(dim);
+
+   energy1 = energy2 = 0.0;
+   DenseTensor Jtr(dim, dim, ir->GetNPoints());
+   targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      const DenseMatrix &Jtr_i = Jtr(i);
+      amrmetric->SetTargetJacobian(Jtr_i);
+      CalcInverse(Jtr_i, Jrt);
+      const double weight = ip.weight * Jtr_i.Det();
+
+      el.CalcDShape(ip, DSh);
+      MultAtB(PMatI, DSh, Jpr);
+      Mult(Jpr, Jrt, Jpt);
+
+      double val1 = amrmetric->EvalW(Jpt);
+      energy1 += weight * val1;
+
+      double sizeredfac = pow(sizefac, 1./dim);
+      Jpr *= sizeredfac;
+      Mult(AspFac, Jpr, Jpr2);
+      Mult(Jpr2, Jrt, Jpt);
+      double val2 = amrmetric->EvalW(Jpt);
+      energy2 += weight * val2;
+   }
+
+   return energy1-energy2;
+}
+
 void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &elfun, Vector &elvect)

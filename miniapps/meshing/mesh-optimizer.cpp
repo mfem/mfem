@@ -7,413 +7,6 @@ using namespace std;
 
 #include "mesh-optimizer.hpp"
 
-class TMOPEstimator : public ErrorEstimator
-{
-protected:
-   long current_sequence;
-   double total_error;
-   const int dim, amrmetric;
-   Array<int> aniso_flags;
-   Vector amr_ref_check;
-
-   FiniteElementSpace *fespace;
-   TMOP_Integrator *tmopi;
-   GridFunction *dofgf;
-
-   Vector SizeErr, AspErr;
-   Array <Vector *> amr_refenergy;
-   Vector amrdrefenergy;
-
-   /// Check if the mesh of the solution was modified.
-   bool MeshIsModified()
-   {
-      long mesh_sequence = dofgf->FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
-   }
-
-   /// Compute the element error estimates.
-   void ComputeEstimates();
-   void ComputeRefEstimates(); //Refinement estimate
-   void ComputeDeRefEstimates(); //Derefinement estimate
-
-public:
-   TMOPEstimator(FiniteElementSpace &fes_,
-                 TMOP_Integrator &tmopi_,
-                 GridFunction &x_,
-                 int amrmetric_)
-      : current_sequence(-1), total_error(0.),
-        fespace(&fes_), tmopi(&tmopi_), dofgf(&x_),
-        dim(fes_.GetFE(0)->GetDim()), amrmetric(amrmetric_)
-   {
-      //amr_refenergy.SetSize(7);
-   }
-   /// Return the total error from the last error estimate.
-   double GetTotalError() const { return total_error; }
-
-   virtual const Vector &GetLocalErrors() { return SizeErr; }
-
-   virtual const Vector &GetAMREnergy(int type)
-   {
-      if (MeshIsModified()) { ComputeEstimates(); }
-      return *amr_refenergy[type];
-   }
-
-   virtual const Vector &GetAMRDeRefEnergy()
-   {
-      if (MeshIsModified()) { ComputeEstimates(); }
-      return amrdrefenergy;
-   }
-
-   virtual void Reset() { current_sequence = -1; }
-
-   virtual ~TMOPEstimator() {}
-};
-
-void TMOPEstimator::ComputeEstimates()
-{
-   ComputeRefEstimates();
-   ComputeDeRefEstimates();
-}
-
-void TMOPEstimator::ComputeRefEstimates()
-{
-   // Compute error for each element based on refinement type
-   amr_ref_check.SetSize(7);
-   amr_ref_check *= 0;
-   int metrictype = tmopi->GetAMRQualityMetric().GetMetricType();
-   if ( (metrictype & 1) && (metrictype & 2)) //Shape
-   {
-      amr_ref_check(0) = 1;
-      amr_ref_check(1) = 1;
-   }
-   if (metrictype & 8)  // Size
-   {
-      amr_ref_check(2) = 1;
-   }
-
-   MFEM_VERIFY(dim>1, " Use 2D or 3D mesh for hr-adaptivity");
-   const int num_ref_types = (dim-2)*4 + 3,
-             NE            = fespace->GetNE();
-   dofgf->SetFromTrueVector();
-   Vector tvecdofs = dofgf->GetTrueVector();
-
-   const Operator *P = fespace->GetProlongationMatrix();
-   Vector x_loc;
-   if (P)
-   {
-      x_loc.SetSize(P->Height());
-      P->Mult(tvecdofs,x_loc);
-   }
-   else
-   {
-      x_loc = tvecdofs;
-   }
-
-   amr_refenergy.DeleteAll();
-   for (int i = 0; i < num_ref_types; i++)
-   {
-      amr_refenergy.Append(new Vector(NE));
-   }
-
-   Array<int> vdofs;
-   Vector el_x;
-   const FiniteElement *fe;
-   ElementTransformation *T;
-
-   for (int i = 0; i < num_ref_types; i++)
-   {
-      if (amr_ref_check(i) == 1)
-      {
-         Vector Tempvec(amr_refenergy[i]->GetData(), amr_refenergy[i]->Size());
-         for (int j = 0; j < NE; j++)
-         {
-            fe = fespace->GetFE(j);
-            fespace->GetElementVDofs(j, vdofs);
-            T = fespace->GetElementTransformation(j);
-            x_loc.GetSubVector(vdofs, el_x);
-            Tempvec(j) = tmopi->GetAMRElementEnergy(*fe, *T, el_x, i+1);
-         }
-      }
-      else
-      {
-         for (int j = 0; j < fespace->GetNE(); j++)
-         {
-            (*(amr_refenergy[i]))(j) = -1.*std::numeric_limits<float>::max();
-         }
-      }
-   }
-   current_sequence = dofgf->FESpace()->GetMesh()->GetSequence();
-}
-
-void TMOPEstimator::ComputeDeRefEstimates()
-{
-   // Compute derefinementerror for all elements
-   NCMesh *ncmesh = fespace->GetMesh()->ncmesh;
-   if (!ncmesh) { return; }
-
-   Array<int> vdofs;
-   Vector el_x;
-   const FiniteElement *fe;
-   ElementTransformation *T;
-
-   const int num_ref_types = (dim-2)*4 + 3,
-             NE            = fespace->GetNE();
-   dofgf->SetFromTrueVector();
-   Vector tvecdofs = dofgf->GetTrueVector();
-
-   const Operator *P = fespace->GetProlongationMatrix();
-   Vector x_loc;
-   if (P)
-   {
-      x_loc.SetSize(P->Height());
-      P->Mult(tvecdofs,x_loc);
-   }
-   else
-   {
-      x_loc = tvecdofs;
-   }
-
-   const Table& DeRefTable = ncmesh->GetDerefinementTable();
-
-   int nrows = DeRefTable.Size();
-   amrdrefenergy.SetSize(nrows); amrdrefenergy *= 0;
-   Array<int> tabrow;
-   for (int i = 0; i < nrows; i++)
-   {
-      DeRefTable.GetRow(i, tabrow);
-      //       tabrow.Print();
-      int nels = tabrow.Size();
-      for (int j = 0; j < nels; j++ )
-      {
-         int el_id = tabrow[j];
-         int ref_type = ncmesh->GetElementParentRefType(el_id);
-         fe = fespace->GetFE(el_id);
-         fespace->GetElementVDofs(el_id, vdofs);
-         T = fespace->GetElementTransformation(el_id);
-         x_loc.GetSubVector(vdofs, el_x);
-         amrdrefenergy(i) +=
-            tmopi->GetAMRDeRefElementEnergy(*fe, *T, el_x, ref_type);
-
-      }
-   }
-
-   //amrdrefenergy.Print();
-   current_sequence = dofgf->FESpace()->GetMesh()->GetSequence();
-}
-
-class TMOPRefiner : public MeshOperator
-{
-protected:
-   TMOPEstimator &estimator;
-
-   long   max_elements;
-   long num_marked_elements;
-
-   Array<Refinement> marked_elements;
-   long current_sequence;
-
-   int non_conforming;
-   int nc_limit;
-   int amrmetric; //0-Size, 1-AspectRatio, 2-Size+AspectRatio
-   int dim;
-
-   double GetNorm(const Vector &local_err, Mesh &mesh) const;
-
-   /** @brief Apply the operator to theG mesh->
-       @return STOP if a stopping criterion is satisfied or no elements were
-       marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
-
-public:
-   /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPRefiner(TMOPEstimator &est, int dim_);
-
-   // default destructor (virtual)
-
-   /// Use nonconforming refinement, if possible (triangles, quads, hexes).
-   void PreferNonconformingRefinement() { non_conforming = 1; }
-
-   /** @brief Use conforming refinement, if possible (triangles, tetrahedra)
-       -- this is the default. */
-   void PreferConformingRefinement() { non_conforming = -1; }
-
-   /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
-   {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
-   }
-
-   /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
-
-   /// Reset the associated estimator.
-   virtual void Reset();
-};
-
-TMOPRefiner::TMOPRefiner(TMOPEstimator &est, int dim_)
-   : estimator(est), dim(dim_)
-{
-   max_elements = std::numeric_limits<long>::max();
-
-   num_marked_elements = 0L;
-   current_sequence = -1;
-
-   non_conforming = -1;
-   nc_limit = 0;
-}
-
-int TMOPRefiner::ApplyImpl(Mesh &mesh)
-{
-   num_marked_elements = 0;
-   marked_elements.SetSize(0);
-   current_sequence = mesh.GetSequence();
-
-   const long num_elements = mesh.GetGlobalNE();
-   if (num_elements >= max_elements) { return STOP; }
-
-   const int NE = mesh.GetNE();
-   Vector Imp_Ref1 = estimator.GetAMREnergy(0);
-   Vector Imp_Ref2 = estimator.GetAMREnergy(1);
-   Vector Imp_Ref3 = estimator.GetAMREnergy(2);
-   int num_ref_types = 3+4*(dim-2);
-
-   int inum=0;
-   for (int el = 0; el < NE; el++)
-   {
-      double maxval = 0.; //improvement should be atleast 0
-      int reftype = 0;
-      for (int rt = 0; rt < num_ref_types; rt++)
-      {
-         Vector Imp_Ref = estimator.GetAMREnergy(rt);
-         double imp_ref_el = Imp_Ref(el);
-         if (imp_ref_el > maxval) { reftype = rt+1; maxval = imp_ref_el; }
-      }
-      if ( reftype > 0)
-      {
-         marked_elements.Append(Refinement(el));
-         marked_elements[inum].ref_type = reftype;
-         inum += 1;
-      }
-   }
-
-   std::cout << inum << " elements refined\n";
-
-   num_marked_elements = mesh.ReduceInt(marked_elements.Size());
-   if (num_marked_elements == 0) { return STOP; }
-   mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
-   return CONTINUE + REFINED;
-}
-
-void TMOPRefiner::Reset()
-{
-   estimator.Reset();
-   current_sequence = -1;
-   num_marked_elements = 0;
-}
-
-
-class TMOPDeRefiner : public MeshOperator
-{
-protected:
-   TMOPEstimator &estimator;
-
-   long   max_elements;
-   long num_marked_elements;
-
-   Array<Refinement> marked_elements;
-   long current_sequence;
-
-   int non_conforming;
-   int nc_limit;
-   int amrmetric; //0-Size, 1-AspectRatio, 2-Size+AspectRatio
-   int dim;
-
-   double GetNorm(const Vector &local_err, Mesh &mesh) const;
-
-   /** @brief Apply the operator to theG mesh->
-       @return STOP if a stopping criterion is satisfied or no elements were
-       marked for refinement; REFINED + CONTINUE otherwise. */
-   virtual int ApplyImpl(Mesh &mesh);
-
-public:
-   /// Construct a ThresholdRefiner using the given ErrorEstimator.
-   TMOPDeRefiner(TMOPEstimator &est, int dim_);
-
-   // default destructor (virtual)
-
-   /// Use nonconforming refinement, if possible (triangles, quads, hexes).
-   void PreferNonconformingRefinement() { non_conforming = 1; }
-
-   /** @brief Use conforming refinement, if possible (triangles, tetrahedra)
-       -- this is the default. */
-   void PreferConformingRefinement() { non_conforming = -1; }
-
-   /** @brief Set the maximum ratio of refinement levels of adjacent elements
-       (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
-   {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
-   }
-
-   /// Get the number of marked elements in the last Apply() call.
-   long GetNumMarkedElements() const { return num_marked_elements; }
-
-   /// Reset the associated estimator.
-   virtual void Reset();
-};
-
-TMOPDeRefiner::TMOPDeRefiner(TMOPEstimator &est, int dim_)
-   : estimator(est), dim(dim_)
-{
-   max_elements = std::numeric_limits<long>::max();
-
-   num_marked_elements = 0L;
-   current_sequence = -1;
-
-   non_conforming = -1;
-   nc_limit = 0;
-}
-
-int TMOPDeRefiner::ApplyImpl(Mesh &mesh)
-{
-   NCMesh *ncmesh = mesh.ncmesh;
-   if (!ncmesh) { return NONE; }
-
-
-   Array<int> derefs;
-
-   const long num_elements = mesh.GetGlobalNE();
-   if (num_elements >= max_elements) { return STOP; }
-
-   const int NE = mesh.GetNE();
-   Vector Imp_DeRef = estimator.GetAMRDeRefEnergy();
-
-   int inum=0;
-   for (int i = 0; i < Imp_DeRef.Size(); i++)
-   {
-      if ( Imp_DeRef(i) > 0)
-      {
-         derefs.Append(i);
-         inum += 1;
-      }
-   }
-   std::cout << inum << " elements derefined\n";
-
-   ncmesh->Derefine(derefs);
-   return CONTINUE + DEREFINED;
-}
-
-void TMOPDeRefiner::Reset()
-{
-   estimator.Reset();
-   current_sequence = -1;
-   num_marked_elements = 0;
-}
-
 void TMOPupdate(NonlinearForm &a, Mesh &mesh, FiniteElementSpace &fespace,
                 bool move_bnd)
 {
@@ -1103,9 +696,57 @@ int main(int argc, char *argv[])
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);;
 
    // 20. AMR based size refinemenet if a size metric is used
-   TMOPEstimator tmope(fespace, *he_nlf_integ, x, amrmetric_id);
-   TMOPRefiner   tmopr(tmope, dim);
-   TMOPDeRefiner tmopdr(tmope, dim);
+   TMOPEstimator       tmope(fespace, *he_nlf_integ, x, amrmetric_id);
+   TMOPRefiner         tmopr(tmope, dim);
+   //TMOPDeRefiner       tmopdr(tmope, dim);
+   TMOPTypeRefiner     tmoptr(tmope, dim);
+   TMOPTypeDeRefiner   tmoptdr(tmope, dim);
+   TMOPAMRUpdate tmopamrupdate;
+   tmopamrupdate.AddFESpace(&ind_fes);
+   tmopamrupdate.AddFESpace(&fespace);
+   tmopamrupdate.AddFESpace(&ind_fesv);
+   tmopamrupdate.AddGF(&size);
+   tmopamrupdate.AddGF(&aspr);
+   tmopamrupdate.AddGF(&aspr3d);
+   tmopamrupdate.AddMeshNodeAr(&x);
+   tmopamrupdate.AddMeshNodeAr(&x0);
+
+   int metrictype = he_nlf_integ->GetAMRQualityMetric().GetMetricType();
+   int num_ref_types = 3 + 4*(dim-2);
+   Vector amr_ref_check(num_ref_types);
+   amr_ref_check = 0.;
+   if (dim == 2)
+   {
+       if ( (metrictype & 1) && (metrictype & 2)) //Shape
+       {
+          amr_ref_check(0) = 1; //x
+          amr_ref_check(1) = 1; //y
+       }
+       if (metrictype & 8)  // Size
+       {
+          amr_ref_check(2) = 1; //xy
+       }
+   }
+   else
+   {
+       if ( (metrictype & 1) && (metrictype & 2)) //Shape
+       {
+          amr_ref_check(0) = 1; //x
+          amr_ref_check(1) = 1; //y
+          amr_ref_check(3) = 1; //z
+          amr_ref_check(2) = 1; //xy
+          amr_ref_check(4) = 1; //xz
+          amr_ref_check(5) = 1; //yz
+       }
+       if (metrictype & 8)  // Size
+       {
+          amr_ref_check(6) = 1; //xy
+       }
+   }
+
+
+   Array<Vector *> amrevecararay;
+
    int newtonstop = 0;
 
    if (amr_flag==1)
@@ -1147,81 +788,86 @@ int main(int argc, char *argv[])
          for (int amrit=0; amrit<nc_limit; amrit++)
          {
             // need to remap discrete functions from old mesh to new mesh here
-            if (target_id == 5)
-            {
-               tcd->GetSerialDiscreteTargetSize(size);
-            }
-            else if (target_id ==7)
-            {
-               tcd->GetSerialDiscreteTargetAspectRatio(aspr3d);
-            }
+            if (target_id == 5) { tcd->GetSerialDiscreteTargetSize(size); }
+            else if (target_id ==7) { tcd->GetSerialDiscreteTargetAspectRatio(aspr3d); }
 
             {
-               // DeRefiner
-               tmopdr.Reset();
-               if (nc_limit!=0 && amrstop==0) {tmopdr.Apply(*mesh);}
-               //Update stuff
-               ind_fes.Update(); fespace.Update(); ind_fesv.Update();
-               size.Update();    aspr.Update(); aspr3d.Update();
-               x.Update();       x.SetTrueVector();
-               x0.Update();      x0.SetTrueVector();
-               if (target_id == 5)
+               // do all different refinements and measure energy
+
+                int NEorig = fespace.GetNE();
+                amrevecararay.DeleteAll();
+                for (int i = 0; i < num_ref_types; i++)
+                {
+                   amrevecararay.Append(new Vector(NEorig));
+                }
+                Vector baseenergyvec(NEorig);
+                tmope.GetAMRTypeEnergy(baseenergyvec);
+
+               std::cout << 0 << " " <<  mesh->GetNE() << " " << a.GetGridFunctionEnergy(x)
+                         << " k10basenergy\n";
+               for (int i = 1;i < num_ref_types+1 && amrstop==0; i++)
                {
-                  tcd->ResetDiscreteFields();
-                  tcd->SetAdaptivityEvaluator(new InterpolatorFP);
-                  tcd->SetSerialDiscreteTargetSize(size);
-                  tcd->FinalizeSerialDiscreteTargetSpec();
-                  target_c = tcd;
-                  he_nlf_integ->UpdateTargetConstructor(target_c);
+                   if (amr_ref_check(i-1)==1) {
+                       tmoptr.Reset();
+                       tmoptr.SetRefType(i);
+                       if (nc_limit!=0 && amrstop==0) {tmoptr.Apply(*mesh);}
+                       tmopamrupdate.hrupdateFEandGF();
+                       if (target_id >= 5)
+                       {
+                          tmopamrupdate.hrupdatediscfunction(*tcd, size, aspr, aspr3d, target_id);
+                          target_c = tcd;
+                          he_nlf_integ->UpdateTargetConstructor(target_c);
+                       }
+                       tmopamrupdate.hrupdate(a, *mesh, fespace, move_bnd);
+
+                       Vector amrevecin(fespace.GetNE());
+                       tmope.GetAMRTypeEnergy(amrevecin);
+
+                       tmoptdr.Reset();
+                       tmoptdr.SetRefType(i);
+                       tmoptdr.DetermineAMRTypeEnergy(*mesh, amrevecin, *amrevecararay[i-1]);
+                       *amrevecararay[i-1] -= baseenergyvec;
+                       *amrevecararay[i-1] *= -1.;
+
+                       if (nc_limit!=0 && amrstop==0) { tmoptdr.Apply(*mesh); }
+                       tmopamrupdate.hrupdateFEandGF();
+                       if (target_id >= 5)
+                       {
+                          tmopamrupdate.hrupdatediscfunction(*tcd, size, aspr, aspr3d, target_id);
+                          target_c = tcd;
+                          he_nlf_integ->UpdateTargetConstructor(target_c);
+                       }
+                       tmopamrupdate.hrupdate(a, *mesh, fespace, move_bnd);
+                       std::cout << i << " " <<  mesh->GetNE() << " " << NEorig
+                                 << " k10derefinement\n";
+                   }
+                   else {
+                       *amrevecararay[i-1] = -1.*std::numeric_limits<float>::max();
+                   }
+
                }
-               else if (target_id == 7)
-               {
-                  tcd->ResetDiscreteFields();
-                  tcd->SetAdaptivityEvaluator(new InterpolatorFP);
-                  tcd->SetSerialDiscreteTargetAspectRatio(aspr3d);
-                  tcd->FinalizeSerialDiscreteTargetSpec();
-                  target_c = tcd;
-                  he_nlf_integ->UpdateTargetConstructor(target_c);
-               }
-               a.Update();
-               TMOPupdate(a, *mesh, fespace, move_bnd);
             }
+
+            tmope.Setevecptr(amrevecararay);
 
             {
                // Refiner
                tmopr.Reset();
                if (nc_limit!=0 && amrstop==0) {tmopr.Apply(*mesh);}
                //Update stuff
-               ind_fes.Update(); fespace.Update(); ind_fesv.Update();
-               size.Update();    aspr.Update(); aspr3d.Update();
-               x.Update();       x.SetTrueVector();
-               x0.Update();      x0.SetTrueVector();
-               if (target_id == 5)
+               tmopamrupdate.hrupdateFEandGF();
+               if (target_id >= 5)
                {
-                  tcd->ResetDiscreteFields();
-                  tcd->SetAdaptivityEvaluator(new InterpolatorFP);
-                  tcd->SetSerialDiscreteTargetSize(size);
-                  tcd->FinalizeSerialDiscreteTargetSpec();
+                  tmopamrupdate.hrupdatediscfunction(*tcd, size, aspr, aspr3d, target_id);
                   target_c = tcd;
                   he_nlf_integ->UpdateTargetConstructor(target_c);
                }
-               else if (target_id == 7)
-               {
-                  tcd->ResetDiscreteFields();
-                  tcd->SetAdaptivityEvaluator(new InterpolatorFP);
-                  tcd->SetSerialDiscreteTargetAspectRatio(aspr3d);
-                  tcd->FinalizeSerialDiscreteTargetSpec();
-                  target_c = tcd;
-                  he_nlf_integ->UpdateTargetConstructor(target_c);
-               }
-               a.Update();
-               TMOPupdate(a, *mesh, fespace, move_bnd);
+               tmopamrupdate.hrupdate(a, *mesh, fespace, move_bnd);
             }
-
 
             if (amrstop==0)
             {
-               if (tmopr.Stop() && tmopdr.Stop())
+               if (tmopr.Stop())
                {
                   newtonstop = 1;
                   amrstop = 1;
@@ -1243,7 +889,6 @@ int main(int argc, char *argv[])
       newton->Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
    }
-
    // 21. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
    {
@@ -1251,10 +896,9 @@ int main(int argc, char *argv[])
       mesh_ofs.precision(14);
       mesh->Print(mesh_ofs);
    }
-   string namefile;
-   char numstr[1]; // enough to hold all numbers up to 64-bits
-   sprintf(numstr, "%s%d%s", "optimized_ht_", hessiantype, ".mesh");
    {
+      char numstr[1]; // enough to hold all numbers up to 64-bits
+      sprintf(numstr, "%s%d%s", "optimized_ht_", hessiantype, ".mesh");
       ofstream mesh_ofs(numstr);
       mesh_ofs.precision(14);
       mesh->Print(mesh_ofs);

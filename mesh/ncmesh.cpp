@@ -1776,8 +1776,8 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 void NCMesh::Derefine(const Array<int> &derefs)
 {
-   MFEM_VERIFY(Dim < 3 || Iso,
-               "derefinement of 3D anisotropic meshes not implemented yet.");
+   //MFEM_VERIFY(Dim < 3 || Iso,
+   //            "derefinement of 3D anisotropic meshes not implemented yet.");
 
    InitDerefTransforms();
 
@@ -4559,6 +4559,12 @@ int NCMesh::GetElementParentRefType(int i) const
 {
    int elem = leaf_elements[i];
    return elements[elements[elem].parent].ref_type;
+}
+
+int NCMesh::GetElementParent(int i) const
+{
+   int elem = leaf_elements[i];
+   return elements[elem].parent;
 }
 
 void NCMesh::GetElementFacesAttributes(int i,

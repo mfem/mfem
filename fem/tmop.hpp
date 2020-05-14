@@ -26,12 +26,20 @@ protected:
    const DenseMatrix *Jtr; /**< Jacobian of the reference-element to
                                 target-element transformation. */
 
+
+   int metrictype = 0;// represented with 4 bits as
+   // 0 0 0 0 starting from left for V (size) O (orientation) Q (skew) A(aspect-ratio)
+   // Shape metrics are QA = 0011 = 3
+   // Size metrics are 1000 = 8
+   // Shape + size are 11
+
    /** @brief The method SetTransformation() is hidden for TMOP_QualityMetric%s,
        because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
 public:
-   TMOP_QualityMetric() : Jtr(NULL) { }
+   TMOP_QualityMetric() : Jtr(NULL), metrictype(0) { }
+   TMOP_QualityMetric( int mt ) : Jtr(NULL), metrictype(mt) { }
    virtual ~TMOP_QualityMetric() { }
 
    /** @brief Specify the reference-element -> target-element Jacobian matrix
@@ -68,6 +76,10 @@ public:
    */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
+
+   int GetMetricType() { return metrictype; }
+
+   void SetMetricType(int metrictype_) {metrictype = metrictype_;}
 };
 
 
@@ -78,6 +90,7 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
+   TMOP_Metric_001() : TMOP_QualityMetric(3) {}
    // W = |J|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -91,6 +104,7 @@ public:
 class TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
+   TMOP_Metric_skew2D() : TMOP_QualityMetric(2) {}
    // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -121,6 +135,7 @@ public:
 class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
 {
 public:
+   TMOP_Metric_aspratio2D() : TMOP_QualityMetric(1) {}
    // W = 0.5 (ar_Jpr/ar_Jtr + ar_Jtr/ar_Jpr) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -166,6 +181,7 @@ public:
 class TMOP_Metric_SS2D : public TMOP_QualityMetric
 {
 public:
+   TMOP_Metric_SS2D() : TMOP_QualityMetric(11) {}
    // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -182,8 +198,8 @@ class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-
 public:
+   TMOP_Metric_002() : TMOP_QualityMetric(3) {}
    // W = 0.5|J|^2 / det(J) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -198,8 +214,8 @@ class TMOP_Metric_007 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-
 public:
+   TMOP_Metric_007() : TMOP_QualityMetric(11) {}
    // W = |J - J^-t|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -207,6 +223,7 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
 };
 
 /// Shape & area metric, 2D
@@ -214,8 +231,8 @@ class TMOP_Metric_009 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-
 public:
+   TMOP_Metric_009() : TMOP_QualityMetric(11) {}
    // W = det(J) * |J - J^-t|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -233,8 +250,7 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_022(double &t0): tau0(t0) {}
-
+   TMOP_Metric_022(double &t0): TMOP_QualityMetric(11), tau0(t0) {}
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -265,8 +281,9 @@ class TMOP_Metric_055 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-
 public:
+   TMOP_Metric_055(): TMOP_QualityMetric(8) {}
+
    // W = (det(J) - 1)^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -284,6 +301,7 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
+   TMOP_Metric_056(): TMOP_QualityMetric(8) {}
    // W = 0.5( sqrt(det(J)) - 1 / sqrt(det(J)) )^2
    //   = 0.5( det(J) - 1 )^2 / det(J)
    //   = 0.5( det(J) + 1/det(J) ) - 1.
@@ -321,6 +339,7 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
+   TMOP_Metric_077(): TMOP_QualityMetric(8) {}
    // W = 0.5(det(J) - 1 / det(J))^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -339,8 +358,7 @@ protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   TMOP_Metric_211(double epsilon = 1e-4) : eps(epsilon) { }
-
+   TMOP_Metric_211(double epsilon = 1e-4) : TMOP_QualityMetric(0), eps(epsilon) { }
    // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + eps).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -359,7 +377,7 @@ protected:
 
 public:
    /// Note that @a t0 is stored by reference
-   TMOP_Metric_252(double &t0): tau0(t0) {}
+   TMOP_Metric_252(double &t0): TMOP_QualityMetric(0), tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -393,6 +411,7 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
+   TMOP_Metric_302(): TMOP_QualityMetric(3) {}
    // W = |J|^2 |J^-1|^2 / 9 - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
@@ -476,7 +495,7 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   TMOP_Metric_352(double &t0): tau0(t0) {}
+   TMOP_Metric_352(double &t0): TMOP_QualityMetric(0), tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
    virtual double EvalW(const DenseMatrix &Jpt) const;
@@ -588,8 +607,9 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
 
-   virtual void Update() {
-       fes->Update();
+   virtual void Update()
+   {
+      fes->Update();
    };
 };
 
@@ -825,6 +845,8 @@ class TMOPDescentNewtonSolver;
     defined by the TargetConstructor. */
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
+private:
+   TMOP_QualityMetric *amrmetric;
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPDescentNewtonSolver;
@@ -906,14 +928,15 @@ protected:
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
-   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
-      : metric(m), targetC(tc),
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
+                   TMOP_QualityMetric *amrm)
+      : metric(m), targetC(tc), amrmetric(amrm),
         coeff1(NULL), metric_normal(1.0),
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3)
-   { }
+   {  }
 
    ~TMOP_Integrator()
    {
@@ -971,9 +994,20 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   void UpdateTargetConstructor(TargetConstructor *tc) {
-       targetC=tc;
-       discr_tc = dynamic_cast<DiscreteAdaptTC *>(tc);
+   TMOP_QualityMetric &GetAMRQualityMetric() { return *amrmetric; }
+
+   double GetAMRElementEnergy(const FiniteElement &el,
+                              ElementTransformation &T,
+                              const Vector &elfun, int reftype);
+
+   double GetAMRDeRefElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &T,
+                                   const Vector &elfun, int reftype);
+
+   void UpdateTargetConstructor(TargetConstructor *tc)
+   {
+      targetC=tc;
+      discr_tc = dynamic_cast<DiscreteAdaptTC *>(tc);
    };
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() { return discr_tc; }
