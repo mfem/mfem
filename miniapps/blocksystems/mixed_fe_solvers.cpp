@@ -781,9 +781,9 @@ void AbstractMultigrid::MG_Cycle(int level) const
     if (level == P_.Size()) { return; }
 
     // Coarse grid correction
-    cor_cor_.SetSize(resid_[level].Size());
     P_[level]->MultTranspose(resid_[level], resid_[level+1]);
     MG_Cycle(level+1);
+    cor_cor_.SetSize(resid_[level].Size());
     P_[level]->Mult(correct_[level+1], cor_cor_);
     correct_[level] += cor_cor_;
     op_l->Mult(-1.0, cor_cor_, 1.0, resid_[level]);
