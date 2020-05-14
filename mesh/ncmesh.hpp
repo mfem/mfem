@@ -333,6 +333,8 @@ public:
 
    int GetElementParentRefType(int i) const;
 
+   int GetElementParent(int i) const;
+
    /// Return the faces and face attributes of leaf element 'i'.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;

@@ -85,22 +85,19 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    const FiniteElement *fe;
    ElementTransformation *T;
    double energy = 0.0;
-   int redfactor = 1;
 
    if (dnfi.Size())
    {
       NCMesh *ncmesh = fes->GetMesh()->ncmesh;
-      int NEorig = 0;
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         if (ncmesh) { redfactor = ncmesh->GetElementSizeReduction(i); }
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
-            double elenergy = dnfi[k]->GetElementEnergy(*fe, *T, el_x)/redfactor;
+            double elenergy = dnfi[k]->GetElementEnergy(*fe, *T, el_x);
             energy += elenergy;
          }
       }
