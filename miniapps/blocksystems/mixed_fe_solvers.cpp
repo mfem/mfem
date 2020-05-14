@@ -29,10 +29,10 @@ void PrintConvergence(const IterativeSolver& solver, bool verbose)
          << "Final residual norm is " << solver.GetFinalNorm() << ".\n";
 }
 
-HypreParMatrix* Mult(const OperatorPtr& A, const OperatorPtr& B, const OperatorPtr& C)
+HypreParMatrix* Mult(const HypreParMatrix& A, const HypreParMatrix& B, const HypreParMatrix& C)
 {
-    OperatorPtr AB(ParMult(A.As<HypreParMatrix>(), B.As<HypreParMatrix>()));
-    auto* ABC = ParMult(AB.As<HypreParMatrix>(), C.As<HypreParMatrix>());
+    OperatorPtr AB(ParMult(&A, &B));
+    auto* ABC = ParMult(AB.As<HypreParMatrix>(), &C);
     ABC->CopyRowStarts();
     ABC->CopyColStarts();
     return ABC;
@@ -46,10 +46,11 @@ HypreParMatrix* Mult(const SparseMatrix& A, const SparseMatrix& B,
 }
 
 
-HypreParMatrix* TwoStepsRAP(const OperatorPtr& Rt, const OperatorPtr& A,
-                            const OperatorPtr& P)
+HypreParMatrix* TwoStepsRAP(const HypreParMatrix& Rt, const HypreParMatrix& A,
+                            const HypreParMatrix& P)
 {
-    return Mult(OperatorPtr(Rt.As<HypreParMatrix>()->Transpose()), A, P);
+    OperatorPtr R(Rt.Transpose());
+    return Mult(*(R.As<HypreParMatrix>()), A, P);
 }
 
 void GetRowColumnsRef(SparseMatrix& A, int row, Array<int>& cols)
@@ -459,10 +460,15 @@ MLDivSolver::MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const
             agg_solver_[l][agg].Reset(new LocalSolver(M_a, B_a));
         }
 
-        B_l.Reset(TwoStepsRAP(data.P_l2[l], B_l, data.P_hdiv[l]), l < num_levels-2);
+        HypreParMatrix& P_hdiv_l = *data.P_hdiv[l].As<HypreParMatrix>();
+        HypreParMatrix& P_l2_l = *data.P_l2[l].As<HypreParMatrix>();
+        HypreParMatrix& B_l_ref = *B_l.As<HypreParMatrix>();
+
+        B_l.Reset(TwoStepsRAP(P_l2_l, B_l_ref, P_hdiv_l), l < num_levels-2);
         if (M_l.Ptr())
         {
-            M_l.Reset(TwoStepsRAP(data.P_hdiv[l], M_l, data.P_hdiv[l]), l < num_levels-2);
+            HypreParMatrix& M_l_ref = *M_l.As<HypreParMatrix>();
+            M_l.Reset(TwoStepsRAP(P_hdiv_l, M_l_ref, P_hdiv_l), l < num_levels-2);
         }
     }
 
@@ -749,7 +755,7 @@ AbstractMultigrid::AbstractMultigrid(HypreParMatrix& op,
         HypreParMatrix* P = P_[l-1].Is<HypreParMatrix>();
         MFEM_ASSERT(P, "P needs to be of type HypreParMatrix");
 
-        ops_[l].Reset(TwoStepsRAP(P_[l-1], ops_[l-1], P_[l-1]));
+        ops_[l].Reset(TwoStepsRAP(*P, *ops_[l-1].As<HypreParMatrix>(), *P));
         ops_[l].As<HypreParMatrix>()->Threshold(1e-14);
         smoothers_[l].Reset(new HypreSmoother(*ops_[l].As<HypreParMatrix>()));
         resid_[l].SetSize(ops_[l]->NumRows());
