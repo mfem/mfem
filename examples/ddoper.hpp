@@ -430,7 +430,11 @@ public:
 	y = x;
       }
     else
-      MPI_Recv(y.GetData(), n, MPI_DOUBLE, otherRank, id, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      {
+	auto y_host = y.HostWrite();
+	MPI_Recv(y_host, n, MPI_DOUBLE, otherRank, id, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	//MPI_Recv(y.GetData(), n, MPI_DOUBLE, otherRank, id, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      }
   }
 };
 
@@ -708,7 +712,8 @@ public:
     // those surface DOF's and DOF's on the individual interfaces.
     
     globalOp->Mult(x, y);
-    
+    //globalOffdiag->Mult(x, y);
+
     //BlockOperator *globalSubdomainOp
     //globalSubdomainOp->Mult(x, y);
     //globalInterfaceOp->Mult(x, y);

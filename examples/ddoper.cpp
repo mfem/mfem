@@ -5361,6 +5361,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  block_trueOffsets[m+1] += ifNDtrue[interfaceIndex]; // ifespace[interfaceIndex]->GetTrueVSize();
 	  block_trueOffsets[m+1] += ifH1true[interfaceIndex]; // iH1fespace[interfaceIndex]->GetTrueVSize();
 
+	  if (m == -10)
+	    {
+	      cout << "SD 0 has interface " << interfaceIndex << " with ND, H1: " << ifNDtrue[interfaceIndex] << ", " << ifH1true[interfaceIndex] << endl;
+	    }
+
 #ifdef SDFOSLS
 	  block_trueOffsets_FOSLS[m+1] += ifNDtrue[interfaceIndex] + ifH1true[interfaceIndex];
 #endif
@@ -5923,6 +5928,11 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
   colTrueOffsetsComplexIF_FOSLS.resize(numInterfaces);
 #else
   globalInterfaceOp = new BlockOperator(block_trueOffsets2);
+  if (m_rank == -10)
+    {
+      cout << "block_trueOffsets2 print, tdofsBdry[0].size() " << tdofsBdry[0].size() << endl;
+      block_trueOffsets2.Print();
+    }
 #endif
 
   rowTrueOffsetsComplexIF.resize(numInterfaces);
@@ -6311,7 +6321,23 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #ifndef ELIMINATE_REDUNDANT_VARS
 	  globalInterfaceOpRe->SetBlock(sd1, sd0, CreateInterfaceOperator(sd1, sd0, ili, i, 1, partialConstructor));
 #endif
-	
+
+	  /*
+	  if (sd0 == 0 && sd1 == 1)
+	    {
+	      const int nr = globalInterfaceOpRe->GetBlock(sd0, sd1).NumRows();
+	      const int nc = globalInterfaceOpRe->GetBlock(sd0, sd1).NumCols();
+	      Vector tmpx(nc);
+	      Vector tmpy(nr);
+	      tmpx = 1.0;
+	      globalInterfaceOpRe->GetBlock(sd0, sd1).Mult(tmpx, tmpy);
+	      //const double nrmx = InnerProduct(tmpx, tmpx);
+	      //const double nrmy = InnerProduct(tmpy, tmpy);
+	      cout << m_rank << ": GIF01 test " << tmpx.Norml2() << ", " << tmpy.Norml2() << endl;
+	      //cout << m_rank << ": GIF01 test " << nrmx << ", " << nrmy << endl;
+	    }
+	  */
+
 	  // Imaginary part
 	  SetToImaginaryParameters();
 	
@@ -6429,7 +6455,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	  complexBlock10->SetBlock(1, 0, &(globalInterfaceOpIm->GetBlock(sd1, sd0)));
 	  complexBlock10->SetBlock(1, 1, &(globalInterfaceOpRe->GetBlock(sd1, sd0)));
 #endif
-	
+
 	  globalInterfaceOp->SetBlock(sd0, sd1, complexBlock01);
 #ifndef ELIMINATE_REDUNDANT_VARS
 	  globalInterfaceOp->SetBlock(sd1, sd0, complexBlock10);
@@ -8066,8 +8092,11 @@ if (sdsize > 0)
 	vSD.SetSize(block_trueOffsets2[m+1] - block_trueOffsets2[m]);
 	injComplexSD[m]->MultTranspose(wSD, vSD);
 
+	sourceReduced.AddOffset(1.0, vSD, block_trueOffsets2[m]);
+	/*
 	for (int i=0; i<vSD.Size(); ++i)
 	  sourceReduced[block_trueOffsets2[m] + i] = vSD[i];
+	*/
 #else
 	SetSubdomainDofsFromDomainDofs(fespace[m], fespaceGlobal, sourceGlobalRe, sourceSD);
 
@@ -9974,7 +10003,7 @@ Operator* DDMInterfaceOperator::CreateInterfaceOperator(const int sd0, const int
 #else
   Operator *Cij = (ifNDtrue[interfaceIndex] > 0) ? CreateCij(localInterfaceIndex, orientation) : new EmptyOperator();
 #endif
-  
+
   // Cij is in the local interface space only, mapping from (u^s, f_i, \rho_i) space to (u^s, f_i) space.
 
   // Compose Cij on the left and right with injection operators between the subdomain surfaces and the interface.
