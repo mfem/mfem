@@ -59,14 +59,14 @@ int main(int argc, char *argv[])
    Array<int> attr;
    Array<int> bdr_attr;
    bool visualization = 1;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&attr, "-a", "-attr", "Set of attributes to remove from "
                   "the mesh.");
    args.AddOption(&bdr_attr, "-b", "-bdr-attr", "Set of boundary attributes "
-		  "to assign to the new boundary elements.");
+                  "to assign to the new boundary elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   
+
    Mesh mesh(mesh_file, 0, 0);
 
    int max_attr     = mesh.attributes.Max();
@@ -84,15 +84,15 @@ int main(int argc, char *argv[])
 
    if (bdr_attr.Size() == 0)
    {
-     bdr_attr.SetSize(attr.Size());
-     for (int i=0; i<attr.Size(); i++)
-     {
-       bdr_attr[i] = max_bdr_attr + attr[i];
-     }
+      bdr_attr.SetSize(attr.Size());
+      for (int i=0; i<attr.Size(); i++)
+      {
+         bdr_attr[i] = max_bdr_attr + attr[i];
+      }
    }
    MFEM_VERIFY(attr.Size() == bdr_attr.Size(),
-	       "Size mismatch in attribute arguments.");
-   
+               "Size mismatch in attribute arguments.");
+
    Array<int> marker(max_attr);
    Array<int> attr_inv(max_attr);
    marker = 0;
@@ -188,13 +188,13 @@ int main(int argc, char *argv[])
          if (marker[a1-1] && !marker[a2-1])
          {
             Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
-	    bel->SetAttribute(bdr_attr[attr_inv[a1-1]]);
+            bel->SetAttribute(bdr_attr[attr_inv[a1-1]]);
             trimmed_mesh.AddBdrElement(bel);
          }
          else if (!marker[a1-1] && marker[a2-1])
          {
             Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
-	    bel->SetAttribute(bdr_attr[attr_inv[a2-1]]);
+            bel->SetAttribute(bdr_attr[attr_inv[a2-1]]);
             trimmed_mesh.AddBdrElement(bel);
          }
       }
