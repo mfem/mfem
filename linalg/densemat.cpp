@@ -3511,9 +3511,10 @@ void BatchLUFactor(Vector &Minv, const int m, const int NE, Array<int> &P)
    BatchLUFactor_impl(Minv.ReadWrite(), m, NE, P.Write());
 }
 
-void BatchLUFactor(DenseTensor &Minv,const int NE, Array<int> &P)
+void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
 {
    const int m = Minv.SizeI();
+   const int NE = Minv.SizeK();
    P.SetSize(m*NE);
    BatchLUFactor_impl(Minv.ReadWrite(), m, NE, P.Write());
 }
@@ -3585,17 +3586,28 @@ void BatchLUFactor_impl(double *Minv, const int m, const int NE, int *P)
    });
 
    MFEM_ASSERT(pivot_flag[0].HostRead(), "Batch LU factorization failed \n");
-
 }
 
+void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X){
 
-void BatchLUSolve(Vector &Minv, int m, int NE,
-                  Array<int> &P, Vector &X)
+  const int m = Minv.SizeI();
+  const int NE = Minv.SizeK();
+  BatchLUSolve_impl(Minv.Read(), m, NE, P.Read(), X.ReadWrite());
+}
+
+void BatchLUSolve(const Vector &Minv, const int m, const int NE,
+                  const Array<int> &P, Vector &X)
+{
+  BatchLUSolve_impl(Minv.Read(), m, NE, P.Read(), X.ReadWrite());
+}
+
+void BatchLUSolve_impl(const double *Minv, const int m, const int NE, 
+                       const int *P, double *X)
 {
 
-   auto data_all = mfem::Reshape(Minv.Read(), m, m, NE);
-   auto piv_all = mfem::Reshape(P.Read(), m, NE);
-   auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
+   auto data_all = mfem::Reshape(Minv, m, m, NE);
+   auto piv_all = mfem::Reshape(P, m, NE);
+   auto x_all = mfem::Reshape(X, m, NE);
 
    MFEM_FORALL(e, NE,
    {
