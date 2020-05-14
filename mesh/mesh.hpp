@@ -673,6 +673,11 @@ public:
        @note The constructed Mesh is linear, i.e. it does not have nodes. */
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
+   Mesh(Mesh *orig_mesh, Array<int> &ref_factors, int ref_type);
+
+   void CreateRefinedMesh(Mesh *orig_mesh, Array<int> &ref_factors,
+                          int ref_type);
+
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0

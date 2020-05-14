@@ -124,8 +124,9 @@ public:
    //FiniteElementCollection* GetTraceCollection() const;
 
    int GetBasisType() const { return b_type; }
+
    /// Get the Cartesian to local H1 dof map
-   const int *GetDofMap(Geometry::Type GeomType) const;
+   const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
    virtual ~H1_FECollection();
 };

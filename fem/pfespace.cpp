@@ -235,7 +235,7 @@ void ParFiniteElementSpace::GetGroupComm(
    nvd = fec->DofForGeometry(Geometry::POINT);
    ned = fec->DofForGeometry(Geometry::SEGMENT);
 
-   if (fdofs)
+   if (face_dofs.Size() > 0)
    {
       if (mesh->HasGeometry(Geometry::TRIANGLE))
       {
@@ -354,7 +354,7 @@ void ParFiniteElementSpace::GetGroupComm(
             pmesh->GroupTriangle(gr, j, k, o);
 
             dofs.SetSize(ntd);
-            m = nvdofs+nedofs+fdofs[k];
+            m = nvdofs + nedofs;// FIXME + fdofs[k];
             ind = fec->DofOrderForOrientation(Geometry::TRIANGLE, o);
             for (l = 0; l < ntd; l++)
             {
@@ -392,7 +392,7 @@ void ParFiniteElementSpace::GetGroupComm(
             pmesh->GroupQuadrilateral(gr, j, k, o);
 
             dofs.SetSize(nqd);
-            m = nvdofs+nedofs+fdofs[k];
+            m = nvdofs + nedofs;// FIXME + fdofs[k];
             ind = fec->DofOrderForOrientation(Geometry::SQUARE, o);
             for (l = 0; l < nqd; l++)
             {
@@ -473,9 +473,9 @@ void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 
 void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 {
-   if (bdrElem_dof)
+   if (bdr_elem_dof)
    {
-      bdrElem_dof->GetRow(i, dofs);
+      bdr_elem_dof->GetRow(i, dofs);
       return;
    }
    FiniteElementSpace::GetBdrElementDofs(i, dofs);
@@ -1449,7 +1449,8 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
 
          if (index < ghost) // regular face
          {
-            first = nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned);
+            MFEM_VERIFY(face_dofs.Size() <= 0, "FIXME");
+            first = nvdofs + nedofs + /*(fdofs ? fdofs[index] :*/ index*ned/*)*/;
          }
          else // ghost face
          {
@@ -1497,7 +1498,8 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 
          if (index < ghost) // regular face
          {
-            return nvdofs + nedofs + (fdofs ? fdofs[index] : index*ned) + edof;
+            MFEM_VERIFY(face_dofs.Size() <= 0, "FIXME");
+            return nvdofs + nedofs + /*(fdofs ? fdofs[index] :*/ index*ned/*)*/ + edof;
          }
          else // ghost face
          {
@@ -1541,12 +1543,13 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
-         if (fdofs) // have mixed faces
+         MFEM_VERIFY(face_dofs.Size() <= 0, "FIXME");
+         /*if (fdofs) // have mixed faces
          {
             index = bisect(fdofs+1, mesh->GetNFaces(), dof);
             edof = dof - fdofs[index];
          }
-         else // uniform faces
+         else // uniform faces*/
          {
             int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
             index = dof / nf, edof = dof % nf;
@@ -2002,9 +2005,14 @@ int ParFiniteElementSpace
             const NCMesh::Master &mf = list.masters[mi];
 
             // get master DOFs
-            pncmesh->IsGhost(entity, mf.index)
-            ? GetGhostDofs(entity, mf, master_dofs)
-            : GetEntityDofs(entity, mf.index, master_dofs);
+            if (pncmesh->IsGhost(entity, mf.index))
+            {
+               GetGhostDofs(entity, mf, master_dofs);
+            }
+            else
+            {
+               GetEntityDofs(entity, mf.index, master_dofs, mf.Geom(), 0);
+            }
 
             if (!master_dofs.Size()) { continue; }
 
@@ -2025,7 +2033,9 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom());
+               const int variant = 0; // FIXME
+
+               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
