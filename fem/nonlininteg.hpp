@@ -70,10 +70,10 @@ public:
                                    const Vector &elfun);
 
    /// Compute the local energy on the device
-   virtual double GetElementEnergyPA(const FiniteElementSpace &fes,
-                                     const Vector &x)
+   virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
+                                          const Vector &x)
    {
-      mfem_error ("NonlinearFormIntegrator::GetElementEnergyMF(...)\n"
+      mfem_error ("NonlinearFormIntegrator::GetGridFunctionEnergyPA(...)\n"
                   "   is not implemented for this class.");
       return 0.0;
    }

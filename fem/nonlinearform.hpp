@@ -59,7 +59,6 @@ protected:
    const Operator *P; // not owned
    /// The result of dynamic-casting P to SparseMatrix pointer.
    const SparseMatrix *cP; // not owned
-
    bool Serial() const { return (!P || cP); }
    const Vector &Prolongate(const Vector &x) const;
 
@@ -128,6 +127,7 @@ public:
        The state @a x must be a "GridFunction size" vector, i.e. its size must
        be fes->GetVSize(). */
    double GetGridFunctionEnergy(const Vector &x) const;
+
    double GetGridFunctionEnergyPA(const Vector &x) const;
 
    /// Compute the enery corresponding to the state @a x.

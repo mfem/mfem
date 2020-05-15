@@ -87,7 +87,7 @@ double NonlinearForm::GetGridFunctionEnergyPA(const Vector &x) const
    {
       for (int k = 0; k < dnfi.Size(); k++)
       {
-         energy += dnfi[k]->GetElementEnergyPA(*fes, x);
+         energy += dnfi[k]->GetGridFunctionEnergyPA(*fes, x);
       }
    }
 
@@ -154,13 +154,14 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 
 void NonlinearForm::Mult(const Vector &X, Vector &y) const
 {
-   dbg("");
    Vector x(X.Size());
-   srand48(0x1234abcd330e);
-   for (int k=0; k<X.Size(); k++)
+   if (getenv("DBG"))
    {
-      x[k] = drand48();
+      dbg("\033[7mStuffing x with RANDs!");
+      srand48(0x1234abcd330eul);
+      for (int k=0; k<X.Size(); k++) { x[k] = drand48(); }
    }
+
    const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
@@ -168,134 +169,120 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    // In serial, place the result directly in y.
    Vector &py = P ? aux2 : y;
 
-   dbg("px:"); px.Print();
    if (ext)
    {
       ext->Mult(px, py);
-      dbg("py:"); py.Print();
-      if (Serial())
-      {
-         dbg("Serial => y[bc] = 0.0;");
-         if (cP) { cP->MultTranspose(py, y); }
-         y.HostReadWrite();
-         for (int i = 0; i < ess_tdof_list.Size(); i++)
-         {
-            y(ess_tdof_list[i]) = 0.0;
-         }
-         // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
-      }
-      //dbg("return y:"); y.Print();
-      return;
+      py.HostReadWrite();
    }
-
-   Array<int> vdofs;
-   Vector el_x, el_y;
-   const FiniteElement *fe;
-   ElementTransformation *T;
-   Mesh *mesh = fes->GetMesh();
-
-   py = 0.0;
-
-   if (dnfi.Size())
+   else
    {
-      dbg("dnfi");
-      for (int i = 0; i < fes->GetNE(); i++)
+
+      Array<int> vdofs;
+      Vector el_x, el_y;
+      const FiniteElement *fe;
+      ElementTransformation *T;
+      Mesh *mesh = fes->GetMesh();
+
+      py = 0.0;
+
+      if (dnfi.Size())
       {
-         fe = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
-         T = fes->GetElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
-         for (int k = 0; k < dnfi.Size(); k++)
+         dbg("dnfi");
+         for (int i = 0; i < fes->GetNE(); i++)
          {
-            dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
-            //dbg("el_y:"); el_y.Print();
-            py.AddElementVector(vdofs, el_y);
-         }
-         //dbg("py:"); py.Print();
-      }
-   }
-   dbg("py:"); py.Print();
-
-   if (fnfi.Size())
-   {
-      MFEM_ABORT("");
-      FaceElementTransformations *tr;
-      const FiniteElement *fe1, *fe2;
-      Array<int> vdofs2;
-
-      for (int i = 0; i < mesh->GetNumFaces(); i++)
-      {
-         tr = mesh->GetInteriorFaceTransformations(i);
-         if (tr != NULL)
-         {
-            fes->GetElementVDofs(tr->Elem1No, vdofs);
-            fes->GetElementVDofs(tr->Elem2No, vdofs2);
-            vdofs.Append (vdofs2);
-
+            fe = fes->GetFE(i);
+            fes->GetElementVDofs(i, vdofs);
+            T = fes->GetElementTransformation(i);
             px.GetSubVector(vdofs, el_x);
-
-            fe1 = fes->GetFE(tr->Elem1No);
-            fe2 = fes->GetFE(tr->Elem2No);
-
-            for (int k = 0; k < fnfi.Size(); k++)
+            for (int k = 0; k < dnfi.Size(); k++)
             {
-               fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
                py.AddElementVector(vdofs, el_y);
             }
          }
       }
-   }
 
-   if (bfnfi.Size())
-   {
-      MFEM_ABORT("");
-      FaceElementTransformations *tr;
-      const FiniteElement *fe1, *fe2;
-
-      // Which boundary attributes need to be processed?
-      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-                                 mesh->bdr_attributes.Max() : 0);
-      bdr_attr_marker = 0;
-      for (int k = 0; k < bfnfi.Size(); k++)
+      if (fnfi.Size())
       {
-         if (bfnfi_marker[k] == NULL)
+         MFEM_ABORT("");
+         FaceElementTransformations *tr;
+         const FiniteElement *fe1, *fe2;
+         Array<int> vdofs2;
+
+         for (int i = 0; i < mesh->GetNumFaces(); i++)
          {
-            bdr_attr_marker = 1;
-            break;
-         }
-         Array<int> &bdr_marker = *bfnfi_marker[k];
-         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary face integrator #"
-                     << k << ", counting from zero");
-         for (int i = 0; i < bdr_attr_marker.Size(); i++)
-         {
-            bdr_attr_marker[i] |= bdr_marker[i];
+            tr = mesh->GetInteriorFaceTransformations(i);
+            if (tr != NULL)
+            {
+               fes->GetElementVDofs(tr->Elem1No, vdofs);
+               fes->GetElementVDofs(tr->Elem2No, vdofs2);
+               vdofs.Append (vdofs2);
+
+               px.GetSubVector(vdofs, el_x);
+
+               fe1 = fes->GetFE(tr->Elem1No);
+               fe2 = fes->GetFE(tr->Elem2No);
+
+               for (int k = 0; k < fnfi.Size(); k++)
+               {
+                  fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+                  py.AddElementVector(vdofs, el_y);
+               }
+            }
          }
       }
 
-      for (int i = 0; i < fes -> GetNBE(); i++)
+      if (bfnfi.Size())
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
-         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+         MFEM_ABORT("");
+         FaceElementTransformations *tr;
+         const FiniteElement *fe1, *fe2;
 
-         tr = mesh->GetBdrFaceTransformations (i);
-         if (tr != NULL)
+         // Which boundary attributes need to be processed?
+         Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                    mesh->bdr_attributes.Max() : 0);
+         bdr_attr_marker = 0;
+         for (int k = 0; k < bfnfi.Size(); k++)
          {
-            fes->GetElementVDofs(tr->Elem1No, vdofs);
-            px.GetSubVector(vdofs, el_x);
-
-            fe1 = fes->GetFE(tr->Elem1No);
-            // The fe2 object is really a dummy and not used on the boundaries,
-            // but we can't dereference a NULL pointer, and we don't want to
-            // actually make a fake element.
-            fe2 = fe1;
-            for (int k = 0; k < bfnfi.Size(); k++)
+            if (bfnfi_marker[k] == NULL)
             {
-               if (bfnfi_marker[k] &&
-                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               bdr_attr_marker = 1;
+               break;
+            }
+            Array<int> &bdr_marker = *bfnfi_marker[k];
+            MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                        "invalid boundary marker for boundary face integrator #"
+                        << k << ", counting from zero");
+            for (int i = 0; i < bdr_attr_marker.Size(); i++)
+            {
+               bdr_attr_marker[i] |= bdr_marker[i];
+            }
+         }
 
-               bfnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
-               py.AddElementVector(vdofs, el_y);
+         for (int i = 0; i < fes -> GetNBE(); i++)
+         {
+            const int bdr_attr = mesh->GetBdrAttribute(i);
+            if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+            tr = mesh->GetBdrFaceTransformations (i);
+            if (tr != NULL)
+            {
+               fes->GetElementVDofs(tr->Elem1No, vdofs);
+               px.GetSubVector(vdofs, el_x);
+
+               fe1 = fes->GetFE(tr->Elem1No);
+               // The fe2 object is really a dummy and not used on the boundaries,
+               // but we can't dereference a NULL pointer, and we don't want to
+               // actually make a fake element.
+               fe2 = fe1;
+               for (int k = 0; k < bfnfi.Size(); k++)
+               {
+                  if (bfnfi_marker[k] &&
+                      (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+                  bfnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+                  py.AddElementVector(vdofs, el_y);
+               }
             }
          }
       }
@@ -304,14 +291,12 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    if (Serial())
    {
       if (cP) { cP->MultTranspose(py, y); }
-
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          y(ess_tdof_list[i]) = 0.0;
       }
-      // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
-   //dbg("return y:"); y.Print();
+   dbg("y: %.15e", y*y); y.Print();
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const

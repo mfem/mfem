@@ -19,16 +19,15 @@
 namespace mfem
 {
 
-NonlinearFormExtension::NonlinearFormExtension(NonlinearForm *form)
-   : Operator(form->FESpace()->GetTrueVSize()), n(form)
+NonlinearFormExtension::NonlinearFormExtension(const NonlinearForm *nlf)
+   : Operator(nlf->FESpace()->GetTrueVSize()), nlf(nlf)
 {
    // empty
 }
 
-PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
-   NonlinearFormExtension(form), fes(*form->FESpace())
+PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
+   NonlinearFormExtension(nlf), fes(*nlf->FESpace())
 {
-   dbg("");
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    elem_restrict_lex = fes.GetElementRestriction(ordering);
    if (elem_restrict_lex)
@@ -43,18 +42,18 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *form):
 void PANonlinearFormExtension::AssemblePA()
 {
    dbg("");
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int Ni = integrators.Size();
    for (int i = 0; i < Ni; ++i)
    {
-      integrators[i]->AssemblePA(*n->FESpace());
+      integrators[i]->AssemblePA(*nlf->FESpace());
    }
 }
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    dbg("");
-   Array<NonlinearFormIntegrator*> &integrators = *n->GetDNFI();
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
    {
