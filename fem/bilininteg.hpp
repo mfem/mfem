@@ -76,8 +76,8 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
-   /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   /** The result of the element assembly is added and stored in the @a emat
+       Vector. */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
    /** Used with BilinearFormIntegrators that have different spaces. */
    // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
