@@ -434,6 +434,8 @@ void BilinearForm::Assemble(int skip_zeros)
             }
          }
       }
+      // std::cout << "elmat in assemble" << std::endl;
+      // elmat_p->Print();
    }
 
    if (bbfi.Size())
@@ -502,6 +504,7 @@ void BilinearForm::Assemble(int skip_zeros)
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
          {
+           // std::cout << "face is " << i << " elements are " << tr -> Elem1No << " , " << tr -> Elem2No << std::endl;
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);
             fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
             vdofs.Append (vdofs2);
@@ -514,6 +517,8 @@ void BilinearForm::Assemble(int skip_zeros)
             }
          }
       }
+      // std::cout << "check assemble for fbfi " << std::endl;
+      // mat->Print(); 
    }
 
    if (bfbfi.Size())
@@ -564,6 +569,9 @@ void BilinearForm::Assemble(int skip_zeros)
                bfbfi[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr, elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
+            std::cout << "print elmat for boundary elements in assemble " << std::endl;
+            elemmat.Print();
+
          }
       }
    }

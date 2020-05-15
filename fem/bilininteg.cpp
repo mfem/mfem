@@ -520,6 +520,8 @@ void DiffusionIntegrator::AssembleElementMatrix
          AddMultABt(dshape, dshapedxt, elmat);
       }
    }
+   cout << "elmat for element " << Trans.ElementNo << endl; 
+   elmat.Print();
 }
 
 void DiffusionIntegrator::AssembleElementMatrix2(
@@ -2665,6 +2667,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    dshape1dn.SetSize(ndof1);
    if (Trans.Elem2No >= 0)
    {
+      std::cout << "in if assemblefacematrix " << std::endl;
       ndof2 = el2.GetDof();
       shape2.SetSize(ndof2);
       dshape2.SetSize(ndof2, dim);
@@ -2672,6 +2675,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    }
    else
    {
+      std::cout << "inside else assemblefacematrix, hmmmm.... " << std::endl;
       ndof2 = 0;
    }
 
@@ -2870,6 +2874,10 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          }
          elmat(i,i) *= (sigma - 1.);
       }
+   }
+   if (Trans.Elem2No==1)
+   {
+      elmat=0.0;
    }
 }
 

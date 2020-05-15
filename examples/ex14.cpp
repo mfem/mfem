@@ -77,23 +77,26 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+  // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh *mesh = new Mesh(2, 2, Element::TRIANGLE, true,
+                         1, 1, true);
    int dim = mesh->Dimension();
-
+   cout << "number of faces " << mesh->GetNumFaces() << endl;
+   
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
    //    more than 50,000 elements.
-   {
-      if (ref_levels < 0)
-      {
-         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-      }
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
-   }
+   // {
+   //    if (ref_levels < 0)
+   //    {
+   //       ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+   //    }
+   //    for (int l = 0; l < ref_levels; l++)
+   //    {
+   //       mesh->UniformRefinement();
+   //    }
+   // }
    if (mesh->NURBSext)
    {
       mesh->SetCurvature(max(order, 1));
@@ -114,7 +117,8 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
-
+   cout << "rhs is " << endl;
+   b->Print();
    // 6. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
@@ -133,7 +137,9 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
-
+   cout << "bilinear form size " << a->Size() << endl;
+   A.Print();
+   cout << x.Size() << endl;
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
