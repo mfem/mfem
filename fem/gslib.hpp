@@ -20,6 +20,8 @@
 struct comm;
 struct findpts_data_2;
 struct findpts_data_3;
+struct array;
+struct crystal;
 
 namespace mfem
 {
@@ -27,6 +29,8 @@ namespace mfem
 class FindPointsGSLIB
 {
 protected:
+
+
    Mesh *mesh;
    IntegrationRule *ir_simplex;
    struct findpts_data_2 *fdata2D;
@@ -35,12 +39,35 @@ protected:
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist;
    bool setupflag;
-
+   struct crystal *cr;
    struct comm *gsl_comm;
+   Mesh *meshsplit;
 
+   /// Get GridFunction from MFEM format to GSLIB format
    void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+   /// Get nodal coordinates from mesh to the format expected by GSLIB for quads
+   /// and hexes
    void GetQuadHexNodalCoordinates();
+   /// Convert simplices to quad/hexes and then get nodal coordinates for each
+   /// split element into format expected by GSLIB
    void GetSimplexNodalCoordinates();
+   /// Use GSLIB for communication and interpolation
+   void InterpolateH1(const Array<unsigned int> &codes,
+                      const Array<unsigned int> &proc_ids,
+                      const Array<unsigned int> &elem_ids, const Vector &ref_pos,
+                      const GridFunction &field_in, Vector &field_out);
+   /// Uses GSLIB Crystal Router for communication followed by GetValue for
+   /// interpolation
+   void InterpolateGeneral(const Array<unsigned int> &codes,
+                           const Array<unsigned int> &proc_ids,
+                           const Array<unsigned int> &elem_ids,
+                           const Vector &ref_pos, const GridFunction &field_in,
+                           Vector &field_out);
+   /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices mesh
+   /// find the original element number (that was split into micro quads/hexes
+   /// by GetSimplexNodalCoordinates())
+   void MapRefPosAndElemIndices(Array<unsigned int> &elem_ids, Vector &ref_pos);
+
 
 public:
    FindPointsGSLIB();
@@ -50,6 +77,9 @@ public:
 #endif
 
    ~FindPointsGSLIB();
+
+   //enum avgtype {ARITHEMATIC, HARMONIC} avgt;
+   enum mfem::GridFunction::AvgType avgtype;
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object @a m.
@@ -100,8 +130,9 @@ public:
                               @a field_in is in H1 and in the same space as the
                               mesh that was given to Setup().
        @param[out] field_out  Interpolated values. */
-   void Interpolate(Array<unsigned int> &codes, Array<unsigned int> &proc_ids,
-                    Array<unsigned int> &elem_ids, Vector &ref_pos,
+   void Interpolate(const Array<unsigned int> &codes,
+                    const Array<unsigned int> &proc_ids,
+                    const Array<unsigned int> &elem_ids, const Vector &ref_pos,
                     const GridFunction &field_in, Vector &field_out);
    void Interpolate(const GridFunction &field_in, Vector &field_out);
    /** Search positions and interpolate */
@@ -110,6 +141,8 @@ public:
    /** Setup FindPoints, search positions and interpolate */
    void Interpolate(Mesh &m, const Vector &point_pos,
                     const GridFunction &field_in, Vector &field_out);
+
+   void SetL2AvgType(mfem::GridFunction::AvgType avgtype_) { avgtype = avgtype_; }
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as
