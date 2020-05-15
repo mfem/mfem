@@ -130,90 +130,25 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
 }
 
 // *****************************************************************************
+// Setup dim, ne, nq, maps, (geom) & fes
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
 {
    dbg("");
    fes = &fespace;
-
    MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
-
-   Mesh *mesh = fes->GetMesh();
+   Mesh const *mesh = fes->GetMesh();
    dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2, "");
-
    MFEM_VERIFY(IntRule,"");
-   const IntegrationRule &ir = *IntRule;
-
-   ne = fes->GetMesh()->GetNE();
+   MFEM_VERIFY(dim == 2, "");
    nq = IntRule->GetNPoints();
+   ne = fes->GetMesh()->GetNE();
+   const IntegrationRule &ir = *IntRule;
    maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-   const int flags = GeometricFactors::COORDINATES|GeometricFactors::JACOBIANS;
-   geom = mesh->GetGeometricFactors(ir, flags);
-
-   const int D1D = maps->ndof;
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dof = fe->GetDof();
-   MFEM_VERIFY(D1D*D1D == dof,"");
-
-   const int Q1D = maps->nqpt;
-   MFEM_VERIFY(Q1D*Q1D == nq,"");
-
-   //DShT.SetSize(dof, dim, ne); // gradients of reference shape functions
-   //DST.SetSize(dof, dim, ne);  // gradients of target shape functions, DS = DSh Jrt
-   //JrtT.SetSize(dim, dim, ne); // inverse of the ref->tgt Jacobian, Jrt = Jtr^{-1}.
-   //JptT.SetSize(dim, dim, ne); // the tgt->phy T Jacobian, Jpt = Jpr Jrt.
-   //PT.SetSize(dim, dim, ne);   // represents dW_d(Jtp) (dim x dim).
-
-   // Setup for TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
-   // Jtr(i) = Wideal
-   /*const DenseMatrix &Wideal =
-      Geometries.GetGeomToPerfGeomJac(fe->GetGeomType());*/
-   //dbg("Wideal:"); Wideal.Print();
-   //const DenseMatrix &Jtr = Wideal;
-   //const double JTR[4] = {Wideal(0,0), Wideal(0,1), Wideal(1,0), Wideal(1,1)};
-   // same for all QPoints
-
+   //const int flags = GeometricFactors::COORDINATES|GeometricFactors::JACOBIANS;
+   //geom = mesh->GetGeometricFactors(ir, flags);
    D.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
-
-   //const auto W = ir.GetWeights().Read();
-   const auto J = Reshape(geom->J.Read(), nq, dim, dim, ne);
-   //const auto Jtr = Reshape(JTR, dim, dim, ne);
-   //auto Jrt = Reshape(JrtT.Write(), dim, dim, ne);
-   auto G = Reshape(D.Write(), Q1D, Q1D, dim, dim, ne);
-   MFEM_FORALL_2D(e, ne, Q1D, Q1D, 1,
-   {
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            const int q = qx + qy * Q1D;
-            //dbg("W:%.15e",W[q]);
-            //const DenseMatrix &Jtr_i = Jtr;//(e);
-            // metric->SetTargetJacobian(Jtr_i); => TMOP_Metric_002
-            //kernels::CalcInverse<DIM>(Jtr.GetData(), &Jrt(0,0,e));
-            const double J00 = J(q,0,0,e);
-            const double J01 = J(q,0,1,e);
-            const double J10 = J(q,1,0,e);
-            const double J11 = J(q,1,1,e);
-            //const double detJ = (J00*J11)-(J01*J10);
-            //G(qx,qy,0,0,e) =  detJ * J11;
-            //G(qx,qy,0,1,e) = -detJ * J01;
-            //G(qx,qy,1,0,e) = -detJ * J10;
-            //G(qx,qy,1,1,e) =  detJ * J00;
-            G(qx,qy,0,0,e) = J00;
-            G(qx,qy,0,1,e) = J01;
-            G(qx,qy,1,0,e) = J10;
-            G(qx,qy,1,1,e) = J11;
-         }
-      }
-   });
-
 }
-// TMOP_Metric_002::EvalW: 0.5 * Get_I1b(Jpt) - 1.0 => weight
-// Get_I1b == Get_I1()/Get_I2b();
-
-// TMOP_Metric_002::EvalP: 0.5 * Get_dI1b(Jpt) => DenseMatrix P
 
 // *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
@@ -474,6 +409,11 @@ static void AddMultPA_Kernel_2D(const int NE,
 }
 
 // *****************************************************************************
+// TMOP_Metric_002::EvalW: 0.5 * Get_I1b(Jpt) - 1.0 => weight
+// Get_I1b == Get_I1()/Get_I2b();
+// TMOP_Metric_002::EvalP: 0.5 * Get_dI1b(Jpt) => DenseMatrix P
+
+// *****************************************************************************
 void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 {
    dbg("");
@@ -485,6 +425,41 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
    const Array<double> &B = maps->B;
    const Array<double> &G = maps->G;
    const int id = (D1D << 4 ) | Q1D;
+
+   {
+      // Jtr setup:
+      //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
+      //  - Jtr(i) == Wideal
+      const FiniteElement *fe = fes->GetFE(0);
+      const Geometry::Type geom_type = fe->GetGeomType();
+      const DenseMatrix Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
+      /*
+         Array<int> vdofs;
+         DenseTensor Jtr(dim, dim, ir->GetNPoints());
+         for (int i = 0; i < fes->GetNE(); i++)
+         {
+            const FiniteElement *el = fes->GetFE(i);
+            fes->GetElementVDofs(i, vdofs);
+            T = fes->GetElementTransformation(i);
+            px.GetSubVector(vdofs, el_x);
+            targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+        }*/
+      const auto Jtr = Reshape(Wideal.Read(), dim, dim);
+      auto G = Reshape(D.Write(), Q1D, Q1D, dim, dim, ne);
+      MFEM_FORALL_2D(e, ne, Q1D, Q1D, 1,
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               G(qx,qy,0,0,e) = Jtr(0,0);
+               G(qx,qy,0,1,e) = Jtr(0,1);
+               G(qx,qy,1,0,e) = Jtr(1,0);
+               G(qx,qy,1,1,e) = Jtr(1,1);
+            }
+         }
+      });
+   }
 
    switch (id)
    {

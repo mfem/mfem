@@ -1398,8 +1398,8 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    }*/
 
    elvect = 0.0;
-   //DenseTensor Jtr(dim, dim, ir->GetNPoints());
-   //targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+   DenseTensor Jtr(dim, dim, ir->GetNPoints());
+   targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
 
    // Limited case.
    DenseMatrix pos0;
@@ -1444,7 +1444,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       T.SetIntPoint(&ip);
-      const DenseMatrix &Jtr_i = T.Jacobian(); // Jtr(i);
+      const DenseMatrix &Jtr_i = Jtr(i);
       //metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
