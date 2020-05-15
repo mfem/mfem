@@ -965,8 +965,8 @@ public:
    /// PA extension
    using NonlinearFormIntegrator::AssemblePA;
 
-   virtual double GetElementEnergyPA(const FiniteElementSpace &fes,
-                                     const Vector &x);
+   virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
+                                          const Vector &x);
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
@@ -1026,7 +1026,6 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
-   //virtual double GetElementEnergyMF(const Vector &x);
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &T,
                                       const Vector &elfun, Vector &elvect);

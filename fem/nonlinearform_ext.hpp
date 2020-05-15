@@ -22,9 +22,10 @@ class NonlinearForm;
 class NonlinearFormExtension : public Operator
 {
 protected:
-   NonlinearForm *n; ///< Not owned
+   const NonlinearForm *nlf;
+
 public:
-   NonlinearFormExtension(NonlinearForm *form);
+   NonlinearFormExtension(const NonlinearForm *nlf);
    virtual void AssemblePA() = 0;
 };
 
@@ -32,11 +33,12 @@ public:
 class PANonlinearFormExtension : public NonlinearFormExtension
 {
 protected:
-   const FiniteElementSpace &fes; // Not owned
+   const FiniteElementSpace &fes;
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   const Operator *elem_restrict_lex;
+
 public:
-   PANonlinearFormExtension(NonlinearForm*);
+   PANonlinearFormExtension(NonlinearForm *nlf);
    void AssemblePA();
    void Mult(const Vector &x, Vector &y) const;
 };
