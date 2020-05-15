@@ -255,6 +255,22 @@ void Euler::EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
    }
 }
 
+double Euler::GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) const
+{
+   double pL = EvaluatePressure(uL);
+   double pR = EvaluatePressure(uR);
+   double aL = sqrt(SpHeatRatio * pL / uL(0));
+   double aR = sqrt(SpHeatRatio * pR / uR(0));
+   double vL = uL(1)/uL(0) * normal(0);
+   double vR = uR(1)/uR(0) * normal(0);
+
+   double p = pow( (aL+aR-0.5*(SpHeatRatio-1.)*(vR-vL)) / (aL*pow(pL, (1.-SpHeatRatio)/(2.*SpHeatRatio)) + aR*pow(pR, (1.-SpHeatRatio)/(2.*SpHeatRatio)) ) , 2.*SpHeatRatio/(SpHeatRatio-1.) );
+
+   double lambda1 = vL - aL * sqrt( 1. + (SpHeatRatio+1.)/(2.*SpHeatRatio) * max(0., (p-pL)/pL) );
+   double lambda3 = vR + aR * sqrt( 1. + (SpHeatRatio+1.)/(2.*SpHeatRatio) * max(0., (p-pR)/pR) );
+   return max(abs(lambda1), abs(lambda3));
+}
+
 double Euler::GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                            int i) const
 {

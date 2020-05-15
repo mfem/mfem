@@ -43,6 +43,7 @@ public:
 
    virtual void EvaluateFlux(const Vector &u, DenseMatrix &FluxEval,
                              int e, int k, int i = -1) const = 0;
+   virtual double GetGMS(const Vector &uL, const Vector &uR, const Vector &normal) const { } // TODO: if used "= 0"
    virtual double GetWaveSpeed(const Vector &u, const Vector n, int e, int k,
                                int i = -1) const = 0;
    virtual void SetBdrCond(const Vector &y1, Vector &y2, const Vector &normal,

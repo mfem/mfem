@@ -1,17 +1,18 @@
 ATTENTION
+   -min/max used for DG flux term limiting
+   -only serial version for sequential bounds for now
 
 DEBUG
-   ((- Blowup / negative water height))
-   (- Bar states seem not to lie between u_i and u_j -> GMS)
-   - Dip in front of rarefaction wave is too big
-   - Some resolutions produce unphysical results
-      * Galerkin solution can be recovered if all terms are used in antidiffusive fluxes
-      * Disable limiting - Use unlimited fluxes and check which terms are necessary
-      * Without dij it works but is diffusive
-   Probelm seems to be a non-sequential limiting strategy
 
+PAPER
+   \mathcal E_i set is problematic, due to i being local
 
 next steps
+   TODO: Approach for volume and face terms in terms of including bounds in bar states should be consistent
+   ROADMAP: 1) Height correction factor for allunknowns - done
+            2) sequential limiting for 1D DG1
+            3) higher order
+            4) 2D see how to handle face terms
 
 If possible: try to make advection with non-constant velocity and MCL work
 
