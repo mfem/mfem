@@ -3585,7 +3585,7 @@ void BatchLUFactor_impl(double *Minv, const int m, const int NE, int *P)
 
    });
 
-   MFEM_ASSERT(pivot_flag[0].HostRead(), "Batch LU factorization failed \n");
+   MFEM_ASSERT(pivot_flag.HostRead()[0], "Batch LU factorization failed \n");
 }
 
 void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X)
