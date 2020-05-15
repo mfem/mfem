@@ -31,7 +31,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <slepceps.h>
+//#include <slepceps.h>
 
 #ifndef MFEM_USE_PETSC
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
@@ -101,20 +101,20 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
-   /*for (int lev = 0; lev < ser_ref_levels; lev++)
+   for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
-   }*/
+   }
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /*for (int l = 0; l < par_ref_levels; l++)
+   for (int l = 0; l < par_ref_levels; l++)
    {
       pmesh->UniformRefinement();
-   }*/
+   }
    pmesh->ReorientTetMesh();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
@@ -172,7 +172,8 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr;
    if (pmesh->bdr_attributes.Size())
    {
-      std::cout << "mesh bdr " << pmesh->bdr_attributes.Size() << " " << pmesh->bdr_attributes.Max() << "\n";
+      std::cout << "mesh bdr " << pmesh->bdr_attributes.Size() << " " <<
+                pmesh->bdr_attributes.Max() << "\n";
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr = 0;
    }
@@ -222,7 +223,7 @@ int main(int argc, char *argv[])
    Btth.Get(pBtt);
    Btth.SetOperatorOwner(false);
    (*pBtt) *= -1;
-   
+
    bzz->AddDomainIntegrator(new DiffusionIntegrator(u_r_func));
    bzz->AddDomainIntegrator(new MassIntegrator(e_r_func));
    bzz->Assemble();
@@ -243,7 +244,7 @@ int main(int argc, char *argv[])
    Btzh.Get(pBtz);
    Btzh.SetOperatorOwner(false);
    //(*pBtz) *= -1;
-   
+
    pBzt = pBtz->Transpose();
 
    PetscParMatrix *LHSOp = NULL, *RHSOp = NULL;
@@ -263,7 +264,7 @@ int main(int argc, char *argv[])
    tRHSOp->SetBlock(0,1,pBzt);
    RHSOp = new PetscParMatrix(MPI_COMM_WORLD,tRHSOp,Operator::PETSC_MATAIJ);
    delete tRHSOp;
-   
+
    // 12. Solve the linear system with slepc.
    std::cout << "Solving...\n";
    int maxIter(500);
@@ -271,8 +272,8 @@ int main(int argc, char *argv[])
    double atol(1.e-10);
 
    trueX = 0.0;
-   
-   PetscParVector *X = new PetscParVector(*LHSOp, true, false);
+
+   /*PetscParVector *X = new PetscParVector(*LHSOp, true, false);
    X->PlaceArray(trueX.GetData());
    EPS eps;
    EPSCreate(PETSC_COMM_WORLD,&eps);
@@ -285,9 +286,17 @@ int main(int argc, char *argv[])
    EPSGetST(eps,&st);
    STSetType(st,STSINVERT);
    EPSSetFromOptions(eps);
-   EPSSolve(eps);
-
-   PetscInt num_converged;
+   EPSSolve(eps);*/
+   SlepcEigenSolver *solver = new SlepcEigenSolver(MPI_COMM_WORLD);
+   solver->SetOperators(*LHSOp,*RHSOp);
+   solver->SetTol(1e-12);
+   solver->SetMaxIter(500);
+   solver->SetNumModes(1);
+   solver->SetWhichEigenpairs(SlepcEigenSolver::TARGET_MAGNITUDE);
+   solver->SetTarget(pow(k0*3.44,2));
+   solver->SetSpectralTransformation(SlepcEigenSolver::SHIFT_INVERT);
+   solver->Solve();
+   /*PetscInt num_converged;
    PetscInt it_num;
    PetscScalar lr, lc;
    EPSGetConverged(eps,&num_converged);
@@ -301,8 +310,12 @@ int main(int argc, char *argv[])
    X->ResetArray();
    PetscReal re,im;
    re = lr;
-   im = lc;
-   std::cout << sqrt(re)/k0 <<"+1i*"<< (double)im << "\n";
+   im = lc;*/
+   double re;
+   solver->GetEigenvalue(0,re);
+   Vector dummy2(block_trueOffsets[2]);
+   solver->GetEigenvector(0,trueX);
+   std::cout << sqrt(re)/k0 << "\n";
 
    // 13. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor. Compute
