@@ -323,10 +323,26 @@ static void AddMultPA_Kernel_2D(const int NE,
                dbg("Jpt: %.15e %.15e",Jptxx,Jptxy);
                dbg("Jpt: %.15e %.15e",Jptyx,Jptyy);
             }*/
-            const double Pxx = w * Jptxx;
-            const double Pxy = w * Jptxy;
-            const double Pyx = w * Jptyx;
-            const double Pyy = w * Jptyy;
+
+            // metric->EvalP(Jpt, P);
+            const double J[4]= {Jptxx, Jptyx, Jptxy, Jptyy};
+            InvariantsEvaluator2D<double> ie;
+            ie.SetJacobian(J);
+            DenseMatrix P(2);
+            P.Set(0.5, ie.Get_dI1b());
+            /*{
+               const double detP = P(0,0)*P(1,1) - P(0,1)*P(1,0);
+               dbg("\033[0mdetP %.15e",detP);
+               dbg("P: %.15e %.15e",P(0,0),P(0,1));
+               dbg("P: %.15e %.15e",P(1,0),P(1,1));
+            }*/
+
+            // P(0,0) = Jptxx; P(0,1) = Jptxy; P(1,0) = Jptyx; P(1,1) = Jptyy;
+
+            const double Pxx = w * P(0,0);
+            const double Pxy = w * P(0,1);
+            const double Pyx = w * P(1,0);
+            const double Pyy = w * P(1,1);
             /*{
                const double detP = Pxx*Pyy - Pxy*Pyx;
                dbg("\033[0mdetP %.15e",detP);
@@ -407,11 +423,6 @@ static void AddMultPA_Kernel_2D(const int NE,
       }
    });
 }
-
-// *****************************************************************************
-// TMOP_Metric_002::EvalW: 0.5 * Get_I1b(Jpt) - 1.0 => weight
-// Get_I1b == Get_I1()/Get_I2b();
-// TMOP_Metric_002::EvalP: 0.5 * Get_dI1b(Jpt) => DenseMatrix P
 
 // *****************************************************************************
 void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const

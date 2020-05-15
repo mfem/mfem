@@ -1467,13 +1467,21 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
-
-      //metric->EvalP(Jpt, P);
-      P = Jpt;
       /*{
          dbg("\033[0mdetJpt: %.15e",Jpt.Det());
          dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
          dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
+      }*/
+
+      // TMOP_Metric_002::EvalP: P == 0.5 * dI1b(Jpt)
+      // I1b = I3b^{-2/3}*I1
+      // dI1b = 2*I3b^{-2/3}*(J - (1/3)*I1/I3b*dI3b)
+      metric->EvalP(Jpt, P);
+      //P = Jpt;
+      /*{
+         dbg("\033[0mdetP: %.15e",P.Det());
+         dbg("P: %.15e %.15e",P(0,0),P(0,1));
+         dbg("P: %.15e %.15e",P(1,0),P(1,1));
       }*/
 
       //if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
