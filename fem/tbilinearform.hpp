@@ -32,7 +32,7 @@ template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
           typename solVecLayout_t = ScalarLayout,
           typename complex_t = double, typename real_t = double,
-          typename impl_traits_t = AutoImplTraits<complex_t,real_t> >
+          typename impl_traits_t = AutoSIMDTraits<complex_t,real_t> >
 class TBilinearForm : public Operator
 {
 public:
@@ -53,6 +53,7 @@ protected:
    static const int dofs = solFE_type::dofs;
    static const int vdim = solVecLayout_t::vec_dim;
    static const int qpts = IR::qpts;
+   static const int AB   = impl_traits_t::align_bytes;
    static const int SS   = impl_traits_t::simd_size;
    static const int BE   = impl_traits_t::batch_size;
    static const int TE   = SS*BE;
@@ -118,8 +119,8 @@ public:
         assembled_data(),
         in_fes(sol_fes)
    {
-      assembled_data.Reset(SS == 64 ? MemoryType::HOST_64 :
-                           SS == 32 ? MemoryType::HOST_32 :
+      assembled_data.Reset(AB == 64 ? MemoryType::HOST_64 :
+                           AB == 32 ? MemoryType::HOST_32 :
                            MemoryType::HOST);
    }
 
@@ -200,7 +201,7 @@ public:
       if (assembled_data.Empty())
       {
          const int size = ((NE+TE-1)/TE)*BE;
-         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_32);
+         assembled_data.New(size, assembled_data.GetMemoryType());
       }
       for (int el = 0; el < NE; el += TE)
       {
@@ -301,7 +302,7 @@ public:
       if (assembled_data.Empty())
       {
          const int size = ((NE+TE-1)/TE)*BE;
-         assembled_data = Memory<p_assembled_t>(size, MemoryType::HOST_32);
+         assembled_data.New(size, assembled_data.GetMemoryType());
       }
       const vreal_t *vsNodes = (const vreal_t*)(sNodes.GetData());
       for (int el = 0; el < NE; el += TE)

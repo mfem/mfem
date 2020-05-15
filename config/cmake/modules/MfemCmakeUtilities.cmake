@@ -743,6 +743,7 @@ function(mfem_export_mk_files)
   endforeach()
   # TODO: Add support for MFEM_USE_CUDA=YES
   set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+  set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
   string(STRIP "${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)

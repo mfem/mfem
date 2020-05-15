@@ -28,44 +28,69 @@
 #endif
 #endif
 
-// MFEM_SIMD_SIZE is the default SIMD size used by MFEM, see e.g. class
-// TBilinearForm and the default traits class AutoImplTraits.
-#if defined(_WIN32)
-#define MFEM_SIMD_SIZE 8
+// MFEM_SIMD_BYTES is the default SIMD size used by MFEM, see e.g. class
+// TBilinearForm and the default traits class AutoSIMDTraits.
+// MFEM_ALIGN_BYTES deterimes the padding used in class TVector when its 'align'
+// template parameter is set to true -- it ensues that the size of such TVector
+// types is a multiple of MFEM_ALIGN_BYTES. MFEM_ALIGN_BYTES must be a multiple
+// of MFEM_SIMD_BYTES.
+#if !defined(MFEM_USE_SIMD) || defined(_WIN32)
+#define MFEM_SIMD_BYTES 8
+#define MFEM_ALIGN_BYTES 32
 #elif defined(__AVX512F__)
-#define MFEM_SIMD_SIZE 64
+#define MFEM_SIMD_BYTES 64
+#define MFEM_ALIGN_BYTES 64
 #elif defined(__AVX__) || defined(__VECTOR4DOUBLE__)
-#define MFEM_SIMD_SIZE 32
+#define MFEM_SIMD_BYTES 32
+#define MFEM_ALIGN_BYTES 32
 #elif defined(__SSE2__) || defined(__VSX__)
-#define MFEM_SIMD_SIZE 16
+#define MFEM_SIMD_BYTES 16
+#define MFEM_ALIGN_BYTES 32
 #else
-#define MFEM_SIMD_SIZE 8
+#define MFEM_SIMD_BYTES 8
+#define MFEM_ALIGN_BYTES 32
 #endif
 
 // derived macros
 #define MFEM_ROUNDUP(val,base) ((((val)+(base)-1)/(base))*(base))
 #define MFEM_ALIGN_SIZE(size,type) \
-   MFEM_ROUNDUP(size,(MFEM_SIMD_SIZE)/sizeof(type))
+   MFEM_ROUNDUP(size,(MFEM_ALIGN_BYTES)/sizeof(type))
 
 namespace mfem
 {
 
 template<typename complex_t, typename real_t>
-struct AutoImplTraits
+struct AutoSIMDTraits
 {
    static const int block_size = MFEM_TEMPLATE_BLOCK_SIZE;
 
-   static const int align_size = MFEM_SIMD_SIZE; // in bytes
+   // Alignment for arrays of vcomplex_t and vreal_t
+   static const int align_bytes = MFEM_SIMD_BYTES;
 
    static const int batch_size = 1;
 
-   static const int simd_size = MFEM_SIMD_SIZE/sizeof(complex_t);
+   static const int simd_size = MFEM_SIMD_BYTES/sizeof(real_t);
 
-   static const int valign_size = simd_size;
+   typedef AutoSIMD<complex_t, simd_size, MFEM_SIMD_BYTES> vcomplex_t;
+   typedef AutoSIMD<real_t, simd_size, MFEM_SIMD_BYTES> vreal_t;
+   typedef AutoSIMD<int, simd_size, simd_size*sizeof(int)> vint_t;
+};
 
-   typedef AutoSIMD<complex_t, simd_size, valign_size> vcomplex_t;
-   typedef AutoSIMD<real_t, simd_size, valign_size> vreal_t;
-   typedef AutoSIMD<int, simd_size, valign_size> vint_t;
+template<typename complex_t, typename real_t>
+struct NoSIMDTraits
+{
+   static const int block_size = MFEM_TEMPLATE_BLOCK_SIZE;
+
+   // Alignment for arrays of vcomplex_t and vreal_t
+   static const int align_bytes = sizeof(real_t);
+
+   static const int batch_size = 1;
+
+   static const int simd_size = 1;
+
+   typedef AutoSIMD<complex_t, simd_size, align_bytes> vcomplex_t;
+   typedef AutoSIMD<real_t, simd_size, align_bytes> vreal_t;
+   typedef AutoSIMD<int, simd_size, simd_size*sizeof(int)> vint_t;
 };
 
 } // mfem namespace

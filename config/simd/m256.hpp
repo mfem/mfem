@@ -22,11 +22,11 @@ namespace mfem
 
 template <typename, int, int> struct AutoSIMD;
 
-template <> struct AutoSIMD<double,4,4>
+template <> struct AutoSIMD<double,4,32>
 {
    typedef double scalar_type;
    static constexpr int size = 4;
-   static constexpr int align_size = 4;
+   static constexpr int align_bytes = 32;
 
    union
    {
@@ -217,37 +217,37 @@ template <> struct AutoSIMD<double,4,4>
 };
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator+(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator+(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_add_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator-(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator-(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_sub_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator*(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator*(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_mul_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator/(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator/(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_div_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
