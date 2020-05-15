@@ -39,7 +39,6 @@ struct TensorOps<1> // rank = 1
    // Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
-   MFEM_HOST_DEVICE
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
                       const scalar_t value)
    {
@@ -47,6 +46,20 @@ struct TensorOps<1> // rank = 1
       for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
       {
          mfem::Assign<Op>(A_data[A_layout.ind(i1)], value);
+      }
+   }
+
+   // Assign: A {=,+=,*=} scalar_value, host+device version
+   template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
+             typename scalar_t>
+   MFEM_HOST_DEVICE
+   static void AssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                        const scalar_t value)
+   {
+      MFEM_STATIC_ASSERT(A_layout_t::rank == 1, "invalid rank");
+      for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
+      {
+         mfem::AssignHD<Op>(A_data[A_layout.ind(i1)], value);
       }
    }
 
@@ -74,7 +87,6 @@ struct TensorOps<2> // rank = 2
    // Assign: A {=,+=,*=} scalar_value
    template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
              typename scalar_t>
-   MFEM_HOST_DEVICE
    static void Assign(const A_layout_t &A_layout, A_data_t &A_data,
                       scalar_t value)
    {
@@ -84,6 +96,23 @@ struct TensorOps<2> // rank = 2
          for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
          {
             mfem::Assign<Op>(A_data[A_layout.ind(i1,i2)], value);
+         }
+      }
+   }
+
+   // Assign: A {=,+=,*=} scalar_value, host+device version
+   template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
+             typename scalar_t>
+   MFEM_HOST_DEVICE
+   static void AssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                        scalar_t value)
+   {
+      MFEM_STATIC_ASSERT(A_layout_t::rank == 2, "invalid rank");
+      for (int i2 = 0; i2 < A_layout_t::dim_2; i2++)
+      {
+         for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
+         {
+            mfem::AssignHD<Op>(A_data[A_layout.ind(i1,i2)], value);
          }
       }
    }
@@ -221,12 +250,23 @@ struct TensorOps<4> // rank = 4
 // Tensor or sub-tensor assign function: A {=,+=,*=} scalar_value.
 template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
           typename scalar_t>
-MFEM_HOST_DEVICE
 inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
                     const scalar_t value)
 {
    internal::TensorOps<A_layout_t::rank>::
    template Assign<Op>(A_layout, A_data, value);
+}
+
+// Tensor or sub-tensor assign function: A {=,+=,*=} scalar_value.
+// Host+device version.
+template <AssignOp::Type Op, typename A_layout_t, typename A_data_t,
+          typename scalar_t>
+MFEM_HOST_DEVICE
+inline void TAssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                      const scalar_t value)
+{
+   internal::TensorOps<A_layout_t::rank>::
+   template AssignHD<Op>(A_layout, A_data, value);
 }
 
 // Tensor assign function: A {=,+=,*=} B that allows different input and output

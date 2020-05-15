@@ -22,11 +22,11 @@ namespace mfem
 
 template <typename,int,int> struct AutoSIMD;
 
-template <> struct AutoSIMD<double,4,4>
+template <> struct AutoSIMD<double,4,32>
 {
    typedef double scalar_type;
    static constexpr int size = 4;
-   static constexpr int align_size = 4;
+   static constexpr int align_bytes = 32;
 
    union
    {
@@ -199,37 +199,37 @@ template <> struct AutoSIMD<double,4,4>
 };
 
 inline __ATTRS_ai
-AutoSIMD<double,4,4> operator+(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator+(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.vd = vec_add(vec_splats(e),v.vd);
    return r;
 }
 
 inline __ATTRS_ai
-AutoSIMD<double,4,4> operator-(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator-(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.vd = vec_sub(vec_splats(e),v.vd);
    return r;
 }
 
 inline __ATTRS_ai
-AutoSIMD<double,4,4> operator*(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator*(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.vd = vec_mul(vec_splats(e),v.vd);
    return r;
 }
 
 inline __ATTRS_ai
-AutoSIMD<double,4,4> operator/(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator/(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.vd = vec_swdiv(vec_splats(e),v.vd);
    return r;
 }

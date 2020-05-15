@@ -17,12 +17,15 @@
 namespace mfem
 {
 
-template <typename scalar_t, int S, int align_S>
-struct alignas(align_S*sizeof(scalar_t)) AutoSIMD
+// Use this macro as a workaround for astyle formatting issue with 'alignas'
+#define MFEM_AUTOSIMD_ALIGN__ alignas(align_bytes_)
+
+template <typename scalar_t, int S, int align_bytes_>
+struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 {
    typedef scalar_t scalar_type;
    static const int size = S;
-   static const int align_size = align_S;
+   static const int align_bytes = align_bytes_;
 
    scalar_t vec[size];
 
