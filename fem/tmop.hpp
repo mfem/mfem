@@ -855,7 +855,7 @@ protected:
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    // PA extension
-   Vector D;
+   mutable Vector D;
    int dim, ne, nq;
    const DofToQuad *maps;
    const GeometricFactors *geom;

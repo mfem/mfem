@@ -173,7 +173,6 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    if (ext)
    {
       ext->Mult(px, py);
-      //py.HostReadWrite();
    }
    else
    {
