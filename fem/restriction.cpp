@@ -168,6 +168,27 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
+void ElementRestriction::MultUnsigned(const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nd = dof;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nd, vd, ne);
+   auto d_gatherMap = gatherMap.Read();
+
+   MFEM_FORALL(i, dof*ne,
+   {
+      const int gid = d_gatherMap[i];
+      const int j = gid >= 0 ? gid : -1-gid;
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(i % nd, c, i / nd) = d_x(t?c:j, t?j:c);
+      }
+   });
+}
+
 void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
