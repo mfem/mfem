@@ -201,14 +201,12 @@ double TMOP_Metric_SS2D::EvalW(const DenseMatrix &Jpt) const
 
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
-   //dbg("");
    ie.SetJacobian(Jpt.GetData());
    return 0.5 * ie.Get_I1b() - 1.0;
 }
 
 void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   //dbg("");
    ie.SetJacobian(Jpt.GetData());
    P.Set(0.5, ie.Get_dI1b());
 }
@@ -218,7 +216,6 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   //dbg("");
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1b(0.5*weight, A.GetData());
@@ -1341,7 +1338,6 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &elfun, Vector &elvect)
 {
-   dbg("");
    MFEM_VERIFY(!fdflag,"");
    if (!fdflag)
    {
@@ -1376,10 +1372,6 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
                                                  Vector &elvect)
 {
    int dof = el.GetDof(), dim = el.GetDim();
-   dbg("dof:%d", dof);
-   //MFEM_VERIFY(dof==4,"");
-   MFEM_VERIFY(dof==4 || dof==9,"");
-   //dbg("dof: %d, dim:%d", dof, dim);
 
    DSh.SetSize(dof, dim); // gradients of reference shape functions
    DS.SetSize(dof, dim);  // gradients of target shape functions, DS = DSh Jrt
@@ -1399,8 +1391,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    MFEM_VERIFY(IntRule,"");
    const IntegrationRule *ir = IntRule;
    nq = ir->GetNPoints();
-   MFEM_VERIFY(nq==9,"");
-   //dbg("nq:%d",nq);
+   //dbg("dim:%d, dof: %d, nq:%d", dim, dof, nq);
    /*if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -1445,81 +1436,62 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }*/
-   dbg("\033[31mElement #%d",T.ElementNo);
-   dbg("\033[32mPMatI:"); PMatI.Print();
+   //dbg("\033[32mPMatI:"); PMatI.Print();
    //dbg("\033[32mPMatI^t:"); PMatI.Transpose(); PMatI.Print(); PMatI.Transpose();
-
-   for (int i = 0; i < ir->GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-      dbg("ip%d: (%f,%f):%f", i, ip.x, ip.y, ip.weight);
-   }
 
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       T.SetIntPoint(&ip);
-
       const DenseMatrix &Jtr_i = T.Jacobian(); // Jtr(i);
-      //dbg("Jtr_i.Print: (det: %.15e)", Jtr_i.Det()); Jtr_i.Print();
       //metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
-      //dbg("Jrt.Print: (det: %.15e)", Jrt.Det()); Jrt.Print();
-      //const double weight = ip.weight * Jtr_i.Det();
-      double weight_m = 1.0;//weight ;//* metric_normal;
-      //dbg("w: %.15e, det: %.15e",ip.weight, Jtr_i.Det());
-      //dbg("w: %.15e",weight_m);
+      const double weight = ip.weight * Jtr_i.Det();
+      double weight_m = weight ;//* metric_normal;
 
       el.CalcDShape(ip, DSh);
-
-      Mult(DSh, Jrt, DS);       // DS = DSh.Jrt
-
       {
-         //DenseMatrix DShp(dof,dim);
-         //el.CalcPhysDShape(T, DSh);
-         //DSh = 1.0;
-         //Vector shape(dof);
-         //el.CalcShape(ip, shape);
-         //dbg("\033[0;37mshape:"); shape.Print();
-         //dbg("\033[0;37mDS:"); DS.Print();
-         //dbg("\033[0;37mDSh:"); DSh.Print();
          MultAtB(PMatI, DSh, G);
-         //dbg("\033[0mG.Print: (det: %.15e)", G.Det()); G.Print();
-         //dbg("\033[0mdetG: %.15e",G.Det());
-         //dbg("G: %.15e %.15e",G(0,0),G(0,1));
-         //dbg("G: %.15e %.15e",G(1,0),G(1,1));
+         dbg("");
+         dbg("\033[0mdetG: %.15e",G.Det());
+         dbg("G: %.15e %.15e",G(0,0),G(0,1));
+         dbg("G: %.15e %.15e",G(1,0),G(1,1));
       }
-      MultAtB(PMatI, DS, Jpt);
-      // Jpt = PMatI^t.DS = PMatI^t.(DSh.Jrt) = (PMatI^t.DSh).Jrt
-      // Jpt^t = Jrt^t.DSh^t.PMatI
 
       {
-         MultABt(Jrt, Jpt, G);
-         dbg("\033[0mdetA: %.15e",G.Det());
-         dbg("A: %.15e %.15e",G(0,0),G(0,1));
-         dbg("A: %.15e %.15e",G(1,0),G(1,1));
+         dbg("\033[0mdetJrt: %.15e",Jrt.Det());
+         dbg("Jrt: %.15e %.15e",Jrt(0,0),Jrt(0,1));
+         dbg("Jrt: %.15e %.15e",Jrt(1,0),Jrt(1,1));
       }
+
+      Mult(DSh, Jrt, DS);
+      MultAtB(PMatI, DS, Jpt);
 
       //metric->EvalP(Jpt, P);
-      //dbg("Jpt.Print: (det: %.15e)", Jpt.Det()); Jpt.Print();
-      //dbg("\033[0mdetJpt: %.15e",Jpt.Det());
-      //dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
-      //dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
       P = Jpt;
+      {
+         dbg("\033[0mdetJpt: %.15e",Jpt.Det());
+         dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
+         dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
+      }
 
       //if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       P *= weight_m;
-      //         A   B  ABt, ABt += A * B^t
-      AddMultABt(DS, P, PMatO);
+      {
+         dbg("\033[0mdetP: %.15e",P.Det());
+         dbg("P: %.15e %.15e",P(0,0),P(0,1));
+         dbg("P: %.15e %.15e",P(1,0),P(1,1));
+      }
 
-      // PMatO += DS . P^t
-      // PMatO += DS . Jpt^t
-      // PMatO += (DSh . Jrt) . Jpt^t
-      // PMatO += DSh . (Jrt . Jpt^t)
-      // PMatO += DSh . (Jrt . Jrt^t.DSh^t.PMatI)
-      // PMatO += DSh . (Jrt.Jrt^t) . DSh^t . PMatI
+      AddMultABt(DS, P, PMatO);
+      {
+         MultABt(Jrt, P, G);
+         dbg("\033[0mdetA: %.15e",G.Det());
+         dbg("A: %.15e %.15e",G(0,0),G(0,1));
+         dbg("A: %.15e %.15e",G(1,0),G(1,1));
+      }
 
       // TODO: derivatives of adaptivity-based targets.
 
