@@ -345,13 +345,13 @@ static void AddMultPA_Kernel_2D(const int NE,
             const double Gx1 = QQx1[qy][qx];
             const double Gy0 = QQy0[qy][qx];
             const double Gy1 = QQy1[qy][qx];
-            {
+            /*{
                const double detG = Gx0*Gy1 - Gx1*Gy0;
                dbg("");
                dbg("\033[0mdetG: %.15e",detG);
                dbg("G: %.15e %.15e",Gx0,Gx1);
                dbg("G: %.15e %.15e",Gy0,Gy1);
-            }
+            }*/
 
             //  Jtr = targetC->ComputeElementTargets
             const double Jtrx0 = D(qx,qy,0,0,e);
@@ -362,42 +362,42 @@ static void AddMultPA_Kernel_2D(const int NE,
             const double w = weight * detJtr;
 
             // Jrt = Jtr^{-1}
-            double Jrt0x =  Jtry1 / detJtr;
-            double Jrt0y = -Jtrx1 / detJtr;
-            double Jrt1x = -Jtry0 / detJtr;
-            double Jrt1y =  Jtrx0 / detJtr;
-            {
+            const double Jrt0x =  Jtry1 / detJtr;
+            const double Jrt0y = -Jtrx1 / detJtr;
+            const double Jrt1x = -Jtry0 / detJtr;
+            const double Jrt1y =  Jtrx0 / detJtr;
+            /*{
                const double detJrt = (Jrt0x*Jrt1y)-(Jrt0y*Jrt1x);
                dbg("\033[0mdetJrt: %.15e", detJrt);
                dbg("Jrt: %.15e %.15e",Jrt0x,Jrt0y);
                dbg("Jrt: %.15e %.15e",Jrt1x,Jrt1y);
-            }
+            }*/
 
             // Jpt = PMatI{^T}.DS = (PMatI{^T}.DSh).Jrt = G.Jrt
             //             |Jrt0x Jrt0y|
             //             |Jrt1x Jrt1y|
             //   |Gx0 Gx1| |Jptxx Jptxy|
             //   |Gy0 Gy1| |Jptyx Jptyy|
-            double Jptxx = ((Gx0 * Jrt0x) + (Gx1 * Jrt1x));
-            double Jptxy = ((Gx0 * Jrt0y) + (Gx1 * Jrt1y));
-            double Jptyx = ((Gy0 * Jrt0x) + (Gy1 * Jrt1x));
-            double Jptyy = ((Gy0 * Jrt0y) + (Gy1 * Jrt1y));
-            {
+            const double Jptxx = ((Gx0 * Jrt0x) + (Gx1 * Jrt1x));
+            const double Jptxy = ((Gx0 * Jrt0y) + (Gx1 * Jrt1y));
+            const double Jptyx = ((Gy0 * Jrt0x) + (Gy1 * Jrt1x));
+            const double Jptyy = ((Gy0 * Jrt0y) + (Gy1 * Jrt1y));
+            /*{
                const double detJpt = Jptxx*Jptyy - Jptxy*Jptyx;
                dbg("\033[0mdetJpt: %.15e",detJpt);
                dbg("Jpt: %.15e %.15e",Jptxx,Jptxy);
                dbg("Jpt: %.15e %.15e",Jptyx,Jptyy);
-            }
-            double Pxx = w * Jptxx;
-            double Pxy = w * Jptxy;
-            double Pyx = w * Jptyx;
-            double Pyy = w * Jptyy;
-            {
+            }*/
+            const double Pxx = w * Jptxx;
+            const double Pxy = w * Jptxy;
+            const double Pyx = w * Jptyx;
+            const double Pyy = w * Jptyy;
+            /*{
                const double detP = Pxx*Pyy - Pxy*Pyx;
                dbg("\033[0mdetP %.15e",detP);
                dbg("P: %.15e %.15e",Pxx,Pxy);
                dbg("P: %.15e %.15e",Pyx,Pyy);
-            }
+            }*/
 
             // PMatO +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)
             // Jrt . Jpt^t:
@@ -413,11 +413,11 @@ static void AddMultPA_Kernel_2D(const int NE,
             QQy0[qy][qx] = A0y;
             QQx1[qy][qx] = A1x;
             QQy1[qy][qx] = A1y;
-            {
+            /*{
                dbg("\033[0mdetA: %.15e", A0x*A1y - A1x*A0y);
                dbg("A: %.15e %.15e",A0x,A0y);
                dbg("A: %.15e %.15e",A1x,A1y);
-            }
+            }*/
          }
       }
       MFEM_SYNC_THREAD;
