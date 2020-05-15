@@ -512,6 +512,7 @@ public:
    virtual ~TMOP_LimiterFunction() { }
 };
 
+
 /// Default limiter function in TMOP_Integrator.
 class TMOP_QuadraticLimiter : public TMOP_LimiterFunction
 {
@@ -588,6 +589,7 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field) = 0;
 };
+
 
 /** @brief Base class representing target-matrix construction algorithms for
     mesh optimization via the target-matrix optimization paradigm (TMOP). */
@@ -673,6 +675,7 @@ public:
                                       DenseTensor &Jtr) const;
 };
 
+
 class AnalyticAdaptTC : public TargetConstructor
 {
 protected:
@@ -698,6 +701,7 @@ public:
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
 };
+
 
 #ifdef MFEM_USE_MPI
 class ParGridFunction;
@@ -793,6 +797,7 @@ public:
 };
 
 class TMOPNewtonSolver;
+
 
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
@@ -991,6 +996,7 @@ public:
    bool   GetFDFlag() const { return fdflag; }
    double GetFDh()    const { return dx; }
 };
+
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
 {

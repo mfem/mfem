@@ -1580,11 +1580,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
-   dbg("oper->Mult, x:%.15e, r:%.15e", x*x, r*r);
    oper->Mult(x, r);
-   // Result: x:1.187477864219732e+03, r:1.548765981004901e+06
    dbg("Result: x:%.15e, r:%.15e", x*x, r*r);
-   dbg("Exiting!"); exit(0);
    if (have_b)
    {
       r -= b;
@@ -1595,6 +1592,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    norm_goal = std::max(rel_tol*norm, abs_tol);
 
    prec->iterative_mode = false;
+   dbg("Exiting!"); exit(0);
 
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)

@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 #include "../general/dbg.hpp"
 
 namespace mfem
@@ -172,7 +173,7 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    if (ext)
    {
       ext->Mult(px, py);
-      py.HostReadWrite();
+      //py.HostReadWrite();
    }
    else
    {
@@ -187,7 +188,6 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
 
       if (dnfi.Size())
       {
-         dbg("dnfi");
          for (int i = 0; i < fes->GetNE(); i++)
          {
             fe = fes->GetFE(i);
@@ -204,7 +204,6 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
 
       if (fnfi.Size())
       {
-         MFEM_ABORT("");
          FaceElementTransformations *tr;
          const FiniteElement *fe1, *fe2;
          Array<int> vdofs2;
@@ -234,7 +233,6 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
 
       if (bfnfi.Size())
       {
-         MFEM_ABORT("");
          FaceElementTransformations *tr;
          const FiniteElement *fe1, *fe2;
 
@@ -291,12 +289,12 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    if (Serial())
    {
       if (cP) { cP->MultTranspose(py, y); }
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
-      {
-         y(ess_tdof_list[i]) = 0.0;
-      }
+      const int N = ess_tdof_list.Size();
+      const auto tdof = ess_tdof_list.Read();
+      auto Y = y.ReadWrite();
+      MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
    }
-   dbg("y: %.15e", y*y); y.Print();
+   dbg("y: %.15e", y*y);
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
