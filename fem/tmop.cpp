@@ -1451,47 +1451,47 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       double weight_m = weight ;//* metric_normal;
 
       el.CalcDShape(ip, DSh);
-      {
+      /*{
          MultAtB(PMatI, DSh, G);
          dbg("");
          dbg("\033[0mdetG: %.15e",G.Det());
          dbg("G: %.15e %.15e",G(0,0),G(0,1));
          dbg("G: %.15e %.15e",G(1,0),G(1,1));
-      }
+      }*/
 
-      {
+      /*{
          dbg("\033[0mdetJrt: %.15e",Jrt.Det());
          dbg("Jrt: %.15e %.15e",Jrt(0,0),Jrt(0,1));
          dbg("Jrt: %.15e %.15e",Jrt(1,0),Jrt(1,1));
-      }
+      }*/
 
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
       //metric->EvalP(Jpt, P);
       P = Jpt;
-      {
+      /*{
          dbg("\033[0mdetJpt: %.15e",Jpt.Det());
          dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
          dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
-      }
+      }*/
 
       //if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       P *= weight_m;
-      {
+      /*{
          dbg("\033[0mdetP: %.15e",P.Det());
          dbg("P: %.15e %.15e",P(0,0),P(0,1));
          dbg("P: %.15e %.15e",P(1,0),P(1,1));
-      }
+      }*/
 
       AddMultABt(DS, P, PMatO);
-      {
+      /*{
          MultABt(Jrt, P, G);
          dbg("\033[0mdetA: %.15e",G.Det());
          dbg("A: %.15e %.15e",G(0,0),G(0,1));
          dbg("A: %.15e %.15e",G(1,0),G(1,1));
-      }
+      }*/
 
       // TODO: derivatives of adaptivity-based targets.
 
