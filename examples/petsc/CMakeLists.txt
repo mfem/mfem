@@ -22,6 +22,7 @@ if (MFEM_USE_MPI)
     ex6p.cpp
     ex9p.cpp
     ex10p.cpp
+    ex11p.cpp
     )
   list(APPEND PETSC_RC_FILES
     rc_ex1p

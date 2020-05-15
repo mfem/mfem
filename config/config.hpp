@@ -48,6 +48,9 @@
 #ifdef MFEM_USE_PETSC
 #error Building with PETSc (MFEM_USE_PETSC=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
+#ifdef MFEM_USE_SLEPC
+#error Building with SLEPc (MFEM_USE_SLEPC=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
 #ifdef MFEM_USE_PUMI
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
