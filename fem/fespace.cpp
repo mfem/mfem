@@ -680,7 +680,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    SparseMatrix deps(ndofs);
 
    // collect local edge/face dependencies
-   for (int entity = 1; entity <= 2; entity++)
+   for (int entity = 2; entity <= 2; entity++)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
       if (!list.masters.size()) { continue; }
@@ -866,7 +866,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // be able to finalize all slave DOFs, otherwise it's a serious error
    if (n_finalized != ndofs)
    {
-      MFEM_ABORT("Error creating cP matrix.");
+      //MFEM_ABORT("Error creating cP matrix.");
+      MFEM_WARNING("Error creating cP matrix: n_finalized = " << n_finalized
+                   << ", ndofs = " << ndofs);
    }
 
    cP->Finalize();
@@ -1605,7 +1607,7 @@ void FiniteElementSpace::UpdateNURBS()
    bdr_elem_dof = NURBSext->GetBdrElementDofTable();
 }
 
-void DumpOrders(const Table &ent_dofs, int dim, const Mesh* mesh)
+void FiniteElementSpace::DumpOrders(const Table &ent_dofs, int dim)
 {
    Array<int> V;
    for (int i = 0; i < ent_dofs.Size()-1; i++)
@@ -1623,11 +1625,25 @@ void DumpOrders(const Table &ent_dofs, int dim, const Mesh* mesh)
       const int *beg = ent_dofs.GetRow(i);
       const int *end = ent_dofs.GetRow(i+1);
 
-      while (beg < end)
+      const int *dof = beg;
+      while (dof < end)
       {
-         int order = (dim == 1) ? (beg[1] - beg[0] + 1) : (int(sqrt(beg[1] - beg[0])) + 1);
+         int order = (dim == 1) ? (dof[1] - dof[0] + 1)
+                                : (int(sqrt(dof[1] - dof[0])) + 1);
          out << " " << order;
-         beg++;
+         dof++;
+      }
+
+      dof = beg;
+      while (dof < end)
+      {
+         out << ", dofs";
+         int base = (dim == 1) ? nvdofs : nvdofs + nedofs;
+         for (int j = dof[0]; j < dof[1]; j++)
+         {
+            out << " " << j + base;
+         }
+         dof++;
       }
       out << std::endl;
    }
@@ -1718,8 +1734,8 @@ void FiniteElementSpace::Construct()
    // DOFs are now assigned according to current element orders
    orders_changed = false;
 
-   DumpOrders(edge_dofs, 1, mesh);
-   DumpOrders(face_dofs, 2, mesh);
+   DumpOrders(edge_dofs, 1);
+   DumpOrders(face_dofs, 2);
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
@@ -2081,19 +2097,18 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs) const
 
 int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) const
 {
-   int i, j, nv, ne, nf, nd, p, fbase, dim = mesh->Dimension();
-   Array<int> V, E, Eo;
+   int p, nf, fbase;
 
-   if (IsVariableOrder())
+   if (face_dofs.Size() > 0) // variable orders or mixed faces
    {
       const int* beg = face_dofs.GetRow(face);
       const int* end = face_dofs.GetRow(face + 1);
-      if (variant >= end - beg) { return -1; } // past last edge DOFs
+      if (variant >= end - beg) { return -1; } // past last face DOFs
 
       fbase = beg[variant];
       nf = beg[variant+1] - fbase;
 
-      p = std::sqrt(nf) + 1;  // FIX ME: deduce 'p' from the number of face DOFs?
+      p = std::sqrt(nf) + 1;  // FIXME: deduce 'p' from the number of face DOFs?
       MFEM_ASSERT(fec->GetNumDof(mesh->GetFaceGeometry(face), p) == nf, "");
    }
    else
@@ -2105,34 +2120,30 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) con
    }
 
    // for 1D, 2D and 3D faces
-   nv = fec->GetNumDof(Geometry::POINT, p);
-   ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, p) : 0;
+   int dim = mesh->Dimension();
+   int nv = fec->GetNumDof(Geometry::POINT, p);
+   int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, p) : 0;
 
-   if (nv > 0)
-   {
-      mesh->GetFaceVertices(face, V);
-   }
-   if (ne > 0)
-   {
-      mesh->GetFaceEdges(face, E, Eo);
-   }
+   Array<int> V, E, Eo;
+   if (nv) { mesh->GetFaceVertices(face, V); }
+   if (ne) { mesh->GetFaceEdges(face, E, Eo); }
 
-   nd = V.Size() * nv + E.Size() * ne + nf;
    dofs.SetSize(0);
-   dofs.Reserve(nd);
-   if (nv > 0)
+   dofs.Reserve(V.Size() * nv + E.Size() * ne + nf);
+
+   if (nv) // vertex DOFs
    {
-      for (i = 0; i < V.Size(); i++)
+      for (int i = 0; i < V.Size(); i++)
       {
-         for (j = 0; j < nv; j++)
+         for (int j = 0; j < nv; j++)
          {
              dofs.Append(V[i]*nv + j);
          }
       }
    }
-   if (ne > 0)
+   if (ne) // edge DOFs
    {
-      for (i = 0; i < E.Size(); i++)
+      for (int i = 0; i < E.Size(); i++)
       {
           int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
           const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, p, Eo[i]);
@@ -2149,7 +2160,6 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs, int variant) con
    }
 
    return p;
-
 }
 
 int FiniteElementSpace::GetEdgeDofs(int edge, Array<int> &dofs,

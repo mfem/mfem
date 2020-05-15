@@ -302,6 +302,8 @@ protected:
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
 
+   void DumpOrders(const Table &ent_dofs, int dim);
+
 public:
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */

@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
    fespace->Update(false);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      fespace->SetElementOrder(i, (rand()%3)+2);
+      fespace->SetElementOrder(i, (rand()%2)+order);
       //fespace->SetElementOrder(i, i ? 3 : 2);
    }
    fespace->Update(false);
@@ -314,14 +314,14 @@ int main(int argc, char *argv[])
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
 
-#if 0
+#if 1
          int first = 0;
 #else
          int first = fespace->GetNV() - 10;
 #endif
          cout << "first = " << first << endl;
 
-         for (int i = first; i < first + 10; i++)
+         for (int i = first; i < X.Size(); i++)
          {
             X = 0.0;
             X(i) = 1.0;
