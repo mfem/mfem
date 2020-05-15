@@ -966,7 +966,8 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    const int dofs = nfdofs;
    auto d_offsets = offsets.Read();
    auto d_indices = gather_indices.Read();
-   if (m==L2FaceValues::DoubleValued)
+
+   if (m == L2FaceValues::DoubleValued)
    {
       auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
       auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
