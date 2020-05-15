@@ -49,9 +49,13 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
-  fem/test_projection_revdiff.cpp
+#   fem/test_projection_revdiff.cpp
   fem/test_quadraturefunc.cpp
   miniapps/test_sedov.cpp
+)
+
+set(MY_TESTS_SRCS
+   fem/test_projection_revdiff.cpp
 )
 
 if (MFEM_USE_CUDA)
@@ -61,6 +65,9 @@ endif()
 # All serial non-device unit tests are built into a single executable 'unit_tests'.
 add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests mfem)
+
+add_executable(my_tests unit_test_main.cpp ${MY_TESTS_SRCS})
+target_link_libraries(my_tests mfem)
 
 # All device unit tests are built into another executable, in order to be able
 # to change the device.

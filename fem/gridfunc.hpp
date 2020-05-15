@@ -240,6 +240,8 @@ public:
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
    void ProjectCoefficient(VectorCoefficient &vcoeff);
+   void ProjectCoefficientRevDiff(const GridFunction &adjoint,
+                                  VectorCoefficient &vcoeff);
 
    // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);

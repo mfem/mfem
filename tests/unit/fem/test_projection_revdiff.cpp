@@ -49,6 +49,61 @@ std::string mesh_str =
    "-8 4"                                "\n"
    "-7 4"                                "\n";
 
+std::string one_tet_mesh_str = 
+   "MFEM mesh v1.0\n\n"
+   "dimension\n"
+   "3\n\n"
+   "elements\n"
+   "1\n"
+   "1 4 0 1 2 3\n\n"
+   "boundary\n"
+   "4\n"
+   "1 2 0 1 2\n"
+   "2 2 0 1 3\n"
+   "3 2 1 2 3\n"
+   "4 2 0 2 3\n\n"
+   "vertices\n"
+   "4\n\n"
+   "nodes\n"
+   "FiniteElementSpace\n"
+   "FiniteElementCollection: H1_3D_P1\n"
+   "VDim: 3\n"
+   "Ordering: 1\n\n"
+   "0 0 0\n"
+   "1 0 0\n"
+   "0 1 0\n"
+   "0 0 1\n";
+
+std::string two_tet_mesh_str = 
+   "MFEM mesh v1.0\n\n"
+   "dimension\n"
+   "3\n\n"
+   "elements\n"
+   "2\n"
+   "1 4 0 1 2 3\n"
+   "1 4 1 2 3 4\n\n"
+   "boundary\n"
+   "7\n"
+   "1 2 0 1 2\n"
+   "2 2 0 1 3\n"
+   "3 2 1 2 3\n"
+   "4 2 0 2 3\n"
+   "5 2 1 3 4\n"
+   "6 2 1 2 4\n"
+   "7 2 2 3 4\n\n"
+   "vertices\n"
+   "5\n\n"
+   "nodes\n"
+   "FiniteElementSpace\n"
+   "FiniteElementCollection: H1_3D_P1\n"
+   "VDim: 3\n"
+   "Ordering: 1\n\n"
+   "0 0 0\n"
+   "1 0 0\n"
+   "0 1 0\n"
+   "0 0 1\n"
+   "1 0 1\n";
+
 void func2D(const Vector &x, Vector &y)
 {
    y.SetSize(2);
@@ -77,6 +132,17 @@ void func3DRevDiff(const Vector &x, const Vector &v_bar, Vector &x_bar)
    x_bar(2) = v_bar(2) * x(0); 
 }
 
+std::default_random_engine generator;
+std::uniform_real_distribution<double> distribution(-1.0,1.0);
+
+void randState(const mfem::Vector &x, mfem::Vector &u)
+{
+   for (int i = 0; i < u.Size(); ++i)
+   {
+      u(i) = distribution(generator);
+   }
+}
+
 } // anonymous namespace
 
 namespace el_project_revdiff
@@ -86,8 +152,6 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
           "[FiniteElement]")
 {
    constexpr double eps_fd = 1e-5;
-   std::default_random_engine generator;
-   std::uniform_real_distribution<double> distribution(-1.0,1.0);
 
    // Create quadratic mesh with single C-shaped quadrilateral
    std::stringstream meshStr;
@@ -239,7 +303,7 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
 
          const int dof = el.GetDof();
 
-         // P_bar is the vector contrated with the derivative of the projection
+         // P_bar is the vector contracted with the derivative of the projection
          // the values are not important for this test
          Vector P_bar(dof);
          for (int i = 0; i < P_bar.Size(); ++i)
@@ -248,7 +312,7 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
          }
 
          Vector dofs_fd(dof), dofs_pert(dof);
-      
+
          // reverse-mode differentiation of projection
          coords_bar = 0.0;
          el.Project_RevDiff(P_bar, vc3D, trans, coords_bar);
@@ -319,6 +383,113 @@ TEST_CASE("FiniteElement::Project_RevDiff reverse-mode differentiation",
 
                REQUIRE(coords_bar(di, n) == Approx(x_bar_fd));
             }
+         }
+      }
+   }
+}
+
+TEST_CASE("GridFunction::ProjectCoefficientRevDiff",
+          "[GridFunction]")
+{
+   constexpr double eps_fd = 1e-5;
+
+   // Create tet mesh with single tet
+   std::stringstream meshStr;
+   meshStr << two_tet_mesh_str;
+   // meshStr << one_tet_mesh_str;
+   Mesh mesh(meshStr);
+
+   mesh.ReorientTetMesh();
+   // mesh.SetCurvature(4);
+   mesh.EnsureNodes();
+
+   if (true)
+   {
+      std::ofstream mesh_ostream("gridfunction-project-revdiff-tet-mesh.vtk");
+      mesh_ostream.precision(14);
+      int refine = 0;
+      mesh.PrintVTK(mesh_ostream, refine);
+      // mesh.Print();
+   }
+   for (int p = 1; p <= 1; ++p)
+   {
+      SECTION("Project_ND_RevDiff (tet) for degree p = " + std::to_string(p))
+      {
+         ND_FECollection fec(p, 3);
+         FiniteElementSpace fes(&mesh, &fec, Ordering::byVDIM);
+
+         const FiniteElement &el = *fes.GetFE(0);
+
+         // extract mesh nodes and get their finite-element space
+         GridFunction *x_nodes = mesh.GetNodes();
+         FiniteElementSpace *mesh_fes = x_nodes->FESpace();
+
+         // P_bar is the vector contracted with the derivative of the projection
+         // the values are not important for this test
+         GridFunction P_bar(&fes);
+         for (int i = 0; i < P_bar.Size(); ++i)
+         {
+            P_bar(i) = distribution(generator);
+         }
+         // P_bar = 1.0;
+
+         VectorFunctionCoefficient vc(3, func3D, func3DRevDiff);
+
+         GridFunction dfdx(mesh_fes);
+         dfdx.ProjectCoefficientRevDiff(P_bar, vc);
+
+         // initialize the vector that we use to perturb the mesh nodes
+         GridFunction v(mesh_fes);
+         VectorFunctionCoefficient v_rand(3, randState);
+         // v.ProjectCoefficient(v_rand);
+
+
+         // contract dfdx with v
+         double dfdx_v = dfdx * v;
+
+         GridFunction gf(&fes);
+         gf.ProjectCoefficient(vc);
+
+         /// This is for a directional derivative
+         // // now compute the finite-difference approximation...
+         // GridFunction x_pert(*x_nodes);
+         // x_pert.Add(eps_fd, v);
+         // mesh.SetNodes(x_pert);
+         // fes.Update();
+         // gf.Update();
+         // gf.ProjectCoefficient(vc);
+         // double dfdx_v_fd = P_bar * gf;
+         // x_pert.Add(-2 * eps_fd, v);
+         // mesh.SetNodes(x_pert);
+         // fes.Update();
+         // gf.Update();
+         // gf.ProjectCoefficient(vc);
+         // dfdx_v_fd -= P_bar * gf;
+         // dfdx_v_fd /= (2 * eps_fd);
+         // mesh.SetNodes(*x_nodes); // remember to reset the mesh nodes
+         // std::cout << "dfdx_v_fd " << dfdx_v_fd << "\n";
+         // REQUIRE(dfdx_v == Approx(dfdx_v_fd));
+
+         /// To examine each component
+         // // get the weighted derivatives using finite difference method
+         for (int n = 0; n < x_nodes->Size(); ++n)
+         {
+            (*x_nodes)(n) += eps_fd;
+            fes.Update();
+            gf.Update();
+            gf.ProjectCoefficient(vc);
+            GridFunction gf_fd(gf);
+            (*x_nodes)(n) -= 2.0*eps_fd;
+            fes.Update();
+            gf.Update();
+            gf.ProjectCoefficient(vc);
+            gf_fd -= gf;
+            gf_fd *= 1.0/(2.0*eps_fd);
+            (*x_nodes)(n) += eps_fd;
+            double x_bar_fd = P_bar * gf_fd;
+
+            std::cout << "n: " << n << " dfdx(n): " << dfdx(n) << " x_bar_fd: " << x_bar_fd << " diff: " << x_bar_fd - dfdx(n) << "\n"; 
+            // REQUIRE(dfdx(n) == Approx(x_bar_fd));
          }
       }
    }
