@@ -156,6 +156,7 @@ namespace mfem {
  * - <a class="el" href="lor-transfer_8cpp_source.html">LOR Transfer</a>: map functions between high-order and low-order refined spaces
  * - <a class="el" href="findpts_8cpp_source.html">Find Points</a>: evaluate grid function in physical space, <a class="el" href="findpts_8cpp_source.html">serial</a> and <a class="el" href="pfindpts_8cpp_source.html">parallel</a> versions
  * - <a class="el" href="field-diff_8cpp_source.html">Field Diff</a>: compare grid functions on different meshes
+ * - <a class="el" href="classmfem_1_1navier_1_1NavierSolver.html">Navier</a>: solve the transient incompressible Navier-Stokes equations
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
  *

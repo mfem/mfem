@@ -61,7 +61,7 @@ public:
       double w;
 
 #ifdef MFEM_THREAD_SAFE
-      Vector shape[nd];
+      Vector shape(nd);
       Vector laplace(nd);
 #else
       shape.SetSize(nd);
