@@ -906,7 +906,8 @@ protected:
       const L2Projection &l2proj;
 
    public:
-      L2Prolongation(const L2Projection &l2proj_) : l2proj(l2proj_) { }
+      L2Prolongation(const L2Projection &l2proj_)
+         : Operator(l2proj_.Width(), l2proj_.Height()), l2proj(l2proj_) { }
       void Mult(const Vector &x, Vector &y) const
       {
          l2proj.Prolongate(x, y);
