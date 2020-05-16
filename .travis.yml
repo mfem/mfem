@@ -11,8 +11,6 @@
 
 language: cpp
 
-sudo: false
-
 stages:
   - checks
   - tests
@@ -370,10 +368,10 @@ script:
    # Compiler
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
-        export MAKE_CXX_FLAG=MPICXX=$MYCXX
+        export MAKE_CXX_FLAG=MPICXX=$MYCXX;
      else
         export MYCXX="$CXX";
-        export MAKE_CXX_FLAG=CXX=$MYCXX
+        export MAKE_CXX_FLAG=CXX=$MYCXX;
      fi
 
    # Print the compiler version
