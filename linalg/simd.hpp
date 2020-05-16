@@ -21,10 +21,12 @@
 #include "simd/vsx.hpp"
 #elif defined (__bgq__)
 #include "simd/qpx.hpp"
-#elif defined(__x86_64__)
+#elif defined(__x86_64__) || defined(_M_X64) || defined(_M_IX86)
 #include "simd/x86.hpp"
-#else
+#elif !defined(_MSC_VER)
 #warning Unknown SIMD architecture
+#else
+#pragma message("warning: Unknown SIMD architecture")
 #endif
 #endif
 
@@ -34,7 +36,7 @@
 // template parameter is set to true -- it ensues that the size of such TVector
 // types is a multiple of MFEM_ALIGN_BYTES. MFEM_ALIGN_BYTES must be a multiple
 // of MFEM_SIMD_BYTES.
-#if !defined(MFEM_USE_SIMD) || defined(_WIN32)
+#if !defined(MFEM_USE_SIMD)
 #define MFEM_SIMD_BYTES 8
 #define MFEM_ALIGN_BYTES 32
 #elif defined(__AVX512F__)
