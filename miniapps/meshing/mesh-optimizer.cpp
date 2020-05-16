@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
    int verbosity_level   = 0;
    int fdscheme          = 0;
    const char *devopt    = "cpu";
-   bool pa = false;
+   bool pa               = false;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -510,7 +510,7 @@ int main(int argc, char *argv[])
    // 11. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
-   MFEM_VERIFY(metric_id == 2, "");
+   //MFEM_VERIFY(metric_id == 2, "");
    switch (metric_id)
    {
       case 1: metric = new TMOP_Metric_001; break;
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    GridFunction size;
-   MFEM_VERIFY(target_id == 1, "");
+   //MFEM_VERIFY(target_id == 1, "");
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break; // <==
@@ -581,13 +581,11 @@ int main(int argc, char *argv[])
    }
    target_c->SetNodes(x0);
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   MFEM_VERIFY(!fdscheme,"");
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
-   MFEM_VERIFY(quad_type == 2,"");
    switch (quad_type)
    {
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
@@ -599,7 +597,6 @@ int main(int argc, char *argv[])
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
 
-   MFEM_VERIFY(!normalization, "");
    if (normalization) { he_nlf_integ->EnableNormalization(x0); }
 
    // 13. Limit the node movement.
@@ -663,9 +660,12 @@ int main(int argc, char *argv[])
    const double init_energy = a.GetGridFunctionEnergy(x);
    dbg("init_energy: %.15e", init_energy);
 
-   const double init_energy_mf = a.GetGridFunctionEnergyPA(x);
-   dbg("init_energy: %.15e", init_energy_mf);
-   MFEM_VERIFY(fabs(init_energy-init_energy_mf)<EPS,"");
+   if (pa)
+   {
+      const double init_energy_mf = a.GetGridFunctionEnergyPA(x);
+      dbg("init_energy: %.15e", init_energy_mf);
+      MFEM_VERIFY(fabs(init_energy-init_energy_mf)<EPS,"");
+   }
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
@@ -731,7 +731,7 @@ int main(int argc, char *argv[])
 
    // 17. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   MFEM_VERIFY(lin_solver == 1, "");
+   //MFEM_VERIFY(lin_solver == 1, "");
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
@@ -771,6 +771,7 @@ int main(int argc, char *argv[])
    }
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
    dbg("Minimum det(J) of the original mesh: %.15e", tauval);
+   if (pa && dim == 2)
    {
       // Compute the minimum det(J) of the starting mesh on the device.
       const int NQ = ir->GetNPoints();
@@ -802,7 +803,7 @@ int main(int argc, char *argv[])
    }
 
    // 19. Finally, perform the nonlinear optimization.
-   MFEM_VERIFY(tauval > 0.0, "");
+   //MFEM_VERIFY(tauval > 0.0, "");
    NewtonSolver *newton = NULL;
    if (tauval > 0.0)
    {
@@ -831,12 +832,10 @@ int main(int argc, char *argv[])
    dbg("newton->SetOperator(a)");
    newton->SetOperator(a);
    dbg("newton->Mult");
-   //b.HostReadWrite();
-   //x.HostReadWrite();
    newton->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
-   dbg("returning...");
-   return 0;
+   //dbg("returning...");
+   //return 0;
 
    if (newton->GetConverged() == false)
    {
