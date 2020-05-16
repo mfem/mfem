@@ -14,7 +14,7 @@
 
 #ifdef __AVX__
 
-#include "../tconfig.hpp"
+#include "../../config/tconfig.hpp"
 #include <x86intrin.h>
 
 namespace mfem

@@ -13,7 +13,7 @@
 #define MFEM_TEMPLATE_BILINEAR_FORM
 
 #include "../config/tconfig.hpp"
-#include "../config/simd.hpp"
+#include "../linalg/simd.hpp"
 #include "../linalg/ttensor.hpp"
 #include "bilinearform.hpp"
 #include "tevaluator.hpp"
