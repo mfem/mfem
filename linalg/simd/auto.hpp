@@ -12,7 +12,7 @@
 #ifndef MFEM_SIMD_AUTO_HPP
 #define MFEM_SIMD_AUTO_HPP
 
-#include "../tconfig.hpp"
+#include "../../config/tconfig.hpp"
 
 namespace mfem
 {

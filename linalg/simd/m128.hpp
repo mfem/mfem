@@ -9,18 +9,18 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_SIMD_VSX128_HPP
-#define MFEM_SIMD_VSX128_HPP
+#ifndef MFEM_SIMD_M128_HPP
+#define MFEM_SIMD_M128_HPP
 
-#ifdef __VSX__
+#ifdef __SSE2__
 
-#include "../tconfig.hpp"
-#include <altivec.h>
+#include "../../config/tconfig.hpp"
+#include <x86intrin.h>
 
 namespace mfem
 {
 
-template <typename,int,int> struct AutoSIMD;
+template <typename, int, int> struct AutoSIMD;
 
 template <> struct AutoSIMD<double,2,16>
 {
@@ -30,7 +30,7 @@ template <> struct AutoSIMD<double,2,16>
 
    union
    {
-      vector double vd;
+      __m128d m128d;
       double vec[size];
    };
 
@@ -46,160 +46,162 @@ template <> struct AutoSIMD<double,2,16>
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const AutoSIMD &v)
    {
-      vd = v.vd;
+      m128d = v.m128d;
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator=(const double &e)
    {
-      vd = vec_splats(e);
+      m128d = _mm_set1_pd(e);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const AutoSIMD &v)
    {
-      vd = vec_add(vd,v.vd);
+      m128d = _mm_add_pd(m128d,v.m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator+=(const double &e)
    {
-      vd = vec_add(vd,vec_splats(e));
+      m128d = _mm_add_pd(m128d,_mm_set1_pd(e));
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const AutoSIMD &v)
    {
-      vd = vec_sub(vd,v.vd);
+      m128d = _mm_sub_pd(m128d,v.m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator-=(const double &e)
    {
-      vd = vec_sub(vd,vec_splats(e));
+      m128d = _mm_sub_pd(m128d,_mm_set1_pd(e));
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const AutoSIMD &v)
    {
-      vd = vec_mul(vd,v.vd);
+      m128d = _mm_mul_pd(m128d,v.m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator*=(const double &e)
    {
-      vd = vec_mul(vd,vec_splats(e));
+      m128d = _mm_mul_pd(m128d,_mm_set1_pd(e));
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const AutoSIMD &v)
    {
-      vd = vec_div(vd,v.vd);
+      m128d = _mm_div_pd(m128d,v.m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &operator/=(const double &e)
    {
-      vd = vec_div(vd,vec_splats(e));
+      m128d = _mm_div_pd(m128d,_mm_set1_pd(e));
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-() const
    {
       AutoSIMD r;
-      r.vd = vec_neg(vd);
+      r.m128d = _mm_xor_pd(_mm_set1_pd(-0.0), m128d);
       return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r.vd = vec_add(vd,v.vd);
+      r.m128d = _mm_add_pd(m128d,v.m128d);
       return r;
    }
+
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const double &e) const
    {
       AutoSIMD r;
-      r.vd = vec_add(vd, vec_splats(e));
+      r.m128d = _mm_add_pd(m128d, _mm_set1_pd(e));
       return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r.vd = vec_sub(vd,v.vd);
+      r.m128d = _mm_sub_pd(m128d,v.m128d);
       return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-(const double &e) const
    {
       AutoSIMD r;
-      r.vd = vec_sub(vd, vec_splats(e));
+      r.m128d = _mm_sub_pd(m128d, _mm_set1_pd(e));
       return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r.vd = vec_mul(vd,v.vd);
+      r.m128d = _mm_mul_pd(m128d,v.m128d);
       return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator*(const double &e) const
    {
       AutoSIMD r;
-      r.vd = vec_mul(vd, vec_splats(e));
+      r.m128d = _mm_mul_pd(m128d, _mm_set1_pd(e));
       return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r.vd = vec_div(vd,v.vd);
+      r.m128d = _mm_div_pd(m128d,v.m128d);
       return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator/(const double &e) const
    {
       AutoSIMD r;
-      r.vd = vec_div(vd, vec_splats(e));
+      r.m128d = _mm_div_pd(m128d, _mm_set1_pd(e));
       return r;
    }
 
+
    inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const AutoSIMD &w)
    {
-      vd = vec_madd(w.vd,vd,v.vd);
+      m128d = _mm_add_pd(_mm_mul_pd(w.m128d,v.m128d),m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const AutoSIMD &v, const double &e)
    {
-      vd = vec_madd(v.vd,vec_splats(e),vd);
+      m128d = _mm_add_pd(_mm_mul_pd(_mm_set1_pd(e),v.m128d),m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &fma(const double &e, const AutoSIMD &v)
    {
-      vd = vec_madd(vec_splats(e),v.vd,vd);
+      m128d = _mm_add_pd(_mm_mul_pd(v.m128d,_mm_set1_pd(e)),m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const AutoSIMD &w)
    {
-      vd = vec_mul(v.vd,w.vd);
+      m128d = _mm_mul_pd(v.m128d,w.m128d);
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const AutoSIMD &v, const double &e)
    {
-      vd = vec_mul(v.vd,vec_splats(e));
+      m128d = _mm_mul_pd(v.m128d,_mm_set1_pd(e));
       return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD &mul(const double &e, const AutoSIMD &v)
    {
-      vd = vec_mul(vec_splats(e),v.vd);
+      m128d = _mm_mul_pd(_mm_set1_pd(e),v.m128d);
       return *this;
    }
 };
@@ -209,7 +211,7 @@ AutoSIMD<double,2,16> operator+(const double &e,
                                 const AutoSIMD<double,2,16> &v)
 {
    AutoSIMD<double,2,16> r;
-   r.vd = vec_add(vec_splats(e),v.vd);
+   r.m128d = _mm_add_pd(_mm_set1_pd(e),v.m128d);
    return r;
 }
 
@@ -218,7 +220,7 @@ AutoSIMD<double,2,16> operator-(const double &e,
                                 const AutoSIMD<double,2,16> &v)
 {
    AutoSIMD<double,2,16> r;
-   r.vd = vec_sub(vec_splats(e),v.vd);
+   r.m128d = _mm_sub_pd(_mm_set1_pd(e),v.m128d);
    return r;
 }
 
@@ -227,7 +229,7 @@ AutoSIMD<double,2,16> operator*(const double &e,
                                 const AutoSIMD<double,2,16> &v)
 {
    AutoSIMD<double,2,16> r;
-   r.vd = vec_mul(vec_splats(e),v.vd);
+   r.m128d = _mm_mul_pd(_mm_set1_pd(e),v.m128d);
    return r;
 }
 
@@ -236,12 +238,13 @@ AutoSIMD<double,2,16> operator/(const double &e,
                                 const AutoSIMD<double,2,16> &v)
 {
    AutoSIMD<double,2,16> r;
-   r.vd = vec_div(vec_splats(e),v.vd);
+   r.m128d = _mm_div_pd(_mm_set1_pd(e),v.m128d);
    return r;
 }
 
 } // namespace mfem
 
-#endif // __VSX__
+#endif // __SSE2__
 
-#endif // MFEM_SIMD_VSX128_HPP
+#endif // MFEM_SIMD_M128_HPP
+

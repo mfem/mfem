@@ -14,7 +14,7 @@
 
 #ifdef __bgq__
 
-#include "../tconfig.hpp"
+#include "../../config/tconfig.hpp"
 #include <builtins.h>
 
 namespace mfem

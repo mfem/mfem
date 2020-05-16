@@ -13,7 +13,7 @@
 #define MFEM_TEMPLATE_TENSOR
 
 #include "../config/tconfig.hpp"
-#include "../config/simd.hpp"
+#include "../linalg/simd.hpp"
 #include "../general/tassign.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
