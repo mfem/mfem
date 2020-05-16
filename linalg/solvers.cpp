@@ -1592,7 +1592,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    norm_goal = std::max(rel_tol*norm, abs_tol);
 
    prec->iterative_mode = false;
-   dbg("Exiting!"); exit(0);
+   //dbg("Exiting!"); exit(0);
 
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
