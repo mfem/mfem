@@ -15,6 +15,27 @@
 
 #include "slepc.h"
 
+// Error handling
+// Prints SLEPc's stacktrace and then calls MFEM_ABORT
+// We cannot use PETSc's CHKERRQ since it returns a PetscErrorCode
+#define PCHKERRQ(obj,err) do {                                                   \
+     if ((err))                                                                  \
+     {                                                                           \
+        PetscError(PetscObjectComm((PetscObject)(obj)),__LINE__,_MFEM_FUNC_NAME, \
+                   __FILE__,(err),PETSC_ERROR_REPEAT,NULL);                      \
+        MFEM_ABORT("Error in SLEPc. See stacktrace above.");                     \
+     }                                                                           \
+  } while(0);
+#define CCHKERRQ(comm,err) do {                                \
+     if ((err))                                                \
+     {                                                         \
+        PetscError(comm,__LINE__,_MFEM_FUNC_NAME,              \
+                   __FILE__,(err),PETSC_ERROR_REPEAT,NULL);    \
+        MFEM_ABORT("Error in SLEPc. See stacktrace above.");   \
+     }                                                         \
+  } while(0);
+
+
 static PetscErrorCode ierr;
 
 namespace mfem
@@ -45,6 +66,12 @@ void MFEMFinalizeSlepc()
 
 SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix)
 {
+   _tol = PETSC_DEFAULT;
+   _max_its = PETSC_DEFAULT;
+   _num_conv = -1;
+   VR = NULL;
+   VC = NULL;
+
    ierr = EPSCreate(comm,&eps); CCHKERRQ(comm,ierr);
    ierr = EPSSetOptionsPrefix(eps, prefix.c_str()); PCHKERRQ(eps, ierr);
 }

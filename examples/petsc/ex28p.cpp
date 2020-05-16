@@ -87,9 +87,8 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   // 2b. We initialize PETSc
-   MFEMInitializePetsc(NULL,NULL,(char*)0,NULL);
-   SlepcInitialize(NULL,NULL,(char*)0,NULL);
+   // 2b. We initialize SLEPc
+   MFEMInitializeSlepc(NULL,NULL,(char*)0,NULL);
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -388,9 +387,8 @@ int main(int argc, char *argv[])
    delete hcurl_coll;
    delete pmesh;
 
-   // We finalize PETSc
-   MFEMFinalizePetsc();
-   SlepcFinalize();
+   // We finalize SLEPc
+   MFEMFinalizeSlepc();
    MPI_Finalize();
 
    return 0;
