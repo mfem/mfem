@@ -19,7 +19,9 @@
 #ifdef MFEM_USE_MPI
 
 #include "petsc.hpp"
-#include "slepc.h"
+
+// Forward declarations
+typedef struct _p_EPS *EPS;
 
 namespace mfem
 {
@@ -35,16 +37,16 @@ private:
    /// SLEPc linear eigensolver object
    EPS eps;
    /// Solver tolerance
-   double _tol = PETSC_DEFAULT;
+   double _tol;
 
    /// Maximum number of iterations
-   int _max_its = PETSC_DEFAULT;
+   int _max_its;
 
    /// Number of converged eigenvectors. Start with a negative value before the solver is run.
-   int _num_conv = -1;
+   int _num_conv;
 
    /// Real and imaginary part of eigenvector
-   mutable PetscParVector *VR = NULL, *VC = NULL;
+   mutable PetscParVector *VR, *VC;
 public:
    /// Constructors
    SlepcEigenSolver(MPI_Comm comm, const std::string &prefix = std::string());
