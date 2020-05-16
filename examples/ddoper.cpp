@@ -4804,6 +4804,7 @@ bool GetOutwardNormalVector(ParFiniteElementSpace *fespace, InjectionOperator *i
 
   injop->Mult(ones, injOnesTrue);
   injOnes.SetFromTrueDofs(injOnesTrue);
+  auto injOnes_host = injOnes.HostRead();
 
   ParMesh *pmesh = fespace->GetParMesh();
   
@@ -4824,7 +4825,7 @@ bool GetOutwardNormalVector(ParFiniteElementSpace *fespace, InjectionOperator *i
 	{
 	  const int dof_d = (dofs[d] >= 0) ? dofs[d] : -1 - dofs[d];
 	  
-	  if (fabs(injOnes[dof_d]) < 0.1)
+	  if (fabs(injOnes_host[dof_d]) < 0.1)
 	    onInterface = false;
 	}
 
@@ -6204,7 +6205,7 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 	    const int sd = sds[j];
 
 	    Vector nsd(3);
-	    
+
 	    const double tol = 1.0e-4;
 	    
 	    if (sd_nonempty[sd])
@@ -6279,7 +6280,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 		    double r[3];
 		    MPI_Recv(r, 3, MPI_DOUBLE, (*localInterfaces)[ili].GetSharingRank(), 8000 + i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		    for (int l=0; l<3; ++l)
-		      nsd[l] = r[l];
+		      {
+			nsd[l] = r[l];
+		      }
 		  }
 		
 		// Compute the sign of the normal ni relative to nsd
@@ -7080,7 +7083,9 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #ifdef SD_ITERATIVE_GMG
 	      {
 #ifdef SD_ITERATIVE_GMG_PA
+#ifndef SDFOSLS_PA
 		ComplexGMGPASolver *cgmg = NULL;
+#endif
 		{
 		  /*
 		  BlockOperator* AsdRe_m = dynamic_cast<BlockOperator*>(AsdRe[m]);
@@ -8017,13 +8022,16 @@ if (sdsize > 0)
     MFEM_VERIFY(4*nSD < ySD[m]->Size(), "");
     const int yImOS = ySD[m]->Size() / 2;
     MFEM_VERIFY(2*yImOS == ySD[m]->Size(), "");
+
+    auto rhs_E_host = cfosls[m]->rhs_E.HostRead();
 #endif
-    
+
   for (int i=0; i<sdsize; ++i)
     {
       // Set the u_m block of ySD, real part
 #ifdef SDFOSLS
-      (*(ySD[m]))[i] = cfosls[m]->rhs_E[i];
+      //(*(ySD[m]))[i] = cfosls[m]->rhs_E[i];
+      (*(ySD[m]))[i] = rhs_E_host[i];
 #ifdef ZERO_ORDER_FOSLS_COMPLEX
       //(*(ySD[m]))[yImOS + i] = -cfosls[m]->rhs_E[i];
       (*(ySD[m]))[yImOS + nSD + i] = -cfosls[m]->rhs_E[i];
@@ -8323,8 +8331,11 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 #ifdef SDFOSLS
 	  wSD.SetSize(block_trueOffsets_FOSLS2[m+1] - block_trueOffsets_FOSLS2[m]);
 
+	  /*
 	  for (int i=0; i<block_trueOffsets_FOSLS2[m+1] - block_trueOffsets_FOSLS2[m]; ++i)
 	    wSD[i] = w[block_trueOffsets_FOSLS2[m] + i];
+	  */
+	  wSD.SetOffset(1.0, w, block_trueOffsets_FOSLS2[m], 0, block_trueOffsets_FOSLS2[m+1] - block_trueOffsets_FOSLS2[m]);
 
 	  uSD2.SetSize(invAsdComplex[m]->Width());
 #else
@@ -8340,10 +8351,11 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	    const int imsize = wSD.Size() / 2;
 	    Vector wIm(imsize);
 
+	    wIm.SetOffset(1.0, wSD, imsize, 0, imsize);
 	    for (int i=0; i<imsize; ++i)
 	      {
-		wIm[i] = wSD[imsize + i];
-
+		//wIm[i] = wSD[imsize + i];
+		
 #ifdef DEBUG_RECONSTRUCTION		
 		maxdsrcIm = std::max(maxdsrcIm, fabs(dsourcered[block_trueOffsets2[m] + imsize + i]));
 		if (fabs(dsourcered[block_trueOffsets2[m] + imsize + i]) > 0.616)
@@ -8358,15 +8370,19 @@ void DDMInterfaceOperator::RecoverDomainSolution(ParFiniteElementSpace *fespaceG
 	    const double normW = wSD.Norml2();
 	    const double norm2 = normW*normW;
 
-	    for (int i=0; i<imsize; ++i)
-	      wIm[i] = solReduced[block_trueOffsets2[m] + i];
+	    //for (int i=0; i<imsize; ++i)
+	    //wIm[i] = solReduced[block_trueOffsets2[m] + i];
+
+	    wIm.SetOffset(1.0, solReduced, block_trueOffsets2[m], 0, imsize);
 
 	    const double normSolRe = wIm.Norml2();
 	    const double normSolRe2 = normSolRe*normSolRe;
 
-	    for (int i=0; i<imsize; ++i)
-	      wIm[i] = solReduced[block_trueOffsets2[m] + imsize + i];
+	    //for (int i=0; i<imsize; ++i)
+	    //wIm[i] = solReduced[block_trueOffsets2[m] + imsize + i];
 
+	    //wIm.SetOffset(1.0, solReduced, block_trueOffsets2[m] + imsize, 0, imsize);
+	    // TODO: normSolIm is wrong, but it doesn't seem to be used.
 	    const double normSolIm = wIm.Norml2();
 	    const double normSolIm2 = normSolIm*normSolIm;
 

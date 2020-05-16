@@ -20,8 +20,8 @@ namespace mfem
 {
 
 // Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 8;
-constexpr int HCURL_MAX_Q1D = 8;
+constexpr int HCURL_MAX_D1D = 5;
+constexpr int HCURL_MAX_Q1D = 6;
 
 // PA H(curl) Mass Assemble 2D kernel
 static void PAHcurlSetup2D(const int Q1D,
@@ -347,6 +347,8 @@ static void PAHcurlMassApply2D(const int D1D,
                                Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -470,6 +472,8 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                           Vector &_diag)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -942,6 +946,8 @@ static void PACurlCurlApply2D(const int D1D,
                               Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Bot = Reshape(_Bot.Read(), D1D-1, Q1D);
@@ -1583,6 +1589,8 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
                                          Vector &_diag)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);
@@ -1824,11 +1832,14 @@ static void PACurlCurlAssembleDiagonal3D(const int D1D,
 
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+  //constexpr static int MAX_D1D = HCURL_MAX_D1D;
+  //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
    if (dim == 3)
    {
       // Reduce HCURL_MAX_D1D/Q1D to avoid using too much memory
-      constexpr int MAX_D1D = 8;
-      constexpr int MAX_Q1D = 8;
+      constexpr int MAX_D1D = HCURL_MAX_D1D;
+      constexpr int MAX_Q1D = HCURL_MAX_Q1D;
       PACurlCurlAssembleDiagonal3D<MAX_D1D,MAX_Q1D>(dofs1D, quad1D, ne,
                                                     mapsO->B, mapsC->B,
                                                     mapsO->G, mapsC->G,
@@ -2116,6 +2127,8 @@ static void PAHcurlH1Apply2D(const int D1D,
                              Vector &_y)
 {
    constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1D);

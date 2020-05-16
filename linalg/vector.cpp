@@ -229,15 +229,16 @@ Vector &Vector::Set(const double a, const Vector &Va)
    return *this;
 }
 
-Vector &Vector::SetOffset(const double a, const Vector &Va, const int offset)
+  Vector &Vector::SetOffset(const double a, const Vector &Va, const int offset, const int myoffset, const int L)
 {
-   MFEM_ASSERT(size + offset <= Va.size, "incompatible Vectors!");
+   const int N = L > 0 ? L : size;
+
+   MFEM_ASSERT(N + offset <= Va.size && N + myoffset <= size, "incompatible Vectors!");
 
    const bool use_dev = UseDevice() || Va.UseDevice();
-   const int N = size;
    auto x = Va.Read(use_dev);
    auto y = Write(use_dev);
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = a * x[offset + i];);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[myoffset + i] = a * x[offset + i];);
    return *this;
 }
 

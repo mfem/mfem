@@ -251,7 +251,7 @@ public:
    Vector &Set(const double a, const Vector &x);
 
    /// (*this) = a * x, with an offset for x
-   Vector &SetOffset(const double a, const Vector &Va, const int offset);
+  Vector &SetOffset(const double a, const Vector &Va, const int offset, const int myoffset=0, const int L=0);
 
    void SetVector(const Vector &v, int offset);
 

@@ -312,18 +312,21 @@ public:
     // Given an input vector x of local true SD DOF's, set the output vector y of local true interface DOF's, which may require values from other processes.
     MFEM_VERIFY(y.Size() == m_send.size(), "");
 
-    auto y_host = y.HostReadWrite();
+    auto y_host = y.HostWrite();
 
     //y = 0.0;
     for (int j=0; j<y.Size(); ++j)
       y_host[j] = 0.0;
 
+    auto x_host = x.HostRead();
+
     for (int i=0; i<m_recv.size(); ++i)
       {
 #ifdef USE_SIGN_FLIP
-	m_recv[i] = (m_alltrueSDflip[i] == 1) ? -x(m_alltrueSD[i]) : x(m_alltrueSD[i]);
+	//m_recv[i] = (m_alltrueSDflip[i] == 1) ? -x(m_alltrueSD[i]) : x(m_alltrueSD[i]);
+	m_recv[i] = (m_alltrueSDflip[i] == 1) ? -x_host[m_alltrueSD[i]] : x_host[m_alltrueSD[i]];
 #else
-	m_recv[i] = x[m_alltrueSD[i]];
+	m_recv[i] = x_host[m_alltrueSD[i]];
 #endif
       }
 
@@ -2219,9 +2222,11 @@ public:
 	a_mix2->FormRectangularSystemMatrix(ess_tdof_list_E, ess_tdof_list_empty, A_mix2_ptr);
 	A_mix2 = A_mix2_ptr.As<HypreParMatrix>();
       }
-    
-    //HypreParMatrix *A_mix1_E = NULL;
-    //if (!pa) A_mix1_E = A_mix2->Transpose();
+
+#ifdef IFFOSLS
+    HypreParMatrix *A_mix1_E = NULL;
+    if (!pa) A_mix1_E = A_mix2->Transpose();
+#endif
 
     /*
     { // TODO: remove
@@ -2692,12 +2697,29 @@ public:
     MFEM_VERIFY(2 * (nSDhalf + nAuxHalf) == height, "");
     
     const int widthHalf = width / 2;
-    
+
+    /*
     for (int i=0; i<nSD; ++i)
       {
 	xSD[i] = x[i];  // E and H real parts
 	xSD[nSD + i] = x[widthHalf + i];  // E and H imaginary parts
       }
+    */
+
+    xSD.SetOffset(1.0, x, 0, 0, nSD);
+    xSD.SetOffset(1.0, x, widthHalf, nSD, nSD);
+
+    /*    
+    auto xhost = x.HostRead();
+
+    for (int i=0; i<nSD; ++i)
+      {
+	//xSD[i] = x[i];  // E and H real parts
+	//xSD[nSD + i] = x[widthHalf + i];  // E and H imaginary parts
+	xSD[i] = xhost[i];  // E and H real parts
+	xSD[nSD + i] = xhost[widthHalf + i];  // E and H imaginary parts
+      }
+    */
 
     /*
     {
@@ -2727,11 +2749,16 @@ public:
     //cout << rank << ": LBTS ySD norm " << ySD.Norml2() << endl;
 
     y = 0.0;
+
+    /*
     for (int i=0; i<nSDhalf; ++i)
       {
 	y[i] = ySD[i];  // Er
 	y[nSDhalf + nAuxHalf + i] = ySD[nSD + i];  // Ei
       }
+    */
+    y.SetOffset(1.0, ySD, 0, 0, nSDhalf);
+    y.SetOffset(1.0, ySD, nSD, nSDhalf + nAuxHalf, nSDhalf);
 
 #ifdef ZERO_ORDER_FOSLS
     for (int i=0; i<nAuxHalf; ++i)
@@ -2742,11 +2769,16 @@ public:
 #else
 #ifdef IFFOSLS
 #ifdef IFFOSLS_H
+    /*
     for (int i=0; i<nAuxHalf; ++i)  // Apply identity for rho components, with f components overwritten below. 
       {
 	y[nSDhalf + i] = x[nSD + i];  // real part
 	y[nSD + nAuxHalf + i] = x[widthHalf + nSD + i];  // imaginary part
       }
+    */
+
+    y.SetOffset(1.0, x, nSD, nSDhalf, nAuxHalf);
+    y.SetOffset(1.0, x, widthHalf + nSD, nSD + nAuxHalf, nAuxHalf);
 
     // f equation is f_{mn} = n x H_m x n (only in A, not C).
 
@@ -2755,17 +2787,20 @@ public:
     {
       Vector ReH(nSDhalf);
       Vector ImH(nSDhalf);
-      
+
+      /*
       for (int i=0; i<nSDhalf; ++i)
 	{
-	  /*
-	  ReH[i] = x[nSDhalf + i];
-	  ImH[i] = x[widthHalf + nSDhalf + i];
-	  */
+	  //ReH[i] = x[nSDhalf + i];
+	  //ImH[i] = x[widthHalf + nSDhalf + i];
 	  
 	  ReH[i] = ySD[nSDhalf + i];
 	  ImH[i] = ySD[nSD + nSDhalf + i];
 	}
+      */
+
+      ReH.SetOffset(1.0, ySD, nSDhalf, 0, nSDhalf);
+      ImH.SetOffset(1.0, ySD, nSD + nSDhalf, 0, nSDhalf);
 
       MFEM_VERIFY(tdofsBdryInjectionTranspose->Width() == nSDhalf, "");
 
@@ -2797,16 +2832,23 @@ public:
 	  (*InterfaceToSurfaceInjection)[interfaceIndex]->MultTranspose(ReH, tmpx);
 	  //tdofsBdryInjectionTranspose->Mult(tmpu);
 
+	  /*
 	  for (int i=0; i<(*ifNDtrue)[interfaceIndex]; ++i)
 	    {
 	      y[nSDhalf + os + i] = tmpx[i];  // real part
 	    }
+	  */
+	  y.SetOffset(1.0, tmpx, 0, nSDhalf + os, (*ifNDtrue)[interfaceIndex]);
 
 	  (*InterfaceToSurfaceInjection)[interfaceIndex]->MultTranspose(ImH, tmpx);
+
+	  /*
 	  for (int i=0; i<(*ifNDtrue)[interfaceIndex]; ++i)
 	    {
 	      y[nSD + nAuxHalf + os + i] = tmpx[i];  // imaginary part
 	    }
+	  */
+	  y.SetOffset(1.0, tmpx, 0, nSD + nAuxHalf + os, (*ifNDtrue)[interfaceIndex]);
 
 	  os += (*ifNDtrue)[interfaceIndex] + (*ifH1true)[interfaceIndex];
 	  

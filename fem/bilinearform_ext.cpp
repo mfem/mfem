@@ -222,44 +222,49 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
      bdryX = 0.0;
      bdryY = 0.0;
 
-      int os = 0;
-      for (int i = 0; i < nbe; i++)
-      {
-	// TODO: this implementation assumes boundary marker is 1 everywhere (all boundary elements are included). This should be generalized to allow for an input boundary marker, as in BilinearForm::Assemble.
+     auto x_host = x.HostRead();
 
-         const FiniteElement &be = *fes->GetBE(i);
-	 Array<int> vdofs;
-         fes -> GetBdrElementVDofs (i, vdofs);
+     int os = 0;
+     {
+       auto bdryX_host = bdryX.HostWrite();
+       for (int i = 0; i < nbe; i++)
+	 {
+	   // TODO: this implementation assumes boundary marker is 1 everywhere (all boundary elements are included). This should be generalized to allow for an input boundary marker, as in BilinearForm::Assemble.
 
-	 const TensorBasisElement* el =
-	   dynamic_cast<const TensorBasisElement*>(&be);
+	   const FiniteElement &be = *fes->GetBE(i);
+	   Array<int> vdofs;
+	   fes -> GetBdrElementVDofs (i, vdofs);
 
-	 MFEM_VERIFY(el != NULL, "");
+	   const TensorBasisElement* el =
+	     dynamic_cast<const TensorBasisElement*>(&be);
+
+	   MFEM_VERIFY(el != NULL, "");
 	 
-	 const Array<int> &fe_dof_map = el->GetDofMap();
+	   const Array<int> &fe_dof_map = el->GetDofMap();
 
-	 MFEM_VERIFY(fe_dof_map.Size() == fes->GetBE(i)->GetDof(), "");
-	 MFEM_VERIFY(vdofs.Size() == fes->GetBE(i)->GetDof(), "");
+	   MFEM_VERIFY(fe_dof_map.Size() == fes->GetBE(i)->GetDof(), "");
+	   MFEM_VERIFY(vdofs.Size() == fes->GetBE(i)->GetDof(), "");
 
-	 for (int j=0; j<vdofs.Size(); ++j)
-	   {
-	     const int sidj = fe_dof_map[j];
-	     const int idj = sidj >= 0 ? sidj : -1 - sidj;
-	     const int dof_j = vdofs[idj];
-	     //const bool plus = (dof_j >= 0);
-	     //const int d = plus ? dof_j : -1-dof_j;
-	     //const bool plus = (sidj >= 0);
-	     const bool plus = (sidj >= 0 && dof_j >= 0) || (sidj < 0 && dof_j < 0);
-	     const int d = dof_j >= 0 ? dof_j : -1-dof_j;
-	     //std::cout << "sidj " << sidj << ", dof_j " << dof_j << std::endl;
-	     bdryX[os + j] = plus ? x[d] : -x[d];
-	     //bdryX[os + j] = x[d];
-	   }
+	   for (int j=0; j<vdofs.Size(); ++j)
+	     {
+	       const int sidj = fe_dof_map[j];
+	       const int idj = sidj >= 0 ? sidj : -1 - sidj;
+	       const int dof_j = vdofs[idj];
+	       //const bool plus = (dof_j >= 0);
+	       //const int d = plus ? dof_j : -1-dof_j;
+	       //const bool plus = (sidj >= 0);
+	       const bool plus = (sidj >= 0 && dof_j >= 0) || (sidj < 0 && dof_j < 0);
+	       const int d = dof_j >= 0 ? dof_j : -1-dof_j;
+	       //std::cout << "sidj " << sidj << ", dof_j " << dof_j << std::endl;
+	       bdryX_host[os + j] = plus ? x_host[d] : -x_host[d];
+	       //bdryX[os + j] = x[d];
+	     }
 
-	 os += vdofs.Size();
-      }
+	   os += vdofs.Size();
+	 }
+     }
 
-      MFEM_VERIFY(os == bedofs, "");
+     MFEM_VERIFY(os == bedofs, "");
      
       for (int i = 0; i < biSz; ++i)
       {
@@ -268,6 +273,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       //elem_restrict->MultTranspose(bdryY, y);
 
       // bdryY contains quantities on all boundary elements. Now add them to y.
+
+      auto bdryY_host = bdryY.HostRead();
+      auto y_host = y.HostReadWrite();
 
       os = 0;
       for (int i = 0; i < nbe; i++)
@@ -295,7 +303,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 	     //const bool plus = (sidj >= 0);
 	     const bool plus = (sidj >= 0 && dof_j >= 0) || (sidj < 0 && dof_j < 0);
 	     const int d = dof_j >= 0 ? dof_j : -1-dof_j;
-	     y[d] += plus ? bdryY[os + j] : -bdryY[os + j];
+	     y_host[d] += plus ? bdryY_host[os + j] : -bdryY_host[os + j];
 	     //y[d] += bdryY[os + j];
 	   }
 

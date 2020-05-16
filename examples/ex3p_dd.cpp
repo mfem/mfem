@@ -990,6 +990,8 @@ int main(int argc, char *argv[])
 	//(int)floor(log(100000000./mesh->GetNE())/log(2.)/dim);  // exceeds memory with slab subdomains, first-order
 
       // Note: with nx=6 in inline-tetHalf2.mesh, 1/64 becomes 1/96; 1/128 becomes 1/192.
+
+      cout << myid << ": Serial mesh ref levels " << ref_levels << endl;
       
       //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
