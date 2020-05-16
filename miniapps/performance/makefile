@@ -47,7 +47,14 @@ printf "%s" "$$cxx_id"
 endef
 ifneq (,$(MFEM_HOST_CXX))
    MFEM_PERF_SW := $(shell $(cxx_detect))
-   # $(info Detected host compiler: $(MFEM_PERF_SW))
+   $(info Detected host compiler: $(MFEM_PERF_SW))
+   ifeq (unknown,$(MFEM_PERF_SW))
+      $(info -------------------------------------------)
+      $(info Output from '$(MFEM_HOST_CXX) --version -c')
+      $(info -------------------------------------------)
+      $(shell $(MFEM_HOST_CXX) --version -c 1>&2)
+      $(info -------------------------------------------)
+   endif
 endif
 ifeq (gcc,$(MFEM_PERF_SW))
    ifeq ($(MFEM_MACHINE),x86_64)

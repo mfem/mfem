@@ -144,6 +144,11 @@ int main(int argc, char *argv[])
       return 3;
    }
 
+   if (myid == 0)
+   {
+      cout << "\nMFEM SIMD width: " << MFEM_SIMD_BYTES << " bytes\n" << endl;
+   }
+
    // See class BasisType in fem/fe_coll.hpp for available basis types
    int basis = BasisType::GetType(basis_type[0]);
    if (myid == 0)
