@@ -32,7 +32,7 @@ if [ 0 -ne $$? ]; then
   cxx_id="unknown";
 elif [ -z "$${cxx_v##g++*}" ]; then
   cxx_id="gcc";
-elif [ -z "$${cxx_v##*clang version*}" ]; then
+elif [ -z "$${cxx_v##*clang version*}" -o -z "$${cxx_v##*LLVM version*}" ]; then
   cxx_id="clang";
 elif [ -z "$${cxx_v##*icpc*}" ]; then
     cxx_id="icc";
