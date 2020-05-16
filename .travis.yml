@@ -384,9 +384,6 @@ script:
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
      fi;
-     if [ "$CXX" == "clang++" ]; then
-        export MFEM_PERF_SW=clang;
-     fi
 
    # Configure the library
    - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
