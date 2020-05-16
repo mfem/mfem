@@ -65,13 +65,13 @@
 
 #define EPS 1.e-13
 #define MFEM_DBG_COLOR 87
-#include "general/dbg.hpp"
+#include "../../general/dbg.hpp"
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "general/forall.hpp"
-#include "linalg/kernels.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 using namespace mfem;
 using namespace std;
