@@ -12,7 +12,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "DiagST.hpp"
+// #include "DiagST.hpp"
+#include "DST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -117,17 +118,17 @@ int main(int argc, char *argv[])
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin,pmax);
    double domain_length = pmax[0] - pmin[0];
-   double pml_thickness = 0.25/domain_length;
+   double pml_thickness = 0.125/domain_length;
    int nrlayers = pml_thickness/hl;
-   // int nrlayers = 4;
+   // int nrlayers = 1;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
    {
       for (int comp=0; comp<dim; ++comp)
       {
-         directions.Append(comp+1);
-         directions.Append(-comp-1);
+         // directions.Append(comp+1);
+         // directions.Append(-comp-1);
       }
    }
    // Find uniform h size of the original mesh
@@ -211,7 +212,7 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   DiagST S(&a,lengths, omega, &ws, nrlayers);
+   DST S(&a,lengths, omega, &ws, nrlayers);
 	S.SetOperator(*A);
    // S.SetLoadVector(B);
    
@@ -230,7 +231,7 @@ int main(int argc, char *argv[])
 
 
 
-   int n= 1;
+   int n= 50;
    X = 0.0;
    Vector z(X.Size()); z = 0.0;
    Vector r(B);
@@ -251,31 +252,33 @@ int main(int argc, char *argv[])
       }
       S.Mult(r,z); 
       X += z;
-   //    p_gf = 0.0;
-   //    a.RecoverFEMSolution(X,B,p_gf);
-   //       // char vishost[] = "localhost";
-   //       // int  visport   = 19916;
-   //       // string keys;
-   //       // if (dim ==2 )
-   //       // {
-   //       //    keys = "keys mrRljc\n";
-   //       // }
-   //       // else
-   //       // {
-   //       //    keys = "keys mc\n";
-   //       // }
-   //       // socketstream sol1_sock_re(vishost, visport);
-   //       // sol1_sock_re.precision(8);
-   //       // sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-   //       //             "window_title 'Numerical Pressure (real part)' "
-   //       //             << keys << flush;
-   //       // cin.get();
+
+      // X1-=z;
+      p_gf = 0.0;
+      a.RecoverFEMSolution(X,B,p_gf);
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         socketstream sol1_sock_re(vishost, visport);
+         sol1_sock_re.precision(8);
+         sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+                     "window_title 'Numerical Pressure (real part)' "
+                     << keys << flush;
+         cin.get();
    }
+
    KLUSolver klu(*A);
    Vector X1(X.Size());
    klu.Mult(B,X1);
-   X-=X1;
-   a.RecoverFEMSolution(X,B,p_gf);
+   a.RecoverFEMSolution(X1,B,p_gf);
 
 
    if (visualization)
@@ -320,22 +323,30 @@ double f_exact_Re(const Vector &x)
    double x0 = length/2.0;
    double x1 = length/2.0;
    double x2 = length/2.0;
-   x0 = 0.5;
-   x1 = 0.5;
+   // x0 = 0.59;
+   // x0 = 0.19;
+   x0 = 0.8;
+   // x1 = 0.768;
+   // x1 = 0.168;
+   x1 = 0.8;
    double alpha,beta;
-   double n = 5.0*omega/M_PI;
+   // double n = 5.0*omega/M_PI;
+   double n = 4.0*omega/M_PI;
    // double n = 1.0;
-   double coeff = pow(n,2)/M_PI;
+   // double coeff = pow(n,2)/M_PI;
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
+   // alpha = -pow(n,2) * beta;
+   // double coeff = pow(n,2)/M_PI;
+   double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   // x0 = 0.9;
-   // x1 = 0.5;
-   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   // if (dim == 3) { beta += pow(x2-x(2),2); }
-   // alpha = -pow(n,2) * beta;
+   x0 = 0.7;
+   x1 = 0.7;
+   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   if (dim == 3) { beta += pow(x2-x(2),2); }
+   alpha = -pow(n,2) * beta;
    // f_re += coeff*exp(alpha);
 
    // x0 = 0.5;

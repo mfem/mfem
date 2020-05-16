@@ -33,6 +33,7 @@ public:
    Array3D<int> subdomains;
    // constructor
    OverlappingCartesianMeshPartition(Mesh * mesh_,int & nx, int & ny, int & nz);
+   OverlappingCartesianMeshPartition(Mesh * mesh_,int & nx, int & ny, int & nz, int ovlp_nlayers);
    ~OverlappingCartesianMeshPartition() {};
 };
 
@@ -64,7 +65,7 @@ public:
    int partition_kind;
    int nxyz[3];
    // constructor
-   MeshPartition(Mesh * mesh_, int part, int mx=1, int my=1, int mz=1);
+   MeshPartition(Mesh * mesh_, int part, int mx=1, int my=1, int mz=1, int ovl_nlayers=0);
    ~MeshPartition();
 };
 

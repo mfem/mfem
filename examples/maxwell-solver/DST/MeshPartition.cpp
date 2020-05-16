@@ -321,6 +321,109 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
    }
 }
 
+
+OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_,int & nx,int & ny,int & nz, int ovlp_nlayers) : mesh(mesh_)
+{  // default overlap size is 2 elements 
+   int dim = mesh->Dimension();
+   int n = pow(mesh->GetNE(), 1.0/(double)dim);
+   if (nx > n) 
+   {
+      nx = n;
+      MFEM_WARNING("Changed partition in the x direction to nx = " << n << endl);
+   }
+   if (ny > n) 
+   {
+      ny = n;
+      MFEM_WARNING("Changed partition in the y direction to ny = " << n << endl);
+   }
+   if (nz > n) 
+   {
+      nz = n;
+      MFEM_WARNING("Changed partition in the z direction to nz = " << n << endl);
+   } 
+   if (dim == 2) nz = 1;
+   subdomains.SetSize(nx,ny,nz);
+   nxyz[0] = nx; nxyz[1]=ny; nxyz[2] = nz;
+   nrpatch = nx*ny*nz;
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
+   double h = GetUniformMeshElementSize(mesh);
+
+   // Check that ovlp_size does not exit subdomain size
+   MFEM_VERIFY((pmax[0]-pmin[0])/nx >= h*ovlp_nlayers, 
+                "Check ovlp size in partition"); 
+   MFEM_VERIFY((pmax[1]-pmin[1])/ny >= h*ovlp_nlayers, 
+               "Check ovlp size in partition"); 
+   if (dim == 3)
+   {
+      MFEM_VERIFY((pmax[2]-pmin[2])/nz >= h*ovlp_nlayers, 
+               "Check ovlp size in partition"); 
+   }
+   element_map.resize(nrpatch);
+
+   double ppt[dim];
+   Vector pt(ppt, dim);
+   int nrelem = mesh->GetNE();
+
+   for (int el = 0; el < nrelem; el++)
+   {
+      mesh->GetElementTransformation(el)->Transform(
+         Geometries.GetCenter(mesh->GetElementBaseGeometry(el)), pt);
+      // Given the center coordinates determine the patches that this element contributes to
+      Array<int> idx0(dim);
+      Array<int> idx1(dim);
+      Array<int> idx2(dim);
+      vector<Array<int>> idx(3);
+      if (dim == 2) idx[2].Append(0);
+
+      for (int i = 0; i<dim; i++)
+      {
+         idx0[i]  = (int)floor(nxyz[i]*((pt(i) - pmin[i])/(pmax[i] - pmin[i])));
+         idx1[i] = (int)floor(nxyz[i]*((pt(i)+ovlp_nlayers*h - pmin[i])/(pmax[i] - pmin[i])));
+         idx2[i] = (int)floor(nxyz[i]*((pt(i)-ovlp_nlayers*h - pmin[i])/(pmax[i] - pmin[i])));
+
+         if (idx0[i] < 0) idx0[i] = 0;
+         if (idx0[i] >= nxyz[i]) idx0[i] = nxyz[i]-1;
+         
+         if (idx1[i] < 0) idx1[i] = 0;
+         if (idx1[i] >= nxyz[i]) idx1[i] = nxyz[i]-1;
+
+         if (idx2[i] < 0) idx2[i] = 0;
+         if (idx2[i] >= nxyz[i]) idx2[i] = nxyz[i]-1;
+         // convenient to put in one list
+         idx[i].Append(idx0[i]);
+         if (idx1[i] != idx0[i]) idx[i].Append(idx1[i]);
+         if (idx2[i] != idx0[i] && idx2[i] != idx1[i]) idx[i].Append(idx2[i]);
+      }
+      // Now loop through all the combinations according to the idx above
+      // in case of dim = 2 then kk = 0
+      for (int k=0; k<idx[2].Size(); k++)
+      {
+         int kk = idx[2][k];
+         for (int j=0; j<idx[1].Size(); j++)
+         {
+            int jj = idx[1][j];
+            for (int i=0; i<idx[0].Size(); i++)
+            {
+               int ii = idx[0][i];
+               int ip = kk*nxyz[0]*nxyz[1] + jj*nxyz[0]+ii;
+               element_map[ip].Append(el);
+            }
+         }
+      }
+   }
+   for (int k = 0; k<nz; k++)
+   {
+      for (int j = 0; j<ny; j++)
+      {
+         for (int i = 0; i<nx; i++)
+         {
+            subdomains(i,j,k) = k*ny*nx + j*nx + i;
+         }
+      }   
+   }
+}
+
 // constructor
 CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_,int & nx, int & ny, int & nz) : mesh(mesh_)
 {
@@ -438,7 +541,7 @@ STPOverlappingCartesianMeshPartition::STPOverlappingCartesianMeshPartition(Mesh 
    }
 }
 
-MeshPartition::MeshPartition(Mesh* mesh_, int part,int nx, int ny, int nz): mesh(mesh_)
+MeshPartition::MeshPartition(Mesh* mesh_, int part,int nx, int ny, int nz, int nrlayers): mesh(mesh_)
 {
    partition_kind = part;
    if (part == 1)
@@ -452,7 +555,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part,int nx, int ny, int nz): mesh
    else if (part == 2)
    {
       cout << "Overlapping Cartesian Partition " << endl;
-      OverlappingCartesianMeshPartition partition(mesh,nx, ny, nz);
+      OverlappingCartesianMeshPartition partition(mesh,nx, ny, nz,nrlayers);
       element_map = partition.element_map;
       subdomains = partition.subdomains;
       nxyz[0] = partition.nxyz[0];

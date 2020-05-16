@@ -30,6 +30,7 @@ private:
    Array<int> diry;
    Array<int> dirz;
    mutable Array<Array<Vector * >> f_transf;
+   Array<Array<Vector * >> usol;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
