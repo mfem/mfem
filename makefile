@@ -217,6 +217,7 @@ endif
 # Default configuration
 ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
    MFEM_CXX ?= $(MFEM_HOST_CXX)
+   MFEM_HOST_CXX := $(MFEM_CXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
 endif
@@ -391,7 +392,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg config/simd mesh fem fem/libceed
+DIRS = general linalg linalg/simd mesh fem fem/libceed
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
