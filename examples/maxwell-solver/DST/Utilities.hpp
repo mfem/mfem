@@ -61,7 +61,8 @@ public:
 
 double CutOffFncn(const Vector &x, const Vector & pmin, 
 const Vector & pmax, const Array2D<double> & h_);
-
+double ChiFncn(const Vector &x, const Vector & pmin, 
+const Vector & pmax, const Array2D<double> & h_);
 
 class DofMap // Constructs dof maps for a given partition
 {

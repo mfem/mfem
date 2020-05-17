@@ -52,6 +52,57 @@ double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, con
    return f;
 }
 
+double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const Array2D<double> & h_)
+{
+   int dim = pmin.Size();
+   Vector h0(dim);
+   Vector h1(dim);
+   for (int i=0; i<dim; i++)
+   {
+      h0(i) = h_[i][0];
+      h1(i) = h_[i][1];
+   }
+   Vector x0(dim);
+   x0 = pmax; x0-=h1;
+   Vector x1(dim);
+   x1 = pmin; x1+=h0;
+
+   double f = 1.0;
+
+   for (int i = 0; i<dim; i++)
+   {
+      double val = 1.0;
+      if( x(i) > pmax(i) || x(i) < pmin(i))
+      {
+         val = 0.0;
+      }  
+      else if (x(i) <= pmax(i) && x(i) >= x0(i))
+      {
+         if(x0(i)-pmax(i) != 0.0)
+            val = 0.0;
+      }
+      else if (x(i) >= pmin(i) && x(i) <= x1(i))
+      {
+         if (x1(i)-pmin(i) != 0.0)
+            val = 0.0;
+      }
+      else
+      {
+         val = 1.0;
+      }
+      if (h_[i][0] == 0 && x(i) < pmin(i))
+      {
+         val = 1.0;
+      }
+      if (h_[i][1] == 0 && x(i) > pmax(i))
+      {
+         val = 1.0;
+      }
+      f *= val;
+   }
+   return f;
+}
+
 
 DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_) 
                : bf(bf_), partition(partition_)

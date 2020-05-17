@@ -348,10 +348,14 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
    double h = GetUniformMeshElementSize(mesh);
+   cout << "h = " << h << endl;
 
    // Check that ovlp_size does not exit subdomain size
    MFEM_VERIFY((pmax[0]-pmin[0])/nx >= h*ovlp_nlayers, 
                 "Check ovlp size in partition"); 
+                cout << "pmax[0]-pmin[0])/nx = " << (pmax[0]-pmin[0])/nx << endl;
+                cout << "ovlp_nlayers = " << ovlp_nlayers << endl;
+                cout << "h*ovlp_nlayers = " << h*ovlp_nlayers << endl;
    MFEM_VERIFY((pmax[1]-pmin[1])/ny >= h*ovlp_nlayers, 
                "Check ovlp size in partition"); 
    if (dim == 3)

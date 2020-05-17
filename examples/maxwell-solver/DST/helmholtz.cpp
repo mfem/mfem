@@ -12,8 +12,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-// #include "DiagST.hpp"
-#include "DST.hpp"
+#include "DiagST.hpp"
+// #include "DST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   DST S(&a,lengths, omega, &ws, nrlayers);
+   DiagST S(&a,lengths, omega, &ws, nrlayers);
 	S.SetOperator(*A);
    // S.SetLoadVector(B);
    
@@ -254,30 +254,31 @@ int main(int argc, char *argv[])
       X += z;
 
       // X1-=z;
-      p_gf = 0.0;
-      a.RecoverFEMSolution(X,B,p_gf);
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         string keys;
-         if (dim ==2 )
-         {
-            keys = "keys mrRljc\n";
-         }
-         else
-         {
-            keys = "keys mc\n";
-         }
-         socketstream sol1_sock_re(vishost, visport);
-         sol1_sock_re.precision(8);
-         sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-                     "window_title 'Numerical Pressure (real part)' "
-                     << keys << flush;
-         cin.get();
+      // p_gf = 0.0;
+      // a.RecoverFEMSolution(X,B,p_gf);
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    string keys;
+      //    if (dim ==2 )
+      //    {
+      //       keys = "keys mrRljc\n";
+      //    }
+      //    else
+      //    {
+      //       keys = "keys mc\n";
+      //    }
+      //    socketstream sol1_sock_re(vishost, visport);
+      //    sol1_sock_re.precision(8);
+      //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+      //                "window_title 'Numerical Pressure (real part)' "
+      //                << keys << flush;
+      //    cin.get();
    }
 
    KLUSolver klu(*A);
    Vector X1(X.Size());
    klu.Mult(B,X1);
+   X1-= X;
    a.RecoverFEMSolution(X1,B,p_gf);
 
 
@@ -325,10 +326,10 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.8;
+   x0 = 0.15;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.8;
+   x1 = 0.15;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;
