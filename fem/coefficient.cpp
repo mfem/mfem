@@ -777,8 +777,7 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 
 VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
    QuadratureFunction *qf)
-   : VectorCoefficient(qf->GetVDim()), QuadF(qf), index(0),
-     length(qf->GetVDim()) {}
+   : VectorCoefficient(qf->GetVDim()), QuadF(qf), index(0), length(vdim) { }
 
 void VectorQuadratureFunctionCoefficient::SetQuadratureFunction(
    QuadratureFunction *qf)
@@ -799,9 +798,7 @@ void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
    index = _index;
 
    MFEM_VERIFY(_length > 0, "Length must be > 0");
-
-   int diff = QuadF->GetVDim() - index;
-   MFEM_VERIFY(_length <= diff,
+   MFEM_VERIFY(_length <= QuadF->GetVDim() - index,
                "Length must be <= (QuadratureFunction length - index)");
 
    length = _length;
@@ -815,17 +812,16 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
 
    QuadF->HostRead();
-   int elem_no = T.ElementNo;
    if (index == 0 && length == QuadF->GetVDim())
    {
       Vector temp;
-      QuadF->GetElementValues(elem_no, ip.index, temp);
+      QuadF->GetElementValues(T.ElementNo, ip.index, temp);
       V = temp;
    }
    else
    {
       Vector temp;
-      QuadF->GetElementValues(elem_no, ip.index, temp);
+      QuadF->GetElementValues(T.ElementNo, ip.index, temp);
       double *data = temp.HostReadWrite();
       V.SetSize(length);
       for (int i = 0; i < length; i++)
@@ -840,7 +836,7 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
    QuadratureFunction *qf) : QuadF(qf)
 {
-   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
+   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction's vdim must be 1");
 }
 
 void QuadratureFunctionCoefficient::SetQuadratureFunction(
@@ -848,7 +844,7 @@ void QuadratureFunctionCoefficient::SetQuadratureFunction(
 {
    MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
 
-   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction vdim must be equal to 1");
+   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction's vdim must be 1");
    QuadF = qf;
 }
 

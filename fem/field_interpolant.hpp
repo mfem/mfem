@@ -37,8 +37,8 @@ protected:
    bool setup_disc;
    bool setup_full;
    Vector m_all_data;
-   BilinearForm *L2;
-   CGSolver *cg;
+   BilinearForm *L2;  // Owned.
+   CGSolver *cg;      // Owned.
    int NE;
 public:
    // The FiniteElementSpace passed into here should have a vdim set to 1 in order for the
@@ -160,30 +160,33 @@ class VectorQuadratureIntegrator : public LinearFormIntegrator
 {
 private:
    VectorQuadratureFunctionCoefficient &vqfc;
+
 public:
-   VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc) : vqfc(
-         vqfc) { }
+   VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc)
+      : vqfc(vqfc) { }
    VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
-                              const IntegrationRule *ir) : LinearFormIntegrator(ir), vqfc(
-                                    vqfc) { }
+                              const IntegrationRule *ir)
+      : LinearFormIntegrator(ir), vqfc(vqfc) { }
+
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
-                               ElementTransformation &Tr,
-                               Vector &elvect);
+                               ElementTransformation &Tr, Vector &elvect);
 };
 
 class QuadratureIntegrator : public LinearFormIntegrator
 {
 private:
    QuadratureFunctionCoefficient &qfc;
+
 public:
    QuadratureIntegrator(QuadratureFunctionCoefficient &qfc) : qfc(qfc) { }
    QuadratureIntegrator(QuadratureFunctionCoefficient &qfc,
-                        const IntegrationRule *ir) : LinearFormIntegrator(ir), qfc(qfc) { }
+                        const IntegrationRule *ir)
+      : LinearFormIntegrator(ir), qfc(qfc) { }
+
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
-                               ElementTransformation &Tr,
-                               Vector &elvect);
+                               ElementTransformation &Tr, Vector &elvect);
 };
 
 }

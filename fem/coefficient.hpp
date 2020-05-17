@@ -974,7 +974,7 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   virtual ~VectorQuadratureFunctionCoefficient() { };
+   virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
 /// Quadrature function coefficient which requires that the quadrature rules used for this
@@ -992,10 +992,9 @@ public:
 
    QuadratureFunction *GetQuadFunction() const { return QuadF; }
 
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 
-   virtual ~QuadratureFunctionCoefficient() { };
+   virtual ~QuadratureFunctionCoefficient() { }
 };
 
 /** Compute the Lp norm of a function f.
