@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SIMD_HPP
 #define MFEM_SIMD_HPP
@@ -32,7 +32,7 @@
 
 // MFEM_SIMD_BYTES is the default SIMD size used by MFEM, see e.g. class
 // TBilinearForm and the default traits class AutoSIMDTraits.
-// MFEM_ALIGN_BYTES deterimes the padding used in class TVector when its 'align'
+// MFEM_ALIGN_BYTES determines the padding used in TVector when its 'align'
 // template parameter is set to true -- it ensues that the size of such TVector
 // types is a multiple of MFEM_ALIGN_BYTES. MFEM_ALIGN_BYTES must be a multiple
 // of MFEM_SIMD_BYTES.
