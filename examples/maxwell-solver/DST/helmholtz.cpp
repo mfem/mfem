@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 
 
 
-   int n= 50;
+   int n= 1;
    X = 0.0;
    Vector z(X.Size()); z = 0.0;
    Vector r(B);
@@ -326,10 +326,10 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.15;
+   x0 = 0.2;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.15;
+   x1 = 0.5;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;
@@ -343,8 +343,8 @@ double f_exact_Re(const Vector &x)
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   x0 = 0.7;
-   x1 = 0.7;
+   x0 = 0.85;
+   x1 = 0.85;
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;

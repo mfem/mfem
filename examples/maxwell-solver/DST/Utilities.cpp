@@ -21,7 +21,7 @@ double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, con
    for (int i = 0; i<dim; i++)
    {
       double val = 1.0;
-      if( x(i) > pmax(i) || x(i) < pmin(i))
+      if( x(i) >= pmax(i) || x(i) <= pmin(i))
       {
          val = 0.0;
       }  
@@ -72,7 +72,7 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
    for (int i = 0; i<dim; i++)
    {
       double val = 1.0;
-      if( x(i) > pmax(i) || x(i) < pmin(i))
+      if( x(i) >= pmax(i) || x(i) <= pmin(i))
       {
          val = 0.0;
       }  
