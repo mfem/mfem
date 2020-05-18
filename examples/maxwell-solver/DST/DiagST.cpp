@@ -18,7 +18,7 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=8;
+   int nx=4;
    int ny=1; 
    int nz=1;
    ovlpnrlayers = 2;
@@ -222,27 +222,8 @@ void DiagST::Mult(const Vector &r, Vector &z) const
             // cut off the ip solution to all possible directions
             Array<int>directions(2); directions = 0; 
 
-            // switch (l)
-            // {
-               // case 0:  
-                  if (i+1<nx) directions[0] = 1;
-                  if (j+1<ny) directions[1] = 1;
-                  // break;
-               // case 1:  
-                  // if (i>0) directions[0] = -1;
-                  // if (j+1<ny) directions[1] = 1;
-
-                  // break;
-               // case 2:  
-                  // if (i+1<nx) directions[0] = 1;
-                  // if (j>0) directions[1] = -1;
-                  // break;
-               // default: 
-                  // if (i>0) directions[0] = -1;
-                  // if (j>0) directions[1] = -1;
-               // break;
-            // }
-
+            if (i+1<nx) directions[0] = 1;
+            if (j+1<ny) directions[1] = 1;
             GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
             sol_ext = cfsol_ext;
             directions = 0.0;
@@ -378,12 +359,12 @@ void DiagST::GetChiRes(const Vector & res, Vector & cfres,
       pmlh[1][0] = h*nlayers;
    }
 
-   CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
+   CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
 
    double * data = res.GetData();
 
    FiniteElementSpace * fespace;
-   fespace = ovlp_prob->PmlFespaces[ip];
+   fespace = ovlp_prob->fespaces[ip];
    
    int n = fespace->GetTrueVSize();
 
@@ -465,22 +446,25 @@ int DiagST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, V
    r = 0.0;
    r.SetSubVector(*Dof2GlobalDof0,Psi0);
 
-   // if (direction[0] ==  1 && direction[1] == 1)
-   // {
-   //    Vector zloc(Psi1.Size());
-   //    r.GetSubVector(*Dof2GlobalDof1,zloc);
-   //    // extend
-   //    Vector psi_ext(PmlMat[ip1]->Height());
-   //    Vector zloc_ext(PmlMat[ip1]->Height());
-   //    Array<int> * Dof2PmlDof1 = &ovlp_prob->Dof2PmlDof[ip1];
-   //    zloc_ext.SetSubVector(*Dof2PmlDof1,zloc);
-   //    PmlMat[ip1]->Mult(zloc_ext,psi_ext);
-   //    psi_ext *=-1.0;
-   //    psi_ext.GetSubVector(*Dof2PmlDof1,Psi1);
-   // // }
-   // else
-   // {
-      r.GetSubVector(*Dof2GlobalDof1,Psi1);
+   r.GetSubVector(*Dof2GlobalDof1,Psi1);
+
+   // Vector Psi(Dof2GlobalDof1->Size()); Psi=0.0;
+   // Psi = Psi1;
+   // int nx = nxyz[0];
+   // int ny = nxyz[1];
+   // Array<int> direct(2); direct = 0;
+   // if (i1>0) direct[0] = -1; 
+   // if (j1>0) direct[1] = -1; 
+   // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+   // Psi = Psi1;
+   // direct = 0;
+   // if (i1+1<nx) direct[0] = 1; 
+   // if (j1+1<ny) direct[1] = 1; 
+   // Psi1 = 0.0;
+   // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+
+
+
    // }
    return ip1;
 }
@@ -716,15 +700,6 @@ void DiagST::TransferSources(int sweep, int ip0, Vector & sol_ext) const
             *f_transf[ip1][l]+=raux;
 
 
-         //    FiniteElementSpace * fes1 = ovlp_prob->fespaces[ip1];
-         //    Mesh * mesh1 = fes1->GetMesh();
-         // GridFunction gf1(fes1);
-         // double * data1 = raux.GetData();
-         // gf1.SetData(data1);
-         // socketstream sock(vishost, visport);
-         // sock << "solution\n" << *mesh1 << gf1 << keys << "valuerange -0.1 0.1 \n"  << flush;
-         // // sol_sock << "solution\n" << *mesh << gf << keys << flush;
-         // cin.get();
          break;
          }
             
