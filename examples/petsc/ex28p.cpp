@@ -1,32 +1,26 @@
-//                       MFEM Example 5 - Parallel Version
-//                              PETSc Modification
+//                       MFEM Example 28 - Parallel Version
+//                              SLEPc Modification
 //
-// Compile with: make ex5p
+// Compile with: make ex28p
 //
 // Sample runs:
-//    mpirun -np 4 ex5p -m ../../data/beam-tet.mesh --petscopts rc_ex5p_fieldsplit
-//    mpirun -np 4 ex5p -m ../../data/star.mesh     --petscopts rc_ex5p_bddc --nonoverlapping
+//    mpirun -np 4 ex28p -m ../../data/inline-tri.mesh --slepcopts rc_ex28p
 //
-// Description:  This example code solves a simple 2D/3D mixed Darcy problem
-//               corresponding to the saddle point system
-//                                 k*u + grad p = f
-//                                 - div u      = g
-//               with natural boundary condition -p = <given pressure>.
-//               Here, we use a given exact solution (u,p) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p).
+// Description:  This example code solves a simple 2D dielectric waveguide problem
+//               corresponding to the generalized eigenvalue equation
+//          curl 1/mu curl exy - beta^2/mu (grad ez - exy) = k^2 epsilon exy
+//          beta^2 div 1/mu (grad exy - et) = beta^2 k^2 epsilon ez
+//               with essential boundary condition (corresponding to metallic walls).
+//               We discretize with Nédélec edge elements (transverge field exy)
+//               and piecewise continuous polynomials (longitudinal field ez).
 //
 //               The example demonstrates the use of the BlockMatrix class, as
 //               well as the collective saving of several grid functions in a
 //               VisIt (visit.llnl.gov) visualization format.
 //
-//               Two types of PETSc solvers can be used: BDDC or fieldsplit.
-//               When using BDDC, the nonoverlapping assembly feature should be
-//               used. This specific example needs PETSc compiled with support
-//               for SuiteSparse and/or MUMPS for using BDDC.
+//               This specific example needs SLEPc compiled. The default options
+//               file uses the Jacobi-Davidson method with Jacobi preconditioner.
 //
-//               We recommend viewing examples 1-4 before viewing this example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -50,13 +44,14 @@ int main(int argc, char *argv[])
    bool verbose = (myid == 0);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
-   int ser_ref_levels = 2;
+   const char *mesh_file = "../../data/inline-tri.mesh";
+   int ser_ref_levels = 1;
    int par_ref_levels = 1;
-   int order = 1;
-   int nev = 5;
+   int order = 2;
+   int nev = 1;
    bool par_format = false;
    bool visualization = 1;
+   const char *slepcrc_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -73,6 +68,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&slepcrc_file, "-slepcopts", "--slepcopts",
+                  "SLepcOptions file to use.");
    args.Parse();
    if (!args.Good())
    {
@@ -88,7 +85,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
    // 2b. We initialize SLEPc
-   MFEMInitializeSlepc(NULL,NULL,(char*)0,NULL);
+   MFEMInitializeSlepc(NULL,NULL,slepcrc_file,NULL);
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -154,39 +151,34 @@ int main(int argc, char *argv[])
    block_trueOffsets[2] = L_space->TrueVSize();
    block_trueOffsets.PartialSum();
 
-   // 8. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 8. Define the coefficients of the PDE.
    ConstantCoefficient u_r_func(1.0);
    Vector e_r(2);
-   double k0 = M_PI*2/1.55;
-   e_r(0) = -pow(k0*1.45,2);//-k0^2*e_r
-   e_r(1) = -pow(k0*3.45,2);
+   double k0 = M_PI*2/1.0;
+   e_r(0) = -pow(k0*1.0,2);//-k0^2*e_r
+   // This is an example to use different refractive indices in mesh domains
+   e_r(1) = -pow(k0*2.0,2);
    PWConstCoefficient e_r_func(e_r);
 
-   // 9. Define the parallel grid function and parallel linear forms, solution
-   //    vector and rhs.
+   // 9. Define the parallel grid function and parallel linear forms.
    BlockVector x(block_offsets);
    BlockVector trueX(block_trueOffsets);
 
-   //boundary attributes
+   // Define the boundary attributes
    Array<int> ess_bdr;
    if (pmesh->bdr_attributes.Size())
    {
-      std::cout << "mesh bdr " << pmesh->bdr_attributes.Size() << " " <<
-                pmesh->bdr_attributes.Max() << "\n";
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr = 0;
    }
 
-
-
-   // 10. Assemble the finite element matrices for the Darcy operator
+   // 10. Assemble the finite element matrices for the LHS and RHS
    //
-   //                            D = [ M  B^T ]
-   //                                [ B   0  ]
-   //     where:
+   //                            A = [ Att  0 ]
+   //                                [ 0    0 ]
    //
-   //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
-   //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
+   //                            B = [ Btt Bzt ]
+   //                                [ Btz Bzz ]
    ParBilinearForm *att = new ParBilinearForm(N_space);
    ParBilinearForm *btt = new ParBilinearForm(N_space);
    ParBilinearForm *azz = new ParBilinearForm(L_space);
@@ -207,6 +199,8 @@ int main(int argc, char *argv[])
    Atth.Get(pAtt);
    Atth.SetOperatorOwner(false);
 
+   // A dummy Azz is required to set the block size and apply the
+   // essential boundary condition
    azz->Assemble();
    azz->EliminateEssentialBCDiag(ess_bdr, 1.0);
    azz->Finalize();
@@ -242,14 +236,12 @@ int main(int argc, char *argv[])
    btz->ParallelAssemble(Btzh);
    Btzh.Get(pBtz);
    Btzh.SetOperatorOwner(false);
-   //(*pBtz) *= -1;
 
    pBzt = pBtz->Transpose();
 
    PetscParMatrix *LHSOp = NULL, *RHSOp = NULL;
    // We construct the BlockOperator and we then convert it to a
-   // PetscParMatrix to avoid any conversion in the construction of the
-   // preconditioners.
+   // PetscParMatrix.
    BlockOperator *tLHSOp = new BlockOperator(block_trueOffsets);
    tLHSOp->SetBlock(0,0,pAtt);
    tLHSOp->SetBlock(1,1,pAzz);
@@ -264,61 +256,25 @@ int main(int argc, char *argv[])
    RHSOp = new PetscParMatrix(MPI_COMM_WORLD,tRHSOp,Operator::PETSC_MATAIJ);
    delete tRHSOp;
 
-   // 12. Solve the linear system with slepc.
+   // 12. Solve the eigenvalue problem with slepc.
    std::cout << "Solving...\n";
-   int maxIter(500);
-   double rtol(1.e-6);
-   double atol(1.e-10);
 
    trueX = 0.0;
 
-   /*PetscParVector *X = new PetscParVector(*LHSOp, true, false);
-   X->PlaceArray(trueX.GetData());
-   EPS eps;
-   EPSCreate(PETSC_COMM_WORLD,&eps);
-   EPSSetDimensions(eps,1,PETSC_DECIDE,PETSC_DECIDE);
-   EPSSetTolerances(eps,1e-12,500);
-   EPSSetOperators(eps,*LHSOp,*RHSOp);
-   EPSSetWhichEigenpairs(eps,EPS_TARGET_MAGNITUDE);
-   EPSSetTarget(eps,pow(k0*3.44,2));
-   ST st;
-   EPSGetST(eps,&st);
-   STSetType(st,STSINVERT);
-   EPSSetFromOptions(eps);
-   EPSSolve(eps);*/
    SlepcEigenSolver *solver = new SlepcEigenSolver(MPI_COMM_WORLD);
    solver->SetOperators(*LHSOp,*RHSOp);
-   solver->SetTol(1e-12);
-   solver->SetMaxIter(500);
-   solver->SetNumModes(1);
+   solver->SetNumModes(nev);
    solver->SetWhichEigenpairs(SlepcEigenSolver::TARGET_MAGNITUDE);
-   solver->SetTarget(pow(k0*3.44,2));
-   solver->SetSpectralTransformation(SlepcEigenSolver::SHIFT_INVERT);
+   solver->SetTarget(pow(k0,2));
    solver->Solve();
-   /*PetscInt num_converged;
-   PetscInt it_num;
-   PetscScalar lr, lc;
-   EPSGetConverged(eps,&num_converged);
-   std::cout << "num_converged = " << num_converged << "\n";
-   EPSGetIterationNumber(eps,&it_num);
-   std::cout <<"it_num = " << it_num << "\n";
-   EPSReasonView(eps,PETSC_VIEWER_STDOUT_WORLD);
-   Vec xi;
-   MatCreateVecs(*LHSOp,NULL,&xi);
-   EPSGetEigenpair(eps,0,&lr,&lc,*X,xi);
-   X->ResetArray();
-   PetscReal re,im;
-   re = lr;
-   im = lc;*/
    double re;
    solver->GetEigenvalue(0,re);
    Vector dummy2(block_trueOffsets[2]);
    solver->GetEigenvector(0,trueX);
-   std::cout << sqrt(re)/k0 << "\n";
+   std::cout << "Effective index: " << sqrt(re)/k0 << "\n";
 
    // 13. Extract the parallel grid function corresponding to the finite element
-   //     approximation X. This is the local solution on each processor. Compute
-   //     L2 error norms.
+   //     approximation X. This is the local solution on each processor.
    ParGridFunction *exy(new ParGridFunction);
    ParGridFunction *ez(new ParGridFunction);
    exy->MakeRef(N_space, x.GetBlock(0), 0);
@@ -367,7 +323,7 @@ int main(int argc, char *argv[])
       u_sock << "solution\n" << *pmesh << *exy << "window_title 'Velocity'"
              << endl;
       u_sock << "keys Rjl!\n";
-      // Make sure all ranks have sent their 'u' solution before initiating
+      // Make sure all ranks have sent their 'exy' solution before initiating
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(pmesh->GetComm());
       socketstream p_sock(vishost, visport);
