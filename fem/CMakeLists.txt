@@ -54,6 +54,7 @@ set(SRCS
   restriction.cpp
   staticcond.cpp
   tmop.cpp
+  tmop_pa.cpp
   tmop_tools.cpp
   gslib.cpp
   transfer.cpp
