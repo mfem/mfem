@@ -6,6 +6,7 @@
 //               mpirun -np 4 ex4p -m ../data/star.mesh
 //               mpirun -np 4 ex4p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex4p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex4p -m ../data/beam-hex.mesh -o 2 -pa
 //               mpirun -np 4 ex4p -m ../data/escher.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/fichera.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/fichera-q2.vtk
@@ -18,6 +19,12 @@
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
+//
+// Device sample runs:
+//               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d cuda
+//               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d raja-cuda
+//               mpirun -np 4 ex4p -m ../data/star.mesh -pa -d raja-omp
+//               mpirun -np 4 ex4p -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code solves a simple 2D/3D H(div) diffusion
 //               problem corresponding to the second order definite equation
@@ -60,6 +67,8 @@ int main(int argc, char *argv[])
    bool set_bc = true;
    bool static_cond = false;
    bool hybridization = false;
+   bool pa = false;
+   const char *device_config = "cpu";
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -75,6 +84,10 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -94,14 +107,19 @@ int main(int argc, char *argv[])
    }
    kappa = freq * M_PI;
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume, as well as periodic meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
+   // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
@@ -114,7 +132,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
    //    meshes need to be reoriented before we can define high-order Nedelec
@@ -130,7 +148,7 @@ int main(int argc, char *argv[])
    }
    pmesh->ReorientTetMesh();
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
@@ -140,7 +158,7 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
+   // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
@@ -152,7 +170,7 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
+   // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
    //    basis functions in the finite element fespace.
@@ -161,7 +179,7 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b->Assemble();
 
-   // 9. Define the solution vector x as a parallel finite element grid function
+   // 10. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
    //    solution. Note that only values from the boundary faces will be used
    //    when eliminating the non-homogeneous boundary condition to modify the
@@ -170,16 +188,17 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient F(sdim, F_exact);
    x.ProjectCoefficient(F);
 
-   // 10. Set up the parallel bilinear form corresponding to the H(div)
+   // 11. Set up the parallel bilinear form corresponding to the H(div)
    //     diffusion operator grad alpha div + beta I, by adding the div-div and
    //     the mass domain integrators.
    Coefficient *alpha = new ConstantCoefficient(1.0);
    Coefficient *beta  = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
-   // 11. Assemble the parallel bilinear form and the corresponding linear
+   // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation,
@@ -199,41 +218,43 @@ int main(int argc, char *argv[])
    }
    a->Assemble();
 
-   HypreParMatrix A;
+   OperatorPtr A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   HYPRE_Int glob_size = A.GetGlobalNumRows();
-   if (myid == 0)
+   if (myid == 0 && !pa)
    {
-      cout << "Size of linear system: " << glob_size << endl;
+      cout << "Size of linear system: "
+           << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
    }
 
-   // 12. Define and apply a parallel PCG solver for A X = B with the 2D AMS or
+   // 13. Define and apply a parallel PCG solver for A X = B with the 2D AMS or
    //     the 3D ADS preconditioners from hypre. If using hybridization, the
-   //     system is preconditioned with hypre's BoomerAMG.
-   HypreSolver *prec = NULL;
-   CGSolver *pcg = new CGSolver(A.GetComm());
-   pcg->SetOperator(A);
+   //     system is preconditioned with hypre's BoomerAMG. In the partial
+   //     assembly case, use Jacobi preconditioning.
+   Solver *prec = NULL;
+   CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+   pcg->SetOperator(*A);
    pcg->SetRelTol(1e-12);
-   pcg->SetMaxIter(500);
+   pcg->SetMaxIter(2000);
    pcg->SetPrintLevel(1);
-   if (hybridization) { prec = new HypreBoomerAMG(A); }
+   if (hybridization) { prec = new HypreBoomerAMG(*A.As<HypreParMatrix>()); }
+   else if (pa) { prec = new OperatorJacobiSmoother(*a, ess_tdof_list); }
    else
    {
       ParFiniteElementSpace *prec_fespace =
          (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-      if (dim == 2)   { prec = new HypreAMS(A, prec_fespace); }
-      else            { prec = new HypreADS(A, prec_fespace); }
+      if (dim == 2)   { prec = new HypreAMS(*A.As<HypreParMatrix>(), prec_fespace); }
+      else            { prec = new HypreADS(*A.As<HypreParMatrix>(), prec_fespace); }
    }
    pcg->SetPreconditioner(*prec);
    pcg->Mult(B, X);
 
-   // 13. Recover the parallel grid function corresponding to X. This is the
+   // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 14. Compute and print the L^2 norm of the error.
+   // 15. Compute and print the L^2 norm of the error.
    {
       double err = x.ComputeL2Error(F);
       if (myid == 0)
@@ -242,7 +263,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
+   // 16. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
@@ -258,7 +279,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 17. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -269,7 +290,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
 
-   // 17. Free the used memory.
+   // 18. Free the used memory.
    delete pcg;
    delete prec;
    delete hfes;
@@ -295,7 +316,7 @@ void F_exact(const Vector &p, Vector &F)
 
    double x = p(0);
    double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
+   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if F is changed to depend on z
 
    F(0) = cos(kappa*x)*sin(kappa*y);
    F(1) = cos(kappa*y)*sin(kappa*x);
@@ -312,7 +333,7 @@ void f_exact(const Vector &p, Vector &f)
 
    double x = p(0);
    double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0;
+   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if f is changed to depend on z
 
    double temp = 1 + 2*kappa*kappa;
 
