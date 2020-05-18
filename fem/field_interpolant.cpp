@@ -18,216 +18,90 @@
 namespace mfem
 {
 
-void VectorQuadratureIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
-                                                        ElementTransformation &Tr,
-                                                        Vector &elvect)
+void Quad2FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
+                                                        VectorQuadratureFunctionCoefficient &vqfc)
 {
-   const int nqp = IntRule->GetNPoints();
-   const int vdim = vqfc.GetVDim();
-   const int ndofs = fe.GetDof();
-   Vector shape(ndofs);
-   Vector temp(vdim);
-   elvect.SetSize(vdim * ndofs);
-   elvect = 0.0;
-   for (int q = 0; q < nqp; q++)
    {
-      const IntegrationPoint &ip = IntRule->IntPoint(q);
-      Tr.SetIntPoint(&ip);
-      const double w = Tr.Weight() * ip.weight;
-      vqfc.Eval(temp, Tr, ip);
-      fe.CalcShape(ip, shape);
-      for (int ind = 0; ind < vdim; ind++)
-      {
-         for (int nd = 0; nd < ndofs; nd++)
-         {
-            elvect(nd + ind * ndofs) += w * shape(nd) * temp(ind);
-         }
-      }
-   }
-}
-
-void QuadratureIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
-                                                  ElementTransformation &Tr,
-                                                  Vector &elvect)
-{
-   const int nqp = IntRule->GetNPoints();
-   const int ndofs = fe.GetDof();
-   Vector shape(ndofs);
-   elvect.SetSize(ndofs);
-   elvect = 0.0;
-   for (int q = 0; q < nqp; q++)
-   {
-      const IntegrationPoint &ip = IntRule->IntPoint(q);
-      Tr.SetIntPoint (&ip);
-      const double w = Tr.Weight() * ip.weight;
-      double temp = qfc.Eval(Tr, ip);
-      fe.CalcShape(ip, shape);
-      shape *= (w * temp);
-      elvect += shape;
-   }
-}
-
-//As a change to this we should have a setup phase where all the inverse matrices are stored off.
-//If we do that we don't need to do the inverse and assemble step constantly. We can store the value in a vec
-//and then just just use the DenseMatrix UseExternalData function.
-//We can therefore provide a set-up phase that is run at the start of this if the vector this is all stored in is null.
-//We should also provide a function that clears this.
-//We'll need to assume that this is already an L2 space.
-//One of the assumptions that we make down below is that our integration scheme is the same across all elements.
-//If that isn't the case we might be able to still do things but things will most likely be slower.
-void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
-                                                        VectorQuadratureFunctionCoefficient &vqfc,
-                                                        FiniteElementSpace &fes)
-{
-   int ndofs;
-   DenseMatrix mi;
-   DenseMatrixInverse inv(&mi);
-   const IntegrationRule* ir;
-   NE = fes.GetMesh()->GetNE();
-   {
-      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
-      // and the QuadratureSpace correspond to the same
-      const FiniteElement &el = *fes.GetFE(0);
-      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      const FiniteElementSpace *fes = gf.FESpace();
+      MFEM_VERIFY(fes->GetVDim() == vqfc.GetVDim(),
+      "FiniteElementSpace corresponding to this GridFunction should have the \
+       same vdim of the VectorQuadratureFunctionCoefficient");
+      
+      const FiniteElement &el = *fes->GetFE(0);
+      const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
+                                    2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = vqfc.GetQuadFunction();
-      const IntegrationRule *ir_qf = &qf->GetSpace()->GetElementIntRule(0);
+      const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
+      
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
-                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
-      // This should be the number of nodes available
-      ndofs = el.GetDof();
+                  "IntegrationRule for GridFunction and in QuadratureFunction \
+                  appear to be different");
    }
-   int vdim = vqfc.GetVDim();
-
-   Vector rhs(ndofs * vdim), rhs_sub(ndofs);
-   Vector qfv(ndofs * vdim), qfv_sub(ndofs);
-
-   VectorQuadratureIntegrator qi(vqfc);
-   qi.SetIntRule(ir);
-
-   Array<BilinearFormIntegrator*> dbfi = *L2->GetDBFI();
-
-   if (!setup_disc)
-   {
-      m_all_data.SetSize(ndofs * ndofs * NE);
-      double* data = m_all_data.HostReadWrite();
-      for (int e = 0; e < NE; e++)
-      {
-         const FiniteElement &fe = *fes.GetFE(e);
-         ElementTransformation &eltr = *fes.GetElementTransformation(e);
-         mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         dbfi[0]->AssembleElementMatrix(fe, eltr, mi);
-      }
-      setup_disc = true;
-   }
-
-   double* data = m_all_data.HostReadWrite();
-   Array<int> dofs;
-   for (int e = 0; e < NE; e++)
-   {
-      qfv = 0.0;
-      mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-      inv.Factor(mi);
-      const FiniteElement &fe = *fes.GetFE(e);
-      ElementTransformation &eltr = *fes.GetElementTransformation(e);
-      qi.AssembleRHSElementVect(fe, eltr, rhs);
-      for (int ind = 0; ind < vdim; ind++)
-      {
-         qfv_sub.MakeRef(qfv, ndofs * ind);
-         rhs_sub.MakeRef(rhs, ndofs * ind);
-         inv.Mult(rhs_sub, qfv_sub);
-      }
-      fes.GetElementVDofs(e, dofs);
-      gf.SetSubVector(dofs, qfv);
-   }
+   gf.HostReadWrite();
+   // Later on we might be able to swap this over to something that can run on
+   // on the gpu.
+   gf.ProjectDiscCoefficient(vqfc, GridFunction::ARITHMETIC);
 }
 
-void FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
-                                                        QuadratureFunctionCoefficient &qfc,
-                                                        FiniteElementSpace &fes)
+void Quad2FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
+                                                        QuadratureFunctionCoefficient &qfc)
 {
-   int ndofs;
-   DenseMatrix mi;
-   DenseMatrixInverse inv(&mi);
-   const IntegrationRule* ir;
    {
-      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
-      // and the QuadratureSpace correspond to the same
-      const FiniteElement &el = *fes.GetFE(0);
-      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      const FiniteElementSpace *fes = gf.FESpace();
+      MFEM_VERIFY(fes->GetVDim() == 1,
+      "FiniteElementSpace corresponding to this GridFunction should have a vdim\
+       of 1");
+      
+      const FiniteElement &el = *fes->GetFE(0);
+      const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
+                                    2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = qfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
+      
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
-                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
-      // This should be the number of nodes available
-      ndofs = el.GetDof();
+                  "IntegrationRule for GridFunction and in QuadratureFunction \
+                  appear to be different");
    }
-
-   Vector rhs(ndofs);
-   Vector qfv(ndofs);
-   Array<int> dofs;
-
-   QuadratureIntegrator qi(qfc);
-   qi.SetIntRule(ir);
-   Array<BilinearFormIntegrator*> dbfi = *L2->GetDBFI();
-
-   if (!setup_disc)
-   {
-      m_all_data.SetSize(ndofs * ndofs * NE);
-      double* data = m_all_data.HostReadWrite();
-      for (int e = 0; e < NE; e++)
-      {
-         const FiniteElement &fe = *fes.GetFE(e);
-         ElementTransformation &eltr = *fes.GetElementTransformation(e);
-         mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-         dbfi[0]->AssembleElementMatrix(fe, eltr, mi);
-      }
-      setup_disc = true;
-   }
-
-
-
-   double* data = m_all_data.HostReadWrite();
-   for (int e = 0; e < NE; e++)
-   {
-      mi.UseExternalData((data + (ndofs * ndofs * e)), ndofs, ndofs);
-      inv.Factor(mi);
-      const FiniteElement &fe = *fes.GetFE(e);
-      ElementTransformation &eltr = *fes.GetElementTransformation(e);
-      qi.AssembleRHSElementVect(fe, eltr, rhs);
-      inv.Mult(rhs, qfv);
-      fes.GetElementDofs(e, dofs);
-      gf.SetSubVector(dofs, qfv);
-   }
+   gf.HostReadWrite();
+   // Later on we might be able to swap this over to something that can run on
+   // on the gpu.
+   gf.ProjectDiscCoefficient(qfc, GridFunction::ARITHMETIC);
 }
 
-void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
-                                                    VectorQuadratureFunctionCoefficient &vqfc,
-                                                    FiniteElementSpace &fes)
+void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
+                                                    VectorQuadratureFunctionCoefficient &vqfc)
 {
-   const IntegrationRule* ir;
+   FiniteElementSpace *fes = gf.FESpace();
    {
-      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
-      // and the QuadratureSpace correspond to the same
-      const FiniteElement &el = *fes.GetFE(0);
-      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      MFEM_VERIFY(fes->GetVDim() == vqfc.GetVDim(),
+      "FiniteElementSpace corresponding to this GridFunction should have the \
+       same vdim of the VectorQuadratureFunctionCoefficient");
+
+      // This is the best way I can think of to make sure the IntegrationRule in
+      // the FiniteElementSpace and the QuadratureSpace correspond to the same
+      const FiniteElement &el = *fes->GetFE(0);
+      const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
+                                    2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = vqfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
-                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
+                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction \
+                  appear to be different");
    }
 
    int vdim = vqfc.GetVDim();
    int size = gf.Size() / vdim;
 
-   LinearForm *b = new LinearForm(&fes);
-   b->AddDomainIntegrator(new VectorQuadratureIntegrator(vqfc, ir));
+   LinearForm *b = new LinearForm(fes);
+   b->AddDomainIntegrator(new VectorQuadratureLFIntegrator(vqfc,
+                          &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
    // If our FES is byVDIM then we're going to rearrange b to be in byNodes order
-   if (fes.GetOrdering() == Ordering::byVDIM)
+   if (fes->GetOrdering() == Ordering::byVDIM)
    {
       Vector tmp = *b;
       double* data = b->HostReadWrite();
@@ -242,7 +116,7 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
 
    // L2->Assemble();
 
-   GridFunction x(&fes);
+   GridFunction x(fes);
    x = 0.0;
    OperatorPtr A;
    Vector B, b_sub, X_sub, X;
@@ -262,7 +136,7 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
       L2->RecoverFEMSolution(X, *b, X_sub);
    }
 
-   if (fes.GetOrdering() == Ordering::byNODES)
+   if (fes->GetOrdering() == Ordering::byNODES)
    {
       gf = x;
    }
@@ -279,29 +153,36 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
 
    delete b;
 }
-void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
-                                                    QuadratureFunctionCoefficient &qfc,
-                                                    FiniteElementSpace &fes)
+void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
+                                                    QuadratureFunctionCoefficient &qfc)
 {
-   const IntegrationRule* ir;
+   FiniteElementSpace *fes = gf.FESpace();
    {
-      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
+      MFEM_VERIFY(fes->GetVDim() == 1,
+      "FiniteElementSpace corresponding to this GridFunction should have a \
+       vdim of 1");
+
+      // This is the best way I can think of to make sure the
+      // IntegrationRule in the FiniteElementSpace
       // and the QuadratureSpace correspond to the same
-      const FiniteElement &el = *fes.GetFE(0);
-      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      const FiniteElement &el = *fes->GetFE(0);
+      const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
+                                    2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = qfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
-                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
+                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction \
+                  appear to be different");
    }
-   LinearForm *b = new LinearForm(&fes);
-   b->AddDomainIntegrator(new QuadratureIntegrator(qfc, ir));
+   LinearForm *b = new LinearForm(fes);
+   b->AddDomainIntegrator(new QuadratureLFIntegrator(qfc, 
+                          &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
    // L2->Assemble();
 
-   GridFunction x(&fes);
+   GridFunction x(fes);
    x = 0.0;
    OperatorPtr A;
    Vector B, X;
@@ -320,32 +201,38 @@ void FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
 #ifdef MFEM_USE_MPI
 // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
 // quadrature function coefficient.
-void ParFieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                                       VectorQuadratureFunctionCoefficient &vqfc,
-                                                       ParFiniteElementSpace &fes)
+void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                                       VectorQuadratureFunctionCoefficient &vqfc)
 {
-   const IntegrationRule* ir;
+   ParFiniteElementSpace *fes = gf.ParFESpace();
    {
-      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
-      // and the QuadratureSpace correspond to the same
-      const FiniteElement &el = *fes.GetFE(0);
-      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      MFEM_VERIFY(fes->GetVDim() == vqfc.GetVDim(),
+      "FiniteElementSpace corresponding to this GridFunction should have the \
+       same vdim of the VectorQuadratureFunctionCoefficient");
+
+      // This is the best way I can think of to make sure the IntegrationRule in
+      // the FiniteElementSpace and the QuadratureSpace correspond to the same
+      const FiniteElement &el = *fes->GetFE(0);
+      const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
+                                    2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = vqfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
-                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
+                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction \
+                  appear to be different");
    }
 
    int vdim = vqfc.GetVDim();
    int size = gf.Size() / vdim;
 
-   ParLinearForm *b = new ParLinearForm(&fes);
-   b->AddDomainIntegrator(new VectorQuadratureIntegrator(vqfc, ir));
+   ParLinearForm *b = new ParLinearForm(fes);
+   b->AddDomainIntegrator(new VectorQuadratureLFIntegrator(vqfc, 
+                          &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
    // If our FES is byVDIM then we're going to rearrange b to be in byNodes order
-   if (fes.GetOrdering() == Ordering::byVDIM)
+   if (fes->GetOrdering() == Ordering::byVDIM)
    {
       Vector tmp = *b;
       double* data = b->HostReadWrite();
@@ -360,7 +247,7 @@ void ParFieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
 
    // ParL2->Assemble();
 
-   ParGridFunction x(&fes);
+   ParGridFunction x(fes);
    x = 0.0;
    OperatorPtr A;
    Vector B, b_sub, X_sub, X;
@@ -379,7 +266,7 @@ void ParFieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
       ParL2->RecoverFEMSolution(X, *b, X_sub);
    }
 
-   if (fes.GetOrdering() == Ordering::byNODES)
+   if (fes->GetOrdering() == Ordering::byNODES)
    {
       gf = x;
    }
@@ -398,29 +285,34 @@ void ParFieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
 }
 // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
 // quadrature function coefficient.
-void ParFieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                                       QuadratureFunctionCoefficient &qfc,
-                                                       ParFiniteElementSpace &fes)
+void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
+                                                       QuadratureFunctionCoefficient &qfc)
 {
-   const IntegrationRule* ir;
+   ParFiniteElementSpace *fes = gf.ParFESpace();
    {
-      // This is the best way I can think of to make sure the IntegrationRule in the FiniteElementSpace
+      MFEM_VERIFY(fes->GetVDim() == 1,
+      "FiniteElementSpace corresponding to this GridFunction should have a \
+       a vdim of 1");
+
+      // This is the best way I can think of to make sure the
+      // IntegrationRule in the FiniteElementSpace
       // and the QuadratureSpace correspond to the same
-      const FiniteElement &el = *fes.GetFE(0);
-      ir = &(IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 1));
+      const FiniteElement &el = *fes->GetFE(0);
+      const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
+                                    2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = qfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
-                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction appear to be different");
+                  "IntegrationRule in FiniteElementSpace and in QuadratureFunction \
+                  appear to be different");
    }
-   ParLinearForm *b = new ParLinearForm(&fes);
-   b->AddDomainIntegrator(new QuadratureIntegrator(qfc, ir));
+   ParLinearForm *b = new ParLinearForm(fes);
+   b->AddDomainIntegrator(new QuadratureLFIntegrator(qfc, 
+                          &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
-   // ParL2->Assemble();
-
-   ParGridFunction x(&fes);
+   ParGridFunction x(fes);
    x = 0.0;
    OperatorPtr A;
    Vector B, X;

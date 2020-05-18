@@ -31,20 +31,20 @@
 namespace mfem
 {
 
-class FieldInterpolant
+/** @brief Provides methods to take quadrature data and project it onto a field
+ *  within a H1 or L2 space.
+ *
+ * */
+class Quad2FieldInterpolant
 {
 protected:
-   bool setup_disc;
-   bool setup_full;
-   Vector m_all_data;
    BilinearForm *L2;  // Owned.
    CGSolver *cg;      // Owned.
-   int NE;
 public:
-   // The FiniteElementSpace passed into here should have a vdim set to 1 in order for the
-   // MassIntegrator to work properly if the ProjectQuadratureCoefficient method is used with
-   // a VectorQuadratureFunctionCoefficient.
-   FieldInterpolant(FiniteElementSpace *fes) : setup_disc(false), setup_full(false)
+   /** The FiniteElementSpace passed into here should have a vdim set to 1 in order
+       for the MassIntegrator to work properly if the ProjectQuadratureCoefficient
+       method is used with a VectorQuadratureFunctionCoefficient.*/
+   Quad2FieldInterpolant(FiniteElementSpace *fes) 
    {
       L2 = new BilinearForm(fes);
 
@@ -55,29 +55,25 @@ public:
       L2->AddDomainIntegrator(new MassIntegrator(ir));
       L2->Assemble();
    }
-   // This function takes a vector quadrature function coefficient and projects it onto a GridFunction that lives
-   // in L2 space. This function requires fes to be L2 finite element space that we're projecting onto.
+   /** @brief This function takes a vector quadrature function coefficient and projects
+       it onto a GridFunction that lives either in a H1 or L2 space.*/
+   /** Internally, this function makes use of the GridFunction::ProjectDiscCoefficient.*/
    void ProjectQuadratureDiscCoefficient(GridFunction &gf,
-                                         VectorQuadratureFunctionCoefficient &vqfc,
-                                         FiniteElementSpace &fes);
-   // This function takes a quadrature function coefficient and projects it onto a GridFunction that lives
-   // in L2 space. This function requires fes to be L2 finite element space that we're projecting onto.
+                                         VectorQuadratureFunctionCoefficient &vqfc);
+   /** @brief This function takes a quadrature function coefficient and projects
+       it onto a GridFunction lives either in a H1 or L2 space.*/
+   /** Internally, this function makes use of the GridFunction::ProjectDiscCoefficient.*/
    void ProjectQuadratureDiscCoefficient(GridFunction &gf,
-                                         QuadratureFunctionCoefficient &qfc,
-                                         FiniteElementSpace &fes);
-   // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
-   // quadrature function coefficient.
+                                         QuadratureFunctionCoefficient &qfc);
+   /** This function takes a vector quadrature function coefficient and projects
+       it onto a GridFunction through the use of an L2 projection method.*/
    void ProjectQuadratureCoefficient(GridFunction &gf,
-                                     VectorQuadratureFunctionCoefficient &vqfc,
-                                     FiniteElementSpace &fes);
-   // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
-   // quadrature function coefficient.
+                                     VectorQuadratureFunctionCoefficient &vqfc);
+   /** This function takes a quadrature function coefficient and projects it onto
+       a GridFunction through the use of an L2 projection method. */
    void ProjectQuadratureCoefficient(GridFunction &gf,
-                                     QuadratureFunctionCoefficient &qfc,
-                                     FiniteElementSpace &fes);
-   // Tells the ProjectQuadratureDiscCoefficient that they need to recalculate the data.
-   void SetupDiscReset() { setup_disc = false; }
-   // Tells the ProjectQuadratureCoefficient that they need to recalculate the data.
+                                     QuadratureFunctionCoefficient &qfc);
+   /// This function resets the internal bilinearform due to any mesh changes.
    virtual void FullReset()
    {
       L2->Update();
@@ -92,7 +88,7 @@ public:
       cg->SetRelTol(rel_tol);
       cg->SetAbsTol(abs_tol);
    }
-   ~FieldInterpolant()
+   virtual ~Quad2FieldInterpolant()
    {
       delete L2;
       delete cg;
@@ -100,15 +96,15 @@ public:
 };
 
 #ifdef MFEM_USE_MPI
-class ParFieldInterpolant : public FieldInterpolant
+class ParQuad2FieldInterpolant : public Quad2FieldInterpolant
 {
 protected:
    ParBilinearForm *ParL2;
 public:
-   // The ParFiniteElementSpace passed into here should have a vdim set to 1 in order for the
-   // MassIntegrator to work properly if the ProjectQuadratureCoefficient method is used with
-   // a VectorQuadratureFunctionCoefficient.
-   ParFieldInterpolant(ParFiniteElementSpace *pfes) : FieldInterpolant(pfes)
+   /** The ParFiniteElementSpace passed into here should have a vdim set to 1 in
+       order for the MassIntegrator to work properly if the ProjectQuadratureCoefficient
+       method is used with a VectorQuadratureFunctionCoefficient.*/
+   ParQuad2FieldInterpolant(ParFiniteElementSpace *pfes) : Quad2FieldInterpolant(pfes)
    {
       ParL2 = new ParBilinearForm(pfes);
 
@@ -119,25 +115,24 @@ public:
       ParL2->AddDomainIntegrator(new MassIntegrator(ir));
       ParL2->Assemble();
    }
-   // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
-   // quadrature function coefficient.
+   /** @brief This function takes a vector quadrature function coefficient and projects
+       it onto a GridFunction that lives either in a H1 or L2 space.*/
+   /** Internally, this function makes use of the GridFunction::ProjectDiscCoefficient.*/
    void ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                     VectorQuadratureFunctionCoefficient &vqfc,
-                                     ParFiniteElementSpace &fes);
-   // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
-   // quadrature function coefficient.
+                                     VectorQuadratureFunctionCoefficient &vqfc);
+   /** @brief This function takes a quadrature function coefficient and projects
+       it onto a GridFunction that lives either in a H1 or L2 space.*/
+   /** Internally, this function makes use of the GridFunction::ProjectDiscCoefficient.*/
    void ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                     QuadratureFunctionCoefficient &qfc,
-                                     ParFiniteElementSpace &fes);
-   // Tells the internal bilinearform needs to be reset in order to reset the sparse matrix
+                                     QuadratureFunctionCoefficient &qfc);
+   /// This function resets the internal bilinearform due to any mesh changes.
    virtual void FullReset() override
    {
-      FieldInterpolant::FullReset();
       ParL2->Update();
       ParL2->Assemble();
    }
-   using FieldInterpolant::SetupCG;
-   // Setup the CG solver with an MPI communicator
+   using Quad2FieldInterpolant::SetupCG;
+   /// Setup the CG solver with an MPI communicator
    virtual void SetupCG(MPI_Comm _comm, double rel_tol = 1e-15,
                         double abs_tol = 0.0,
                         int print_level = 0, int max_iter = 2000)
@@ -149,46 +144,11 @@ public:
       cg->SetAbsTol(abs_tol);
    }
 
-   ~ParFieldInterpolant()
+   virtual ~ParQuad2FieldInterpolant()
    {
       delete ParL2;
    }
 };
 #endif
-
-class VectorQuadratureIntegrator : public LinearFormIntegrator
-{
-private:
-   VectorQuadratureFunctionCoefficient &vqfc;
-
-public:
-   VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc)
-      : vqfc(vqfc) { }
-   VectorQuadratureIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
-                              const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), vqfc(vqfc) { }
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
-   void AssembleRHSElementVect(const FiniteElement &fe,
-                               ElementTransformation &Tr, Vector &elvect);
-};
-
-class QuadratureIntegrator : public LinearFormIntegrator
-{
-private:
-   QuadratureFunctionCoefficient &qfc;
-
-public:
-   QuadratureIntegrator(QuadratureFunctionCoefficient &qfc) : qfc(qfc) { }
-   QuadratureIntegrator(QuadratureFunctionCoefficient &qfc,
-                        const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), qfc(qfc) { }
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
-   void AssembleRHSElementVect(const FiniteElement &fe,
-                               ElementTransformation &Tr, Vector &elvect);
-};
-
 }
-
 #endif

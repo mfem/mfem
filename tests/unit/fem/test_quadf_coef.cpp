@@ -64,18 +64,18 @@ TEST_CASE("Quadrature Function Coefficients",
             {
                //X has dims nqpts x sdim x ne
                quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
-                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
+                             i * nqpts * vdim) + (j * nqpts) + k );
             }
          }
       }
    }
 
-   QuadratureFunctionCoefficient qfc(&quadf_coeff);
-   VectorQuadratureFunctionCoefficient qfvc(&quadf_vcoeff);
+   QuadratureFunctionCoefficient qfc(quadf_coeff);
+   VectorQuadratureFunctionCoefficient qfvc(quadf_vcoeff);
 
    H1_FECollection    fec_h1(order_h1, dim);
    FiniteElementSpace fespace_hv1(&mesh, &fec_h1, 1);
-   FieldInterpolant fi(&fespace_hv1);
+   Quad2FieldInterpolant fi(&fespace_hv1);
    fi.SetupCG();
 
    SECTION("Operators on VecQuadFuncCoeff")
@@ -113,7 +113,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -137,7 +137,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -157,7 +157,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc, fespace_h1);
+         fi.ProjectQuadratureCoefficient(g0, qfvc);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -176,7 +176,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc, fespace_h1);
+         fi.ProjectQuadratureCoefficient(g0, qfvc);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -195,10 +195,9 @@ TEST_CASE("Quadrature Function Coefficients",
          GridFunction g0(&fespace_l2);
          GridFunction gtrue(&fespace_l2);
 
-         fi.SetupDiscReset();
-
          // When using an L2 FE space of the same order as the mesh, the below highlights
-         // that the ProjectDiscCoeff method is just taking the quadrature point values and making them node values.
+         // that the ProjectDiscCoeff method is just taking the quadrature point
+         // values and making them node values.
          {
 
             GridFunction nodes_z(&fespace_hv1);
@@ -210,7 +209,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfc);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -238,7 +237,7 @@ TEST_CASE("Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfc, fespace_h1);
+         fi.ProjectQuadratureCoefficient(g0, qfc);
          gtrue -= g0;
          REQUIRE(gtrue.Norml2() < tol);
       }
@@ -297,18 +296,18 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
             {
                //X has dims nqpts x sdim x ne
                quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
-                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
+                             i * nqpts * vdim) + (j * nqpts) + k );
             }
          }
       }
    }
 
-   QuadratureFunctionCoefficient qfc(&quadf_coeff);
-   VectorQuadratureFunctionCoefficient qfvc(&quadf_vcoeff);
+   QuadratureFunctionCoefficient qfc(quadf_coeff);
+   VectorQuadratureFunctionCoefficient qfvc(quadf_vcoeff);
 
    H1_FECollection    fec_h1(order_h1, dim);
    ParFiniteElementSpace fespace_hv1(&mesh, &fec_h1, 1);
-   ParFieldInterpolant fi(&fespace_hv1);
+   ParQuad2FieldInterpolant fi(&fespace_hv1);
    fi.SetupCG(MPI_COMM_WORLD);
 
    SECTION("Operators on VecQuadFuncCoeff")
@@ -345,7 +344,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
@@ -375,7 +374,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
@@ -401,7 +400,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc, fespace_h1);
+         fi.ProjectQuadratureCoefficient(g0, qfvc);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
@@ -429,7 +428,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc, fespace_h1);
+         fi.ProjectQuadratureCoefficient(g0, qfvc);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
@@ -454,10 +453,9 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          ParGridFunction g0(&fespace_l2);
          ParGridFunction gtrue(&fespace_l2);
 
-         fi.SetupDiscReset();
-
          // When using an L2 FE space of the same order as the mesh, the below highlights
-         // that the ProjectDiscCoeff method is just taking the quadrature point values and making them node values.
+         // that the ProjectDiscCoeff method is just taking the quadrature point
+         // values and making them node values.
          {
 
             ParGridFunction nodes_z(&fespace_hv1);
@@ -469,7 +467,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfc, fespace_l2);
+         fi.ProjectQuadratureDiscCoefficient(g0, qfc);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
@@ -501,7 +499,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
          }
 
          g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfc, fespace_h1);
+         fi.ProjectQuadratureCoefficient(g0, qfc);
          gtrue -= g0;
 
          double lerr = gtrue.Norml2();
