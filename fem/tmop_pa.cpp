@@ -23,7 +23,7 @@ namespace mfem
 
 // *****************************************************************************
 double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                                const Vector &x)
+                                                const Vector &x) const
 {
    dbg("");
    Mesh *mesh = fes.GetMesh();

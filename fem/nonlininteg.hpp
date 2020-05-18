@@ -71,12 +71,7 @@ public:
 
    /// Compute the local energy on the device
    virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                          const Vector &x)
-   {
-      mfem_error ("NonlinearFormIntegrator::GetGridFunctionEnergyPA(...)\n"
-                  "   is not implemented for this class.");
-      return 0.0;
-   }
+                                          const Vector &x) const;
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
