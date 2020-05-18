@@ -41,7 +41,7 @@ SHARED = NO
 # CUDA configuration options
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
-CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
+CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH) -lcusparse 
 # Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
@@ -324,7 +324,7 @@ GSLIB_OPT = -I$(GSLIB_DIR)/include
 GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration (currently not needed)
-CUDA_OPT =
+CUDA_OPT = -I$(CUDA_HOME)/include
 CUDA_LIB =
 
 # HIP library configuration (currently not needed)

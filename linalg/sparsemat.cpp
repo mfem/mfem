@@ -15,6 +15,8 @@
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
+#include <cusparse.h>
+#include <library_types.h>
 
 #include <iostream>
 #include <iomanip>
@@ -597,6 +599,48 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       }
       d_y[i] += a * d;
    });
+
+   cusparseStatus_t status;
+   cusparseHandle_t handle=0;
+   cusparseMatDescr_t descr=0;
+   
+   /* initialize cusparse library */
+   status= cusparseCreate(&handle);
+   if (status != CUSPARSE_STATUS_SUCCESS) { printf("CUSPARSE Library initialization failed \n");
+     exit(-1);
+   }   
+
+   /* create and setup matrix descriptor */
+   cusparseSpMatDescr_t matA_descr;
+   cusparseDnVecDescr_t vecX_descr;
+   cusparseDnVecDescr_t vecY_descr;
+
+   cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(x.Read()), CUDA_R_64F);
+   cusparseCreateDnVec(&vecY_descr, y.Size(), y.Write(), CUDA_R_64F);
+   cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(), const_cast<int *>(d_I),
+                     const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
+                     CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
+   
+   
+   const double alpha = 1.0; 
+   const double beta  = 1.0;
+   auto matType = CUDA_R_64F; 
+   size_t bufferSize = 0;
+   cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr, vecX_descr, &beta,
+                           vecY_descr, matType, CUSPARSE_CSRMV_ALG2, &bufferSize);
+   void* dBuffer = NULL;
+   if(bufferSize > 0)
+   {
+     cudaMalloc(&dBuffer, bufferSize);
+   }
+
+   // Y = alpha A * X + beta * Y 
+   cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr, vecX_descr, &beta, vecY_descr, matType, CUSPARSE_CSRMV_ALG2, dBuffer);
+
+   cusparseDestroySpMat(matA_descr);
+   cusparseDestroyDnVec(vecX_descr);
+   cusparseDestroyDnVec(vecY_descr);
+
 #else
    const double *Ap = A, *xp = x.GetData();
    double *yp = y.GetData();
