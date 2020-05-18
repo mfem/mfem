@@ -27,9 +27,9 @@ private:
    RK4Solver ode_solver;
    Vector nodes0;
    Vector field0;
-
    const double dt_scale;
 
+   void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
    AdvectorCG(double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
@@ -53,6 +53,8 @@ private:
    Vector pos_r_out, dist_p_out;
    int dim;
 public:
+   InterpolatorFP() : finder(NULL) { }
+
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);
 
@@ -128,20 +130,6 @@ public:
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
-};
-
-/// Allows negative Jacobians. Used for untangling.
-class TMOPDescentNewtonSolver : public TMOPNewtonSolver
-{
-public:
-#ifdef MFEM_USE_MPI
-   TMOPDescentNewtonSolver(MPI_Comm comm, const IntegrationRule &irule)
-      : TMOPNewtonSolver(comm, irule) { }
-#endif
-   TMOPDescentNewtonSolver(const IntegrationRule &irule)
-      : TMOPNewtonSolver(irule) { }
-
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
