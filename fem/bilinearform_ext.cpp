@@ -314,8 +314,9 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data);
    }
 
-   faceDofs = trialFes->GetTraceElement(0,
-                                        trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+   faceDofs = trialFes ->
+              GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0)) ->
+              GetDof();
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
@@ -389,7 +390,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      //Apply the Interior Face Restriction
+      // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, faceIntX);
       if (faceIntX.Size()>0)
       {
@@ -444,7 +445,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      //Apply the Boundary Face Restriction
+      // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);
       if (faceBdrX.Size()>0)
       {
@@ -512,7 +513,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      //Apply the Interior Face Restriction
+      // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, faceIntX);
       if (faceIntX.Size()>0)
       {
@@ -567,7 +568,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      //Apply the Boundary Face Restriction
+      // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);
       if (faceBdrX.Size()>0)
       {
