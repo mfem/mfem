@@ -78,26 +78,6 @@ public:
    ~FABilinearFormExtension() {}
 };
 
-/// Data and methods for element-assembled bilinear forms
-class EABilinearFormExtension : public BilinearFormExtension
-{
-public:
-   EABilinearFormExtension(BilinearForm *form)
-      : BilinearFormExtension(form) { }
-
-   /// TODO
-   void Assemble() {}
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) {}
-   void Mult(const Vector &x, Vector &y) const {}
-   void MultTranspose(const Vector &x, Vector &y) const {}
-   void Update() {}
-   ~EABilinearFormExtension() {}
-};
-
 /// Data and methods for partially-assembled bilinear forms
 class PABilinearFormExtension : public BilinearFormExtension
 {
@@ -113,7 +93,6 @@ protected:
 public:
    PABilinearFormExtension(BilinearForm*);
 
-   void SetupRestrictionOperators();
    void Assemble();
    void AssembleDiagonal(Vector &diag) const;
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
@@ -121,12 +100,32 @@ public:
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
-
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
+
+protected:
+   void SetupRestrictionOperators(const L2FaceValues m);
 };
 
+/// Data and methods for element-assembled bilinear forms
+class EABilinearFormExtension : public PABilinearFormExtension
+{
+protected:
+   int ne;
+   int elemDofs;
+   Vector ea_data;
+   int nf_int, nf_bdr;
+   int faceDofs;
+   Vector ea_data_int, ea_data_ext, ea_data_bdr;
+
+public:
+   EABilinearFormExtension(BilinearForm *form);
+
+   void Assemble();
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
 
 /// Data and methods for matrix-free bilinear forms
 class MFBilinearFormExtension : public BilinearFormExtension
@@ -186,6 +185,8 @@ public:
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double c=1.0) const = 0;
 
+   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
+
    virtual void Update() = 0;
 };
 
@@ -236,6 +237,9 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /// y += c*A^T*x
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   /// Assemble the diagonal of ADA^T for a diagonal vector D.
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+
    /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
 };
