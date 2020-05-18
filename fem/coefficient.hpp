@@ -948,14 +948,14 @@ public:
 
 class QuadratureFunction;
 
-/// Vector quadrature function coefficient which requires that the quadrature rules used for this
-/// vector coefficient be the same as those that live within the supplied QuadratureFunction.
+/** @brief Vector quadrature function coefficient which requires that the
+   quadrature rules used for this vector coefficient be the same as those that
+   live within the supplied QuadratureFunction. */
 class VectorQuadratureFunctionCoefficient : public VectorCoefficient
 {
 private:
-   QuadratureFunction *QuadF; //do not own
+   const QuadratureFunction *QuadF; //do not own
    int index;
-   int length;
 
 public:
    /// Constructor with a quadrature function as input
@@ -963,12 +963,12 @@ public:
 
    void SetQuadratureFunction(QuadratureFunction *qf);
 
-   /// Set the starting index within the QuadFunc that'll be used to project outwards as well
-   /// as the corresponding length. The projected length should have the bounds of
-   /// 1 <= length <= (length QuadFunc - index).
+   /** Set the starting index within the QuadFunc that'll be used to
+      project outwards as well as the corresponding length. The projected length
+      should have the bounds of 1 <= length <= (length QuadFunc - index). */
    void SetComponent(int _index, int _length);
 
-   QuadratureFunction *GetQuadFunction() const { return QuadF; }
+   const QuadratureFunction *GetQuadFunction() const { return QuadF; }
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -977,12 +977,13 @@ public:
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
-/// Quadrature function coefficient which requires that the quadrature rules used for this
-/// coefficient be the same as those that live within the supplied QuadratureFunction.
+/** @brief Quadrature function coefficient which requires that the quadrature
+   rules used for this coefficient be the same as those that live within the
+   supplied QuadratureFunction. */
 class QuadratureFunctionCoefficient : public Coefficient
 {
 private:
-   QuadratureFunction *QuadF;
+   const QuadratureFunction *QuadF;
 
 public:
    /// Constructor with a quadrature function as input
@@ -990,7 +991,7 @@ public:
 
    void SetQuadratureFunction(QuadratureFunction *qf);
 
-   QuadratureFunction *GetQuadFunction() const { return QuadF; }
+   const QuadratureFunction *GetQuadFunction() const { return QuadF; }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 
