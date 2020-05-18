@@ -18,10 +18,8 @@ DOXYGEN_CONF = CodeDocumentation.conf
 html: $(DOXYGEN_CONF)
 	@# Generate the html documentation
 	@doxygen $(DOXYGEN_CONF)
-	@rm -f CodeDocumentation.html
-	@ln -s CodeDocumentation/html/index.html CodeDocumentation.html
+	@echo "<meta http-equiv=\"REFRESH\" content=\"0;URL=CodeDocumentation/html/index.html\">" > CodeDocumentation.html
 	@cat warnings.log
-
 	@# Generate the log of undocumented methods
 	@( cat $(DOXYGEN_CONF) ; echo "GENERATE_HTML=NO" ; echo "EXTRACT_ALL=NO" ; echo "WARN_LOGFILE=undoc.log" ; echo "QUIET=YES" ) | doxygen - &> /dev/null
 
