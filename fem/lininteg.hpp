@@ -426,6 +426,41 @@ public:
                                        Vector &elvect);
 };
 
+/** Class for domain integration of L(v) := (f, v), where
+    f=(f1,...,fn) and v=(v1,...,vn). that makes use of
+    VectorQuadratureFunctionCoefficient*/
+class VectorQuadratureLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorQuadratureFunctionCoefficient &vqfc;
+
+public:
+   VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
+                              const IntegrationRule *ir)
+      : LinearFormIntegrator(ir), vqfc(vqfc) { }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   void AssembleRHSElementVect(const FiniteElement &fe,
+                               ElementTransformation &Tr, Vector &elvect);
+};
+
+/** Class for domain integration L(v) := (f, v) that makes use
+    of QuadratureFunctionCoefficient. */
+class QuadratureLFIntegrator : public LinearFormIntegrator
+{
+private:
+   QuadratureFunctionCoefficient &qfc;
+
+public:
+   QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc,
+                        const IntegrationRule *ir)
+      : LinearFormIntegrator(ir), qfc(qfc) { }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   void AssembleRHSElementVect(const FiniteElement &fe,
+                               ElementTransformation &Tr, Vector &elvect);
+};
+
 }
 
 #endif
