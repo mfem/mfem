@@ -199,7 +199,8 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
+   //MFEM_FORALL(i, ndofs,
+   for (int i=0; i<ndofs; i++)
    {
       const int offset = d_offsets[i];
       const int nextOffset = d_offsets[i + 1];
@@ -210,11 +211,11 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
             dofValue += (d_indices[j] >= 0) ? d_x(idx_j % nd, c,
-            idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
+                                                  idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
          }
          d_y(t?c:i,t?i:c) = dofValue;
       }
-   });
+   }//);
 }
 
 void ElementRestriction::MultTransposeUnsigned(const Vector& x, Vector& y) const

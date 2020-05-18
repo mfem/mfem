@@ -474,21 +474,112 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B,G,D,X,Y);
-      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(ne,W,B,G,D,X,Y);
+      /*
+        case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B,G,D,X,Y);
+        case 0x23: return AddMultPA_Kernel_2D<2,3,1>(ne,W,B,G,D,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B,G,D,X,Y);
-      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B,G,D,X,Y);
-      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B,G,D,X,Y);
+        case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B,G,D,X,Y);
+        case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B,G,D,X,Y);
+        case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B,G,D,X,Y);
 
-      case 0x41: return AddMultPA_Kernel_2D<4,1,1>(ne,W,B,G,D,X,Y);
-      case 0x42: return AddMultPA_Kernel_2D<4,2,1>(ne,W,B,G,D,X,Y);
-      case 0x43: return AddMultPA_Kernel_2D<4,3,1>(ne,W,B,G,D,X,Y);
-      case 0x44: return AddMultPA_Kernel_2D<4,4,1>(ne,W,B,G,D,X,Y);
+        case 0x41: return AddMultPA_Kernel_2D<4,1,1>(ne,W,B,G,D,X,Y);
+        case 0x42: return AddMultPA_Kernel_2D<4,2,1>(ne,W,B,G,D,X,Y);
+        case 0x43: return AddMultPA_Kernel_2D<4,3,1>(ne,W,B,G,D,X,Y);
+        case 0x44: return AddMultPA_Kernel_2D<4,4,1>(ne,W,B,G,D,X,Y);
 
-      case 0x52: return AddMultPA_Kernel_2D<5,2,1>(ne,W,B,G,D,X,Y);
+        case 0x52: return AddMultPA_Kernel_2D<5,2,1>(ne,W,B,G,D,X,Y);*/
       case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B,G,D,X,Y);
-      case 0x57: return AddMultPA_Kernel_2D<5,7,1>(ne,W,B,G,D,X,Y);
+      //case 0x57: return AddMultPA_Kernel_2D<5,7,1>(ne,W,B,G,D,X,Y);
+      default:  break;
+   }
+   dbg("kernel id: %x", id);
+   MFEM_ABORT("Unknown kernel.");
+}
+
+
+// *****************************************************************************
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static void AddMultGradPA_Kernel_2D(const int NE,
+                                    const Array<double> &w_,
+                                    const Array<double> &b_,
+                                    const Array<double> &g_,
+                                    const Vector &d_,
+                                    const Vector &x_,
+                                    Vector &y_,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
+{
+   dbg("\033[7mNot yet implemented!");
+   y_ = x_;
+   //MFEM_ABORT("Not yet implemented!");
+   dbg("y_ = x_");
+}
+
+// *****************************************************************************
+void TMOP_Integrator::AddMultGradPA(const Vector &X, Vector &Y) const
+{
+   dbg("x:%d, y:%d", X.Size(), Y.Size());
+   MFEM_VERIFY(IntRule,"");
+   const int D1D = maps->ndof;
+   const int Q1D = maps->nqpt;
+   const IntegrationRule *ir = IntRule;
+   const Array<double> &W = ir->GetWeights();
+   const Array<double> &B = maps->B;
+   const Array<double> &G = maps->G;
+   const int id = (D1D << 4 ) | Q1D;
+
+   {
+      // Jtr setup:
+      //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
+      //  - Jtr(i) == Wideal
+      const FiniteElement *fe = fes->GetFE(0);
+      const Geometry::Type geom_type = fe->GetGeomType();
+      const DenseMatrix Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
+      /*
+         Array<int> vdofs;
+         DenseTensor Jtr(dim, dim, ir->GetNPoints());
+         for (int i = 0; i < fes->GetNE(); i++)
+         {
+            const FiniteElement *el = fes->GetFE(i);
+            fes->GetElementVDofs(i, vdofs);
+            T = fes->GetElementTransformation(i);
+            px.GetSubVector(vdofs, el_x);
+            targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+        }*/
+      const auto Jtr = Reshape(Wideal.Read(), dim, dim);
+      auto G = Reshape(D.Write(), Q1D, Q1D, dim, dim, ne);
+      MFEM_FORALL_2D(e, ne, Q1D, Q1D, 1,
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               G(qx,qy,0,0,e) = Jtr(0,0);
+               G(qx,qy,0,1,e) = Jtr(0,1);
+               G(qx,qy,1,0,e) = Jtr(1,0);
+               G(qx,qy,1,1,e) = Jtr(1,1);
+            }
+         }
+      });
+   }
+
+   switch (id)
+   {
+      //case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(ne,W,B,G,D,X,Y);
+      //case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(ne,W,B,G,D,X,Y);
+
+      //case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(ne,W,B,G,D,X,Y);
+      //case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(ne,W,B,G,D,X,Y);
+      //case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(ne,W,B,G,D,X,Y);
+
+      //case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(ne,W,B,G,D,X,Y);
+      //case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(ne,W,B,G,D,X,Y);
+      //case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(ne,W,B,G,D,X,Y);
+      //case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(ne,W,B,G,D,X,Y);
+
+      //case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(ne,W,B,G,D,X,Y);
+      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(ne,W,B,G,D,X,Y);
+      //case 0x57: return AddMultGradPA_Kernel_2D<5,7,1>(ne,W,B,G,D,X,Y);
       default:  break;
    }
    dbg("kernel id: %x", id);

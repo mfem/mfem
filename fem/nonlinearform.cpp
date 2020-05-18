@@ -168,7 +168,8 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
 #endif
 
    const Vector &px = Prolongate(x);
-   if (P) { aux2.SetSize(P->Height()); }
+   if (P) { dbg("P"); aux2.SetSize(P->Height()); }
+   else { dbg("!P %d", y.Size()); }
 
    // If we are in parallel, ParNonLinearForm::Mult uses the aux2 vector.
    // In serial, place the result directly in y.
@@ -300,11 +301,22 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    dbg("y: %.15e", y*y);
 }
 
-Operator &NonlinearForm::GetGradient(const Vector &x) const
+Operator &NonlinearForm::GetGradient(const Vector &X) const
 {
+   Vector x(X.Size());
+   x = X;
+#ifndef _WIN32
+   if (getenv("DBG"))
+   {
+      x.HostWrite();
+      srand48(0x1234abcd330eul);
+      dbg("\033[7mStuffing x with RANDs!");
+      for (int k=0; k<X.Size(); k++) { x[k] = drand48(); }
+   }
+#endif
    if (ext)
    {
-      MFEM_ABORT("Not yet implemented!");
+      return ext->GetGradientPA(ess_tdof_list, x);
    }
 
    const int skip_zeros = 0;
