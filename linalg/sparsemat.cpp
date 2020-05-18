@@ -582,6 +582,9 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    }
 
 #ifndef MFEM_USE_LEGACY_OPENMP
+
+   Vector myY(y); 
+
    const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
@@ -600,6 +603,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       d_y[i] += a * d;
    });
 
+
    cusparseStatus_t status;
    cusparseHandle_t handle=0;
    cusparseMatDescr_t descr=0;
@@ -616,18 +620,18 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    cusparseDnVecDescr_t vecY_descr;
 
    cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(x.Read()), CUDA_R_64F);
-   cusparseCreateDnVec(&vecY_descr, y.Size(), y.Write(), CUDA_R_64F);
-   cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(), const_cast<int *>(d_I),
+   cusparseCreateDnVec(&vecY_descr, myY.Size(), myY.ReadWrite(), CUDA_R_64F);
+   cusparseCreateCsr(&matA_descr,Height(), Height(), J.Capacity(), const_cast<int *>(d_I),
                      const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
                      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
    
    
-   const double alpha = 1.0; 
+   const double alpha = a; 
    const double beta  = 1.0;
    auto matType = CUDA_R_64F; 
    size_t bufferSize = 0;
    cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr, vecX_descr, &beta,
-                           vecY_descr, matType, CUSPARSE_CSRMV_ALG2, &bufferSize);
+                           vecY_descr, matType, CUSPARSE_CSRMV_ALG1, &bufferSize);
    void* dBuffer = NULL;
    if(bufferSize > 0)
    {
@@ -635,7 +639,13 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    }
 
    // Y = alpha A * X + beta * Y 
-   cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr, vecX_descr, &beta, vecY_descr, matType, CUSPARSE_CSRMV_ALG2, dBuffer);
+   cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr, vecX_descr, &beta, vecY_descr, matType, CUSPARSE_CSRMV_ALG1, dBuffer);
+   cudaDeviceSynchronize();
+
+   myY -= y;
+   double error = myY.Norml2();
+   printf("error %g \n",error);
+   if(error > 1e-12){printf("error too high %g \n",error); exit(-1);}
 
    cusparseDestroySpMat(matA_descr);
    cusparseDestroyDnVec(vecX_descr);
