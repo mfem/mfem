@@ -776,28 +776,18 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 #endif
 
 VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
-   QuadratureFunction *qf)
-   : VectorCoefficient(qf->GetVDim()), QuadF(qf), index(0) { }
-
-void VectorQuadratureFunctionCoefficient::SetQuadratureFunction(
-   QuadratureFunction *qf)
-{
-   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
-
-   index = 0;
-   vdim = qf->GetVDim();
-   QuadF = qf;
-}
+   QuadratureFunction &qf)
+   : VectorCoefficient(qf.GetVDim()), QuadF(qf), index(0) { }
 
 void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
 {
    MFEM_VERIFY(_index >= 0, "Index must be >= 0");
-   MFEM_VERIFY(_index < QuadF->GetVDim(),
+   MFEM_VERIFY(_index < QuadF.GetVDim(),
                "Index must be < QuadratureFunction length");
    index = _index;
 
    MFEM_VERIFY(_length > 0, "Length must be > 0");
-   MFEM_VERIFY(_length <= QuadF->GetVDim() - index,
+   MFEM_VERIFY(_length <= QuadF.GetVDim() - index,
                "Length must be <= (QuadratureFunction length - index)");
 
    vdim = _length;
@@ -807,12 +797,11 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
-   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
 
-   QuadF->HostRead();
+   QuadF.HostRead();
    Vector temp;
-   QuadF->GetElementValues(T.ElementNo, ip.index, temp);
-   if (index == 0 && vdim == QuadF->GetVDim())
+   QuadF.GetElementValues(T.ElementNo, ip.index, temp);
+   if (index == 0 && vdim == QuadF.GetVDim())
    {
       V = temp;
    }
@@ -829,29 +818,17 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
 }
 
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
-   QuadratureFunction *qf) : QuadF(qf)
+   QuadratureFunction &qf) : QuadF(qf)
 {
-   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction's vdim must be 1");
+   MFEM_VERIFY(qf.GetVDim() == 1, "QuadratureFunction's vdim must be 1");
 }
 
-void QuadratureFunctionCoefficient::SetQuadratureFunction(
-   QuadratureFunction *qf)
-{
-   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
-
-   MFEM_VERIFY(qf->GetVDim() == 1, "QuadratureFunction's vdim must be 1");
-   QuadF = qf;
-}
-
-/// Evaluate the function coefficient at a specific quadrature point
 double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
-   MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
-
-   QuadF->HostRead();
+   QuadF.HostRead();
    Vector temp(1);
-   QuadF->GetElementValues(T.ElementNo, ip.index, temp);
+   QuadF.GetElementValues(T.ElementNo, ip.index, temp);
    return temp[0];
 }
 
