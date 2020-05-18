@@ -11,6 +11,10 @@
 
 #include "../config/config.hpp"
 
+#ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_PETSC
+#ifdef MFEM_USE_SLEPC
+
 #include "linalg.hpp"
 
 #include "slepc.h"
@@ -332,3 +336,7 @@ void SlepcEigenSolver::SetSpectralTransformation(
 }
 
 }
+
+#endif  // MFEM_USE_SLEPC
+#endif  // MFEM_USE_PETSC
+#endif  // MFEM_USE_MPI
