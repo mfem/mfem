@@ -954,21 +954,19 @@ class QuadratureFunction;
 class VectorQuadratureFunctionCoefficient : public VectorCoefficient
 {
 private:
-   const QuadratureFunction *QuadF; //do not own
+   const QuadratureFunction &QuadF; //do not own
    int index;
 
 public:
    /// Constructor with a quadrature function as input
-   VectorQuadratureFunctionCoefficient(QuadratureFunction *qf);
-
-   void SetQuadratureFunction(QuadratureFunction *qf);
+   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
 
    /** Set the starting index within the QuadFunc that'll be used to
       project outwards as well as the corresponding length. The projected length
       should have the bounds of 1 <= length <= (length QuadFunc - index). */
    void SetComponent(int _index, int _length);
 
-   const QuadratureFunction *GetQuadFunction() const { return QuadF; }
+   const QuadratureFunction *GetQuadFunction() const { return &QuadF; }
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -983,15 +981,13 @@ public:
 class QuadratureFunctionCoefficient : public Coefficient
 {
 private:
-   const QuadratureFunction *QuadF;
+   const QuadratureFunction &QuadF;
 
 public:
    /// Constructor with a quadrature function as input
-   QuadratureFunctionCoefficient(QuadratureFunction *qf);
+   QuadratureFunctionCoefficient(QuadratureFunction &qf);
 
-   void SetQuadratureFunction(QuadratureFunction *qf);
-
-   const QuadratureFunction *GetQuadFunction() const { return QuadF; }
+   const QuadratureFunction *GetQuadFunction() const { return &QuadF; }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 
