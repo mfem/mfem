@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      slepc = new SlepcEigenSolver(MPI_COMM_WORLD);
+      slepc = new SlepcEigenSolver(MPI_COMM_WORLD,"",false);
       slepc->SetNumModes(nev);
       slepc->SetWhichEigenpairs(SlepcEigenSolver::TARGET_REAL);
       slepc->SetTarget(0.0);

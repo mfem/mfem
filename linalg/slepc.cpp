@@ -64,13 +64,17 @@ void MFEMFinalizeSlepc()
 }
 
 
-SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix)
+SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix,
+                                   bool wrap)
 {
+   clcustom = false;
    _tol = PETSC_DEFAULT;
    _max_its = PETSC_DEFAULT;
    _num_conv = -1;
+   _wrap = wrap;
    VR = NULL;
    VC = NULL;
+   operatorset = false;
 
    ierr = EPSCreate(comm,&eps); CCHKERRQ(comm,ierr);
    ierr = EPSSetOptionsPrefix(eps, prefix.c_str()); PCHKERRQ(eps, ierr);
@@ -96,21 +100,29 @@ void SlepcEigenSolver::SetOperator(const Operator &op)
    {
       if (hA)
       {
-         pA = new PetscParMatrix(hA,Operator::PETSC_MATAIJ);
+         pA = new PetscParMatrix(hA,
+                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
          delete_pA = true;
       }
       else if (oA)
       {
          pA = new PetscParMatrix(PetscObjectComm((PetscObject)eps),oA,
-                                 Operator::PETSC_MATAIJ);
+                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
          delete_pA = true;
 
       }
    }
    MFEM_VERIFY(pA, "Unsupported operation!");
 
-
+   if (operatorset)
+   {
+      delete VR;
+      delete VC;
+      VR = VC = NULL;
+   }
    ierr = EPSSetOperators(eps,*pA,NULL); PCHKERRQ(eps, ierr);
+   operatorset = true;
+
    if (delete_pA) {delete_pA;}
 }
 
@@ -131,13 +143,14 @@ void SlepcEigenSolver::SetOperators(const Operator &op, const Operator &opB)
    {
       if (hA)
       {
-         pA = new PetscParMatrix(hA,Operator::PETSC_MATAIJ);
+         pA = new PetscParMatrix(hA,
+                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
          delete_pA = true;
       }
       else if (oA)
       {
          pA = new PetscParMatrix(PetscObjectComm((PetscObject)eps),oA,
-                                 Operator::PETSC_MATAIJ);
+                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
          delete_pA = true;
       }
    }
@@ -146,17 +159,26 @@ void SlepcEigenSolver::SetOperators(const Operator &op, const Operator &opB)
    {
       if (hB)
       {
-         pB = new PetscParMatrix(hB, Operator::PETSC_MATAIJ);
+         pB = new PetscParMatrix(hB,
+                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
          delete_pB = true;
       }
       else if (oB)
       {
          pB = new PetscParMatrix(PetscObjectComm((PetscObject)eps),oB,
-                                 Operator::PETSC_MATAIJ);
+                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
          delete_pB = true;
       }
    }
    MFEM_VERIFY(pB, "Unsupported Operation!");
+
+   if (operatorset)
+   {
+      delete VR;
+      delete VC;
+      VR = VC = NULL;
+   }
+   operatorset = true;
 
    ierr = EPSSetOperators(eps,*pA,*pB); PCHKERRQ(eps,ierr);
    if (delete_pA) {delete_pA;}
@@ -190,9 +212,14 @@ void SlepcEigenSolver::Solve()
    ierr = EPSGetConverged(eps,&_num_conv); PCHKERRQ(eps,ierr);
 }
 
-void SlepcEigenSolver::Customize()
+void SlepcEigenSolver::Customize(bool customize) const
 {
-   ierr = EPSSetFromOptions(eps); PCHKERRQ(eps,ierr);
+   if (!customize) {clcustom = true; }
+   if (!clcustom)
+   {
+      ierr = EPSSetFromOptions(eps); PCHKERRQ(eps,ierr);
+   }
+   clcustom = true;
 }
 
 void SlepcEigenSolver::GetEigenvalue(unsigned int i, double & lr) const
