@@ -34,6 +34,12 @@ void MFEMFinalizeSlepc();
 class SlepcEigenSolver
 {
 private:
+   /// Boolean to handle SetFromOptions calls
+   mutable bool clcustom;
+
+   /// Internal flag to handle matrix conversion or not.
+   bool _wrap;
+
    /// SLEPc linear eigensolver object
    EPS eps;
    /// Solver tolerance
@@ -47,9 +53,14 @@ private:
 
    /// Real and imaginary part of eigenvector
    mutable PetscParVector *VR, *VC;
+
+   /// Boolean to handle SetOperator calls
+   mutable bool operatorset;
+
 public:
    /// Constructors
-   SlepcEigenSolver(MPI_Comm comm, const std::string &prefix = std::string());
+   SlepcEigenSolver(MPI_Comm comm, const std::string &prefix = std::string(),
+                    bool wrap = true);
 
    virtual ~SlepcEigenSolver();
 
@@ -65,10 +76,13 @@ public:
    void SetOperators(const Operator &op, const Operator &opB);
 
    /// Customize object with options set
-   void Customize();
+   void Customize(bool customize = true) const;
 
    /// Solve the eigenvalue problem for the specified number of eigenvalues
    void Solve();
+
+   /// Get the number of converged eigenvalues
+   int GetNumConverged() {return _num_conv;}
 
    /// Get the corresponding eigenvalue
    void GetEigenvalue(unsigned int i, double & lr) const;
