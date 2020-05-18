@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 
 
 
-   int n= 1;
+   int n= 10;
    X = 0.0;
    Vector z(X.Size()); z = 0.0;
    Vector r(B);

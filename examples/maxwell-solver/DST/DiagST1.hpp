@@ -70,7 +70,6 @@ private:
    int dim;
    SesquilinearForm *bf=nullptr;
    MeshPartition * povlp=nullptr;
-   MeshPartition * novlp=nullptr;
    double omega = 0.5;
    Coefficient * ws;
    int nrlayers;
@@ -79,7 +78,6 @@ private:
    const Operator * A=nullptr;
    Vector B;
    DofMap * ovlp_prob = nullptr;
-   DofMap * nvlp_prob = nullptr;
    Array<SparseMatrix *> PmlMat;
    Array<KLUSolver *> PmlMatInv;
    Array2D<double> Pmllength;
@@ -92,10 +90,10 @@ private:
    Array<int> diry;
    Array<int> dirz;
    mutable Array<Array<Vector * >> f_transf;
-   Array<Vector * > usol;
+   Array<Array<Vector * >> usol;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
-   void PlotSolution(Vector & sol, socketstream & sol_sock, int ip, bool localdomain = false, bool pmldomain = false) const;
+   void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
    // void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                         //   int ip, Array<int> directions, bool local=false) const;
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,

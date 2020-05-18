@@ -432,9 +432,6 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
 CartesianMeshPartition::CartesianMeshPartition(Mesh *mesh_,int & nx, int & ny, int & nz) : mesh(mesh_)
 {
    int dim = mesh->Dimension();
-   nx = 5;
-   ny = 1;
-   nz = 1;
    nxyz[0] = nx;
    nxyz[1] = ny;
    nxyz[2] = nz;

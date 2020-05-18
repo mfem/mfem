@@ -17,15 +17,12 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    int partition_kind;
 
    // 1. Ovelapping partition with overlap = 2h 
-   partition_kind = 2; // Overlapping partition 
-   int nx=2;
+   partition_kind = 2; // Non Overlapping partition 
+   int nx=4;
    int ny=1; 
    int nz=1;
    ovlpnrlayers = 2;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz,ovlpnrlayers);
-
-   partition_kind = 1; // Non Overlapping partition 
-   novlp = new MeshPartition(mesh, partition_kind,nx,ny,nz);
    nxyz[0] = povlp->nxyz[0];
    nxyz[1] = povlp->nxyz[1];
    nxyz[2] = povlp->nxyz[2];
@@ -35,14 +32,12 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
-   SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
-   SaveMeshPartition(novlp->patch_mesh, "output/mesh_nvlp.", "output/sol_nvlp.");
+   // SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
 
    // // // ------------------Step 2 --------------------
    // // // Construct the dof maps from subdomains to global (for the extended and not)
    
    ovlp_prob  = new DofMap(bf,povlp,nrlayers); 
-   nvlp_prob  = new DofMap(bf,novlp); 
 
    // ------------------Step 3 --------------------
    // Assemble the PML Problem matrices and factor them
@@ -67,24 +62,25 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // Set up src arrays size
    f_orig.SetSize(nrpatch);
    f_transf.SetSize(nrpatch);
-
    usol.SetSize(nrpatch);
+
 
    // Construct a simple map used for directions of transfer
    ConstructDirectionsMap();
    for (int ip=0; ip<nrpatch; ip++)
    {
-      int m = 2*nvlp_prob->fespaces[ip]->GetTrueVSize();
-      usol[ip] = new Vector(m); *usol[ip] = 0.0;
       int n = 2*ovlp_prob->fespaces[ip]->GetTrueVSize(); // (x 2 for complex ) 
       int npml = 2*ovlp_prob->PmlFespaces[ip]->GetTrueVSize(); // (x 2 for complex ) 
       f_orig[ip] = new Vector(n); *f_orig[ip] = 0.0;
       f_transf[ip].SetSize(nsweeps);
+      usol[ip].SetSize(nsweeps);
       for (int i=0;i<nsweeps; i++)
       {
          f_transf[ip][i] = new Vector(n);
+         usol[ip][i] = new Vector(npml);
       }
    }
+
 }
 
 SparseMatrix * DiagST::GetPmlSystemMatrix(int ip)
@@ -146,6 +142,7 @@ void DiagST::Mult(const Vector &r, Vector &z) const
       for (int i=0;i<nsweeps; i++)
       {
          *f_transf[ip][i] = 0.0;
+         *usol[ip][i] = 0.0;
       }
    }
    for (int ip=0; ip<nrpatch; ip++)
@@ -176,7 +173,7 @@ void DiagST::Mult(const Vector &r, Vector &z) const
 
    int nsteps = nx + ny - 1;
    // Sweep number
-   for (int l=0; l<1; l++)
+   for (int l=0; l<4; l++)
    {
       for (int s = 0; s<nsteps; s++)
       {
@@ -197,18 +194,15 @@ void DiagST::Mult(const Vector &r, Vector &z) const
             // find patch id
             Array<int> ij(2); ij[0] = i; ij[1]=j;
             int ip = GetPatchId(ij);
-            
-            cout << "Mult:ip = " << ip << endl;
 
             // Solve the PML problem in patch ip with all sources
             // Original and all transfered (maybe some of them)
             Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
             Array<int> * Dof2PmlDof = &ovlp_prob->Dof2PmlDof[ip];
             int ndofs = Dof2GlobalDof->Size();
-            Vector sol_local(ndofs); sol_local = 0.0;
+            Vector sol_local(ndofs);
             Vector res_local(ndofs); res_local = 0.0;
             if (l==0) res_local += *f_orig[ip];
-            // res_local += *f_orig[ip];
 
             res_local += *f_transf[ip][l];
             // if (res_local.Norml2() < 1e-12) continue;
@@ -219,108 +213,47 @@ void DiagST::Mult(const Vector &r, Vector &z) const
 
             res_ext.SetSubVector(*Dof2PmlDof,res_local);
             PmlMatInv[ip]->Mult(res_ext, sol_ext);
-
-            // socketstream resipsock(vishost, visport);
-            // PlotSolution(res_ext,resipsock,ip,true, true); cin.get();
-
-            // socketstream solipsock(vishost, visport);
-            // PlotSolution(sol_ext,solipsock,ip,true, true); cin.get();
-            
             // Multiply with the cutoff functions, find the new sources and 
             // and propagate to all neighboring subdomains 
             // (possible 8 in 2D, 26 in 3D)
-            // socketstream lsock(vishost, visport);
-            // PlotSolution(sol_ext,lsock,ip,true, true); cin.get();
             TransferSources(l,ip, sol_ext);
             Vector cfsol_ext(sol_ext.Size());
 
             // cut off the ip solution to all possible directions
             Array<int>directions(2); directions = 0; 
 
-            switch (l)
-            {
-               case 0:  
-                  if (i+1<nx) directions[0] = 1;
-                  if (j+1<ny) directions[1] = 1;
-                    break;
-               case 1:  
-                  if (i>0) directions[0] = -1;
-                  if (j+1<ny) directions[1] = 1;
-                  break;
-               case 2:  
-                  if (i+1<nx) directions[0] = 1;
-                  if (j>0) directions[1] = -1;
-                  break;
-               default: 
-                  if (i>0) directions[0] = -1;
-                  if (j>0) directions[1] = -1;
-               break;
-            }
-
-            // if (i+1<nx) directions[0] = 1;
-            // if (j+1<ny) directions[1] = 1;
+            if (i+1<nx) directions[0] = 1;
+            if (j+1<ny) directions[1] = 1;
             GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
-            // sol_ext = cfsol_ext;
-            // directions = 0;
-            // if (i>0) directions[0] = -1;
-            // if (j>0) directions[1] = -1;
-            // GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
+            sol_ext = cfsol_ext;
+            directions = 0.0;
+            if (i>0) directions[0] = -1;
+            if (j>0) directions[1] = -1;
+            GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
             cfsol_ext.GetSubVector(*Dof2PmlDof, sol_local);
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, sol_local);
             z+=znew;
-            // Array<int> * nDof2GlobalDof = &nvlp_prob->Dof2GlobalDof[ip];
-            // Vector zsol(nDof2GlobalDof->Size()); zsol=0.0;
-            // z.GetSubVector(*nDof2GlobalDof, zsol);
-            // *usol[ip] += zsol;
-            // cout << "ip = " << ip << endl;
-            // socketstream znewsock(vishost, visport);
-            // PlotSolution(znew,znewsock,0); cin.get();
+            socketstream zsock(vishost, visport);
+            PlotSolution(z,zsock,0); cin.get();
          }
-         // socketstream zsock(vishost, visport);
-         // PlotSolution(z,zsock,0); cin.get();
       }
    }
-
-   // // Put the solution together
-   // z = 0.0;
-   // for (int ip = 0; ip<nrpatch; ip++)
-   // {
-   //    Array<int> * nDof2GlobalDof = &nvlp_prob->Dof2GlobalDof[ip];
-   //    z.SetSubVector(*nDof2GlobalDof, *usol[ip]);
-   // }
-
-   // socketstream z1sock(vishost, visport);
-   // PlotSolution(z,z1sock,0); cin.get();
-
 }
 
-void DiagST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip, 
-                  bool localdomain, bool pmldomain) const
+void DiagST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const
 {
-   FiniteElementSpace * fes;
-   if (!localdomain)
-   {
-      fes = bf->FESpace();
-   }
-   else if (!pmldomain)
-   {
-      fes = ovlp_prob->fespaces[ip];
-   }
-   else
-   {
-      fes = ovlp_prob->PmlFespaces[ip];
-   }
-   Mesh * mesh = fes->GetMesh();
-   GridFunction gf(fes);
+   FiniteElementSpace * fespace = bf->FESpace();
+   Mesh * mesh = fespace->GetMesh();
+   GridFunction gf(fespace);
    double * data = sol.GetData();
+   // gf.SetData(&data[fespace->GetTrueVSize()]);
    gf.SetData(data);
    
    string keys;
-   // if (ip == 0) 
-   keys = "keys mrRljc\n";
-   // sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
-   sol_sock << "solution\n" << *mesh << gf << keys << flush;
+   if (ip == 0) keys = "keys mrRljc\n";
+   sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
+   // sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
 
 void DiagST::GetCutOffSolution(const Vector & sol, Vector & cfsol, 
@@ -513,51 +446,10 @@ int DiagST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, V
    r = 0.0;
    r.SetSubVector(*Dof2GlobalDof0,Psi0);
 
-   Vector zloc(Psi1.Size()); zloc = 0.0;
-   r.GetSubVector(*Dof2GlobalDof1,zloc);
-
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-
-   // cout << "ip1 = " << ip1 << endl;
-   // socketstream sock(vishost, visport);
-   // PlotSolution(zloc,sock,ip1,true,false); cin.get();
-
-      // extend
-   Vector psi_ext(PmlMat[ip1]->Height()); psi_ext = 0.0;
-   Vector zloc_ext(PmlMat[ip1]->Height()); zloc_ext = 0.0;
-   Array<int> * Dof2PmlDof1 = &ovlp_prob->Dof2PmlDof[ip1];
-   zloc_ext.SetSubVector(*Dof2PmlDof1,zloc);
-
-   // socketstream extsock(vishost, visport);
-   // PlotSolution(zloc_ext,extsock,ip1,true,true); cin.get();
-
-   PmlMat[ip1]->Mult(zloc_ext,psi_ext);
-   psi_ext *=-1.0;
-
-   // socketstream ressock(vishost, visport);
-   // PlotSolution(psi_ext,ressock,ip1,true,true); cin.get();
-
-   Vector Psi(Dof2GlobalDof1->Size()); Psi=0.0;
-   psi_ext.GetSubVector(*Dof2PmlDof1,Psi);
-
-      
-
-   // restrict to the novlp
-   //-------------------------------------
-   Array<int> * nDof2GlobalDof1 = &nvlp_prob->Dof2GlobalDof[ip1];
-   Vector raux(nDof2GlobalDof1->Size()); raux = 0.0;
-   r = 0.0;
-   r.SetSubVector(*Dof2GlobalDof1,Psi);
-   r.GetSubVector(*nDof2GlobalDof1,raux);
-   r = 0.0;
-   r.SetSubVector(*nDof2GlobalDof1,raux);
    r.GetSubVector(*Dof2GlobalDof1,Psi1);
-   
-   //-------------------------------------
 
-
-   // Psi1 = Psi;
+   // Vector Psi(Dof2GlobalDof1->Size()); Psi=0.0;
+   // Psi = Psi1;
    // int nx = nxyz[0];
    // int ny = nxyz[1];
    // Array<int> direct(2); direct = 0;
@@ -572,9 +464,8 @@ int DiagST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, V
    // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
 
 
-   // socketstream cressock(vishost, visport);
-   // PlotSolution(Psi1,cressock,ip1,true,false); cin.get();
 
+   // }
    return ip1;
 }
 
@@ -721,29 +612,49 @@ void DiagST::TransferSources(int sweep, int ip0, Vector & sol_ext) const
          Vector res_ext(sol_ext.Size());
          GetCutOffSolution(sol_ext,cfsol_ext,ip0,directions,ovlpnrlayers,true);
          // sol_ext = cfsol_ext;
-         // PmlMat[ip0]->Mult(cfsol_ext, res_ext); 
+         PmlMat[ip0]->Mult(cfsol_ext, res_ext); 
          
          //---------------------------------------
-         char vishost[] = "localhost";
-         int  visport   = 19916;
+         // FiniteElementSpace * fes = ovlp_prob->PmlFespaces[ip0];
+         // Mesh * mesh = fes->GetMesh();
+         // GridFunction gf(fes);
+         // double * data = res_ext.GetData();
+         // // gf.SetData(&data[fespace->GetTrueVSize()]);
+         // gf.SetData(data);
+         // char vishost[] = "localhost";
+         // int  visport   = 19916;
          // socketstream pmlsock(vishost, visport);
-         // PlotSolution(res_ext,pmlsock,ip0,true,true); cin.get();
+
+         // string keys;
+         // keys = "keys mrRljc\n";
+         // pmlsock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
+         // // sol_sock << "solution\n" << *mesh << gf << keys << flush;
+         // cin.get();
          //---------------------------------------
          
-         // res_ext*= -1.0;
+         
+         
+         res_ext*= -1.0;
          Array<int> *Dof2PmlDof = &ovlp_prob->Dof2PmlDof[ip0];
-         // Vector res_local(Dof2PmlDof->Size()); res_local = 0.0;
-         // res_ext.GetSubVector(*Dof2PmlDof,res_local);
+         Vector res_local(Dof2PmlDof->Size()); res_local = 0.0;
+         res_ext.GetSubVector(*Dof2PmlDof,res_local);
+
+
+         // Vector sol_local(Dof2PmlDof->Size()); sol_local = 0.0;
+         // cfsol_ext.GetSubVector(*Dof2PmlDof,sol_local);
+         // Vector znew(A->Height()); znew = 0.0;
+         // Vector rnew(A->Height()); rnew = 0.0;
+         // Array<int> *Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip0];
+         // znew.SetSubVector(*Dof2GlobalDof,sol_local);
+         // A->Mult(znew,rnew); rnew *=-1.0;
+         // rnew.GetSubVector(*Dof2GlobalDof, res_local);
 
          //-----------------------------
          // pass to ip1 and calculate residual there
-         Vector sol_local(Dof2PmlDof->Size()); sol_local = 0.0;
-         cfsol_ext.GetSubVector(*Dof2PmlDof,sol_local);
+         // Vector sol_local(Dof2PmlDof->Size()); sol_local = 0.0;
+         // cfsol_ext.GetSubVector(*Dof2PmlDof,sol_local);
          //-----------------------------
 
-         // cout << "ip0 = " << ip0 << endl;
-         // socketstream sock(vishost, visport);
-         // PlotSolution(sol_local,sock,ip0,true,false); cin.get();
 
 
 
@@ -782,17 +693,14 @@ void DiagST::TransferSources(int sweep, int ip0, Vector & sol_ext) const
             // }
             // cout << res_local.Norml2() << endl;
 
-            int jp1 = SourceTransfer(sol_local,directions,ip0,raux);
-            // int jp1 = SourceTransfer(res_local,directions,ip0,raux);
+            int jp1 = SourceTransfer(res_local,directions,ip0,raux);
             MFEM_VERIFY(ip1 == jp1, "Check SourceTransfer patch id");
             MFEM_VERIFY(f_transf[ip1][l]->Size()==raux.Size(), 
                         "Transfer Sources: inconsistent size");
-            // cout << "l = " << l << endl;
             *f_transf[ip1][l]+=raux;
-            // *f_transf[ip1][l]-=raux;
-            // *f_transf[ip1][l] *= -1.0;
 
-            break;
+
+         break;
          }
             
       }  
