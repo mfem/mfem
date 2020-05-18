@@ -852,7 +852,7 @@ protected:
    // PMatI: current coordinates of the nodes (dof x dim).
    // PMat0: reshaped view into the local element contribution to the operator
    //        output - the result of AssembleElementVector() (dof x dim).
-   DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
+   mutable DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    // PA extension
    mutable Vector D;
@@ -968,11 +968,11 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
    /// PA extension
-   using NonlinearFormIntegrator::AssemblePA;
-
+   using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
    virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                          const Vector &x);
+                                          const Vector &x) const;
 
+   using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;

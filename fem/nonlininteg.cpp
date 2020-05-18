@@ -15,6 +15,15 @@
 namespace mfem
 {
 
+double NonlinearFormIntegrator::GetGridFunctionEnergyPA(
+   const FiniteElementSpace &fes,
+   const Vector &x) const
+{
+   mfem_error ("NonlinearFormIntegrator::GetGridFunctionEnergyPA(...)\n"
+               "   is not implemented for this class.");
+   return 0.0;
+}
+
 void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
    mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"

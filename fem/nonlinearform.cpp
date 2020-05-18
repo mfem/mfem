@@ -160,8 +160,9 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
 #ifndef _WIN32
    if (getenv("DBG"))
    {
-      dbg("\033[7mStuffing x with RANDs!");
+      x.HostWrite();
       srand48(0x1234abcd330eul);
+      dbg("\033[7mStuffing x with RANDs!");
       for (int k=0; k<X.Size(); k++) { x[k] = drand48(); }
    }
 #endif
