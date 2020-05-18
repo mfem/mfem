@@ -1,23 +1,32 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-#ifndef MFEM_TEMPLATE_CONFIG_SIMD_VSX128
-#define MFEM_TEMPLATE_CONFIG_SIMD_VSX128
+#ifndef MFEM_SIMD_VSX128_HPP
+#define MFEM_SIMD_VSX128_HPP
 
-#include "../tconfig.hpp"
+#ifdef __VSX__
 
-template <> struct AutoSIMD<double,2,2>
+#include "../../config/tconfig.hpp"
+#include <altivec.h>
+
+namespace mfem
 {
+
+template <typename,int,int> struct AutoSIMD;
+
+template <> struct AutoSIMD<double,2,16>
+{
+   typedef double scalar_type;
    static constexpr int size = 2;
-   static constexpr int align_size = 16;
+   static constexpr int align_bytes = 16;
 
    union
    {
@@ -196,39 +205,43 @@ template <> struct AutoSIMD<double,2,2>
 };
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,2,2> operator+(const double &e,
-                               const AutoSIMD<double,2,2> &v)
+AutoSIMD<double,2,16> operator+(const double &e,
+                                const AutoSIMD<double,2,16> &v)
 {
-   AutoSIMD<double,2,2> r;
+   AutoSIMD<double,2,16> r;
    r.vd = vec_add(vec_splats(e),v.vd);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,2,2> operator-(const double &e,
-                               const AutoSIMD<double,2,2> &v)
+AutoSIMD<double,2,16> operator-(const double &e,
+                                const AutoSIMD<double,2,16> &v)
 {
-   AutoSIMD<double,2,2> r;
+   AutoSIMD<double,2,16> r;
    r.vd = vec_sub(vec_splats(e),v.vd);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,2,2> operator*(const double &e,
-                               const AutoSIMD<double,2,2> &v)
+AutoSIMD<double,2,16> operator*(const double &e,
+                                const AutoSIMD<double,2,16> &v)
 {
-   AutoSIMD<double,2,2> r;
+   AutoSIMD<double,2,16> r;
    r.vd = vec_mul(vec_splats(e),v.vd);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,2,2> operator/(const double &e,
-                               const AutoSIMD<double,2,2> &v)
+AutoSIMD<double,2,16> operator/(const double &e,
+                                const AutoSIMD<double,2,16> &v)
 {
-   AutoSIMD<double,2,2> r;
+   AutoSIMD<double,2,16> r;
    r.vd = vec_div(vec_splats(e),v.vd);
    return r;
 }
 
-#endif // MFEM_TEMPLATE_CONFIG_SIMD_VSX128
+} // namespace mfem
+
+#endif // __VSX__
+
+#endif // MFEM_SIMD_VSX128_HPP

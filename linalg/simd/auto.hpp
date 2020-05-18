@@ -1,25 +1,31 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-#ifndef MFEM_TEMPLATE_CONFIG_SIMD_AUTO
-#define MFEM_TEMPLATE_CONFIG_SIMD_AUTO
+#ifndef MFEM_SIMD_AUTO_HPP
+#define MFEM_SIMD_AUTO_HPP
 
-#include "../tconfig.hpp"
+#include "../../config/tconfig.hpp"
 
-template <typename scalar_t, int S, int align_S>
-struct MFEM_ALIGN_AS(align_S*sizeof(scalar_t)) AutoSIMD
+namespace mfem
+{
+
+// Use this macro as a workaround for astyle formatting issue with 'alignas'
+#define MFEM_AUTOSIMD_ALIGN__ alignas(align_bytes_)
+
+template <typename scalar_t, int S, int align_bytes_>
+struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 {
    typedef scalar_t scalar_type;
    static const int size = S;
-   static const int align_size = align_S;
+   static const int align_bytes = align_bytes_;
 
    scalar_t vec[size];
 
@@ -262,4 +268,6 @@ AutoSIMD<scalar_t,S,A> operator/(const scalar_t &e,
    return r;
 }
 
-#endif // MFEM_TEMPLATE_CONFIG_SIMD_AUTO
+} // namespace mfem
+
+#endif // MFEM_SIMD_AUTO_HPP

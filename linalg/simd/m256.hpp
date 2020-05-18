@@ -1,23 +1,36 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-#ifndef MFEM_TEMPLATE_CONFIG_SIMD_M256
-#define MFEM_TEMPLATE_CONFIG_SIMD_M256
+#ifndef MFEM_SIMD_M256_HPP
+#define MFEM_SIMD_M256_HPP
 
-#include "../tconfig.hpp"
+#ifdef __AVX__
 
-template <> struct AutoSIMD<double,4,4>
+#include "../../config/tconfig.hpp"
+#if defined(__x86_64__)
+#include <x86intrin.h>
+#else // assuming MSVC with _M_X64 or _M_IX86
+#include <intrin.h>
+#endif
+
+namespace mfem
 {
+
+template <typename, int, int> struct AutoSIMD;
+
+template <> struct AutoSIMD<double,4,32>
+{
+   typedef double scalar_type;
    static constexpr int size = 4;
-   static constexpr int align_size = 32;
+   static constexpr int align_bytes = 32;
 
    union
    {
@@ -208,39 +221,43 @@ template <> struct AutoSIMD<double,4,4>
 };
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator+(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator+(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_add_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator-(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator-(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_sub_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator*(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator*(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_mul_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
 inline MFEM_ALWAYS_INLINE
-AutoSIMD<double,4,4> operator/(const double &e,
-                               const AutoSIMD<double,4,4> &v)
+AutoSIMD<double,4,32> operator/(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,4,4> r;
+   AutoSIMD<double,4,32> r;
    r.m256d = _mm256_div_pd(_mm256_set1_pd(e),v.m256d);
    return r;
 }
 
-#endif // MFEM_TEMPLATE_CONFIG_SIMD_M256
+} // namespace mfem
+
+#endif // __AVX__
+
+#endif // MFEM_SIMD_M256_HPP
