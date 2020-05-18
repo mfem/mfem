@@ -975,7 +975,11 @@ public:
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   using NonlinearFormIntegrator::AddMultPA;
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   using NonlinearFormIntegrator::AddMultGradPA;
+   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 

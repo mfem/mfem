@@ -1619,6 +1619,8 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
    }
    delete Tpr;
+   dbg("");
+   MFEM_ABORT("First AssembleElementGradExact");
 }
 
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,

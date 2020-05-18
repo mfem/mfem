@@ -27,7 +27,9 @@ protected:
 public:
    NonlinearFormExtension(const NonlinearForm *nlf);
    virtual void AssemblePA() = 0;
+   virtual Operator &GetGradientPA(const Array<int>&, Vector&) =0;
 };
+
 
 /// Data and methods for partially-assembled nonlinear forms
 class PANonlinearFormExtension : public NonlinearFormExtension
@@ -37,10 +39,33 @@ protected:
    mutable Vector localX, localY;
    const Operator *elem_restrict_lex;
 
+   OperatorPtr GradOp;
+   Array<int> ess_tdof_list;
+
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
    void AssemblePA();
+   Operator &GetGradientPA(const Array<int>&, Vector &x);
    void Mult(const Vector &x, Vector &y) const;
 };
-}
+
+
+class PAGradOperator : public Operator
+{
+protected:
+   const NonlinearForm *nlf;
+   const FiniteElementSpace &fes;
+   mutable Vector localX, localY;
+   const Array<int> &ess_tdof_list;
+   const Operator *elem_restrict_lex;
+public:
+   PAGradOperator(const NonlinearForm *nlf,
+                  const FiniteElementSpace &fes,
+                  const Array<int> &ess_tdof_list,
+                  const Operator *elem_restrict_lex);
+   void Mult(const Vector &x, Vector &y) const;
+};
+
+} // namespace mfem
+
 #endif // NONLINEARFORM_EXT_HPP

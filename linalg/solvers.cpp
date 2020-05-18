@@ -1626,8 +1626,12 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       dbg("prec->SetOperator(oper->GetGradient(x));");
       prec->SetOperator(oper->GetGradient(x));
 
-      dbg("prec->Mult");
+      dbg("prec->Mult, r:%d, c:%d",r.Size(),c.Size());
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      dbg("c: %.15e", c*c);
+      /////////////////////////
+      //dbg("Exiting!"); exit(0);
+      /////////////////////////
 
       dbg("ComputeScalingFactor");
       const double c_scale = ComputeScalingFactor(x, b);

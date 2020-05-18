@@ -50,6 +50,20 @@ void PANonlinearFormExtension::AssemblePA()
    }
 }
 
+Operator&
+PANonlinearFormExtension::GetGradientPA(const Array<int> &ess_tdof_list,
+                                        Vector &x)
+{
+   dbg("");
+   GradOp.SetType(Operator::ANY_TYPE);
+   Operator *oper =
+      new PAGradOperator(nlf, fes, ess_tdof_list, elem_restrict_lex);
+   GradOp.Reset(oper);
+   GradOp.SetOperatorOwner(false);
+   MFEM_VERIFY(GradOp.Ptr(), "AssembleGradPA error!");
+   return *GradOp.Ptr();
+}
+
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    dbg("");
@@ -77,4 +91,48 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 }
 
+PAGradOperator::PAGradOperator(const NonlinearForm *nlf,
+                               const FiniteElementSpace &fes,
+                               const Array<int> &ess_tdof_list,
+                               const Operator *elem_restrict_lex): Operator(),
+   nlf(nlf),
+   fes(fes),
+   ess_tdof_list(ess_tdof_list),
+   elem_restrict_lex(elem_restrict_lex)
+{
+   dbg("\033[7mPAGradOperator");
+   if (elem_restrict_lex)
+   {
+      dbg("elem_restrict_lex->Height(): %d",elem_restrict_lex->Height());
+      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localX.UseDevice(true);
+      localY.UseDevice(true);
+   }
 }
+
+void PAGradOperator::Mult(const Vector &x, Vector &y) const
+{
+   // Should see where this is done usually
+   y.SetSize(x.Size());
+   dbg("Sizes: %d, %d", x.Size(), y.Size());
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+   const int Ni = integrators.Size();
+   if (elem_restrict_lex)
+   {
+      elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
+      for (int i = 0; i < Ni; ++i)
+      {
+         integrators[i]->AddMultGradPA(localX, localY);
+      }
+      elem_restrict_lex->MultTranspose(localY, y);
+   }
+   else
+   {
+      MFEM_ABORT("Not yet implemented!");
+   }
+   // Should if (Serial())...
+}
+
+} // namespace mfem

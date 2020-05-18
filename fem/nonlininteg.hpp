@@ -92,6 +92,7 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
 
    virtual ~NonlinearFormIntegrator() { }
 };
