@@ -777,7 +777,7 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 
 VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
    QuadratureFunction *qf)
-   : VectorCoefficient(qf->GetVDim()), QuadF(qf), index(0), length(vdim) { }
+   : VectorCoefficient(qf->GetVDim()), QuadF(qf), index(0) { }
 
 void VectorQuadratureFunctionCoefficient::SetQuadratureFunction(
    QuadratureFunction *qf)
@@ -785,8 +785,7 @@ void VectorQuadratureFunctionCoefficient::SetQuadratureFunction(
    MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
 
    index = 0;
-   length = qf->GetVDim();
-   vdim = length;
+   vdim = qf->GetVDim();
    QuadF = qf;
 }
 
@@ -801,8 +800,7 @@ void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
    MFEM_VERIFY(_length <= QuadF->GetVDim() - index,
                "Length must be <= (QuadratureFunction length - index)");
 
-   length = _length;
-   vdim = length;
+   vdim = _length;
 }
 
 void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
@@ -812,21 +810,18 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    MFEM_VERIFY(QuadF, "QuadratureFunction must be set to a nonnull ptr");
 
    QuadF->HostRead();
-   if (index == 0 && length == QuadF->GetVDim())
+   Vector temp;
+   QuadF->GetElementValues(T.ElementNo, ip.index, temp);
+   if (index == 0 && vdim == QuadF->GetVDim())
    {
-      Vector temp;
-      QuadF->GetElementValues(T.ElementNo, ip.index, temp);
       V = temp;
    }
    else
    {
-      Vector temp;
-      QuadF->GetElementValues(T.ElementNo, ip.index, temp);
-      double *data = temp.HostReadWrite();
-      V.SetSize(length);
-      for (int i = 0; i < length; i++)
+      V.SetSize(vdim);
+      for (int i = 0; i < vdim; i++)
       {
-         V(i) = data[index + i];
+         V(i) = temp(index + i);
       }
    }
 
