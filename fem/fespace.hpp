@@ -537,8 +537,8 @@ public:
    void BuildDofToArrays();
 
    const Table &GetElementToDofTable() const { return *elem_dof; }
-   const Table &GetBdrElementToDofTable() const { return *bdrElem_dof; }
-   const Table &GetFaceToDofTable() const { return *face_dof; }
+   const Table *GetBdrElementToDofTable() const { return bdrElem_dof; }
+   const Table *GetFaceToDofTable() const { return face_dof; }
 
    int GetElementForDof(int i) const { return dof_elem_array[i]; }
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
