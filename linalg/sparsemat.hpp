@@ -21,6 +21,11 @@
 #include "../general/globals.hpp"
 #include "densemat.hpp"
 
+#ifdef MFEM_USE_CUDA
+#include <cusparse.h>
+#include <library_types.h>
+#endif
+
 namespace mfem
 {
 
@@ -80,9 +85,24 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
+#ifdef MFEM_USE_CUDA
+   cusparseStatus_t status;
+   cusparseHandle_t handle=0;
+   cusparseMatDescr_t descr=0;
+   mutable size_t bufferSize{0}; 
+   mutable void *dBuffer = NULL;
+   mutable bool isInit{false};
+#endif
+
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix() 
+   { 
+     SetEmpty();
+#ifdef MFEM_USE_CUDA
+     InitCuSparse();
+#endif 
+   }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -118,6 +138,8 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
+   //Intialize CuSparse
+   void InitCuSparse();
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -573,9 +595,15 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix() { Destroy(); }
+   virtual ~SparseMatrix() { 
+     Destroy();
+#ifdef MFEM_USE_CUDA
+     if(handle) { cusparseDestroy(handle);}
+#endif
+   }
 
-   Type GetType() const { return MFEM_SPARSEMAT; }
+  Type GetType() const { return MFEM_SPARSEMAT; }
+   
 };
 
 /// Applies f() to each element of the matrix (after it is finalized).

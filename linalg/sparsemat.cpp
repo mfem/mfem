@@ -15,8 +15,6 @@
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
-#include <cusparse.h>
-#include <library_types.h>
 
 #include <iostream>
 #include <iomanip>
@@ -29,6 +27,12 @@ namespace mfem
 {
 
 using namespace std;
+
+void SparseMatrix::InitCuSparse()
+{
+  /* initialize cusparse library */
+  cusparseCreate(&handle);
+}
 
 SparseMatrix::SparseMatrix(int nrows, int ncols)
    : AbstractSparseMatrix(nrows, (ncols >= 0) ? ncols : nrows),
@@ -52,6 +56,10 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = new RowNodeAlloc;
 #endif
+
+#ifdef MFEM_USE_CUDA
+   InitCuSparse();
+#endif
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
@@ -68,6 +76,10 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
 
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
+#endif
+
+#ifdef MFEM_USE_CUDA
+   InitCuSparse();
 #endif
 }
 
@@ -100,6 +112,9 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
          A[i] = 0.0;
       }
    }
+#ifdef MFEM_USE_CUDA
+   InitCuSparse();
+#endif
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
@@ -121,6 +136,9 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    {
       I[i] = i * rowsize;
    }
+#ifdef MFEM_USE_CUDA
+   InitCuSparse();
+#endif
 }
 
 SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
@@ -186,6 +204,10 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    ColPtrNode = NULL;
    At = NULL;
    isSorted = mat.isSorted;
+
+#ifdef MFEM_USE_CUDA
+   InitCuSparse();
+#endif
 }
 
 SparseMatrix::SparseMatrix(const Vector &v)
@@ -213,6 +235,9 @@ SparseMatrix::SparseMatrix(const Vector &v)
       J[r] = r;
       A[r] = v[r];
    }
+#ifdef MFEM_USE_CUDA
+   InitCuSparse();
+#endif
 }
 
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
@@ -583,8 +608,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
 #ifndef MFEM_USE_LEGACY_OPENMP
 
-   Vector myY(y); 
-
+   Vector myY(y);
    const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
@@ -604,43 +628,37 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    });
 
 
-   cusparseStatus_t status;
-   cusparseHandle_t handle=0;
-   cusparseMatDescr_t descr=0;
-   
-   /* initialize cusparse library */
-   status= cusparseCreate(&handle);
-   if (status != CUSPARSE_STATUS_SUCCESS) { printf("CUSPARSE Library initialization failed \n");
-     exit(-1);
-   }   
-
    /* create and setup matrix descriptor */
    cusparseSpMatDescr_t matA_descr;
    cusparseDnVecDescr_t vecX_descr;
    cusparseDnVecDescr_t vecY_descr;
 
    cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(x.Read()), CUDA_R_64F);
-   cusparseCreateDnVec(&vecY_descr, myY.Size(), myY.ReadWrite(), CUDA_R_64F);
-   cusparseCreateCsr(&matA_descr,Height(), Height(), J.Capacity(), const_cast<int *>(d_I),
+   cusparseCreateDnVec(&vecY_descr, y.Size(), myY.ReadWrite(), CUDA_R_64F);
+   cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(), const_cast<int *>(d_I),
                      const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
                      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
    
    
    const double alpha = a; 
    const double beta  = 1.0;
-   auto matType = CUDA_R_64F; 
-   size_t bufferSize = 0;
-   cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr, vecX_descr, &beta,
-                           vecY_descr, matType, CUSPARSE_CSRMV_ALG1, &bufferSize);
-   void* dBuffer = NULL;
-   if(bufferSize > 0)
+
+   if(!isInit) 
    {
-     cudaMalloc(&dBuffer, bufferSize);
+     cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
+                             vecX_descr, &beta, vecY_descr, CUDA_R_64F,
+                             CUSPARSE_CSRMV_ALG1, &bufferSize);
+     if(bufferSize > 0)
+       {
+         cudaMalloc(&dBuffer, bufferSize);
+       }
+     isInit = true;
    }
 
    // Y = alpha A * X + beta * Y 
-   cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr, vecX_descr, &beta, vecY_descr, matType, CUSPARSE_CSRMV_ALG1, dBuffer);
-   cudaDeviceSynchronize();
+   cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
+                vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
+
 
    myY -= y;
    double error = myY.Norml2();
@@ -1060,6 +1078,10 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
    delete [] Rows;
    Rows = NULL;
+   
+#ifdef MFEM_USE_CUDA
+
+#endif   
 }
 
 void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
