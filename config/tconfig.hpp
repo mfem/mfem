@@ -37,72 +37,11 @@
 #define MFEM_VECTORIZE_LOOP
 #endif
 
-// --- MFEM_ALIGN_AS
-#if (__cplusplus >= 201103L)
-#define MFEM_ALIGN_AS(bytes) alignas(bytes)
-#elif !defined(MFEM_DEBUG) && (defined(__GNUC__) || defined(__clang__))
-#define MFEM_ALIGN_AS(bytes) __attribute__ ((aligned (bytes)))
-#else
-#define MFEM_ALIGN_AS(bytes)
-#endif
-
-// --- AutoSIMD or intrinsics
-#ifndef MFEM_USE_SIMD
-#include "simd/auto.hpp"
-#else
-#if defined(__VSX__)
-#include "simd/vsx.hpp"
-#elif defined (__bgq__)
-#include "simd/qpx.hpp"
-#elif defined(__x86_64__)
-#include "simd/x86.hpp"
-#else
-#error Unknown SIMD architecture
-#endif
-#endif
-
-// --- SIMD and BLOCK sizes
-#if defined(_WIN32)
-#define MFEM_SIMD_SIZE 8
-#define MFEM_TEMPLATE_BLOCK_SIZE 1
-#elif defined(__AVX512F__)
-#define MFEM_SIMD_SIZE 64
-#define MFEM_TEMPLATE_BLOCK_SIZE 8
-#elif defined(__AVX__) || defined(__VECTOR4DOUBLE__)
-#define MFEM_SIMD_SIZE 32
+// MFEM_TEMPLATE_BLOCK_SIZE is the block size used by the template matrix-matrix
+// multiply, Mult_AB, defined in tmatrix.hpp. This parameter will generally
+// require tuning to determine good value. It is probably highly influenced by
+// the SIMD width when Mult_AB is used with a SIMD type like AutoSIMD.
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
-#elif defined(__SSE2__) || defined(__VSX__)
-#define MFEM_SIMD_SIZE 16
-#define MFEM_TEMPLATE_BLOCK_SIZE 2
-#else
-#define MFEM_SIMD_SIZE 8
-#define MFEM_TEMPLATE_BLOCK_SIZE 1
-#endif
-
-namespace mfem
-{
-
-template<typename complex_t, typename real_t, bool simd>
-struct AutoImplTraits
-{
-   static const int block_size = MFEM_TEMPLATE_BLOCK_SIZE;
-
-   static const int align_size = MFEM_SIMD_SIZE; // in bytes
-
-   static const int batch_size = 1;
-
-   static const int simd_size = simd ? (MFEM_SIMD_SIZE/sizeof(complex_t)) : 1;
-
-   static const int valign_size = simd ? simd_size : 1;
-
-   typedef AutoSIMD<complex_t, simd_size, valign_size> vcomplex_t;
-   typedef AutoSIMD<real_t, simd_size, valign_size> vreal_t;
-#ifndef MFEM_USE_SIMD
-   typedef AutoSIMD<int, simd_size, valign_size> vint_t;
-#endif // MFEM_USE_SIMD
-};
-
-} // mfem namespace
 
 #define MFEM_TEMPLATE_ENABLE_SERIALIZE
 
@@ -110,11 +49,6 @@ struct AutoImplTraits
 // #define MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
 // #define MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
 #define MFEM_TEMPLATE_INTRULE_COEFF_PRECOMP
-
-// derived macros
-#define MFEM_ROUNDUP(val,base) ((((val)+(base)-1)/(base))*(base))
-#define MFEM_ALIGN_SIZE(size,type) \
-   MFEM_ROUNDUP(size,(MFEM_SIMD_SIZE)/sizeof(type))
 
 #ifdef MFEM_COUNT_FLOPS
 namespace mfem

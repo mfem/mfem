@@ -1,224 +1,241 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-#ifndef MFEM_TEMPLATE_CONFIG_SIMD_QPX_64
-#define MFEM_TEMPLATE_CONFIG_SIMD_QPX_64
+#ifndef MFEM_SIMD_QPX_256_HPP
+#define MFEM_SIMD_QPX_256_HPP
 
-#include "../tconfig.hpp"
+#ifdef __bgq__
 
-template <> struct AutoSIMD<double,1,1>
+#include "../../config/tconfig.hpp"
+#include <builtins.h>
+
+namespace mfem
 {
-   static constexpr int size = 1;
-   static constexpr int align_size = 8;
 
-   double vec[size];
+template <typename,int,int> struct AutoSIMD;
 
-   inline __ATTRS_ai double &operator[](int i) { return vec[0]; }
+template <> struct AutoSIMD<double,4,32>
+{
+   typedef double scalar_type;
+   static constexpr int size = 4;
+   static constexpr int align_bytes = 32;
 
-   inline __ATTRS_ai const double &operator[](int i) const { return vec[0]; }
+   union
+   {
+      vector4double vd;
+      double vec[size];
+   };
+
+   inline __ATTRS_ai double &operator[](int i) { return vec[i]; }
+
+   inline __ATTRS_ai const double &operator[](int i) const { return vec[i]; }
 
    inline __ATTRS_ai AutoSIMD &operator=(const AutoSIMD &v)
    {
-      vec[0] = v[0];
+      vd = v.vd;
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator=(const double &e)
    {
-      vec[0] = e;
+      vd = vec_splats(e);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator+=(const AutoSIMD &v)
    {
-      vec[0] += v[0];
+      vd = vec_add(vd,v.vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator+=(const double &e)
    {
-      vec[0] += e;
+      vd = vec_add(vd,vec_splats(e));
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator-=(const AutoSIMD &v)
    {
-      vec[0] -= v[0];
+      vd = vec_sub(vd,v.vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator-=(const double &e)
    {
-      vec[0] -= e;
+      vd = vec_sub(vd,vec_splats(e));
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator*=(const AutoSIMD &v)
    {
-      vec[0] *= v[0];
+      vd = vec_mul(vd,v.vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator*=(const double &e)
    {
-      vec[0] *= e;
+      vd = vec_mul(vd,vec_splats(e));
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator/=(const AutoSIMD &v)
    {
-      vec[0] /= v[0];
+      vd = vec_swdiv(vd,v.vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &operator/=(const double &e)
    {
-      vec[0] /= e;
+      vd = vec_swdiv(vd,vec_splats(e));
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD operator-() const
    {
       AutoSIMD r;
-      r[0] = -vec[0];
+      r.vd = vec_neg(vd);
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator+(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r[0] = vec[0] + v[0];
+      r.vd = vec_add(vd,v.vd);
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator+(const double &e) const
    {
       AutoSIMD r;
-      r[0] = vec[0] + e;
+      r.vd = vec_add(vd, vec_splats(e));
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator-(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r[0] = vec[0] - v[0];
+      r.vd = vec_sub(vd,v.vd);
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator-(const double &e) const
    {
       AutoSIMD r;
-      r[0] = vec[0] - e;
+      r.vd = vec_sub(vd, vec_splats(e));
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator*(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r[0] = vec[0] * v[0];
+      r.vd = vec_mul(vd,v.vd);
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator*(const double &e) const
    {
       AutoSIMD r;
-      r[0] = vec[0] * e;
+      r.vd = vec_mul(vd, vec_splats(e));
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator/(const AutoSIMD &v) const
    {
       AutoSIMD r;
-      r[0] = vec[0] / v[0];
+      r.vd = vec_swdiv(vd,v.vd);
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD operator/(const double &e) const
    {
       AutoSIMD r;
-      r[0] = vec[0] / e;
+      r.vd = vec_swdiv(vd, vec_splats(e));
       return r;
    }
 
    inline __ATTRS_ai AutoSIMD &fma(const AutoSIMD &v, const AutoSIMD &w)
    {
-      vec[0] += v[0] * w[0];
+      vd = vec_madd(w.vd,vd,v.vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &fma(const AutoSIMD &v, const double &e)
    {
-      vec[0] += v[0] * e;
+      vd = vec_madd(v.vd,vec_splats(e),vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &fma(const double &e, const AutoSIMD &v)
    {
-      vec[0] += e * v[0];
+      vd = vec_madd(vec_splats(e),v.vd,vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &mul(const AutoSIMD &v, const AutoSIMD &w)
    {
-      vec[0] = v[0] * w[0];
+      vd = vec_mul(v.vd,w.vd);
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &mul(const AutoSIMD &v, const double &e)
    {
-      vec[0] = v[0] * e;
+      vd = vec_mul(v.vd,vec_splats(e));
       return *this;
    }
 
    inline __ATTRS_ai AutoSIMD &mul(const double &e, const AutoSIMD &v)
    {
-      vec[0] = e * v[0];
+      vd = vec_mul(vec_splats(e),v.vd);
       return *this;
    }
 };
 
 inline __ATTRS_ai
-AutoSIMD<double,1,1> operator+(const double &e,
-                               const AutoSIMD<double,1,1> &v)
+AutoSIMD<double,4,32> operator+(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,1,1> r;
-   r[0] = e + v[0];
+   AutoSIMD<double,4,32> r;
+   r.vd = vec_add(vec_splats(e),v.vd);
    return r;
 }
 
 inline __ATTRS_ai
-AutoSIMD<double,1,1> operator-(const double &e,
-                               const AutoSIMD<double,1,1> &v)
+AutoSIMD<double,4,32> operator-(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,1,1> r;
-   r[0] = e - v[0];
+   AutoSIMD<double,4,32> r;
+   r.vd = vec_sub(vec_splats(e),v.vd);
    return r;
 }
 
 inline __ATTRS_ai
-AutoSIMD<double,1,1> operator*(const double &e,
-                               const AutoSIMD<double,1,1> &v)
+AutoSIMD<double,4,32> operator*(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,1,1> r;
-   r[0] = e * v[0];
+   AutoSIMD<double,4,32> r;
+   r.vd = vec_mul(vec_splats(e),v.vd);
    return r;
 }
 
 inline __ATTRS_ai
-AutoSIMD<double,1,1> operator/(const double &e,
-                               const AutoSIMD<double,1,1> &v)
+AutoSIMD<double,4,32> operator/(const double &e,
+                                const AutoSIMD<double,4,32> &v)
 {
-   AutoSIMD<double,1,1> r;
-   r[0] = e / v[0];
+   AutoSIMD<double,4,32> r;
+   r.vd = vec_swdiv(vec_splats(e),v.vd);
    return r;
 }
 
-#endif // MFEM_TEMPLATE_CONFIG_SIMD_QPX_64
+} // namespace mfem
+
+#endif // __bgq__
+
+#endif // MFEM_SIMD_QPX_256_HPP
