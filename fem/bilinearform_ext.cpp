@@ -611,36 +611,39 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 // Data and methods for fully-assembled bilinear forms
 FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
    : EABilinearFormExtension(form),
-     mat(form->FESpace()->GetVSize()+1)//Multiply by vd?
+     mat(form->FESpace()->GetVSize())//Multiply by vd?
 {
 }
 
 void FABilinearFormExtension::Assemble()
 {
    //TODO something is missing
-   SetupRestrictionOperators(L2FaceValues::SingleValued);
+   EABilinearFormExtension::Assemble();
+   // SetupRestrictionOperators(L2FaceValues::SingleValued);
    FiniteElementSpace &fes = *a->FESpace();
    if (fes.IsDGSpace())
    {
-      const L2ElementRestriction &restE = static_cast<const L2ElementRestriction&>(*elem_restrict);
-      const L2FaceRestriction &restF = static_cast<const L2FaceRestriction&>(*int_face_restrict_lex);
+      const L2ElementRestriction *restE = static_cast<const L2ElementRestriction*>(elem_restrict);
+      const L2FaceRestriction *restF = static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
       //1. Fill I
+      mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
       Vector elem_nnz(ne);
       //  1.1 Increment with restE
-      restE.FillElemNnz(elem_nnz);
+      restE->FillElemNnz(elem_nnz);
       //  1.2 Increment with restF
-      restF.FillElemNnz(elem_nnz);
+      if(restF) restF->FillElemNnz(elem_nnz);
       //    Init the indirection vector
       Vector elem_begin(ne);
-      Vector face_begin(ne);// face_begin(e) + i_B*elem_nnz(e)
-      const int elem_dofs = 1;
+      // Vector face_begin(ne);// face_begin(e) + i_B*elem_nnz(e)
+      const int elem_dofs = fes.GetFE(0)->GetDof();
       auto I = mat.HostWriteI();
-      int cpt = 0;
+      size_t cpt = 0;
       //TODO take into account vd
       for (int e = 0; e < ne; e++)
       {
-         elem_begin[e] = cpt;
-         face_begin[e] = cpt + elem_dofs;
+         // elem_begin[e] = cpt;
+         // face_begin[e] = cpt + elem_dofs;
+         elem_begin[e] = cpt + elem_dofs;
          const int row_nnz = elem_nnz[e];
          for (int dof = 0; dof < elem_dofs; dof++)
          {
@@ -650,10 +653,12 @@ void FABilinearFormExtension::Assemble()
          }
       }
       I[ne*elem_dofs] = cpt;
+      mat.GetMemoryJ().New(cpt, mat.GetMemoryJ().GetMemoryType());
+      mat.GetMemoryData().New(cpt, mat.GetMemoryData().GetMemoryType());
       //2. Fill J and Data with Elem ea_data
-      restE.FillJandData(elem_begin, elem_nnz, ea_data, elem_dofs, mat);
+      restE->FillJandData(elem_begin, elem_nnz, ea_data, elem_dofs, mat);
       //3. Fill J and Data with Face ea_data_ext
-      restF.FillJandData(elem_begin, elem_nnz, ea_data_ext, elem_dofs, mat);
+      if(restF) restF->FillJandData(elem_begin, elem_nnz, ea_data_ext, elem_dofs, mat);
    }
    else // CG case
    {
@@ -668,20 +673,20 @@ void FABilinearFormExtension::Update()
    //TODO
 }
 
-void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                               OperatorHandle &A)
-{
-   //TODO
-}
+// void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+//                                                OperatorHandle &A)
+// {
+//    //TODO
+// }
 
-void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                               Vector &x, Vector &b,
-                                               OperatorHandle &A,
-                                               Vector &X, Vector &B,
-                                               int copy_interior)
-{
-   //TODO
-}
+// void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
+//                                                Vector &x, Vector &b,
+//                                                OperatorHandle &A,
+//                                                Vector &X, Vector &B,
+//                                                int copy_interior)
+// {
+//    //TODO
+// }
 
 void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
