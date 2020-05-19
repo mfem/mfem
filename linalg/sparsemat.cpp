@@ -616,28 +616,21 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, height,
-   {
-      double d = 0.0;
-      const int end = d_I[i+1];
-      for (int j = d_I[i]; j < end; j++)
-      {
-         d += d_A[j] * d_x[d_J[j]];
-      }
-      d_y[i] += a * d;
-   });
 
-
+if(Device::Allows(Backend::CUDA_MASK))
+{
+   //UseDevice();
    /* create and setup matrix descriptor */
    cusparseSpMatDescr_t matA_descr;
    cusparseDnVecDescr_t vecX_descr;
    cusparseDnVecDescr_t vecY_descr;
 
-   cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(x.Read()), CUDA_R_64F);
-   cusparseCreateDnVec(&vecY_descr, y.Size(), myY.ReadWrite(), CUDA_R_64F);
    cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(), const_cast<int *>(d_I),
                      const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
                      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
+
+   cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x), CUDA_R_64F);
+   cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
    
    
    const double alpha = a; 
@@ -645,6 +638,8 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if(!isInit) 
    {
+
+
      cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
                              vecX_descr, &beta, vecY_descr, CUDA_R_64F,
                              CUSPARSE_CSRMV_ALG1, &bufferSize);
@@ -659,15 +654,32 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
                 vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
 
+   //Can this be done once?
+   //   cusparseDestroySpMat(matA_descr);
+   cusparseDestroyDnVec(vecX_descr);
+   cusparseDestroyDnVec(vecY_descr);
+}else{
 
+   //Native version
+   MFEM_FORALL(i, height,
+   {
+      double d = 0.0;
+      const int end = d_I[i+1];
+      for (int j = d_I[i]; j < end; j++)
+      {
+         d += d_A[j] * d_x[d_J[j]];
+      }
+      d_y[i] += a * d;
+   });
+
+ }
+
+   /*
    myY -= y;
    double error = myY.Norml2();
    printf("error %g \n",error);
    if(error > 1e-12){printf("error too high %g \n",error); exit(-1);}
-
-   cusparseDestroySpMat(matA_descr);
-   cusparseDestroyDnVec(vecX_descr);
-   cusparseDestroyDnVec(vecY_descr);
+   */
 
 #else
    const double *Ap = A, *xp = x.GetData();
