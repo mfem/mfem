@@ -125,7 +125,7 @@ TEST_CASE("Second order ODE methods",
          std::cout<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
-         Array<Vector> uh(ode_solver->GetMaxStateSize());
+         std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l< levels; l++)
          {
             int lvl = pow(2,l);
