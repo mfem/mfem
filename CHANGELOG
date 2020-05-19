@@ -35,6 +35,12 @@ Discretization improvements
 
 - Added support for simplices in GSLIB-FindPoints.
 
+- Added support for H1 and L2 element matrix assembly in the mass, convection,
+  diffusion, transpose, and the face DG trace integrators. This is compatible
+  with GPU device execution and is illustrated in Example 9/9p, see the option
+  '-ea'. When enabled, this level of assembly stores independent dense matrices
+  for the elements, and independent dense matrices for the faces in the DG case.
+
 - Added new partial assembly kernels for H(div) bilinear forms, as well as
   VectorFEDivergenceIntegrator.
 
