@@ -30,7 +30,7 @@ static void EAMassAssemble1D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, NE);
+   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -52,7 +52,7 @@ static void EAMassAssemble1D(const int NE,
             {
                val += r_Bi[k1] * r_Bj[k1] * D(k1, e);
             }
-            M(i1, j1, e) = val;
+            M(i1, j1, e) += val;
          }
       }
    });
@@ -72,7 +72,7 @@ static void EAMassAssemble2D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, NE);
+   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -114,7 +114,7 @@ static void EAMassAssemble2D(const int NE,
                                * s_D[k1][k2];
                      }
                   }
-                  M(i1, i2, j1, j2, e) = val;
+                  M(i1, i2, j1, j2, e) += val;
                }
             }
          }
@@ -136,7 +136,7 @@ static void EAMassAssemble3D(const int NE,
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-   auto M = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
+   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -189,7 +189,7 @@ static void EAMassAssemble3D(const int NE,
                               }
                            }
                         }
-                        M(i1, i2, i3, j1, j2, j3, e) = val;
+                        M(i1, i2, i3, j1, j2, j3, e) += val;
                      }
                   }
                }
