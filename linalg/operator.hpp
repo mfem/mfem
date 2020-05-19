@@ -452,69 +452,69 @@ class TimeDependentAdjointOperator : public TimeDependentOperator
 {
 public:
 
-  /**
-     \brief The TimedependentAdjointOperator extends the TimeDependentOperator
-     class to use features in SUNDIALS CVODESSolver for computing quadratures 
-     and solving adjoint problems.
+   /**
+      \brief The TimedependentAdjointOperator extends the TimeDependentOperator
+      class to use features in SUNDIALS CVODESSolver for computing quadratures
+      and solving adjoint problems.
 
-     To solve adjoint problems one needs to implement the AdjointRateMult method
-      to tell CVODES what the adjoint rate equation is.
+      To solve adjoint problems one needs to implement the AdjointRateMult method
+       to tell CVODES what the adjoint rate equation is.
 
-     QuadratureIntegration (optional) can be used to compute values over the 
-     forward problem
+      QuadratureIntegration (optional) can be used to compute values over the
+      forward problem
 
-     QuadratureSensitivityMult (optional) can be used to find the sensitivity of
-     the quadrature using the adjoint solution in part.
+      QuadratureSensitivityMult (optional) can be used to find the sensitivity of
+      the quadrature using the adjoint solution in part.
 
-     SUNImplicitSetupB (optional) can be used to setup custom solvers for the 
-     newton solve for the adjoint problem.
+      SUNImplicitSetupB (optional) can be used to setup custom solvers for the
+      newton solve for the adjoint problem.
 
-     SUNImplicitSolveB (optional) actually uses the solvers from 
-     SUNImplicitSetupB to solve the adjoint problem.
+      SUNImplicitSolveB (optional) actually uses the solvers from
+      SUNImplicitSetupB to solve the adjoint problem.
 
-     See SUNDIALS user manuals for specifics.
-   **/
-  
+      See SUNDIALS user manuals for specifics.
+    **/
+
    TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
                                 Type type = EXPLICIT) :
       TimeDependentOperator(dim, t, type),
       adjoint_height(adjdim)
    {}
 
-  /// Destructor
+   /// Destructor
    virtual ~TimeDependentAdjointOperator() {};
 
-  /**
-     \brief Provide the operator integration of a quadrature equation
+   /**
+      \brief Provide the operator integration of a quadrature equation
 
-     \param[in] y The current value at time t
-     \param[out] qdot The current quadrate rate value at t
+      \param[in] y The current value at time t
+      \param[out] qdot The current quadrate rate value at t
 
-   */
+    */
    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const {};
-   /** @brief Perform the action of the operator: 
+   /** @brief Perform the action of the operator:
        @a yBdot = k = f(@a y,@2 yB, t), where
 
        @param[in] y The primal solution at time t
        @param[in] yB The adjoint solution at time t
        @param[out] yBdot the rate at time t
 
-    */  
+    */
    virtual void AdjointRateMult(const Vector &y, Vector & yB,
                                 Vector &yBdot) const = 0;
 
-  /**
-     \brief Provides the sensitivity of the quadrature w.r.t to primal and 
-     adjoint solutions
+   /**
+      \brief Provides the sensitivity of the quadrature w.r.t to primal and
+      adjoint solutions
 
-     \param[in] y the value of the primal solution at time t
-     \param[in] yB the value of the adjoint solution at time t
-     \param[out] qBdot the value of the sensitivity of the qaudrature rate at 
-     time t
+      \param[in] y the value of the primal solution at time t
+      \param[in] yB the value of the adjoint solution at time t
+      \param[out] qBdot the value of the sensitivity of the qaudrature rate at
+      time t
 
-   */
+    */
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                         Vector &qBdot) const {}
+                                          Vector &qBdot) const {}
 
    /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
        \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
@@ -531,9 +531,9 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-  
+
    virtual int SUNImplicitSetupB(const double t, const Vector &x,
-				 const Vector &xB, const Vector &fxB,
+                                 const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, double gammaB)
    {
       mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
@@ -560,11 +560,11 @@ public:
       return (-1);
    }
 
-  /// Returns the size of the adjoint problem state space
+   /// Returns the size of the adjoint problem state space
    int GetAdjointHeight() {return adjoint_height;}
 
 protected:
-  int adjoint_height; /// Size of the adjoint problem
+   int adjoint_height; /// Size of the adjoint problem
 
 };
 
