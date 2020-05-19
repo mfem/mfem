@@ -27,7 +27,7 @@ protected:
 public:
    NonlinearFormExtension(const NonlinearForm *nlf);
    virtual void AssemblePA() = 0;
-   virtual Operator &GetGradientPA(const Array<int>&, Vector&) =0;
+   virtual Operator &GetGradientPA(const Array<int>&, const Vector&) =0;
 };
 
 
@@ -45,8 +45,8 @@ protected:
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
    void AssemblePA();
-   Operator &GetGradientPA(const Array<int>&, Vector &x);
-   void Mult(const Vector &x, Vector &y) const;
+   Operator &GetGradientPA(const Array<int>&, const Vector&);
+   void Mult(const Vector &, Vector &) const;
 };
 
 
@@ -55,15 +55,16 @@ class PAGradOperator : public Operator
 protected:
    const NonlinearForm *nlf;
    const FiniteElementSpace &fes;
-   mutable Vector localX, localY;
+   mutable Vector Ge, Xe, Ye;
    const Array<int> &ess_tdof_list;
    const Operator *elem_restrict_lex;
 public:
-   PAGradOperator(const NonlinearForm *nlf,
+   PAGradOperator(const Vector &x,
+                  const NonlinearForm *nlf,
                   const FiniteElementSpace &fes,
                   const Array<int> &ess_tdof_list,
                   const Operator *elem_restrict_lex);
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &, Vector &) const;
 };
 
 } // namespace mfem

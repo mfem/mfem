@@ -301,22 +301,14 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    dbg("y: %.15e", y*y);
 }
 
-Operator &NonlinearForm::GetGradient(const Vector &X) const
+Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
-   Vector x(X.Size());
-   x = X;
-#ifndef _WIN32
-   if (getenv("DBG"))
-   {
-      x.HostWrite();
-      srand48(0x1234abcd330eul);
-      dbg("\033[7mStuffing x with RANDs!");
-      for (int k=0; k<X.Size(); k++) { x[k] = drand48(); }
-   }
-#endif
+   dbg("x.Size: %d %.15e", x.Size(), x*x);
+
    if (ext)
    {
-      return ext->GetGradientPA(ess_tdof_list, x);
+      const Vector &px = Prolongate(x);
+      return ext->GetGradientPA(ess_tdof_list, px);
    }
 
    const int skip_zeros = 0;
