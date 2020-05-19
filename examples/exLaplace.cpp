@@ -56,10 +56,12 @@ int main(int argc, char *argv[])
    sol_ofv.precision(14);
    mesh->PrintVTK(sol_ofv, 0);
    std::map<int, IntegrationRule *> CutSquareIntRules;
-   std::map<int, IntegrationRule *> CutSegmentIntRules;
+   std::map<int, IntegrationRule *> cutSegmentIntRules;
+   std::map<int, IntegrationRule *> cutInteriorFaceIntRules;
    //find the elements cut by boundary
    vector<int> cutelems;
    vector<int> innerelems;
+   vector<int> cutinteriorfaces;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
       if (cutByCircle(mesh, i) == true)
@@ -82,11 +84,31 @@ int main(int argc, char *argv[])
       cout << innerelems.at(i) << endl;
    }
    int dim = mesh->Dimension();
+   for (int i = 0; i < mesh->GetNumFaces(); ++i)
+   {
+      FaceElementTransformations *tr;
+      tr = mesh->GetInteriorFaceTransformations(i);
+      if (tr != NULL)
+      {
+         if ((find(cutelems.begin(), cutelems.end(), tr->Elem1No) != cutelems.end()) &&
+             (find(cutelems.begin(), cutelems.end(), tr->Elem2No) != cutelems.end()))
+         {
+            cout << "face is " << tr->Face->ElementNo << " elements are: " << tr->Elem1No << " , " << tr->Elem2No << endl;
+            cutinteriorfaces.push_back(tr->Face->ElementNo);
+         }
+      }
+   }
+   cout << "faces cut by circle:  " << endl;
+   for (int i = 0; i < cutelems.size(); ++i)
+   {
+      cout << cutinteriorfaces.at(i) << endl;
+   }
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
-    // define map for integration rule for cut elements
+   // define map for integration rule for cut elements
    GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
-   GetCutSegmentIntRule<2>(mesh, cutelems, CutSegmentIntRules);
+   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorfaces, cutSegmentIntRules,
+                           cutInteriorFaceIntRules);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
@@ -100,7 +122,7 @@ int main(int argc, char *argv[])
       }
    }
    std::map<int, bool> immersedfaces;
-  
+
    for (int i = 0; i < mesh->GetNumFaces(); ++i)
    {
       FaceElementTransformations *tr;
@@ -109,11 +131,11 @@ int main(int argc, char *argv[])
       {
          if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No)) == true)
          {
-            immersedfaces[i]=true;
+            immersedfaces[i] = true;
          }
          if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No) == false))
          {
-             mesh->cutboundaryFaces[i] = tr->Elem2No;
+            mesh->cutboundaryFaces[i] = tr->Elem2No;
          }
          if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No) == false))
          {
@@ -143,57 +165,57 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
    a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
-                                                             CutSegmentIntRules, EmbeddedElems, immersedfaces, mesh->cutboundaryFaces ));
+                                                             cutSegmentIntRules, EmbeddedElems, immersedfaces, mesh->cutboundaryFaces));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
-//    //cout << "bilinear form size " << a->Size() << endl;
-//    //A.Print();
-//    #ifndef MFEM_USE_SUITESPARSE
-//    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-//    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-//    //    non-symmetric one.
-//    GSSmoother M(A);
-//    if (sigma == -1.0)
-//    {
-//       PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
-//    }
-//    else
-//    {
-//       GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
-//    }
-// #else
-//    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-//    UMFPackSolver umf_solver;
-//    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-//    umf_solver.SetOperator(A);
-//    umf_solver.Mult(*b, x);
-// #endif
+   //    //cout << "bilinear form size " << a->Size() << endl;
+   //    //A.Print();
+   //    #ifndef MFEM_USE_SUITESPARSE
+   //    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   //    //    non-symmetric one.
+   //    GSSmoother M(A);
+   //    if (sigma == -1.0)
+   //    {
+   //       PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+   //    }
+   //    else
+   //    {
+   //       GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
+   //    }
+   // #else
+   //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   //    UMFPackSolver umf_solver;
+   //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   //    umf_solver.SetOperator(A);
+   //    umf_solver.Mult(*b, x);
+   // #endif
 
-//    ofstream adj_ofs("dgsolcircle.vtk");
-//    adj_ofs.precision(14);
-//    mesh->PrintVTK(adj_ofs, 1);
-//    x.SaveVTK(adj_ofs, "dgSolutioncircle", 1);
-//    adj_ofs.close();
-//    // 10. Send the solution by socket to a GLVis server.
-//    if (visualization)
-//    {
-//       char vishost[] = "localhost";
-//       int  visport   = 19916;
-//       socketstream sol_sock(vishost, visport);
-//       sol_sock.precision(8);
-//       sol_sock << "solution\n" << *mesh << x << flush;
-//    }
+   //    ofstream adj_ofs("dgsolcircle.vtk");
+   //    adj_ofs.precision(14);
+   //    mesh->PrintVTK(adj_ofs, 1);
+   //    x.SaveVTK(adj_ofs, "dgSolutioncircle", 1);
+   //    adj_ofs.close();
+   //    // 10. Send the solution by socket to a GLVis server.
+   //    if (visualization)
+   //    {
+   //       char vishost[] = "localhost";
+   //       int  visport   = 19916;
+   //       socketstream sol_sock(vishost, visport);
+   //       sol_sock.precision(8);
+   //       sol_sock << "solution\n" << *mesh << x << flush;
+   //    }
 
-//    // 11. Free the used memory.
-//    delete a;
-//    delete b;
-//    delete fespace;
-//    delete fec;
-//    delete mesh;
+   //    // 11. Free the used memory.
+   //    delete a;
+   //    delete b;
+   //    delete fespace;
+   //    delete fec;
+   //    delete mesh;
 
-//    return 0;
+   //    return 0;
 }
 template <int N>
 void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
@@ -209,6 +231,9 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       // standard reference element
       xlower = {0, 0};
       xupper = {1, 1};
+      int dir = -1;
+      int side = -1;
+      int order = 4;
       int elemid = cutelems.at(k);
       findBoundingBox<N>(mesh, elemid, xmin, xmax);
       circle<N> phi;
@@ -216,9 +241,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
-      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), -1, -1, 4);
-      //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
-      //cout << "number of quadrature nodes: " << q.nodes.size() << endl;
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
       int i = 0;
       ir = new IntegrationRule(q.nodes.size());
       // cout << "quadrature rule for mapped elements " << endl;
@@ -229,20 +252,17 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
          ip.y = pt.x[1];
          ip.weight = pt.w;
          i = i + 1;
-         MFEM_ASSERT(ip.weight>0, "integration point weight is negative from Saye's method");
-         // cout << "weight is: " << pt.w << endl;
-         // cout << pt.x[0] << " , " << pt.x[1] << endl;
-         // cout << "mapped back " << endl;
-         // cout << (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin  << endl;
+         MFEM_ASSERT(ip.weight > 0, "integration point weight is negative in domain integration from Saye's method");
+         MFEM_ASSERT(!(phi(pt.x) > 0), "levelset function positive at the quadrature point domain integration (Saye's method)");
       }
-      //cout << "element id for cut element " << elemid << endl;
       CutSquareIntRules[elemid] = ir;
    }
 }
 
 template <int N>
-void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems,
-                          std::map<int, IntegrationRule *> &CutSegmentIntRules)
+void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorfaces,
+                          std::map<int, IntegrationRule *> &cutSegmentIntRules,
+                          std::map<int, IntegrationRule *> &cutInteriorFaceIntRules)
 {
    for (int k = 0; k < cutelems.size(); ++k)
    {
@@ -251,6 +271,10 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems,
       blitz::TinyVector<double, N> xmax;
       blitz::TinyVector<double, N> xupper;
       blitz::TinyVector<double, N> xlower;
+      int side;
+      int dir;
+      int order;
+      order = 4;
       // standard reference element
       xlower = {0, 0};
       xupper = {1, 1};
@@ -261,13 +285,11 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems,
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
-      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), 0, 1, 4);
-      //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
-      //cout << "number of quadrature nodes: " << q.nodes.size() << endl;
+      dir = N;
+      side = -1;
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
       int i = 0;
       ir = new IntegrationRule(q.nodes.size());
-      // cout << "quadrature rule for mapped elements " << endl;
-      cout << "for element " << cutelems.at(k) << endl;
       for (const auto &pt : q.nodes)
       {
          IntegrationPoint &ip = ir->IntPoint(i);
@@ -275,14 +297,73 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems,
          ip.y = pt.x[1];
          ip.weight = pt.w;
          i = i + 1;
-         cout << "point is " <<  (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin<< endl;
-         cout << "level set function value is " << phi(pt.x) << endl;
-         // cout << pt.x[0] << " , " << pt.x[1] << endl;
-         // cout << "mapped back " << endl;
-         //cout << (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin  << endl;
+         MFEM_ASSERT(ip.weight > 0, "integration point weight is negative in curved surface int rule from Saye's method");
       }
-      //  cout << "element id for cut element " << elemid << endl;
-      CutSegmentIntRules[elemid] = ir;
+      cutSegmentIntRules[elemid] = ir;
+      Array<int> orient;
+      Array<int> fids;
+      mesh->GetElementEdges(elemid, fids, orient);
+      int fid;
+      for (int c = 0; c < fids.Size(); ++c)
+      {
+         fid = fids[c];
+         if (find(cutinteriorfaces.begin(), cutinteriorfaces.end(), fid) != cutinteriorfaces.end())
+         {
+            if (cutInteriorFaceIntRules[fid] == NULL)
+            {
+               Array<int> v;
+               mesh->GetEdgeVertices(fid, v);
+               double *v1coord, *v2coord;
+               v1coord = mesh->GetVertex(v[0]);
+               v2coord = mesh->GetVertex(v[1]);
+               if (v1coord[0] == v2coord[0])
+               {
+                  dir = 0;
+                  if (v1coord[0] < xmax[0])
+                  {
+                     side = 0;
+                  }
+                  else
+                  {
+                     side = 1;
+                  }
+               }
+               else
+               {
+                  dir = 1;
+                  if (v1coord[1] < xmax[1])
+                  {
+                     side = 0;
+                  }
+                  else
+                  {
+                     side = 1;
+                  }
+               }
+               auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
+               int i = 0;
+               ir = new IntegrationRule(q.nodes.size());
+               for (const auto &pt : q.nodes)
+               {
+                  IntegrationPoint &ip = ir->IntPoint(i);
+                  ip.x = pt.x[0];
+                  ip.y = pt.x[1];
+                  ip.weight = pt.w;
+                  i = i + 1;
+                  // scaled to original element space
+                  double xq = (pt.x[0] * phi.xscale) + phi.xmin;
+                  double yq = (pt.x[1] * phi.yscale) + phi.ymin;
+                  MFEM_ASSERT(ip.weight > 0, "integration point weight is negative from Saye's method");
+                  MFEM_ASSERT(!(phi(pt.x) > 0), "levelset function positive at the quadrature point (Saye's method)");
+                  MFEM_ASSERT((xq <= (max(v1coord[0], v2coord[0]))) && (xq >= (min(v1coord[0], v2coord[0]))),
+                              "integration point (xcoord) not on element face (Saye's rule)");
+                  MFEM_ASSERT((yq <= (max(v1coord[1], v2coord[1]))) && (yq >= (min(v1coord[1], v2coord[1]))),
+                              "integration point (ycoord) not on element face (Saye's rule)");
+               }
+               cutInteriorFaceIntRules[fid] = ir;
+            }
+         }
+      }
    }
 }
 
@@ -293,14 +374,14 @@ bool insideBoundary(Mesh *mesh, int &elemid)
    el->GetVertices(v);
    int k;
    k = 0;
-   double xc=0.5;
-   double yc=0.5;
-   double r=0.2;
+   double xc = 0.5;
+   double yc = 0.5;
+   double r = 0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
-      lvsval(i) = ((coord[0] -xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r*r);
+      lvsval(i) = ((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r);
       if ((lvsval(i) < 0) || (lvsval(i) == 0))
       {
          k = k + 1;
@@ -389,7 +470,7 @@ void CutDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    }
 }
 void CutDomainLFIntegrator::AssembleDeltaElementVect(
-   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+    const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
 {
    MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
    elvect.SetSize(fe.GetDof());
@@ -442,15 +523,15 @@ bool cutByCircle(Mesh *mesh, int &elemid)
    k = 0;
    l = 0;
    n = 0;
-   double xc=0.5;
-   double yc=0.5;
-   double r=0.2;
+   double xc = 0.5;
+   double yc = 0.5;
+   double r = 0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
       //cout << x[1] << endl;
-      lvsval(i) = ((coord[0] -xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r*r);
+      lvsval(i) = ((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r);
       if ((lvsval(i) < 0))
       {
          k = k + 1;
@@ -572,7 +653,7 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    {
       //std::cout << "face number " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
    }
-   
+
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
    nor.SetSize(dim);
@@ -602,7 +683,7 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    ndofs = ndof1 + ndof2;
    elmat.SetSize(ndofs);
    elmat = 0.0;
-   if (immersedFaces[Trans.Face->ElementNo]==true)
+   if (immersedFaces[Trans.Face->ElementNo] == true)
    {
       elmat = 0.0;
       //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
@@ -615,7 +696,7 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
          jmat = 0.;
       }
       const IntegrationRule *ir;
-      if (cutboundaryFaces[Trans.Face->ElementNo] == Trans.Elem1No )
+      if (cutboundaryFaces[Trans.Face->ElementNo] == Trans.Elem1No)
       {
          ir = CutSegIntRules[Trans.Elem1No];
       }
@@ -809,11 +890,5 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
             elmat(i, i) *= (sigma - 1.);
          }
       }
-
-      // if(Trans.Face->ElementNo==33)
-      // {
-      //     std::cout << "inside face assemble " << std::endl;
-      //     elmat.Print();
-      // }
    }
 }

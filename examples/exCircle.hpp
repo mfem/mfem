@@ -18,11 +18,12 @@ void findBoundingBox(Mesh *mesh, int id, blitz::TinyVector<double,N> &xmin, blit
 // get integration rule for cut elements
 template <int N>
 void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems, 
-                              std::map<int, IntegrationRule *> &CutSquareIntRules);
+                              std::map<int, IntegrationRule *> &cutSquareIntRules);
 // get integration rule for cut segments
 template <int N>
-void GetCutSegmentIntRule(Mesh* mesh, vector<int> cutelems, 
-                              std::map<int, IntegrationRule *> &CutSegmentIntRules);
+void GetCutSegmentIntRule(Mesh* mesh, vector<int> cutelems, vector<int> cutinteriorfaces,
+                              std::map<int, IntegrationRule *> &cutSegmentIntRules, 
+                              std::map<int, IntegrationRule *> &cutInteriorFaceIntRules);
 class CutMesh: public Mesh
 {
 protected:
