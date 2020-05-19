@@ -1,15 +1,29 @@
-//                                MFEM Example 26
-//                             SUNDIALS Example in MFEM
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Compile with: make ex9
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//            -----------------------------------------------------
+//            cvsRoberts_ASAi_dns Miniapp:  Serial MFEM CVODES example
+//            -----------------------------------------------------
+//
+// Compile with: make cvsRoberts_ASAi_dns
 //
 // Sample runs:
 //    cvsRoberts_ASAi_dns -dt 0.01
 //    cvsRoberts_ASAi_dns -dt 0.005
 //
-// Description:  This example is a port of cvodes/serial/cvsRoberts_ASAi_dns example that is part of SUNDIALS.
-//               The goal is to demonstrate how to use the adjoint SUNDIALS CVODES interface from MFEM.
-//               The following is an exerpt description from the aforementioned file.
+// Description:  This example is a port of cvodes/serial/cvsRoberts_ASAi_dns
+//               example that is part of SUNDIALS. The goal is to demonstrate how
+//               to use the adjoint SUNDIALS CVODES interface from MFEM.
+//               The following is an excerpt description from the aforementioned
+//               file.
 //
 //
 // * Adjoint sensitivity example problem.
@@ -68,7 +82,8 @@ using namespace std;
 using namespace mfem;
 
 
-/// We create a TimeDependentAdjointOperator implementation of the rate equations to recreate the cvsRoberts_ASAi_dns problem
+/// We create a TimeDependentAdjointOperator implementation of the rate
+//  equations to recreate the cvsRoberts_ASAi_dns problem
 class RobertsTDAOperator : public TimeDependentAdjointOperator
 {
 public:
@@ -85,15 +100,18 @@ public:
    virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
 
    /// Adjoint rate equation corresponding to d(lambda)/dt
-   virtual void AdjointRateMult(const Vector &y, Vector &yB, Vector &yBdot) const;
+   virtual void AdjointRateMult(const Vector &y, Vector &yB,
+				Vector &yBdot) const;
 
    /// Quadrature sensitivity equations corresponding to dG/dp
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                          Vector &qbdot) const;
 
-   /// Setup custom MFEM solvers using GMRES since the Jacobian matrix is not symmetric
-   virtual int SUNImplicitSetupB(const double t, const Vector &y, const Vector &yB,
-                                 const Vector &fyB, int jokB, int *jcurB, double gammaB);
+   /// Setup custom MFEM solvers using GMRES since the Jacobian matrix is not
+   //  symmetric
+   virtual int SUNImplicitSetupB(const double t, const Vector &y,
+				 const Vector &yB, const Vector &fyB, int jokB,
+				 int *jcurB, double gammaB);
 
    /// Setup custom MFEM solve
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
@@ -136,12 +154,15 @@ int main(int argc, char *argv[])
    
    args.PrintOptions(cout);
 
-   // 2. The original cvsRoberts_ASAi_dns problem is a fixed sized problem of size 3. Define the solution vector.
+   // 2. The original cvsRoberts_ASAi_dns problem is a fixed sized problem
+   //    of size 3. Define the solution vector.
    Vector u(3);
    u = 0.;
    u[0] = 1.;
 
-   // 3. Define the TimeDependentAdjointOperator which implements the various rate equations: rate, quadrature rate, adjoint rate, and quadrature sensitivity rate equation
+   // 3. Define the TimeDependentAdjointOperator which implements the various
+   //    rate equations: rate, quadrature rate, adjoint rate, and quadrature
+   //    sensitivity rate equation
 
    // Define material parameters p
    Vector p(3);
@@ -283,7 +304,8 @@ void RobertsTDAOperator::Mult(const Vector &x, Vector &y) const
 }
 
 // cvsRoberts_ASAi_dns quadrature rate equation
-void RobertsTDAOperator::QuadratureIntegration(const Vector &y, Vector &qdot) const
+void RobertsTDAOperator::QuadratureIntegration(const Vector &y,
+					       Vector &qdot) const
 {
    qdot[0] = y[2];
 }
@@ -304,7 +326,8 @@ void RobertsTDAOperator::AdjointRateMult(const Vector &y, Vector & yB,
 
 // cvsRoberts_ASAi_dns quadrature sensitivity rate equation
 void RobertsTDAOperator::QuadratureSensitivityMult(const Vector &y,
-                                               const Vector &yB, Vector &qBdot) const
+						   const Vector &yB,
+						   Vector &qBdot) const
 {
    double l21 = (yB[1]-yB[0]);
    double l32 = (yB[2]-yB[1]);
@@ -317,13 +340,15 @@ void RobertsTDAOperator::QuadratureSensitivityMult(const Vector &y,
 
 // cvsRoberts_ASAi_dns implicit solve setup for adjoint
 int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
-                                       const Vector &yB,
-                                       const Vector &fyB, int jokB, int *jcurB, double gammaB)
+					  const Vector &yB,
+					  const Vector &fyB, int jokB,
+					  int *jcurB, double gammaB)
 {
 
    // M = I- gamma J
    // J = dfB/dyB
-   // Let's create a SparseMatrix and fill in the entries since this example doesn't contain finite elements
+   // Let's create a SparseMatrix and fill in the entries since this example
+   // doesn't contain finite elements
 
    delete adjointMatrix;
    adjointMatrix = new SparseMatrix(y.Size(), yB.Size());
@@ -349,9 +374,11 @@ int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
 }
 
 // cvsRoberts_ASAi_dns implicit solve for adjoint 
-int RobertsTDAOperator::SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
+int RobertsTDAOperator::SUNImplicitSolveB(Vector &x, const Vector &b,
+					  double tol)
 {
-  // The tolerance is ignored in this example as we're trying to replicate CVODES cvsRoberts_ASAi_dns
+  // The tolerance is ignored in this example as we're trying to replicate
+  // CVODES cvsRoberts_ASAi_dns
    adjointSolver.SetRelTol(1e-14);
    adjointSolver.Mult(b, x);
    return (0);

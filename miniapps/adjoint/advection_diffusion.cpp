@@ -1,4 +1,63 @@
-// This is a 2D analog of the AdvDiff_ASA_p_non_p.c SUNDIALS CVODES example
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//            ----------------------------------------------------------
+//            advection_diffusion Miniapp:  Parallel MFEM CVODES example
+//            ----------------------------------------------------------
+//
+// Compile with: make advection_diffusion
+//
+// Sample runs:
+//    advection_diffusion -dt 0.01 -tf 2.5
+//    advection_diffusion -dt 0.005
+//
+// Description:  This example is a port of cvodes/parallel/cvsAdvDiff_ASAp_non_p
+//               example that is part of SUNDIALS. The goal is to demonstrate
+//               how to use the adjoint SUNDIALS CVODES interface with MFEM.
+//               The following is an excerpt description from the aforementioned
+//               file.
+// Example problem:
+
+// The following is a simple example problem, with the program for
+// its solution by CVODE. The problem is the semi-discrete form of
+// the advection-diffusion equation in 1-D:
+//   du/dt = p1 * d^2u / dx^2 + p2 * du / dx
+// on the interval 0 <= x <= 2, and the time interval 0 <= t <= 5.
+// Homogeneous Dirichlet boundary conditions are posed, and the
+// initial condition is:
+//   u(x,t=0) = x(2-x)exp(2x).
+// The nominal values of the two parameters are: p1=1.0, p2=0.5
+// The PDE is discretized on a uniform grid of size MX+2 with
+// central differencing, and with boundary values eliminated,
+// leaving an ODE system of size NEQ = MX.
+// This program solves the problem with the option for nonstiff
+// systems: ADAMS method and functional iteration.
+// It uses scalar relative and absolute tolerances.
+
+// In addition to the solution, sensitivities with respect to p1
+// and p2 as well as with respect to initial conditions are
+// computed for the quantity:
+//    g(t, u, p) = int_x u(x,t) at t = 5
+// These sensitivities are obtained by solving the adjoint system:
+//    dv/dt = -p1 * d^2 v / dx^2 + p2 * dv / dx
+// with homogeneous Ditrichlet boundary conditions and the final
+// condition:
+//    v(x,t=5) = 1.0
+// Then, v(x, t=0) represents the sensitivity of g(5) with respect
+// to u(x, t=0) and the gradient of g(5) with respect to p1, p2 is
+//    (dg/dp)^T = [  int_t int_x (v * d^2u / dx^2) dx dt ]
+//                [  int_t int_x (v * du / dx) dx dt     ]
+
+// This version uses MPI for user routines.
+// Execute with Number of Processors = N,  with 1 <= N <= MX.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -12,29 +71,23 @@
 using namespace std;
 using namespace mfem;
 
-/** Reimplement AdvDiff problem here */
+// Implement the adjoint rate equations in AdvDiffSUNDIALS
 class AdvDiffSUNDIALS : public TimeDependentAdjointOperator
 {
 public:
    AdvDiffSUNDIALS(int ydot_dim, int ybdot_dim, Vector p,
-                   ParFiniteElementSpace *fes) :
+                   ParFiniteElementSpace *fes, Array<int> & ess_tdof) :
       TimeDependentAdjointOperator(ydot_dim, ybdot_dim),
       p_(p),
       M(NULL), K(NULL), K_adj(NULL),
       Mf(NULL), MK(NULL),
       m(NULL), k(NULL),
       pfes(fes),
-      M_solver(fes->GetComm())
+      M_solver(fes->GetComm()),
+      ess_tdof_list(ess_tdof)
    {
       int skip_zeros = 0;
       ParMesh * pmesh = pfes->GetParMesh();
-
-      // Boundary conditions for this problem
-      Array<int> essential_attr(pmesh->bdr_attributes.Size());
-      essential_attr[0] = 1;
-      essential_attr[1] = 1;
-
-      fes->GetEssentialTrueDofs(essential_attr, ess_tdof_list);
 
       cout << "Essential tdofs: " << endl;
       ess_tdof_list.Print();
@@ -99,6 +152,9 @@ public:
   
    virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
+  virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
+                                         Vector &qbdot) const;
+
 
 protected:
    Vector p_;
@@ -122,6 +178,7 @@ protected:
    HypreSmoother M_prec;
 };
 
+// Initial conditions for the problem
 double u_init(const Vector &x)
 {
    return x[0]*(2. - x[0])*exp(2.*x[0]);
@@ -138,28 +195,20 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
-   int order = 1;
-   int ode_solver_type = 4;
    double t_final = 2.5;
    double dt = 0.01;
    int mx = 20;
-
-   // Relative and absolute tolerances for CVODES
-   double reltol = 1e-8, abstol = 1e-6;
+   bool step_mode = true;
 
    int precision = 8;
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
 
+   args.AddOption(&mx, "-m", "--mx", "The number of mesh elements in the x-dir");
    args.AddOption(&ser_ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&order, "-o", "--order",
-                  "Order (degree) of the finite elements.");
-   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - CVODES (adaptive order) implicit Adams,\n\t"
-                  "            2 - ARKODE default (4th order) explicit,\n\t"
-                  "            3 - ARKODE RK8.");
+   args.AddOption(&step_mode, "-a", "--adams", "-no-a","--no-adams", "A switch to toggle between CV_ADAMS, and CV_BDF stepping modes");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -171,19 +220,11 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   // check for vaild ODE solver option
-   if (ode_solver_type < 1 || ode_solver_type > 4)
-   {
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 3;
-   }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle geometrically
-   //    periodic meshes in this code.
-   //   Mesh *mesh = new Mesh(mx+1,1,Element::QUADRILATERAL, true, 2.0, 1.0);
+   // 2. Create a small 1D mesh with a length of 2. This mesh corresponds with the cvsAdvDiff_ASA_p_non_p example. 
+   
    Mesh *mesh = new Mesh(mx+1, 2.);
-   int dim = 2;
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -201,9 +242,9 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   //6. Finite Element Spaces
+   // 4. Finite Element Spaces
 
-   H1_FECollection fec(1, dim);
+   H1_FECollection fec(1, pmesh->SpaceDimension());
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
@@ -212,14 +253,15 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
-   // 7. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and define the ODE solver used for time integration.
+   // 5. Set up material properties, and primal and adjoint variables
 
+   // p are the fixed material properties
    Vector p(2);
    p[0] = 1.0;
    p[1] = 0.5;
 
-   // u is the size of the solution vector
+   // U is the size of the solution/primal vector
+   // Set U with the initial conditions
    ParGridFunction u(fes);
    FunctionCoefficient u0(u_init);
    u.ProjectCoefficient(u0);
@@ -230,56 +272,50 @@ int main(int argc, char *argv[])
    // TimeDependentOperators need to be TrueDOF Size
    HypreParVector *U = u.GetTrueDofs();
 
-   int adj_size = U->Size() + (myid == 0 ? p.Size() : 0);
-
-   AdvDiffSUNDIALS adv(U->Size(), adj_size, p, fes);
-
-   double t = 0.0;
-   adv.SetTime(t);
-
-   // Create the time integrator
-   ODESolver *ode_solver = NULL;
-   CVODESolver *cvode = NULL;
-   CVODESSolver *cvodes = NULL;
-   ARKStepSolver *arkode = NULL;
-
-   int steps = 50;
+   // Get boundary conditions
 
    Array<int> ess_tdof_list;
-
    Array<int> essential_attr(pmesh->bdr_attributes.Size());
    essential_attr[0] = 1;
    essential_attr[1] = 1;
-
    fes->GetEssentialTrueDofs(essential_attr, ess_tdof_list);
 
+   // 6. Setup the TimeDependentAdjointOperator and the CVODESSolver
+   
+   AdvDiffSUNDIALS adv(U->Size(), U->Size(), p, fes, ess_tdof_list);
 
-   switch (ode_solver_type)
-   {
-      case 4:
-         cvodes = new CVODESSolver(fes->GetComm(), CV_ADAMS);
-         cvodes->Init(adv);
-         cvodes->UseSundialsLinearSolver();
-         cvodes->SetSStolerances(reltol, abstol);
-         cvodes->InitAdjointSolve(steps, CV_HERMITE);
-         ode_solver = cvodes; break;
-   }
+   // Set the initial time to the TimeDependentAdjointOperator
+   double t = 0.0;
+   adv.SetTime(t);
 
-   // 8. Perform time-integration (looping over the time iterations, ti,
-   //    with a time-step dt).
+   // 6. Create the CVODES solver corresponding to the selected step method
+   CVODESSolver *cvodes = new CVODESSolver(fes->GetComm(),
+					   step_mode ? CV_ADAMS : CV_BDF);
+   cvodes->Init(adv);
+   cvodes->UseSundialsLinearSolver();
+
+   // Relative and absolute tolerances for CVODES
+   double reltol = 1e-8, abstol = 1e-6;
+   cvodes->SetSStolerances(reltol, abstol);
+
+   // Initialize adjoint problem settings
+   int checkpoint_steps = 50; ///< steps between checkpoints
+   cvodes->InitAdjointSolve(checkpoint_steps, CV_HERMITE);
+
+   // 7. Perform time-integration for the problem (looping over the time
+   //    iterations, ti,  with a time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = max(dt, t_final - t);
-      ode_solver->Step(*U, t, dt_real);
+      cvodes->Step(*U, t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
 
       if (done )
       {
-         if (cvodes) { cvodes->PrintInfo(); }
-
+         cvodes->PrintInfo(); 
       }
    }
 
@@ -287,7 +323,8 @@ int main(int argc, char *argv[])
    cout << "Final Solution: " << t << endl;
    u.Print();
 
-   // Calculate int_x u dx at t = 5
+   // 8. Calculate the quadrature int_x u dx at t = 5
+   // Since it's only a spatial quadrature we evaluate it at t=5
 
    ParLinearForm obj(fes);
    ConstantCoefficient one(1.0);
@@ -300,54 +337,48 @@ int main(int argc, char *argv[])
       cout << "g: " << g << endl;
    }
 
-   if (cvodes)
-   {
+   // 9. Solve the adjoint problem. v is the adjoint solution
+   ParGridFunction v(fes);
+   v = 1.;
+   v.SetSubVector(ess_tdof_list, 0.0);
+   HypreParVector *V = v.GetTrueDofs();
 
-      // backward portion of the problem
-      ParGridFunction v(fes);
-      v = 1.;
-      v.SetSubVector(ess_tdof_list, 0.0);
-      HypreParVector *V = v.GetTrueDofs();
+   // Initialize quadrature sesntiviity values to zero
+   Vector qBdot(p.Size());
+   qBdot = 0.;
+   
+   V->Vector::Print();
 
-      // Add additional space for integrated parameter
-      Vector V_final(adj_size);
-      for (int i = 0; i < v.Size(); i++)
-      {
-         V_final[i] = v[i];
-      }
+   t = t_final;
+   cvodes->InitB(adv);
+   cvodes->InitQuadIntegrationB(qBdot, 1.e-6, 1.e-6);
+   cvodes->UseSundialsLinearSolverB();
+   cvodes->SetSStolerancesB(reltol, abstol);
 
-      if (myid == 0 )
-      {
-         for (int i = 0 ; i < p.Size(); i++)
-         {
-            V_final[adj_size - p.Size() + i] = 0.;
-         }
-      }
+   // Results at time TBout1
+   double dt_real = max(dt, t);
+   cvodes->StepB(*V, t, dt_real);
+   cout << "t: " << t << endl;
+   cout << "v:" << endl;
+   V->Vector::Print();
 
-      V_final.Print();
-
-      t = t_final;
-      cvodes->InitB(adv);
-      cvodes->UseSundialsLinearSolverB();
-      cvodes->SetSStolerancesB(reltol, abstol);
-
-      // Results at time TBout1
-      double dt_real = max(dt, t);
-      cvodes->StepB(V_final, t, dt_real);
-      cout << "t: " << t << endl;
-      cout << "v:" << endl;
-      V_final.Print();
-
+   // Evaluate the Sensitivity
+   cvodes->EvalQuadIntegrationB(t, qBdot);
+   if (myid == 0) {
+     cout << "sensitivity:" << endl;
+     qBdot.Print();
    }
 
    // 10. Free the used memory.
    delete U;
+   delete V;
+   delete cvodes;
 
    MPI_Finalize();
    return 0;
 }
 
-// AdvDiff Implementation
+// AdvDiff rate equation
 void AdvDiffSUNDIALS::Mult(const Vector &x, Vector &y) const
 {
    Vector z(x.Size());
@@ -362,6 +393,7 @@ void AdvDiffSUNDIALS::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
+// AdvDiff Rate equation setup
 int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
                                       const Vector &fy,
                                       int jok, int *jcur, double gamma)
@@ -376,6 +408,7 @@ int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
    return 0;
 }
 
+// AdvDiff Rate equation solve
 int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 {
    Vector z(b.Size());
@@ -394,24 +427,24 @@ int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
    return (0);
 }
 
+// AdvDiff adjoint rate equation
 void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
                                       Vector &yBdot) const
 {
 
-   int x1_size = (pfes->GetMyRank() == 0) ? yB.Size() - 2 : yB.Size();
-   Vector z(x1_size);
-
-   Vector x1(yB.GetData(), x1_size);
+   Vector z(yB.Size());
 
    // Set boundary conditions to zero
-   Vector yB1(x1);
-   yB1.SetSubVector(ess_tdof_list, 0.0);
+   yB.SetSubVector(ess_tdof_list, 0.0);
+   K_adj->Mult(yB, z);
+   M_solver.Mult(z, yBdot);
+}
 
-   K_adj->Mult(yB1, z);
-
-   Vector yBdot1(yBdot.GetData(), x1_size);
-   M_solver.Mult(z, yBdot1);
-
+// AdvDiff quadrature sensitivity rate equation
+void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
+						const Vector &yB,
+						Vector &qBdot) const
+   {
    // Now we have both the adjoint, yB, and y, at the same point in time
    // We calculate
    /*
@@ -435,8 +468,8 @@ void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
 
    ParBilinearForm dp2(pfes);
    Vector p2(pfes->GetParMesh()->SpaceDimension()); p2 = 1.;
-   dp2.AddDomainIntegrator(new ConvectionIntegrator(*(new
-                                                      VectorConstantCoefficient(p2))));
+   dp2.AddDomainIntegrator(
+       new ConvectionIntegrator(*(new VectorConstantCoefficient(p2))));
    dp2.Assemble();
    dp2.Finalize();
 
@@ -447,14 +480,9 @@ void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
    dP2->Mult(y, b2);
    delete dP2;
 
-   double dp1_result = InnerProduct(pfes->GetComm(), yB1, b1);
-   double dp2_result = InnerProduct(pfes->GetComm(), yB1, b2);
+   double dp1_result = InnerProduct(pfes->GetComm(), yB, b1);
+   double dp2_result = InnerProduct(pfes->GetComm(), yB, b2);
 
-   if (pfes->GetMyRank() == 0)
-   {
-      yBdot[x1_size] = dp1_result;
-      yBdot[x1_size + 1] = dp2_result;
-   }
-
-
+   qBdot[0] = -dp1_result;
+   qBdot[1] = -dp2_result;
 }

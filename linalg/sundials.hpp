@@ -338,21 +338,21 @@ public:
    /// Use built in SUNDIALS Newton solver
    void UseSundialsLinearSolverB();
 
-  /**
-     \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
+   /**
+      \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
 
-     \param[in] reltol the scalar relative error tolerance.
-     \param[in] abstol the scalar absolute error tolerance.
-  */
+      \param[in] reltol the scalar relative error tolerance.
+      \param[in] abstol the scalar absolute error tolerance.
+   */
    void SetSStolerancesB(double reltol, double abstol);
 
-  /**
-     \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
-     
-     \param[in] reltol the scalar relative error tolerance
-     \param[in] abstol the vector of absolute error tolerances
+   /**
+      \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
 
-  */
+      \param[in] reltol the scalar relative error tolerance
+      \param[in] abstol the vector of absolute error tolerances
+
+   */
    void SetSVtolerancesB(double reltol, Vector abstol);
 
    /// Setup the linear system A x = b
