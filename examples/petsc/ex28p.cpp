@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    pmesh->ReorientTetMesh();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
-   //    use the Raviart-Thomas finite elements of the specified order.
+   //    use the Nedelec finite elements of the specified order.
    std::cout << "dim: " << dim << "\n";
    FiniteElementCollection *hcurl_coll = new ND_FECollection(order, dim);
    FiniteElementCollection *h1_coll = new H1_FECollection(order, dim);

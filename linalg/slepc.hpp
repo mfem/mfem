@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_SLEPC
-#ifdef MFEM_USE_PETSC
 #ifdef MFEM_USE_MPI
 
 #include "petsc.hpp"
@@ -48,9 +47,6 @@ private:
    /// Maximum number of iterations
    int _max_its;
 
-   /// Number of converged eigenvectors. Start with a negative value before the solver is run.
-   int _num_conv;
-
    /// Real and imaginary part of eigenvector
    mutable PetscParVector *VR, *VC;
 
@@ -82,7 +78,7 @@ public:
    void Solve();
 
    /// Get the number of converged eigenvalues
-   int GetNumConverged() {return _num_conv;}
+   int GetNumConverged();
 
    /// Get the corresponding eigenvalue
    void GetEigenvalue(unsigned int i, double & lr) const;
@@ -121,7 +117,6 @@ public:
 
 }
 #endif // MFEM_USE_MPI
-#endif // MFEM_USE_PETSC
 #endif // MFEM_USE_SLEPC
 
 #endif // MFEM_SLEPC

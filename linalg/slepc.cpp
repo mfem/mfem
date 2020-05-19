@@ -74,7 +74,6 @@ SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix,
    clcustom = false;
    _tol = PETSC_DEFAULT;
    _max_its = PETSC_DEFAULT;
-   _num_conv = -1;
    _wrap = wrap;
    VR = NULL;
    VC = NULL;
@@ -212,8 +211,6 @@ void SlepcEigenSolver::Solve()
    Customize();
 
    ierr = EPSSolve(eps); PCHKERRQ(eps,ierr);
-
-   ierr = EPSGetConverged(eps,&_num_conv); PCHKERRQ(eps,ierr);
 }
 
 void SlepcEigenSolver::Customize(bool customize) const
@@ -228,14 +225,12 @@ void SlepcEigenSolver::Customize(bool customize) const
 
 void SlepcEigenSolver::GetEigenvalue(unsigned int i, double & lr) const
 {
-   MFEM_VERIFY(i < _num_conv,"Eigenvalue not computed");
    ierr = EPSGetEigenvalue(eps,i,&lr,NULL); PCHKERRQ(eps,ierr);
 }
 
 void SlepcEigenSolver::GetEigenvalue(unsigned int i, double & lr,
                                      double & lc) const
 {
-   MFEM_VERIFY(i < _num_conv,"Eigenvalue not computed");
    ierr = EPSGetEigenvalue(eps,i,&lr,&lc); PCHKERRQ(eps,ierr);
 }
 
@@ -276,6 +271,14 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr,
    VR->ResetArray();
    VC->ResetArray();
 }
+
+int SlepcEigenSolver::GetNumConverged()
+{
+   int num_conv;
+   ierr = EPSGetConverged(eps,&num_conv); PCHKERRQ(eps,ierr);
+   return num_conv;
+}
+
 
 void SlepcEigenSolver::SetWhichEigenpairs(SlepcEigenSolver::Which which)
 {

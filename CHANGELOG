@@ -56,6 +56,8 @@ Linear and nonlinear solvers
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
 
+- Added support for the SLEPc eigensolver package.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
@@ -70,6 +72,13 @@ New and updated examples and miniapps
   procedures for applying Dirichlet, Neumann (both homogeneous and
   inhomogeneous), Robin, and periodic boundary conditions with either H1 or DG
   discretizations.
+
+- Ported example 11p to SLEPc, to demonstrate solving the Laplace eigenvalue
+  equation with the shift-and-invert spectral transformation method.
+
+- Added a new example, Example 28p, to demonstrate the solution of the 2D
+  Maxwell eigenvalue problem in a dielectric waveguide. This examples shows the
+  use of the SLEPc eigensolvers with mixed finite elements and block operators.
 
 - Added a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically

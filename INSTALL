@@ -383,6 +383,10 @@ MFEM_USE_PETSC = YES/NO
    and other features based on the PETSc package. When enabled, this option uses
    the PETSC_* library options, see below.
 
+MFEM_USE_SLEPC = YES/NO
+   Enable MFEM eigensolvers based on the SLEPc package. When enabled, this
+   option uses the SLEPC_* library options, see below.
+
 MFEM_USE_MPFR = YES/NO
    MPFR is a library for multiple-precision floating-point computations. This
    option enables the use of MPFR in MFEM, e.g. for precise computation of 1D
@@ -588,6 +592,12 @@ The specific libraries and their options are:
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
   Versions: PETSc >= 3.8.0.
+
+- SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
+  uses some of the PETSc options when compiled.
+  URL: https://slepc.upv.es/
+  Options: SLEPC_OPT, SLEPC_LIB
+  Versions: SLEPc >= 3.8.0
 
 - Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
   Starting with MFEM v4.1, Axom version 0.3.1 or later is required.
