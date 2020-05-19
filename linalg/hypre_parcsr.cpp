@@ -664,7 +664,7 @@ void hypre_ParCSRMatrixEliminateAAe(hypre_ParCSRMatrix *A,
       if (col_mark[i]) { Ae_offd_ncols++; }
    }
 
-   Ae_col_map_offd  = mfem_hypre_CTAlloc(HYPRE_Int, Ae_offd_ncols);
+   Ae_col_map_offd  = mfem_hypre_CTAlloc_host(HYPRE_Int, Ae_offd_ncols);
 
    Ae_offd_ncols = 0;
    for (i = 0; i < A_offd_ncols; i++)
@@ -947,8 +947,8 @@ void hypre_ParCSRMatrixSplit(hypre_ParCSRMatrix *A,
          hypre_CSRMatrix *block_offd = hypre_ParCSRMatrixOffd(block);
          HYPRE_Int block_offd_cols = hypre_CSRMatrixNumCols(block_offd);
 
-         HYPRE_Int *block_col_map = mfem_hypre_TAlloc(HYPRE_Int,
-                                                      block_offd_cols);
+         HYPRE_Int *block_col_map = mfem_hypre_TAlloc_host(HYPRE_Int,
+                                                           block_offd_cols);
          for (i = j = 0; i < offd_cols; i++)
          {
             HYPRE_Int bn = offd_col_block_num[i];
@@ -1168,7 +1168,7 @@ hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
    HYPRE_Int                  ip, vec_start, vec_len;
 
    num_requests = num_sends + num_recvs;
-   requests = mfem_hypre_CTAlloc(hypre_MPI_Request, num_requests);
+   requests = mfem_hypre_CTAlloc_host(hypre_MPI_Request, num_requests);
 
    hypre_MPI_Comm_size(comm, &num_procs);
    hypre_MPI_Comm_rank(comm, &my_id);
@@ -1225,7 +1225,7 @@ hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
     * set up comm_handle and return
     *--------------------------------------------------------------------*/
 
-   comm_handle = mfem_hypre_CTAlloc(hypre_ParCSRCommHandle, 1);
+   comm_handle = mfem_hypre_CTAlloc_host(hypre_ParCSRCommHandle, 1);
 
    hypre_ParCSRCommHandleCommPkg(comm_handle)     = comm_pkg;
    hypre_ParCSRCommHandleSendData(comm_handle)    = send_data;
@@ -1482,7 +1482,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
          return NULL; /* error: A_offd and B_offd have different dimensions */
       }
       /* copy A_cmap -> C_cmap */
-      C_cmap = mfem_hypre_TAlloc(HYPRE_Int, A_cmap_size);
+      C_cmap = mfem_hypre_TAlloc_host(HYPRE_Int, A_cmap_size);
       for (im = 0; im < A_cmap_size; im++)
       {
          C_cmap[im] = A_cmap[im];
