@@ -463,7 +463,7 @@ public:
      QuadratureIntegration (optional) can be used to compute values over the 
      forward problem
 
-     QuadratureSensitivityMult (optional) can be used to find the sensitivity of 
+     QuadratureSensitivityMult (optional) can be used to find the sensitivity of
      the quadrature using the adjoint solution in part.
 
      SUNImplicitSetupB (optional) can be used to setup custom solvers for the 
