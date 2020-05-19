@@ -2726,6 +2726,7 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 class GradientInterpolator : public DiscreteInterpolator
 {
 public:
+   GradientInterpolator() : fake_fe(NULL) { }
    virtual ~GradientInterpolator() { delete fake_fe; }
 
    virtual void AssembleElementMatrix2(const FiniteElement &h1_fe,

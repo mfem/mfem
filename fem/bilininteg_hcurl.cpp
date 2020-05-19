@@ -2017,7 +2017,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
                // orientations!
-               const int local_index = c_dofs1D * o_dofs1D + ey*o_dofs1D + ex;
+               const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
                y(local_index, e) += B(ex, dx) * vw(dx, ey);
             }
          }
