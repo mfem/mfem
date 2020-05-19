@@ -1944,7 +1944,7 @@ static void PAHcurlH1Apply3D(const int D1D,
 // free to go through wholesale, renumber and reindex everything, etc.
 
 // in particular, I'm not sure the Bc and Gc I am getting here are the ones
-// I want
+// I want (better now?)
 
 // so _Bc comes from
 
@@ -1957,6 +1957,73 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
                                    Vector &_y)
 {
    std::cout << "PAHcurlApplyGradient2D [kernel]" << std::endl;
+
+   // okay, here we are with maybe some appropriate data
+   auto B = Reshape(_B.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(_G.Read(), o_dofs1D, c_dofs1D);
+   auto x = Reshape(_x.Read(), c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(_y.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+
+   Vector hwork(c_dofs1D * c_dofs1D);
+   auto hw = Reshape(hwork.ReadWrite(), c_dofs1D, c_dofs1D);
+
+   Vector vwork(c_dofs1D * o_dofs1D);
+   auto vw = Reshape(vwork.ReadWrite(), c_dofs1D, o_dofs1D);
+   MFEM_FORALL(e, NE,
+   {      
+      // horizontal part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey) 
+         {
+            hw(dx, ey) = 0.0;
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               hw(dx, ey) += B(ey, dy) * x(dx, dy, e);
+            }
+         }
+      }
+
+      for (int ey = 0; ey < c_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               // orientations!
+               const int local_index = ey*o_dofs1D + ex;
+               y(local_index, e) += G(ex, dx) * hw(dx, ey);
+            }
+         }
+      }
+
+      // vertical part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            vw(dx, ey) = 0.0;
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               vw(dx, ey) += G(ey, dy) * x(dx, dy, e);
+            }
+         }
+      }
+
+      for (int ey = 0; ey < o_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               // orientations!
+               const int local_index = c_dofs1D * o_dofs1D + ey*o_dofs1D + ex;
+               y(local_index, e) += B(ex, dx) * vw(dx, ey);
+            }
+         }
+      }  
+   });
+
 /*
    constexpr static int VDIM = 2;
 
@@ -1970,7 +2037,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
    auto Bc = Reshape(_Bc.Read(), Q1D, D1Dclosed);
    auto Gc = Reshape(_Gc.Read(), Q1D, D1Dclosed);
    auto x = Reshape(_x.Read(), D1Dclosed, D1Dclosed, NE);
-   auto y = Reshape(_y.ReadWrite(), 2 * D1Dopen * D1Dclosed);
+   auto y = Reshape(_y.ReadWrite(), 2 * D1Dopen * D1Dclosed, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -2182,8 +2249,6 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    ne = trial_fes.GetNE();
    geom = mesh->GetGeometricFactors(*old_ir, GeometricFactors::JACOBIANS);
-   // mapsC = &test_el->GetDofToQuad(*old_ir, DofToQuad::TENSOR);
-   // mapsO = &test_el->GetDofToQuadOpen(*old_ir, DofToQuad::TENSOR);
 
    const int order = trial_el->GetOrder();
    fake_fe = new H1_SegmentElement(order);
@@ -2203,10 +2268,6 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    // want G1d with Legendre rows (normal integration rule), lobatto columns (normal dofs), but slightly different order from usual defaults
    // should be mapsotherO->G 
-
-   // dofs1D = mapsC->ndof;
-   // quad1D = mapsC->nqpt;
-   // MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
    o_dofs1D = maps_O_C->nqpt;
    c_dofs1D = maps_C_C->nqpt;
