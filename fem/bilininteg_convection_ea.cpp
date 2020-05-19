@@ -32,7 +32,7 @@ static void EAConvectionAssemble1D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
-   auto A = Reshape(eadata.Write(), D1D, D1D, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -54,7 +54,7 @@ static void EAConvectionAssemble1D(const int NE,
             {
                val += r_Bj[k1] * D(k1, e) * r_Gi[k1];
             }
-            A(i1, j1, e) = val;
+            A(i1, j1, e) += val;
          }
       }
    });
@@ -76,7 +76,7 @@ static void EAConvectionAssemble2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, NE);
-   auto A = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, 1,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -121,7 +121,7 @@ static void EAConvectionAssemble2D(const int NE,
                                * r_B[k1][j1]* r_B[k2][j2];
                      }
                   }
-                  A(i1, i2, j1, j2, e) = val;
+                  A(i1, i2, j1, j2, e) += val;
                }
             }
          }
@@ -145,7 +145,7 @@ static void EAConvectionAssemble3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, 3, NE);
-   auto A = Reshape(eadata.Write(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, D1D, D1D, D1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -191,7 +191,7 @@ static void EAConvectionAssemble3D(const int NE,
                               }
                            }
                         }
-                        A(i1, i2, i3, j1, j2, j3, e) = val;
+                        A(i1, i2, i3, j1, j2, j3, e) += val;
                      }
                   }
                }
