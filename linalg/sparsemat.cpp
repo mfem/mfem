@@ -655,7 +655,7 @@ if(Device::Allows(Backend::CUDA_MASK))
                 vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
 
    //Can this be done once?
-   //   cusparseDestroySpMat(matA_descr);
+   cusparseDestroySpMat(matA_descr);
    cusparseDestroyDnVec(vecX_descr);
    cusparseDestroyDnVec(vecY_descr);
 }else{
