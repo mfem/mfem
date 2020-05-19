@@ -871,6 +871,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                    << ", ndofs = " << ndofs);
    }
 
+   out << "\n\n";
+   DebugDumpDOFs(out, deps, finalized);
+
    cP->Finalize();
 
    if (vdim > 1)
@@ -1646,6 +1649,123 @@ void FiniteElementSpace::DumpOrders(const Table &ent_dofs, int dim)
          dof++;
       }
       out << std::endl;
+   }
+}
+
+static void
+Dof2Ent(const Table &table, int dof, int &index, int &variant, int &edof)
+{
+   for (int i = 0; i < table.Size(); i++) // FIXME O(N)
+   {
+      const int *e = table.GetRow(i+1);
+      if (dof >= *e) { continue; }
+      const int *p = table.GetRow(i);
+
+      for (variant = 0; p < e; p++, variant++)
+      {
+         if (dof >= p[0] && dof < p[1])
+         {
+            index = i;
+            edof = dof - p[0];
+            return;
+         }
+      }
+   }
+   MFEM_ABORT("internal error");
+}
+
+void FiniteElementSpace::UnpackDof(int dof, int &entity, int &index,
+                                   int &variant, int &edof) const
+{
+   MFEM_VERIFY(dof >= 0, "");
+   MFEM_VERIFY(dof < ndofs, "");
+
+   if (dof < nvdofs) // vertex DOF
+   {
+      int nv = fec->GetNumDof(Geometry::POINT, fec->DefaultOrder());
+      entity = 0, index = dof / nv, edof = dof % nv, variant = 0;
+      return;
+   }
+   dof -= nvdofs;
+
+   if (dof < nedofs) // edge DOF
+   {
+      entity = 1;
+      if (edge_dofs.Size() > 0)
+      {
+         Dof2Ent(edge_dofs, dof, index, variant, edof);
+      }
+      else
+      {
+         int ne = fec->GetNumDof(Geometry::SEGMENT, fec->DefaultOrder());
+         index = dof / ne, edof = dof % ne, variant = 0;
+      }
+      return;
+   }
+   dof -= nedofs;
+
+   if (dof < nfdofs) // face DOF
+   {
+      entity = 2;
+      if (face_dofs.Size() > 0)
+      {
+         Dof2Ent(face_dofs, dof, index, variant, edof);
+      }
+      else
+      {
+         int nf = fec->GetNumDof(mesh->GetFaceGeometry(0), fec->DefaultOrder());
+         index = dof / nf, edof = dof % nf, variant = 0;
+      }
+      return;
+   }
+   MFEM_ABORT("Cannot unpack internal DOF");
+}
+
+void FiniteElementSpace
+::DebugDumpDOFs(std::ostream &os, const SparseMatrix &deps,
+                const Array<bool> &finalized) const
+{
+   for (int i = 0; i < deps.Size(); i++)
+   {
+      os << i << ": ";
+      if (i < (nvdofs + nedofs + nfdofs))
+      {
+         int ent, idx, variant, edof;
+         UnpackDof(i, ent, idx, variant, edof);
+
+         os << edof << " @ ";
+         switch (ent)
+         {
+            case 0: os << "vertex "; break;
+            case 1: os << "edge "; break;
+            default: os << "face "; break;
+         }
+         os << idx << "; ";
+
+         if (i < deps.Height() && deps.RowSize(i))
+         {
+            os << "depends on ";
+            for (int j = 0; j < deps.RowSize(i); j++)
+            {
+               int master = deps.GetRowColumns(i)[j];
+               os << master << (finalized[master] ? "" : "!");
+               os << " (" << deps.GetRowEntries(i)[j] << ")";
+               if (j < deps.RowSize(i)-1) { os << ", "; }
+            }
+            os << "; ";
+         }
+         else
+         {
+            os << "no deps; ";
+         }
+
+         os << (finalized[i] ? "finalized" : "NOT finalized");
+      }
+      else
+      {
+         os << "internal";
+      }
+      os << "\n";
    }
 }
 
