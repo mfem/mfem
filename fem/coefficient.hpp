@@ -172,21 +172,21 @@ class GridFunction;
 class GridFunctionCoefficient : public Coefficient
 {
 private:
-   GridFunction *GridF;
+   const GridFunction *GridF;
    int Component;
 
 public:
    GridFunctionCoefficient() : GridF(NULL), Component(1) { }
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
-   GridFunctionCoefficient (GridFunction *gf, int comp = 1)
+   GridFunctionCoefficient (const GridFunction *gf, int comp = 1)
    { GridF = gf; Component = comp; }
 
    /// Set the internal GridFunction
-   void SetGridFunction(GridFunction *gf) { GridF = gf; }
+   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
 
    /// Get the internal GridFunction
-   GridFunction * GetGridFunction() const { return GridF; }
+   const GridFunction * GetGridFunction() const { return GridF; }
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
@@ -479,7 +479,7 @@ public:
 class VectorGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
    /** @brief Construct an empty coefficient.  Calling Eval() before the grid
@@ -488,14 +488,14 @@ public:
 
    /** @brief  Construct the coefficient with grid function @a gf.  The
        grid function is not owned by the coefficient. */
-   VectorGridFunctionCoefficient(GridFunction *gf);
+   VectorGridFunctionCoefficient(const GridFunction *gf);
 
    /** @brief Set the grid function for this coefficient.  Also sets the Vector
        dimension to match that of the @a gf. */
-   void SetGridFunction(GridFunction *gf);
+   void SetGridFunction(const GridFunction *gf);
 
    ///  Returns a pointer to the grid function in this Coefficient
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -514,18 +514,19 @@ public:
 class GradientGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
+
    /** @brief  Construct the coefficient with a scalar grid function
        @a gf.  The grid function is not owned by the coefficient. */
-   GradientGridFunctionCoefficient(GridFunction *gf);
+   GradientGridFunctionCoefficient(const GridFunction *gf);
 
    ///Set the scalar grid function.
-   void SetGridFunction(GridFunction *gf);
+   void SetGridFunction(const GridFunction *gf);
 
    ///Get the scalar grid function.
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the gradient vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -544,18 +545,18 @@ public:
 class CurlGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
    /** @brief  Construct the coefficient with a vector grid function
        @a gf.  The grid function is not owned by the coefficient. */
-   CurlGridFunctionCoefficient(GridFunction *gf);
+   CurlGridFunctionCoefficient(const GridFunction *gf);
 
-   /// Set the vector grid function.
-   void SetGridFunction(GridFunction *gf);
+  /// Set the vector grid function.
+   void SetGridFunction(const GridFunction *gf);
 
    /// Get the vector grid function.
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    using VectorCoefficient::Eval;
    /// Evaluate the vector curl coefficient at @a ip.
@@ -569,18 +570,18 @@ public:
 class DivergenceGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
    /** @brief  Construct the coefficient with a vector grid function
        @a gf.  The grid function is not owned by the coefficient. */
-   DivergenceGridFunctionCoefficient(GridFunction *gf);
+   DivergenceGridFunctionCoefficient(const GridFunction *gf);
 
    /// Set the vector grid function.
-   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   void SetGridFunction(const GridFunction *gf) { GridFunc = gf; }
 
-   /// Get the vector grid function.
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   /// Get the vector grid function.   
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the scalar divergence coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
