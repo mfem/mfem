@@ -2440,6 +2440,8 @@ int main(int argc, char *argv[])
    if (myid == 0)
      cout << myid << ": Total DDM timing (setup, solver, recovery) " << chrono.RealTime() << endl;
 
+   ddi.PrintTiming(myid);
+
    /*
    { // Sleep in order to check memory usage using top.
      cout << "Sleeping" << endl;

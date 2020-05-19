@@ -10,7 +10,7 @@ using namespace std;
 #define AIRY_TEST
 
 #define ZERO_RHO_BC
-#define ZERO_IFND_BC  // TODO: fix this so that only the exterior boundary gets essential BC, or maybe even remove it.
+//#define ZERO_IFND_BC  // TODO: fix this so that only the exterior boundary gets essential BC, or maybe even remove it.
 
 //#define ELIMINATE_REDUNDANT_VARS
 //#define EQUATE_REDUNDANT_VARS
@@ -51,8 +51,8 @@ using namespace std;
 
 #define SD_ITERATIVE
 #define SD_ITERATIVE_COMPLEX
-//#define SD_ITERATIVE_GMG
-//#define SD_ITERATIVE_GMG_PA
+#define SD_ITERATIVE_GMG
+#define SD_ITERATIVE_GMG_PA
 //#define SD_ITERATIVE_FULL
 
 //#define IF_ITERATIVE
@@ -61,8 +61,8 @@ using namespace std;
 
 //#define TEST_SD_CMG
 
-//#define SDFOSLS
-//#define SDFOSLS_PA
+#define SDFOSLS
+#define SDFOSLS_PA
 
 //#define IMPEDANCE_OTHER_SIGN
 
@@ -73,8 +73,8 @@ using namespace std;
 //#define ZERO_ORDER_FOSLS
 //#define ZERO_ORDER_FOSLS_COMPLEX
 
-//#define IFFOSLS
-//#define IFFOSLS_H
+#define IFFOSLS
+#define IFFOSLS_H
 //#define IFFOSLS_ESS
 
 //#define FOSLS_INIT_GUESS
@@ -1322,6 +1322,8 @@ public:
   void PolyPreconditionerMult(const Vector & x, Vector & y);
   void GaussSeidelPreconditionerMult(const Vector & x, Vector & y) const;
 
+  void PrintTiming(const int myid) const;
+
 private:
 
   int m_rank;
@@ -2479,7 +2481,7 @@ public:
 	blockgmg::BlockMGPASolver *precMG = new blockgmg::BlockMGPASolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, blockCoarseA, P, diag_pa, ess_tdof_list_empty);
 	precMG->SetTheta(0.5);
 	LSpcg.SetPreconditioner(*precMG);
-	LSpcg.iterative_mode = true;
+	LSpcg.iterative_mode = false;
 #ifdef FOSLS_INIT_GUESS
 	initialGuess.SetSize(LS_Maxwellop->Height());
 	initialGuess = 0.0;
@@ -2653,6 +2655,8 @@ public:
     : fullMat(fullMat_), sdInv(sdInv_), auxInv(auxInv_)
 #endif
   {
+    time_sdInv = 0;
+
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 #ifdef IFFOSLS_H
@@ -2743,8 +2747,14 @@ public:
     */
     
     //cout << rank << ": LBTS xSD norm " << xSD.Norml2() << endl;
+
+    StopWatch sw;
+    sw.Start();
     
     sdInv->Mult(xSD, ySD);  // Solve (0,0) block
+
+    sw.Stop();
+    time_sdInv += sw.RealTime();
 
     //cout << rank << ": LBTS ySD norm " << ySD.Norml2() << endl;
 
@@ -2884,6 +2894,8 @@ public:
 #endif
 #endif
   }
+
+  mutable double time_sdInv;
   
 private:
   //STRUMPACKSolver *auxInv;

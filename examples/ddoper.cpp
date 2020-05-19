@@ -7824,6 +7824,19 @@ DDMInterfaceOperator::DDMInterfaceOperator(const int numSubdomains_, const int n
 #endif // GPWD  
 }  // end of constructor for DDMInterfaceOperator
 
+void DDMInterfaceOperator::PrintTiming(const int myid) const
+{
+  for (int i=0; i<numSubdomains; ++i)
+    {
+      //LowerBlockTriangularSubdomainSolver *lbts = (LowerBlockTriangularSubdomainSolver*)const_cast 
+      LowerBlockTriangularSubdomainSolver *lbts = dynamic_cast<LowerBlockTriangularSubdomainSolver*>(invAsdComplex[i]);
+      if (lbts != NULL)
+	{
+	  cout << myid << ": LBTS sdInv timing on SD " << i << ": " << lbts->time_sdInv << endl;
+	}
+    }
+}
+
 void DDMInterfaceOperator::GaussSeidelPreconditionerMult(const Vector & x, Vector & y) const
 {
   Vector u, v, w;
