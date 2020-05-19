@@ -11698,7 +11698,8 @@ const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(
 {
    MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
 
-   for (int i = 0; i < closed ? dof2quad_array.Size() : dof2quad_array_open.Size();
+   for (int i = 0;
+        i < (closed ? dof2quad_array.Size() : dof2quad_array_open.Size());
         i++)
    {
       const DofToQuad &d2q = closed ? *dof2quad_array[i] : *dof2quad_array_open[i];
