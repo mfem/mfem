@@ -96,6 +96,9 @@ Miscellaneous
   entire spatial and temporal data. In addition, ADIOS2 allows for setting a
   user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
 
+- The integration order used in the ComputeLpError and ComputeElementLpError
+  methods of class GridFunction has been increased.
+
 - Added a new IterativeSolverMonitor class that allows to monitor the residual
   and solution during the solving process of an IterativeSolver after every
   iteration.
