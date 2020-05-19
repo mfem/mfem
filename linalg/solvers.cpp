@@ -589,8 +589,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       final_norm = sqrt(nom);
       return;
    }
-
+   dbg("oper->Mult(d, z): d: %.15e", d*d);
    oper->Mult(d, z);  // z = A d
+   dbg("oper->Mult(d, z): z: %.15e", z*z);
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
@@ -1624,13 +1625,20 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
 
       dbg("prec->SetOperator(oper->GetGradient(x));");
+      {
+         x.HostWrite();
+         srand48(0x1234abcd330e);
+         dbg("\033[7mStuffing x with RANDs for GetGradient!");
+         for (int k=0; k<x.Size(); k++) { x[k] = drand48();  }
+      }
       prec->SetOperator(oper->GetGradient(x));
 
       dbg("prec->Mult, r:%d, c:%d",r.Size(),c.Size());
+      dbg("x:%.15e", r*r);
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
       dbg("c: %.15e", c*c);
       /////////////////////////
-      //dbg("Exiting!"); exit(0);
+      dbg("Exiting!"); exit(0);
       /////////////////////////
 
       dbg("ComputeScalingFactor");

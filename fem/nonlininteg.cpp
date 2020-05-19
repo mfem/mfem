@@ -43,7 +43,8 @@ void NonlinearFormIntegrator::AddMultPA(const Vector&, Vector&) const
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AddMultGradPA(const Vector&, Vector&) const
+void NonlinearFormIntegrator::AddMultGradPA(const Vector&,
+                                            const Vector&, Vector&) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultGradPA(...)\n"
                "   is not implemented for this class.");

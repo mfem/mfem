@@ -855,7 +855,7 @@ protected:
    mutable DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    // PA extension
-   mutable Vector D;
+   mutable Vector D,JrtD;
    int dim, ne, nq;
    const DofToQuad *maps;
    const GeometricFactors *geom;
@@ -979,7 +979,8 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    using NonlinearFormIntegrator::AddMultGradPA;
-   virtual void AddMultGradPA(const Vector &x, Vector &y) const;
+   virtual void AddMultGradPA(const Vector &GradX,
+                              const Vector &x, Vector &y) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 

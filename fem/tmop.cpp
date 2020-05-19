@@ -1355,7 +1355,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           const Vector &elfun,
                                           DenseMatrix &elmat)
 {
-   dbg("");
+   MFEM_VERIFY(!fdflag,"");
    if (!fdflag)
    {
       AssembleElementGradExact(el, T, elfun, elmat);
@@ -1379,7 +1379,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Jpt.SetSize(dim);      // the tgt->phy transformation Jacobian, Jpt = Jpr Jrt.
    P.SetSize(dim);        // represents dW_d(Jtp) (dim x dim).
 
-   DenseMatrix G(dim);
+   //DenseMatrix G(dim);
    // PMatI: current coordinates of the nodes (dof x dim).
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
@@ -1443,9 +1443,9 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      T.SetIntPoint(&ip);
+      //T.SetIntPoint(&ip);
       const DenseMatrix &Jtr_i = Jtr(i);
-      //metric->SetTargetJacobian(Jtr_i);
+      metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
       double weight_m = weight ;//* metric_normal;
@@ -1531,11 +1531,14 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
+   DenseMatrix G(dim);
+
+   MFEM_VERIFY(IntRule,"");
    const IntegrationRule *ir = IntRule;
-   if (!ir)
+   /*if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   }*/
 
    elmat = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
@@ -1544,7 +1547,8 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    // Limited case.
    DenseMatrix pos0, grad_grad;
    Vector shape, p, p0, d_vals;
-   if (coeff0)
+   MFEM_VERIFY(!coeff0,"");
+   /*if (coeff0)
    {
       shape.SetSize(dof);
       p.SetSize(dim);
@@ -1562,18 +1566,19 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       {
          d_vals.SetSize(ir->GetNPoints()); d_vals = 1.0;
       }
-   }
+   }*/
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0)
+   MFEM_VERIFY(!(coeff1 || coeff0),"");
+   /*if (coeff1 || coeff0)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
       Tpr->ElementNo = T.ElementNo;
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI);
-   }
+   }*/
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1582,19 +1587,40 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
-      double weight_m = weight * metric_normal;
+      double weight_m = weight ;//* metric_normal;
 
-      el.CalcDShape(ip, DSh);
-      Mult(DSh, Jrt, DS);
+      /*{
+         dbg("\033[0mdetJrt: %.15e",Jrt.Det());
+         dbg("Jrt: %.15e %.15e",Jrt(0,0),Jrt(0,1));
+         dbg("Jrt: %.15e %.15e",Jrt(1,0),Jrt(1,1));
+      }*/
+      el.CalcDShape(ip, DSh);// dbg("DSh:"); DSh.Print(); //exit(0);
+      {
+         MultAtB(PMatI, DSh, G);
+         dbg("");
+         dbg("\033[0mdetG: %.15e",G.Det());
+         dbg("G: %.15e %.15e",G(0,0),G(0,1));
+         dbg("G: %.15e %.15e",G(1,0),G(1,1));
+      }
+      exit(0);
+      Mult(DSh, Jrt, DS); //dbg("DS:"); DS.Print(); exit(0);
       MultAtB(PMatI, DS, Jpt);
 
-      if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
+      /*{
+         dbg("\033[0mdetJpt: %.15e",Jpt.Det());
+         dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
+         dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
+      }*/
+
+      //if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       metric->AssembleH(Jpt, DS, weight_m, elmat);
+      //elmat.Print();
+      //exit(0);
 
       // TODO: derivatives of adaptivity-based targets.
 
-      if (coeff0)
+      /*if (coeff0)
       {
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
@@ -1616,10 +1642,10 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                }
             }
          }
-      }
+      }*/
    }
    delete Tpr;
-   dbg("");
+   dbg("done");
    MFEM_ABORT("First AssembleElementGradExact");
 }
 
