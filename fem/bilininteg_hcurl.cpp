@@ -1990,7 +1990,7 @@ static void PAHcurlApplyGradient2D(const int c_dofs1D,
          {
             for (int dx = 0; dx < c_dofs1D; ++dx)
             {
-               // orientations!
+               // orientations!  (probably the issue with multiple elements)
                const int local_index = ey*o_dofs1D + ex;
                y(local_index, e) += G(ex, dx) * hw(dx, ey);
             }
@@ -2219,7 +2219,7 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
                                       const FiniteElementSpace &test_fes)
 {
-   std::cout << "GradientInterpolator::AssemblePA" << std::endl;
+   std::cout << "    GradientInterpolator::AssemblePA" << std::endl;
 
    // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();
@@ -2263,12 +2263,6 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    maps_C_C = &fake_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
    maps_O_C = &fake_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
 
-   // we want B1d with Lobatto rows (weird integration rule), lobatto columns (normal dofs), (identity)
-   // should be mapsotherC->B [size at least looks right]
-
-   // want G1d with Legendre rows (normal integration rule), lobatto columns (normal dofs), but slightly different order from usual defaults
-   // should be mapsotherO->G 
-
    o_dofs1D = maps_O_C->nqpt;
    c_dofs1D = maps_C_C->nqpt;
    MFEM_VERIFY(maps_O_C->ndof == c_dofs1D, "Bad programming!");
@@ -2279,19 +2273,20 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    Vector coeff(ne * nq);
    coeff = 1.0;
    // no coefficient in this topological gradient, so if (Q) block removed
+   // (except I do need orientations of the Nedelec dofs, where do they come from?)
 
    // Use the same setup functions as VectorFEMassIntegrator.
    // (but we aren't doing integration so it's probably wrong)
    // (might not have to do this at all?)
    if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      int quad1D = o_dofs1D; // ??? probably wrong
+      int quad1D = o_dofs1D;
       PAHcurlSetup3D(quad1D, ne, old_ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
    else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
    {
-      int quad1D = o_dofs1D; // ??? probably wrong
+      int quad1D = o_dofs1D;
       PAHcurlSetup2D(quad1D, ne, old_ir->GetWeights(), geom->J,
                      coeff, pa_data);
    }
@@ -2305,7 +2300,7 @@ void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
 {
    // these may just be the wrong kernels (ie, only swapping them out may be sufficient)
 
-   std::cout << "GradientInterpolator::AddMultPA" << std::endl;
+   std::cout << "  GradientInterpolator::AddMultPA" << std::endl;
    if (dim == 3)
    {
       /*

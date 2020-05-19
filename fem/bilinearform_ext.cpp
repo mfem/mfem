@@ -498,7 +498,7 @@ PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(DiscreteLin
 /// @fixme
 void PADiscreteLinearOperatorExtension::Assemble()
 {
-   std::cout << "PADiscreteLinearOperatorExtension::Assemble" << std::endl;
+   std::cout << "  PADiscreteLinearOperatorExtension::Assemble" << std::endl;
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
