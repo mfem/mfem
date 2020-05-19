@@ -38,13 +38,13 @@ namespace mfem
 class Quad2FieldInterpolant
 {
 protected:
-   BilinearForm *L2;  // Owned.
-   CGSolver *cg;      // Owned.
+   BilinearForm *L2 = nullptr;  // Owned.
+   CGSolver *cg = nullptr;      // Owned.
 public:
    /** The FiniteElementSpace passed into here should have a vdim set to 1 in order
        for the MassIntegrator to work properly if the ProjectQuadratureCoefficient
        method is used with a VectorQuadratureFunctionCoefficient.*/
-   Quad2FieldInterpolant(FiniteElementSpace *fes) 
+   Quad2FieldInterpolant(FiniteElementSpace *fes)
    {
       L2 = new BilinearForm(fes);
 
@@ -82,6 +82,10 @@ public:
    virtual void SetupCG(double rel_tol = 1e-15, double abs_tol = 0.0,
                         int print_level = 0, int max_iter = 2000)
    {
+      if (cg)
+      {
+         delete cg;
+      }
       cg = new CGSolver();
       cg->SetPrintLevel(print_level);
       cg->SetMaxIter(max_iter);
@@ -90,21 +94,32 @@ public:
    }
    virtual ~Quad2FieldInterpolant()
    {
-      delete L2;
-      delete cg;
+      if (L2)
+      {
+         delete L2;
+      }
+      if (cg)
+      {
+         delete cg;
+      }
    }
+
+protected:
+   // Should only be needed for children classes to avoid unneeded resources
+   // from being allocated.
+   Quad2FieldInterpolant() {}
 };
 
 #ifdef MFEM_USE_MPI
 class ParQuad2FieldInterpolant : public Quad2FieldInterpolant
 {
 protected:
-   ParBilinearForm *ParL2;
+   ParBilinearForm *ParL2 = nullptr;
 public:
    /** The ParFiniteElementSpace passed into here should have a vdim set to 1 in
        order for the MassIntegrator to work properly if the ProjectQuadratureCoefficient
        method is used with a VectorQuadratureFunctionCoefficient.*/
-   ParQuad2FieldInterpolant(ParFiniteElementSpace *pfes) : Quad2FieldInterpolant(pfes)
+   ParQuad2FieldInterpolant(ParFiniteElementSpace *pfes)
    {
       ParL2 = new ParBilinearForm(pfes);
 
@@ -137,6 +152,10 @@ public:
                         double abs_tol = 0.0,
                         int print_level = 0, int max_iter = 2000)
    {
+      if (cg)
+      {
+         delete cg;
+      }
       cg = new CGSolver(_comm);
       cg->SetPrintLevel(print_level);
       cg->SetMaxIter(max_iter);

@@ -436,7 +436,7 @@ private:
 
 public:
    VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
-                              const IntegrationRule *ir)
+                                const IntegrationRule *ir)
       : LinearFormIntegrator(ir), vqfc(vqfc) { }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
@@ -453,7 +453,7 @@ private:
 
 public:
    QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc,
-                        const IntegrationRule *ir)
+                          const IntegrationRule *ir)
       : LinearFormIntegrator(ir), qfc(qfc) { }
 
    using LinearFormIntegrator::AssembleRHSElementVect;

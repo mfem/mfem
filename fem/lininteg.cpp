@@ -768,13 +768,14 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    }
 }
 
-void VectorQuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
-                                                        ElementTransformation &Tr,
-                                                        Vector &elvect)
+void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &fe,
+   ElementTransformation &Tr,
+   Vector &elvect)
 {
 
    const IntegrationRule *ir = IntRule;
-   
+
    if (ir == NULL)
    {
       int intorder = 2 * fe.GetOrder();
@@ -806,12 +807,12 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &f
 }
 
 void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
-                                                  ElementTransformation &Tr,
-                                                  Vector &elvect)
+                                                    ElementTransformation &Tr,
+                                                    Vector &elvect)
 {
 
    const IntegrationRule *ir = IntRule;
-   
+
    if (ir == NULL)
    {
       int intorder = 2 * fe.GetOrder();
