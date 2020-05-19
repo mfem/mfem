@@ -64,12 +64,13 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < n_shared_faces; i++)
       {
          tr = pmesh->GetSharedFaceTransformations(i, true);
+         int Elem2NbrNo = tr->Elem2No - pmesh->GetNE();
 
          fe1 = pfes->GetFE(tr->Elem1No);
-         fe2 = pfes->GetFaceNbrFE(tr->Elem2No);
+         fe2 = pfes->GetFaceNbrFE(Elem2NbrNo);
 
          pfes->GetElementVDofs(tr->Elem1No, vdofs1);
-         pfes->GetFaceNbrElementVDofs(tr->Elem2No, vdofs2);
+         pfes->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs2);
 
          el_x.SetSize(vdofs1.Size() + vdofs2.Size());
          X.GetSubVector(vdofs1, el_x.GetData());
