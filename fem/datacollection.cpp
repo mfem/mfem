@@ -739,12 +739,6 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
 #endif
 }
 
-void ParaViewDataCollection::RegisterField(const std::string& field_name,
-                                           mfem::GridFunction *gf)
-{
-   DataCollection::RegisterField(field_name,gf);
-}
-
 void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
 {
    levels_of_detail = levels_of_detail_;
@@ -815,7 +809,7 @@ void ParaViewDataCollection::Save()
    // the directory is created
 
    // create pvd file if needed
-   if (!pvd_stream.is_open())
+   if (myid == 0 && !pvd_stream.is_open())
    {
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
