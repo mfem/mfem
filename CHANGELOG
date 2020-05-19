@@ -44,6 +44,11 @@ Discretization improvements
 - Added new partial assembly kernels for H(div) bilinear forms, as well as
   VectorFEDivergenceIntegrator.
 
+- Improved the documentation of the GridFunction GetValue and GetVectorValue
+  methods. Expanded the GetValue and GetVectorValue methods which accept an
+  ElementTransformation argument to support evaluation on boundary elements
+  and, in the continuous field case, arbitrary mesh edges and faces.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
