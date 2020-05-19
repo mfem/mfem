@@ -495,9 +495,10 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
 {
    SparseMatrix *R;
    DenseMatrix loc_restr;
-   Array<int> l_dofs, h_dofs;
+   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
 
-   R = new SparseMatrix (lfes -> GetNDofs(), ndofs);
+   int vdim = lfes->GetVDim();
+   R = new SparseMatrix (vdim * lfes -> GetNDofs(), vdim * ndofs);
 
    Geometry::Type cached_geom = Geometry::INVALID;
    const FiniteElement *h_fe = NULL;
@@ -520,7 +521,16 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
          cached_geom = geom;
       }
 
-      R -> SetSubMatrix (l_dofs, h_dofs, loc_restr, 1);
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         l_dofs.Copy(l_vdofs);
+         lfes->DofsToVDofs(vd, l_vdofs);
+
+         h_dofs.Copy(h_vdofs);
+         this->DofsToVDofs(vd, h_vdofs);
+
+         R -> SetSubMatrix (l_vdofs, h_vdofs, loc_restr, 1);
+      }
    }
 
    R -> Finalize();
@@ -1094,13 +1104,12 @@ void FiniteElementSpace::RefinementOperator
    Mesh* mesh = fespace->GetMesh();
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
-   Array<int> dofs, old_dofs, old_vdofs;
-
-   Array<char> processed(fespace->GetVSize());
-   processed = 0;
+   Array<int> dofs, vdofs, old_dofs, old_vdofs;
 
    int vdim = fespace->GetVDim();
    int old_ndofs = width / vdim;
+
+   Vector subY, subX;
 
    for (int k = 0; k < mesh->GetNE(); k++)
    {
@@ -1108,32 +1117,77 @@ void FiniteElementSpace::RefinementOperator
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
+      subY.SetSize(lP.Height());
+
       fespace->GetElementDofs(k, dofs);
       old_elem_dof->GetRow(emb.parent, old_dofs);
 
       for (int vd = 0; vd < vdim; vd++)
       {
+         dofs.Copy(vdofs);
+         fespace->DofsToVDofs(vd, vdofs);
          old_dofs.Copy(old_vdofs);
          fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
+         x.GetSubVector(old_vdofs, subX);
+         lP.Mult(subX, subY);
+         y.SetSubVector(vdofs, subY);
+      }
+   }
+}
 
-         for (int i = 0; i < dofs.Size(); i++)
+void FiniteElementSpace::RefinementOperator
+::MultTranspose(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+
+   Mesh* mesh = fespace->GetMesh();
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
+   Array<char> processed(fespace->GetVSize());
+   processed = 0;
+
+   Array<int> f_dofs, c_dofs, f_vdofs, c_vdofs;
+
+   int vdim = fespace->GetVDim();
+   int old_ndofs = width / vdim;
+
+   Vector subY, subX;
+
+   for (int k = 0; k < mesh->GetNE(); k++)
+   {
+      const Embedding &emb = rtrans.embeddings[k];
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const DenseMatrix &lP = localP[geom](emb.matrix);
+
+      fespace->GetElementDofs(k, f_dofs);
+      old_elem_dof->GetRow(emb.parent, c_dofs);
+
+      subY.SetSize(lP.Width());
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         f_dofs.Copy(f_vdofs);
+         fespace->DofsToVDofs(vd, f_vdofs);
+         c_dofs.Copy(c_vdofs);
+         fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
+
+         x.GetSubVector(f_vdofs, subX);
+
+         for (int p = 0; p < f_dofs.Size(); ++p)
          {
-            double rsign, osign;
-            int r = fespace->DofToVDof(dofs[i], vd);
-            r = DecodeDof(r, rsign);
-
-            if (!processed[r])
+            if (processed[DecodeDof(f_dofs[p])])
             {
-               double value = 0.0;
-               for (int j = 0; j < old_vdofs.Size(); j++)
-               {
-                  int o = DecodeDof(old_vdofs[j], osign);
-                  value += x[o] * lP(i, j) * osign;
-               }
-               y[r] = value * rsign;
-               processed[r] = 1;
+               subX[p] = 0.0;
             }
          }
+
+         lP.MultTranspose(subX, subY);
+         y.AddElementVector(c_vdofs, subY);
+      }
+
+      for (int p = 0; p < f_dofs.Size(); ++p)
+      {
+         processed[DecodeDof(f_dofs[p])] = 1;
       }
    }
 }
@@ -2561,7 +2615,9 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
 
 L2ProjectionGridTransfer::L2Projection::L2Projection(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
-   : fes_ho(fes_ho_), fes_lor(fes_lor_)
+   : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
+     fes_ho(fes_ho_),
+     fes_lor(fes_lor_)
 {
    Mesh *mesh_ho = fes_ho.GetMesh();
    MFEM_VERIFY(mesh_ho->GetNumGeometries(mesh_ho->Dimension()) <= 1,

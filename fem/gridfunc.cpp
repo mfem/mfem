@@ -2009,7 +2009,7 @@ double GridFunction::ComputeL2Error(
       fdof = fe->GetDof();
       transf = fes->GetElementTransformation(i);
       shape.SetSize(fdof);
-      intorder = 2*fe->GetOrder() + 1; // <----------
+      intorder = 2*fe->GetOrder() + 3; // <----------
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2064,7 +2064,7 @@ double GridFunction::ComputeL2Error(
    {
       if (elems != NULL && (*elems)[i] == 0) { continue; }
       fe = fes->GetFE(i);
-      int intorder = 2*fe->GetOrder() + 1; // <----------
+      int intorder = 2*fe->GetOrder() + 3; // <----------
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2259,7 +2259,7 @@ double GridFunction::ComputeMaxError(
       fdof = fe->GetDof();
       transf = fes->GetElementTransformation(i);
       shape.SetSize(fdof);
-      intorder = 2*fe->GetOrder() + 1; // <----------
+      intorder = 2*fe->GetOrder() + 3; // <----------
       const IntegrationRule *ir;
       if (irs)
       {
@@ -2425,7 +2425,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       }
       else
       {
-         int intorder = 2*fe->GetOrder() + 1; // <----------
+         int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       GetValues(i, *ir, vals);
@@ -2472,10 +2472,13 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
 }
 
 void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
-                                          GridFunction &error,
+                                          Vector &error,
                                           Coefficient *weight,
                                           const IntegrationRule *irs[]) const
 {
+   MFEM_ASSERT(error.Size() == fes->GetNE(),
+               "Incorrect size for result vector");
+
    error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
@@ -2491,7 +2494,7 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
       }
       else
       {
-         int intorder = 2*fe->GetOrder() + 1; // <----------
+         int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       GetValues(i, *ir, vals);
@@ -2555,7 +2558,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
       }
       else
       {
-         int intorder = 2*fe->GetOrder() + 1; // <----------
+         int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       T = fes->GetElementTransformation(i);
@@ -2627,11 +2630,14 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
 
 void GridFunction::ComputeElementLpErrors(const double p,
                                           VectorCoefficient &exsol,
-                                          GridFunction &error,
+                                          Vector &error,
                                           Coefficient *weight,
                                           VectorCoefficient *v_weight,
                                           const IntegrationRule *irs[]) const
 {
+   MFEM_ASSERT(error.Size() == fes->GetNE(),
+               "Incorrect size for result vector");
+
    error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
@@ -2648,7 +2654,7 @@ void GridFunction::ComputeElementLpErrors(const double p,
       }
       else
       {
-         int intorder = 2*fe->GetOrder() + 1; // <----------
+         int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       T = fes->GetElementTransformation(i);
