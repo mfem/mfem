@@ -77,9 +77,9 @@ public:
                                        ElementTransformation &Tr,
                                        Vector &elvect);
 
-   // virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-   //                                       ElementTransformation &Trans,
-   //                                       Vector &elvect);
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
@@ -158,6 +158,8 @@ protected:
    double sigma, kappa;
    std::map<int, IntegrationRule *> CutSegIntRules;
    std::vector<bool> EmbeddedElements;
+   std::map<int, bool> immersedFaces;
+   std::map<int, int> cutboundaryFaces;
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
@@ -165,8 +167,12 @@ protected:
 
 public:
    CutDGDiffusionIntegrator(Coefficient &q, const double s, const double k, 
-                                    std::map<int, IntegrationRule *> CutSegmentIntRules, std::vector<bool> EmbeddedElems)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k), CutSegIntRules(CutSegmentIntRules), EmbeddedElements(EmbeddedElems) { }
+                                    std::map<int, IntegrationRule *> CutSegmentIntRules, 
+                                    std::vector<bool> EmbeddedElems, std::map<int, bool> immersedFaces, 
+                                    std::map<int, int> cutboundaryFaces
+                           )
+      : Q(&q), MQ(NULL), sigma(s), kappa(k), CutSegIntRules(CutSegmentIntRules), 
+      EmbeddedElements(EmbeddedElems), immersedFaces(immersedFaces) , cutboundaryFaces(cutboundaryFaces) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,

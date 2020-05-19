@@ -16,15 +16,20 @@ struct circle
       // return -1 * (((x[0] - 5) * (x[0] - 5)) + 
       //               ((x[1]- 5) * (x[1] - 5)) - (0.5 * 0.5));
       // level-set function for reference elements 
-      return -1 * ((((x[0]*xscale) + xmin - 5) * ((x[0]*xscale) + xmin - 5)) + 
-                    (((x[1]*yscale) + ymin- 5) * ((x[1]*yscale) + ymin - 5)) - (1));
+      // return -1 * ((((x[0]*xscale) + xmin - 5) * ((x[0]*xscale) + xmin - 5)) + 
+      //               (((x[1]*yscale) + ymin- 5) * ((x[1]*yscale) + ymin - 5)) - (1));
+       return -1 * ((((x[0] * xscale) + xmin - 0.5) * ((x[0] * xscale) + xmin - 0.5)) +
+                   (((x[1] * yscale) + ymin - 0.5) * ((x[1] * yscale) + ymin - 0.5)) - (0.04));
    }
    template <typename T>
    blitz::TinyVector<T, N> grad(const blitz::TinyVector<T, N> &x) const
    {
      // return blitz::TinyVector<T, N>(-1 * (2.0 * (x(0) - 5)), -1 * (2.0 * (x(1) - 5)));
-      return blitz::TinyVector<T, N>(-1 * (2.0 * xscale* ((x(0) *xscale) + xmin- 5)),
-                                       -1 * (2.0 * yscale* ((x(1) * yscale) + ymin- 5)));
+      // return blitz::TinyVector<T, N>(-1 * (2.0 * xscale* ((x(0) *xscale) + xmin- 5)),
+      //                                  -1 * (2.0 * yscale* ((x(1) * yscale) + ymin- 5)));
+      return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - 0.5)),
+                                     -1 * (2.0 * yscale * ((x(1) * yscale) + ymin - 0.5)));
+
    }
 };
 
@@ -207,12 +212,15 @@ bool cutByCircle(Mesh *mesh, int &elemid)
    k = 0;
    l = 0;
    n = 0;
+   double xc=0.5;
+   double yc=0.5;
+   double r=0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
       //cout << x[1] << endl;
-      lvsval(i) = ((coord[0] - 5.0) * (coord[0] - 5.0)) + ((coord[1] - 5.0) * (coord[1] - 5.0)) - (1.0);
+      lvsval(i) = ((coord[0] -xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r*r);
       if ((lvsval(i) < 0))
       {
          k = k + 1;
@@ -247,11 +255,14 @@ bool insideBoundary(Mesh *mesh, int &elemid)
    el->GetVertices(v);
    int k;
    k = 0;
+   double xc=0.5;
+   double yc=0.5;
+   double r=0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
-      lvsval(i) = ((coord[0] - 5) * (coord[0] - 5)) + ((coord[1] - 5) * (coord[1] - 5)) - (1.0);
+      lvsval(i) = ((coord[0] -xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r*r);
       if ((lvsval(i) < 0) || (lvsval(i) == 0))
       {
          k = k + 1;

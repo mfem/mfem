@@ -16,15 +16,15 @@ struct circle
       // return -1 * (((x[0] - 5) * (x[0] - 5)) +
       //               ((x[1]- 5) * (x[1] - 5)) - (0.5 * 0.5));
       // level-set function for reference elements
-      return -1 * ((((x[0] * xscale) + xmin - 5) * ((x[0] * xscale) + xmin - 5)) +
-                   (((x[1] * yscale) + ymin - 5) * ((x[1] * yscale) + ymin - 5)) - (1));
+      return -1 * ((((x[0] * xscale) + xmin - 0.5) * ((x[0] * xscale) + xmin - 0.5)) +
+                   (((x[1] * yscale) + ymin - 0.5) * ((x[1] * yscale) + ymin - 0.5)) - (0.04));
    }
    template <typename T>
    blitz::TinyVector<T, N> grad(const blitz::TinyVector<T, N> &x) const
    {
       // return blitz::TinyVector<T, N>(-1 * (2.0 * (x(0) - 5)), -1 * (2.0 * (x(1) - 5)));
-      return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - 5)),
-                                     -1 * (2.0 * yscale * ((x(1) * yscale) + ymin - 5)));
+      return blitz::TinyVector<T, N>(-1 * (2.0 * xscale * ((x(0) * xscale) + xmin - 0.5)),
+                                     -1 * (2.0 * yscale * ((x(1) * yscale) + ymin - 0.5)));
    }
 };
 
@@ -50,8 +50,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh = new Mesh(20, 20, Element::QUADRILATERAL, true,
-                         10, 10, true);
+   Mesh *mesh = new Mesh(5, 5, Element::QUADRILATERAL, true,
+                         1, 1, true);
    ofstream sol_ofv("square_mesh.vtk");
    sol_ofv.precision(14);
    mesh->PrintVTK(sol_ofv, 0);
@@ -84,22 +84,7 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
-   // 4. Define a finite element space on the mesh. Here we use discontinuous
-   //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(1, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
-   cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
-   LinearForm *b = new LinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   //b->AddDomainIntegrator(new CutDomainLFIntegrator(one));
-   b->AddBdrFaceIntegrator(
-       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
-   b->Assemble();
-   // define map for integration rule for cut elements
+    // define map for integration rule for cut elements
    GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
    GetCutSegmentIntRule<2>(mesh, cutelems, CutSegmentIntRules);
    std::vector<bool> EmbeddedElems;
@@ -114,13 +99,101 @@ int main(int argc, char *argv[])
          EmbeddedElems.push_back(false);
       }
    }
+   std::map<int, bool> immersedfaces;
+  
+   for (int i = 0; i < mesh->GetNumFaces(); ++i)
+   {
+      FaceElementTransformations *tr;
+      tr = mesh->GetInteriorFaceTransformations(i);
+      if (tr != NULL)
+      {
+         if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No)) == true)
+         {
+            immersedfaces[i]=true;
+         }
+         if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No) == false))
+         {
+             mesh->cutboundaryFaces[i] = tr->Elem2No;
+         }
+         if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No) == false))
+         {
+            mesh->cutboundaryFaces[i] = tr->Elem1No;
+         }
+      }
+   }
+   // 4. Define a finite element space on the mesh. Here we use discontinuous
+   //    finite elements of the specified order >= 0.
+   FiniteElementCollection *fec = new DG_FECollection(1, dim);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   cout << "Number of unknowns: " << fespace->GetVSize() << endl;
+   cout << "Number of finite element unknowns: "
+        << fespace->GetTrueVSize() << endl;
+   LinearForm *b = new LinearForm(fespace);
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+   //b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->AddDomainIntegrator(new CutDomainLFIntegrator(one, CutSquareIntRules, EmbeddedElems));
+   // b->AddBdrFaceIntegrator(
+   //     new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+   b->Assemble();
+   // cout << "RHS: " << endl;
+   // b->Print();
    GridFunction x(fespace);
    x = 0.0;
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
    a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
-                                                             CutSegmentIntRules, EmbeddedElems));
+                                                             CutSegmentIntRules, EmbeddedElems, immersedfaces, mesh->cutboundaryFaces ));
+   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->Assemble();
+   a->Finalize();
+   const SparseMatrix &A = a->SpMat();
+//    //cout << "bilinear form size " << a->Size() << endl;
+//    //A.Print();
+//    #ifndef MFEM_USE_SUITESPARSE
+//    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+//    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+//    //    non-symmetric one.
+//    GSSmoother M(A);
+//    if (sigma == -1.0)
+//    {
+//       PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+//    }
+//    else
+//    {
+//       GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
+//    }
+// #else
+//    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+//    UMFPackSolver umf_solver;
+//    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+//    umf_solver.SetOperator(A);
+//    umf_solver.Mult(*b, x);
+// #endif
+
+//    ofstream adj_ofs("dgsolcircle.vtk");
+//    adj_ofs.precision(14);
+//    mesh->PrintVTK(adj_ofs, 1);
+//    x.SaveVTK(adj_ofs, "dgSolutioncircle", 1);
+//    adj_ofs.close();
+//    // 10. Send the solution by socket to a GLVis server.
+//    if (visualization)
+//    {
+//       char vishost[] = "localhost";
+//       int  visport   = 19916;
+//       socketstream sol_sock(vishost, visport);
+//       sol_sock.precision(8);
+//       sol_sock << "solution\n" << *mesh << x << flush;
+//    }
+
+//    // 11. Free the used memory.
+//    delete a;
+//    delete b;
+//    delete fespace;
+//    delete fec;
+//    delete mesh;
+
+//    return 0;
 }
 template <int N>
 void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
@@ -156,11 +229,13 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
          ip.y = pt.x[1];
          ip.weight = pt.w;
          i = i + 1;
+         MFEM_ASSERT(ip.weight>0, "integration point weight is negative from Saye's method");
+         // cout << "weight is: " << pt.w << endl;
          // cout << pt.x[0] << " , " << pt.x[1] << endl;
          // cout << "mapped back " << endl;
-         //cout << (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin  << endl;
+         // cout << (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin  << endl;
       }
-      //  cout << "element id for cut element " << elemid << endl;
+      //cout << "element id for cut element " << elemid << endl;
       CutSquareIntRules[elemid] = ir;
    }
 }
@@ -186,12 +261,13 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems,
       phi.yscale = xmax[1] - xmin[1];
       phi.xmin = xmin[0];
       phi.ymin = xmin[1];
-      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), N, -1, 4);
+      auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), 0, 1, 4);
       //auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double,N>(xmin, xmax), -1, -1, 1);
       //cout << "number of quadrature nodes: " << q.nodes.size() << endl;
       int i = 0;
       ir = new IntegrationRule(q.nodes.size());
       // cout << "quadrature rule for mapped elements " << endl;
+      cout << "for element " << cutelems.at(k) << endl;
       for (const auto &pt : q.nodes)
       {
          IntegrationPoint &ip = ir->IntPoint(i);
@@ -199,6 +275,8 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems,
          ip.y = pt.x[1];
          ip.weight = pt.w;
          i = i + 1;
+         cout << "point is " <<  (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin<< endl;
+         cout << "level set function value is " << phi(pt.x) << endl;
          // cout << pt.x[0] << " , " << pt.x[1] << endl;
          // cout << "mapped back " << endl;
          //cout << (pt.x[0] * phi.xscale) + phi.xmin << " , " << (pt.x[1] * phi.yscale) + phi.ymin  << endl;
@@ -215,11 +293,14 @@ bool insideBoundary(Mesh *mesh, int &elemid)
    el->GetVertices(v);
    int k;
    k = 0;
+   double xc=0.5;
+   double yc=0.5;
+   double r=0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
-      lvsval(i) = ((coord[0] - 5) * (coord[0] - 5)) + ((coord[1] - 5) * (coord[1] - 5)) - (1.0);
+      lvsval(i) = ((coord[0] -xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r*r);
       if ((lvsval(i) < 0) || (lvsval(i) == 0))
       {
          k = k + 1;
@@ -307,7 +388,14 @@ void CutDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       add(elvect, ip.weight * val, shape, elvect);
    }
 }
-
+void CutDomainLFIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   elvect.SetSize(fe.GetDof());
+   fe.CalcPhysShape(Trans, elvect);
+   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+}
 void CutDomainIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                  ElementTransformation &Tr,
                                                  Vector &elvect)
@@ -354,12 +442,15 @@ bool cutByCircle(Mesh *mesh, int &elemid)
    k = 0;
    l = 0;
    n = 0;
+   double xc=0.5;
+   double yc=0.5;
+   double r=0.2;
    for (int i = 0; i < v.Size(); ++i)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
       //cout << x[1] << endl;
-      lvsval(i) = ((coord[0] - 5.0) * (coord[0] - 5.0)) + ((coord[1] - 5.0) * (coord[1] - 5.0)) - (1.0);
+      lvsval(i) = ((coord[0] -xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r*r);
       if ((lvsval(i) < 0))
       {
          k = k + 1;
@@ -477,10 +568,13 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    int dim, ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
    double w, wq = 0.0;
-
+   if (Trans.Elem2No < 0)
+   {
+      //std::cout << "face number " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+   }
+   
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
-
    nor.SetSize(dim);
    nh.SetSize(dim);
    ni.SetSize(dim);
@@ -489,11 +583,10 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    {
       mq.SetSize(dim);
    }
-
    shape1.SetSize(ndof1);
    dshape1.SetSize(ndof1, dim);
    dshape1dn.SetSize(ndof1);
-   if ((Trans.Elem2No >= 0))
+   if (Trans.Elem2No >= 0)
    {
       ndof2 = el2.GetDof();
       shape2.SetSize(ndof2);
@@ -502,42 +595,35 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    }
    else
    {
+      // std::cout << "cut boundary faces " << std::endl;
+      // std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
       ndof2 = 0;
    }
-
    ndofs = ndof1 + ndof2;
    elmat.SetSize(ndofs);
    elmat = 0.0;
-   if (kappa_is_nonzero)
+   if (immersedFaces[Trans.Face->ElementNo]==true)
    {
-      jmat.SetSize(ndofs);
-      jmat = 0.;
-   }
-   const IntegrationRule *ir;
-   if ((EmbeddedElements.at(Trans.Elem1No) == true) && (EmbeddedElements.at(Trans.Elem2No) == false))
-   {
-       ir = CutSegIntRules[Trans.Elem2No];
-   }
-   else if ((EmbeddedElements.at(Trans.Elem1No) == false) && (EmbeddedElements.at(Trans.Elem2No) == true))
-   {
-       ir = CutSegIntRules[Trans.Elem1No];
+      elmat = 0.0;
+      //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
    }
    else
    {
-      ir=NULL;
-   }
-   if (ir !=NULL)
-   {
-      cout << "element 1 and 2 " << endl;
-      cout << Trans.Elem1No << " , " << Trans.Elem2No << endl;
-   }
-   if (ir == NULL)
-   {
-      if (IntRule)
+      if (kappa_is_nonzero)
       {
-         ir = IntRule;
+         jmat.SetSize(ndofs);
+         jmat = 0.;
+      }
+      const IntegrationRule *ir;
+      if (cutboundaryFaces[Trans.Face->ElementNo] == Trans.Elem1No )
+      {
+         ir = CutSegIntRules[Trans.Elem1No];
       }
       else
+      {
+         const IntegrationRule *ir = IntRule;
+      }
+      if (ir == NULL)
       {
          // a simple choice for the integration order; is this OK?
          int order;
@@ -547,180 +633,187 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
          }
          else
          {
+
             order = 2 * el1.GetOrder();
          }
          ir = &IntRules.Get(Trans.FaceGeom, order);
       }
-   }
-   // assemble: < {(Q \nabla u).n},[v] >      --> elmat
-   //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
-   for (int p = 0; p < ir->GetNPoints(); p++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
-
-      Trans.Loc1.Transform(ip, eip1);
-      Trans.Face->SetIntPoint(&ip);
-      if (dim == 1)
+      // std::cout << "int rule is set " << std::endl;
+      // assemble: < {(Q \nabla u).n},[v] >      --> elmat
+      //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
+      for (int p = 0; p < ir->GetNPoints(); p++)
       {
-         nor(0) = 2 * eip1.x - 1.0;
-      }
-      else
-      {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
-      }
-      el1.CalcShape(eip1, shape1);
-      el1.CalcDShape(eip1, dshape1);
-      Trans.Elem1->SetIntPoint(&eip1);
-      w = ip.weight / Trans.Elem1->Weight();
-      if (ndof2)
-      {
-         w /= 2;
-      }
-      if (!MQ)
-      {
-         if (Q)
+         const IntegrationPoint &ip = ir->IntPoint(p);
+         IntegrationPoint eip1, eip2;
+         Trans.Loc1.Transform(ip, eip1);
+         // std::cout << "transformation is done  " << std::endl;
+         Trans.Face->SetIntPoint(&ip);
+         if (dim == 1)
          {
-            w *= Q->Eval(*Trans.Elem1, eip1);
+            nor(0) = 2 * eip1.x - 1.0;
          }
-         ni.Set(w, nor);
-      }
-      else
-      {
-         nh.Set(w, nor);
-         MQ->Eval(mq, *Trans.Elem1, eip1);
-         mq.MultTranspose(nh, ni);
-      }
-      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
-      adjJ.Mult(ni, nh);
-      if (kappa_is_nonzero)
-      {
-         wq = ni * nor;
-      }
-      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
-      // independent of Loc1 and always gives the size of element 1 in
-      // direction perpendicular to the face. Indeed, for linear transformation
-      //     |nor|=measure(face)/measure(ref. face),
-      //   det(J1)=measure(element)/measure(ref. element),
-      // and the ratios measure(ref. element)/measure(ref. face) are
-      // compatible for all element/face pairs.
-      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
-      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
-      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
-
-      dshape1.Mult(nh, dshape1dn);
-      for (int i = 0; i < ndof1; i++)
-         for (int j = 0; j < ndof1; j++)
+         else
          {
-            elmat(i, j) += shape1(i) * dshape1dn(j);
+            CalcOrtho(Trans.Face->Jacobian(), nor);
          }
-
-      if (ndof2)
-      {
-         Trans.Loc2.Transform(ip, eip2);
-         el2.CalcShape(eip2, shape2);
-         el2.CalcDShape(eip2, dshape2);
-         Trans.Elem2->SetIntPoint(&eip2);
-         w = ip.weight / 2 / Trans.Elem2->Weight();
+         el1.CalcShape(eip1, shape1);
+         el1.CalcDShape(eip1, dshape1);
+         Trans.Elem1->SetIntPoint(&eip1);
+         w = ip.weight / Trans.Elem1->Weight();
+         if (ndof2)
+         {
+            w /= 2;
+         }
          if (!MQ)
          {
             if (Q)
             {
-               w *= Q->Eval(*Trans.Elem2, eip2);
+               w *= Q->Eval(*Trans.Elem1, eip1);
             }
             ni.Set(w, nor);
          }
          else
          {
             nh.Set(w, nor);
-            MQ->Eval(mq, *Trans.Elem2, eip2);
+            MQ->Eval(mq, *Trans.Elem1, eip1);
             mq.MultTranspose(nh, ni);
          }
-         CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+         CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
          adjJ.Mult(ni, nh);
          if (kappa_is_nonzero)
          {
-            wq += ni * nor;
+            wq = ni * nor;
          }
+         // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+         // independent of Loc1 and always gives the size of element 1 in
+         // direction perpendicular to the face. Indeed, for linear transformation
+         //     |nor|=measure(face)/measure(ref. face),
+         //   det(J1)=measure(element)/measure(ref. element),
+         // and the ratios measure(ref. element)/measure(ref. face) are
+         // compatible for all element/face pairs.
+         // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+         // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+         // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
-         dshape2.Mult(nh, dshape2dn);
-
+         dshape1.Mult(nh, dshape1dn);
          for (int i = 0; i < ndof1; i++)
-            for (int j = 0; j < ndof2; j++)
-            {
-               elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
-            }
-
-         for (int i = 0; i < ndof2; i++)
             for (int j = 0; j < ndof1; j++)
             {
-               elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
+               elmat(i, j) += shape1(i) * dshape1dn(j);
             }
 
-         for (int i = 0; i < ndof2; i++)
-            for (int j = 0; j < ndof2; j++)
-            {
-               elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
-            }
-      }
-
-      if (kappa_is_nonzero)
-      {
-         // only assemble the lower triangular part of jmat
-         wq *= kappa;
-         for (int i = 0; i < ndof1; i++)
-         {
-            const double wsi = wq * shape1(i);
-            for (int j = 0; j <= i; j++)
-            {
-               jmat(i, j) += wsi * shape1(j);
-            }
-         }
          if (ndof2)
          {
-            for (int i = 0; i < ndof2; i++)
+            Trans.Loc2.Transform(ip, eip2);
+            el2.CalcShape(eip2, shape2);
+            el2.CalcDShape(eip2, dshape2);
+            Trans.Elem2->SetIntPoint(&eip2);
+            w = ip.weight / 2 / Trans.Elem2->Weight();
+            if (!MQ)
             {
-               const int i2 = ndof1 + i;
-               const double wsi = wq * shape2(i);
+               if (Q)
+               {
+                  w *= Q->Eval(*Trans.Elem2, eip2);
+               }
+               ni.Set(w, nor);
+            }
+            else
+            {
+               nh.Set(w, nor);
+               MQ->Eval(mq, *Trans.Elem2, eip2);
+               mq.MultTranspose(nh, ni);
+            }
+            CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+            adjJ.Mult(ni, nh);
+            if (kappa_is_nonzero)
+            {
+               wq += ni * nor;
+            }
+
+            dshape2.Mult(nh, dshape2dn);
+
+            for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
+               }
+
+            for (int i = 0; i < ndof2; i++)
                for (int j = 0; j < ndof1; j++)
                {
-                  jmat(i2, j) -= wsi * shape1(j);
+                  elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
                }
+
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
+               }
+         }
+
+         if (kappa_is_nonzero)
+         {
+            // only assemble the lower triangular part of jmat
+            wq *= kappa;
+            for (int i = 0; i < ndof1; i++)
+            {
+               const double wsi = wq * shape1(i);
                for (int j = 0; j <= i; j++)
                {
-                  jmat(i2, ndof1 + j) += wsi * shape2(j);
+                  jmat(i, j) += wsi * shape1(j);
+               }
+            }
+            if (ndof2)
+            {
+               for (int i = 0; i < ndof2; i++)
+               {
+                  const int i2 = ndof1 + i;
+                  const double wsi = wq * shape2(i);
+                  for (int j = 0; j < ndof1; j++)
+                  {
+                     jmat(i2, j) -= wsi * shape1(j);
+                  }
+                  for (int j = 0; j <= i; j++)
+                  {
+                     jmat(i2, ndof1 + j) += wsi * shape2(j);
+                  }
                }
             }
          }
       }
-   }
 
-   // elmat := -elmat + sigma*elmat^t + jmat
-   if (kappa_is_nonzero)
-   {
-      for (int i = 0; i < ndofs; i++)
+      // elmat := -elmat + sigma*elmat^t + jmat
+      if (kappa_is_nonzero)
       {
-         for (int j = 0; j < i; j++)
+         for (int i = 0; i < ndofs; i++)
          {
-            double aij = elmat(i, j), aji = elmat(j, i), mij = jmat(i, j);
-            elmat(i, j) = sigma * aji - aij + mij;
-            elmat(j, i) = sigma * aij - aji + mij;
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i, j), aji = elmat(j, i), mij = jmat(i, j);
+               elmat(i, j) = sigma * aji - aij + mij;
+               elmat(j, i) = sigma * aij - aji + mij;
+            }
+            elmat(i, i) = (sigma - 1.) * elmat(i, i) + jmat(i, i);
          }
-         elmat(i, i) = (sigma - 1.) * elmat(i, i) + jmat(i, i);
       }
-   }
-   else
-   {
-      for (int i = 0; i < ndofs; i++)
+      else
       {
-         for (int j = 0; j < i; j++)
+         for (int i = 0; i < ndofs; i++)
          {
-            double aij = elmat(i, j), aji = elmat(j, i);
-            elmat(i, j) = sigma * aji - aij;
-            elmat(j, i) = sigma * aij - aji;
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i, j), aji = elmat(j, i);
+               elmat(i, j) = sigma * aji - aij;
+               elmat(j, i) = sigma * aij - aji;
+            }
+            elmat(i, i) *= (sigma - 1.);
          }
-         elmat(i, i) *= (sigma - 1.);
       }
+
+      // if(Trans.Face->ElementNo==33)
+      // {
+      //     std::cout << "inside face assemble " << std::endl;
+      //     elmat.Print();
+      // }
    }
-   //cout << "flag for  " <<  endl;
 }

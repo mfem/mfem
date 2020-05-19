@@ -78,11 +78,13 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   Mesh *mesh = new Mesh(2, 2, Element::TRIANGLE, true,
+   Mesh *mesh = new Mesh(6, 6, Element::QUADRILATERAL, true,
                          1, 1, true);
    int dim = mesh->Dimension();
    cout << "number of faces " << mesh->GetNumFaces() << endl;
-   
+   ofstream sol_ofv("square_disc_mesh.vtk");
+   sol_ofv.precision(14);
+   mesh->PrintVTK(sol_ofv, 0);
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
@@ -112,13 +114,13 @@ int main(int argc, char *argv[])
    //    the FEM linear system.
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(0.0);
+   ConstantCoefficient zero(5.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
-   cout << "rhs is " << endl;
-   b->Print();
+   //cout << "rhs is " << endl;
+   //b->Print();
    // 6. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
@@ -137,9 +139,10 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
-   cout << "bilinear form size " << a->Size() << endl;
+   //cout << "bilinear form size " << a->Size() << endl;
    A.Print();
-   cout << x.Size() << endl;
+   //cout << x.Size() << endl;
+
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -170,6 +173,11 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
+   ofstream adj_ofs("dgsol.vtk");
+   adj_ofs.precision(14);
+   mesh->PrintVTK(adj_ofs, 1);
+   x.SaveVTK(adj_ofs, "dgSolution", 1);
+   adj_ofs.close();
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)
    {

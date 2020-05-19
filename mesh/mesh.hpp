@@ -506,7 +506,7 @@ public:
        These methods are intended to be used with the @ref mfem_Mesh_init_ctor
        "init constructor". */
    ///@{
-
+   std::map<int, int> cutboundaryFaces;
    Element *NewElement(int geom);
    void updateMesh();
    void AddVertex(const double *);
