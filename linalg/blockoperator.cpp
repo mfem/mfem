@@ -92,6 +92,8 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
+   /*
+   // Dylan version
    y = 0.0;
 
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
@@ -104,6 +106,44 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
             vc[jCol].SetOffset(1.0, x, col_offsets[jCol]);
             op(iRow,jCol)->Mult(vc[jCol], vr[iRow]);
             y.AddOffset(coef(iRow,jCol), vr[iRow], row_offsets[iRow]);
+         }
+      }
+   }
+   */
+   /*
+   // Master version
+   yblock.Update(y.GetData(),row_offsets);
+   xblock.Update(x.GetData(),col_offsets);
+
+   y = 0.0;
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
+      for (int jCol=0; jCol < nColBlocks; ++jCol)
+      {
+         if (op(iRow,jCol))
+         {
+            op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
+            yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
+         }
+      }
+   }
+   */
+
+   // Veselin version
+   yblock.Update(y,row_offsets);
+   xblock.Update(const_cast<Vector&>(x),col_offsets);
+
+   y = 0.0;
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
+      for (int jCol=0; jCol < nColBlocks; ++jCol)
+      {
+         if (op(iRow,jCol))
+         {
+            op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
+            yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
          }
       }
    }
