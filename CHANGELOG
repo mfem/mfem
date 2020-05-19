@@ -39,9 +39,9 @@ Discretization improvements
   VectorFEDivergenceIntegrator.
 
 - Improved the documentation of the GridFunction GetValue and GetVectorValue
-  methods.  Expanded the GetValue and GetVectorValue methods which accept an
+  methods. Expanded the GetValue and GetVectorValue methods which accept an
   ElementTransformation argument to support evaluation on boundary elements
-  and, in the continuous field case, arbirtrary mesh edges and faces.
+  and, in the continuous field case, arbitrary mesh edges and faces.
 
 Linear and nonlinear solvers
 ----------------------------
