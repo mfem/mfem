@@ -122,8 +122,7 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    switch (assembly)
    {
       case AssemblyLevel::FULL:
-         // ext = new FABilinearFormExtension(this);
-         // Use the original BilinearForm implementation for now
+         ext = new FABilinearFormExtension(this);
          break;
       case AssemblyLevel::ELEMENT:
          ext = new EABilinearFormExtension(this);
@@ -225,7 +224,7 @@ void BilinearForm::Finalize (int skip_zeros)
 {
    if (assembly == AssemblyLevel::FULL)
    {
-      if (!static_cond) { mat->Finalize(skip_zeros); }
+      if (!static_cond) { if(!ext) mat->Finalize(skip_zeros); }
       if (mat_e) { mat_e->Finalize(skip_zeros); }
       if (static_cond) { static_cond->Finalize(); }
       if (hybridization) { hybridization->Finalize(); }

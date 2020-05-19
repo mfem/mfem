@@ -68,6 +68,7 @@ private:
    void FillJ(SparseMatrix &mat) const;
    /// Fill the Data array of a Sparse Matrix
    void FillData(SparseMatrix &mat, const Vector &mat_ea) const;
+   void FillJandData(SparseMatrix &mat, const Vector &ea_data) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.

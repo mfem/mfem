@@ -217,8 +217,9 @@ void ElementRestriction::FillSpMat(SparseMatrix &mat, const Vector &mat_ea) cons
    const int nnz = FillI(mat);
    mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
    mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
-   FillJ(mat);
-   FillData(mat, mat_ea);
+   // FillJ(mat);
+   // FillData(mat, mat_ea);
+   FillJandData(mat, mat_ea);
 }
 
 // static int multShared(const int i_E, const int elem_dofs, const int dim, const int D1D)
@@ -279,26 +280,27 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
    // We might only want to use this algorithm on GPU
-   for (int i_L = 0; i_L < all_dofs; i_L++)   
+   /*for (int i_L = 0; i_L < all_dofs; i_L++)   
    // MFEM_FORALL(i_L, all_dofs,
    {
       int my_elts[MaxNbNbr];
-      const int offset = d_offsets[i_L];
-      const int nextOffset = d_offsets[i_L+1];
-      const int nbElts = nextOffset - offset;
+      const int i_offset = d_offsets[i_L];
+      const int i_nextOffset = d_offsets[i_L+1];
+      const int i_nbElts = i_nextOffset - i_offset;
       int nnz = 0;
       // We load the elts indices associated to our dof.
-      for (int i = 0; i < nbElts; ++i)
+      for (int i = 0; i < i_nbElts; ++i)
       {
-         my_elts[i] = d_indices[offset+i]/elt_dofs;
+         my_elts[i] = d_indices[i_offset+i]/elt_dofs;
       }
-      for (int i = nbElts; i < MaxNbNbr; ++i)
+      for (int i = i_nbElts; i < MaxNbNbr; ++i)
       {
          my_elts[i] = -1;
       }
-      //
+      /////////////////
+      // New algorithm
       int nbr_elts[MaxNbNbr];
-      for (int e_i = 0; e_i < nbElts; e_i++)
+      for (int e_i = 0; e_i < i_nbElts; e_i++)
       {
          for (int j = 0; j < elt_dofs; j++)
          {
@@ -307,7 +309,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             const int j_offset = d_offsets[j_L];
             const int j_nextOffset = d_offsets[j_L+1];
             const int j_nbElts = j_nextOffset - j_offset;
-            if (j_nbElts==1)// j is an interior dof
+            if (i_nbElts == 1 || j_nbElts==1)// no assembly nnz
             {
                nnz++;
             }
@@ -318,16 +320,17 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                {
                   nbr_elts[i] = d_indices[j_offset+i]/elt_dofs;
                }
-               //We do some rational to add the nnz only once
-               const int min = GetMinElt(my_elts,nbElts,nbr_elts,j_nbElts);
+               //We do some rational to count the nnz only once
+               const int min = GetMinElt(my_elts,i_nbElts,nbr_elts,j_nbElts);
                if(e_i == min)
                {
                   nnz++;
                }
             }
          }
-      }      
-      //
+      }
+      /////////////////
+      // Old algorithm
       // We look if we're connected to any other dof (all the threads do the same work)
       // for (int j_L = 0; j_L < all_dofs; j_L++)
       // {
@@ -351,11 +354,68 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
       //       nnz++;
       //    }
       // }
-      //
+      //////////////////
       for (int c = 0; c < vd; c++)
       {
          const int i_nnz = t ? c+i_L*vd : i_L+c*all_dofs;
          I[i_nnz+1] = nnz;
+      }
+   }//);*/
+   /////////////////////
+   // New New algorithm
+   for (int i = 0; i < vd*all_dofs+1; i++)
+   {
+      I[i] = 0;
+   }
+   //TODO replace with MFEM_FORALL
+   for (int e = 0; e < ne; e++)
+   {
+      //TODO use threads here
+      for (int i = 0; i < elt_dofs; i++)
+      {
+         int i_elts[MaxNbNbr];
+         int i_B[MaxNbNbr];
+         const int i_E = e*elt_dofs + i;
+         const int i_L = d_gatherMap[i_E];
+         const int i_offset = d_offsets[i_L];
+         const int i_nextOffset = d_offsets[i_L+1];
+         const int i_nbElts = i_nextOffset - i_offset;
+         //Could be optimized if i_nbElts == 1
+         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         {
+            const int i_E = d_indices[i_offset+e_i];
+            i_elts[e_i] = i_E/elt_dofs;
+            i_B[e_i]    = i_E%elt_dofs;
+         }
+         for (int j = 0; j < elt_dofs; j++)
+         {
+            const int j_E = e*elt_dofs + j;
+            const int j_L = d_gatherMap[j_E];
+            const int j_offset = d_offsets[j_L];
+            const int j_nextOffset = d_offsets[j_L+1];
+            const int j_nbElts = j_nextOffset - j_offset;
+            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            {
+               I[i_L+1]++;
+            }
+            else // assembly required
+            {
+               int j_elts[MaxNbNbr];
+               int j_B[MaxNbNbr];
+               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               {
+                  const int j_E = d_indices[j_offset+e_j];
+                  const int elt = j_E/elt_dofs;
+                  j_elts[e_j] = elt;
+                  j_B[e_j]    = j_E%elt_dofs;
+               }
+               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+               if (e == min_e) //Rational to add the nnz only once
+               {
+                  I[i_L+1]++;
+               }
+            }                  
+         }
       }
    }//);
    auto h_I = mat.HostReadWriteI();
@@ -367,6 +427,112 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    }
    // We return the number of nnz
    return h_I[vd*all_dofs];
+}
+
+MFEM_HOST_DEVICE static int GetNnzInd(const int i_L, int* I)
+{
+   //TODO replace with atomicAdd
+   int ind = I[i_L];
+   I[i_L]++;
+   return ind;
+}
+
+void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) const
+{
+   const int MaxNbNbr = 16;
+   const int all_dofs = ndofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int elt_dofs = dof;
+   auto I = mat.ReadWriteI();
+   auto J = mat.WriteJ();
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_gatherMap = gatherMap.Read();
+   auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
+   auto Data = mat.WriteData();
+   //TODO replace with MFEM_FORALL
+   for (int e = 0; e < ne; e++)
+   {
+      //TODO use threads here
+      for (int i = 0; i < elt_dofs; i++)
+      {
+         int i_elts[MaxNbNbr];
+         int i_B[MaxNbNbr];
+         const int i_E = e*elt_dofs + i;
+         const int i_L = d_gatherMap[i_E];
+         // std::cout << std::endl << "i_L=" << i_L << std::endl;
+         const int i_offset = d_offsets[i_L];
+         const int i_nextOffset = d_offsets[i_L+1];
+         const int i_nbElts = i_nextOffset - i_offset;
+         //Could be optimized if i_nbElts == 1
+         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         {
+            const int i_E = d_indices[i_offset+e_i];
+            i_elts[e_i] = i_E/elt_dofs;
+            i_B[e_i]    = i_E%elt_dofs;
+         }
+         for (int j = 0; j < elt_dofs; j++)
+         {
+            const int j_E = e*elt_dofs + j;
+            const int j_L = d_gatherMap[j_E];
+            // std::cout << "j_L=" << j_L << std::endl;
+            const int j_offset = d_offsets[j_L];
+            const int j_nextOffset = d_offsets[j_L+1];
+            const int j_nbElts = j_nextOffset - j_offset;
+            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            {
+               const int nnz = GetNnzInd(i_L, I);
+               J[nnz] = j_L;
+               Data[nnz] = mat_ea(i,j,e);
+               // std::cout << "(" << i_L << "," << j_L << "," << mat_ea(i,j,e) << ")" << std::endl;
+            }
+            else // assembly required
+            {
+               int j_elts[MaxNbNbr];
+               int j_B[MaxNbNbr];
+               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               {
+                  const int j_E = d_indices[j_offset+e_j];
+                  const int elt = j_E/elt_dofs;
+                  j_elts[e_j] = elt;
+                  j_B[e_j]    = j_E%elt_dofs;
+               }
+               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+               if (e == min_e) //Rational to add the nnz only once
+               {
+                  double val = 0.0;
+                  for (int i = 0; i < i_nbElts; i++)
+                  {
+                     const int e_i = i_elts[i];
+                     const int i_Bloc = i_B[i];
+                     for (int j = 0; j < j_nbElts; j++)
+                     {
+                        const int e_j = j_elts[j];
+                        const int j_Bloc = j_B[j];
+                        if (e_i == e_j)
+                        {
+                           val += mat_ea(i_Bloc, j_Bloc, e_i);
+                        }
+                     }
+                  }
+                  const int nnz = GetNnzInd(i_L, I);
+                  J[nnz] = j_L;
+                  Data[nnz] = val;
+                  // std::cout << "(" << i_L << "," << j_L << "," << val << ")" << std::endl;
+               }
+            }                  
+         }
+      }
+   }//);
+   auto h_I = mat.HostReadWriteI();
+   // We need to sum the entries of I, we do it on CPU as it is very sequential.
+   const int size = vd*all_dofs;
+   for (int i = 0; i < size; i++)
+   {
+      h_I[size-i] = h_I[size-(i+1)];
+   }
+   h_I[0] = 0;
 }
 
 void ElementRestriction::FillJ(SparseMatrix &mat) const
@@ -554,7 +720,7 @@ void L2ElementRestriction::FillElemNnz(Vector &elem_nnz) const
    const int elem_dofs = ndof;
    MFEM_FORALL(e, ne,
    {
-      nnz[e] = elem_dofs*elem_dofs;
+      nnz[e] = elem_dofs;
    });
 }
 
@@ -573,7 +739,7 @@ void L2ElementRestriction::FillJandData(const Vector &begin,
    for (int e = 0; e < ne; e++)
    // MFEM_FORALL(e, ne,
    {
-      const int offset = elem_begin[e];//atomicAdd and delete face_begin
+      const int offset = elem_begin[e]-elem_dofs;//atomicAdd and delete face_begin
       const int stride = elem_nnz[e];
       for (int i = 0; i < elem_dofs; i++)
       {
