@@ -68,35 +68,12 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
    x1 = pmin; x1+=h0;
 
    double f = 1.0;
-
    for (int i = 0; i<dim; i++)
    {
       double val = 1.0;
-      if( x(i) >= pmax(i) || x(i) <= pmin(i))
+      if( x(i) > x0(i) || x(i) < x1(i))
       {
          val = 0.0;
-      }  
-      else if (x(i) <= pmax(i) && x(i) >= x0(i))
-      {
-         if(x0(i)-pmax(i) != 0.0)
-            val = 0.0;
-      }
-      else if (x(i) >= pmin(i) && x(i) <= x1(i))
-      {
-         if (x1(i)-pmin(i) != 0.0)
-            val = 0.0;
-      }
-      else
-      {
-         val = 1.0;
-      }
-      if (h_[i][0] == 0 && x(i) < pmin(i))
-      {
-         val = 1.0;
-      }
-      if (h_[i][1] == 0 && x(i) > pmax(i))
-      {
-         val = 1.0;
       }
       f *= val;
    }

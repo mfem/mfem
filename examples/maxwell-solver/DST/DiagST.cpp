@@ -18,7 +18,7 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Overlapping partition 
-   int nx=2;
+   int nx=4;
    int ny=1; 
    int nz=1;
    ovlpnrlayers = 2;
@@ -237,28 +237,28 @@ void DiagST::Mult(const Vector &r, Vector &z) const
             // cut off the ip solution to all possible directions
             Array<int>directions(2); directions = 0; 
 
-            switch (l)
-            {
-               case 0:  
-                  if (i+1<nx) directions[0] = 1;
-                  if (j+1<ny) directions[1] = 1;
-                    break;
-               case 1:  
-                  if (i>0) directions[0] = -1;
-                  if (j+1<ny) directions[1] = 1;
-                  break;
-               case 2:  
-                  if (i+1<nx) directions[0] = 1;
-                  if (j>0) directions[1] = -1;
-                  break;
-               default: 
-                  if (i>0) directions[0] = -1;
-                  if (j>0) directions[1] = -1;
-               break;
-            }
+            // switch (l)
+            // {
+            //    case 0:  
+            //       if (i+1<nx) directions[0] = 1;
+            //       if (j+1<ny) directions[1] = 1;
+            //         break;
+            //    case 1:  
+            //       if (i>0) directions[0] = -1;
+            //       if (j+1<ny) directions[1] = 1;
+            //       break;
+            //    case 2:  
+            //       if (i+1<nx) directions[0] = 1;
+            //       if (j>0) directions[1] = -1;
+            //       break;
+            //    default: 
+            //       if (i>0) directions[0] = -1;
+            //       if (j>0) directions[1] = -1;
+            //    break;
+            // }
 
-            // if (i+1<nx) directions[0] = 1;
-            // if (j+1<ny) directions[1] = 1;
+            if (i+1<nx) directions[0] = 1;
+            if (j+1<ny) directions[1] = 1;
             GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
             // sol_ext = cfsol_ext;
             // directions = 0;
@@ -274,8 +274,8 @@ void DiagST::Mult(const Vector &r, Vector &z) const
             // z.GetSubVector(*nDof2GlobalDof, zsol);
             // *usol[ip] += zsol;
             // cout << "ip = " << ip << endl;
-            // socketstream znewsock(vishost, visport);
-            // PlotSolution(znew,znewsock,0); cin.get();
+            socketstream znewsock(vishost, visport);
+            PlotSolution(znew,znewsock,0); cin.get();
          }
          // socketstream zsock(vishost, visport);
          // PlotSolution(z,zsock,0); cin.get();
@@ -545,14 +545,15 @@ int DiagST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, V
 
    // restrict to the novlp
    //-------------------------------------
-   Array<int> * nDof2GlobalDof1 = &nvlp_prob->Dof2GlobalDof[ip1];
-   Vector raux(nDof2GlobalDof1->Size()); raux = 0.0;
-   r = 0.0;
-   r.SetSubVector(*Dof2GlobalDof1,Psi);
-   r.GetSubVector(*nDof2GlobalDof1,raux);
-   r = 0.0;
-   r.SetSubVector(*nDof2GlobalDof1,raux);
-   r.GetSubVector(*Dof2GlobalDof1,Psi1);
+   // Array<int> * nDof2GlobalDof1 = &nvlp_prob->Dof2GlobalDof[ip1];
+   // Vector raux(nDof2GlobalDof1->Size()); raux = 0.0;
+   // r = 0.0;
+   // r.SetSubVector(*Dof2GlobalDof1,Psi);
+   // r.GetSubVector(*nDof2GlobalDof1,raux);
+   // r = 0.0;
+   // r.SetSubVector(*nDof2GlobalDof1,raux);
+   // r.GetSubVector(*Dof2GlobalDof1,Psi1);
+   // Vector psicopy(Psi1);
    
    //-------------------------------------
 
@@ -560,21 +561,25 @@ int DiagST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, V
    // Psi1 = Psi;
    // int nx = nxyz[0];
    // int ny = nxyz[1];
-   // Array<int> direct(2); direct = 0;
-   // if (i1>0) direct[0] = -1; 
-   // if (j1>0) direct[1] = -1; 
-   // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
-   // Psi = Psi1;
-   // direct = 0;
-   // if (i1+1<nx) direct[0] = 1; 
-   // if (j1+1<ny) direct[1] = 1; 
-   // Psi1 = 0.0;
-   // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+   Array<int> direct(2); direct = 0;
 
+   // if (i1>0) direct[0] = -1;
+   // if (j1>0) direct[1] = -1;
+   // GetChiRes(Psi1, Psi,ip1,direct, ovlpnrlayers);
+
+   direct = 0;
+   direct[0] = -direction[0];
+   direct[1] = -direction[1];
+   // if (i1+1<nx) direct[0] = 1;
+   // if (j1+1<ny) direct[1] = 1;
+   GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
 
    // socketstream cressock(vishost, visport);
-   // PlotSolution(Psi1,cressock,ip1,true,false); cin.get();
+   // psicopy-=Psi1;
 
+   // socketstream cressock(vishost, visport);
+   // PlotSolution(psicopy,cressock,ip1,true,false); cin.get();
+   // cout << "norm = " << psicopy.Norml2();
    return ip1;
 }
 

@@ -326,7 +326,7 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.2;
+   x0 = 0.15;
    // x1 = 0.768;
    // x1 = 0.168;
    x1 = 0.5;
