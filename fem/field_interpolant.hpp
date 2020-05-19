@@ -32,20 +32,21 @@ namespace mfem
 {
 
 /** @brief Provides methods to take quadrature data and project it onto a field
- *  within a H1 or L2 space.
- *
- * */
+    within a H1 or L2 space.*/
 class Quad2FieldInterpolant
 {
 protected:
    BilinearForm *L2 = nullptr;  // Owned.
    CGSolver *cg = nullptr;      // Owned.
 public:
-   /** The FiniteElementSpace passed into here should have a vdim set to 1 in order
-       for the MassIntegrator to work properly if the ProjectQuadratureCoefficient
-       method is used with a VectorQuadratureFunctionCoefficient.*/
+   /** The FiniteElementSpace passed into here should be of the same order
+       and space as those used within the ProjectQuadratureCoefficient method.
+       The vdim on the FES should be equal to 1, so the L2 method can work on
+       either scalar or vector GridFunctions.*/
    Quad2FieldInterpolant(FiniteElementSpace *fes)
    {
+      MFEM_VERIFY(fes->GetVDim() == 1, "FiniteElementSpace should have a \
+                                        a vdim of 1");
       L2 = new BilinearForm(fes);
 
       const FiniteElement &el = *fes->GetFE(0);
@@ -114,13 +115,16 @@ protected:
 class ParQuad2FieldInterpolant : public Quad2FieldInterpolant
 {
 protected:
-   ParBilinearForm *ParL2 = nullptr;
+   ParBilinearForm *ParL2 = nullptr; // Owned
 public:
-   /** The ParFiniteElementSpace passed into here should have a vdim set to 1 in
-       order for the MassIntegrator to work properly if the ProjectQuadratureCoefficient
-       method is used with a VectorQuadratureFunctionCoefficient.*/
+   /** The FiniteElementSpace passed into here should be of the same order
+       and space as those used within the ProjectQuadratureCoefficient method.
+       The vdim on the FES should be equal to 1, so the L2 method can work on
+       either scalar or vector GridFunctions.*/
    ParQuad2FieldInterpolant(ParFiniteElementSpace *pfes)
    {
+      MFEM_VERIFY(pfes->GetVDim() == 1, "FiniteElementSpace should have a \
+                                    a vdim of 1");
       ParL2 = new ParBilinearForm(pfes);
 
       const FiniteElement &el = *pfes->GetFE(0);

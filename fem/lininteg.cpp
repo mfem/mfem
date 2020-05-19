@@ -774,7 +774,7 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
    Vector &elvect)
 {
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
 
    if (ir == NULL)
    {
@@ -811,7 +811,7 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
                                                     Vector &elvect)
 {
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule *ir = &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
 
    if (ir == NULL)
    {
