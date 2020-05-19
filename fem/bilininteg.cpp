@@ -47,7 +47,37 @@ void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
 
 void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
 {
-   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                        Vector &emat)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
+                                                     &fes,
+                                                     Vector &ea_data_int,
+                                                     Vector &ea_data_ext)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace
+                                                     &fes,
+                                                     Vector &ea_data_bdr)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEABoundaryFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleDiagonalPA_ADAt(const Vector &, Vector &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA_ADAt(...)\n"
               "   is not implemented for this class.");
 }
 
@@ -1974,7 +2004,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       D.SetSize(VQ ? VQ->GetVDim() : 0);
       K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
-      DenseMatrix tmp(trial_vshape.Height(), K.Width());
+      DenseMatrix tmp(test_vshape.Height(), K.Width());
 
       elmat.SetSize (test_dof, trial_dof);
 
