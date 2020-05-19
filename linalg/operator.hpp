@@ -522,7 +522,7 @@ public:
        @param[in]  t     The current time
        @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
        @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  fx   The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  fxB   The current value of the ODE rhs function, \f$f(x,t)\f$.
        @param[in]  jokB   Flag indicating if the Jacobian should be updated.
        @param[out] jcurB  Flag to signal if the Jacobian was updated.
        @param[in]  gammaB The scaled time step value.

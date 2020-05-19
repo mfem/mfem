@@ -15,7 +15,7 @@
 
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(ex9p_adjoint
-    MAIN ex9p.cpp
+  add_mfem_miniapp(advention_diffusion
+    MAIN advection_diffusion.cpp
     LIBRARIES mfem mfem-common)
 endif()
