@@ -19,20 +19,20 @@ namespace mfem
 {
 
 void Quad2FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
-                                                        VectorQuadratureFunctionCoefficient &vqfc)
+                                                             VectorQuadratureFunctionCoefficient &vqfc)
 {
    {
       const FiniteElementSpace *fes = gf.FESpace();
       MFEM_VERIFY(fes->GetVDim() == vqfc.GetVDim(),
-      "FiniteElementSpace corresponding to this GridFunction should have the \
+                  "FiniteElementSpace corresponding to this GridFunction should have the \
        same vdim of the VectorQuadratureFunctionCoefficient");
-      
+
       const FiniteElement &el = *fes->GetFE(0);
       const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
-                                    2 * el.GetOrder() + 1));
+                                                 2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = vqfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
-      
+
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
                   "IntegrationRule for GridFunction and in QuadratureFunction \
@@ -45,20 +45,20 @@ void Quad2FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
 }
 
 void Quad2FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
-                                                        QuadratureFunctionCoefficient &qfc)
+                                                             QuadratureFunctionCoefficient &qfc)
 {
    {
       const FiniteElementSpace *fes = gf.FESpace();
       MFEM_VERIFY(fes->GetVDim() == 1,
-      "FiniteElementSpace corresponding to this GridFunction should have a vdim\
+                  "FiniteElementSpace corresponding to this GridFunction should have a vdim\
        of 1");
-      
+
       const FiniteElement &el = *fes->GetFE(0);
       const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
-                                    2 * el.GetOrder() + 1));
+                                                 2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = qfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
-      
+
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
                   (ir->GetNPoints() == ir_qf->GetNPoints()),
                   "IntegrationRule for GridFunction and in QuadratureFunction \
@@ -71,19 +71,21 @@ void Quad2FieldInterpolant::ProjectQuadratureDiscCoefficient(GridFunction &gf,
 }
 
 void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
-                                                    VectorQuadratureFunctionCoefficient &vqfc)
+                                                         VectorQuadratureFunctionCoefficient &vqfc)
 {
    FiniteElementSpace *fes = gf.FESpace();
    {
+      MFEM_VERIFY(cg, "CGSolver has not been set yet call SetupCG() before this \
+                  function.")
       MFEM_VERIFY(fes->GetVDim() == vqfc.GetVDim(),
-      "FiniteElementSpace corresponding to this GridFunction should have the \
+                  "FiniteElementSpace corresponding to this GridFunction should have the \
        same vdim of the VectorQuadratureFunctionCoefficient");
 
       // This is the best way I can think of to make sure the IntegrationRule in
       // the FiniteElementSpace and the QuadratureSpace correspond to the same
       const FiniteElement &el = *fes->GetFE(0);
       const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
-                                    2 * el.GetOrder() + 1));
+                                                 2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = vqfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
@@ -97,7 +99,7 @@ void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
 
    LinearForm *b = new LinearForm(fes);
    b->AddDomainIntegrator(new VectorQuadratureLFIntegrator(vqfc,
-                          &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
+                                                           &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
    // If our FES is byVDIM then we're going to rearrange b to be in byNodes order
@@ -154,12 +156,14 @@ void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
    delete b;
 }
 void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
-                                                    QuadratureFunctionCoefficient &qfc)
+                                                         QuadratureFunctionCoefficient &qfc)
 {
    FiniteElementSpace *fes = gf.FESpace();
    {
+      MFEM_VERIFY(cg, "CGSolver has not been set yet call SetupCG() before this \
+                  function.")
       MFEM_VERIFY(fes->GetVDim() == 1,
-      "FiniteElementSpace corresponding to this GridFunction should have a \
+                  "FiniteElementSpace corresponding to this GridFunction should have a \
        vdim of 1");
 
       // This is the best way I can think of to make sure the
@@ -167,7 +171,7 @@ void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
       // and the QuadratureSpace correspond to the same
       const FiniteElement &el = *fes->GetFE(0);
       const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
-                                    2 * el.GetOrder() + 1));
+                                                 2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = qfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
@@ -176,8 +180,8 @@ void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
                   appear to be different");
    }
    LinearForm *b = new LinearForm(fes);
-   b->AddDomainIntegrator(new QuadratureLFIntegrator(qfc, 
-                          &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
+   b->AddDomainIntegrator(new QuadratureLFIntegrator(qfc,
+                                                     &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
    // L2->Assemble();
@@ -202,19 +206,21 @@ void Quad2FieldInterpolant::ProjectQuadratureCoefficient(GridFunction &gf,
 // This function takes a vector quadrature function coefficient and projects it onto a GridFunction of the same space as vector
 // quadrature function coefficient.
 void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                                       VectorQuadratureFunctionCoefficient &vqfc)
+                                                            VectorQuadratureFunctionCoefficient &vqfc)
 {
    ParFiniteElementSpace *fes = gf.ParFESpace();
    {
+      MFEM_VERIFY(cg, "CGSolver has not been set yet call SetupCG() before this \
+                  function.")
       MFEM_VERIFY(fes->GetVDim() == vqfc.GetVDim(),
-      "FiniteElementSpace corresponding to this GridFunction should have the \
+                  "FiniteElementSpace corresponding to this GridFunction should have the \
        same vdim of the VectorQuadratureFunctionCoefficient");
 
       // This is the best way I can think of to make sure the IntegrationRule in
       // the FiniteElementSpace and the QuadratureSpace correspond to the same
       const FiniteElement &el = *fes->GetFE(0);
       const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
-                                    2 * el.GetOrder() + 1));
+                                                 2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = vqfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
@@ -227,8 +233,8 @@ void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
    int size = gf.Size() / vdim;
 
    ParLinearForm *b = new ParLinearForm(fes);
-   b->AddDomainIntegrator(new VectorQuadratureLFIntegrator(vqfc, 
-                          &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
+   b->AddDomainIntegrator(new VectorQuadratureLFIntegrator(vqfc,
+                                                           &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
    // If our FES is byVDIM then we're going to rearrange b to be in byNodes order
@@ -286,12 +292,14 @@ void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
 // This function takes a quadrature function coefficient and projects it onto a GridFunction of the same space as
 // quadrature function coefficient.
 void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
-                                                       QuadratureFunctionCoefficient &qfc)
+                                                            QuadratureFunctionCoefficient &qfc)
 {
    ParFiniteElementSpace *fes = gf.ParFESpace();
    {
+      MFEM_VERIFY(cg, "CGSolver has not been set yet call SetupCG() before this \
+                  function.")
       MFEM_VERIFY(fes->GetVDim() == 1,
-      "FiniteElementSpace corresponding to this GridFunction should have a \
+                  "FiniteElementSpace corresponding to this GridFunction should have a \
        a vdim of 1");
 
       // This is the best way I can think of to make sure the
@@ -299,7 +307,7 @@ void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
       // and the QuadratureSpace correspond to the same
       const FiniteElement &el = *fes->GetFE(0);
       const IntegrationRule* ir = &(IntRules.Get(el.GetGeomType(),
-                                    2 * el.GetOrder() + 1));
+                                                 2 * el.GetOrder() + 1));
       const QuadratureFunction* qf = qfc.GetQuadFunction();
       const IntegrationRule* ir_qf = &qf->GetSpace()->GetElementIntRule(0);
       MFEM_VERIFY((ir->GetOrder() == ir_qf->GetOrder()) &&
@@ -308,8 +316,8 @@ void ParQuad2FieldInterpolant::ProjectQuadratureCoefficient(ParGridFunction &gf,
                   appear to be different");
    }
    ParLinearForm *b = new ParLinearForm(fes);
-   b->AddDomainIntegrator(new QuadratureLFIntegrator(qfc, 
-                          &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
+   b->AddDomainIntegrator(new QuadratureLFIntegrator(qfc,
+                                                     &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(0)));
    b->Assemble();
 
    ParGridFunction x(fes);

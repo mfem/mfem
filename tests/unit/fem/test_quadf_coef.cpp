@@ -64,7 +64,7 @@ TEST_CASE("Quadrature Function Coefficients",
             {
                //X has dims nqpts x sdim x ne
                quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
-                             i * nqpts * vdim) + (j * nqpts) + k );
+                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
             }
          }
       }
@@ -296,7 +296,7 @@ TEST_CASE("Parallel Quadrature Function Coefficients",
             {
                //X has dims nqpts x sdim x ne
                quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
-                             i * nqpts * vdim) + (j * nqpts) + k );
+                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
             }
          }
       }
