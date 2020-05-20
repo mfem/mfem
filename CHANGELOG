@@ -123,10 +123,6 @@ Miscellaneous
 - The integration order used in the ComputeLpError and ComputeElementLpError
   methods of class GridFunction has been increased.
 
-- Added a new IterativeSolverMonitor class that allows to monitor the residual
-  and solution during the solving process of an IterativeSolver after every
-  iteration.
-
 Version 4.1, released on March 10, 2020
 =======================================
 
