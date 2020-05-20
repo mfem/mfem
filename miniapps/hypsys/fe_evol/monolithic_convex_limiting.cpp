@@ -308,127 +308,124 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 {
    double dtNew = dt;
 
-   // Sequential limiting for systems
-   if (hyp->NumEq > 1)
+   // Precomputing bounds based on min and max of all bar states
+   for (int e = 0; e < ne; e++)
    {
-      for (int e = 0; e < ne; e++)
+      fes->GetElementVDofs(e, vdofs);
+      x.GetSubVector(vdofs, uElem);
+
+      for (int j = 0; j < nd; j++)
       {
-         fes->GetElementVDofs(e, vdofs);
-         x.GetSubVector(vdofs, uElem);
+         GetNodeVal(uElem, uEval, j);
+         hyp->EvaluateFlux(uEval, Flux, e, j);
+         NodalFluxes(j) = Flux;
+         MultABt(PrecGradOp(j), Adjugates(e), CTilde(j));
 
-         for (int j = 0; j < nd; j++)
+         // Nodal states should be included for bounds
+         uijMin(j,0) = x(vdofs[j]);
+         uijMax(j,0) = x(vdofs[j]);
+
+         for (int n = 1; n < hyp->NumEq; n++)
          {
-            GetNodeVal(uElem, uEval, j);
-            hyp->EvaluateFlux(uEval, Flux, e, j);
-            NodalFluxes(j) = Flux;
-            MultABt(PrecGradOp(j), Adjugates(e), CTilde(j));
-
-            // Nodal states should be included for bounds
-            uijMin(j,0) = x(vdofs[j]);
-            uijMax(j,0) = x(vdofs[j]);
-
-            for (int n = 1; n < hyp->NumEq; n++)
-            {
-               double quotient =  x(vdofs[n*nd + j]) / x(vdofs[j]);
-               uijMin(j,n) = quotient;
-               uijMax(j,n) = quotient;
-            }
+            double quotient =  x(vdofs[n*nd + j]) / x(vdofs[j]);
+            uijMin(j,n) = quotient;
+            uijMax(j,n) = quotient;
          }
+      }
 
-         ComputeDissipativeMatrix(e, uElem);
+      ComputeDissipativeMatrix(e, uElem);
 
-         for (int I = 0; I < nd; I++)
+      for (int I = 0; I < nd; I++)
+      {
+         // GetNodeVal(uElem, uEval, I);
+
+         for (int j = 0; j < NumLocNbr; j++)
          {
-            // GetNodeVal(uElem, uEval, I);
+            int J = Dof2LocNbr(I,j);
+            if (J == -1) { break; }
 
-            for (int j = 0; j < NumLocNbr; j++)
-            {
-               int J = Dof2LocNbr(I,j);
-               if (J == -1) { break; }
-
-               // GetNodeVal(uElem, uNbrEval, J);
-               for (int n = 0; n < hyp->NumEq; n++)
-               {
-                  // TODO try to use uEval, uNbrEval instead of x
-                  uij(I,J,n) = 0.5 * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
-
-                  for (int l = 0; l < dim; l++)
-                  {
-                     uij(I,J,n) -= CTilde(I,l,J) / (2.*DTilde(I,J)) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
-                  }
-
-                  if (n == 0)
-                  {
-                     uijMin(I,0) = min(uijMin(I,0), uij(I,J,0));
-                     uijMax(I,0) = max(uijMax(I,0), uij(I,J,0));
-                     continue;
-                  }
-
-                  double AveragedBarState = (uij(I,J,n)+uij(J,I,n)) / (uij(I,J,0)+uij(J,I,0));
-                  uijMin(I,n) = min(uijMin(I,n), AveragedBarState);
-                  uijMax(I,n) = max(uijMax(I,n), AveragedBarState);
-               }
-            }
-         }
-
-         for (int i = 0; i < dofs.NumBdrs; i++)
-         {
-            OuterUnitNormals(e).GetColumn(i, normal);
-            GetFaceVal(x, xMPI, e, i);
-
-            for (int j = 0; j < dofs.NumFaceDofs; j++)
-            {
-               double FaceMatLumped = 0.;
-
-               uFace.GetColumn(j, uEval);
-               hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i)); // TODO default argument k wrong
-
-               for (int l = 0; l < dofs.NumFaceDofs; l++)
-               {
-                  FaceMatLumped += FaceMat(j,l);
-               }
-
-               uNbrFace.GetColumn(j, uNbrEval);
-
-               // double ws = hyp->GetGMS(uEval, uNbrEval, normal);
-               double ws = max( hyp->GetWaveSpeed(uEval, normal, e, 0, i),
-                              hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
-
-               FaceMatLumped *= BdrInt(i,0,e);
-               sif(j) = ws * FaceMatLumped;
-
-               hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i));
-               hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i));
-
-               for (int n = 0; n < hyp->NumEq; n++)
-               {
-                  ufi(j,n) = 0.5 * (uEval(n) + uNbrEval(n));
-                  for (int l = 0; l < dim; l++)
-                  {
-                     ufi(j,n) -= 0.5 / sif(j) * (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
-                  }
-
-                  if (n == 0)
-                  {
-                     uijMin(dofs.BdrDofs(j,i),0) = min(uijMin(dofs.BdrDofs(j,i),0), ufi(j,0));
-                     uijMax(dofs.BdrDofs(j,i),0) = max(uijMax(dofs.BdrDofs(j,i),0), ufi(j,0));
-                     continue;
-                  }
-
-                  double AveragedBarState = ufi(j,n) / ufi(j,0);
-                  uijMin(dofs.BdrDofs(j,i),n) = min(uijMin(dofs.BdrDofs(j,i),n), AveragedBarState);
-                  uijMax(dofs.BdrDofs(j,i),n) = max(uijMax(dofs.BdrDofs(j,i),n), AveragedBarState);
-               }
-            }
-         }
-
-         for (int I = 0; I < nd; I++) // TODO bdr terms first and combine this loop with volume bar states
-         {
+            // GetNodeVal(uElem, uNbrEval, J);
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               bounds->xi_min(n*ne*nd + e*nd + I) = uijMin(I,n);
-               bounds->xi_max(n*ne*nd + e*nd + I) = uijMax(I,n);
+               // TODO try to use uEval, uNbrEval instead of x
+               uij(I,J,n) = 0.5 * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
+
+               for (int l = 0; l < dim; l++)
+               {
+                  uij(I,J,n) -= CTilde(I,l,J) / (2.*DTilde(I,J)) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
+               }
+
+               if (n == 0)
+               {
+                  uijMin(I,0) = min(uijMin(I,0), uij(I,J,0));
+                  uijMax(I,0) = max(uijMax(I,0), uij(I,J,0));
+                  continue;
+               }
+
+               double AveragedBarState = (uij(I,J,n)+uij(J,I,n)) / (uij(I,J,0)+uij(J,I,0));
+               uijMin(I,n) = min(uijMin(I,n), AveragedBarState);
+               uijMax(I,n) = max(uijMax(I,n), AveragedBarState);
             }
+         }
+      }
+
+      for (int i = 0; i < dofs.NumBdrs; i++)
+      {
+         OuterUnitNormals(e).GetColumn(i, normal);
+         GetFaceVal(x, xMPI, e, i);
+
+         for (int j = 0; j < dofs.NumFaceDofs; j++)
+         {
+            double FaceMatLumped = 0.;
+
+            uFace.GetColumn(j, uEval);
+            hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i)); // TODO default argument k wrong
+
+            for (int l = 0; l < dofs.NumFaceDofs; l++)
+            {
+               FaceMatLumped += FaceMat(j,l);
+            }
+
+            uNbrFace.GetColumn(j, uNbrEval);
+
+            // double ws = hyp->GetGMS(uEval, uNbrEval, normal);
+            double ws = max( hyp->GetWaveSpeed(uEval, normal, e, 0, i),
+                             hyp->GetWaveSpeed(uNbrEval, normal, e, 0, i) );
+
+            FaceMatLumped *= BdrInt(i,0,e);
+            sif(j) = ws * FaceMatLumped;
+
+            hyp->EvaluateFlux(uEval, Flux, e, dofs.BdrDofs(j, i));
+            hyp->EvaluateFlux(uNbrEval, FluxNbr, e, dofs.BdrDofs(j, i));
+
+            for (int n = 0; n < hyp->NumEq; n++)
+            {
+               ufi(j,n) = 0.5 * (uEval(n) + uNbrEval(n));
+               for (int l = 0; l < dim; l++)
+               {
+                  ufi(j,n) -= 0.5 / sif(j) * (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
+               }
+
+               if (n == 0)
+               {
+                  uijMin(dofs.BdrDofs(j,i),0) = min(uijMin(dofs.BdrDofs(j,i),0), ufi(j,0));
+                  uijMax(dofs.BdrDofs(j,i),0) = max(uijMax(dofs.BdrDofs(j,i),0), ufi(j,0));
+                  continue;
+               }
+
+               double AveragedBarState = ufi(j,n) / ufi(j,0);
+               uijMin(dofs.BdrDofs(j,i),n) = min(uijMin(dofs.BdrDofs(j,i),n), AveragedBarState);
+               uijMax(dofs.BdrDofs(j,i),n) = max(uijMax(dofs.BdrDofs(j,i),n), AveragedBarState);
+            }
+         }
+      }
+
+      for (int I = 0; I < nd; I++) // TODO bdr terms first and combine this loop with volume bar states
+      {
+         for (int n = 0; n < hyp->NumEq; n++)
+         {
+            bounds->xi_min(n*ne*nd + e*nd + I) = uijMin(I,n);
+            bounds->xi_max(n*ne*nd + e*nd + I) = uijMax(I,n);
          }
       }
    }
