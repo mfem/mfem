@@ -108,7 +108,22 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 
    if (bfnfi.Size())
    {
-      MFEM_ABORT("TODO: add energy contribution from boundary face terms");
+     ElementTransformation *tr;
+      for (int i = 0; i < fes->GetNBE(); i++)
+      {
+         tr = fes->GetBdrElementTransformation(i);
+         if (tr != NULL)
+         {
+            fe = fes->GetFE(i);
+            fes->GetElementVDofs(tr->ElementNo, vdofs);
+            x.GetSubVector(vdofs, el_x);
+            for (int k = 0; k < bfnfi.Size(); k++)
+            {
+               energy += bfnfi[k]->GetElementEnergy(*fe, *tr, el_x);
+            }
+         }
+      }
+     // MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
 
    return energy;

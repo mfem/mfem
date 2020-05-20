@@ -24,6 +24,11 @@ template <int N>
 void GetCutSegmentIntRule(Mesh* mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
                               std::map<int, IntegrationRule *> &cutSegmentIntRules, 
                               std::map<int, IntegrationRule *> &cutInteriorFaceIntRules);
+// this is required for parameter verification test problem                        
+// get integration rule for cut elements
+template <int N>
+void GetCutSegIntRule(Mesh* mesh, vector<int> cutelems, 
+                              std::map<int, IntegrationRule *> &cutSegIntRules);
 class CutMesh: public Mesh
 {
 protected:
@@ -208,3 +213,58 @@ public:
    //                                  ElementTransformation &Ttr,
    //                                  const Vector &elfun, DenseMatrix &elmat);
 };
+class CutBoundaryNLFIntegrator : public NonlinearFormIntegrator
+{
+private:
+   DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
+   std::map<int, IntegrationRule *> CutIntRules;
+   std::vector<bool> EmbeddedElements;
+
+public:
+   /** @param[in]  */
+   //CutBoundaryNLFIntegrator();
+   /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone
+       @param[in] el     Type of FiniteElement.
+       @param[in] Ttr    Represents ref->target coordinates transformation.
+       @param[in] elfun  Physical coordinates of the zone. */
+   virtual double GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Ttr,
+                                   const Vector &elfun);
+
+   // virtual void AssembleElementVector(const FiniteElement &el,
+   //                                    ElementTransformation &Ttr,
+   //                                    const Vector &elfun, Vector &elvect);
+
+   // virtual void AssembleElementGrad(const FiniteElement &el,
+   //                                  ElementTransformation &Ttr,
+   //                                  const Vector &elfun, DenseMatrix &elmat);
+};
+class CutImmersedBoundaryNLFIntegrator: public NonlinearFormIntegrator
+{
+private:
+   DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
+   std::map<int, IntegrationRule *> CutSegIntRules;
+   std::vector<bool> EmbeddedElements;
+
+public:
+   /** @param[in]  */
+   CutImmersedBoundaryNLFIntegrator(std::map<int, IntegrationRule *> CutSegIntRules, std::vector<bool> EmbeddedElems):
+                                             CutSegIntRules(CutSegIntRules), EmbeddedElements(EmbeddedElems) { }
+
+   /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone
+       @param[in] el     Type of FiniteElement.
+       @param[in] Ttr    Represents ref->target coordinates transformation.
+       @param[in] elfun  Physical coordinates of the zone. */
+   virtual double GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Ttr,
+                                   const Vector &elfun);
+
+   // virtual void AssembleElementVector(const FiniteElement &el,
+   //                                    ElementTransformation &Ttr,
+   //                                    const Vector &elfun, Vector &elvect);
+
+   // virtual void AssembleElementGrad(const FiniteElement &el,
+   //                                  ElementTransformation &Ttr,
+   //                                  const Vector &elfun, DenseMatrix &elmat);
+};
+

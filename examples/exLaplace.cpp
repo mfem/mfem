@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh = new Mesh(5, 5, Element::QUADRILATERAL, true,
+   Mesh *mesh = new Mesh(10, 10, Element::QUADRILATERAL, true,
                          1, 1, true);
    ofstream sol_ofv("square_mesh.vtk");
    sol_ofv.precision(14);
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
       }
    }
    cout << "faces cut by circle:  " << endl;
-   for (int i = 0; i < cutelems.size(); ++i)
+   for (int i = 0; i < cutinteriorFaces.size(); ++i)
    {
       cout << cutinteriorFaces.at(i) << endl;
    }
@@ -524,7 +524,7 @@ bool cutByCircle(Mesh *mesh, int &elemid)
       Vector lvsval(v.Size());
       //cout << x[1] << endl;
       lvsval(i) = ((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r);
-      if ((lvsval(i) < 0))
+      if ((lvsval(i) < 0) && (abs(lvsval(i)) > 1e-16))
       {
          k = k + 1;
       }
@@ -532,7 +532,7 @@ bool cutByCircle(Mesh *mesh, int &elemid)
       {
          l = l + 1;
       }
-      if ((lvsval(i) == 0))
+      if ((lvsval(i) == 0) || (abs(lvsval(i)) < 1e-16))
       {
          n = n + 1;
       }
@@ -541,7 +541,7 @@ bool cutByCircle(Mesh *mesh, int &elemid)
    {
       return false;
    }
-   if ((k == 3) || (l == 3) && (n == 1))
+   if (((k == 3) || (l == 3)) && (n == 1))
    {
       return false;
    }

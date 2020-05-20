@@ -486,16 +486,16 @@ namespace mfem
       elmat.SetSize(nd);
       const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
       elmat = 0.0;
-      if ((Trans.ElementNo == 6) || (Trans.ElementNo == 7) || (Trans.ElementNo == 28) || (Trans.ElementNo == 29))
-      {
-         elmat=0.0;
-         for (int k = 0; k < elmat.Size(); ++k)
-         {
-            elmat(k, k) = 1.0;
-         }
-      }
-      else
-      {
+      // if ((Trans.ElementNo == 6) || (Trans.ElementNo == 7) || (Trans.ElementNo == 28) || (Trans.ElementNo == 29))
+      // {
+      //    elmat=0.0;
+      //    for (int k = 0; k < elmat.Size(); ++k)
+      //    {
+      //       elmat(k, k) = 1.0;
+      //    }
+      // }
+      // else
+      // {
          for (int i = 0; i < ir->GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir->IntPoint(i);
@@ -528,7 +528,7 @@ namespace mfem
          // {
          //    elmat(k, k) = 1.0;
          // }
-      }
+      //}
       // std::cout << "inside diffusion assemble " << std::endl;
       // elmat.Print();
    }
@@ -2691,13 +2691,14 @@ namespace mfem
       ndofs = ndof1 + ndof2;
       elmat.SetSize(ndofs);
       elmat = 0.0;
-      if ((Trans.Face->ElementNo == 18) || (Trans.Face->ElementNo == 20) || (Trans.Face->ElementNo == 70) || (Trans.Face->ElementNo == 17))
-      {
-         elmat = 0.0;
-         //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
-      }
-      else
-      {
+      // if ((Trans.Face->ElementNo == 18) || (Trans.Face->ElementNo == 20) || (Trans.Face->ElementNo == 70) || (Trans.Face->ElementNo == 17))
+      // {
+      //    elmat = 0.0;
+      //    return;
+      //    //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+      // }
+      // else
+      // {
          if (kappa_is_nonzero)
          {
             jmat.SetSize(ndofs);
@@ -2899,7 +2900,7 @@ namespace mfem
          //     std::cout << "inside face assemble " << std::endl;
          //     elmat.Print();
          // }
-       }
+     //  }
 
       // if (Trans.Face->ElementNo==16 || Trans.Face->ElementNo==19)
       // {

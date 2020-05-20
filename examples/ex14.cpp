@@ -39,7 +39,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/square-disc.mesh";
    int ref_levels = -1;
    int order = 1;
    double sigma = -1.0;
@@ -77,9 +77,9 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
-  // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   Mesh *mesh = new Mesh(6, 6, Element::QUADRILATERAL, true,
-                         1, 1, true);
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh *mesh = new Mesh(6, 6, Element::QUADRILATERAL, true,
+   //                       1, 1, true);
    int dim = mesh->Dimension();
    cout << "number of faces " << mesh->GetNumFaces() << endl;
    ofstream sol_ofv("square_disc_mesh.vtk");
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    //    the FEM linear system.
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
-   ConstantCoefficient zero(5.0);
+   ConstantCoefficient zero(0.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
    //cout << "bilinear form size " << a->Size() << endl;
-   A.Print();
+   //A.Print();
    //cout << x.Size() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
@@ -173,10 +173,10 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   ofstream adj_ofs("dgsol.vtk");
+   ofstream adj_ofs("dgsolorig.vtk");
    adj_ofs.precision(14);
    mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "dgSolution", 1);
+   x.SaveVTK(adj_ofs, "dgSolutionorig", 1);
    adj_ofs.close();
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)
