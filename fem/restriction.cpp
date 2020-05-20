@@ -714,7 +714,7 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
    });
 }
 
-void L2ElementRestriction::FillElemNnz(Vector &elem_nnz) const
+void L2ElementRestriction::FillElemNnz(Array<int> &elem_nnz) const
 {
    auto nnz = elem_nnz.Write();
    const int elem_dofs = ndof;
@@ -724,8 +724,8 @@ void L2ElementRestriction::FillElemNnz(Vector &elem_nnz) const
    });
 }
 
-void L2ElementRestriction::FillJandData(const Vector &begin,
-                                        const Vector &stride,
+void L2ElementRestriction::FillJandData(const Array<int> &begin,
+                                        const Array<int> &stride,
                                         const Vector &ea_data,
                                         const int elem_dofs,
                                         SparseMatrix &mat) const
@@ -1504,7 +1504,7 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
-void L2FaceRestriction::FillElemNnz(Vector &elem_nnz) const
+void L2FaceRestriction::FillElemNnz(Array<int> &elem_nnz) const
 {
    int e1, e2;
    int inf1, inf2;
@@ -1521,8 +1521,8 @@ void L2FaceRestriction::FillElemNnz(Vector &elem_nnz) const
    }
 }
 
-void L2FaceRestriction::FillJandData(const Vector &begin,
-                                     const Vector &stride,
+void L2FaceRestriction::FillJandData(Array<int> &begin,
+                                     const Array<int> &stride,
                                      const Vector &ea_data,
                                      const int elem_dofs,
                                      SparseMatrix &mat) const
