@@ -12,6 +12,7 @@
 #ifndef MFEM_INVARIANTS_HPP
 #define MFEM_INVARIANTS_HPP
 
+#include "../general/dbg.hpp"
 #include "../config/config.hpp"
 #include "../general/error.hpp"
 #include <cmath>
@@ -97,6 +98,7 @@ protected:
       eval_state |= HAVE_I2b;
       const scalar_t det = J[0]*J[3] - J[1]*J[2];
       sign_detJ = scalar_ops::sign(det);
+      //dbg("sign_detJ: %s",sign_detJ>0? "positive" : "negative");
       I2b = sign_detJ*det;
    }
    void Eval_dI1()

@@ -9,12 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DBG_COLOR 220
+#include "../general/dbg.hpp"
 #include "tmop.hpp"
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 220
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -1660,7 +1660,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
 
       el.CalcDShape(ip, DSh); // ∇shapes
-      dbg("DSh:"); DSh.Print(); //exit(0);
+      //dbg("DSh:"); DSh.Print(); //exit(0);
 
       Mult(DSh, Jrt, DS); // DS = DSh * Jrt
       dbg("DS:"); DS.Print(); //exit(0);
@@ -1687,12 +1687,20 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       //metric->AssembleH(Jpt, DS, weight_m, elmat);
       //dbg("ELMAT:"); elmat.Print();
 
+
       InvariantsEvaluator2D<double> ie;
       ie.SetJacobian(Jpt.GetData());
+      const double Jpt_I2b = ie.Get_I2b();
+      //const bool flip = Jpt_I2b < 0.0;
+      const bool flip = Jpt.Det() < 0.0;
+      dbg("Jpt_I2b: %.15e vs %.15e",Jpt_I2b, Jpt.Det());
+      //MFEM_VERIFY(fabs(Jpt_I2b - Jpt.Det()) < 1.e-13, "Det Jpt error!");
       ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-      elmat = 0.0;
-      ie.Assemble_ddI1b(0.5*weight_m, elmat.GetData());
-      //dbg("ELMAT:"); elmat.Print();
+      DenseMatrix Aelmat(dof*dim);
+      Aelmat = 0.0;
+      ie.Assemble_ddI1b(0.5*weight_m, Aelmat.GetData());
+      dbg("ELMAT:"); Aelmat.Print();
+
 
       DenseMatrix Pelmat(dof*dim);
       Pelmat = 0.0;
@@ -1719,21 +1727,38 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                   {
                      for (int j = 0; j < dof; j++)
                      {
+                        const double ds = DS(i, c) * DS(j, cc);
+                        //dbg("ds[(%d,%d),(%d,%d)]=%.15e",i,c,j,cc,ds);
                         Pelmat(i+r*dof, j+rr*dof) +=
-                           weight_m * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                           weight_m * ds * entry_rr_cc;
                      }
                   }
                }
             }
          }
       }
-      Pelmat *= -1.0;
-      //dbg("P_ELMAT:"); Pelmat.Print();
-      for (int i = 0; i < dof; i++)
+      const double EPS = 1.e-8;
+      Pelmat *= flip ? -1.0 : 1.0;
+      dbg("P_ELMAT:"); Pelmat.Print();
+      for (int i = 0; i < dim*dof; i++)
       {
-         for (int j = 0; j < dof; j++)
+         for (int j = 0; j < dim*dof; j++)
          {
-            MFEM_VERIFY(fabs(elmat(i,j)-Pelmat(i,j))<1.e-13,"");
+            if (fabs(Aelmat(i,j)-Pelmat(i,j)) > EPS)
+            {
+               dbg("\033[31m%.15e", Aelmat(i,j));
+               dbg("\033[31m%.15e", Pelmat(i,j));
+            }
+            MFEM_VERIFY(fabs(Aelmat(i,j)-Pelmat(i,j)) < EPS,"");
+         }
+      }
+
+      //elmat = 0.8;//Pelmat;
+      for (int i = 0; i < dim*dof; i++)
+      {
+         for (int j = 0; j < dim*dof; j++)
+         {
+            elmat(i,j) = 0.33;//(i+1.0)*(j+1.0);
          }
       }
 
