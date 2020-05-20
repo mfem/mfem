@@ -611,8 +611,7 @@ void ElementRestriction::FillData(SparseMatrix &mat, const Vector &ea_data) cons
    auto I = mat.ReadI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   for (int i_nnz = 0; i_nnz < mat.Height(); i_nnz++)
-   // MFEM_FORALL(i_nnz, mat.Height(),
+   MFEM_FORALL(i_nnz, mat.Height(),
    {
       const int i_L = t ? i_nnz/vd : i_nnz%all_dofs;
       // const int c_i = t ? i_nnz%vd : i_nnz/all_dofs; 
@@ -663,7 +662,7 @@ void ElementRestriction::FillData(SparseMatrix &mat, const Vector &ea_data) cons
          }
          Data[nnz] = val;
       }
-   }//);
+   });
 }
 
 L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
@@ -737,10 +736,9 @@ void L2ElementRestriction::FillJandData(const Array<int> &begin,
    auto Data = mat.WriteData();
    auto mat_ea = Reshape(ea_data.Read(), elem_dofs, elem_dofs, ne);
    //TODO add vd
-   for (int e = 0; e < ne; e++)
-   // MFEM_FORALL(e, ne,
+   MFEM_FORALL(e, ne,
    {
-      const int offset = elem_begin[e]-elem_dofs;//atomicAdd and delete face_begin
+      const int offset = elem_begin[e]-elem_dofs;
       const int stride = elem_nnz[e];
       for (int i = 0; i < elem_dofs; i++)
       {
@@ -750,7 +748,7 @@ void L2ElementRestriction::FillJandData(const Array<int> &begin,
             Data[offset+i*stride+j] = mat_ea(j,i,e);
          }
       }
-   }//);
+   });
 }
 
 /// Return the face degrees of freedom returned in Lexicographic order.
@@ -1545,11 +1543,8 @@ void L2FaceRestriction::FillJandData(Array<int> &begin,
    auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   for (int f = 0; f < nf; f++)
-   // MFEM_FORALL(f, nf,
+   MFEM_FORALL(f, nf,
    {
-      // const int e1 = elem1[f];// d_indices1[f*faceDofs+i]
-      // const int e2 = elem2[f];
       const int e1 = d_indices1[f*face_dofs]/elem_dofs;
       const int e2 = d_indices2[f*face_dofs]/elem_dofs;
       const int offset1 = GetFaceNnz(e1,face_begin,elem_dofs);
@@ -1574,13 +1569,12 @@ void L2FaceRestriction::FillJandData(Array<int> &begin,
             Data[offset1+iB1*stride1+jB1] = mat_fea(jF,iF,1,f);
          }
       }
-   }//);
+   });
 }
 
 void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
                                         const int ne, Vector &ea_data) const
 {
-   //TODO differentiate int and bdr
    const int face_dofs = dof;
    const int elem_dofs = elemDofs;
    if (m==L2FaceValues::DoubleValued)
@@ -1593,7 +1587,7 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
       {
          const int e1 = d_indices1[f*face_dofs]/elem_dofs;
          const int e2 = d_indices2[f*face_dofs]/elem_dofs;
-         //TODO avoid recomputing iE1,iE2,jE1,jE2
+         //TODO avoid recomputing iE1,iE2,jE1,jE2 by storing them?
          for (int j = 0; j < face_dofs; j++)
          {
             const int jE1 = d_indices1[f*face_dofs+j]%elem_dofs;
@@ -1602,8 +1596,6 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
             {
                const int iE1 = d_indices1[f*face_dofs+i]%elem_dofs;
                const int iE2 = d_indices2[f*face_dofs+i]%elem_dofs;
-               // mat_ea(iE1,jE1,e1) += mat_fea(i,j,0,f);//atomicAdd
-               // mat_ea(iE2,jE2,e2) += mat_fea(i,j,1,f);//atomicAdd
                mfemAtomicAdd(mat_ea(iE1,jE1,e1), mat_fea(i,j,0,f));
                mfemAtomicAdd(mat_ea(iE2,jE2,e2), mat_fea(i,j,1,f));
             }
@@ -1625,7 +1617,6 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
             for (int i = 0; i < face_dofs; i++)
             {
                const int iE = d_indices[f*face_dofs+i]%elem_dofs;
-               // mat_ea(iE,jE,e) += mat_fea(i,j,f);//atomicAdd
                mfemAtomicAdd(mat_ea(iE,jE,e), mat_fea(i,j,f));
             }
          }
