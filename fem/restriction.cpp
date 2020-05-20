@@ -363,17 +363,16 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    }//);*/
    /////////////////////
    // New New algorithm
-   for (int i = 0; i < vd*all_dofs+1; i++)
+   MFEM_FORALL(i, vd*all_dofs+1,
    {
       I[i] = 0;
-   }
+   });
    MFEM_FORALL(e, ne,
    {
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
       {
          int i_elts[MaxNbNbr];
-         int i_B[MaxNbNbr];
          const int i_E = e*elt_dofs + i;
          const int i_L = d_gatherMap[i_E];
          const int i_offset = d_offsets[i_L];
@@ -384,7 +383,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          {
             const int i_E = d_indices[i_offset+e_i];
             i_elts[e_i] = i_E/elt_dofs;
-            i_B[e_i]    = i_E%elt_dofs;
          }
          for (int j = 0; j < elt_dofs; j++)
          {
@@ -400,13 +398,11 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             else // assembly required
             {
                int j_elts[MaxNbNbr];
-               int j_B[MaxNbNbr];
                for (int e_j = 0; e_j < j_nbElts; ++e_j)
                {
                   const int j_E = d_indices[j_offset+e_j];
                   const int elt = j_E/elt_dofs;
                   j_elts[e_j] = elt;
-                  j_B[e_j]    = j_E%elt_dofs;
                }
                int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
