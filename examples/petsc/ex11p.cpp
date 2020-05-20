@@ -38,9 +38,12 @@
 //               order < 1 (quadratic for quadratic curvilinear mesh, NURBS for
 //               NURBS mesh, etc.)
 //
-//               The example highlights the use of the LOBPCG eigenvalue solver
-//               together with the BoomerAMG preconditioner in HYPRE, as well as
-//               optionally the SuperLU or STRUMPACK parallel direct solvers.
+//               The example demonstrates the use of the SLEPc eigensolver as an
+//               alternative to the LOBPCG eigenvalue solver. The shift and
+//               invert spectral transformation is used to help the convergence
+//               to the smaller eigenvalues. Alternative solver parameters can
+//               be passed in a file with "-slepcopts".
+//
 //               Reusing a single GLVis visualization window for multiple
 //               eigenfunctions is also illustrated.
 //

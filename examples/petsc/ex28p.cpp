@@ -6,12 +6,17 @@
 // Sample runs:
 //    mpirun -np 4 ex28p -m ../../data/inline-tri.mesh --slepcopts rc_ex28p
 //
-// Description:  This example code solves a simple 2D dielectric waveguide problem
-//               corresponding to the generalized eigenvalue equation
-//          curl 1/mu curl exy - beta^2/mu (grad ez - exy) = k^2 epsilon exy
-//          beta^2 div 1/mu (grad exy - et) = beta^2 k^2 epsilon ez
-//               with essential boundary condition (corresponding to metallic walls).
-//               We discretize with Nédélec edge elements (transverge field exy)
+// Description:  This example code solves a simple 2D dielectric waveguide
+//               problem corresponding to the generalized eigenvalue equation
+//                  curl curl et - beta^2 (grad ez - et) = k^2 epsilon et
+//                                    div (grad ez - et) = k^2 epsilon ez
+//               with essential boundary condition (corresponding to metallic
+//               walls), where k is the wavenumber and epsilon is the material
+//               dielectric constant. We are searching for the eigenvalue beta
+//               which corresponds to the propagation constant. We assume the
+//               material relative permeability (mu) is 1.
+//
+//               We discretize with Nedelec edge elements (transverse field et)
 //               and piecewise continuous polynomials (longitudinal field ez).
 //
 //               The example demonstrates the use of the BlockMatrix class, as
@@ -19,13 +24,13 @@
 //               VisIt (visit.llnl.gov) visualization format.
 //
 //               This specific example needs SLEPc compiled. The default options
-//               file uses the Jacobi-Davidson method with Jacobi preconditioner.
+//               file uses the Jacobi-Davidson method with Jacobi
+//               preconditioner.
 //
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-//#include <slepceps.h>
 
 #ifndef MFEM_USE_PETSC
 #error This example requires that MFEM is built with MFEM_USE_PETSC=YES
@@ -69,7 +74,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&slepcrc_file, "-slepcopts", "--slepcopts",
-                  "SLepcOptions file to use.");
+                  "SlepcOptions file to use.");
    args.Parse();
    if (!args.Good())
    {
@@ -155,7 +160,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient u_r_func(1.0);
    Vector e_r(2);
    double k0 = M_PI*2/1.0;
-   e_r(0) = -pow(k0*1.0,2);//-k0^2*e_r
+   // We lump the sign, the wavenumber and the dielectric constant into one
+   // coefficient. The dielectric contsant is the square of the refractive
+   // index.
+   e_r(0) = -pow(k0*1.0,2);
    // This is an example to use different refractive indices in mesh domains
    e_r(1) = -pow(k0*2.0,2);
    PWConstCoefficient e_r_func(e_r);
@@ -199,8 +207,8 @@ int main(int argc, char *argv[])
    Atth.Get(pAtt);
    Atth.SetOperatorOwner(false);
 
-   // A dummy Azz is required to set the block size and apply the
-   // essential boundary condition
+   // A dummy Azz is required to set the block size and apply the essential
+   // boundary condition
    azz->Assemble();
    azz->EliminateEssentialBCDiag(ess_bdr, 1.0);
    azz->Finalize();
@@ -275,11 +283,11 @@ int main(int argc, char *argv[])
 
    // 13. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor.
-   ParGridFunction *exy(new ParGridFunction);
+   ParGridFunction *et(new ParGridFunction);
    ParGridFunction *ez(new ParGridFunction);
-   exy->MakeRef(N_space, x.GetBlock(0), 0);
+   et->MakeRef(N_space, x.GetBlock(0), 0);
    ez->MakeRef(L_space, x.GetBlock(1), 0);
-   exy->Distribute(&(trueX.GetBlock(0)));
+   et->Distribute(&(trueX.GetBlock(0)));
    ez->Distribute(&(trueX.GetBlock(1)));
 
    // 14. Save the refined mesh and the solution in parallel. This output can be
@@ -294,9 +302,9 @@ int main(int argc, char *argv[])
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream exy_ofs(u_name.str().c_str());
-      exy_ofs.precision(8);
-      exy->Save(exy_ofs);
+      ofstream et_ofs(u_name.str().c_str());
+      et_ofs.precision(8);
+      et->Save(et_ofs);
 
       ofstream ez_ofs(p_name.str().c_str());
       ez_ofs.precision(8);
@@ -305,7 +313,7 @@ int main(int argc, char *argv[])
 
    // 15. Save data in the VisIt format
    VisItDataCollection visit_dc("Example5-Parallel", pmesh);
-   visit_dc.RegisterField("Exy", exy);
+   visit_dc.RegisterField("Exy", et);
    visit_dc.RegisterField("Ez", ez);
    visit_dc.SetFormat(!par_format ?
                       DataCollection::SERIAL_FORMAT :
@@ -320,10 +328,10 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock.precision(8);
-      u_sock << "solution\n" << *pmesh << *exy << "window_title 'Velocity'"
+      u_sock << "solution\n" << *pmesh << *et << "window_title 'Velocity'"
              << endl;
       u_sock << "keys Rjl!\n";
-      // Make sure all ranks have sent their 'exy' solution before initiating
+      // Make sure all ranks have sent their 'et' solution before initiating
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(pmesh->GetComm());
       socketstream p_sock(vishost, visport);
@@ -335,7 +343,7 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   delete exy;
+   delete et;
    delete ez;
    delete N_space;
    delete L_space;
