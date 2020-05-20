@@ -68,6 +68,18 @@
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
+template <typename T>
+MFEM_HOST_DEVICE T mfemAtomicAdd(T &add, const T val)
+{
+   #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+   return atomicAdd(&add,val);
+   #else
+   T old = add;
+   add += val;
+   return old;
+   #endif
+}
+
 namespace mfem
 {
 

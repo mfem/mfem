@@ -432,8 +432,9 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
 MFEM_HOST_DEVICE static int GetNnzInd(const int i_L, int* I)
 {
    //TODO replace with atomicAdd
-   int ind = I[i_L];
-   I[i_L]++;
+   int ind = mfemAtomicAdd(I[i_L],1);
+   // int ind = I[i_L];
+   // I[i_L]++;
    return ind;
 }
 
@@ -1523,9 +1524,10 @@ void L2FaceRestriction::FillElemNnz(Array<int> &elem_nnz) const
 
 static int GetFaceNnz(const int e, int *begin, const int elem_dofs)
 {
-   int val = begin[e];
+   // int val = begin[e];
+   // begin[e] += elem_dofs;
    //TODO atomicAdd(face_begin[e1], elem_dofs);
-   begin[e] += elem_dofs;
+   int val = mfemAtomicAdd(begin[e],elem_dofs);
    return val;
 }
 
@@ -1600,8 +1602,10 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
             {
                const int iE1 = d_indices1[f*face_dofs+i]%elem_dofs;
                const int iE2 = d_indices2[f*face_dofs+i]%elem_dofs;
-               mat_ea(iE1,jE1,e1) += mat_fea(i,j,0,f);//atomicAdd
-               mat_ea(iE2,jE2,e2) += mat_fea(i,j,1,f);//atomicAdd
+               // mat_ea(iE1,jE1,e1) += mat_fea(i,j,0,f);//atomicAdd
+               // mat_ea(iE2,jE2,e2) += mat_fea(i,j,1,f);//atomicAdd
+               mfemAtomicAdd(mat_ea(iE1,jE1,e1), mat_fea(i,j,0,f));
+               mfemAtomicAdd(mat_ea(iE2,jE2,e2), mat_fea(i,j,1,f));
             }
          }
       });
@@ -1621,7 +1625,8 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
             for (int i = 0; i < face_dofs; i++)
             {
                const int iE = d_indices[f*face_dofs+i]%elem_dofs;
-               mat_ea(iE,jE,e) += mat_fea(i,j,f);//atomicAdd
+               // mat_ea(iE,jE,e) += mat_fea(i,j,f);//atomicAdd
+               mfemAtomicAdd(mat_ea(iE,jE,e), mat_fea(i,j,f));
             }
          }
       });
