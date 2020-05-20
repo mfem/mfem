@@ -302,6 +302,12 @@ protected:
    /// Resize the elem_order array on mesh change.
    void UpdateElementOrders();
 
+   void DumpOrders(const Table &ent_dofs, int dim);
+   void UnpackDof(int dof, int &entity, int &index, int &variant, int &edof) const;
+   void DebugDumpDOFs(std::ostream &os, const SparseMatrix &deps,
+                      const Array<bool> &finalized) const;
+
+
 public:
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
