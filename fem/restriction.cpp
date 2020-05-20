@@ -531,134 +531,134 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
    h_I[0] = 0;
 }
 
-void ElementRestriction::FillJ(SparseMatrix &mat) const
-{
-   const int MaxNbNbr = 16;
-   const int all_dofs = ndofs;
-   const int vd = vdim;
-   const bool t = byvdim;
-   const int elt_dofs = dof;
-   auto I = mat.ReadI();
-   auto J = mat.WriteJ();
-   auto d_offsets = offsets.Read();
-   auto d_indices = indices.Read();
-   MFEM_FORALL(i_nnz, mat.Height(),
-   {
-      int my_elts[MaxNbNbr];
-      const int i_L = t ? i_nnz/vd : i_nnz%all_dofs;
-      const int c   = t ? i_nnz%vd : i_nnz/all_dofs;
-      const int offset = d_offsets[i_L];
-      const int nextOffset = d_offsets[i_L+1];
-      const int nbElts = nextOffset - offset;
-      int cpt = I[i_nnz];
-      // We load the elts index associated to our dof.
-      for (int i = 0; i < nbElts; ++i)
-      {
-         my_elts[i] = d_indices[offset+i]/elt_dofs;
-      }
-      for (int i = nbElts; i < MaxNbNbr; ++i)
-      {
-         my_elts[i] = -1;
-      }
-      // We look if we're connected to any other dof (all the threads do the same work)
-      for (int j_L = 0; j_L < all_dofs; j_L++)
-      {
-         bool isConnected = false;
-         const int j_offset = d_offsets[j_L];
-         const int j_nextOffset = d_offsets[j_L+1];
-         // double val = 0.0;
-         for (int k = j_offset; k < j_nextOffset; k++)
-         {
-            const int j_E = d_indices[k];
-            const int e_j = j_E/elt_dofs;
-            for (int e = 0; e < nbElts; e++)// We might want to use MaxNbNbr for unrolling
-            {
-               // if the dofs share an element in common, they are connected.
-               if (my_elts[e] == e_j)
-               {
-                  isConnected = true;
-                  // Could we fill J and Data?
-                  // val += mat_ea(i_B,j_B,e_j)
-               }
-            }
-         }
-         if (isConnected)
-         {
-            J[cpt] = t ? c+j_L*vd : j_L+c*all_dofs;
-            // Add(i_nnz,) using atomics in nnz(i_nnz)
-            cpt++;
-         }
-      }
-   });
-}
+// void ElementRestriction::FillJ(SparseMatrix &mat) const
+// {
+//    const int MaxNbNbr = 16;
+//    const int all_dofs = ndofs;
+//    const int vd = vdim;
+//    const bool t = byvdim;
+//    const int elt_dofs = dof;
+//    auto I = mat.ReadI();
+//    auto J = mat.WriteJ();
+//    auto d_offsets = offsets.Read();
+//    auto d_indices = indices.Read();
+//    MFEM_FORALL(i_nnz, mat.Height(),
+//    {
+//       int my_elts[MaxNbNbr];
+//       const int i_L = t ? i_nnz/vd : i_nnz%all_dofs;
+//       const int c   = t ? i_nnz%vd : i_nnz/all_dofs;
+//       const int offset = d_offsets[i_L];
+//       const int nextOffset = d_offsets[i_L+1];
+//       const int nbElts = nextOffset - offset;
+//       int cpt = I[i_nnz];
+//       // We load the elts index associated to our dof.
+//       for (int i = 0; i < nbElts; ++i)
+//       {
+//          my_elts[i] = d_indices[offset+i]/elt_dofs;
+//       }
+//       for (int i = nbElts; i < MaxNbNbr; ++i)
+//       {
+//          my_elts[i] = -1;
+//       }
+//       // We look if we're connected to any other dof (all the threads do the same work)
+//       for (int j_L = 0; j_L < all_dofs; j_L++)
+//       {
+//          bool isConnected = false;
+//          const int j_offset = d_offsets[j_L];
+//          const int j_nextOffset = d_offsets[j_L+1];
+//          // double val = 0.0;
+//          for (int k = j_offset; k < j_nextOffset; k++)
+//          {
+//             const int j_E = d_indices[k];
+//             const int e_j = j_E/elt_dofs;
+//             for (int e = 0; e < nbElts; e++)// We might want to use MaxNbNbr for unrolling
+//             {
+//                // if the dofs share an element in common, they are connected.
+//                if (my_elts[e] == e_j)
+//                {
+//                   isConnected = true;
+//                   // Could we fill J and Data?
+//                   // val += mat_ea(i_B,j_B,e_j)
+//                }
+//             }
+//          }
+//          if (isConnected)
+//          {
+//             J[cpt] = t ? c+j_L*vd : j_L+c*all_dofs;
+//             // Add(i_nnz,) using atomics in nnz(i_nnz)
+//             cpt++;
+//          }
+//       }
+//    });
+// }
 
-void ElementRestriction::FillData(SparseMatrix &mat, const Vector &ea_data) const
-{
-   const int MaxNbNbr = 16;
-   const int ne = this->ne;
-   const int all_dofs = ndofs;
-   const int elt_dofs = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
-   auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-   auto d_indices = indices.Read();
-   auto d_offsets = offsets.Read();
-   auto I = mat.ReadI();
-   auto J = mat.WriteJ();
-   auto Data = mat.WriteData();
-   MFEM_FORALL(i_nnz, mat.Height(),
-   {
-      const int i_L = t ? i_nnz/vd : i_nnz%all_dofs;
-      // const int c_i = t ? i_nnz%vd : i_nnz/all_dofs; 
-      const int offset = d_offsets[i_L];
-      const int nextOffset = d_offsets[i_L+1];
-      const int nbElts = nextOffset - offset;
-      int my_elts[MaxNbNbr];
-      int my_i_B[MaxNbNbr];
-      // We load the elts index associated to our dof.
-      for (int i = 0; i < nbElts; ++i)
-      {
-         const int i_E = d_indices[offset+i];
-         const int e_i = i_E/elt_dofs;
-         const int i_B = i_E%elt_dofs;
-         my_elts[i] = e_i;
-         my_i_B[i] = i_B;
-      }
-      for (int i = nbElts; i < MaxNbNbr; ++i)
-      {
-         my_elts[i] = -1;
-         my_i_B[i] = -1;
-      }
-      const int i_begin = I[i_nnz];
-      const int i_end = I[i_nnz+1];
-      for (int nnz = i_begin; nnz < i_end; nnz++)
-      {
-         const int j_nnz = J[nnz];
-         const int j_L = t ? j_nnz/vd : j_nnz%all_dofs;
-         // const int c_j = t ? j_nnz%vd : j_nnz/all_dofs;
-         double val = 0.0;
-         const int j_begin = d_offsets[j_L];
-         const int j_end = d_offsets[j_L+1];
-         for (int k = j_begin; k < j_end; k++)
-         {
-            const int j_E = d_indices[k];
-            const int e_j = j_E/elt_dofs;
-            const int j_B = j_E%elt_dofs;
-            for (int e = 0; e < nbElts; ++e)
-            {
-               const int e_i = my_elts[e];
-               if (e_i==e_j)
-               {
-                  const int i_B = my_i_B[e];
-                  // c_i and c_j should be used here when available in EA.
-                  val += mat_ea(i_B,j_B,e_i);
-               }
-            }
-         }
-         Data[nnz] = val;
-      }
-   });
-}
+// void ElementRestriction::FillData(SparseMatrix &mat, const Vector &ea_data) const
+// {
+//    const int MaxNbNbr = 16;
+//    const int ne = this->ne;
+//    const int all_dofs = ndofs;
+//    const int elt_dofs = dof;
+//    const int vd = vdim;
+//    const bool t = byvdim;
+//    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
+//    auto d_indices = indices.Read();
+//    auto d_offsets = offsets.Read();
+//    auto I = mat.ReadI();
+//    auto J = mat.WriteJ();
+//    auto Data = mat.WriteData();
+//    MFEM_FORALL(i_nnz, mat.Height(),
+//    {
+//       const int i_L = t ? i_nnz/vd : i_nnz%all_dofs;
+//       // const int c_i = t ? i_nnz%vd : i_nnz/all_dofs; 
+//       const int offset = d_offsets[i_L];
+//       const int nextOffset = d_offsets[i_L+1];
+//       const int nbElts = nextOffset - offset;
+//       int my_elts[MaxNbNbr];
+//       int my_i_B[MaxNbNbr];
+//       // We load the elts index associated to our dof.
+//       for (int i = 0; i < nbElts; ++i)
+//       {
+//          const int i_E = d_indices[offset+i];
+//          const int e_i = i_E/elt_dofs;
+//          const int i_B = i_E%elt_dofs;
+//          my_elts[i] = e_i;
+//          my_i_B[i] = i_B;
+//       }
+//       for (int i = nbElts; i < MaxNbNbr; ++i)
+//       {
+//          my_elts[i] = -1;
+//          my_i_B[i] = -1;
+//       }
+//       const int i_begin = I[i_nnz];
+//       const int i_end = I[i_nnz+1];
+//       for (int nnz = i_begin; nnz < i_end; nnz++)
+//       {
+//          const int j_nnz = J[nnz];
+//          const int j_L = t ? j_nnz/vd : j_nnz%all_dofs;
+//          // const int c_j = t ? j_nnz%vd : j_nnz/all_dofs;
+//          double val = 0.0;
+//          const int j_begin = d_offsets[j_L];
+//          const int j_end = d_offsets[j_L+1];
+//          for (int k = j_begin; k < j_end; k++)
+//          {
+//             const int j_E = d_indices[k];
+//             const int e_j = j_E/elt_dofs;
+//             const int j_B = j_E%elt_dofs;
+//             for (int e = 0; e < nbElts; ++e)
+//             {
+//                const int e_i = my_elts[e];
+//                if (e_i==e_j)
+//                {
+//                   const int i_B = my_i_B[e];
+//                   // c_i and c_j should be used here when available in EA.
+//                   val += mat_ea(i_B,j_B,e_i);
+//                }
+//             }
+//          }
+//          Data[nnz] = val;
+//       }
+//    });
+// }
 
 L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
    : ne(fes.GetNE()),

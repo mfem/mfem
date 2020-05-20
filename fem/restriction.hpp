@@ -65,9 +65,9 @@ private:
    /// Fill the I array of a Sparse Matrix
    int FillI(SparseMatrix &mat) const;
    /// Fill the J array of a Sparse Matrix
-   void FillJ(SparseMatrix &mat) const;
+   // void FillJ(SparseMatrix &mat) const;
    /// Fill the Data array of a Sparse Matrix
-   void FillData(SparseMatrix &mat, const Vector &mat_ea) const;
+   // void FillData(SparseMatrix &mat, const Vector &mat_ea) const;
    void FillJandData(SparseMatrix &mat, const Vector &ea_data) const;
 };
 
