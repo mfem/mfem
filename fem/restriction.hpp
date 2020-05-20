@@ -87,9 +87,9 @@ public:
    L2ElementRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void FillElemNnz(Vector &elem_nnz) const;
-   void FillJandData(const Vector &begin,
-                     const Vector &stride,
+   void FillElemNnz(Array<int> &elem_nnz) const;
+   void FillJandData(const Array<int> &begin,
+                     const Array<int> &stride,
                      const Vector &ea_data,
                      const int elem_dofs,
                      SparseMatrix &mat) const;
@@ -144,9 +144,9 @@ public:
                      const L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void FillElemNnz(Vector &elem_nnz) const;
-   void FillJandData(const Vector &begin,
-                     const Vector &stride,
+   void FillElemNnz(Array<int> &elem_nnz) const;
+   void FillJandData(Array<int> &begin,
+                     const Array<int> &stride,
                      const Vector &ea_data_ext,
                      const int elem_dofs,
                      SparseMatrix &mat) const;

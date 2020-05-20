@@ -627,13 +627,13 @@ void FABilinearFormExtension::Assemble()
       const L2FaceRestriction *restF = static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
       //1. Fill I
       mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
-      Vector elem_nnz(ne);
+      Array<int> elem_nnz(ne);
       //  1.1 Increment with restE
       restE->FillElemNnz(elem_nnz);
       //  1.2 Increment with restF
       if(restF) restF->FillElemNnz(elem_nnz);
       //    Init the indirection vector
-      Vector elem_begin(ne);
+      Array<int> elem_begin(ne);
       // Vector face_begin(ne);// face_begin(e) + i_B*elem_nnz(e)
       const int elem_dofs = fes.GetFE(0)->GetDof();
       auto I = mat.HostWriteI();
