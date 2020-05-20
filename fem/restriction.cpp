@@ -367,8 +367,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    {
       I[i] = 0;
    }
-   //TODO replace with MFEM_FORALL
-   for (int e = 0; e < ne; e++)
+   MFEM_FORALL(e, ne,
    {
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
@@ -417,7 +416,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             }                  
          }
       }
-   }//);
+   });
    auto h_I = mat.HostReadWriteI();
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    h_I[0] = 0;
