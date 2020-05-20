@@ -636,19 +636,18 @@ void FABilinearFormExtension::Assemble()
       Array<int> elem_begin(ne);
       // Vector face_begin(ne);// face_begin(e) + i_B*elem_nnz(e)
       const int elem_dofs = fes.GetFE(0)->GetDof();
-      auto I = mat.HostWriteI();
+      auto h_E = elem_begin.HostWrite();
+      auto h_I = mat.HostWriteI();
       size_t cpt = 0;
       //TODO take into account vd
       for (int e = 0; e < ne; e++)
       {
-         // elem_begin[e] = cpt;
-         // face_begin[e] = cpt + elem_dofs;
-         elem_begin[e] = cpt + elem_dofs;
+         h_E[e] = cpt + elem_dofs;
          const int row_nnz = elem_nnz[e];
          for (int dof = 0; dof < elem_dofs; dof++)
          {
             const int row = e*elem_dofs+dof;
-            I[row] = cpt;
+            h_I[row] = cpt;
             cpt += row_nnz;
          }
       }
