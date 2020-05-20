@@ -2262,18 +2262,26 @@ const FiniteElement *FiniteElementSpace::GetBE (int i) const
 {
    const FiniteElement *BE;
 
+   int order = fec->DefaultOrder();
+
+   if (IsVariableOrder()) // determine order from adjacent element
+   {
+      int elem, info;
+      mesh->GetBdrElementAdjacentElement(i, elem, info);
+      order = elem_order[elem];
+   }
+
    switch ( mesh->Dimension() )
    {
       case 1:
-         BE = fec->FiniteElementForGeometry(Geometry::POINT);
+         BE = fec->GetFE(Geometry::POINT, order);
          break;
       case 2:
-         BE = fec->FiniteElementForGeometry(Geometry::SEGMENT);
+         BE = fec->GetFE(Geometry::SEGMENT, order);
          break;
       case 3:
       default:
-         BE = fec->FiniteElementForGeometry(
-                 mesh->GetBdrElementBaseGeometry(i));
+         BE = fec->GetFE(mesh->GetBdrElementBaseGeometry(i), order);
    }
 
    if (NURBSext)
