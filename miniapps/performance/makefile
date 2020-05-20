@@ -45,24 +45,37 @@ else
 fi;
 printf "%s" "$$cxx_id"
 endef
-ifneq (,$(MFEM_HOST_CXX))
-   MFEM_PERF_SW := $(shell $(cxx_detect))
-   $(info Detected host compiler: $(MFEM_PERF_SW))
-   ifeq (unknown,$(MFEM_PERF_SW))
-      $(info -------------------------------------------)
-      $(info Output from '$(MFEM_HOST_CXX) --version -c')
-      $(info -------------------------------------------)
-      $(shell $(MFEM_HOST_CXX) --version -c 1>&2)
-      $(info -------------------------------------------)
+define DETECT_PERF_CXXFLAGS
+ifneq (,$$(MFEM_HOST_CXX))
+   MFEM_PERF_SW := $$(shell $$(cxx_detect))
+   $$(info Detected host compiler: $$(MFEM_PERF_SW))
+   ifeq (unknown,$$(MFEM_PERF_SW))
+      $$(info -------------------------------------------)
+      $$(info Output from '$$(MFEM_HOST_CXX) --version -c')
+      $$(info -------------------------------------------)
+      $$(shell $$(MFEM_HOST_CXX) --version -c 1>&2)
+      $$(info -------------------------------------------)
    endif
 endif
-ifeq (gcc,$(MFEM_PERF_SW))
-   ifeq ($(MFEM_MACHINE),x86_64)
+ifeq (gcc,$$(MFEM_PERF_SW))
+   ifeq ($$(MFEM_MACHINE),x86_64)
       MFEM_PERF_SW = gcc_x86_64
-   else ifneq (,$(findstring ppc64,$(MFEM_MACHINE)))
+   else ifneq (,$$(findstring ppc64,$$(MFEM_MACHINE)))
       MFEM_PERF_SW = gcc_ppc64
    endif
 endif
+# Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
+MFEM_PERF_CXXFLAGS = $$(MFEM_PERF_CXXFLAGS_$$(MFEM_PERF_SW))
+# Add MFEM_PERF_CXXFLAGS to MFEM_CXXFLAGS:
+ifeq (YES,$$(MFEM_USE_CUDA))
+  ifneq (,$$(MFEM_PERF_CXXFLAGS))
+    MFEM_CXXFLAGS += -Xcompiler="$$(MFEM_PERF_CXXFLAGS)"
+  endif
+else
+  MFEM_CXXFLAGS += $$(MFEM_PERF_CXXFLAGS)
+endif
+DETECT_PERF_CXXFLAGS_DONE = YES
+endef
 
 # Compiler specific optimizations.
 # For best performance, GCC 5 (or newer) is recommended.
@@ -95,16 +108,6 @@ MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 # - Intel C++ compiler extra options:
 MFEM_PERF_CXXFLAGS_icc += -xHost
 
-# Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
-MFEM_PERF_CXXFLAGS = $(MFEM_PERF_CXXFLAGS_$(MFEM_PERF_SW))
-# Add MFEM_PERF_CXXFLAGS to MFEM_CXXFLAGS:
-ifeq (YES,$(MFEM_USE_CUDA))
-  ifneq (,$(MFEM_PERF_CXXFLAGS))
-    MFEM_CXXFLAGS += -Xcompiler="$(MFEM_PERF_CXXFLAGS)"
-  endif
-else
-  MFEM_CXXFLAGS += $(MFEM_PERF_CXXFLAGS)
-endif
 
 SEQ_MINIAPPS = ex1
 PAR_MINIAPPS = ex1p
@@ -123,6 +126,7 @@ endif
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(if $(DETECT_PERF_CXXFLAGS_DONE),,$(eval $(DETECT_PERF_CXXFLAGS)))
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(MINIAPPS)
