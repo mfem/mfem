@@ -508,7 +508,8 @@ public:
    }
 
    void SetGridFunction(GridFunction *gf) { gfc_.SetGridFunction(gf); }
-   GridFunction * GetGridFunction() const { return gfc_.GetGridFunction(); }
+   const GridFunction * GetGridFunction() const
+   { return gfc_.GetGridFunction(); }
 
    void SetFieldType(FieldType field) { fieldType_ = field; }
    FieldType GetFieldType() const { return fieldType_; }
