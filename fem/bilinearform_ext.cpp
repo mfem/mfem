@@ -651,7 +651,7 @@ void FABilinearFormExtension::Assemble()
             cpt += row_nnz;
          }
       }
-      I[ne*elem_dofs] = cpt;
+      h_I[ne*elem_dofs] = cpt;
       mat.GetMemoryJ().New(cpt, mat.GetMemoryJ().GetMemoryType());
       mat.GetMemoryData().New(cpt, mat.GetMemoryData().GetMemoryType());
       //2. Fill J and Data with Elem ea_data
