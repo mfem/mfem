@@ -22,9 +22,9 @@ namespace mfem
 using namespace std;
 
 void Coefficient::EvalRevDiff(const double &Q_bar,
-                                    ElementTransformation &T,
-                                    const IntegrationPoint &ip,
-                                    DenseMatrix &PointMat_bar)
+                              ElementTransformation &T,
+                              const IntegrationPoint &ip,
+                              DenseMatrix &PointMat_bar)
 {
    MFEM_ABORT("Coefficient::EvalRevDiff\n"
               "\tEvalRevDiff not implemented for this coefficient!\n");
@@ -56,9 +56,9 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 }
 
 void FunctionCoefficient::EvalRevDiff(const double &Q_bar,
-                                            ElementTransformation &T,
-                                            const IntegrationPoint &ip,
-                                            DenseMatrix &PointMat_bar)
+                                      ElementTransformation &T,
+                                      const IntegrationPoint &ip,
+                                      DenseMatrix &PointMat_bar)
 {
    double x[3];
    Vector transip(x, 3);

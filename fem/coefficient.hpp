@@ -87,6 +87,11 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
+
+   virtual void EvalRevDiff(const double &Q_bar,
+                            ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar) {};
 };
 
 /// class for piecewise constant coefficient
