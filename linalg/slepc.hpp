@@ -65,6 +65,7 @@ public:
 
    /// Set maximum number of iterations
    void SetMaxIter(int max_iter);
+   /// Set the number of required eigenmodes
    void SetNumModes(int num_eigs);
    /// Set operator for standard eigenvalue problem
    void SetOperator(const Operator &op);

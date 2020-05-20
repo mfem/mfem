@@ -120,7 +120,8 @@ examples/sundials/ex16-final.*
 examples/sundials/Example16*
 
 examples/petsc/ex[1-69]p
-examples/petsc/ex10p
+examples/petsc/ex1[0-1]p
+examples/petsc/ex28p
 
 examples/petsc/mesh.*
 examples/petsc/sol.*
