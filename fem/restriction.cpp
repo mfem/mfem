@@ -1431,7 +1431,7 @@ void L2FaceRestriction::FillElemNnz(Array<int> &elem_nnz) const
    }
 }
 
-static int GetFaceNnz(const int e, int *begin, const int elem_dofs)
+static MFEM_HOST_DEVICE int GetFaceNnz(const int e, int *begin, const int elem_dofs)
 {
    // int val = begin[e];
    // begin[e] += elem_dofs;
