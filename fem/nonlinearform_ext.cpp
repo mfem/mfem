@@ -133,17 +133,20 @@ void PAGradOperator::Mult(const Vector &r, Vector &c) const
    auto idx = ess_tdof_list.Read();
    auto d_z = z.ReadWrite();
    MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
+   dbg("BC z:"); z.Print();
 
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int Ni = integrators.Size();
    if (elem_restrict_lex)
    {
       Ye = 0.0;
-      elem_restrict_lex->Mult(r, Xe);
+      elem_restrict_lex->Mult(z, Xe);
+      dbg("Xe:"); Xe.Print();
       for (int i = 0; i < Ni; ++i)
       {
          integrators[i]->AddMultGradPA(Ge, Xe, Ye);
       }
+      dbg("Ye:"); Ye.Print();
       elem_restrict_lex->MultTranspose(Ye, c);
    }
    else
@@ -153,11 +156,7 @@ void PAGradOperator::Mult(const Vector &r, Vector &c) const
    //#warning Should if (Serial())...
    auto d_r = r.Read();
    auto d_c = c.ReadWrite();
-   MFEM_FORALL(i, csz,
-   {
-      const int id = idx[i];
-      d_c[id] = d_r[id];
-   });
+   MFEM_FORALL(i, csz, d_c[idx[i]] = d_r[idx[i]];);
 }
 
 } // namespace mfem

@@ -572,7 +572,9 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
    constexpr int dim =2;
    constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
+   MFEM_VERIFY(D1D == 2,"");
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(Q1D == 1,"");
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
@@ -598,7 +600,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
       double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
       double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
-      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+      //double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
       MFEM_SHARED double Xz[2][2][NBZ][MD1*MD1];
       MFEM_SHARED double GXz[2][2][NBZ][MD1*MD1];
       MFEM_SHARED double GD[2][4][NBZ][MD1*MQ1];
@@ -609,14 +611,14 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
       double (*GXy)[MD1]  = (double (*)[MD1])(GXz[1] + tidz);
 
       double (*DQxB)[MQ1] = (double (*)[MQ1])(GD[0][0] + tidz);
-      double (*DQxG)[MQ1] = (double (*)[MQ1])(GD[0][1] + tidz);
+      //double (*DQxG)[MQ1] = (double (*)[MQ1])(GD[0][1] + tidz);
       double (*DQyB)[MQ1] = (double (*)[MQ1])(GD[0][2] + tidz);
-      double (*DQyG)[MQ1] = (double (*)[MQ1])(GD[0][3] + tidz);
+      //double (*DQyG)[MQ1] = (double (*)[MQ1])(GD[0][3] + tidz);
 
       double (*QQx0)[MQ1] = (double (*)[MQ1])(GQ[0][0] + tidz);
-      double (*QQx1)[MQ1] = (double (*)[MQ1])(GQ[0][1] + tidz);
+      //double (*QQx1)[MQ1] = (double (*)[MQ1])(GQ[0][1] + tidz);
       double (*QQy0)[MQ1] = (double (*)[MQ1])(GQ[0][2] + tidz);
-      double (*QQy1)[MQ1] = (double (*)[MQ1])(GQ[0][3] + tidz);
+      //double (*QQy1)[MQ1] = (double (*)[MQ1])(GQ[0][3] + tidz);
 
       double (*GDQxB)[MQ1] = (double (*)[MQ1])(GD[1][0] + tidz);
       double (*GDQxG)[MQ1] = (double (*)[MQ1])(GD[1][1] + tidz);
@@ -661,7 +663,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
                   double u[2]  = {0};
-                  double v[2]  = {0};
+                  //double v[2]  = {0};
                   double gu[2] = {0};
                   double gv[2] = {0};
                   for (int dx = 0; dx < D1D; ++dx)
@@ -670,9 +672,9 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                      const double cy = Xy[dy][dx];
                      //dbg("X(%f,%f)",cx,cy);
                      u[0] += B[qx][dx] * cx;
-                     v[0] += /*G*/B[qx][dx] * cx;
+                     //v[0] += /*G*/B[qx][dx] * cx;
                      u[1] += B[qx][dx] * cy;
-                     v[1] += /*G*/B[qx][dx] * cy;
+                     //v[1] += /*G*/B[qx][dx] * cy;
                      const double gcx = GXx[dy][dx];
                      const double gcy = GXy[dy][dx];
                      gu[0] += B[qx][dx] * gcx;
@@ -681,9 +683,9 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                      gv[1] += G[qx][dx] * gcy;
                   }
                   DQxB[dy][qx]  = u[0];
-                  DQxG[dy][qx]  = v[0];
+                  //DQxG[dy][qx]  = v;//[0];
                   DQyB[dy][qx]  = u[1];
-                  DQyG[dy][qx]  = v[1];
+                  //DQyG[dy][qx]  = v[1];
 
                   GDQxB[dy][qx] = gu[0];
                   GDQxG[dy][qx] = gv[0];
@@ -698,15 +700,15 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
                   double u[2]  = {0};
-                  double v[2]  = {0};
+                  //double v[2]  = {0};
                   double gu[2] = {0};
                   double gv[2] = {0};
                   for (int dy = 0; dy < D1D; ++dy)
                   {
-                     u[0] += DQxG[dy][qx] * B[qy][dy];
-                     v[0] += DQxB[dy][qx] * /*G*/B[qy][dy];
-                     u[1] += DQyG[dy][qx] * B[qy][dy];
-                     v[1] += DQyB[dy][qx] * /*G*/B[qy][dy];
+                     u[0] += DQxB/*G*/[dy][qx] * B[qy][dy];
+                     //v[0] += DQxB[dy][qx] * /*G*/B[qy][dy];
+                     u[1] += DQyB/*G*/[dy][qx] * B[qy][dy];
+                     //v[1] += DQyB[dy][qx] * /*G*/B[qy][dy];
 
                      gu[0] += GDQxG[dy][qx] * B[qy][dy];
                      gv[0] += GDQxB[dy][qx] * G[qy][dy];
@@ -714,9 +716,9 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                      gv[1] += GDQyB[dy][qx] * G[qy][dy];
                   }
                   QQx0[qy][qx]  = u[0];
-                  QQx1[qy][qx]  = v[0];
+                  //QQx1[qy][qx]  = v[0];
                   QQy0[qy][qx]  = u[1];
-                  QQy1[qy][qx]  = v[1];
+                  //QQy1[qy][qx]  = v[1];
 
                   GQQx0[qy][qx] = gu[0];
                   GQQx1[qy][qx] = gv[0];
@@ -738,7 +740,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                   const double Jtry1 = D(qx,qy,1,1,e);
                   const double detJtr = Jtrx0*Jtry1 - Jtrx1*Jtry0;
                   const double weight_m = weight * detJtr;
-                  dbg("\033[7mQ(%d,%d): weight_m:%f",qx,qy,weight_m);
+                  dbg("\033[7;31mQ(%d,%d): weight_m:%f",qx,qy,weight_m);
 
                   // Jrt = Jtr^{-1}
                   const double Jrt0x =  Jtry1 / detJtr;
@@ -748,26 +750,48 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                   DenseMatrix Jrt(VDIM);
                   Jrt(0,0) = Jrt0x; Jrt(0,1) = Jrt0y;
                   Jrt(1,0) = Jrt1x; Jrt(1,1) = Jrt1y;
-                  /*{
+                  {
                      const double detJrt = (Jrt0x*Jrt1y)-(Jrt0y*Jrt1x);
                      dbg("\033[0mdetJrt: %.15e", detJrt);
                      dbg("Jrt: %.15e %.15e",Jrt0x,Jrt0y);
                      dbg("Jrt: %.15e %.15e",Jrt1x,Jrt1y);
-                  }*/
-
-                  // G = X{^T}.DSh
-                  const double Gx0 = QQx0[qy][qx];
-                  const double Gx1 = QQx1[qy][qx];
-                  const double Gy0 = QQy0[qy][qx];
-                  const double Gy1 = QQy1[qy][qx];
-                  {
-                     const double detG = Gx0*Gy1 - Gx1*Gy0;
-                     dbg("\033[0mdetG: %.15e",detG);
-                     dbg("G: %.15e %.15e",Gx0,Gx1);
-                     dbg("G: %.15e %.15e",Gy0,Gy1);
                   }
 
-                  // GG = GradX{^T}.DSh
+                  // Compute DSh (dof x dim)
+                  const int dof = D1D*D1D;
+                  DenseMatrix DSh(dof, dim);
+                  for (int i1 = 0; i1 < D1D; ++i1)
+                  {
+                     for (int i2 = 0; i2 < D1D; ++i2)
+                     {
+                        const double bg = G[qx][i1] * B[qy][i2];
+                        const double gb = B[qx][i1] * G[qy][i2];
+                        const int dof = i2 + i1*D1D;
+                        DSh(dof, 1) = bg;
+                        DSh(dof, 0) = gb;
+                     }
+                  }
+                  dbg("DSh:"); DSh.Print(); //exit(0);
+
+                  // Compute DS = DSh Jrt
+                  DenseMatrix DS(dof, dim);
+                  Mult(DSh, Jrt, DS);
+                  dbg("DS:"); DS.Print(); //exit(0);
+
+                  // G = X^T.DSh
+                  const double Gx0 = QQx0[qy][qx];
+                  //const double Gx1 = QQx1[qy][qx];
+                  const double Gy0 = QQy0[qy][qx];
+                  //const double Gy1 = QQy1[qy][qx];
+                  {
+                     //const double detG = Gx0*Gy1 - Gx1*Gy0;
+                     //dbg("\033[0mdetG: %.15e",detG);
+                     //dbg("G: %.15e %.15e",Gx0,Gx1);
+                     //dbg("G: %.15e %.15e",Gy0,Gy1);
+                     dbg("G: %.15e %.15e",Gx0,Gy0);
+                  }
+
+                  // GG = GX^T.DSh
                   const double GGx0 = GQQx0[qy][qx];
                   const double GGx1 = GQQx1[qy][qx];
                   const double GGy0 = GQQy0[qy][qx];
@@ -779,23 +803,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                      dbg("GG: %.15e %.15e",GGy0,GGy1);
                   }
 
-                  // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = G.Jrt
-                  //             |Jrt0x Jrt0y|
-                  //             |Jrt1x Jrt1y|
-                  //   |Gx0 Gx1| |Jptxx Jptxy|
-                  //   |Gy0 Gy1| |Jptyx Jptyy|
-                  /*const double Jptxx = ((Gx0 * Jrt0x) + (Gx1 * Jrt1x));
-                  const double Jptxy = ((Gx0 * Jrt0y) + (Gx1 * Jrt1y));
-                  const double Jptyx = ((Gy0 * Jrt0x) + (Gy1 * Jrt1x));
-                  const double Jptyy = ((Gy0 * Jrt0y) + (Gy1 * Jrt1y));
-                  {
-                     const double detJpt = Jptxx*Jptyy - Jptxy*Jptyx;
-                     dbg("\033[0mdetJpt: %.15e",detJpt);
-                     dbg("Jpt: %.15e %.15e",Jptxx,Jptxy);
-                     dbg("Jpt: %.15e %.15e",Jptyx,Jptyy);
-                  }*/
-
-                  // GJpt = GX{^T}.DS = (GX{^T}.DSh).Jrt = GG.Jrt
+                  // GJpt = GX^T.DS = (GX^T.DSh).Jrt = GG.Jrt
                   //                |Jrt0x Jrt0y|
                   //                |Jrt1x Jrt1y|
                   //   |GGx0 GGx1| |GJptxx GJptxy|
@@ -810,42 +818,22 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                      dbg("GJpt: %.15e %.15e",GJptxx,GJptxy);
                      dbg("GJpt: %.15e %.15e",GJptyx,GJptyy);
                   }
+                  // This layout should be kept to get the right elmat
                   double GJpt_p[4] = {GJptxx, GJptyx, GJptxy, GJptyy};
                   DenseMatrix GJpt(GJpt_p, dim, dim);
 
-                  // metric->EvalP(Jpt, P);
+                  //metric->AssembleH(GJpt, DS, weight_m, elmat);
                   InvariantsEvaluator2D<double> ie;
                   ie.SetJacobian(GJpt_p);
-
-                  // DS = DSh Jrt
-                  // Compute DS (dof x dim)
-                  const int dof = D1D*D1D;
-                  DenseMatrix DSh(dof, dim);
-                  for (int i1 = 0; i1 < D1D; ++i1)
-                  {
-                     for (int i2 = 0; i2 < D1D; ++i2)
-                     {
-                        const double bg = G[qx][i1] * B[qy][i2];
-                        const double gb = B[qx][i1] * G[qy][i2];
-                        const int dof = i2 + i1*D1D;
-                        DSh(dof, 0) = bg;
-                        DSh(dof, 1) = gb;
-                     }
-                  }
-                  //dbg("DSh:"); DSh.Print(); exit(0);
-
-                  DenseMatrix DS(dof, dim);
-                  Mult(DSh, Jrt, DS); //dbg("DS:"); DS.Print(); exit(0);
-
-                  MFEM_VERIFY(D1D == 2,"");
                   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-
                   DenseMatrix elmat(dof*dim);
+                  elmat = 0.0;
                   ie.Assemble_ddI1b(0.5*weight_m, elmat.GetData());
-                  //elmat.Print();
+                  //dbg("ELMAT:"); elmat.Print();
 
                   DenseMatrix P(dim);
-                  DenseMatrix Pelmat(dof*dim); Pelmat = 0.0;
+                  DenseMatrix Pelmat(dof*dim);
+                  Pelmat = 0.0;
                   DenseMatrix dI1_dMdM(dim);
                   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
                   for (int r = 0; r < dim; r++)
@@ -853,13 +841,18 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                      for (int c = 0; c < dim; c++)
                      {
                         Dim2Invariant1_dMdM(GJpt, r, c, dI1_dMdM);
+                        /*{
+                           const double detdI1_dMdM = dI1_dMdM.Det();
+                           dbg("\033[0mdetP %.15e",detdI1_dMdM);
+                           dbg("P: %.15e %.15e",dI1_dMdM(0,0),dI1_dMdM(0,1));
+                           dbg("P: %.15e %.15e",dI1_dMdM(1,0),dI1_dMdM(1,1));
+                        }*/
                         // Compute each entry of d(Prc)_dJ.
                         for (int rr = 0; rr < dim; rr++)
                         {
                            for (int cc = 0; cc < dim; cc++)
                            {
                               const double entry_rr_cc = 0.5 * dI1_dMdM(rr,cc);
-                              //P(rr,cc) = entry_rr_cc;
                               for (int i = 0; i < dof; i++)
                               {
                                  for (int j = 0; j < dof; j++)
@@ -873,58 +866,38 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                      }
                   }
                   Pelmat *= -1.0;
-                  //Pelmat.Print();
+                  //dbg("P_ELMAT:"); Pelmat.Print();
                   for (int i = 0; i < dof; i++)
                   {
                      for (int j = 0; j < dof; j++)
                      {
-                        MFEM_VERIFY(fabs(Pelmat(i,j)-elmat(i,j))<1.e-13,"");
+                        MFEM_VERIFY(fabs(elmat(i,j)-Pelmat(i,j))<1.e-13,"");
                      }
                   }
 
                   Dim2Invariant1_dMdM(GJpt, _i_, _j_, P);
-                  //dbg("P:"); P.Print();
-                  dbg("weight_m: %.15e", weight_m);
-                  P *= 1.0;//weight_m;
-
-                  //             |Jptxx Jptxy|
-                  //             |Jptyx Jptyy|
-                  //   |P00 P01| | Pxx  Pxy |
-                  //   |P10 P11| | Pyx  Pyy |
-                  /*const double Pxx = P(0,0)*Jptxx + P(0,1)*Jptyx;
-                  const double Pxy = P(0,0)*Jptxy + P(0,1)*Jptyy;
-                  const double Pyx = P(1,0)*Jptxx + P(1,1)*Jptyx;
-                  const double Pyy = P(1,0)*Jptxy + P(1,1)*Jptyy;*/
-
-                  //             | Gx0 Gx1 |
-                  //             | Gy0 Gy1 |
-                  //   |P00 P01| | Pxx Pxy |
-                  //   |P10 P11| | Pyx Pyy |
-                  /*const double Pxx = P(0,0)*Gx0 + P(0,1)*Gy0;
-                  const double Pxy = P(0,0)*Gx1 + P(0,1)*Gy1;
-                  const double Pyx = P(1,0)*Gx0 + P(1,1)*Gy0;
-                  const double Pyy = P(1,0)*Gx1 + P(1,1)*Gy1;*/
-
-                  //             | P00 P01 |
-                  //             | P10 P11 |
-                  //   |Gx0 Gx1| | Pxx Pxy |
-                  //   |Gy0 Gy1| | Pyx Pyy |
-                  const double Pxx = P(0,0)*Gx0 + P(1,0)*Gx1;
-                  const double Pxy = P(0,1)*Gx0 + P(1,1)*Gx1;
-                  const double Pyx = P(0,0)*Gy0 + P(1,0)*Gy1;
-                  const double Pyy = P(0,1)*Gy0 + P(1,1)*Gy1;
-
-                  /*const double Pxx = P(0,0);
-                  const double Pxy = P(0,1);
-                  const double Pyx = P(1,0);
-                  const double Pyy = P(1,1);*/
-
                   {
-                     const double detP = Pxx*Pyy - Pxy*Pyx;
+                     const double detP = P.Det();
                      dbg("\033[0mdetP %.15e",detP);
-                     dbg("P: %.15e %.15e",Pxx,Pxy);
-                     dbg("P: %.15e %.15e",Pyx,Pyy);
+                     dbg("P: %.15e %.15e",P(0,0),P(0,1));
+                     dbg("P: %.15e %.15e",P(1,0),P(1,1));
                   }
+                  P *= -0.5 * weight_m;
+
+                  //dbg("P:"); P.Print();
+
+                  //               |Gx0|
+                  //               |Gy0|
+                  //   | P00 P01 |  Pxx
+                  //   | P10 P11 |  Pyy
+                  const double Pxx = P(0,0)*Gx0 + P(0,1)*Gy0;
+                  const double Pyy = P(1,0)*Gx0 + P(1,1)*Gy0;
+
+                  //            | P00 P01 |
+                  //            | P10 P11 |
+                  // |Gx0 Gy0|    Pxx Pyy
+                  //const double Pxx = P(0,0)*Gx0 + P(1,0)*Gy0;
+                  //const double Pyy = P(0,1)*Gx0 + P(1,1)*Gy0;
 
                   // PMatO +=  DS . P^t
                   // PMatO += (DSh . Jrt) . P^t
@@ -932,42 +905,23 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                   // PMatO += DSh . (Jrt . (dMdM_GJpt . X)^t)
                   // PMatO += DSh . (Jrt . (X^t . dMdM_GJpt^t))
 
-                  // Jrt . P^t:
-                  // |Pxx Pxy|^{T}  => |Pxx Pyx|
-                  // |Pyx Pyy|         |Pxy Pyy|
-                  //     |Jrt0x Jrt0y|  A0x A0y
-                  //     |Jrt1x Jrt1y|  A1x A1y
-                  const double A0x = Jrt0x*Pxx + Jrt0y*Pxy;
-                  const double A0y = Jrt0x*Pyx + Jrt0y*Pyy;
-                  const double A1x = Jrt1x*Pxx + Jrt1y*Pxy;
-                  const double A1y = Jrt1x*Pyx + Jrt1y*Pyy;
-                  QQx0[qy][qx] = A0x;
-                  QQy0[qy][qx] = A0y;
-                  QQx1[qy][qx] = A1x;
-                  QQy1[qy][qx] = A1y;
+                  //                   |Pxx|
+                  //                   |Pyy|
+                  //     |Jrt0x Jrt0y|  Axx
+                  //     |Jrt1x Jrt1y|  Ayy
+                  //QQx0[qy][qx] = Jrt0x*Pxx + Jrt0y*Pyy;
+                  //QQy0[qy][qx] = Jrt1x*Pxx + Jrt1y*Pyy;
 
-                  // PMatO +=  DS . P^t += DSh . (Jrt . P^t)
-                  /*QQx0[qy][qx] = A0x*Jptxx + A0y*Jptxy;
-                  QQy0[qy][qx] = A0x*Jptyx + A0y*Jptyy;
-                  QQx1[qy][qx] = A1x*Jptxx + A1y*Jptxy;
-                  QQy1[qy][qx] = A1x*Jptyx + A1y*Jptyy;*/
+                  //             |Jrt0x Jrt0y|
+                  //             |Jrt1x Jrt1y|
+                  //   |Pxx Pyy|
+                  QQx0[qy][qx] = Jrt0x*Pxx + Jrt1x*Pyy;
+                  QQy0[qy][qx] = Jrt0y*Pxx + Jrt1y*Pyy;
 
-                  /*{
-                     dbg("\033[0mdetA: %.15e", A0x*A1y - A1x*A0y);
-                     dbg("A: %.15e %.15e",A0x,A0y);
-                     dbg("A: %.15e %.15e",A1x,A1y);
-                  }*/
-
-                  //              | Gx0 |
-                  //              | Gx1 |
-                  //   |Pxx Pxy| | QQx0 |
-                  //   |Pyx Pyy| | QQx1 |
-                  /*QQx0[qy][qx] = Pxx*Gx0 + Pxy*Gx1;
-                  QQx1[qy][qx] = Pyx*Gx0 + Pyy*Gx1;
                   {
-                     dbg("QQx0: %.15e",QQx0[qy][qx]);
-                     dbg("QQy0: %.15e",QQx1[qy][qx]);
-                  }*/
+                     dbg("QQx,y: %.15e,%.15e",QQx0[qy][qx], QQy0[qy][qx]);
+                  }
+
                }
             }
             MFEM_SYNC_THREAD;
@@ -978,7 +932,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                   MFEM_FOREACH_THREAD(q,x,Q1D)
                   {
                      Bt[d][q] = b(q,d);
-                     Gt[d][q] = g(q,d);
+                     //Gt[d][q] = g(q,d);
                   }
                }
             }
@@ -988,18 +942,18 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
                   double u[2] = {0};
-                  double v[2] = {0};
+                  //double v[2] = {0};
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     u[0] += Gt[dx][qx] * QQx0[qy][qx];
-                     v[0] += Bt[dx][qx] * QQx1[qy][qx];
-                     u[1] += Gt[dx][qx] * QQy0[qy][qx];
-                     v[1] += Bt[dx][qx] * QQy1[qy][qx];
+                     u[0] += /*G*/Bt[dx][qx] * QQx0[qy][qx];
+                     //v[0] += Bt[dx][qx] * QQx1[qy][qx];
+                     u[1] += /*G*/Bt[dx][qx] * QQy0[qy][qx];
+                     //v[1] += Bt[dx][qx] * QQy1[qy][qx];
                   }
                   DQxB[dx][qy] = u[0];
-                  DQxG[dx][qy] = v[0];
+                  //DQxG[dx][qy] = v[0];
                   DQyB[dx][qy] = u[1];
-                  DQyG[dx][qy] = v[1];
+                  //DQyG[dx][qy] = v[1];
                }
             }
             MFEM_SYNC_THREAD;
@@ -1008,16 +962,16 @@ static void AddMultGradPA_Kernel_2D(const Vector &GradX,
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
                   double u[2] = {0};
-                  double v[2] = {0};
+                  //double v[2] = {0};
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      u[0] += DQxB[dx][qy] * Bt[dy][qy];
-                     v[0] += DQxG[dx][qy] * Gt[dy][qy];
+                     //v[0] += DQxG[dx][qy] * Gt[dy][qy];
                      u[1] += DQyB[dx][qy] * Bt[dy][qy];
-                     v[1] += DQyG[dx][qy] * Gt[dy][qy];
+                     //v[1] += DQyG[dx][qy] * Gt[dy][qy];
                   }
-                  Y(dx,dy,0,e) += u[0] + v[0];
-                  Y(dx,dy,1,e) += u[1] + v[1];
+                  Y(dx,dy,0,e) += u[0];//+ v[0];
+                  Y(dx,dy,1,e) += u[1];//+ v[1];
                }
             }
          } // _j_

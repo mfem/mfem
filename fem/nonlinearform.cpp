@@ -334,6 +334,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         dbg("Element #%d",i);
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -341,7 +342,20 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
+            //elmat.Print();
+            const int dof = fe->GetDof();
+            const int dim = fe->GetDim();
+            const int n = (dof*dim);
+            for (int r=0; r<n; r++)
+            {
+               dbg("row %d",r);
+               for (int c=0; c<n; c++)
+               {
+                  dbg("\t%.15e", elmat.GetData()[c+r*n]);
+               }
+            }
             Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+            dbg("Grad:"); Grad->Print();
             // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
          }
       }
@@ -433,13 +447,16 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    if (!Grad->Finalized())
    {
       Grad->Finalize(skip_zeros);
+      dbg("Finalized Grad:"); Grad->Print();
    }
 
    SparseMatrix *mGrad = Grad;
    if (Serial())
    {
+      dbg("Serial!");
       if (cP)
       {
+         dbg("cP");
          MFEM_ABORT("");
          delete cGrad;
          cGrad = RAP(*cP, *Grad, *cP);
@@ -447,10 +464,12 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       }
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
+         dbg("EliminateRowCol %d", ess_tdof_list[i]);
          mGrad->EliminateRowCol(ess_tdof_list[i]);
       }
    }
-   dbg("mGrad: %d x %d", mGrad->Height(), mGrad->Width()); //mGrad->Print();
+   dbg("\033[7mmGrad: %d x %d", mGrad->Height(), mGrad->Width());
+   mGrad->Print();
    return *mGrad;
 }
 
