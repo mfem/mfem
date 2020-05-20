@@ -10287,12 +10287,12 @@ const double RT_QuadrilateralElement::nk[8] =
 RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
                                                  const int cb_type,
                                                  const int ob_type)
-   : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p + 1,
-                         H_DIV, FunctionSpace::Qk),
-     cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2nk(Dof)
+   : VectorTensorFiniteElement(2, 2*(p + 1)*(p + 2), p + 1, cb_type, ob_type,
+                               H_DIV, DofMapType::L2_DOF_MAP),
+     dof2nk(Dof)
 {
+   dof_map.SetSize(Dof);
+
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
    const int dof2 = Dof/2;
@@ -10498,12 +10498,12 @@ const double RT_HexahedronElement::nk[18] =
 RT_HexahedronElement::RT_HexahedronElement(const int p,
                                            const int cb_type,
                                            const int ob_type)
-   : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 1)*(p + 2), p + 1,
-                         H_DIV, FunctionSpace::Qk),
-     cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
-     obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type))),
-     dof_map(Dof), dof2nk(Dof)
+   : VectorTensorFiniteElement(3, 3*(p + 1)*(p + 1)*(p + 2), p + 1, cb_type,
+                               ob_type, H_DIV, DofMapType::L2_DOF_MAP),
+     dof2nk(Dof)
 {
+   dof_map.SetSize(Dof);
+
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
    const int dof3 = Dof/3;
@@ -11537,7 +11537,8 @@ const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(
 {
    MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
 
-   for (int i = 0; i < closed ? dof2quad_array.Size() : dof2quad_array_open.Size();
+   for (int i = 0;
+        i < (closed ? dof2quad_array.Size() : dof2quad_array_open.Size());
         i++)
    {
       const DofToQuad &d2q = closed ? *dof2quad_array[i] : *dof2quad_array_open[i];
@@ -11588,6 +11589,14 @@ const DofToQuad &VectorTensorFiniteElement::GetTensorDofToQuad(
    }
 
    return *d2q;
+}
+
+VectorTensorFiniteElement::~VectorTensorFiniteElement()
+{
+   for (int i = 0; i < dof2quad_array_open.Size(); i++)
+   {
+      delete dof2quad_array_open[i];
+   }
 }
 
 const double ND_QuadrilateralElement::tk[8] =

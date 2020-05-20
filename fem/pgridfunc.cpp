@@ -232,7 +232,8 @@ void ParGridFunction::ExchangeFaceNbrData()
    auto d_send_data = send_data.Write();
    MFEM_FORALL(i, send_data.Size(),
    {
-      d_send_data[i] = d_data[d_send_ldof[i]];
+      const int ldof = d_send_ldof[i];
+      d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
    });
 
    bool mpi_gpu_aware = Device::GetGPUAwareMPI();

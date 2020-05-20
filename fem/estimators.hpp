@@ -307,8 +307,13 @@ public:
 /** @brief The LpErrorEstimator class compares the solution to a known
     coefficient.
 
-    The class supports either scalar or vector coefficients and works both
-    in serial and in parallel.
+    This class can be used, for example, to adapt a mesh to a non-trivial
+    initial condition in a time-dependent simulation. It can also be used to
+    force refinement in the neighborhood of small features before switching to a
+    more traditional error estimator.
+
+    The LpErrorEstimator supports either scalar or vector coefficients and works
+    both in serial and in parallel.
 */
 class LpErrorEstimator : public ErrorEstimator
 {
@@ -335,6 +340,15 @@ protected:
 public:
    /** @brief Construct a new LpErrorEstimator object for a scalar field.
        @param p    Integer which selects which Lp norm to use.
+       @param sol  The GridFunction representation of the scalar field.
+       Note: the coefficient must be set before use with the SetCoef method.
+   */
+   LpErrorEstimator(int p, GridFunction &sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0), coef(NULL), vcoef(NULL), sol(&sol) { }
+
+   /** @brief Construct a new LpErrorEstimator object for a scalar field.
+       @param p    Integer which selects which Lp norm to use.
        @param coef The scalar Coefficient to compare to the solution.
        @param sol  The GridFunction representation of the scalar field.
    */
@@ -354,6 +368,9 @@ public:
    /** @brief Set the exponent, p, of the Lp norm used for computing the local
        element errors. */
    void SetLocalErrorNormP(int p) { local_norm_p = p; }
+
+   void SetCoef(Coefficient &A) { coef = &A; }
+   void SetCoef(VectorCoefficient &A) { vcoef = &A; }
 
    /// Reset the error estimator.
    virtual void Reset() { current_sequence = -1; }

@@ -52,6 +52,9 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
 
 void LpErrorEstimator::ComputeEstimates()
 {
+   MFEM_VERIFY(coef != NULL || vcoef != NULL,
+               "LpErrorEstimator has no coefficient!  Call SetCoef first.");
+
    error_estimates.SetSize(sol->FESpace()->GetMesh()->GetNE());
    if (coef)
    {

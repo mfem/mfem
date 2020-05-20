@@ -49,7 +49,7 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
+   return GridF -> GetValue (T, ip, Component);
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
@@ -160,13 +160,13 @@ void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 VectorGridFunctionCoefficient::VectorGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
 {
    GridFunc = gf;
 }
 
-void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void VectorGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
 }
@@ -174,7 +174,7 @@ void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   GridFunc->GetVectorValue(T, ip, V);
 }
 
 void VectorGridFunctionCoefficient::Eval(
@@ -184,14 +184,14 @@ void VectorGridFunctionCoefficient::Eval(
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient((gf) ?
                        gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
 {
    GridFunc = gf;
 }
 
-void GradientGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void GradientGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ?
                          gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
@@ -210,14 +210,14 @@ void GradientGridFunctionCoefficient::Eval(
 }
 
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient ((gf) ?
                         gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
 {
    GridFunc = gf;
 }
 
-void CurlGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ?
                          gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
@@ -230,7 +230,7 @@ void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
-   GridFunction *gf) : Coefficient()
+   const GridFunction *gf) : Coefficient()
 {
    GridFunc = gf;
 }
