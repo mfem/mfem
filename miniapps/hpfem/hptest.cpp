@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       sol_sock.open(vishost, visport);
-      ex_sock.open(vishost, visport);
+      //ex_sock.open(vishost, visport);
       ord_sock.open(vishost, visport);
    }
 
@@ -294,7 +294,8 @@ int main(int argc, char *argv[])
          GridFunction *vis_x = ProlongToMaxOrder(&x);
          sol_sock.precision(8);
          sol_sock << "solution\n" << mesh << *vis_x << flush;
-         //sol_sock << "pause\n" << flush;
+         sol_sock << "pause\n" << flush;
+         delete vis_x;
 
          L2_FECollection l2fec(0, dim);
          FiniteElementSpace l2fes(&mesh, &l2fec);
