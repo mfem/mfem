@@ -399,9 +399,11 @@ namespace mfem
          ext->Assemble();
          return;
       }
+
       ElementTransformation *eltrans;
       Mesh *mesh = fes->GetMesh();
       DenseMatrix elmat, *elmat_p;
+
       if (mat == NULL)
       {
          AllocMat();
@@ -515,51 +517,22 @@ namespace mfem
       {
          FaceElementTransformations *tr;
          Array<int> vdofs2;
-         const FiniteElement *fe1, *fe2;
-         int nfaces = mesh->GetNumFaces();
-         // // Create a map iterator and point to beginning of map
-         // std::map<int, int>::iterator it = mesh->cutboundaryFaces.begin();
-         // //   // Iterate over the map using Iterator till end.
-         // while (it != mesh->cutboundaryFaces.end())
-         // {
-         //    std::cout << it->first << " :: " << it->second << std::endl;
 
-         //    // Increment the Iterator to point to next entry
-         //    it++;
-         // }
+         int nfaces = mesh->GetNumFaces();
          for (int i = 0; i < nfaces; i++)
          {
             tr = mesh->GetInteriorFaceTransformations(i);
             if (tr != NULL)
             {
-               int nel1= mesh->cutboundaryFaces[tr->Face->ElementNo];
-               if ( nel1 == NULL)
+               fes->GetElementVDofs(tr->Elem1No, vdofs);
+               fes->GetElementVDofs(tr->Elem2No, vdofs2);
+               vdofs.Append(vdofs2);
+               for (int k = 0; k < fbfi.Size(); k++)
                {
-                  fes->GetElementVDofs(tr->Elem1No, vdofs);
-                  fes->GetElementVDofs(tr->Elem2No, vdofs2);
-                  vdofs.Append(vdofs2);
-
-                  for (int k = 0; k < fbfi.Size(); k++)
-                  {
-                     fbfi[k]->AssembleFaceMatrix(*fes->GetFE(tr->Elem1No),
-                                                 *fes->GetFE(tr->Elem2No),
-                                                 *tr, elemmat);
-                     mat->AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
-                  }
-               }
-               else
-               {
-                  fes->GetElementVDofs(mesh->cutboundaryFaces[tr->Face->ElementNo], vdofs);
-                  fe1 = fes->GetFE(mesh->cutboundaryFaces[tr->Face->ElementNo]);
-                  fe2 = fe1;
-                  tr->Elem1No = mesh->cutboundaryFaces[tr->Face->ElementNo];
-                  tr->Elem2No = -1;
-                  for (int k = 0; k < fbfi.Size(); k++)
-                  {
-                     fbfi[k]->AssembleFaceMatrix(*fe1, *fe2,
-                                                 *tr, elemmat);
-                     mat->AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
-                  }
+                  fbfi[k]->AssembleFaceMatrix(*fes->GetFE(tr->Elem1No),
+                                              *fes->GetFE(tr->Elem2No),
+                                              *tr, elemmat);
+                  mat->AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
                }
             }
          }
@@ -601,7 +574,6 @@ namespace mfem
             tr = mesh->GetBdrFaceTransformations(i);
             if (tr != NULL)
             {
-               //std::cout << "face is " << tr->Face->ElementNo << " elements are " << tr->Elem1No << " , " << tr->Elem2No << std::endl;
                fes->GetElementVDofs(tr->Elem1No, vdofs);
                fe1 = fes->GetFE(tr->Elem1No);
                // The fe2 object is really a dummy and not used on the boundaries,

@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
    //find the elements cut by boundary
    vector<int> cutelems;
    vector<int> innerelems;
-   vector<int> cutinteriorfaces;
+   vector<int> cutinteriorFaces;
    for (int i = 0; i < mesh->GetNE(); ++i)
    {
       if (cutByCircle(mesh, i) == true)
@@ -93,21 +93,20 @@ int main(int argc, char *argv[])
          if ((find(cutelems.begin(), cutelems.end(), tr->Elem1No) != cutelems.end()) &&
              (find(cutelems.begin(), cutelems.end(), tr->Elem2No) != cutelems.end()))
          {
-            cout << "face is " << tr->Face->ElementNo << " elements are: " << tr->Elem1No << " , " << tr->Elem2No << endl;
-            cutinteriorfaces.push_back(tr->Face->ElementNo);
+            cutinteriorFaces.push_back(tr->Face->ElementNo);
          }
       }
    }
    cout << "faces cut by circle:  " << endl;
    for (int i = 0; i < cutelems.size(); ++i)
    {
-      cout << cutinteriorfaces.at(i) << endl;
+      cout << cutinteriorFaces.at(i) << endl;
    }
    cout << "dimension is " << dim << endl;
    std::cout << "Number of elements: " << mesh->GetNE() << '\n';
    // define map for integration rule for cut elements
    GetCutElementIntRule<2>(mesh, cutelems, CutSquareIntRules);
-   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorfaces, cutSegmentIntRules,
+   GetCutSegmentIntRule<2>(mesh, cutelems, cutinteriorFaces, cutSegmentIntRules,
                            cutInteriorFaceIntRules);
    std::vector<bool> EmbeddedElems;
    for (int i = 0; i < mesh->GetNE(); ++i)
@@ -121,25 +120,20 @@ int main(int argc, char *argv[])
          EmbeddedElems.push_back(false);
       }
    }
-   std::map<int, bool> immersedfaces;
-
+   std::map<int, bool> immersedFaces;
    for (int i = 0; i < mesh->GetNumFaces(); ++i)
    {
       FaceElementTransformations *tr;
       tr = mesh->GetInteriorFaceTransformations(i);
       if (tr != NULL)
       {
-         if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No)) == true)
+         if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No)) == false)
          {
-            immersedfaces[i] = true;
+            immersedFaces[tr->Face->ElementNo] = true;
          }
-         if ((EmbeddedElems.at(tr->Elem1No) == true) && (EmbeddedElems.at(tr->Elem2No) == false))
+         if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No)) == false)
          {
-            mesh->cutboundaryFaces[i] = tr->Elem2No;
-         }
-         if ((EmbeddedElems.at(tr->Elem2No) == true) && (EmbeddedElems.at(tr->Elem1No) == false))
-         {
-            mesh->cutboundaryFaces[i] = tr->Elem1No;
+            immersedFaces[tr->Face->ElementNo] = true;
          }
       }
    }
@@ -165,13 +159,13 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
    a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
-                                                             cutSegmentIntRules, EmbeddedElems, immersedfaces, mesh->cutboundaryFaces));
+                                                             immersedFaces, cutinteriorFaces, cutInteriorFaceIntRules));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
-   //    //cout << "bilinear form size " << a->Size() << endl;
-   //    //A.Print();
+   //cout << "bilinear form size " << a->Size() << endl;
+   //A.Print();
    //    #ifndef MFEM_USE_SUITESPARSE
    //    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -214,7 +208,6 @@ int main(int argc, char *argv[])
    //    delete fespace;
    //    delete fec;
    //    delete mesh;
-
    //    return 0;
 }
 template <int N>
@@ -260,7 +253,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
 }
 
 template <int N>
-void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorfaces,
+void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
                           std::map<int, IntegrationRule *> &cutSegmentIntRules,
                           std::map<int, IntegrationRule *> &cutInteriorFaceIntRules)
 {
@@ -307,7 +300,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       for (int c = 0; c < fids.Size(); ++c)
       {
          fid = fids[c];
-         if (find(cutinteriorfaces.begin(), cutinteriorfaces.end(), fid) != cutinteriorfaces.end())
+         if (find(cutinteriorFaces.begin(), cutinteriorFaces.end(), fid) != cutinteriorFaces.end())
          {
             if (cutInteriorFaceIntRules[fid] == NULL)
             {
@@ -456,7 +449,6 @@ void CutDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       //                    oa * el.GetOrder() + ob + Tr.OrderW());
       ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
    }
-
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -649,11 +641,6 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    int dim, ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
    double w, wq = 0.0;
-   if (Trans.Elem2No < 0)
-   {
-      //std::cout << "face number " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
-   }
-
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
    nor.SetSize(dim);
@@ -676,8 +663,6 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    }
    else
    {
-      // std::cout << "cut boundary faces " << std::endl;
-      // std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
       ndof2 = 0;
    }
    ndofs = ndof1 + ndof2;
@@ -686,7 +671,8 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    if (immersedFaces[Trans.Face->ElementNo] == true)
    {
       elmat = 0.0;
-      //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+      // cout << "immersed face here " << endl;
+      // std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
    }
    else
    {
@@ -696,9 +682,11 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
          jmat = 0.;
       }
       const IntegrationRule *ir;
-      if (cutboundaryFaces[Trans.Face->ElementNo] == Trans.Elem1No)
+      if (find(cutinteriorFaces.begin(), cutinteriorFaces.end(), Trans.Face->ElementNo) != cutinteriorFaces.end())
       {
-         ir = CutSegIntRules[Trans.Elem1No];
+         // std::cout << "use cut element rule for interior faces " << endl;
+         // std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+         ir = cutInteriorFaceIntRules[Trans.Face->ElementNo];
       }
       else
       {

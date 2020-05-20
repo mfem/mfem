@@ -21,7 +21,7 @@ void GetCutElementIntRule(Mesh* mesh, vector<int> cutelems,
                               std::map<int, IntegrationRule *> &cutSquareIntRules);
 // get integration rule for cut segments
 template <int N>
-void GetCutSegmentIntRule(Mesh* mesh, vector<int> cutelems, vector<int> cutinteriorfaces,
+void GetCutSegmentIntRule(Mesh* mesh, vector<int> cutelems, vector<int> cutinteriorFaces,
                               std::map<int, IntegrationRule *> &cutSegmentIntRules, 
                               std::map<int, IntegrationRule *> &cutInteriorFaceIntRules);
 class CutMesh: public Mesh
@@ -114,8 +114,9 @@ private:
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   CutDiffusionIntegrator(Coefficient &q, std::map<int, IntegrationRule *> CutSqIntRules, 
-              std::vector<bool> EmbeddedElems): Q(&q), CutIntRules(CutSqIntRules), EmbeddedElements(EmbeddedElems)
+   CutDiffusionIntegrator(Coefficient &q, std::map<int, IntegrationRule *> CutSqIntRules,  
+                           std::vector<bool> EmbeddedElems):
+                         Q(&q), CutIntRules(CutSqIntRules), EmbeddedElements(EmbeddedElems)
    {
       MQ = NULL;
       maps = NULL;
@@ -157,23 +158,22 @@ protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
    double sigma, kappa;
-   std::map<int, IntegrationRule *> CutSegIntRules;
-   std::vector<bool> EmbeddedElements;
+   std::vector<int> cutinteriorFaces;
    std::map<int, bool> immersedFaces;
-   std::map<int, int> cutboundaryFaces;
-
+   std::map<int, IntegrationRule *> cutInteriorFaceIntRules;
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
 public:
    CutDGDiffusionIntegrator(Coefficient &q, const double s, const double k, 
-                                    std::map<int, IntegrationRule *> CutSegmentIntRules, 
-                                    std::vector<bool> EmbeddedElems, std::map<int, bool> immersedFaces, 
-                                    std::map<int, int> cutboundaryFaces
+                                    std::map<int, bool> immersedFaces, 
+                                    std::vector<int> cutinteriorFaces, 
+                                    std::map<int, IntegrationRule *> cutInteriorFaceIntRules
                            )
-      : Q(&q), MQ(NULL), sigma(s), kappa(k), CutSegIntRules(CutSegmentIntRules), 
-      EmbeddedElements(EmbeddedElems), immersedFaces(immersedFaces) , cutboundaryFaces(cutboundaryFaces) { }
+      : Q(&q), MQ(NULL), sigma(s), kappa(k), 
+      immersedFaces(immersedFaces) , cutinteriorFaces(cutinteriorFaces), 
+      cutInteriorFaceIntRules(cutInteriorFaceIntRules) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
