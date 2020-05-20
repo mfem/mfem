@@ -746,7 +746,7 @@ void L2ElementRestriction::FillJandData(const Array<int> &begin,
          for (int j = 0; j < elem_dofs; j++)
          {
             J[offset+i*stride+j] = e*elem_dofs+j;
-            Data[offset+i*stride+j] = mat_ea(i,j,e);
+            Data[offset+i*stride+j] = mat_ea(j,i,e);
          }
       }
    }//);
@@ -1521,6 +1521,14 @@ void L2FaceRestriction::FillElemNnz(Array<int> &elem_nnz) const
    }
 }
 
+static int GetFaceNnz(const int e, int *begin, const int elem_dofs)
+{
+   int val = begin[e];
+   //TODO atomicAdd(face_begin[e1], elem_dofs);
+   begin[e] += elem_dofs;
+   return val;
+}
+
 void L2FaceRestriction::FillJandData(Array<int> &begin,
                                      const Array<int> &stride,
                                      const Vector &ea_data,
@@ -1530,7 +1538,7 @@ void L2FaceRestriction::FillJandData(Array<int> &begin,
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
-   auto face_begin = begin.Read();
+   auto face_begin = begin.ReadWrite();
    auto elem_nnz = stride.Read();
    auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
    auto J = mat.WriteJ();
@@ -1542,20 +1550,26 @@ void L2FaceRestriction::FillJandData(Array<int> &begin,
       // const int e2 = elem2[f];
       const int e1 = d_indices1[f*face_dofs]/elem_dofs;
       const int e2 = d_indices2[f*face_dofs]/elem_dofs;
-      const int offset1 = face_begin[e1];// atomicAdd(face_begin[e1], elem_dofs);
-      const int offset2 = face_begin[e2];
+      const int offset1 = GetFaceNnz(e1,face_begin,elem_dofs);
+      const int offset2 = GetFaceNnz(e2,face_begin,elem_dofs);
       const int stride1 = elem_nnz[e1];
       const int stride2 = elem_nnz[e2];
-      for (int j = 0; j < face_dofs; j++)
+      for (int iF = 0; iF < face_dofs; iF++)
       {
-         const int j1 = d_indices2[f*face_dofs+j];
-         const int j2 = d_indices1[f*face_dofs+j];
-         for (int i = 0; i < face_dofs; i++)
+         const int iE1 = d_indices1[f*face_dofs+iF];
+         const int iE2 = d_indices2[f*face_dofs+iF];
+         const int iB1 = iE1%elem_dofs;
+         const int iB2 = iE2%elem_dofs;
+         for (int jF = 0; jF < face_dofs; jF++)
          {
-            J[offset1+i*stride1+j] = j1;
-            J[offset2+i*stride2+j] = j2;
-            Data[offset1+i*stride1+j] = mat_fea(i,j,0,f);
-            Data[offset2+i*stride2+j] = mat_fea(i,j,1,f);
+            const int jE1 = d_indices1[f*face_dofs+jF];
+            const int jE2 = d_indices2[f*face_dofs+jF];
+            const int jB1 = jE1%elem_dofs;
+            const int jB2 = jE2%elem_dofs;
+            J[offset2+iB2*stride2+jB2] = jE1;
+            J[offset1+iB1*stride1+jB1] = jE2;
+            Data[offset2+iB2*stride2+jB2] = mat_fea(jF,iF,0,f);
+            Data[offset1+iB1*stride1+jB1] = mat_fea(jF,iF,1,f);
          }
       }
    }//);

@@ -94,6 +94,7 @@ class EABilinearFormExtension : public PABilinearFormExtension
 protected:
    int ne;
    int elemDofs;
+   // The element matrices are stored row major 
    Vector ea_data;
    int nf_int, nf_bdr;
    int faceDofs;
