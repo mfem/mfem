@@ -1361,7 +1361,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
                   div_v += grad_hat(i, j) * Jinv(j, i);
                }
             }
-	    return div_v;
+            return div_v;
          }
          else
          {
