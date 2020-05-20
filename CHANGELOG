@@ -123,6 +123,9 @@ Miscellaneous
 - The integration order used in the ComputeLpError and ComputeElementLpError
   methods of class GridFunction has been increased.
 
+- Various other simplifications, extensions, and bugfixes in the code.
+
+
 Version 4.1, released on March 10, 2020
 =======================================
 
