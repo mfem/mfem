@@ -1193,7 +1193,7 @@ void ParPumiMesh::NedelecFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    size_t elemNo = 0;
    apf::MeshEntity* ent;
    apf::MeshIterator* it = apf_mesh->begin(dim);
-   while ( ent = apf_mesh->iterate(it) )
+   while ( (ent = apf_mesh->iterate(it)) )
    {
       // get all the pumi nodes and rotate them
       apf::NewArray<apf::Vector3> pumi_nodes;
