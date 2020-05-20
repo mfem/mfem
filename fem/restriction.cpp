@@ -237,8 +237,8 @@ void ElementRestriction::FillSpMat(SparseMatrix &mat, const Vector &mat_ea) cons
 //    return sum;
 // }
 
-static int GetMinElt(const int *my_elts, const int nbElts,
-                     const int *nbr_elts, const int nbrNbElts)
+static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
+                                      const int *nbr_elts, const int nbrNbElts)
 {
    //bulding the intersection
    const int MaxNbNbr = 16;//TODO remove magic number
@@ -340,7 +340,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    return h_I[vd*all_dofs];
 }
 
-MFEM_HOST_DEVICE static int GetNnzInd(const int i_L, int* I)
+static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
 {
    //TODO replace with atomicAdd
    int ind = mfemAtomicAdd(I[i_L],1);
