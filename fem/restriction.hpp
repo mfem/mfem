@@ -61,7 +61,7 @@ public:
    /// Fill a Sparse Matrix with Element Matrices.
    void FillSpMat(SparseMatrix &mat, const Vector &mat_ea) const;
 
-private:
+// private:
    /// Fill the I array of a Sparse Matrix
    int FillI(SparseMatrix &mat) const;
    /// Fill the J array of a Sparse Matrix
