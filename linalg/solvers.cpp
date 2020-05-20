@@ -537,6 +537,7 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
+   dbg("");
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
@@ -589,9 +590,19 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       final_norm = sqrt(nom);
       return;
    }
-   dbg("oper->Mult(d, z): d: %.15e", d*d);
+
+   {
+      d.HostWrite();
+      dbg("\033[7mStuffing d for CG::Mult!");
+      for (int k=0; k<d.Size(); k++) { d[k] = 1.0;}//drand48();  }
+      dbg("oper->Mult(d, z): d: %.15e", d*d);
+   }
+   dbg("oper HxW: %d x %d", oper->Height(), oper->Width());
    oper->Mult(d, z);  // z = A d
-   dbg("oper->Mult(d, z): z: %.15e", z*z);
+   dbg("oper->Mult(d, z): z: %.15e", z*z); z.Print();
+   /////////////////////////
+   dbg("Exiting!"); exit(0);
+   /////////////////////////
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
@@ -1627,8 +1638,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       dbg("prec->SetOperator(oper->GetGradient(x));");
       {
          x.HostWrite();
-         srand48(0x1234abcd330e);
-         dbg("\033[7mStuffing x with RANDs for GetGradient!");
+         dbg("\033[7mStuffing x with drand48 for GetGradient!");
          for (int k=0; k<x.Size(); k++) { x[k] = drand48();  }
       }
       prec->SetOperator(oper->GetGradient(x));
@@ -1636,7 +1646,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       dbg("prec->Mult, r:%d, c:%d",r.Size(),c.Size());
       dbg("x:%.15e", r*r);
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      dbg("c: %.15e", c*c);
+      dbg("c: %.15e", c*c); c.Print();
       /////////////////////////
       dbg("Exiting!"); exit(0);
       /////////////////////////

@@ -15,6 +15,7 @@
 #include "nonlinearform.hpp"
 #define MFEM_DBG_COLOR 141
 #include "../general/dbg.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -50,20 +51,6 @@ void PANonlinearFormExtension::AssemblePA()
    }
 }
 
-Operator&
-PANonlinearFormExtension::GetGradientPA(const Array<int> &ess_tdof_list,
-                                        const Vector &GradX)
-{
-   dbg("Returning new Grad(X) Operator of size: %d", GradX.Size());
-   GradOp.SetType(Operator::ANY_TYPE);
-   Operator *oper =
-      new PAGradOperator(GradX, nlf, fes, ess_tdof_list, elem_restrict_lex);
-   GradOp.Reset(oper);
-   GradOp.SetOperatorOwner(false);
-   MFEM_VERIFY(GradOp.Ptr(), "GetGradientPA error!");
-   return *GradOp.Ptr();
-}
-
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    dbg("");
@@ -91,11 +78,28 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
 }
 
+Operator&
+PANonlinearFormExtension::GetGradientPA(const Array<int> &ess_tdof_list,
+                                        const Vector &GradX)
+{
+   dbg("Returning new Grad(X) Operator of size: %d", GradX.Size());
+   GradOp.SetType(Operator::ANY_TYPE);
+   Operator *oper =
+      new PAGradOperator(GradX, nlf, fes, ess_tdof_list, elem_restrict_lex);
+   GradOp.Reset(oper);
+   GradOp.SetOperatorOwner(false);
+   MFEM_VERIFY(GradOp.Ptr(), "GetGradientPA error!");
+   return *GradOp.Ptr();
+}
+
+
+/// PAGradOperator
 PAGradOperator::PAGradOperator(const Vector &x,
                                const NonlinearForm *nlf,
                                const FiniteElementSpace &fes,
                                const Array<int> &ess_tdof_list,
-                               const Operator *elem_restrict_lex): Operator(),
+                               const Operator *elem_restrict_lex):
+   Operator(fes.GetVSize()),
    nlf(nlf),
    fes(fes),
    ess_tdof_list(ess_tdof_list),
@@ -114,14 +118,22 @@ PAGradOperator::PAGradOperator(const Vector &x,
       Ge.UseDevice(true);
       elem_restrict_lex->Mult(x, Ge);
    }
+   //Grad = new SparseMatrix(fes.GetVSize());
 }
 
 void PAGradOperator::Mult(const Vector &r, Vector &c) const
 {
+   const int csz = ess_tdof_list.Size();
+   Vector z;
+   z = r;
    // Should see where this is done usually
    c.SetSize(r.Size());
    dbg("Sizes: r:%d, c:%d", r.Size(), c.Size());
-   //#warning Error in sizes here
+
+   auto idx = ess_tdof_list.Read();
+   auto d_z = z.ReadWrite();
+   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
+
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int Ni = integrators.Size();
    if (elem_restrict_lex)
@@ -139,6 +151,13 @@ void PAGradOperator::Mult(const Vector &r, Vector &c) const
       MFEM_ABORT("Not yet implemented!");
    }
    //#warning Should if (Serial())...
+   auto d_r = r.Read();
+   auto d_c = c.ReadWrite();
+   MFEM_FORALL(i, csz,
+   {
+      const int id = idx[i];
+      d_c[id] = d_r[id];
+   });
 }
 
 } // namespace mfem

@@ -45,8 +45,8 @@ protected:
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
    void AssemblePA();
-   Operator &GetGradientPA(const Array<int>&, const Vector&);
    void Mult(const Vector &, Vector &) const;
+   Operator &GetGradientPA(const Array<int>&, const Vector&);
 };
 
 
@@ -58,6 +58,7 @@ protected:
    mutable Vector Ge, Xe, Ye;
    const Array<int> &ess_tdof_list;
    const Operator *elem_restrict_lex;
+   //mutable SparseMatrix *Grad, *cGrad;
 public:
    PAGradOperator(const Vector &x,
                   const NonlinearForm *nlf,

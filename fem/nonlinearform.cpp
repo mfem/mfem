@@ -322,6 +322,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
    if (Grad == NULL)
    {
+      dbg("Grad Op: GetVDim:%d, GetNDofs:%d", fes->GetVDim(), fes->GetNDofs());
       Grad = new SparseMatrix(fes->GetVSize());
    }
    else
@@ -439,6 +440,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       if (cP)
       {
+         MFEM_ABORT("");
          delete cGrad;
          cGrad = RAP(*cP, *Grad, *cP);
          mGrad = cGrad;
@@ -448,7 +450,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          mGrad->EliminateRowCol(ess_tdof_list[i]);
       }
    }
-
+   dbg("mGrad: %d x %d", mGrad->Height(), mGrad->Width()); //mGrad->Print();
    return *mGrad;
 }
 
