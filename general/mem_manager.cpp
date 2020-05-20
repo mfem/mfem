@@ -669,12 +669,11 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
 {
    MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
-   MFEM_ASSERT(IsHostMemory(mt), "Internal error!");
    MFEM_ASSERT(!alias, "Cannot register an alias!");
    const bool is_host_mem = IsHostMemory(mt);
    const MemType dual_mt = GetDualMemoryType_(mt);
-   const MemType h_mt = mt;
-   const MemType d_mt = dual_mt;
+   const MemType h_mt = is_host_mem ? mt : dual_mt;
+   const MemType d_mt = is_host_mem ? dual_mt : mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
 
    if (ptr == nullptr && h_tmp == nullptr)
@@ -696,10 +695,11 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
    else // DEVICE TYPES
    {
       h_ptr = h_tmp;
-      if (h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
+      if (own && h_tmp == nullptr) { ctrl->Host(h_mt)->Alloc(&h_ptr, bytes); }
       mm.InsertDevice(ptr, h_ptr, bytes, h_mt, d_mt);
-      flags = (own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE) |
-              Mem::OWNS_HOST | Mem::VALID_DEVICE;
+      flags = own ? flags | Mem::OWNS_DEVICE : flags & ~Mem::OWNS_DEVICE;
+      flags = own ? flags | Mem::OWNS_HOST   : flags & ~Mem::OWNS_HOST;
+      flags |= Mem::VALID_DEVICE;
    }
    CheckHostMemoryType_(h_mt, h_ptr);
    return h_ptr;
