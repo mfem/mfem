@@ -19,6 +19,7 @@ namespace mfem
 ElementTransformation::ElementTransformation()
    : IntPoint(static_cast<IntegrationPoint *>(NULL)),
      EvalState(0),
+     geom(Geometry::INVALID),
      Attribute(-1),
      ElementNo(-1)
 { }

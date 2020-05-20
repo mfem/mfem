@@ -146,17 +146,15 @@ public:
 
    /** @name Element index Get Value Methods
 
-       These methods take an element index and return the interpolated
-       value of the field at a given reference point within the
-       element.
+       These methods take an element index and return the interpolated value of
+       the field at a given reference point within the element.
 
-       @warning These methods retrieve and use the
-       ElementTransformation object from the mfem::Mesh.  This can
-       alter the state of the ElementTransformation object.  This can
-       lead to unexpected results when the ElementTransformation
-       object is already in use such as when these methods are called
-       from within an integration loop.  Consider using
-       GetValue(ElementTransformation &T, ...)  instead.
+       @warning These methods retrieve and use the ElementTransformation object
+       from the mfem::Mesh. This can alter the state of the element
+       transformation object and can also lead to unexpected results when the
+       ElementTransformation object is already in use such as when these methods
+       are called from within an integration loop. Consider using
+       GetValue(ElementTransformation &T, ...) instead.
    */
    ///@{
    /** Return a scalar value from within the given element. */
@@ -169,28 +167,26 @@ public:
 
    /** @name Element Index Get Values Methods
 
-       These are convenience methods for repeatedly calling GetValue
-       for multiple points within a given element.  The GetValues
-       methods are optimized and should perform better than repeatedly
-       calling GetValue.  The GetVectorValues method simply calls
-       GetVectorValue repeatedly.
+       These are convenience methods for repeatedly calling GetValue for
+       multiple points within a given element. The GetValues methods are
+       optimized and should perform better than repeatedly calling GetValue. The
+       GetVectorValues method simply calls GetVectorValue repeatedly.
 
-       @warning These methods retrieve and use the
-       ElementTransformation object from the mfem::Mesh.  This can
-       alter the state of the ElementTransformation object.  This can
-       lead to unexpected results when the ElementTransformation
-       object is already in use such as when these methods are called
-       from within an integration loop. Consider using
+       @warning These methods retrieve and use the ElementTransformation object
+       from the mfem::Mesh. This can alter the state of the element
+       transformation object and can also lead to unexpected results when the
+       ElementTransformation object is already in use such as when these methods
+       are called from within an integration loop. Consider using
        GetValues(ElementTransformation &T, ...) instead.
    */
    ///@{
-   /** Compute a collection of scalar values from within the element
-       indicated by the index i. */
+   /** Compute a collection of scalar values from within the element indicated
+       by the index i. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   int vdim = 1) const;
 
-   /** Compute a collection of vector values from within the element
-       indicated by the index i. */
+   /** Compute a collection of vector values from within the element indicated
+       by the index i. */
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   DenseMatrix &tr, int vdim = 1) const;
 
@@ -201,78 +197,67 @@ public:
    /** @name ElementTransformation Get Value Methods
 
        These member functions are designed for use within
-       GridFunctionCoefficient objects.  These can be used with
+       GridFunctionCoefficient objects. These can be used with
        ElementTransformation objects coming from either
-       Mesh::GetElementTransformation() or
-       Mesh::GetBdrElementTransformation().
+       Mesh::GetElementTransformation() or Mesh::GetBdrElementTransformation().
 
-       @note These methods do not reset the ElementTransformation
-       object so they should be safe to use within integration loops
-       or other contexts where the ElementTransformation is already in
-       use.
+       @note These methods do not reset the ElementTransformation object so they
+       should be safe to use within integration loops or other contexts where
+       the ElementTransformation is already in use.
    */
    ///@{
    /** Return a scalar value from within the element indicated by the
-       ElementTransformation Object.
-   */
+       ElementTransformation Object. */
    double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                    int comp = 0, Vector *tr = NULL) const;
 
    /** Return a vector value from within the element indicated by the
-       ElementTransformation Object.
-   */
+       ElementTransformation Object. */
    void GetVectorValue(ElementTransformation &T, const IntegrationPoint &ip,
                        Vector &val, Vector *tr = NULL) const;
    ///@}
 
    /** @name ElementTransformation Get Values Methods
 
-       These are convenience methods for repeatedly calling GetValue
-       for multiple points within a given element.  They work by
-       calling either the ElementTransformation or
-       FaceElementTransformations versions described above.
-       Consequently, these methods should not be expected to run
-       faster than calling the above methods in an external loop.
+       These are convenience methods for repeatedly calling GetValue for
+       multiple points within a given element. They work by calling either the
+       ElementTransformation or FaceElementTransformations versions described
+       above. Consequently, these methods should not be expected to run faster
+       than calling the above methods in an external loop.
 
-       @note These methods do not reset the ElementTransformation
-       object so they should be safe to use within integration loops
-       or other contexts where the ElementTransformation is already in
-       use.
+       @note These methods do not reset the ElementTransformation object so they
+       should be safe to use within integration loops or other contexts where
+       the ElementTransformation is already in use.
 
-       @note These methods can also be used wtih
-       FaceElementTransformations objects.
+       @note These methods can also be used with FaceElementTransformations
+       objects.
     */
    ///@{
-   /** Compute a collection of scalar values from within the element
-       indicated by the ElementTransformation object. */
+   /** Compute a collection of scalar values from within the element indicated
+       by the ElementTransformation object. */
    void GetValues(ElementTransformation &T, const IntegrationRule &ir,
                   Vector &vals, int comp = 0, DenseMatrix *tr = NULL) const;
 
-   /** Compute a collection of vector values from within the element
-       indicated by the ElementTransformation object. */
+   /** Compute a collection of vector values from within the element indicated
+       by the ElementTransformation object. */
    void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
                         DenseMatrix &vals, DenseMatrix *tr = NULL) const;
    ///@}
 
    /** @name Face Index Get Values Methods
 
-       These methods are designed to work with Discontinuous Galerkin
-       basis functions.  They compute field values on the interface
-       between elements, or on boundary elements, by interpolating the
-       field in a neighboring element.  The \a side argument indices
-       which neighboring element should be used: 0, 1, or 2
-       (automatically chosen).  See the FaceElementTransformations
-       documentation in eltrans.hpp for more information on the \a
-       side parameter.
+       These methods are designed to work with Discontinuous Galerkin basis
+       functions. They compute field values on the interface between elements,
+       or on boundary elements, by interpolating the field in a neighboring
+       element. The \a side argument indices which neighboring element should be
+       used: 0, 1, or 2 (automatically chosen).
 
-       @warning These methods retrieve and use the
-       FaceElementTransformations object from the mfem::Mesh.  This
-       can alter the state of the FaceElementTransformations object.
-       This can lead to unexpected results when the
-       FaceElementTransformations object is already in use such as
-       when these methods are called from within an integration loop.
-       Consider using GetValues(ElementTransformation &T, ...)
-       instead.
+       @warning These methods retrieve and use the FaceElementTransformations
+       object from the mfem::Mesh. This can alter the state of the face element
+       transformations object and can also lead to unexpected results when the
+       FaceElementTransformations object is already in use such as when these
+       methods are called from within an integration loop. Consider using
+       GetValues(ElementTransformation &T, ...) instead.
     */
    ///@{
    /** Compute a collection of scalar values from within the face
@@ -484,28 +469,28 @@ public:
                                  const IntegrationRule *irs[] = NULL) const;
 
    /** Compute the Lp error in each element of the mesh and store the results in
-       the GridFunction @a error. The result should be an L2 GridFunction of
-       order zero using map type VALUE. */
+       the Vector @a error. The result should be of length number of elements,
+       for example an L2 GridFunction of order zero using map type VALUE. */
    virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
-                                       GridFunction &error,
+                                       Vector &error,
                                        Coefficient *weight = NULL,
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
    virtual void ComputeElementL1Errors(Coefficient &exsol,
-                                       GridFunction &error,
+                                       Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, irs); }
 
    virtual void ComputeElementL2Errors(Coefficient &exsol,
-                                       GridFunction &error,
+                                       Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, irs); }
 
    virtual void ComputeElementMaxErrors(Coefficient &exsol,
-                                        GridFunction &error,
+                                        Vector &error,
                                         const IntegrationRule *irs[] = NULL
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
@@ -519,29 +504,29 @@ public:
                                  const IntegrationRule *irs[] = NULL) const;
 
    /** Compute the Lp error in each element of the mesh and store the results in
-       the GridFunction @ error. The result should be an L2 GridFunction of
-       order zero using map type VALUE. */
+       the Vector @ error. The result should be of length number of elements,
+       for example an L2 GridFunction of order zero using map type VALUE. */
    virtual void ComputeElementLpErrors(const double p, VectorCoefficient &exsol,
-                                       GridFunction &error,
+                                       Vector &error,
                                        Coefficient *weight = NULL,
                                        VectorCoefficient *v_weight = NULL,
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
    virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
-                                       GridFunction &error,
+                                       Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs); }
 
    virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
-                                       GridFunction &error,
+                                       Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs); }
 
    virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
-                                        GridFunction &error,
+                                        Vector &error,
                                         const IntegrationRule *irs[] = NULL
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs); }
