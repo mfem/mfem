@@ -729,14 +729,14 @@ double GridFunction::GetValue(ElementTransformation &T,
          if (fes->FEColl()->GetContType() ==
              FiniteElementCollection::CONTINUOUS)
          {
-            // This is a continuous field so we can evaluate it on the boudnary
+            // This is a continuous field so we can evaluate it on the boundary.
             fe = fes->GetBE(T.ElementNo);
             fes->GetBdrElementDofs(T.ElementNo, dofs);
          }
          else
          {
-            // This is a discontinuous field which cannot be evaluated on
-            // the boudary so we'll evaluate it in the neighboring elememt.
+            // This is a discontinuous field which cannot be evaluated on the
+            // boundary so we'll evaluate it in the neighboring element.
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
@@ -865,14 +865,14 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
          if (fes->FEColl()->GetContType() ==
              FiniteElementCollection::CONTINUOUS)
          {
-            // This is a continuous field so we can evaluate it on the boudnary
+            // This is a continuous field so we can evaluate it on the boundary.
             fes->GetBdrElementVDofs(T.ElementNo, vdofs);
             fe = fes->GetBE(T.ElementNo);
          }
          else
          {
             // This is a discontinuous vector field which cannot be evaluated on
-            // the boudary so we'll evaluate it in the neighboring elememt.
+            // the boundary so we'll evaluate it in the neighboring element.
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
@@ -2999,15 +2999,15 @@ void GridFunction::ComputeElementLpErrors(const double p,
       loc_errs.SetSize(vals.Width());
       if (!v_weight)
       {
-         // compute the lengths of the errors at the integration points
-         // thus the vector norm is rotationally invariant
+         // compute the lengths of the errors at the integration points thus the
+         // vector norm is rotationally invariant
          vals.Norm2(loc_errs);
       }
       else
       {
          v_weight->Eval(exact_vals, *T, *ir);
-         // column-wise dot product of the vector error (in vals) and the
-         // vector weight (in exact_vals)
+         // column-wise dot product of the vector error (in vals) and the vector
+         // weight (in exact_vals)
          for (int j = 0; j < vals.Width(); j++)
          {
             double err = 0.0;

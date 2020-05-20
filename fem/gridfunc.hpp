@@ -174,7 +174,7 @@ public:
 
        @warning These methods retrieve and use the ElementTransformation object
        from the mfem::Mesh. This can alter the state of the element
-       transformation object and can alsp lead to unexpected results when the
+       transformation object and can also lead to unexpected results when the
        ElementTransformation object is already in use such as when these methods
        are called from within an integration loop. Consider using
        GetValues(ElementTransformation &T, ...) instead.
@@ -207,14 +207,12 @@ public:
    */
    ///@{
    /** Return a scalar value from within the element indicated by the
-       ElementTransformation Object.
-   */
+       ElementTransformation Object. */
    double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                    int comp = 0, Vector *tr = NULL) const;
 
    /** Return a vector value from within the element indicated by the
-       ElementTransformation Object.
-   */
+       ElementTransformation Object. */
    void GetVectorValue(ElementTransformation &T, const IntegrationPoint &ip,
                        Vector &val, Vector *tr = NULL) const;
    ///@}

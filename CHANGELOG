@@ -53,6 +53,11 @@ Discretization improvements
 - Added new partial assembly kernels for H(div) bilinear forms, as well as
   VectorFEDivergenceIntegrator.
 
+- Improved the documentation of the GridFunction GetValue and GetVectorValue
+  methods. Expanded the GetValue and GetVectorValue methods which accept an
+  ElementTransformation argument to support evaluation on boundary elements
+  and, in the continuous field case, arbitrary mesh edges and faces.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -114,6 +119,9 @@ Miscellaneous
   interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
   entire spatial and temporal data. In addition, ADIOS2 allows for setting a
   user-defined number of data substreams/subfiles. See examples 5, 9, 12, 16.
+
+- The integration order used in the ComputeLpError and ComputeElementLpError
+  methods of class GridFunction has been increased.
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
