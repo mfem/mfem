@@ -23,6 +23,10 @@ Meshing improvements
   Hessian for r-adaptivity using discrete fields, and allows use of skewness
   and orientation based metrics.
 
+- Added support for r-adaptivity with more than one discrete field. This allows
+  the user to specify different discrete functions for controlling the
+  size, aspect-ratio, orientation, and skew of elements in the mesh.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated
