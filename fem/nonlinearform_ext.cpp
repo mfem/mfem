@@ -123,6 +123,7 @@ PAGradOperator::PAGradOperator(const Vector &x,
 
 void PAGradOperator::Mult(const Vector &r, Vector &c) const
 {
+   dbg("r:"); r.Print();
    const int csz = ess_tdof_list.Size();
    Vector z;
    z = r;
@@ -148,6 +149,7 @@ void PAGradOperator::Mult(const Vector &r, Vector &c) const
       }
       dbg("Ye:"); Ye.Print();
       elem_restrict_lex->MultTranspose(Ye, c);
+      dbg("c:"); c.Print();
    }
    else
    {
