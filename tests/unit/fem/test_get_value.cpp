@@ -606,7 +606,7 @@ TEST_CASE("2D GetValue",
                   T->SetIntPoint(&ip);
                   T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
+                  double f_val = func_2D_lin(tip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
 
                   h1_err += fabs(f_val - h1_gf_val);
