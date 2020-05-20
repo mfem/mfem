@@ -638,7 +638,7 @@ void FABilinearFormExtension::Assemble()
       const int elem_dofs = fes.GetFE(0)->GetDof();
       auto h_E = elem_begin.HostWrite();
       auto h_I = mat.HostWriteI();
-      auto h_nnz = elem_nnz.Read();
+      auto h_nnz = elem_nnz.HostRead();
       size_t cpt = 0;
       //TODO take into account vd
       for (int e = 0; e < ne; e++)
