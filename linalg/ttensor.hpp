@@ -297,8 +297,8 @@ public:
    typedef StridedLayout1D<S,1> layout_type;
    static const layout_type layout;
 
-   MFEM_HOST_DEVICE data_t &operator[](int i) { return data[i]; }
-   MFEM_HOST_DEVICE const data_t &operator[](int i) const { return data[i]; }
+   data_t &operator[](int i) { return data[i]; }
+   const data_t &operator[](int i) const { return data[i]; }
 
    template <AssignOp::Type Op>
    void Assign(const data_t d)
