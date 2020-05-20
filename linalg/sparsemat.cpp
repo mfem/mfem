@@ -12,6 +12,7 @@
 // Implementation of sparse matrix
 
 #include "linalg.hpp"
+#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
@@ -547,9 +548,14 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
+   dbg("");
    if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
+   dbg("x:"); x.Print();
+   dbg("SPARSEMAT:"); this->Print();
    AddMult(x, y);
+   dbg("y:"); y.Print();
+
 }
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
