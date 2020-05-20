@@ -279,9 +279,9 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
-   MFEM_FORALL(i, vd*all_dofs+1,
+   MFEM_FORALL(i_L, vd*all_dofs+1,
    {
-      I[i] = 0;
+      I[i_L] = 0;
    });
    MFEM_FORALL(e, ne,
    {
