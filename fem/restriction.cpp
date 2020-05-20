@@ -364,7 +364,8 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
    auto Data = mat.WriteData();
    //TODO replace with MFEM_FORALL
-   for (int e = 0; e < ne; e++)
+   MFEM_FORALL(e, ne,
+   // for (int e = 0; e < ne; e++)
    {
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
@@ -436,7 +437,7 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
             }                  
          }
       }
-   }//);
+   });
    auto h_I = mat.HostReadWriteI();
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    const int size = vd*all_dofs;
