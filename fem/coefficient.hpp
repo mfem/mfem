@@ -47,6 +47,17 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) = 0;
 
+   /** @brief Evaluate the derivative of a coefficient in the element 
+       described by @a T at the point @a ip, with respect to the mesh nodes,
+       storing the result in @a PointMat_bar. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void EvalRevDiff(const double &Q_bar,
+                            ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
+
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
    /** @note When this method is called, the caller must make sure that the
@@ -118,7 +129,9 @@ class FunctionCoefficient : public Coefficient
 {
 protected:
    double (*Function)(const Vector &);
+   void (*FunctionRevDiff)(const Vector &, const double &, Vector &);
    double (*TDFunction)(const Vector &, double);
+   void (*TDFunctionRevDiff)(const Vector &, double, const double &, Vector &);
 
 public:
    /// Define a time-independent coefficient from a C-function
@@ -133,6 +146,26 @@ public:
    {
       Function = NULL;
       TDFunction = tdf;
+   }
+
+   /// Construct time-independent coefficient that can be differentiated
+   FunctionCoefficient(double (*f)(const Vector &),
+                             void (*df)(const Vector &, const double &, Vector &))
+   {
+      Function = f;
+      FunctionRevDiff = df;
+      TDFunction = NULL;
+      TDFunctionRevDiff = NULL;
+   }
+
+   /// Construct time-dependent coefficient that can be differentiated
+   FunctionCoefficient(double (*tdf)(const Vector &, double),
+                             void (*dtdf)(const Vector &, double, const double &, Vector &))
+   {
+      Function = NULL;
+      FunctionRevDiff = NULL;
+      TDFunction = tdf;
+      TDFunctionRevDiff = dtdf;
    }
 
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
@@ -156,6 +189,13 @@ public:
    /// Evaluate coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   /// Reverse Diff version of Eval
+   /// Q_bar: Derivative of functional with respect to Q
+   virtual void EvalRevDiff(const double &Q_bar,
+                            ElementTransformation &T,
+                            const IntegrationPoint &ip,
+                            DenseMatrix &PointMat_bar);
 };
 
 class GridFunction;

@@ -21,6 +21,15 @@ namespace mfem
 
 using namespace std;
 
+void Coefficient::EvalRevDiff(const double &Q_bar,
+                                    ElementTransformation &T,
+                                    const IntegrationPoint &ip,
+                                    DenseMatrix &PointMat_bar)
+{
+   MFEM_ABORT("Coefficient::EvalRevDiff\n"
+              "\tEvalRevDiff not implemented for this coefficient!\n");
+}
+
 double PWConstCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
 {
@@ -44,6 +53,35 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    {
       return (*TDFunction)(transip, GetTime());
    }
+}
+
+void FunctionCoefficient::EvalRevDiff(const double &Q_bar,
+                                            ElementTransformation &T,
+                                            const IntegrationPoint &ip,
+                                            DenseMatrix &PointMat_bar)
+{
+   double x[3];
+   Vector transip(x, 3);
+   double x_bar[3];
+   Vector transip_bar(x_bar, 3);
+   T.Transform(ip, transip);  
+   transip_bar = 0.0;
+   if (Function)
+   {
+      MFEM_ASSERT(FunctionRevDiff != NULL, "EvalRevDiff: reverse-mode "
+                                           "differentiated version of Function "
+                                           "must be provided");
+      (*FunctionRevDiff)(transip, Q_bar, transip_bar);
+   }
+   else
+   {
+      MFEM_ASSERT(TDFunctionRevDiff != NULL, "EvalRevDiff: reverse-mode "
+                                             "differentiated version of "
+                                             "TDFunction must be provided");
+      (*TDFunctionRevDiff)(transip, GetTime(), Q_bar, transip_bar);
+   }
+   static_cast<IsoparametricTransformation &>(T).TransformRevDiff(
+       ip, transip_bar, PointMat_bar);
 }
 
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
