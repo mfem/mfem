@@ -40,17 +40,29 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
-      case 2: // For debugging and to have a real conservation law.
+      case 2:
       {
-         ProblemName = "Advection - Translation";
+         ProblemName = "Advection - Step function";
          glvis_scale = "on";
-         SolutionKnown = false;
+         SolutionKnown = true;
          SteadyState = false;
          TimeDepBC = false;
          ProjType = 1;
          u0.ProjectCoefficient(ic);
          break;
       }
+      case 3:
+      {
+         ProblemName = "Advection - Smooth profile";
+         glvis_scale = "on";
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 0;
+         L2_Projection(ic, u0);;
+         break;
+      }
+
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -235,7 +247,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          }
          break;
       }
-      case 2: // Constant velocity.
+      case 2:
+      case 3: // Constant velocity.
       {
          switch (dim)
          {
@@ -292,7 +305,11 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
       }
       case 2:
       {
-         return abs(X.Norml2()) < 0.2 ? 1. : 0.;
+         return abs(X.Norml2()) < 0.2 ? 1. : 0.; // TODO these are i.c.'s
+      }
+      case 3:
+      {
+         return exp(-100. * X.Norml2()* X.Norml2());
       }
       default:
          MFEM_ABORT("No such test case implemented.");

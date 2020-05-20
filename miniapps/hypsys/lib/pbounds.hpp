@@ -29,6 +29,7 @@ public:
    ~ParTightBounds() { }
 
    virtual void ComputeElementBounds(int n, int e, const Vector &x) override;
+   virtual void ComputeSequentialBounds(int n, int e, const Vector &x) override;
 };
 
 class ParLooseBounds : public ParBounds
@@ -38,6 +39,7 @@ public:
    ~ParLooseBounds() { }
 
    virtual void ComputeElementBounds(int n, int e, const Vector &x) override;
+   virtual void ComputeSequentialBounds(int n, int e, const Vector &x) override;
 };
 
 #endif

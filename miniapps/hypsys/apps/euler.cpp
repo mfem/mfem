@@ -47,7 +47,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 2:
       {
          ProblemName = "Euler Equations of Gas dynamics - Woodward Colella";
-         glvis_scale = "off valuerange 0 7";
+         glvis_scale = "on";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;

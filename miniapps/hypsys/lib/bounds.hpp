@@ -23,6 +23,7 @@ public:
 
    virtual void ComputeBounds(const Vector &x);
    virtual void ComputeElementBounds(int n, int e, const Vector &x) = 0;
+   virtual void ComputeSequentialBounds(int n, int e, const Vector &x) = 0;
 };
 
 class TightBounds : public Bounds
@@ -34,6 +35,7 @@ public:
    ~TightBounds() { }
 
    virtual void ComputeElementBounds(int n, int e, const Vector &x) override;
+   virtual void ComputeSequentialBounds(int n, int e, const Vector &x) override;
 };
 
 class LooseBounds : public Bounds
@@ -43,6 +45,7 @@ public:
    ~LooseBounds() { }
 
    virtual void ComputeElementBounds(int n, int e, const Vector &x) override;
+   virtual void ComputeSequentialBounds(int n, int e, const Vector &x) override;
 };
 
 void FillClosestNbrs(const FiniteElement *el, DenseMatrix &ClosestNbrs);

@@ -68,7 +68,26 @@ void Bounds::FillDofMap()
 
 void Bounds::ComputeBounds(const Vector &x)
 {
-   for (int n = 0; n < NumEq; n++)
+   x_min =  std::numeric_limits<double>::infinity();
+   x_max = -std::numeric_limits<double>::infinity();
+
+   for (int e = 0; e < ne; e++)
+   {
+      fesH1->GetElementDofs(e, eldofs);
+      ComputeElementBounds(0, e, x);
+   }
+
+   for (int e = 0; e < ne; e++)
+   {
+      fesH1->GetElementDofs(e, eldofs);
+      for (int j = 0; j < nd; j++)
+      {
+         xi_min(e*nd + j) = x_min(eldofs[DofMapH1[j]]);
+         xi_max(e*nd + j) = x_max(eldofs[DofMapH1[j]]);
+      }
+   }
+
+   for (int n = 1; n < NumEq; n++)
    {
       x_min =  std::numeric_limits<double>::infinity();
       x_max = -std::numeric_limits<double>::infinity();
@@ -76,7 +95,7 @@ void Bounds::ComputeBounds(const Vector &x)
       for (int e = 0; e < ne; e++)
       {
          fesH1->GetElementDofs(e, eldofs);
-         ComputeElementBounds(n, e, x);
+         ComputeSequentialBounds(n, e, x);
       }
 
       for (int e = 0; e < ne; e++)
@@ -102,14 +121,32 @@ void TightBounds::ComputeElementBounds(int n, int e, const Vector &x)
 {
    for (int i = 0; i < nd; i++)
    {
+      const int I = eldofs[DofMapH1[i]];
+
       for (int j = 0; j < ClosestNbrs.Width(); j++)
       {
          if (ClosestNbrs(i,j) == -1) { break; }
 
-         const int I = eldofs[DofMapH1[i]];
-         const int J = n*ne*nd + e*nd+ClosestNbrs(i,j);
-         x_min(I) = min(x_min(I), x(J));
-         x_max(I) = max(x_max(I), x(J));
+         const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
+         x_min(I) = min( min(x_min(I), x(J)), xi_min(J) );
+         x_max(I) = max( max(x_max(I), x(J)), xi_max(J) );
+      }
+   }
+}
+
+void TightBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
+{
+   for (int i = 0; i < nd; i++)
+   {
+      const int I = eldofs[DofMapH1[i]];
+
+      for (int j = 0; j < ClosestNbrs.Width(); j++)
+      {
+         if (ClosestNbrs(i,j) == -1) { break; }
+
+         const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
+         x_min(I) = min(x_min(I), xi_min(J));
+         x_max(I) = max(x_max(I), xi_max(J));
       }
    }
 }
@@ -134,6 +171,11 @@ void LooseBounds::ComputeElementBounds(int n, int e, const Vector &x)
       x_min(I) = min(x_min(I), xe_min);
       x_max(I) = max(x_max(I), xe_max);
    }
+}
+
+void LooseBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
+{
+   // TODO
 }
 
 

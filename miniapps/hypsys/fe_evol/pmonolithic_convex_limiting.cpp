@@ -2,8 +2,8 @@
 
 ParMCL_Evolution::ParMCL_Evolution(ParFiniteElementSpace *pfes_,
                                    HyperbolicSystem *hyp_,
-                                   DofInfo &dofs_)
-   : MCL_Evolution(pfes_, hyp_, dofs_), x_gf_MPI(pfes_)
+                                   DofInfo &dofs_, double dt_)
+   : MCL_Evolution(pfes_, hyp_, dofs_, dt_), x_gf_MPI(pfes_)
 {
    H1_FECollection fec(fes->GetFE(0)->GetOrder(), dim);
    pfesH1 = new ParFiniteElementSpace(pfes_->GetParMesh(), &fec);

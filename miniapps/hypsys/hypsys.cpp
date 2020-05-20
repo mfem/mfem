@@ -52,6 +52,7 @@ int main(int argc, char *argv[])
    ODESolver *odeSolver = NULL;
    switch (config.odeSolverType)
    {
+      case 0: odeSolver = new RK6Solver; break;
       case 1: odeSolver = new ForwardEulerSolver; break;
       case 2: odeSolver = new RK2Solver(1.0); break;
       case 3: odeSolver = new RK3SSPSolver; break;
@@ -150,7 +151,7 @@ int main(int argc, char *argv[])
    switch (scheme)
    {
       case Galerkin: { evol = new GalerkinEvolution(&vfes, hyp, dofs); break; }
-      case MonolithicConvexLimiting: { evol = new MCL_Evolution(&vfes, hyp, dofs); break; }
+      case MonolithicConvexLimiting: { evol = new MCL_Evolution(&vfes, hyp, dofs, config.dt); break; }
       default:
          MFEM_ABORT("Unknown evolution scheme");
    }

@@ -1,18 +1,13 @@
 ATTENTION
-   -min/max used for DG flux term limiting
-   -only serial version for sequential bounds for now
 
 DEBUG
+   -TODO Slightly different results in serial and parallel due to sequetial limiting
 
 PAPER
    \mathcal E_i set is problematic, due to i being local
 
 next steps
-   TODO: Approach for volume and face terms in terms of including bounds in bar states should be consistent
-   ROADMAP: 1) Height correction factor for allunknowns - done
-            2) sequential limiting for 1D DG1
-            3) higher order
-            4) 2D see how to handle face terms
+   -Pressure fix
 
 If possible: try to make advection with non-constant velocity and MCL work
 

@@ -1,5 +1,6 @@
-function printEOC(filename)
+function printEOC()
 
+filename = '../errors.txt';
 file = fopen(filename, 'r');
 data = zeros(0,3);
 while true
@@ -12,8 +13,10 @@ end
 
 fclose(file);
 
+% numElPerDim = [6 8 12 16 24 32 48 64]';
+numElPerDim = [16 32 64 128 256 512]';
 % numElPerDim = [48 64 96 128 192 256 384]';
-numElPerDim = [12 24 48 96 192 384]';
+% numElPerDim = [12 24 48 96 192 384]';
 numElPerDim = numElPerDim(1:size(data,1));
 numLvls = length(numElPerDim)-1;
 eoc = zeros(numLvls, 3);

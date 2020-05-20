@@ -130,6 +130,7 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
       double center = (ConfigBurgers.bbMin(i) + ConfigBurgers.bbMax(i)) * 0.5;
       double factor = 2. / (ConfigBurgers.bbMax(i) - ConfigBurgers.bbMin(i));
       X(i) = factor * (x(i) - center);
+      t *= pow(factor, 1./(double(dim)));
    }
 
    switch (ConfigBurgers.ConfigNum)
@@ -143,7 +144,7 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
 
          double un = sin(2.*M_PI*X(0));
          double unp1 = 0., fn = 0., fpn = 0.;
-         double tol = 1E-15;
+         double tol = 1.E-15;
          double error = 1.0;
          int iter = 0, maxiter = 100;
 
@@ -170,6 +171,7 @@ double AnalyticalSolutionBurgers(const Vector &x, double t)
          X(0) += 1.;
          X(1) += 1.;
          X *= 0.5; // Map to test case specific domain [0,1].
+         t *= 0.5;
 
          if (X(0) <= 0.5 - 0.6 * t)
          {

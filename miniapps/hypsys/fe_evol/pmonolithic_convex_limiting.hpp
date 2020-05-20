@@ -15,7 +15,7 @@ public:
    mutable ParGridFunction x_gf_MPI;
 
    explicit ParMCL_Evolution(ParFiniteElementSpace *pfes_,
-                             HyperbolicSystem *hyp_, DofInfo &dofs_);
+                             HyperbolicSystem *hyp_, DofInfo &dofs_, double dt_);
 
    virtual ~ParMCL_Evolution() { delete pfesH1; }
 

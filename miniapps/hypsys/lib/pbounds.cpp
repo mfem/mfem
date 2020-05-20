@@ -8,7 +8,34 @@ void ParBounds::ComputeBounds(const Vector &x)
 {
    GroupCommunicator &gcomm = pfesH1->GroupComm();
 
-   for (int n = 0; n < NumEq; n++)
+   px_min =  std::numeric_limits<double>::infinity();
+   px_max = -std::numeric_limits<double>::infinity();
+
+   for (int e = 0; e < ne; e++)
+   {
+      pfesH1->GetElementDofs(e, eldofs);
+      ComputeElementBounds(0, e, x);
+   }
+
+   Array<double> minvals(px_min.GetData(), px_min.Size()),
+   maxvals(px_max.GetData(), px_max.Size());
+
+   gcomm.Reduce<double>(minvals, GroupCommunicator::Min);
+   gcomm.Bcast(minvals);
+   gcomm.Reduce<double>(maxvals, GroupCommunicator::Max);
+   gcomm.Bcast(maxvals);
+
+   for (int e = 0; e < ne; e++)
+   {
+      pfesH1->GetElementDofs(e, eldofs);
+      for (int j = 0; j < nd; j++)
+      {
+         xi_min(e*nd + j) = px_min(eldofs[DofMapH1[j]]);
+         xi_max(e*nd + j) = px_max(eldofs[DofMapH1[j]]);
+      }
+   }
+
+   for (int n = 1; n < NumEq; n++)
    {
       px_min =  std::numeric_limits<double>::infinity();
       px_max = -std::numeric_limits<double>::infinity();
@@ -16,17 +43,16 @@ void ParBounds::ComputeBounds(const Vector &x)
       for (int e = 0; e < ne; e++)
       {
          pfesH1->GetElementDofs(e, eldofs);
-         ComputeElementBounds(n, e, x);
+         ComputeSequentialBounds(n, e, x);
       }
 
-      // TODO communication might be faster if px_min is vector valued ParGF
-      Array<double> minvals(px_min.GetData(), px_min.Size()),
-      maxvals(px_max.GetData(), px_max.Size());
+      Array<double> minvals2(px_min.GetData(), px_min.Size()),
+      maxvals2(px_max.GetData(), px_max.Size());
 
-      gcomm.Reduce<double>(minvals, GroupCommunicator::Min);
-      gcomm.Bcast(minvals);
-      gcomm.Reduce<double>(maxvals, GroupCommunicator::Max);
-      gcomm.Bcast(maxvals);
+      gcomm.Reduce<double>(minvals2, GroupCommunicator::Min);
+      gcomm.Bcast(minvals2);
+      gcomm.Reduce<double>(maxvals2, GroupCommunicator::Max);
+      gcomm.Bcast(maxvals2);
 
       for (int e = 0; e < ne; e++)
       {
@@ -51,14 +77,32 @@ void ParTightBounds::ComputeElementBounds(int n, int e, const Vector &x)
 {
    for (int i = 0; i < nd; i++)
    {
+      const int I = eldofs[DofMapH1[i]];
+
       for (int j = 0; j < ClosestNbrs.Width(); j++)
       {
          if (ClosestNbrs(i,j) == -1) { break; }
 
-         const int I = eldofs[DofMapH1[i]];
-         const int J = n*ne*nd + e*nd+ClosestNbrs(i,j);
-         px_min(I) = min(px_min(I), x(J));
-         px_max(I) = max(px_max(I), x(J));
+         const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
+         px_min(I) = min( min(px_min(I), x(J)), xi_min(J) );
+         px_max(I) = max( max(px_max(I), x(J)), xi_max(J) );
+      }
+   }
+}
+
+void ParTightBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
+{
+   for (int i = 0; i < nd; i++)
+   {
+      const int I = eldofs[DofMapH1[i]];
+
+      for (int j = 0; j < ClosestNbrs.Width(); j++)
+      {
+         if (ClosestNbrs(i,j) == -1) { break; }
+
+         const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
+         px_min(I) = min(px_min(I), xi_min(J));
+         px_max(I) = max(px_max(I), xi_max(J));
       }
    }
 }
@@ -83,4 +127,9 @@ void ParLooseBounds::ComputeElementBounds(int n, int e, const Vector &x)
       px_min(I) = min(px_min(I), xe_min);
       px_max(I) = max(px_max(I), xe_max);
    }
+}
+
+void ParLooseBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
+{
+   // TODO
 }
