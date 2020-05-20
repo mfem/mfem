@@ -19,26 +19,7 @@
 
 #include "slepc.h"
 
-// Error handling
-// Prints SLEPc's stacktrace and then calls MFEM_ABORT
-// We cannot use PETSc's CHKERRQ since it returns a PetscErrorCode
-#define PCHKERRQ(obj,err) do {                                                   \
-     if ((err))                                                                  \
-     {                                                                           \
-        PetscError(PetscObjectComm((PetscObject)(obj)),__LINE__,_MFEM_FUNC_NAME, \
-                   __FILE__,(err),PETSC_ERROR_REPEAT,NULL);                      \
-        MFEM_ABORT("Error in SLEPc. See stacktrace above.");                     \
-     }                                                                           \
-  } while(0);
-#define CCHKERRQ(comm,err) do {                                \
-     if ((err))                                                \
-     {                                                         \
-        PetscError(comm,__LINE__,_MFEM_FUNC_NAME,              \
-                   __FILE__,(err),PETSC_ERROR_REPEAT,NULL);    \
-        MFEM_ABORT("Error in SLEPc. See stacktrace above.");   \
-     }                                                         \
-  } while(0);
-
+#include "petscinternals.hpp"
 
 static PetscErrorCode ierr;
 
