@@ -528,9 +528,8 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 
       Tr.SetIntPoint(&ip);
 
-      // Use Tr.Elem1 transformation for u so that it matches the
-      // coefficient used with the ConvectionIntegrator and/or the
-      // DGTraceIntegrator.
+      // Use Tr.Elem1 transformation for u so that it matches the coefficient
+      // used with the ConvectionIntegrator and/or the DGTraceIntegrator.
       u->Eval(vu, *Tr.Elem1, eip);
 
       if (dim == 1)
