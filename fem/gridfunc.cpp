@@ -1340,8 +1340,6 @@ void GridFunction::GetVectorGradientHat(
 
 double GridFunction::GetDivergence(ElementTransformation &T) const
 {
-   double div_v = 0.0;
-
    switch (T.ElementType)
    {
       case ElementTransformation::ELEMENT:
@@ -1355,7 +1353,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
             DenseMatrix grad_hat;
             GetVectorGradientHat(T, grad_hat);
             const DenseMatrix &Jinv = T.InverseJacobian();
-            div_v = 0.0;
+            double div_v = 0.0;
             for (int i = 0; i < Jinv.Width(); i++)
             {
                for (int j = 0; j < Jinv.Height(); j++)
@@ -1363,6 +1361,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
                   div_v += grad_hat(i, j) * Jinv(j, i);
                }
             }
+	    return div_v;
          }
          else
          {
@@ -1372,7 +1371,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
             Vector loc_data, divshape(fe->GetDof());
             GetSubVector(dofs, loc_data);
             fe->CalcDivShape(T.GetIntPoint(), divshape);
-            div_v = (loc_data * divshape) / T.Weight();
+            return (loc_data * divshape) / T.Weight();
          }
       }
       break;
@@ -1398,7 +1397,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
          FET->SetIntPoint(&fip);
          ElementTransformation & T1 = FET->GetElement1Transformation();
 
-         div_v = GetDivergence(T1);
+         return GetDivergence(T1);
       }
       break;
       case ElementTransformation::BDR_FACE:
@@ -1409,7 +1408,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
 
          // Evaluate in neighboring element
          ElementTransformation & T1 = FET->GetElement1Transformation();
-         div_v = GetDivergence(T1);
+         return GetDivergence(T1);
       }
       break;
       default:
@@ -1418,7 +1417,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
                     << T.ElementType << "\"");
       }
    }
-   return div_v;
+   return NAN;
 }
 
 void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
