@@ -21,7 +21,7 @@ TEST_CASE("Quadrature Function Coefficients",
           "[Quadrature Function Coefficients]")
 {
    int order_h1 = 2, n = 4, dim = 3;
-   double tol = 1e-9;
+   double tol = 1e-14;
 
    Mesh mesh(n, n, n, Element::HEXAHEDRON, false, 1.0, 1.0, 1.0);
    mesh.SetCurvature(order_h1);
@@ -73,11 +73,6 @@ TEST_CASE("Quadrature Function Coefficients",
    QuadratureFunctionCoefficient qfc(quadf_coeff);
    VectorQuadratureFunctionCoefficient qfvc(quadf_vcoeff);
 
-   H1_FECollection    fec_h1(order_h1, dim);
-   FiniteElementSpace fespace_hv1(&mesh, &fec_h1, 1);
-   Quad2FieldInterpolant fi(&fespace_hv1);
-   fi.SetupCG();
-
    SECTION("Operators on VecQuadFuncCoeff")
    {
       std::cout << "Testing VecQuadFuncCoeff: " << std::endl;
@@ -92,425 +87,75 @@ TEST_CASE("Quadrature Function Coefficients",
       REQUIRE_THROWS(qfvc.SetComponent(0, 0));
 #endif
       qfvc.SetComponent(0, 3);
-
-      SECTION("Gridfunction L2 tests")
-      {
-         std::cout << "  Testing GridFunc L2 projection" << std::endl;
-         L2_FECollection    fec_l2(order_h1, dim);
-         FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
-
-         GridFunction g0(&fespace_l2);
-         GridFunction gtrue(&fespace_l2);
-
-         {
-
-            GridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue.ProjectGridFunction(nodes);
-
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
-         gtrue -= g0;
-         REQUIRE(gtrue.Norml2() < tol);
-      }
-
-      SECTION("Gridfunction L2 tests byVDIM")
-      {
-         std::cout << "  Testing GridFunc L2 projection byVDIM" << std::endl;
-         L2_FECollection    fec_l2(order_h1, dim);
-         FiniteElementSpace fespace_l2(&mesh, &fec_l2, dim, Ordering::byVDIM);
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
-         GridFunction g0(&fespace_l2);
-         GridFunction gtrue(&fespace_l2);
-
-         {
-
-            GridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue.ProjectGridFunction(nodes);
-
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
-         gtrue -= g0;
-         REQUIRE(gtrue.Norml2() < tol);
-      }
-
-      SECTION("Gridfunction H1 tests")
-      {
-         std::cout << "  Testing GridFunc H1 projection" << std::endl;
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
-         GridFunction g0(&fespace_h1);
-         GridFunction gtrue(&fespace_h1);
-
-         {
-            GridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue = nodes;
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc);
-         gtrue -= g0;
-         REQUIRE(gtrue.Norml2() < tol);
-      }
-      SECTION("Gridfunction H1 tests byVDIM")
-      {
-         std::cout << "  Testing GridFunc H1 projection byVDIM" << std::endl;
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
-         GridFunction g0(&fespace_h1);
-         GridFunction gtrue(&fespace_h1);
-
-         {
-            GridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue = nodes;
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc);
-         gtrue -= g0;
-         REQUIRE(gtrue.Norml2() < tol);
-      }
    }
 
-   SECTION("Operators on QuadFuncCoeff")
+   SECTION("Operators on VectorQuadratureLFIntegrator")
    {
-      SECTION("Gridfunction L2 tests")
-      {
-         std::cout << "Testing QuadFuncCoeff:";
-         std::cout << "  Testing GridFunc L2 projection" << std::endl;
-         L2_FECollection    fec_l2(order_h1, dim);
-         FiniteElementSpace fespace_l2(&mesh, &fec_l2, 1);
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
-         GridFunction g0(&fespace_l2);
-         GridFunction gtrue(&fespace_l2);
+      std::cout << "Testing VectorQuadratureLFIntegrator: " << std::endl;
+      H1_FECollection    fec_h1(order_h1, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
 
-         // When using an L2 FE space of the same order as the mesh, the below highlights
-         // that the ProjectDiscCoeff method is just taking the quadrature point
-         // values and making them node values.
-         {
+      GridFunction nodes(&fespace_h1);
+      mesh.GetNodes(nodes);
 
-            GridFunction nodes_z(&fespace_hv1);
-            GridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            nodes_z.MakeRef(nodes, nodes_z.Size() * 2);
-            gtrue.ProjectGridFunction(nodes_z);
+      Vector output(nodes.Size());
+      output = 0.0;
 
-         }
+      LinearForm lf(&fespace_h1);
+      lf.AddDomainIntegrator(new VectorQuadratureLFIntegrator(qfvc, NULL));
 
-         g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfc);
-         gtrue -= g0;
-         REQUIRE(gtrue.Norml2() < tol);
-      }
+      lf.Assemble();
 
-      SECTION("Gridfunction H1 tests")
-      {
-         std::cout << "  Testing GridFunc H1 projection" << std::endl;
-         H1_FECollection    fec_h1(order_h1, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1, 1);
-         GridFunction g0(&fespace_h1);
-         GridFunction gtrue(&fespace_h1);
+      BilinearForm L2(&fespace_h1);
 
-         fi.FullReset();
+      L2.AddDomainIntegrator(new VectorMassIntegrator());
+      L2.Assemble();
 
-         {
-            int nnodes = gtrue.Size();
-            int vdim = 1;
+      SparseMatrix mat = L2.SpMat();
 
-            Vector nodes;
-            mesh.GetNodes(nodes);
-            for (int i = 0; i < nnodes; i++)
-            {
-               gtrue(i) = nodes(i * dim + 2);
-            }
-         }
+      mat.Mult(nodes, output);
 
-         g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfc);
-         gtrue -= g0;
-         REQUIRE(gtrue.Norml2() < tol);
-      }
+      output -= lf;
+
+      REQUIRE(output.Norml2() < tol);
    }
+
+      SECTION("Operators on QuadratureLFIntegrator")
+   {
+      std::cout << "Testing QuadratureLFIntegrator: " << std::endl;
+      H1_FECollection    fec_h1(order_h1, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1, 1);
+      FiniteElementSpace fespace_h3(&mesh, &fec_h1, 3);
+
+      GridFunction nodes(&fespace_h3);
+      mesh.GetNodes(nodes);
+
+      Vector output(nodes.Size() / dim);
+      Vector nz(nodes.Size() / dim);
+      output = 0.0;
+
+      nz.MakeRef(nodes, nz.Size() * 2);
+
+      LinearForm lf(&fespace_h1);
+      lf.AddDomainIntegrator(new QuadratureLFIntegrator(qfc, NULL));
+
+      lf.Assemble();
+
+      BilinearForm L2(&fespace_h1);
+
+      L2.AddDomainIntegrator(new MassIntegrator(&ir));
+      L2.Assemble();
+
+      SparseMatrix mat = L2.SpMat();
+
+      mat.Mult(nz, output);
+
+      output -= lf;
+
+      REQUIRE(output.Norml2() < tol);
+   }
+
 }
 
-#ifdef MFEM_USE_MPI
-
-TEST_CASE("Parallel Quadrature Function Coefficients",
-          "[Parallel] , [Parallel Quadrature Function Coefficients]")
-{
-   int order_h1 = 2, n = 4, dim = 3;
-   double tol = 1e-9;
-
-   Mesh *tmesh = new Mesh(n, n, n, Element::HEXAHEDRON, false, 1.0, 1.0, 1.0);
-   tmesh->SetCurvature(order_h1);
-   ParMesh mesh(MPI_COMM_WORLD, *tmesh);
-
-   delete tmesh;
-
-   int intOrder = 2 * order_h1 + 1;
-
-   QuadratureSpace qspace(&mesh, intOrder);
-   QuadratureFunction quadf_coeff(&qspace, 1);
-   QuadratureFunction quadf_vcoeff(&qspace, dim);
-
-   const IntegrationRule ir = qspace.GetElementIntRule(0);
-
-   const GeometricFactors *geom_facts = mesh.GetGeometricFactors(ir,
-                                                                 GeometricFactors::COORDINATES);
-
-   {
-      int nelems = quadf_coeff.Size() / quadf_coeff.GetVDim() / ir.GetNPoints();
-      int vdim = ir.GetNPoints();
-
-      for (int i = 0; i < nelems; i++)
-      {
-         for (int j = 0; j < vdim; j++)
-         {
-            //X has dims nqpts x sdim x ne
-            quadf_coeff((i * vdim) + j) = geom_facts->X((i * vdim * dim) + (vdim * 2) + j );
-         }
-      }
-   }
-
-   {
-      int nqpts = ir.GetNPoints();
-      int nelems = quadf_vcoeff.Size() / quadf_vcoeff.GetVDim() / nqpts;
-      int vdim = quadf_vcoeff.GetVDim();
-
-      for (int i = 0; i < nelems; i++)
-      {
-         for (int j = 0; j < vdim; j++)
-         {
-            for (int k = 0; k < nqpts; k++)
-            {
-               //X has dims nqpts x sdim x ne
-               quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
-                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
-            }
-         }
-      }
-   }
-
-   QuadratureFunctionCoefficient qfc(quadf_coeff);
-   VectorQuadratureFunctionCoefficient qfvc(quadf_vcoeff);
-
-   H1_FECollection    fec_h1(order_h1, dim);
-   ParFiniteElementSpace fespace_hv1(&mesh, &fec_h1, 1);
-   ParQuad2FieldInterpolant fi(&fespace_hv1);
-   fi.SetupCG(MPI_COMM_WORLD);
-
-   SECTION("Operators on VecQuadFuncCoeff")
-   {
-      std::cout << "Testing VecQuadFuncCoeff: " << std::endl;
-#ifdef MFEM_USE_EXCEPTIONS
-      std::cout << " Setting Component" << std::endl;
-      REQUIRE_THROWS(qfvc.SetComponent(3, 1));
-      REQUIRE_THROWS(qfvc.SetComponent(-1, 1));
-      REQUIRE_NOTHROW(qfvc.SetComponent(1, 2));
-      REQUIRE_THROWS(qfvc.SetComponent(0, 4));
-      REQUIRE_THROWS(qfvc.SetComponent(1, 3));
-      REQUIRE_NOTHROW(qfvc.SetComponent(0, 2));
-      REQUIRE_THROWS(qfvc.SetComponent(0, 0));
-#endif
-      qfvc.SetComponent(0, 3);
-
-      SECTION("Gridfunction L2 tests")
-      {
-         std::cout << "  Testing GridFunc L2 projection" << std::endl;
-         L2_FECollection    fec_l2(order_h1, dim);
-         ParFiniteElementSpace fespace_l2(&mesh, &fec_l2, dim);
-         H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
-         ParGridFunction g0(&fespace_l2);
-         ParGridFunction gtrue(&fespace_l2);
-
-         {
-
-            ParGridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue.ProjectGridFunction(nodes);
-
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
-         gtrue -= g0;
-
-         double lerr = gtrue.Norml2();
-         double error = 0;
-
-         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-         REQUIRE(error < tol);
-      }
-
-      SECTION("Gridfunction L2 tests byVDIM")
-      {
-         std::cout << "  Testing GridFunc L2 projection byVDIM" << std::endl;
-         L2_FECollection    fec_l2(order_h1, dim);
-         ParFiniteElementSpace fespace_l2(&mesh, &fec_l2, dim, Ordering::byVDIM);
-         H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
-         ParGridFunction g0(&fespace_l2);
-         ParGridFunction gtrue(&fespace_l2);
-
-         {
-
-            ParGridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue.ProjectGridFunction(nodes);
-
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfvc);
-         gtrue -= g0;
-
-         double lerr = gtrue.Norml2();
-         double error = 0;
-
-         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-         REQUIRE(error < tol);
-      }
-
-      SECTION("Gridfunction H1 tests")
-      {
-         std::cout << "  Testing GridFunc H1 projection" << std::endl;
-         H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
-         ParGridFunction g0(&fespace_h1);
-         ParGridFunction gtrue(&fespace_h1);
-
-         {
-            ParGridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue = nodes;
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc);
-         gtrue -= g0;
-
-         double lerr = gtrue.Norml2();
-         double error = 0;
-
-         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-         REQUIRE(error < tol);
-      }
-
-      SECTION("Gridfunction H1 tests byVDIM")
-      {
-         std::cout << "  Testing GridFunc H1 projection byVDIM" << std::endl;
-         H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim, Ordering::byVDIM);
-         ParGridFunction g0(&fespace_h1);
-         ParGridFunction gtrue(&fespace_h1);
-
-         fi.FullReset();
-
-         {
-            ParGridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            gtrue = nodes;
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfvc);
-         gtrue -= g0;
-
-         double lerr = gtrue.Norml2();
-         double error = 0;
-
-         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-         REQUIRE(error < tol);
-      }
-   }
-
-   SECTION("Operators on QuadFuncCoeff")
-   {
-      SECTION("Gridfunction L2 tests")
-      {
-         std::cout << "Testing QuadFuncCoeff:";
-         std::cout << "  Testing GridFunc L2 projection" << std::endl;
-         L2_FECollection    fec_l2(order_h1, dim);
-         ParFiniteElementSpace fespace_l2(&mesh, &fec_l2, 1);
-         H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
-         ParGridFunction g0(&fespace_l2);
-         ParGridFunction gtrue(&fespace_l2);
-
-         // When using an L2 FE space of the same order as the mesh, the below highlights
-         // that the ProjectDiscCoeff method is just taking the quadrature point
-         // values and making them node values.
-         {
-
-            ParGridFunction nodes_z(&fespace_hv1);
-            ParGridFunction nodes(&fespace_h1);
-            mesh.GetNodes(nodes);
-            nodes_z.MakeRef(nodes, nodes_z.Size() * 2);
-            gtrue.ProjectGridFunction(nodes_z);
-
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureDiscCoefficient(g0, qfc);
-         gtrue -= g0;
-
-         double lerr = gtrue.Norml2();
-         double error = 0;
-
-         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-         REQUIRE(error < tol);
-      }
-
-      SECTION("Gridfunction H1 tests")
-      {
-         std::cout << "  Testing GridFunc H1 projection" << std::endl;
-         H1_FECollection    fec_h1(order_h1, dim);
-         ParFiniteElementSpace fespace_h1(&mesh, &fec_h1, 1);
-         ParGridFunction g0(&fespace_h1);
-         ParGridFunction gtrue(&fespace_h1);
-
-         {
-            int nnodes = gtrue.Size();
-            int vdim = 1;
-
-            Vector nodes;
-            mesh.GetNodes(nodes);
-            for (int i = 0; i < nnodes; i++)
-            {
-               gtrue(i) = nodes(i * dim + 2);
-            }
-         }
-
-         g0 = 0.0;
-         fi.ProjectQuadratureCoefficient(g0, qfc);
-         gtrue -= g0;
-
-         double lerr = gtrue.Norml2();
-         double error = 0;
-
-         MPI_Allreduce(&lerr, &error, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-         REQUIRE(error < tol);
-      }
-   }
-}
-#endif
 } // namespace qf_coeff
 

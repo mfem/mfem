@@ -777,13 +777,7 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir =
       &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
 
-   if (ir == NULL)
-   {
-      int intorder = 2 * fe.GetOrder();
-      ir = &IntRules.Get(fe.GetGeomType(), intorder);
-   }
-
-   const int nqp = IntRule->GetNPoints();
+   const int nqp = ir->GetNPoints();
    const int vdim = vqfc.GetVDim();
    const int ndofs = fe.GetDof();
    Vector shape(ndofs);
@@ -792,7 +786,7 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
    elvect = 0.0;
    for (int q = 0; q < nqp; q++)
    {
-      const IntegrationPoint &ip = IntRule->IntPoint(q);
+      const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint(&ip);
       const double w = Tr.Weight() * ip.weight;
       vqfc.Eval(temp, Tr, ip);
@@ -815,20 +809,14 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
    const IntegrationRule *ir =
       &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
 
-   if (ir == NULL)
-   {
-      int intorder = 2 * fe.GetOrder();
-      ir = &IntRules.Get(fe.GetGeomType(), intorder);
-   }
-
-   const int nqp = IntRule->GetNPoints();
+   const int nqp = ir->GetNPoints();
    const int ndofs = fe.GetDof();
    Vector shape(ndofs);
    elvect.SetSize(ndofs);
    elvect = 0.0;
    for (int q = 0; q < nqp; q++)
    {
-      const IntegrationPoint &ip = IntRule->IntPoint(q);
+      const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint (&ip);
       const double w = Tr.Weight() * ip.weight;
       double temp = qfc.Eval(Tr, ip);
