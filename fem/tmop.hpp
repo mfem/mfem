@@ -673,6 +673,41 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(int e_id, const FiniteElement &fe,
+                                              const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
+};
+
+class TMOPMatrixCoefficient  : public MatrixCoefficient
+{
+public:
+   explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
+
+   TMOPMatrixCoefficient(int h, int w) : MatrixCoefficient(h, w)  { }
+
+   void SetTime(double t) { time = t; }
+   double GetTime() { return time; }
+
+   int GetHeight() const { return height; }
+   int GetWidth() const { return width; }
+   // For backward compatibility
+   int GetVDim() const { return width; }
+
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip, storing the result in @a K. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip) = 0;
+
+   virtual void EvalP(DenseMatrix &K, ElementTransformation &T,
+                      const IntegrationPoint &ip, int comp) = 0;
+
+   virtual ~TMOPMatrixCoefficient() { }
 };
 
 class AnalyticAdaptTC : public TargetConstructor
@@ -681,7 +716,7 @@ protected:
    // Analytic target specification.
    Coefficient *scalar_tspec;
    VectorCoefficient *vector_tspec;
-   MatrixCoefficient *matrix_tspec;
+   TMOPMatrixCoefficient *matrix_tspec;
 
 public:
    AnalyticAdaptTC(TargetType ttype)
@@ -690,7 +725,7 @@ public:
 
    virtual void SetAnalyticTargetSpec(Coefficient *sspec,
                                       VectorCoefficient *vspec,
-                                      MatrixCoefficient *mspec);
+                                      TMOPMatrixCoefficient *mspec);
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -699,6 +734,12 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(int e_id, const FiniteElement &fe,
+                                              const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
 };
 
 #ifdef MFEM_USE_MPI
@@ -719,6 +760,11 @@ protected:
    // The order inside these perturbation vectors (e.g. in 2D) is
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
+
+   mutable DenseTensor
+   *Jtrcomp; //components of Target Jacobian at each quadrature point
+   // of an element. This is required for computation of
+   // the derivative.
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
@@ -833,6 +879,12 @@ public:
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(int e_id, const FiniteElement &fe,
+                                              const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
 };
 
 class TMOPNewtonSolver;
