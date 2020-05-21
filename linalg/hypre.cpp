@@ -2699,7 +2699,7 @@ HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
    SetDefaultOptions();
 }
 
-HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A)
+HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
