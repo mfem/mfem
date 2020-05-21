@@ -76,7 +76,7 @@ public:
    //! Return a reference to block i,j
    Operator & GetBlock(int i, int j)
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
-   //! Read only access to the reference to block i,j
+   //! Return a reference to block i,j (const version)
    const Operator & GetBlock(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
@@ -160,7 +160,7 @@ public:
    Operator & GetDiagonalBlock(int iblock)
    { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
 
-   //! Read only access to the reference to block i,i.
+   //! Return a reference to block i,i (const version).
    const Operator & GetDiagonalBlock(int iblock) const
    { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
 
