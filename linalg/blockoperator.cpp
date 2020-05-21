@@ -152,6 +152,10 @@ void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *opt)
                offsets[iblock+1] - offsets[iblock] == opt->Width(),
                "incompatible Operator dimensions");
 
+   if (owns_blocks && op[iblock])
+   {
+      delete op[iblock];
+   }
    op[iblock] = opt;
 }
 
