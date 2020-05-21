@@ -1403,7 +1403,17 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    elvect = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
+#ifdef IDENTITY_WIDEAL
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+#else
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      Jtr(q)(0,0) = 2.0;
+      Jtr(q)(0,1) = 0.1;
+      Jtr(q)(1,0) = 0.2;
+      Jtr(q)(1,1) = -3.0;
+   }
+#endif
 
    // Limited case.
    DenseMatrix pos0;
@@ -1592,7 +1602,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim); // dof x dim
    elmat.SetSize(dof*dim); // (dof x dim) x (dof x dim)
 
-   DenseMatrix GG(dim);
+   DenseMatrix GX(dim);
 
    MFEM_VERIFY(IntRule,"");
    const IntegrationRule *ir = IntRule;
@@ -1603,15 +1613,18 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    elmat = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
+#ifdef IDENTITY_WIDEAL
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-   /*for (int q=0; q<ir->GetNPoints(); q++)
+#else
+   for (int q=0; q<ir->GetNPoints(); q++)
    {
-      Jtr(q)(0,0) = 0.1;
-      Jtr(q)(0,1) = 0.2;
-      Jtr(q)(1,0) = 0.3;
-      Jtr(q)(1,1) = -0.4;
-   }*/
-   dbg("Jtr:"); Jtr(0).Print();
+      Jtr(q)(0,0) = 2.0;
+      Jtr(q)(0,1) = 0.0;
+      Jtr(q)(1,0) = 0.0;
+      Jtr(q)(1,1) = 1.0;
+   }
+#endif
+   //dbg("Jtr:"); Jtr(0).Print();
 
    // Limited case.
    DenseMatrix pos0, grad_grad;
@@ -1659,6 +1672,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt); // Jrt = Jtr^{-1}
+      //dbg("Jrt:"); Jrt.Print();
       {
          dbg("\033[0mdetJrt: %.15e",Jrt.Det());
          dbg("Jrt: %.15e %.15e",Jrt(0,0),Jrt(0,1));
@@ -1666,25 +1680,26 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
 
       el.CalcDShape(ip, DSh); // ∇shapes
-      //dbg("DSh:"); DSh.Print(); //exit(0);
+      dbg("DSh:"); DSh.Print(); //exit(0);
 
       Mult(DSh, Jrt, DS); // DS = DSh * Jrt
-      //dbg("DS:"); DS.Print(); //exit(0);
+      dbg("DS:"); DS.Print(); //exit(0);
 
-      // GG = GX^T * DSh
+      // GX = X^T.DSh
       {
-         MultAtB(PMatI, DSh, GG);
-         dbg("\033[0mdetGG: %.15e",GG.Det());
-         dbg("GG: %.15e %.15e",GG(0,0),GG(0,1));
-         dbg("GG: %.15e %.15e",GG(1,0),GG(1,1));
+         MultAtB(PMatI, DSh, GX);
+         dbg("GX:"); GX.Print();
+         dbg("\033[0mdetGX: %.15e",GX.Det());
+         dbg("GX: %.15e %.15e",GX(0,0),GX(0,1));
+         dbg("GX: %.15e %.15e",GX(1,0),GX(1,1));
       }
 
-      MultAtB(PMatI, DS, /*G*/Jpt);
-      // GJpt = GX^T.DS = GX^T.(DSh.Jrt) = (GX^T.DSh).Jrt
+      MultAtB(PMatI, DS, Jpt);
+      // Jpt = GX^T.DS = GX^T.(DSh.Jrt) = (GX^T.DSh).Jrt
       {
-         dbg("\033[0mdetGJpt: %.15e",Jpt.Det());
-         dbg("GJpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
-         dbg("GJpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
+         dbg("\033[0mdetJpt: %.15e",Jpt.Det());
+         dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
+         dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
       }
 
       //if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
@@ -1695,10 +1710,10 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
       InvariantsEvaluator2D<double> ie;
       ie.SetJacobian(Jpt.GetData());
-      const double Jpt_I2b = ie.Get_I2b();
+      //const double Jpt_I2b = ie.Get_I2b();
       //const bool flip = Jpt_I2b < 0.0;
       const bool flip = Jpt.Det() < 0.0;
-      dbg("Jpt_I2b: %.15e vs %.15e",Jpt_I2b, Jpt.Det());
+      //dbg("Jpt_I2b: %.15e vs %.15e",Jpt_I2b, Jpt.Det());
       //MFEM_VERIFY(fabs(Jpt_I2b - Jpt.Det()) < 1.e-13, "Det Jpt error!");
       ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
       DenseMatrix Aelmat(dof*dim);
@@ -1715,12 +1730,12 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          for (int c = 0; c < dim; c++)
          {
             Dim2Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
-            /*{
+            {
                const double detdI1_dMdM = dI1_dMdM.Det();
-               dbg("\033[0mdetP %.15e",detdI1_dMdM);
-               dbg("P: %.15e %.15e",dI1_dMdM(0,0),dI1_dMdM(0,1));
-               dbg("P: %.15e %.15e",dI1_dMdM(1,0),dI1_dMdM(1,1));
-            }*/
+               dbg("\033[0mDet_dP %.15e",detdI1_dMdM);
+               dbg("dP: %.15e %.15e",dI1_dMdM(0,0),dI1_dMdM(0,1));
+               dbg("dP: %.15e %.15e",dI1_dMdM(1,0),dI1_dMdM(1,1));
+            }
             // Compute each entry of d(Prc)_dJ.
             for (int rr = 0; rr < dim; rr++)
             {
@@ -1757,6 +1772,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          }
       }
 
+      //elmat = Aelmat;
       elmat = Pelmat;
       /*for (int i = 0; i < dim*dof; i++)
       {
