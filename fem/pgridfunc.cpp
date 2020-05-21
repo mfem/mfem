@@ -448,6 +448,26 @@ void ParGridFunction::ProjectBdrCoefficient(
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                                    Array<int> &bdr_attr)
 {
+   if (fec->GetContType() == FiniteElementCollection::TANGENTIAL)
+   {
+      const FiniteElement *fe;
+      ElementTransformation *T;
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < pfes->GetNBE(); i++)
+      {
+         if (bdr_attr[pfes->GetBdrAttribute(i) - 1] == 0) { continue; }
+         fe = pfes->GetBE(i);
+         T = pfes->GetBdrElementTransformation(i);
+         pfes->GetBdrElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fe->Project(vcoeff, *T, vals);
+         SetSubVector(vdofs, vals);
+      }
+      return;
+   }
+
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
 

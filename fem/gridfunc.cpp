@@ -2314,6 +2314,26 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {
+   if (fec->GetContType() == FiniteElementCollection::TANGENTIAL)
+   {
+      const FiniteElement *fe;
+      ElementTransformation *T;
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < fes->GetNBE(); i++)
+      {
+         if (bdr_attr[fes->GetBdrAttribute(i) - 1] == 0) { continue; }
+         fe = fes->GetBE(i);
+         T = fes->GetBdrElementTransformation(i);
+         fes->GetBdrElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fe->Project(vcoeff, *T, vals);
+         SetSubVector(vdofs, vals);
+      }
+      return;
+   }
+
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
