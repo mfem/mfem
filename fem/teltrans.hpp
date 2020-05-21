@@ -21,12 +21,14 @@ namespace mfem
 
 // Templated element transformation classes, cf. eltrans.?pp
 
-// Element transformation class, templated on a mesh type and an integration
-// rule. It is constructed from a mesh (e.g. class TMesh) and shape evaluator
-// (e.g. class ShapeEvaluator) objects. Allows computation of physical
-// coordinates and Jacobian matrices corresponding to the reference integration
-// points. The desired result is specified through the template subclass Result
-// and stored in an object of the same type.
+/** @brief Element transformation class, templated on a mesh type and an
+    integration rule.
+    It is constructed from a mesh (e.g. class TMesh) and shape evaluator
+    (e.g. class ShapeEvaluator) objects. Allows computation of physical
+    coordinates and Jacobian matrices corresponding to the reference integration
+    points. The desired result is specified through the template subclass Result
+    and stored in an object of the same type.
+*/
 template <typename Mesh_t, typename IR, typename real_t = double>
 class TElementTransformation
 {
@@ -39,9 +41,9 @@ public:
 
    typedef TElementTransformation<Mesh_t,IR,real_t> T_type;
 
-   // Enumeration for the result type of the TElementTransformation::Eval()
-   // method. The types can obtained by summing constants from this enumeration
-   // and used as a template parameter in struct Result.
+   /// Enumeration for the result type of the TElementTransformation::Eval()
+   /// method. The types can obtained by summing constants from this enumeration
+   /// and used as a template parameter in struct Result.
    enum EvalOperations
    {
       EvalNone        = 0,
@@ -51,6 +53,8 @@ public:
       LoadElementIdxs = 8
    };
 
+   /// Determines at compile-time the operations needed for given coefficient and
+   /// kernel
    template <typename coeff_t, typename kernel_t> struct Get
    {
       static const int EvalOps =

@@ -24,10 +24,22 @@
 namespace mfem
 {
 
-// Templated bilinear form class, cf. bilinearform.?pp
+/** @brief Templated bilinear form class, cf. bilinearform.?pp
 
 // complex_t - sol dof data type
+    @tparam meshType typically TMesh, which is templated on FE type
 // real_t - mesh nodes, sol basis, mesh basis data type
+    @tparam solFESpace eg. H1_FiniteElementSpace
+    @tparam IR integration rule, typically TIntegrationRule, which is further
+               templated on element geometry
+    @tparam IntegratorType typically a TIntegrator, which is templated on a
+                           kernel, eg. TDiffusionKernel or TMassKernel. This
+                           describes what actual problem you solve.
+    @tparam solVecLayout_t describes how degrees of freedom are laid out,
+                           scalar or vector, column/row major, etc.
+    @tparam complex_t data type for solution dofs
+    @tparam real_t data type for mesh nodes, solution basis, and mesh basis
+*/
 template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
           typename solVecLayout_t = ScalarLayout,
@@ -61,14 +73,17 @@ protected:
    typedef typename impl_traits_t::vcomplex_t vcomplex_t;
    typedef typename impl_traits_t::vreal_t    vreal_t;
 
+   /// @name IntegratorType defines several internal types
+   ///@{
    typedef IntegratorType integ_t;
+   /// coeff_t might be TConstantCoefficient or TFunctionCoefficient, for example
    typedef typename integ_t::coefficient_type coeff_t;
    typedef typename integ_t::template kernel<sdim,dim,vcomplex_t>::type kernel_t;
    typedef typename kernel_t::template p_asm_data<qpts>::type p_assembled_t;
+   /// f_assembled_t is something like a TTensor or TMatrix for full assembly
    typedef typename kernel_t::template f_asm_data<qpts>::type f_assembled_t;
    typedef typename kernel_t::template
    CoefficientEval<IR,coeff_t,impl_traits_t>::Type coeff_eval_t;
-
 
    typedef TElementTransformation<meshType,IR,real_t> Trans_t;
    struct T_result
@@ -191,7 +206,7 @@ public:
       }
    }
 
-   // Partial assembly of quadrature point data
+   /// Partial assembly of quadrature point data
    void Assemble()
    {
       Trans_t T(mesh, meshEval);
@@ -291,7 +306,7 @@ public:
       }
    }
 
-   // partial assembly from "serialized" nodes
+   /// Partial assembly from "serialized" nodes
    // real_t = double
    void AssembleFromSerializedNodes(const Vector &sNodes)
    {
@@ -343,7 +358,7 @@ public:
       }
    }
 
-   // serialized vector sx --> serialized vector 'sy'
+   /// serialized vector sx --> serialized vector 'sy'
    // complex_t = double
    void MultAssembledSerialized(const Vector &sx, Vector &sy) const
    {
@@ -371,7 +386,7 @@ public:
    }
 #endif // MFEM_TEMPLATE_ENABLE_SERIALIZE
 
-   // Assemble the operator in a SparseMatrix.
+   /// Assemble the operator in a SparseMatrix.
    // complex_t = double
    void AssembleMatrix(SparseMatrix &M) const
    {
@@ -419,7 +434,7 @@ public:
       }
    }
 
-   // Assemble element matrices and store them as a DenseTensor object.
+   /// Assemble element matrices and store them as a DenseTensor object.
    // complex_t = double
    void AssembleMatrix(DenseTensor &M) const
    {
@@ -472,7 +487,7 @@ public:
       }
    }
 
-   // Assemble element matrices and add them to the bilinear form
+   /// Assemble element matrices and add them to the bilinear form
    // complex_t = double
    void AssembleBilinearForm(BilinearForm &a) const
    {
@@ -572,7 +587,7 @@ public:
       }
    }
 
-   // Multiplication using assembled element matrices stored as a DenseTensor.
+   /// Multiplication using assembled element matrices stored as a DenseTensor.
    // complex_t = double
    void AddMult(DenseTensor &M, const Vector &x, Vector &y) const
    {

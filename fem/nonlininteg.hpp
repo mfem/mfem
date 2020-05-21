@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-/** The abstract base class NonlinearFormIntegrator is used to express the
+/** @brief This class is used to express the
     local action of a general nonlinear finite element operator. In addition
     it may provide the capability to assemble the local gradient operator
     and to compute the local energy. */
