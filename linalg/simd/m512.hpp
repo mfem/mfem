@@ -115,7 +115,7 @@ template <> struct AutoSIMD<double,8,64>
 #ifdef __AVX512DQ__
       r.m512d = _mm512_xor_pd(_mm512_set1_pd(-0.0), m512d);
 #else
-      r = 0.0 - (*this);
+      r.m512d = _mm512_sub_pd(_mm512_set1_pd(0.0), m512d);
 #endif
       return r;
    }
