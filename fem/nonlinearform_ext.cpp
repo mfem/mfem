@@ -80,12 +80,12 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 
 Operator&
 PANonlinearFormExtension::GetGradientPA(const Array<int> &ess_tdof_list,
-                                        const Vector &GradX)
+                                        const Vector &x)
 {
-   dbg("Returning new Grad(X) Operator of size: %d", GradX.Size());
+   dbg("Returning new Grad(X) Operator of size: %d", x.Size());
    GradOp.SetType(Operator::ANY_TYPE);
    Operator *oper =
-      new PAGradOperator(GradX, nlf, fes, ess_tdof_list, elem_restrict_lex);
+      new PAGradOperator(x, nlf, fes, ess_tdof_list, elem_restrict_lex);
    GradOp.Reset(oper);
    GradOp.SetOperatorOwner(false);
    MFEM_VERIFY(GradOp.Ptr(), "GetGradientPA error!");
@@ -109,14 +109,14 @@ PAGradOperator::PAGradOperator(const Vector &x,
    if (elem_restrict_lex)
    {
       dbg("[Setup] elem_restrict_lex->Height(): %d",elem_restrict_lex->Height());
-      Xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      Ye.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      Xe.UseDevice(true);
-      Ye.UseDevice(true);
+      Re.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      Ce.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      Re.UseDevice(true);
+      Ce.UseDevice(true);
       //
-      Ge.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      Ge.UseDevice(true);
-      elem_restrict_lex->Mult(x, Ge);
+      Xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      Xe.UseDevice(true);
+      elem_restrict_lex->Mult(x, Xe);
    }
    //Grad = new SparseMatrix(fes.GetVSize());
 }
@@ -140,15 +140,15 @@ void PAGradOperator::Mult(const Vector &r, Vector &c) const
    const int Ni = integrators.Size();
    if (elem_restrict_lex)
    {
-      Ye = 0.0;
-      elem_restrict_lex->Mult(z, Xe);
+      Ce = 0.0;
+      elem_restrict_lex->Mult(z, Re);
       dbg("Xe:"); Xe.Print();
       for (int i = 0; i < Ni; ++i)
       {
-         integrators[i]->AddMultGradPA(Ge, Xe, Ye);
+         integrators[i]->AddMultGradPA(Xe, Re, Ce);
       }
-      dbg("Ye:"); Ye.Print();
-      elem_restrict_lex->MultTranspose(Ye, c);
+      dbg("Ce:"); Ce.Print();
+      elem_restrict_lex->MultTranspose(Ce, c);
       dbg("c:"); c.Print();
    }
    else
