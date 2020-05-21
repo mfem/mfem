@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -232,7 +232,8 @@ void ParGridFunction::ExchangeFaceNbrData()
    auto d_send_data = send_data.Write();
    MFEM_FORALL(i, send_data.Size(),
    {
-      d_send_data[i] = d_data[d_send_ldof[i]];
+      const int ldof = d_send_ldof[i];
+      d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
    });
 
    bool mpi_gpu_aware = Device::GetGPUAwareMPI();
@@ -497,6 +498,26 @@ void ParGridFunction::Save(std::ostream &out) const
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 }
+
+#ifdef MFEM_USE_ADIOS2
+void ParGridFunction::Save(adios2stream &out,
+                           const std::string& variable_name,
+                           const adios2stream::data_type type) const
+{
+   double *data_  = const_cast<double*>(HostRead());
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   GridFunction::Save(out, variable_name, type);
+
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+}
+#endif
 
 void ParGridFunction::SaveAsOne(std::ostream &out)
 {

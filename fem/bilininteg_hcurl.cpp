@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
@@ -24,12 +24,12 @@ constexpr int HCURL_MAX_D1D = 5;
 constexpr int HCURL_MAX_Q1D = 6;
 
 // PA H(curl) Mass Assemble 2D kernel
-static void PAHcurlSetup2D(const int Q1D,
-                           const int NE,
-                           const Array<double> &w,
-                           const Vector &j,
-                           Vector &_coeff,
-                           Vector &op)
+void PAHcurlSetup2D(const int Q1D,
+                    const int NE,
+                    const Array<double> &w,
+                    const Vector &j,
+                    Vector &_coeff,
+                    Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
@@ -55,12 +55,12 @@ static void PAHcurlSetup2D(const int Q1D,
 }
 
 // PA H(curl) Mass Assemble 3D kernel
-static void PAHcurlSetup3D(const int Q1D,
-                           const int NE,
-                           const Array<double> &w,
-                           const Vector &j,
-                           Vector &_coeff,
-                           Vector &op)
+void PAHcurlSetup3D(const int Q1D,
+                    const int NE,
+                    const Array<double> &w,
+                    const Vector &j,
+                    Vector &_coeff,
+                    Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
@@ -106,78 +106,16 @@ static void PAHcurlSetup3D(const int Q1D,
    });
 }
 
-void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   // Assumes tensor-product elements
-   Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fel = fes.GetFE(0);
-
-   const VectorTensorFiniteElement *el =
-      dynamic_cast<const VectorTensorFiniteElement*>(fel);
-   MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
-
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
-                                                     *mesh->GetElementTransformation(0));
-   const int dims = el->GetDim();
-   MFEM_VERIFY(dims == 2 || dims == 3, "");
-
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2 || dim == 3, "");
-
-   ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
-   dofs1D = mapsC->ndof;
-   quad1D = mapsC->nqpt;
-
-   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
-
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   if (Q)
-   {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
-   }
-
-   if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
-   {
-      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
-   }
-   else if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
-   {
-      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
-   }
-   else
-   {
-      MFEM_ABORT("Unknown kernel.");
-   }
-}
-
-static void PAHcurlMassApply2D(const int D1D,
-                               const int Q1D,
-                               const int NE,
-                               const Array<double> &_Bo,
-                               const Array<double> &_Bc,
-                               const Array<double> &_Bot,
-                               const Array<double> &_Bct,
-                               const Vector &_op,
-                               const Vector &_x,
-                               Vector &_y)
+void PAHcurlMassApply2D(const int D1D,
+                        const int Q1D,
+                        const int NE,
+                        const Array<double> &_Bo,
+                        const Array<double> &_Bc,
+                        const Array<double> &_Bot,
+                        const Array<double> &_Bct,
+                        const Vector &_op,
+                        const Vector &_x,
+                        Vector &_y)
 {
    constexpr static int VDIM = 2;
 
@@ -294,13 +232,13 @@ static void PAHcurlMassApply2D(const int D1D,
    }); // end of element loop
 }
 
-static void PAHcurlMassAssembleDiagonal2D(const int D1D,
-                                          const int Q1D,
-                                          const int NE,
-                                          const Array<double> &_Bo,
-                                          const Array<double> &_Bc,
-                                          const Vector &_op,
-                                          Vector &_diag)
+void PAHcurlMassAssembleDiagonal2D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const Array<double> &_Bo,
+                                   const Array<double> &_Bc,
+                                   const Vector &_op,
+                                   Vector &_diag)
 {
    constexpr static int VDIM = 2;
 
@@ -348,15 +286,17 @@ static void PAHcurlMassAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
-template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PAHcurlMassAssembleDiagonal3D(const int D1D,
-                                          const int Q1D,
-                                          const int NE,
-                                          const Array<double> &_Bo,
-                                          const Array<double> &_Bc,
-                                          const Vector &_op,
-                                          Vector &_diag)
+void PAHcurlMassAssembleDiagonal3D(const int D1D,
+                                   const int Q1D,
+                                   const int NE,
+                                   const Array<double> &_Bo,
+                                   const Array<double> &_Bc,
+                                   const Vector &_op,
+                                   Vector &_diag)
 {
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
@@ -416,28 +356,20 @@ static void PAHcurlMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
+void PAHcurlMassApply3D(const int D1D,
+                        const int Q1D,
+                        const int NE,
+                        const Array<double> &_Bo,
+                        const Array<double> &_Bc,
+                        const Array<double> &_Bot,
+                        const Array<double> &_Bct,
+                        const Vector &_op,
+                        const Vector &_x,
+                        Vector &_y)
 {
-   if (dim == 3)
-      PAHcurlMassAssembleDiagonal3D(dofs1D, quad1D, ne,
-                                    mapsO->B, mapsC->B, pa_data, diag);
-   else
-      PAHcurlMassAssembleDiagonal2D(dofs1D, quad1D, ne,
-                                    mapsO->B, mapsC->B, pa_data, diag);
-}
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
-template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PAHcurlMassApply3D(const int D1D,
-                               const int Q1D,
-                               const int NE,
-                               const Array<double> &_Bo,
-                               const Array<double> &_Bc,
-                               const Array<double> &_Bot,
-                               const Array<double> &_Bct,
-                               const Vector &_op,
-                               const Vector &_x,
-                               Vector &_y)
-{
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
@@ -615,20 +547,6 @@ static void PAHcurlMassApply3D(const int D1D,
    }); // end of element loop
 }
 
-void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (dim == 3)
-   {
-      PAHcurlMassApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                         mapsC->Bt, pa_data, x, y);
-   }
-   else
-   {
-      PAHcurlMassApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->B, mapsO->Bt,
-                         mapsC->Bt, pa_data, x, y);
-   }
-}
-
 // PA H(curl) curl-curl assemble 2D kernel
 static void PACurlCurlSetup2D(const int Q1D,
                               const int NE,
@@ -747,7 +665,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
    {
-      //pa_data_2.SetSize(6 * nq * ne, Device::GetMemoryType());
+      // pa_data_2.SetSize(6 * nq * ne, Device::GetMemoryType());
 
       PACurlCurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
                         coeff, pa_data);
@@ -997,7 +915,7 @@ static void PACurlCurlApply3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-                     curl[qz][qy][qx][1] += gradXY[qy][qx][1] * wDz;  // (u_0)_{x_2}
+                     curl[qz][qy][qx][1] += gradXY[qy][qx][1] * wDz; // (u_0)_{x_2}
                      curl[qz][qy][qx][2] -= gradXY[qy][qx][0] * wz;  // -(u_0)_{x_1}
                   }
                }
@@ -1066,7 +984,7 @@ static void PACurlCurlApply3D(const int D1D,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-                     curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz;  // -(u_1)_{x_2}
+                     curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz; // -(u_1)_{x_2}
                      curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
                   }
                }
@@ -1137,7 +1055,7 @@ static void PACurlCurlApply3D(const int D1D,
                   {
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      curl[qz][qy][qx][0] += gradYZ[qz][qy][1] * wx;  // (u_2)_{x_1}
-                     curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx;  // -(u_2)_{x_0}
+                     curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx; // -(u_2)_{x_0}
                   }
                }
             }
@@ -1678,92 +1596,25 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
    }
 }
 
-void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
-                                               &trial_fes,
-                                               const FiniteElementSpace &test_fes)
-{
-   // Assumes tensor-product elements, with a vector test space and H^1 trial space.
-   Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
-   const FiniteElement *test_fel = test_fes.GetFE(0);
-
-   const NodalTensorFiniteElement *trial_el =
-      dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
-   MFEM_VERIFY(trial_el != NULL, "Only NodalTensorFiniteElement is supported!");
-
-   const VectorTensorFiniteElement *test_el =
-      dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
-   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
-
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetElementTransformation(0));
-   const int dims = trial_el->GetDim();
-   MFEM_VERIFY(dims == 2 || dims == 3, "");
-
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
-   dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2 || dim == 3, "");
-
-   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "");
-
-   ne = trial_fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
-   dofs1D = mapsC->ndof;
-   quad1D = mapsC->nqpt;
-
-   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
-
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
-
-   Vector coeff(ne * nq);
-   coeff = 1.0;
-   if (Q)
-   {
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
-         }
-      }
-   }
-
-   // Use the same setup functions as VectorFEMassIntegrator.
-   if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 3)
-   {
-      PAHcurlSetup3D(quad1D, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
-   }
-   else if (test_el->GetDerivType() == mfem::FiniteElement::CURL && dim == 2)
-   {
-      PAHcurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J,
-                     coeff, pa_data);
-   }
-   else
-   {
-      MFEM_ABORT("Unknown kernel.");
-   }
-}
-
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
 // against H(curl) test functions corresponding to y.
-template<int MAX_D1D = HCURL_MAX_D1D, int MAX_Q1D = HCURL_MAX_Q1D>
-static void PAHcurlH1Apply3D(const int D1D,
-                             const int Q1D,
-                             const int NE,
-                             const Array<double> &_Bc,
-                             const Array<double> &_Gc,
-                             const Array<double> &_Bot,
-                             const Array<double> &_Bct,
-                             const Vector &_op,
-                             const Vector &_x,
-                             Vector &_y)
+void PAHcurlH1Apply3D(const int D1D,
+                      const int Q1D,
+                      const int NE,
+                      const Array<double> &_Bc,
+                      const Array<double> &_Gc,
+                      const Array<double> &_Bot,
+                      const Array<double> &_Bct,
+                      const Vector &_op,
+                      const Vector &_x,
+                      Vector &_y)
 {
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
    constexpr static int VDIM = 3;
 
    auto Bc = Reshape(_Bc.Read(), Q1D, D1D);
@@ -1937,16 +1788,16 @@ static void PAHcurlH1Apply3D(const int D1D,
 
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are integrated
 // against H(curl) test functions corresponding to y.
-static void PAHcurlH1Apply2D(const int D1D,
-                             const int Q1D,
-                             const int NE,
-                             const Array<double> &_Bc,
-                             const Array<double> &_Gc,
-                             const Array<double> &_Bot,
-                             const Array<double> &_Bct,
-                             const Vector &_op,
-                             const Vector &_x,
-                             Vector &_y)
+void PAHcurlH1Apply2D(const int D1D,
+                      const int Q1D,
+                      const int NE,
+                      const Array<double> &_Bc,
+                      const Array<double> &_Gc,
+                      const Array<double> &_Bot,
+                      const Array<double> &_Bct,
+                      const Vector &_op,
+                      const Vector &_x,
+                      Vector &_y)
 {
    constexpr static int VDIM = 2;
 
@@ -2055,20 +1906,6 @@ static void PAHcurlH1Apply2D(const int D1D,
          }  // loop c
       }
    }); // end of element loop
-}
-
-void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (dim == 3)
-      PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
-                       mapsO->Bt, mapsC->Bt, pa_data, x, y);
-   else if (dim == 2)
-      PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
-                       mapsO->Bt, mapsC->Bt, pa_data, x, y);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
-   }
 }
 
 } // namespace mfem

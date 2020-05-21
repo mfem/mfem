@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_PFESPACE
@@ -240,7 +240,7 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
-   inline ParMesh *GetParMesh() { return pmesh; }
+   inline ParMesh *GetParMesh() const { return pmesh; }
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }

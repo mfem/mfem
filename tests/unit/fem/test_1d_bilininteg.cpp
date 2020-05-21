@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
@@ -55,7 +55,7 @@ TEST_CASE("1D Bilinear Mass Integrators",
 
       SECTION("Mapping H1 to L2")
       {
-         L2_FECollection    fec_l2(order - 1, dim);
+         L2_FECollection    fec_l2(order, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
          BilinearForm m_l2(&fespace_l2);

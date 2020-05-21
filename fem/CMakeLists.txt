@@ -13,15 +13,22 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
-  bilininteg_convection.cpp
-  bilininteg_dgtrace.cpp
-  bilininteg_diffusion.cpp
+  bilininteg_convection_pa.cpp
+  bilininteg_convection_ea.cpp
+  bilininteg_dgtrace_pa.cpp
+  bilininteg_dgtrace_ea.cpp
+  bilininteg_diffusion_pa.cpp
+  bilininteg_diffusion_ea.cpp
   bilininteg_divergence.cpp
+  bilininteg_hcurl.cpp
+  bilininteg_hdiv.cpp
+  bilininteg_vectorfe.cpp
   bilininteg_gradient.cpp
-  bilininteg_mass.cpp
+  bilininteg_mass_pa.cpp
+  bilininteg_mass_ea.cpp
+  bilininteg_transpose_ea.cpp
   bilininteg_vecdiffusion.cpp
   bilininteg_vecmass.cpp
-  bilininteg_hcurl.cpp
   coefficient.cpp
   complex_fem.cpp
   datacollection.cpp
@@ -36,16 +43,20 @@ set(SRCS
   intrules.cpp
   linearform.cpp
   lininteg.cpp
+  multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
+  fespacehierarchy.cpp
   nonlininteg_vectorconvection.cpp
   quadinterpolator.cpp
+  quadinterpolator_face.cpp
   restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop_tools.cpp
   gslib.cpp
+  transfer.cpp
   )
 
 set(HDRS
@@ -67,11 +78,14 @@ set(HDRS
   intrules.hpp
   linearform.hpp
   lininteg.hpp
+  multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
   quadinterpolator.hpp
+  quadinterpolator_face.hpp
   restriction.hpp
+  fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
@@ -84,6 +98,7 @@ set(HDRS
   tmop.hpp
   tmop_tools.hpp
   gslib.hpp
+  transfer.hpp
   )
 
 if (MFEM_USE_SIDRE)
@@ -96,13 +111,19 @@ if (MFEM_USE_CONDUIT)
   list(APPEND HDRS conduitdatacollection.hpp)
 endif()
 
+if (MFEM_USE_ADIOS2)
+  list(APPEND SRCS adios2datacollection.cpp)
+  list(APPEND HDRS adios2datacollection.hpp)
+endif()
+
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     pbilinearform.cpp
     pfespace.cpp
     pgridfunc.cpp
     plinearform.cpp
-    pnonlinearform.cpp)
+    pnonlinearform.cpp
+    prestriction.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
@@ -110,7 +131,8 @@ if (MFEM_USE_MPI)
     pfespace.hpp
     pgridfunc.hpp
     plinearform.hpp
-    pnonlinearform.hpp)
+    pnonlinearform.hpp
+    prestriction.hpp)
 endif()
 
 if (MFEM_USE_CEED)

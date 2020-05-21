@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -1276,6 +1276,13 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    group_squad.ShiftUpI();
 
    FinalizeParTopo();
+
+   if (Nodes != NULL)
+   {
+      // This call will turn the Nodes into a ParGridFunction
+      SetCurvature(1, GetNodalFESpace()->IsDGSpace(), spaceDim,
+                   GetNodalFESpace()->GetOrdering());
+   }
 }
 
 void ParMesh::Finalize(bool refine, bool fix_orientation)
@@ -1688,7 +1695,6 @@ void ParMesh::GetFaceNbrElementTransformation(
          MFEM_ABORT("Nodes are not ParGridFunction!");
       }
    }
-   ElTr->FinalizeTransformation();
 }
 
 void ParMesh::DeleteFaceNbrData()
@@ -2348,7 +2354,6 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
 #endif
       FaceTransformation.SetFE(face_el);
    }
-   FaceTransformation.FinalizeTransformation();
    return &FaceTransformation;
 }
 
@@ -2387,11 +2392,14 @@ GetSharedFaceTransformations(int sf, bool fill2)
    }
 
    // setup the face transformation if the face is not a ghost
-   FaceElemTr.FaceGeom = face_geom;
    if (!is_ghost)
    {
-      FaceElemTr.Face = GetFaceTransformation(FaceNo);
+      GetFaceTransformation(FaceNo, &FaceElemTr);
       // NOTE: The above call overwrites FaceElemTr.Loc1
+   }
+   else
+   {
+      FaceElemTr.SetGeometryType(face_geom);
    }
 
    // setup Loc1 & Loc2
@@ -2431,8 +2439,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      FaceElemTr.Face =
-         GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
    }
 
    return &FaceElemTr;
@@ -4215,6 +4222,13 @@ void ParMesh::Print(std::ostream &out) const
       Nodes->Save(out);
    }
 }
+
+#ifdef MFEM_USE_ADIOS2
+void ParMesh::Print(adios2stream &out) const
+{
+   Mesh::Print(out);
+}
+#endif
 
 static void dump_element(const Element* elem, Array<int> &data)
 {

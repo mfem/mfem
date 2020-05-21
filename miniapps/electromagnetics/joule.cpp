@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
 //            -----------------------------------------------------
@@ -119,6 +119,10 @@ void display_banner(ostream & os);
 static double mj_ = 0.0;
 static double sj_ = 0.0;
 static double wj_ = 0.0;
+
+// Initialize variables used in joule_solver.cpp
+int electromagnetics::SOLVER_PRINT_LEVEL = 0;
+int electromagnetics::STATIC_COND        = 0;
 
 int main(int argc, char *argv[])
 {
@@ -747,7 +751,7 @@ void b_exact(const Vector &x, double t, Vector &B)
    B[2] = 0.0;
 }
 
-double t_exact(Vector &x)
+double t_exact(const Vector &x)
 {
    double T = 0.0;
    return T;

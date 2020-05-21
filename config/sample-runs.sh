@@ -47,7 +47,7 @@ groups_serial=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    mesh-optimizer.cpp"'
+    mesh-optimizer.cpp minimal-surface.cpp"'
 )
 # Parallel groups
 groups_parallel=(
@@ -72,7 +72,7 @@ groups_parallel=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp"'
+   "pmesh-optimizer.cpp pminimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -101,7 +101,7 @@ groups_all=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp"'
+    {,p}mesh-optimizer.cpp {,p}minimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -201,11 +201,11 @@ function help_message()
       -s|-show    Show all configured sample runs and exit
       -n          Dry run: replace "\$sample_run" with "echo \$sample_run"
       <var>=<value>
-                  Set a shell script varible; see below for valid variables
+                  Set a shell script variable; see below for valid variables
        *          Any other parameter is treated as <mfem_dir>
       <mfem_dir>  [${mfem_dir}] is the MFEM source directory
 
-   This script tests all the sample runs listed in the begining comments of
+   This script tests all the sample runs listed in the beginning comments of
    MFEM's serial or parallel example and miniapp codes. The list of sample runs
    is auto-generated and can be viewed with the -s|-show option.
 

@@ -19,6 +19,7 @@
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
+//    mpirun -np 4 ex9p -ea
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
 //
@@ -31,9 +32,10 @@
 //               and explicit ODE time integrators, the definition of periodic
 //               boundary conditions through periodic meshes, as well as the use
 //               of GLVis for persistent visualization of a time-evolving
-//               solution. The saving of time-dependent data files for external
-//               visualization with VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) is also illustrated.
+//               solution. Saving of time-dependent data files for visualization
+//               with VisIt (visit.llnl.gov) and ParaView (paraview.org), as
+//               well as the optional saving with ADIOS2 (adios2.readthedocs.io)
+//               are also illustrated.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -160,6 +162,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 3;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
@@ -167,6 +170,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
+   bool adios2 = false;
    bool binary = false;
    int vis_steps = 5;
 
@@ -186,6 +190,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -208,6 +214,9 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
+   args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
+                  "--no-adios2-streams",
+                  "Save data using adios2 streams.");
    args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
                   "--ascii-datafiles",
                   "Use binary (Sidre) or ascii format for VisIt data files.");
@@ -314,6 +323,11 @@ int main(int argc, char *argv[])
       m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
+   else if (ea)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   }
    m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
@@ -394,6 +408,28 @@ int main(int argc, char *argv[])
       pd->Save();
    }
 
+   // Optionally output a BP (binary pack) file using ADIOS2. This can be
+   // visualized with the ParaView VTX reader.
+#ifdef MFEM_USE_ADIOS2
+   ADIOS2DataCollection *adios2_dc = NULL;
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      const std::string collection_name = "ex9-p-" + postfix + ".bp";
+
+      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      // output data substreams are half the number of mpi processes
+      adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
+      // adios2_dc->SetLevelsOfDetail(2);
+      adios2_dc->RegisterField("solution", u);
+      adios2_dc->SetCycle(0);
+      adios2_dc->SetTime(0.0);
+      adios2_dc->Save();
+   }
+#endif
+
    socketstream sout;
    if (visualization)
    {
@@ -472,6 +508,16 @@ int main(int argc, char *argv[])
             pd->SetTime(t);
             pd->Save();
          }
+
+#ifdef MFEM_USE_ADIOS2
+         // transient solutions can be visualized with ParaView
+         if (adios2)
+         {
+            adios2_dc->SetCycle(ti);
+            adios2_dc->SetTime(t);
+            adios2_dc->Save();
+         }
+#endif
       }
    }
 
@@ -497,6 +543,12 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete ode_solver;
    delete pd;
+#ifdef MFEM_USE_ADIOS2
+   if (adios2)
+   {
+      delete adios2_dc;
+   }
+#endif
    delete dc;
 
    MPI_Finalize();
@@ -513,8 +565,9 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
      z(_M.Height())
 {
    bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
+   bool ea = _M.GetAssemblyLevel()==AssemblyLevel::ELEMENT;
 
-   if (pa)
+   if (pa || ea)
    {
       M.Reset(&_M, false);
       K.Reset(&_K, false);
@@ -528,7 +581,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (pa)
+   if (pa || ea)
    {
       M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
       dg_solver = NULL;

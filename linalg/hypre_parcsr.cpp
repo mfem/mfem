@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
@@ -16,26 +16,6 @@
 
 #include "hypre_parcsr.hpp"
 #include <limits>
-
-// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
-// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
-// Note: the same macros are defined in hypre.cpp.
-#if MFEM_HYPRE_VERSION < 21400
-
-#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
-#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
-
-#else // MFEM_HYPRE_VERSION >= 21400
-
-// See the notes about hypre 2.14.0 in hypre.cpp
-#define mfem_hypre_TAlloc(type, size) \
-   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_CTAlloc(type, size) \
-   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
-
-#endif // #if MFEM_HYPRE_VERSION < 21400
 
 namespace mfem
 {
@@ -1529,7 +1509,7 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    else
    {
       /* A and B have different column mappings for their off-diagonal blocks so
-      we need to use the column maps to create full-width CSR matricies. */
+      we need to use the column maps to create full-width CSR matrices. */
 
       int  ierr = 0;
       hypre_CSRMatrix * csr_A;

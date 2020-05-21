@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_FEM_HPP
@@ -36,6 +36,10 @@
 #include "gslib.hpp"
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
+#include "quadinterpolator_face.hpp"
+#include "transfer.hpp"
+#include "fespacehierarchy.hpp"
+#include "multigrid.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -51,6 +55,10 @@
 
 #ifdef MFEM_USE_CONDUIT
 #include "conduitdatacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_ADIOS2
+#include "adios2datacollection.hpp"
 #endif
 
 #endif

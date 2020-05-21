@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
 #ifndef MFEM_DATACOLLECTION
@@ -500,10 +500,6 @@ public:
        be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
    ParaViewDataCollection(const std::string& collection_name,
                           mfem::Mesh *mesh_ = NULL);
-
-   /// Add a grid function to the collection
-   virtual void RegisterField(const std::string& field_name,
-                              mfem::GridFunction *gf) override;
 
    /// Set refinement levels - every element is uniformly split based on
    /// levels_of_detail_
