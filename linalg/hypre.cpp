@@ -3047,6 +3047,7 @@ HypreBoomerAMG::HypreBoomerAMG(HypreParMatrix &A) : HypreSolver(&A)
 
 void HypreBoomerAMG::SetDefaultOptions()
 {
+#ifndef HYPRE_USING_CUDA
    // AMG coarsening options:
    int coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
    int agg_levels   = 1;    // number of aggressive coarsening levels
@@ -3063,10 +3064,32 @@ void HypreBoomerAMG::SetDefaultOptions()
    // Additional options:
    int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
    int max_levels   = 25;   // max number of levels in AMG hierarchy
+#else
+   // AMG coarsening options:
+   int coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+   int agg_levels   = 0;    // number of aggressive coarsening levels
+   double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
+
+   // AMG interpolation options:
+   int interp_type  = 15;   // or 3 = direct
+   int Pmax         = 4;    // max number of elements per row in P
+
+   // AMG relaxation options:
+   int relax_type   = 7;    // or 18 = l1-Jacobi
+   int relax_sweeps = 1;    // relaxation sweeps on each level
+
+   // Additional options:
+   int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+   int max_levels   = 25;   // max number of levels in AMG hierarchy
+#endif
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+   if (relax_type == 7)
+   {
+      HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0); // this is the hypre default
+   }
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
    HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
