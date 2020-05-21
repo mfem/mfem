@@ -552,7 +552,7 @@ public:
        @a gf.  The grid function is not owned by the coefficient. */
    CurlGridFunctionCoefficient(const GridFunction *gf);
 
-  /// Set the vector grid function.
+   /// Set the vector grid function.
    void SetGridFunction(const GridFunction *gf);
 
    /// Get the vector grid function.
@@ -580,7 +580,7 @@ public:
    /// Set the vector grid function.
    void SetGridFunction(const GridFunction *gf) { GridFunc = gf; }
 
-   /// Get the vector grid function.   
+   /// Get the vector grid function.
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the scalar divergence coefficient at @a ip.
