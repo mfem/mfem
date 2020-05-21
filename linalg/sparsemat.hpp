@@ -580,7 +580,7 @@ public:
 
 inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
 {
-    // mat.Print(os);
+    mat.Print(os);
     return os;
 }
 
