@@ -123,12 +123,15 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    {
       case AssemblyLevel::FULL:
          ext = new FABilinearFormExtension(this);
+         std::cout << "Full Assembly" << std::endl;
          break;
       case AssemblyLevel::ELEMENT:
          ext = new EABilinearFormExtension(this);
+         std::cout << "Element Assembly" << std::endl;
          break;
       case AssemblyLevel::PARTIAL:
          ext = new PABilinearFormExtension(this);
+         std::cout << "Partial Assembly" << std::endl;
          break;
       case AssemblyLevel::NONE:
          mfem_error("Matrix-free action not supported yet... stay tuned!");
