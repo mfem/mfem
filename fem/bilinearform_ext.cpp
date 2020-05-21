@@ -653,17 +653,21 @@ void FABilinearFormExtension::Assemble()
          }
       }
       h_I[ne*elem_dofs] = cpt;
+      std::cout << "The number of non-zeros is: " << cpt << std::endl;
       mat.GetMemoryJ().New(cpt, mat.GetMemoryJ().GetMemoryType());
       mat.GetMemoryData().New(cpt, mat.GetMemoryData().GetMemoryType());
       //2. Fill J and Data with Elem ea_data
       restE->FillJandData(elem_begin, elem_nnz, ea_data, elem_dofs, mat);
       //3. Fill J and Data with Face ea_data_ext
       if(restF) restF->FillJandData(elem_begin, elem_nnz, ea_data_ext, elem_dofs, mat);
+      std::cout << mat << std::endl;
    }
    else // CG case
    {
       const ElementRestriction &rest = static_cast<const ElementRestriction&>(*elem_restrict);
       rest.FillSpMat(mat, ea_data);
+      std::cout << "The number of non-zeros is: " << mat.GetMemoryJ().Capacity() << std::endl;
+      std::cout << mat << std::endl;
    }
    
 }

@@ -955,6 +955,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
    nz = I[height];
+   std::cout << "The number of non-zeros is: " << nz << std::endl;
    J.New(nz);
    A.New(nz);
    // Assume we're sorted until we find out otherwise
