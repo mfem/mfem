@@ -1618,10 +1618,10 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 #else
    for (int q=0; q<ir->GetNPoints(); q++)
    {
-      Jtr(q)(0,0) = 2.0;
+      Jtr(q)(0,0) = 1.123;
       Jtr(q)(0,1) = 0.0;
       Jtr(q)(1,0) = 0.0;
-      Jtr(q)(1,1) = 1.0;
+      Jtr(q)(1,1) = -1.987654;
    }
 #endif
    //dbg("Jtr:"); Jtr(0).Print();
@@ -1668,6 +1668,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       const DenseMatrix &Jtr_i = Jtr(i);                             // Read Jtr
       const double weight = ip.weight * Jtr_i.Det();
       double weight_m = weight ;//* metric_normal;
+      dbg("\033[7;31mweight:%f, detJtr:%f", weight, Jtr_i.Det());
       dbg("\033[7;31mweight_m: %f", weight_m);
 
       metric->SetTargetJacobian(Jtr_i);
