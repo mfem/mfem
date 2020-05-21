@@ -923,7 +923,7 @@ void TargetConstructor::ComputeElementTargetsGradient(int e_id,
 {
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
-   for (int i = 0; i < ir.GetNPoints(); i++) { dJtr(i) = 0.; }
+   for (int i = 0; i < fe.GetDim()*ir.GetNPoints(); i++) { dJtr(i) = 0.; }
 }
 
 void AnalyticAdaptTC::SetAnalyticTargetSpec(Coefficient *sspec,
@@ -2116,11 +2116,6 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       {
          const DenseMatrix &dJtr_i = dJtr(i + d*ir->GetNPoints());
          Mult(Jrt, dJtr_i, dwdx );
-         if (isnan(dwdx.Trace()))
-         {
-            dJtr_i.Print();
-            MFEM_ABORT(" ");
-         }
          firstterm(d) = dwdx.Trace();
       }
       firstterm *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
