@@ -580,6 +580,10 @@ public:
 
 inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
 {
+    // HostRead forces synchronization
+    mat.HostReadI();
+    mat.HostReadJ();
+    mat.HostReadData();
     mat.Print(os);
     return os;
 }
