@@ -52,11 +52,8 @@ void MFEMFinalizeSlepc()
 SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix)
 {
    clcustom = false;
-   _tol = PETSC_DEFAULT;
-   _max_its = PETSC_DEFAULT;
    VR = NULL;
    VC = NULL;
-   operatorset = false;
 
    ierr = EPSCreate(comm,&eps); CCHKERRQ(comm,ierr);
    ierr = EPSSetOptionsPrefix(eps, prefix.c_str()); PCHKERRQ(eps, ierr);
@@ -72,41 +69,46 @@ SlepcEigenSolver::~SlepcEigenSolver()
 
 void SlepcEigenSolver::SetOperator(const PetscParMatrix &op)
 {
-   if (operatorset)
-   {
-      delete VR;
-      delete VC;
-      VR = VC = NULL;
-   }
+   delete VR;
+   delete VC;
+   VR = VC = NULL;
 
    ierr = EPSSetOperators(eps,op,NULL); PCHKERRQ(eps, ierr);
-   operatorset = true;
+
+   VR = new PetscParVector(op, true, false);
+   VC = new PetscParVector(op, true, false);
+
 }
 
 void SlepcEigenSolver::SetOperators(const PetscParMatrix &op,
                                     const PetscParMatrix&opB)
 {
-   if (operatorset)
-   {
-      delete VR;
-      delete VC;
-      VR = VC = NULL;
-   }
+   delete VR;
+   delete VC;
+   VR = VC = NULL;
 
    ierr = EPSSetOperators(eps,op,opB); PCHKERRQ(eps,ierr);
-   operatorset = true;
+
+   VR = new PetscParVector(op, true, false);
+   VC = new PetscParVector(op, true, false);
 }
 
 void SlepcEigenSolver::SetTol(double tol)
 {
-   _tol = tol;
-   ierr = EPSSetTolerances(eps,_tol,_max_its); PCHKERRQ(eps,ierr);
+   int max_its;
+
+   ierr = EPSGetTolerances(eps,NULL,&max_its); PCHKERRQ(eps,ierr);
+   // Work around uninitialized maximum iterations
+   if (max_its==0) { max_its = PETSC_DECIDE; }
+   ierr = EPSSetTolerances(eps,tol,max_its); PCHKERRQ(eps,ierr);
 }
 
 void SlepcEigenSolver::SetMaxIter(int max_its)
 {
-   _max_its = max_its;
-   ierr = EPSSetTolerances(eps,_tol,_max_its); PCHKERRQ(eps,ierr);
+   double tol;
+
+   ierr = EPSGetTolerances(eps,&tol,NULL); PCHKERRQ(eps,ierr);
+   ierr = EPSSetTolerances(eps,tol,max_its); PCHKERRQ(eps,ierr);
 }
 
 void SlepcEigenSolver::SetNumModes(int num_eigs)
@@ -145,12 +147,8 @@ void SlepcEigenSolver::GetEigenvalue(unsigned int i, double & lr,
 
 void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr) const
 {
-   if (!VR)
-   {
-      Mat pA = NULL;
-      ierr = EPSGetOperators(eps, &pA, NULL); PCHKERRQ(eps,ierr);
-      VR = new PetscParVector(pA, true, false);
-   }
+   MFEM_VERIFY(VR,"Missing real vector");
+
    VR->PlaceArray(vr.GetData());
    ierr = EPSGetEigenvector(eps,i,*VR,NULL); PCHKERRQ(eps,ierr);
    VR->ResetArray();
@@ -160,20 +158,9 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr) const
 void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr,
                                       Vector & vc) const
 {
-   if (!VR || !VC)
-   {
-      Mat pA = NULL;
-      ierr = EPSGetOperators(eps, &pA, NULL); PCHKERRQ(eps,ierr);
+   MFEM_VERIFY(VR,"Missing real vector");
+   MFEM_VERIFY(VC,"Missing imaginary vector");
 
-      if (!VR)
-      {
-         VR = new PetscParVector(pA, true, false);
-      }
-      if (!VC)
-      {
-         VC = new PetscParVector(pA, true, false);
-      }
-   }
    VR->PlaceArray(vr.GetData());
    VC->PlaceArray(vc.GetData());
    ierr = EPSGetEigenvector(eps,i,*VR,*VC); PCHKERRQ(eps,ierr);

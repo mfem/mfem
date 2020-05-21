@@ -12,6 +12,9 @@
 #ifndef MFEM_PETSCINTERNALS
 #define MFEM_PETSCINTERNALS
 
+#include "../general/error.hpp"
+#include "petsc.h"
+
 // Error handling
 // Prints PETSc's stacktrace and then calls MFEM_ABORT
 // We cannot use PETSc's CHKERRQ since it returns a PetscErrorCode

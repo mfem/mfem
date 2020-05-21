@@ -38,17 +38,9 @@ private:
 
    /// SLEPc linear eigensolver object
    EPS eps;
-   /// Solver tolerance
-   double _tol;
-
-   /// Maximum number of iterations
-   int _max_its;
 
    /// Real and imaginary part of eigenvector
    mutable PetscParVector *VR, *VC;
-
-   /// Boolean to handle SetOperator calls
-   mutable bool operatorset;
 
 public:
    /// Constructors
