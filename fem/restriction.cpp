@@ -651,6 +651,7 @@ void L2ElementRestriction::FillJandData(const Array<int> &begin,
    MFEM_FORALL(e, ne,
    {
       const int offset = elem_begin[e]-elem_dofs;
+      printf("offset for elt %i is %i",e,offset);
       const int stride = elem_nnz[e];
       for (int i = 0; i < elem_dofs; i++)
       {
@@ -1420,14 +1421,15 @@ void L2FaceRestriction::FillElemNnz(Array<int> &elem_nnz) const
    int e1, e2;
    int inf1, inf2;
    const int elem_dofs = fes.GetFE(0)->GetDof();
+   auto nnz = elem_nnz.HostReadWrite();
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       fes.GetMesh()->GetFaceElements(f, &e1, &e2);
       fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if (e2>=0 || (e2<0 && inf2>=0)) // Interior face
       {
-         elem_nnz[e1] += elem_dofs;
-         elem_nnz[e2] += elem_dofs;
+         nnz[e1] += elem_dofs;
+         nnz[e2] += elem_dofs;
       }
    }
 }
