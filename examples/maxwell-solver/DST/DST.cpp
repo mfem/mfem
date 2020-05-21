@@ -18,8 +18,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=4;
-   int ny=4; 
+   int nx=2;
+   int ny=1; 
    int nz=1;
    ovlpnrlayers = 2*nrlayers;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
@@ -106,10 +106,13 @@ void DST::Mult(const Vector &r, Vector &z) const
 
    int nsteps = nx + ny - 1;
 
-   for (int l=0; l<1; l++)
+   for (int l=0; l<2; l++)
    {
+      cout << "l = " << l << endl;
       for (int s = 0; s<nsteps; s++)
       {
+         cout << "s = " << s << endl;
+
          // the patches involved are the ones such that
          // i+j = s
          // cout << "Step no: " << s << endl;
@@ -123,13 +126,16 @@ void DST::Mult(const Vector &r, Vector &z) const
                case 2:  j = nx+i-s-1;    break;
                default: j = nx+ny-i-s-2; break;
             }
-            if (j<0 || j>=ny) continue;
-            // cout << "Patch no: (" << i <<"," << j << ")" << endl; 
-
+            cout << "Patch no: (" << i <<"," << j << ")" << endl; 
+            if (j<0 || j>=ny)
+            {
+              cout << "skipping " << "(" << i <<"," << j << ")" << endl;
+               continue;
+            }
             // find patch id
             Array<int> ij(2); ij[0] = i; ij[1]=j;
             int ip = GetPatchId(ij);
-            // cout << "ip = " << ip << endl;
+            cout << "ip1 = " << ip << endl;
 
             // Solve the PML problem in patch ip with all sources
             // Original and all transfered (maybe some of them)
@@ -142,7 +148,7 @@ void DST::Mult(const Vector &r, Vector &z) const
             // res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
             // Extend by zero to the PML mesh
-            // if (res_local.Norml2() < 1e-11) continue;
+            if (res_local.Norml2() < 1e-11) continue;
             PmlMatInv[ip]->Mult(res_local, sol_local);
 
             TransferSources(l,ip, sol_local);
@@ -163,9 +169,9 @@ void DST::Mult(const Vector &r, Vector &z) const
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
             z+=znew;
 
-
-            // socketstream zsock(vishost, visport);
-            // PlotSolution(cfsol_local,zsock,ip,true); cin.get();
+            cout << "ip = " << ip << endl;
+            socketstream znewsock(vishost, visport);
+            PlotSolution(z,znewsock,ip,false); cin.get();
          }
       }
    }
@@ -517,8 +523,8 @@ void DST::GetChiRes(const Vector & res, Vector & cfres,
    }
    // pmin.Print();
    // pmax.Print();
-   // CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
-   CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
+   CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
+   // CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
 
    double * data = res.GetData();
 

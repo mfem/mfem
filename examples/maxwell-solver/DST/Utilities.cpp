@@ -27,14 +27,14 @@ double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, con
       else if (x(i) < pmax(i) && x(i) >= x1(i))
       {
          if(h1(i) != 0.0)
-            // val = (x(i)-pmax(i))/(x1(i)-pmax(i)); 
-            val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),3.0); 
+            val = (x(i)-pmax(i))/(x1(i)-pmax(i)); 
+            // val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),3.0); 
       }
       else if (x(i) > pmin(i) && x(i) <= x0(i))
       {
          if (h0(i) != 0.0)
-            // val = (x(i)-pmin(i))/(x0(i)-pmin(i)); 
-            val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),3.0); 
+            val = (x(i)-pmin(i))/(x0(i)-pmin(i)); 
+            // val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),3.0); 
       }
 
       if (h0(i) == 0 && x(i) <= x1(i))
@@ -52,6 +52,41 @@ double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, con
 
 double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const Array2D<double> & h_)
 {
+   // int dim = pmin.Size();
+   // Vector h0(dim);
+   // Vector h1(dim);
+   // for (int i=0; i<dim; i++)
+   // {
+   //    h0(i) = h_[i][0];
+   //    h1(i) = h_[i][1];
+   // }
+   // Vector x0(dim);
+   // x0 = pmin; x0+=h0;
+   // Vector x1(dim);
+   // x1 = pmax; x1-=h1;
+
+   // double f = 1.0;
+   // for (int i = 0; i<dim; i++)
+   // {
+   //    double val = 1.0;
+   //    if( x(i) < x0(i) || x(i) > x1(i))
+   //    {
+   //       val = 0.0;
+   //    }
+
+   //    if (h0(i) == 0 && x(i) <= x1(i))
+   //    {
+   //       val = 1.0;
+   //    }
+   //    if (h1(i) == 0 && x(i) >= x0(i))
+   //    {
+   //       val = 1.0;
+   //    }
+
+
+   //    f *= val;
+   // }
+   // return f;
    int dim = pmin.Size();
    Vector h0(dim);
    Vector h1(dim);
@@ -61,17 +96,29 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
       h1(i) = h_[i][1];
    }
    Vector x0(dim);
-   x0 = pmin; x0+=h0;
    Vector x1(dim);
+   x0 = pmin; x0+=h0;
    x1 = pmax; x1-=h1;
 
    double f = 1.0;
    for (int i = 0; i<dim; i++)
    {
       double val = 1.0;
-      if( x(i) < x0(i) || x(i) > x1(i))
+      if( x(i) >= pmax(i) || x(i) <= pmin(i))
       {
          val = 0.0;
+      }  
+      else if (x(i) < pmax(i) && x(i) >= x1(i))
+      {
+         if(h1(i) != 0.0)
+            // val = (x(i)-pmax(i))/(x1(i)-pmax(i)); 
+            val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),5.0); 
+      }
+      else if (x(i) > pmin(i) && x(i) <= x0(i))
+      {
+         if (h0(i) != 0.0)
+            // val = (x(i)-pmin(i))/(x0(i)-pmin(i)); 
+            val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),5.0); 
       }
 
       if (h0(i) == 0 && x(i) <= x1(i))
@@ -82,8 +129,6 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
       {
          val = 1.0;
       }
-
-
       f *= val;
    }
    return f;
