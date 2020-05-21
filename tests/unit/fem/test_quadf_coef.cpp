@@ -120,7 +120,7 @@ TEST_CASE("Quadrature Function Coefficients",
       REQUIRE(output.Norml2() < tol);
    }
 
-      SECTION("Operators on QuadratureLFIntegrator")
+   SECTION("Operators on QuadratureLFIntegrator")
    {
       std::cout << "Testing QuadratureLFIntegrator: " << std::endl;
       H1_FECollection    fec_h1(order_h1, dim);
