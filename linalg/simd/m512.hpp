@@ -115,11 +115,7 @@ template <> struct AutoSIMD<double,8,64>
 #ifdef __AVX512DQ__
       r.m512d = _mm512_xor_pd(_mm512_set1_pd(-0.0), m512d);
 #else
-      // Derived from https://github.com/vectorclass/version2
-      r.m512d = _mm512_castsi512_pd(
-                   _mm512_xor_epi32(
-                      _mm512_castpd_si512(m512d),
-                      _mm512_set1_epi64(0x8000000000000000)));
+      r.m512d = _mm512_sub_pd(_mm512_set1_pd(0.0), m512d);
 #endif
       return r;
    }
