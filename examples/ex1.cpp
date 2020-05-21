@@ -120,9 +120,9 @@ int main(int argc, char *argv[])
    //    elements.
    srand(1);
    {
+      //mesh->UniformRefinement();
       for (int l = 0; l < ref_levels; l++)
       {
-         //mesh->UniformRefinement();
          mesh->RandomRefinement(0.5);
       }
    }
@@ -162,6 +162,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       fespace->SetElementOrder(i, (rand()%2)+order);
+      //fespace->SetElementOrder(i, order);
       //fespace->SetElementOrder(i, i ? 3 : 2);
    }
    fespace->Update(false);
@@ -282,7 +283,7 @@ int main(int argc, char *argv[])
       // Prolong the solution vector onto L2 space of max order (for GLVis)
       GridFunction *vis_x = ProlongToMaxOrder(&x);
 
-#if 0
+#if 1
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << *vis_x
