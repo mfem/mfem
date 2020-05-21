@@ -3525,7 +3525,7 @@ void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
             double a = fabs(data_all(piv,i,e));
             for (int j = i+1; j < m; j++)
             {
-              const double b = fabs(data_all(j,i,e));
+               const double b = fabs(data_all(j,i,e));
                if (b > a)
                {
                   a = b;
@@ -3538,7 +3538,7 @@ void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
                // swap rows i and piv in both L and U parts
                for (int j = 0; j < m; j++)
                {
-                 mfem::kernels::internal::Swap<double>(data_all(i,j,e), data_all(piv,j,e));
+                  mfem::kernels::internal::Swap<double>(data_all(i,j,e), data_all(piv,j,e));
                }
             }
          }//pivot end
@@ -3559,7 +3559,7 @@ void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
             const double a_ik = data_all(i,k,e);
             for (int j = i+1; j < m; j++)
             {
-              data_all(j,k,e) -= a_ik * data_all(j,i,e);
+               data_all(j,k,e) -= a_ik * data_all(j,i,e);
             }
          }
 
@@ -3586,7 +3586,7 @@ void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X)
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-        mfem::kernels::internal::Swap<double>(x_all(i,e), x_all(piv_all(i,e),e));
+         mfem::kernels::internal::Swap<double>(x_all(i,e), x_all(piv_all(i,e),e));
       }
 
       // X <- L^{-1} X
@@ -3595,7 +3595,7 @@ void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X)
          const double x_j = x_all(j,e);
          for (int i = j+1; i < m; i++)
          {
-           x_all(i,e) -= data_all(i,j,e) * x_j;
+            x_all(i,e) -= data_all(i,j,e) * x_j;
          }
       }
 
@@ -3605,7 +3605,7 @@ void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X)
          const double x_j = ( x_all(j,e) /= data_all(j,j,e) );
          for (int i = 0; i < j; i++)
          {
-           x_all(i,e) -= data_all(i,j,e) * x_j;
+            x_all(i,e) -= data_all(i,j,e) * x_j;
          }
       }
    });
