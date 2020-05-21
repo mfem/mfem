@@ -55,7 +55,7 @@ class PAGradOperator : public Operator
 protected:
    const NonlinearForm *nlf;
    const FiniteElementSpace &fes;
-   mutable Vector Ge, Xe, Ye;
+   mutable Vector Xe, Re, Ce;
    const Array<int> &ess_tdof_list;
    const Operator *elem_restrict_lex;
    //mutable SparseMatrix *Grad, *cGrad;

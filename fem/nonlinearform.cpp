@@ -334,7 +334,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         dbg("Element #%d",i);
+         dbg("\033[37;7mElement #%d",i);
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);

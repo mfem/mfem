@@ -1583,7 +1583,6 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                                                const Vector &elfun,
                                                DenseMatrix &elmat)
 {
-   dbg("");
    const int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);  // ∇shapes
@@ -1605,7 +1604,14 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    elmat = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-   //Jtr(0).Print();
+   /*for (int q=0; q<ir->GetNPoints(); q++)
+   {
+      Jtr(q)(0,0) = 0.1;
+      Jtr(q)(0,1) = 0.2;
+      Jtr(q)(1,0) = 0.3;
+      Jtr(q)(1,1) = -0.4;
+   }*/
+   dbg("Jtr:"); Jtr(0).Print();
 
    // Limited case.
    DenseMatrix pos0, grad_grad;
@@ -1663,12 +1669,11 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       //dbg("DSh:"); DSh.Print(); //exit(0);
 
       Mult(DSh, Jrt, DS); // DS = DSh * Jrt
-      dbg("DS:"); DS.Print(); //exit(0);
+      //dbg("DS:"); DS.Print(); //exit(0);
 
       // GG = GX^T * DSh
       {
          MultAtB(PMatI, DSh, GG);
-         dbg("");
          dbg("\033[0mdetGG: %.15e",GG.Det());
          dbg("GG: %.15e %.15e",GG(0,0),GG(0,1));
          dbg("GG: %.15e %.15e",GG(1,0),GG(1,1));
@@ -1699,8 +1704,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       DenseMatrix Aelmat(dof*dim);
       Aelmat = 0.0;
       ie.Assemble_ddI1b(0.5*weight_m, Aelmat.GetData());
-      dbg("ELMAT:"); Aelmat.Print();
-
+      // dbg("ELMAT:"); Aelmat.Print();
 
       DenseMatrix Pelmat(dof*dim);
       Pelmat = 0.0;
@@ -1739,7 +1743,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
       const double EPS = 1.e-8;
       Pelmat *= flip ? -1.0 : 1.0;
-      dbg("P_ELMAT:"); Pelmat.Print();
+      //dbg("P_ELMAT:"); Pelmat.Print();
       for (int i = 0; i < dim*dof; i++)
       {
          for (int j = 0; j < dim*dof; j++)
@@ -1753,14 +1757,14 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          }
       }
 
-      //elmat = 0.8;//Pelmat;
-      for (int i = 0; i < dim*dof; i++)
+      elmat = Pelmat;
+      /*for (int i = 0; i < dim*dof; i++)
       {
          for (int j = 0; j < dim*dof; j++)
          {
-            elmat(i,j) = 0.33;//(i+1.0)*(j+1.0);
+            elmat(i,j) = 0.1234;//(i+0.10)*(j+10.0);
          }
-      }
+      }*/
 
       // TODO: derivatives of adaptivity-based targets.
 
