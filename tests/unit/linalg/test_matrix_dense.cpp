@@ -261,7 +261,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
 
    int NE = 10;
    Vector X_batch(N*NE);
-   Vector A_batch(N*N*NE);
+   DenseTensor A_batch(N,N,NE);
 
    auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
    auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
@@ -280,8 +280,8 @@ TEST_CASE("DenseTensor LinearSolve methods",
    }
 
    Array<int> P;
-   BatchLUFactor(A_batch, N, NE, P);
-   BatchLUSolve(A_batch, N, NE, P, X_batch);
+   BatchLUFactor(A_batch, P);
+   BatchLUSolve(A_batch, P, X_batch);
 
    auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
    REQUIRE(LinearSolve(A,X));

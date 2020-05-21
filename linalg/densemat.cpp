@@ -3502,25 +3502,14 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
-void BatchLUFactor(Vector &Minv, const int m, const int NE, Array<int> &P)
-{
-   P.SetSize(m*NE);
-   BatchLUFactor_impl(Minv.ReadWrite(), m, NE, P.Write());
-}
-
 void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
 {
    const int m = Minv.SizeI();
    const int NE = Minv.SizeK();
    P.SetSize(m*NE);
-   BatchLUFactor_impl(Minv.ReadWrite(), m, NE, P.Write());
-}
 
-void BatchLUFactor_impl(double *Minv, const int m, const int NE, int *P)
-{
-
-   auto data_all = mfem::Reshape(Minv, m, m, NE);
-   auto piv_all = mfem::Reshape(P, m, NE);
+   auto data_all = mfem::Reshape(Minv.ReadWrite(), m, m, NE);
+   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
    Array<bool> pivot_flag(1);
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
@@ -3528,53 +3517,49 @@ void BatchLUFactor_impl(double *Minv, const int m, const int NE, int *P)
 
    MFEM_FORALL(e, NE,
    {
-
-      double *data = &data_all(0,0,e);
-      int *ipiv = &piv_all(0,e);
       for (int i = 0; i < m; i++)
       {
-
          // pivoting
          {
             int piv = i;
-            double a = fabs(data[piv+i*m]);
+            double a = fabs(data_all(piv,i,e));
             for (int j = i+1; j < m; j++)
             {
-               const double b = fabs(data[j+i*m]);
+              const double b = fabs(data_all(j,i,e));
                if (b > a)
                {
                   a = b;
                   piv = j;
                }
             }
-            ipiv[i] = piv;
+            ipiv_all(i,e) = piv;
             if (piv != i)
             {
                // swap rows i and piv in both L and U parts
                for (int j = 0; j < m; j++)
                {
-                  mfem::kernels::internal::Swap<double>(data[i+j*m], data[piv+j*m]);
+                 mfem::kernels::internal::Swap<double>(data_all(i,j,e), data_all(piv,j,e));
                }
             }
          }//pivot end
 
-         if (abs(data[i + i*m]) <= TOL)
+         if (abs(data_all(i,i,e)) <= TOL)
          {
             d_pivot_flag[0] = false;
          }
 
-         const double a_ii_inv = 1.0 / data[i+i*m];
+         const double a_ii_inv = 1.0 / data_all(i,i,e);
          for (int j = i+1; j < m; j++)
          {
-            data[j+i*m] *= a_ii_inv;
+            data_all(j,i,e) *= a_ii_inv;
          }
 
          for (int k = i+1; k < m; k++)
          {
-            const double a_ik = data[i+k*m];
+            const double a_ik = data_all(i,k,e);
             for (int j = i+1; j < m; j++)
             {
-               data[j+k*m] -= a_ik * data[j+i*m];
+              data_all(j,k,e) -= a_ik * data_all(j,i,e);
             }
          }
 
@@ -3590,53 +3575,37 @@ void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X)
 
    const int m = Minv.SizeI();
    const int NE = Minv.SizeK();
-   BatchLUSolve_impl(Minv.Read(), m, NE, P.Read(), X.ReadWrite());
-}
 
-void BatchLUSolve(const Vector &Minv, const int m, const int NE,
-                  const Array<int> &P, Vector &X)
-{
-   BatchLUSolve_impl(Minv.Read(), m, NE, P.Read(), X.ReadWrite());
-}
-
-void BatchLUSolve_impl(const double *Minv, const int m, const int NE,
-                       const int *P, double *X)
-{
-
-   auto data_all = mfem::Reshape(Minv, m, m, NE);
-   auto piv_all = mfem::Reshape(P, m, NE);
-   auto x_all = mfem::Reshape(X, m, NE);
+   auto data_all = mfem::Reshape(Minv.Read(), m, m, NE);
+   auto piv_all = mfem::Reshape(P.Read(), m, NE);
+   auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
 
    MFEM_FORALL(e, NE,
    {
 
-      const double *data = &data_all(0,0,e);
-      const int *ipiv = &piv_all(0,e);
-      double *x = &x_all(0,e);
-
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         mfem::kernels::internal::Swap<double>(x[i], x[ipiv[i]]);
+        mfem::kernels::internal::Swap<double>(x_all(i,e), x_all(piv_all(i,e),e));
       }
 
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
       {
-         const double x_j = x[j];
+         const double x_j = x_all(j,e);
          for (int i = j+1; i < m; i++)
          {
-            x[i] -= data[i+j*m] * x_j;
+           x_all(i,e) -= data_all(i,j,e) * x_j;
          }
       }
 
       // X <- U^{-1} X
       for (int j = m-1; j >= 0; j--)
       {
-         const double x_j = ( x[j] /= data[j+j*m] );
+         const double x_j = ( x_all(j,e) /= data_all(j,j,e) );
          for (int i = 0; i < j; i++)
          {
-            x[i] -= data[i+j*m] * x_j;
+           x_all(i,e) -= data_all(i,j,e) * x_j;
          }
       }
    });
