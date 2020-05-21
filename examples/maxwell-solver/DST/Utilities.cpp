@@ -12,12 +12,11 @@ double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, con
       h1(i) = h_[i][1];
    }
    Vector x0(dim);
-   x0 = pmax; x0-=h1;
    Vector x1(dim);
-   x1 = pmin; x1+=h0;
+   x0 = pmin; x0+=h0;
+   x1 = pmax; x1-=h1;
 
    double f = 1.0;
-
    for (int i = 0; i<dim; i++)
    {
       double val = 1.0;
@@ -25,25 +24,24 @@ double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, con
       {
          val = 0.0;
       }  
-      else if (x(i) <= pmax(i) && x(i) >= x0(i))
+      else if (x(i) < pmax(i) && x(i) >= x1(i))
       {
-         if(x0(i)-pmax(i) != 0.0)
-            val = (x(i)-pmax(i))/(x0(i)-pmax(i)); 
+         if(h1(i) != 0.0)
+            // val = (x(i)-pmax(i))/(x1(i)-pmax(i)); 
+            val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),1.0); 
       }
-      else if (x(i) >= pmin(i) && x(i) <= x1(i))
+      else if (x(i) > pmin(i) && x(i) <= x0(i))
       {
-         if (x1(i)-pmin(i) != 0.0)
-            val = (x(i)-pmin(i))/(x1(i)-pmin(i)); 
+         if (h0(i) != 0.0)
+            // val = (x(i)-pmin(i))/(x0(i)-pmin(i)); 
+            val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),1.0); 
       }
-      else
+
+      if (h0(i) == 0 && x(i) <= x1(i))
       {
          val = 1.0;
       }
-      if (h_[i][0] == 0 && x(i) < pmin(i))
-      {
-         val = 1.0;
-      }
-      if (h_[i][1] == 0 && x(i) > pmax(i))
+      if (h1(i) == 0 && x(i) >= x0(i))
       {
          val = 1.0;
       }
@@ -63,18 +61,29 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
       h1(i) = h_[i][1];
    }
    Vector x0(dim);
-   x0 = pmax; x0-=h1;
+   x0 = pmin; x0+=h0;
    Vector x1(dim);
-   x1 = pmin; x1+=h0;
+   x1 = pmax; x1-=h1;
 
    double f = 1.0;
    for (int i = 0; i<dim; i++)
    {
       double val = 1.0;
-      if( x(i) > x0(i) || x(i) < x1(i))
+      if( x(i) < x0(i) || x(i) > x1(i))
       {
          val = 0.0;
       }
+
+      if (h0(i) == 0 && x(i) <= x1(i))
+      {
+         val = 1.0;
+      }
+      if (h1(i) == 0 && x(i) >= x0(i))
+      {
+         val = 1.0;
+      }
+
+
       f *= val;
    }
    return f;

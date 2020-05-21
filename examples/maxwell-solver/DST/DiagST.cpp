@@ -18,10 +18,10 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Overlapping partition 
-   int nx=4;
-   int ny=1; 
+   int nx=2;
+   int ny=2; 
    int nz=1;
-   ovlpnrlayers = 2;
+   ovlpnrlayers = nrlayers;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz,ovlpnrlayers);
 
    partition_kind = 1; // Non Overlapping partition 
@@ -198,7 +198,7 @@ void DiagST::Mult(const Vector &r, Vector &z) const
             Array<int> ij(2); ij[0] = i; ij[1]=j;
             int ip = GetPatchId(ij);
             
-            cout << "Mult:ip = " << ip << endl;
+            // cout << "Mult:ip = " << ip << endl;
 
             // Solve the PML problem in patch ip with all sources
             // Original and all transfered (maybe some of them)
@@ -260,22 +260,35 @@ void DiagST::Mult(const Vector &r, Vector &z) const
             if (i+1<nx) directions[0] = 1;
             if (j+1<ny) directions[1] = 1;
             GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
-            // sol_ext = cfsol_ext;
-            // directions = 0;
-            // if (i>0) directions[0] = -1;
-            // if (j>0) directions[1] = -1;
-            // GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
+            sol_ext = cfsol_ext;
+            directions = 0;
+            if (i>0) directions[0] = -1;
+            if (j>0) directions[1] = -1;
+            GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
+            // std::cout << std::fixed;
+            // std::cout << std::setprecision(10);
+            // cout << "cf_local_ext norm " << cfsol_ext.Norml2()<< endl;
             cfsol_ext.GetSubVector(*Dof2PmlDof, sol_local);
+            // cout << "cf_local norm " << sol_local.Norml2()<< endl;
+            
+
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, sol_local);
             z+=znew;
-            // Array<int> * nDof2GlobalDof = &nvlp_prob->Dof2GlobalDof[ip];
+            // std::cout << std::fixed;
+            // std::cout << std::setprecision(10);
+            // cout << "znew norm " << znew.Norml2()<< endl;
+            // cout << "z norm " << z.Norml2()<< endl;
+
+            Array<int> * nDof2GlobalDof = &nvlp_prob->Dof2GlobalDof[ip];
             // Vector zsol(nDof2GlobalDof->Size()); zsol=0.0;
             // z.GetSubVector(*nDof2GlobalDof, zsol);
             // *usol[ip] += zsol;
             // cout << "ip = " << ip << endl;
-            socketstream znewsock(vishost, visport);
-            PlotSolution(znew,znewsock,0); cin.get();
+            // socketstream znewsock(vishost, visport);
+            // PlotSolution(znew,znewsock,0); cin.get();
+            // socketstream zsock(vishost, visport);
+            // PlotSolution(z,zsock,0); cin.get();
          }
          // socketstream zsock(vishost, visport);
          // PlotSolution(z,zsock,0); cin.get();
@@ -284,7 +297,7 @@ void DiagST::Mult(const Vector &r, Vector &z) const
 
    // // Put the solution together
    // z = 0.0;
-   // for (int ip = 0; ip<nrpatch; ip++)
+   // for (int ip = nrpatch-1; ip>=0; ip--)
    // {
    //    Array<int> * nDof2GlobalDof = &nvlp_prob->Dof2GlobalDof[ip];
    //    z.SetSubVector(*nDof2GlobalDof, *usol[ip]);
@@ -358,7 +371,9 @@ void DiagST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
       pmlh[1][0] = h*ovlpnlayers;
    }
 
+
    CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
+
 
    double * data = sol.GetData();
 
@@ -411,22 +426,29 @@ void DiagST::GetChiRes(const Vector & res, Vector & cfres,
    
    if (directions[0]==1)
    {
-      pmlh[0][1] = h*nlayers;
+      // pmlh[0][1] = h*nlayers;
+      pmlh[0][1] = h;
    }
    if (directions[0]==-1)
    {
-      pmlh[0][0] = h*nlayers;
+      // pmlh[0][0] = h*nlayers;
+      pmlh[0][0] = h;
    }
    if (directions[1]==1)
    {
-      pmlh[1][1] = h*nlayers;
+      // pmlh[1][1] = h*nlayers;
+      pmlh[1][1] = h;
    }
    if (directions[1]==-1)
    {
-      pmlh[1][0] = h*nlayers;
+      // pmlh[1][0] = h*nlayers;
+      pmlh[1][0] = h;
    }
 
-   CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
+   // CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
+   // instead of the discontinous ChiFncn call the cutoff with 
+   // very fast decay!!
+   CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
 
    double * data = res.GetData();
 
@@ -449,6 +471,14 @@ void DiagST::GetChiRes(const Vector & res, Vector & cfres,
 
    cfres.SetSize(res.Size());
    cfres = gf;
+
+   GridFunction cgf(fespace);
+   cgf.ProjectCoefficient(cf);
+
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // socketstream cfsock(vishost, visport);
+   // PlotSolution(cgf,cfsock,ip,true,false); cin.get();
 }
 
 DiagST::~DiagST()
@@ -573,6 +603,9 @@ int DiagST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, V
    // if (i1+1<nx) direct[0] = 1;
    // if (j1+1<ny) direct[1] = 1;
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+
+   // socketstream zsock(vishost, visport);
+   // PlotSolution(Psi1,zsock,ip1,true); cin.get();
 
    // socketstream cressock(vishost, visport);
    // psicopy-=Psi1;
@@ -727,12 +760,15 @@ void DiagST::TransferSources(int sweep, int ip0, Vector & sol_ext) const
          GetCutOffSolution(sol_ext,cfsol_ext,ip0,directions,ovlpnrlayers,true);
          // sol_ext = cfsol_ext;
          // PmlMat[ip0]->Mult(cfsol_ext, res_ext); 
-         
+         // std::cout << std::fixed;
+         // std::cout << std::setprecision(10);
+         // cout << "cfsol  norm = " << cfsol_ext.Norml2() << endl;
+
          //---------------------------------------
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         // socketstream pmlsock(vishost, visport);
-         // PlotSolution(res_ext,pmlsock,ip0,true,true); cin.get();
+         // char vishost[] = "localhost";
+         // int  visport   = 19916;
+         // socketstream cfsock(vishost, visport);
+         // PlotSolution(cfsol_ext,cfsock,ip0,true,true); cin.get();
          //---------------------------------------
          
          // res_ext*= -1.0;
@@ -753,7 +789,7 @@ void DiagST::TransferSources(int sweep, int ip0, Vector & sol_ext) const
 
 
 
-         // Find the minumum sweep number that to transfer the source that 
+         // Find the minumum sweep number to transfer the source that 
          // satisfies the two rules
          for (int l=sweep; l<nsweeps; l++)
          {

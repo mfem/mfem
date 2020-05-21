@@ -18,11 +18,11 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=2;
-   int ny=2; 
+   int nx=4;
+   int ny=1; 
    int nz=1;
-
-   povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, nrlayers);
+   ovlpnrlayers = 2*nrlayers;
+   povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
    nxyz[0] = povlp->nxyz[0];
    nxyz[1] = povlp->nxyz[1];
    nxyz[2] = povlp->nxyz[2];
@@ -32,7 +32,7 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
-   // SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
+   SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
 
    ovlp_prob  = new DofMap(bf,povlp); 
    PmlMat.SetSize(nrpatch);
@@ -136,7 +136,7 @@ void DST::Mult(const Vector &r, Vector &z) const
             // res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
             // Extend by zero to the PML mesh
-            if (res_local.Norml2() < 1e-11) continue;
+            // if (res_local.Norml2() < 1e-11) continue;
             PmlMatInv[ip]->Mult(res_local, sol_local);
 
             TransferSources(l,ip, sol_local);
@@ -147,16 +147,26 @@ void DST::Mult(const Vector &r, Vector &z) const
             if (i+1<nx) directions[0] = 1;
             if (j+1<ny) directions[1] = 1;
             Vector cfsol_local;
-            GetCutOffSolution(sol_local,cfsol_local,ip,directions,nrlayers,true);
+            GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
             sol_local = cfsol_local;
             directions = 0.0;
             if (i>0) directions[0] = -1;
             if (j>0) directions[1] = -1;
             GetCutOffSolution(sol_local,cfsol_local,ip,directions,nrlayers,true);
-
+            std::cout << std::fixed;
+            std::cout << std::setprecision(10);
+            cout << "cf_local norm " << cfsol_local.Norml2()<< endl;
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
             z+=znew;
+
+            std::cout << std::fixed;
+            std::cout << std::setprecision(10);
+            cout << "znew norm " << znew.Norml2()<< endl;
+            cout << "z norm " << z.Norml2()<< endl;
+
+            socketstream zsock(vishost, visport);
+            PlotSolution(z,zsock,0,false); cin.get();
          }
       }
    }
@@ -178,24 +188,40 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
    double h = GetUniformMeshElementSize(povlp->patch_mesh[ip]);
+
+   int i, j, k;
+   Getijk(ip,i,j,k);
+   int nx = nxyz[0];
+   int ny = nxyz[1];
+   if (directions[0]==1) pmax[0] -= h*nrlayers; 
+   if (directions[1]==1) pmax[1] -= h*nrlayers; 
+
+   if (directions[0]==-1) pmin[0] += h*nrlayers; 
+   if (directions[1]==-1) pmin[1] += h*nrlayers; 
+
+   
+   pmin.Print();
+   pmax.Print();
+
    Array2D<double> pmlh(dim,2); pmlh = 0.0;
    
    if (directions[0]==1)
    {
-      pmlh[0][1] = h*nlayers;
+      pmlh[0][1] = h*(nlayers-nrlayers);
    }
    if (directions[0]==-1)
    {
-      pmlh[0][0] = h*nlayers;
+      pmlh[0][0] = h*(nlayers-nrlayers);
    }
    if (directions[1]==1)
    {
-      pmlh[1][1] = h*nlayers;
+      pmlh[1][1] = h*(nlayers-nrlayers);
    }
    if (directions[1]==-1)
    {
-      pmlh[1][0] = h*nlayers;
+      pmlh[1][0] = h*(nlayers-nrlayers);
    }
+
 
    CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
 
@@ -246,7 +272,7 @@ void DST::Getijk(int ip, int & i, int & j, int & k) const
 int DST::GetPatchId(const Array<int> & ijk) const
 {
    int d=ijk.Size();
-   int z = (dim==2)? 0 : ijk[2];
+   int z = (d==2)? 0 : ijk[2];
    return subdomains(ijk[0],ijk[1],z);
 }
 
@@ -258,8 +284,6 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
    int ny = nxyz[1];
    int i0, j0, k0;
    Getijk(ip0, i0,j0,k0);
-   // cout << "Transfer to : " << endl;
-   // loop through possible directions
    for (int i=-1; i<2; i++)
    {
       int i1 = i0 + i;
@@ -269,62 +293,28 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
          if (i==0 && j==0) continue;
          int j1 = j0 + j;
          if (j1 <0 || j1>=ny) continue;
-         // cout << "(" << i1 << "," << j1 <<"), ";
-         // Find ip 1
          Array<int> ij1(2); ij1[0] = i1; ij1[1]=j1;
          int ip1 = GetPatchId(ij1);
-         // cout << "ip1 = " << ip1;
-         // cout << " in the direction of (" << i <<", " <<j <<")" << endl;
          Array<int> directions(2);
          directions[0] = i;
          directions[1] = j;
          Vector cfsol0;
-         GetCutOffSolution(sol0,cfsol0,ip0,directions,nrlayers,true);
+         cout << " ovlpnrlayers = " << ovlpnrlayers << endl;  
+         GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
 
-         Vector res0(sol0.Size());
-         PmlMat[ip0]->Mult(cfsol0,res0); res0 *= -1.0;  
+         char vishost[] = "localhost";
+         int  visport   = 19916;
 
-
-         int gdofs = 2*bf->FESpace()->GetTrueVSize();
-         Vector znew(gdofs); znew = 0.0;
-         Array<int> *Dof2GlobalDof0 = &ovlp_prob->Dof2GlobalDof[ip0];
-         Array<int> *Dof2GlobalDof1 = &ovlp_prob->Dof2GlobalDof[ip1];
-         // znew.SetSubVector(*Dof2GlobalDof0,cfsol0);
-         znew.SetSubVector(*Dof2GlobalDof0,res0);
-
-         // char vishost[] = "localhost";
-         // int  visport   = 19916;
-         // socketstream gsock(vishost, visport);
-         // PlotSolution(znew,gsock,0); cin.get();
-
-         // pass to ip1 and calculate residual there
-         Vector sol1(Dof2GlobalDof1->Size()); sol1 = 0.0;
-         Vector res1(Dof2GlobalDof1->Size()); res1 = 0.0;
-         // znew.GetSubVector(*Dof2GlobalDof1,sol1);
-         znew.GetSubVector(*Dof2GlobalDof1,res1);
+         std::cout << std::fixed;
+         std::cout << std::setprecision(10);
+         cout << "sol0 norm = " << sol0.Norml2() << endl;
+         socketstream solsock(vishost, visport);
+         PlotSolution(sol0,solsock,ip0,true); 
 
 
-         // cout << "ip1 = " << ip1 << endl;
-         // socketstream lsock(vishost, visport);
-         // FiniteElementSpace * fes = ovlp_prob->fespaces[ip1];
-         // Mesh * mesh = fes->GetMesh();
-         // GridFunction gf(fes);
-         // double * data = sol1.GetData();
-         // int n = fes->GetTrueVSize();
-         // gf.SetData(data);
-   
-         // string keys;
-         // keys = "keys mrRljc\n";
-         // lsock << "solution\n" << *mesh << gf << keys << flush;
-         //    cin.get();
-
-
-
-
-
-         // Find source
-         // PmlMat[ip1]->Mult(sol1,res1); res1 *= 1.0;  
-
+         cout << "cfsol  norm = " << cfsol0.Norml2() << endl;
+         socketstream cfsock(vishost, visport);
+         PlotSolution(cfsol0,cfsock,ip0,true); cin.get();
          // Find the minumum sweep number that to transfer the source that 
          // satisfies the two rules
          for (int l=sweep; l<nsweeps; l++)
@@ -335,9 +325,6 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
             int is = sweeps(l,0); 
             int js = sweeps(l,1);
             int ddot = is*i + js * j;
-            // cout << "(i,j) = (" << i <<"," <<j <<")" << endl;
-            // cout << "(is,js) = (" << is <<"," <<js <<")" << endl;
-            // cout << "ip0 , ip1 = " << ip0 << ", " << ip1 << endl;
             if (ddot <= 0) continue;
 
             // Rule 2: The horizontal or vertical transfer source cannot be used
@@ -350,11 +337,13 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
                // skip if the two sweeps have opposite direction
                if (is == -il && js == -jl) continue;
             }
-            // cout << "Passing ip0 = " << ip0 << " to ip1 = " << ip1 
-               //   << " to sweep no l = " << l << endl;  
-            MFEM_VERIFY(f_transf[ip1][l]->Size()==res1.Size(), 
+            Vector raux;
+            int jp1 = SourceTransfer(cfsol0,directions,ip0,raux);
+
+            MFEM_VERIFY(ip1 == jp1, "Check SourceTransfer patch id");
+            MFEM_VERIFY(f_transf[ip1][l]->Size()==raux.Size(), 
                         "Transfer Sources: inconsistent size");
-            *f_transf[ip1][l]+=res1;
+            *f_transf[ip1][l]+=raux;
             break;
          }
       }  
@@ -407,16 +396,141 @@ SparseMatrix * DST::GetPmlSystemMatrix(int ip)
    return Mat;
 }
 
-void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const
+void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip, 
+                  bool localdomain) const
 {
-   FiniteElementSpace * fespace = bf->FESpace();
-   Mesh * mesh = fespace->GetMesh();
-   GridFunction gf(fespace);
+   FiniteElementSpace * fes;
+   if (!localdomain)
+   {
+      fes = bf->FESpace();
+   }
+   else
+   {
+      fes = ovlp_prob->fespaces[ip];
+   }
+   Mesh * mesh = fes->GetMesh();
+   GridFunction gf(fes);
    double * data = sol.GetData();
    gf.SetData(data);
    
    string keys;
-   if (ip == 0) keys = "keys mrRljc\n";
+   // if (ip == 0) 
+   keys = "keys mrRljc\n";
    // sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
    sol_sock << "solution\n" << *mesh << gf << keys << flush;
+}
+
+
+
+int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+{
+   int i0,j0,k0;
+   Getijk(ip0,i0,j0,k0);
+
+   int i1 = i0+direction[0];   
+   int j1 = j0+direction[1];   
+   Array<int> ij(2); ij[0]=i1; ij[1]=j1;
+   int ip1 = GetPatchId(ij);
+
+   MFEM_VERIFY(i1 < nxyz[0] && i1>=0, "SourceTransfer: i1 out of bounds");
+   MFEM_VERIFY(j1 < nxyz[1] && j1>=0, "SourceTransfer: j1 out of bounds");
+
+   Array<int> * Dof2GlobalDof0 = &ovlp_prob->Dof2GlobalDof[ip0];
+   Array<int> * Dof2GlobalDof1 = &ovlp_prob->Dof2GlobalDof[ip1];
+   Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
+   Vector r(2*bf->FESpace()->GetTrueVSize());
+   r = 0.0;
+   r.SetSubVector(*Dof2GlobalDof0,Psi0);
+   Vector zloc(Psi1.Size()); zloc = 0.0;
+   r.GetSubVector(*Dof2GlobalDof1,zloc);
+   Vector Psi(Dof2GlobalDof1->Size()); Psi=0.0;
+   PmlMat[ip1]->Mult(zloc,Psi);
+   Psi *=-1.0;
+
+   Array<int> direct(2); direct = 0;
+   direct[0] = -direction[0];
+   direct[1] = -direction[1];
+   GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream zsock(vishost, visport);
+   PlotSolution(Psi1,zsock,ip1,true); cin.get();
+
+   return ip1;
+}
+
+
+void DST::GetChiRes(const Vector & res, Vector & cfres, 
+                    int ip, Array<int> directions, int nlayers) const
+{
+   // int l,k;
+   int d = directions.Size();
+   int directx = directions[0]; // 1,0,-1
+   int directy = directions[1]; // 1,0,-1
+   int directz;
+   if (d ==3) directz = directions[2];
+
+   Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
+   double h = GetUniformMeshElementSize(mesh);
+   
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
+   pmin.Print();
+   pmax.Print();
+   directions.Print();
+   Array2D<double> pmlh(dim,2); pmlh = 0.0;
+   int i,j,k;
+   Getijk(ip,i,j,k);
+   if (directions[0]==-1)
+   {
+      // pmlh[0][1] = h*nlayers;
+      pmlh[0][0] = h;
+      pmin[0] += h*(ovlpnrlayers-1);
+   }
+   if (directions[0]==1)
+   {
+      // pmlh[0][0] = h*nlayers;
+      pmlh[0][1] = h;
+      pmax[0] -= h*(ovlpnrlayers-1);
+
+   }
+   if (directions[1]==-1)
+   {
+      // pmlh[1][1] = h*nlayers;
+      pmlh[1][0] = h;
+      pmin[1] += h*(ovlpnrlayers-1);
+   }
+   if (directions[1]==1)
+   {
+      // pmlh[1][0] = h*nlayers;
+      pmlh[1][1] = h;
+      pmax[1] -= h*(ovlpnrlayers-1);
+   }
+   pmin.Print();
+   pmax.Print();
+   // CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
+   CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
+
+   double * data = res.GetData();
+
+   FiniteElementSpace * fespace;
+   fespace = ovlp_prob->fespaces[ip];
+   
+   int n = fespace->GetTrueVSize();
+
+   GridFunction solgf_re(fespace, data);
+   GridFunction solgf_im(fespace, &data[n]);
+
+   GridFunctionCoefficient coeff1_re(&solgf_re);
+   GridFunctionCoefficient coeff1_im(&solgf_im);
+
+   ProductCoefficient prod_re(coeff1_re, cf);
+   ProductCoefficient prod_im(coeff1_im, cf);
+
+   ComplexGridFunction gf(fespace);
+   gf.ProjectCoefficient(prod_re,prod_im);
+
+   cfres.SetSize(res.Size());
+   cfres = gf;
 }

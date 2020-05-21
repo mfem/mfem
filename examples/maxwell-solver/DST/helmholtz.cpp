@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    double domain_length = pmax[0] - pmin[0];
    double pml_thickness = 0.125/domain_length;
    int nrlayers = pml_thickness/hl;
-   // int nrlayers = 1;
+   // int nrlayers = 2;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -212,6 +212,7 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
+   // DST S(&a,lengths, omega, &ws, nrlayers);
    DiagST S(&a,lengths, omega, &ws, nrlayers);
 	S.SetOperator(*A);
    // S.SetLoadVector(B);
@@ -231,7 +232,7 @@ int main(int argc, char *argv[])
 
 
 
-   int n= 10;
+   int n= 20;
    X = 0.0;
    Vector z(X.Size()); z = 0.0;
    Vector r(B);
@@ -254,25 +255,25 @@ int main(int argc, char *argv[])
       X += z;
 
       // X1-=z;
-      // p_gf = 0.0;
-      // a.RecoverFEMSolution(X,B,p_gf);
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
-      //    string keys;
-      //    if (dim ==2 )
-      //    {
-      //       keys = "keys mrRljc\n";
-      //    }
-      //    else
-      //    {
-      //       keys = "keys mc\n";
-      //    }
-      //    socketstream sol1_sock_re(vishost, visport);
-      //    sol1_sock_re.precision(8);
-      //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-      //                "window_title 'Numerical Pressure (real part)' "
-      //                << keys << flush;
-      //    cin.get();
+      p_gf = 0.0;
+      a.RecoverFEMSolution(X,B,p_gf);
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         string keys;
+         if (dim ==2 )
+         {
+            keys = "keys mrRljc\n";
+         }
+         else
+         {
+            keys = "keys mc\n";
+         }
+         socketstream sol1_sock_re(vishost, visport);
+         sol1_sock_re.precision(8);
+         sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+                     "window_title 'Numerical Pressure (real part)' "
+                     << keys << flush;
+         cin.get();
    }
 
    KLUSolver klu(*A);
@@ -329,7 +330,7 @@ double f_exact_Re(const Vector &x)
    x0 = 0.15;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.5;
+   x1 = 0.15;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;

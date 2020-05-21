@@ -14,6 +14,7 @@ private:
    double omega = 0.5;
    Coefficient * ws;
    int nrlayers;
+   int ovlpnrlayers;
    int nxyz[3];
    const Operator * A=nullptr;
    DofMap * ovlp_prob = nullptr;
@@ -32,9 +33,11 @@ private:
    Array<Array<Vector * >> usol;
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
-   void PlotSolution(Vector & sol, socketstream & sol_sock, int ip) const;
+   void PlotSolution(Vector & sol, socketstream & sol_sock, int ip,bool localdomain) const;
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                           int ip, Array<int> directions, int nlayers, bool local=false) const;
+    void GetChiRes(const Vector & res, Vector & cfres,
+                  int ip, Array<int> directions, int nlayers) const;  
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;
    int GetPatchId(const Array<int> & ijk) const;
    void Getijk(int ip, int & i, int & j, int & k ) const;
