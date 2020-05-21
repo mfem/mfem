@@ -224,8 +224,21 @@ int main(int argc, char *argv[])
    m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
    m->Finalize();
 
-   HypreParMatrix *A = a->ParallelAssemble();
-   HypreParMatrix *M = m->ParallelAssemble();
+   PetscParMatrix *pA = NULL, *pM = NULL;
+   HypreParMatrix *A = NULL, *M = NULL;
+   Operator::Type tid =
+      !use_slepc ? Operator::Hypre_ParCSR : Operator::PETSC_MATAIJ;
+   OperatorHandle Ah(tid), Mh(tid);
+
+   a->ParallelAssemble(Ah);
+   if (!use_slepc) { Ah.Get(A); }
+   else { Ah.Get(pA); }
+   Ah.SetOperatorOwner(false);
+
+   m->ParallelAssemble(Mh);
+   if (!use_slepc) {Mh.Get(M); }
+   else {Mh.Get(pM); }
+   Mh.SetOperatorOwner(false);
 
 #if defined(MFEM_USE_SUPERLU) || defined(MFEM_USE_STRUMPACK)
    Operator * Arow = NULL;
@@ -250,39 +263,42 @@ int main(int argc, char *argv[])
    //    preconditioner for A to be used within the solver. Set the matrices
    //    which define the generalized eigenproblem A x = lambda M x.
    Solver * precond = NULL;
-   if (!slu_solver && !sp_solver)
+   if (!use_slepc)
    {
-      HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
-      amg->SetPrintLevel(0);
-      precond = amg;
-   }
-   else
-   {
-#ifdef MFEM_USE_SUPERLU
-      if (slu_solver)
+      if (!slu_solver && !sp_solver)
       {
-         SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
-         superlu->SetPrintStatistics(false);
-         superlu->SetSymmetricPattern(true);
-         superlu->SetColumnPermutation(superlu::PARMETIS);
-         superlu->SetOperator(*Arow);
-         precond = superlu;
+         HypreBoomerAMG * amg = new HypreBoomerAMG(*A);
+         amg->SetPrintLevel(0);
+         precond = amg;
       }
+      else
+      {
+#ifdef MFEM_USE_SUPERLU
+         if (slu_solver)
+         {
+            SuperLUSolver * superlu = new SuperLUSolver(MPI_COMM_WORLD);
+            superlu->SetPrintStatistics(false);
+            superlu->SetSymmetricPattern(true);
+            superlu->SetColumnPermutation(superlu::PARMETIS);
+            superlu->SetOperator(*Arow);
+            precond = superlu;
+         }
 #endif
 #ifdef MFEM_USE_STRUMPACK
-      if (sp_solver)
-      {
-         STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-         strumpack->SetPrintFactorStatistics(true);
-         strumpack->SetPrintSolveStatistics(false);
-         strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-         strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         strumpack->DisableMatching();
-         strumpack->SetOperator(*Arow);
-         strumpack->SetFromCommandLine();
-         precond = strumpack;
-      }
+         if (sp_solver)
+         {
+            STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+            strumpack->SetPrintFactorStatistics(true);
+            strumpack->SetPrintSolveStatistics(false);
+            strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+            strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+            strumpack->DisableMatching();
+            strumpack->SetOperator(*Arow);
+            strumpack->SetFromCommandLine();
+            precond = strumpack;
+         }
 #endif
+      }
    }
 
    HypreLOBPCG * lobpcg;
@@ -303,12 +319,12 @@ int main(int argc, char *argv[])
    }
    else
    {
-      slepc = new SlepcEigenSolver(MPI_COMM_WORLD,"",false);
+      slepc = new SlepcEigenSolver(MPI_COMM_WORLD);
       slepc->SetNumModes(nev);
       slepc->SetWhichEigenpairs(SlepcEigenSolver::TARGET_REAL);
       slepc->SetTarget(0.0);
       slepc->SetSpectralTransformation(SlepcEigenSolver::SHIFT_INVERT);
-      slepc->SetOperators(*A,*M);
+      slepc->SetOperators(*pA,*pM);
    }
 
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a

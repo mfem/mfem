@@ -36,9 +36,6 @@ private:
    /// Boolean to handle SetFromOptions calls
    mutable bool clcustom;
 
-   /// Internal flag to handle matrix conversion or not.
-   bool _wrap;
-
    /// SLEPc linear eigensolver object
    EPS eps;
    /// Solver tolerance
@@ -55,8 +52,7 @@ private:
 
 public:
    /// Constructors
-   SlepcEigenSolver(MPI_Comm comm, const std::string &prefix = std::string(),
-                    bool wrap = true);
+   SlepcEigenSolver(MPI_Comm comm, const std::string &prefix = std::string());
 
    virtual ~SlepcEigenSolver();
 
@@ -68,9 +64,9 @@ public:
    /// Set the number of required eigenmodes
    void SetNumModes(int num_eigs);
    /// Set operator for standard eigenvalue problem
-   void SetOperator(const Operator &op);
+   void SetOperator(const PetscParMatrix &op);
    /// Set operator for generalized eigenvalue problem
-   void SetOperators(const Operator &op, const Operator &opB);
+   void SetOperators(const PetscParMatrix &op, const PetscParMatrix &opB);
 
    /// Customize object with options set
    void Customize(bool customize = true) const;
