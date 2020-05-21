@@ -12,14 +12,14 @@ DiagST::DiagST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    dim = mesh->Dimension();
 
    // ----------------- Step 1 --------------------
-   // Introduce 2 layered partitios of the domain 
+   // Introduce 2 layered partitions of the domain 
    // 
    int partition_kind;
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Overlapping partition 
    int nx=2;
-   int ny=2; 
+   int ny=1; 
    int nz=1;
    ovlpnrlayers = nrlayers;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz,ovlpnrlayers);
@@ -259,6 +259,8 @@ void DiagST::Mult(const Vector &r, Vector &z) const
 
             if (i+1<nx) directions[0] = 1;
             if (j+1<ny) directions[1] = 1;
+            // cout << "ip = " << ip << endl;
+            // cout << "i, j = " << i <<", " << j << endl;
             GetCutOffSolution(sol_ext,cfsol_ext,ip,directions,ovlpnrlayers,true);
             sol_ext = cfsol_ext;
             directions = 0;
@@ -269,8 +271,10 @@ void DiagST::Mult(const Vector &r, Vector &z) const
             // std::cout << std::setprecision(10);
             // cout << "cf_local_ext norm " << cfsol_ext.Norml2()<< endl;
             cfsol_ext.GetSubVector(*Dof2PmlDof, sol_local);
-            // cout << "cf_local norm " << sol_local.Norml2()<< endl;
-            
+            // cout << "cf_local norm " << cfsol_ext.Norml2()<< endl;
+            // socketstream zsock(vishost, visport);
+            // PlotSolution(cfsol_ext,zsock,ip,true,true); cin.get();
+
 
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, sol_local);
@@ -758,13 +762,13 @@ void DiagST::TransferSources(int sweep, int ip0, Vector & sol_ext) const
          Vector cfsol_ext;
          Vector res_ext(sol_ext.Size());
          GetCutOffSolution(sol_ext,cfsol_ext,ip0,directions,ovlpnrlayers,true);
-         // sol_ext = cfsol_ext;
-         // PmlMat[ip0]->Mult(cfsol_ext, res_ext); 
+        
          // std::cout << std::fixed;
          // std::cout << std::setprecision(10);
+         // cout << "sol  norm = " << sol_ext.Norml2() << endl;
          // cout << "cfsol  norm = " << cfsol_ext.Norml2() << endl;
 
-         //---------------------------------------
+         // //---------------------------------------
          // char vishost[] = "localhost";
          // int  visport   = 19916;
          // socketstream cfsock(vishost, visport);

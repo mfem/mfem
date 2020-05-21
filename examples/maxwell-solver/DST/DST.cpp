@@ -19,10 +19,14 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
    int nx=4;
-   int ny=1; 
+   int ny=4; 
    int nz=1;
    ovlpnrlayers = 2*nrlayers;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
+
+   partition_kind = 1;
+   novlp = new MeshPartition(mesh, partition_kind,nx,ny,nz);
+
    nxyz[0] = povlp->nxyz[0];
    nxyz[1] = povlp->nxyz[1];
    nxyz[2] = povlp->nxyz[2];
@@ -35,6 +39,7 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
 
    ovlp_prob  = new DofMap(bf,povlp); 
+   nvlp_prob  = new DofMap(bf,novlp); 
    PmlMat.SetSize(nrpatch);
    PmlMatInv.SetSize(nrpatch);
    for (int ip=0; ip<nrpatch; ip++)
@@ -79,6 +84,7 @@ void DST::Mult(const Vector &r, Vector &z) const
          *f_transf[ip][i] = 0.0;
       }
    }
+   Vector res(r.Size());
    for (int ip=0; ip<nrpatch; ip++)
    {
       Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
@@ -152,21 +158,14 @@ void DST::Mult(const Vector &r, Vector &z) const
             directions = 0.0;
             if (i>0) directions[0] = -1;
             if (j>0) directions[1] = -1;
-            GetCutOffSolution(sol_local,cfsol_local,ip,directions,nrlayers,true);
-            std::cout << std::fixed;
-            std::cout << std::setprecision(10);
-            cout << "cf_local norm " << cfsol_local.Norml2()<< endl;
+            GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
             z+=znew;
 
-            std::cout << std::fixed;
-            std::cout << std::setprecision(10);
-            cout << "znew norm " << znew.Norml2()<< endl;
-            cout << "z norm " << z.Norml2()<< endl;
 
-            socketstream zsock(vishost, visport);
-            PlotSolution(z,zsock,0,false); cin.get();
+            // socketstream zsock(vishost, visport);
+            // PlotSolution(cfsol_local,zsock,ip,true); cin.get();
          }
       }
    }
@@ -199,10 +198,6 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
    if (directions[0]==-1) pmin[0] += h*nrlayers; 
    if (directions[1]==-1) pmin[1] += h*nrlayers; 
 
-   
-   pmin.Print();
-   pmax.Print();
-
    Array2D<double> pmlh(dim,2); pmlh = 0.0;
    
    if (directions[0]==1)
@@ -222,6 +217,11 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
       pmlh[1][0] = h*(nlayers-nrlayers);
    }
 
+   // cout << "pmin = " ; pmin.Print(); 
+   // cout << "pmax = " ; pmax.Print(); 
+
+   // cout << "nlayers = " << nlayers << endl;
+   // cout << "nrlayers = " << nrlayers << endl;
 
    CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
 
@@ -254,6 +254,14 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
 
    cfsol.SetSize(sol.Size());
    cfsol = gf;
+
+   // GridFunction cgf(fes);
+   // cgf.ProjectCoefficient(cf);
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // socketstream cfsock(vishost, visport);
+   // PlotSolution(cgf,cfsock,ip,true); cin.get();
+
 }
 
 
@@ -299,22 +307,22 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
          directions[0] = i;
          directions[1] = j;
          Vector cfsol0;
-         cout << " ovlpnrlayers = " << ovlpnrlayers << endl;  
          GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
 
-         char vishost[] = "localhost";
-         int  visport   = 19916;
+         // char vishost[] = "localhost";
+         // int  visport   = 19916;
 
-         std::cout << std::fixed;
-         std::cout << std::setprecision(10);
-         cout << "sol0 norm = " << sol0.Norml2() << endl;
-         socketstream solsock(vishost, visport);
-         PlotSolution(sol0,solsock,ip0,true); 
+         // std::cout << std::fixed;
+         // std::cout << std::setprecision(10);
+         // cout << "sol0 norm = " << sol0.Norml2() << endl;
+         // cout << "cfsol0 norm = " << cfsol0.Norml2() << endl;
+         // socketstream solsock(vishost, visport);
+         // PlotSolution(cfsol0,solsock,ip0,true);  cin.get();
 
 
-         cout << "cfsol  norm = " << cfsol0.Norml2() << endl;
-         socketstream cfsock(vishost, visport);
-         PlotSolution(cfsol0,cfsock,ip0,true); cin.get();
+         // cout << "cfsol  norm = " << cfsol0.Norml2() << endl;
+         // socketstream cfsock(vishost, visport);
+         // PlotSolution(cfsol0,cfsock,ip0,true); cin.get();
          // Find the minumum sweep number that to transfer the source that 
          // satisfies the two rules
          for (int l=sweep; l<nsweeps; l++)
@@ -452,10 +460,10 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    direct[1] = -direction[1];
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream zsock(vishost, visport);
-   PlotSolution(Psi1,zsock,ip1,true); cin.get();
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // socketstream zsock(vishost, visport);
+   // PlotSolution(Psi1,zsock,ip1,true); cin.get();
 
    return ip1;
 }
@@ -476,9 +484,9 @@ void DST::GetChiRes(const Vector & res, Vector & cfres,
    
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
-   pmin.Print();
-   pmax.Print();
-   directions.Print();
+   // pmin.Print();
+   // pmax.Print();
+   // directions.Print();
    Array2D<double> pmlh(dim,2); pmlh = 0.0;
    int i,j,k;
    Getijk(ip,i,j,k);
@@ -486,29 +494,29 @@ void DST::GetChiRes(const Vector & res, Vector & cfres,
    {
       // pmlh[0][1] = h*nlayers;
       pmlh[0][0] = h;
-      pmin[0] += h*(ovlpnrlayers-1);
+      pmin[0] += h*(nrlayers);
    }
    if (directions[0]==1)
    {
       // pmlh[0][0] = h*nlayers;
       pmlh[0][1] = h;
-      pmax[0] -= h*(ovlpnrlayers-1);
+      pmax[0] -= h*(nrlayers);
 
    }
    if (directions[1]==-1)
    {
       // pmlh[1][1] = h*nlayers;
       pmlh[1][0] = h;
-      pmin[1] += h*(ovlpnrlayers-1);
+      pmin[1] += h*(nrlayers);
    }
    if (directions[1]==1)
    {
       // pmlh[1][0] = h*nlayers;
       pmlh[1][1] = h;
-      pmax[1] -= h*(ovlpnrlayers-1);
+      pmax[1] -= h*(nrlayers);
    }
-   pmin.Print();
-   pmax.Print();
+   // pmin.Print();
+   // pmax.Print();
    // CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
    CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
 

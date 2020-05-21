@@ -11,6 +11,7 @@ private:
    int dim;
    SesquilinearForm *bf=nullptr;
    MeshPartition * povlp=nullptr;
+   MeshPartition * novlp=nullptr;
    double omega = 0.5;
    Coefficient * ws;
    int nrlayers;
@@ -18,6 +19,7 @@ private:
    int nxyz[3];
    const Operator * A=nullptr;
    DofMap * ovlp_prob = nullptr;
+   DofMap * nvlp_prob = nullptr;
    Array<SparseMatrix *> PmlMat;
    Array<KLUSolver *> PmlMatInv;
    Array2D<double> Pmllength;

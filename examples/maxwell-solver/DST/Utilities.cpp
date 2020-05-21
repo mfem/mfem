@@ -28,13 +28,13 @@ double CutOffFncn(const Vector &x, const Vector & pmin, const Vector & pmax, con
       {
          if(h1(i) != 0.0)
             // val = (x(i)-pmax(i))/(x1(i)-pmax(i)); 
-            val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),1.0); 
+            val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),3.0); 
       }
       else if (x(i) > pmin(i) && x(i) <= x0(i))
       {
          if (h0(i) != 0.0)
             // val = (x(i)-pmin(i))/(x0(i)-pmin(i)); 
-            val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),1.0); 
+            val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),3.0); 
       }
 
       if (h0(i) == 0 && x(i) <= x1(i))

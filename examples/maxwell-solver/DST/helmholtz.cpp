@@ -119,8 +119,8 @@ int main(int argc, char *argv[])
    mesh->GetBoundingBox(pmin,pmax);
    double domain_length = pmax[0] - pmin[0];
    double pml_thickness = 0.125/domain_length;
-   int nrlayers = pml_thickness/hl;
-   // int nrlayers = 2;
+   // int nrlayers = pml_thickness/hl;
+   int nrlayers = 2;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -330,7 +330,7 @@ double f_exact_Re(const Vector &x)
    x0 = 0.15;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.15;
+   x1 = 0.5;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;
