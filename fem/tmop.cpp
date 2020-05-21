@@ -1616,7 +1616,18 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 #if 0
    // 180.534, 318.943
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-#elif 0
+#elif 1
+   //const FiniteElement *fe = fes->GetFE(0);
+   //const Geometry::Type geom_type = fe->GetGeomType();
+   //const DenseMatrix Jtr = Geometries.GetGeomToPerfGeomJac(geom_type);
+   for (int q=0; q<ir->GetNPoints(); q++)
+   {
+      Jtr(q)(0,0) = 1.0;
+      Jtr(q)(0,1) = 0.0;
+      Jtr(q)(1,0) = 0.0;
+      Jtr(q)(1,1) = 1.0;
+   }
+#elif 1
    // -293.087, -422.389
    for (int q=0; q<ir->GetNPoints(); q++)
    {
@@ -1706,6 +1717,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
 
       MultAtB(PMatI, DS, Jpt);
+      dbg("Jpt:"); Jpt.Print();
       // Jpt = GX^T.DS = GX^T.(DSh.Jrt) = (GX^T.DSh).Jrt
       {
          dbg("\033[0mdetJpt: %.15e",Jpt.Det());
@@ -1779,7 +1791,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                dbg("\033[31m%.15e", Aelmat(i,j));
                dbg("\033[31m%.15e", Pelmat(i,j));
             }
-            MFEM_VERIFY(fabs(Aelmat(i,j)-Pelmat(i,j)) < EPS,"");
+            //MFEM_VERIFY(fabs(Aelmat(i,j)-Pelmat(i,j)) < EPS,"");
          }
       }
 
