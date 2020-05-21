@@ -33,40 +33,6 @@ using namespace std;
 namespace mfem
 {
 
-static void getPumiNodeXis(apf::FieldShape* fs,
-                           int type,
-                           IntegrationRule& xis)
-{
-   apf::NewArray<apf::Vector3> pumiXis;
-   apf::getElementNodeXis(fs, type, pumiXis);
-   xis.SetSize(pumiXis.size());
-   for (size_t i = 0; i < pumiXis.size(); i++)
-   {
-      IntegrationPoint& ip = xis.IntPoint(i);
-      double xi[3];
-      pumiXis[i].toArray(xi);
-      ip.Set(xi, 3);
-   }
-}
-
-static void getPumiNodeXis(apf::FieldShape* fs,
-                           apf::Mesh2* m,
-                           apf::MeshEntity* e,
-                           IntegrationRule& xis)
-{
-   apf::NewArray<apf::Vector3> pumiXis;
-   apf::getElementNodeXis(fs, m, e, pumiXis);
-   xis.SetSize(pumiXis.size());
-   for (size_t i = 0; i < pumiXis.size(); i++)
-   {
-      IntegrationPoint& ip = xis.IntPoint(i);
-      double xi[3];
-      pumiXis[i].toArray(xi);
-      ip.Set(xi, 3);
-   }
-}
-
-
 static void ReadPumiElement(apf::MeshEntity* Ent, /* ptr to pumi entity */
                             apf::Downward Verts,
                             const int Attr, apf::Numbering* vert_num,
