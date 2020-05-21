@@ -49,13 +49,11 @@ void MFEMFinalizeSlepc()
 }
 
 
-SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix,
-                                   bool wrap)
+SlepcEigenSolver::SlepcEigenSolver(MPI_Comm comm, const std::string &prefix)
 {
    clcustom = false;
    _tol = PETSC_DEFAULT;
    _max_its = PETSC_DEFAULT;
-   _wrap = wrap;
    VR = NULL;
    VC = NULL;
    operatorset = false;
@@ -72,101 +70,31 @@ SlepcEigenSolver::~SlepcEigenSolver()
 }
 
 
-void SlepcEigenSolver::SetOperator(const Operator &op)
+void SlepcEigenSolver::SetOperator(const PetscParMatrix &op)
 {
-   PetscParMatrix *pA = const_cast<PetscParMatrix *>
-                        (dynamic_cast<const PetscParMatrix *>(&op));
-   const HypreParMatrix *hA = dynamic_cast<const HypreParMatrix *>(&op);
-   const Operator       *oA = dynamic_cast<const Operator *>(&op);
-   bool delete_pA = false;
-
-   if (!pA)
-   {
-      if (hA)
-      {
-         pA = new PetscParMatrix(hA,
-                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
-         delete_pA = true;
-      }
-      else if (oA)
-      {
-         pA = new PetscParMatrix(PetscObjectComm((PetscObject)eps),oA,
-                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
-         delete_pA = true;
-
-      }
-   }
-   MFEM_VERIFY(pA, "Unsupported operation!");
-
    if (operatorset)
    {
       delete VR;
       delete VC;
       VR = VC = NULL;
    }
-   ierr = EPSSetOperators(eps,*pA,NULL); PCHKERRQ(eps, ierr);
-   operatorset = true;
 
-   if (delete_pA) {delete_pA;}
+   ierr = EPSSetOperators(eps,op,NULL); PCHKERRQ(eps, ierr);
+   operatorset = true;
 }
 
-void SlepcEigenSolver::SetOperators(const Operator &op, const Operator &opB)
+void SlepcEigenSolver::SetOperators(const PetscParMatrix &op,
+                                    const PetscParMatrix&opB)
 {
-   PetscParMatrix *pA = const_cast<PetscParMatrix *>
-                        (dynamic_cast<const PetscParMatrix *>(&op));
-   PetscParMatrix *pB = const_cast<PetscParMatrix *>
-                        (dynamic_cast<const PetscParMatrix *>(&opB));
-   const HypreParMatrix *hA = dynamic_cast<const HypreParMatrix *>(&op);
-   const HypreParMatrix *hB = dynamic_cast<const HypreParMatrix *>(&opB);
-
-   const Operator *oA = dynamic_cast<const Operator *>(&op);
-   const Operator *oB = dynamic_cast<const Operator *>(&opB);
-   bool delete_pA = false;
-   bool delete_pB = false;
-   if (!pA)
-   {
-      if (hA)
-      {
-         pA = new PetscParMatrix(hA,
-                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
-         delete_pA = true;
-      }
-      else if (oA)
-      {
-         pA = new PetscParMatrix(PetscObjectComm((PetscObject)eps),oA,
-                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
-         delete_pA = true;
-      }
-   }
-   MFEM_VERIFY(pA, "Unsupported Operation!");
-   if (!pB)
-   {
-      if (hB)
-      {
-         pB = new PetscParMatrix(hB,
-                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
-         delete_pB = true;
-      }
-      else if (oB)
-      {
-         pB = new PetscParMatrix(PetscObjectComm((PetscObject)eps),oB,
-                                 _wrap ? Operator::PETSC_MATSHELL : Operator::PETSC_MATAIJ);
-         delete_pB = true;
-      }
-   }
-   MFEM_VERIFY(pB, "Unsupported Operation!");
-
    if (operatorset)
    {
       delete VR;
       delete VC;
       VR = VC = NULL;
    }
-   operatorset = true;
 
-   ierr = EPSSetOperators(eps,*pA,*pB); PCHKERRQ(eps,ierr);
-   if (delete_pA) {delete_pA;}
-   if (delete_pB) {delete_pB;}
+   ierr = EPSSetOperators(eps,op,opB); PCHKERRQ(eps,ierr);
+   operatorset = true;
 }
 
 void SlepcEigenSolver::SetTol(double tol)
