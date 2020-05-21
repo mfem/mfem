@@ -1613,15 +1613,25 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    elmat = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
-#ifdef IDENTITY_WIDEAL
+#if 0
+   // 180.534, 318.943
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+#elif 0
+   // -293.087, -422.389
+   for (int q=0; q<ir->GetNPoints(); q++)
+   {
+      Jtr(q)(0,0) = 2.0;
+      Jtr(q)(0,1) = 0.0;
+      Jtr(q)(1,0) = 0.0;
+      Jtr(q)(1,1) = -1.0;
+   }
 #else
    for (int q=0; q<ir->GetNPoints(); q++)
    {
-      Jtr(q)(0,0) = 1.123;
-      Jtr(q)(0,1) = 0.0;
-      Jtr(q)(1,0) = 0.0;
-      Jtr(q)(1,1) = -1.987654;
+      Jtr(q)(0,0) = 2.0;
+      Jtr(q)(0,1) = +1.123;
+      Jtr(q)(1,0) = -1.456;
+      Jtr(q)(1,1) = 1.0;
    }
 #endif
    //dbg("Jtr:"); Jtr(0).Print();
@@ -1668,12 +1678,12 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       const DenseMatrix &Jtr_i = Jtr(i);                             // Read Jtr
       const double weight = ip.weight * Jtr_i.Det();
       double weight_m = weight ;//* metric_normal;
-      dbg("\033[7;31mweight:%f, detJtr:%f", weight, Jtr_i.Det());
+      dbg("\033[7;31mweight: %f, detJtr: %f", ip.weight, Jtr_i.Det());
       dbg("\033[7;31mweight_m: %f", weight_m);
 
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt); // Jrt = Jtr^{-1}
-      //dbg("Jrt:"); Jrt.Print();
+      dbg("Jrt:"); Jrt.Print();
       {
          dbg("\033[0mdetJrt: %.15e",Jrt.Det());
          dbg("Jrt: %.15e %.15e",Jrt(0,0),Jrt(0,1));
@@ -1681,10 +1691,10 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
 
       el.CalcDShape(ip, DSh); // ∇shapes
-      dbg("DSh:"); DSh.Print(); //exit(0);
+      dbg("DSh:"); DSh.Print();
 
       Mult(DSh, Jrt, DS); // DS = DSh * Jrt
-      dbg("DS:"); DS.Print(); //exit(0);
+      dbg("DS:"); DS.Print();
 
       // GX = X^T.DSh
       {
@@ -1757,7 +1767,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
             }
          }
       }
-      const double EPS = 1.e-8;
+      const double EPS = 1.e-4;
       Pelmat *= flip ? -1.0 : 1.0;
       //dbg("P_ELMAT:"); Pelmat.Print();
       for (int i = 0; i < dim*dof; i++)

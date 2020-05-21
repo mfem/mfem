@@ -757,17 +757,17 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             const double Jtry1 = D(qx,qy,1,1,e);
             const double detJtr = Jtrx0*Jtry1 - Jtrx1*Jtry0;
             const double weight_detJtr = weight * detJtr;
-            dbg("\033[7;31mQ(%d,%d): weight:%f, detJtr:%f", qx,qy, weight, detJtr);
-            dbg("\033[7;31mQ(%d,%d): weight_m:%f",qx,qy,weight_detJtr);
+            dbg("\033[7;31mQ(%d,%d): weight: %f, detJtr: %f", qx,qy, weight, detJtr);
+            dbg("\033[7;31mQ(%d,%d): weight_m: %f",qx,qy,weight_detJtr);
 
             // Jrt = Jtr^{-1}
             const double Jrt0x =  Jtry1 / detJtr;
             const double Jrt0y = -Jtrx1 / detJtr;
             const double Jrt1x = -Jtry0 / detJtr;
             const double Jrt1y =  Jtrx0 / detJtr;
-            double Jrt_p[4] = {Jrt0x, Jrt0y, Jrt1x, Jrt1y};
+            double Jrt_p[4] = {Jrt0x, Jrt1x, Jrt0y, Jrt1y};
             DenseMatrix Jrt(Jrt_p, dim, dim);
-            //dbg("Jrt:"); Jrt.Print();
+            dbg("Jrt:"); Jrt.Print();
             {
                const double detJrt = Jrt.Det();
                dbg("\033[0mdetJrt: %.15e", detJrt);
@@ -785,51 +785,52 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
                   const double bg = G[qx][i1] * B[qy][i2];
                   const double gb = B[qx][i1] * G[qy][i2];
                   const int dof = i2 + i1*D1D;
-                  DSh(dof, 1) = bg;
-                  DSh(dof, 0) = gb;
+                  DSh(dof, 0) = bg;
+                  DSh(dof, 1) = gb;
                }
             }
             dbg("DSh:"); DSh.Print();
 
             // Compute DS = DSh Jrt
             DenseMatrix DS(dof, dim);
-            Mult(DSh, Jrt, DS);
+            Mult/*ABt*/(DSh, Jrt, DS);
             dbg("DS:"); DS.Print();
 
             // GR = DS.R^T
             // GR = DSh.Jrt.R^T
             // GR = Jrt.(DSh.R^T)
-            const double hGRx0 = Rx0[qy][qx];
-            const double hGRx1 = Rx1[qy][qx];
-            const double hGRy0 = Ry0[qy][qx];
-            const double hGRy1 = Ry1[qy][qx];
+            const double GRx0h = Rx0[qy][qx];
+            const double GRx1h = Rx1[qy][qx];
+            const double GRy0h = Ry0[qy][qx];
+            const double GRy1h = Ry1[qy][qx];
             /*{
                const double detG = GRx0*GRy1 - GRx1*GRy0;
                dbg("\033[0mdetG: %.15e",detG);
                dbg("G: %.15e %.15e",GRx0,GRx1);
                dbg("G: %.15e %.15e",GRy0,GRy1);
             }*/
-            double hGR_p[4] = {hGRx0, hGRy0, hGRx1, hGRy1};
+            double hGR_p[4] = {GRx0h, GRy0h, GRx1h, GRy1h};
             DenseMatrix hGR(hGR_p, dim, dim);
             DenseMatrix GR(dim);
             Mult(hGR,Jrt,GR);
 
             // GX = X^T.DSh
-            const double GXx0 = Xx0[qy][qx];
-            const double GXx1 = Xx1[qy][qx];
-            const double GXy0 = Xy0[qy][qx];
-            const double GXy1 = Xy1[qy][qx];
-            double GX_p[4] = {GXx0, GXy0, GXx1, GXy1};
-            DenseMatrix GX(GX_p, dim, dim);
-            dbg("GX:"); GX.Print();
+            const double GXx0h = Xx0[qy][qx];
+            const double GXx1h = Xx1[qy][qx];
+            const double GXy0h = Xy0[qy][qx];
+            const double GXy1h = Xy1[qy][qx];
+            double GXh_p[4] = {GXx0h, GXy0h, GXx1h, GXy1h};
+            DenseMatrix GXh(GXh_p, dim, dim);
+            dbg("GXh:"); GXh.Print();
             {
-               const double detGX = GXx0*GXy1 - GXx1*GXy0;
+               const double detGX = GXh.Det();
                dbg("\033[0mdetGX: %.15e",detGX);
-               dbg("GX: %.15e %.15e",GXx0,GXx1);
-               dbg("GX: %.15e %.15e",GXy0,GXy1);
+               dbg("GX: %.15e %.15e",GXx0h,GXx1h);
+               dbg("GX: %.15e %.15e",GXy0h,GXy1h);
             }
 
             // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
+            /*
             //               |Jrt0x Jrt0y|
             //               |Jrt1x Jrt1y|
             //   |GXx0 GXx1| |Jptxx Jptxy|
@@ -838,18 +839,20 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             const double Jptxy = ((GXx0 * Jrt0y) + (GXx1 * Jrt1y));
             const double Jptyx = ((GXy0 * Jrt0x) + (GXy1 * Jrt1x));
             const double Jptyy = ((GXy0 * Jrt0y) + (GXy1 * Jrt1y));
-            {
-               const double detJpt = Jptxx*Jptyy - Jptxy*Jptyx;
-               dbg("\033[0mdetJpt: %.15e",detJpt);
-               dbg("Jpt: %.15e %.15e",Jptxx,Jptxy);
-               dbg("Jpt: %.15e %.15e",Jptyx,Jptyy);
-            }
             double Jpt_p[4] = {Jptxx, Jptyx, Jptxy, Jptyy};
-            DenseMatrix Jpt(Jpt_p, dim, dim);
+            DenseMatrix Jpt(Jpt_p, dim, dim);*/
+            DenseMatrix Jpt(dim);
+            Mult/*ABt*/(GXh,Jrt,Jpt);
+            dbg("Jpt:"); Jpt.Print();
+            {
+               dbg("\033[0mdetJpt: %.15e",Jpt.Det());
+               dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
+               dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
+            }
 
             //metric->AssembleH(Jpt, DS, weight_m, elmat);
             InvariantsEvaluator2D<double> ie;
-            ie.SetJacobian(Jpt_p);
+            ie.SetJacobian(Jpt.GetData());
             ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
             DenseMatrix elmat(dof*dim);
             elmat = 0.0;
@@ -886,7 +889,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
                }
             }
 
-            const double EPS = 1.e-8;
+            const double EPS = 1.e-4;
             const bool flip = Jpt.Det() < 0.0;
             Pelmat *= flip ? -1.0 : 1.0;
             //dbg("P_ELMAT:"); Pelmat.Print();
@@ -1031,16 +1034,24 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
       //  - Jtr(i) == Wideal
       // Get Wideal into Jtr
-#ifdef IDENTITY_WIDEAL
+#if 0
+      // 180.534, 318.943
       const FiniteElement *fe = fes->GetFE(0);
       const Geometry::Type geom_type = fe->GetGeomType();
       const DenseMatrix Jtr = Geometries.GetGeomToPerfGeomJac(geom_type);
-#else
+#elif 0
+      // -293.087, -422.389
       DenseMatrix Jtr(dim);
-      Jtr(0,0) = 1.123;
+      Jtr(0,0) = 2.0;
       Jtr(0,1) = 0.0;
       Jtr(1,0) = 0.0;
-      Jtr(1,1) = -1.987654;
+      Jtr(1,1) = -1.0;
+#else
+      DenseMatrix Jtr(dim); // 474.772, 733.731
+      Jtr(0,0) = 2.0;
+      Jtr(0,1) = +1.123;
+      Jtr(1,0) = -1.456;
+      Jtr(1,1) = 1.0;
 #endif
       dbg("Jtr:"); Jtr.Print();
 
