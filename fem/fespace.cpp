@@ -724,6 +724,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
    if (IsVariableOrder())
    {
+#if 1
       // variable order spaces: handle edge constraints
       T.SetIdentityTransformation(Geometry::SEGMENT);
 
@@ -747,6 +748,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
       }
+#endif
 
       // handle face constraints
       if (mesh->Dimension() > 2)
@@ -1740,7 +1742,7 @@ void FiniteElementSpace
             case 1: os << "edge "; break;
             default: os << "face "; break;
          }
-         os << idx << "; ";
+         os << idx << " (v" << variant << "); ";
 
          if (i < deps.Height() && deps.RowSize(i))
          {
