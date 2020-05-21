@@ -2314,7 +2314,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {
-   if (fec->GetContType() == FiniteElementCollection::TANGENTIAL)
+   if (fes->FEColl()->GetContType() == FiniteElementCollection::TANGENTIAL)
    {
       const FiniteElement *fe;
       ElementTransformation *T;

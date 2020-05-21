@@ -448,7 +448,7 @@ void ParGridFunction::ProjectBdrCoefficient(
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                                    Array<int> &bdr_attr)
 {
-   if (fec->GetContType() == FiniteElementCollection::TANGENTIAL)
+   if (pfes->FEColl()->GetContType() == FiniteElementCollection::TANGENTIAL)
    {
       const FiniteElement *fe;
       ElementTransformation *T;
