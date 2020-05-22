@@ -1796,7 +1796,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
 
       //elmat = Aelmat;
-      elmat = Pelmat;
+      elmat += Pelmat;
       /*for (int i = 0; i < dim*dof; i++)
       {
          for (int j = 0; j < dim*dof; j++)
