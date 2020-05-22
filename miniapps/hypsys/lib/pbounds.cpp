@@ -78,15 +78,17 @@ void ParTightBounds::ComputeElementBounds(int n, int e, const Vector &x)
    for (int i = 0; i < nd; i++)
    {
       const int I = eldofs[DofMapH1[i]];
+      px_min(I) = min(px_min(I), xi_min(e*nd + i));
+      px_max(I) = max(px_max(I), xi_max(e*nd + i));
 
-      for (int j = 0; j < ClosestNbrs.Width(); j++)
-      {
-         if (ClosestNbrs(i,j) == -1) { break; }
+      // for (int j = 0; j < ClosestNbrs.Width(); j++)
+      // {
+      //    if (ClosestNbrs(i,j) == -1) { break; }
 
-         const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
-         px_min(I) = min( min(px_min(I), x(J)), xi_min(J) );
-         px_max(I) = max( max(px_max(I), x(J)), xi_max(J) );
-      }
+      //    const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
+      //    px_min(I) = min(px_min(I), x(J));
+      //    px_max(I) = max(px_max(I), x(J));
+      // }
    }
 }
 
@@ -95,6 +97,9 @@ void ParTightBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
    for (int i = 0; i < nd; i++)
    {
       const int I = eldofs[DofMapH1[i]];
+      // double quotient = x(n*ne*nd + e*nd + i) / x(e*nd + i);
+      // px_min(I) = min(quotient, xi_min(n*ne*nd + e*nd + i));
+      // px_max(I) = max(quotient, xi_max(n*ne*nd + e*nd + i));
 
       for (int j = 0; j < ClosestNbrs.Width(); j++)
       {

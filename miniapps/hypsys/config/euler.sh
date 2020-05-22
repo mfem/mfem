@@ -7,15 +7,15 @@ MESH=data/wall-bdr-4segment.mesh
 CONFIG="-p 4 -c 1 -vs 1000 -tf 0.231 -s 3 -m $MESH -e $SCHEME"
 
 # h-refinement
-$EXEC $CONFIG -o 1 -r 4 -dt 0.00128
 $EXEC $CONFIG -o 1 -r 5 -dt 0.00064
 $EXEC $CONFIG -o 1 -r 6 -dt 0.00032
 $EXEC $CONFIG -o 1 -r 7 -dt 0.00016
+$EXEC $CONFIG -o 1 -r 8 -dt 0.00008
 
 # p-refinement & h-coarsening
-$EXEC $CONFIG -r 5 -o 1 -dt 0.00004
-$EXEC $CONFIG -r 4 -o 3 -dt 0.00004
-$EXEC $CONFIG -r 3 -o 7 -dt 0.00004
+$EXEC $CONFIG -r 5 -o 1 -dt 0.0005
+$EXEC $CONFIG -r 4 -o 3 -dt 0.0005
+$EXEC $CONFIG -r 3 -o 7 -dt 0.0005
 
 
 ## Woodward Colella
