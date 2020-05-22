@@ -69,7 +69,7 @@
 
 
 #include "mfem.hpp"
-#include "miniapps/common/fem_extras.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 

@@ -68,7 +68,7 @@
 //     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 #include "mfem.hpp"
-#include "miniapps/common/pfem_extras.hpp"
+#include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
 
