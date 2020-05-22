@@ -158,10 +158,9 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    Vector x(X.Size());
    x = X;
 #ifndef _WIN32
-   if (getenv("DBG"))
+   if (getenv("RAND"))
    {
       x.HostWrite();
-      srand48(0x1234abcd330eul);
       dbg("\033[7mStuffing x with RANDs!");
       for (int k=0; k<X.Size(); k++) { x[k] = drand48(); }
    }
@@ -298,7 +297,8 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
       auto Y = y.ReadWrite();
       MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
    }
-   dbg("y: %.15e", y*y);
+   dbg("\033[7;32my: %.15e", y*y);
+   dbg("EXITING!"); exit(0);
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
@@ -322,7 +322,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
    if (Grad == NULL)
    {
-      dbg("Grad Op: GetVDim:%d, GetNDofs:%d", fes->GetVDim(), fes->GetNDofs());
       Grad = new SparseMatrix(fes->GetVSize());
    }
    else
@@ -334,7 +333,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         dbg("\033[37;7mElement #%d",i);
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -342,22 +340,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          for (int k = 0; k < dnfi.Size(); k++)
          {
             dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
-            /*{
-               //elmat.Print();
-               const int dof = fe->GetDof();
-               const int dim = fe->GetDim();
-               const int n = (dof*dim);
-               for (int r=0; r<n; r++)
-               {
-                  dbg("row %d",r);
-                  for (int c=0; c<n; c++)
-                  {
-                     dbg("\t%.15e", elmat.GetData()[c+r*n]);
-                  }
-               }
-            }*/
             Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
-            //dbg("Grad:"); Grad->Print();
             // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
          }
       }
@@ -449,16 +432,13 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    if (!Grad->Finalized())
    {
       Grad->Finalize(skip_zeros);
-      dbg("Finalized Grad:"); //Grad->Print();
    }
 
    SparseMatrix *mGrad = Grad;
    if (Serial())
    {
-      dbg("Serial!");
       if (cP)
       {
-         dbg("cP");
          MFEM_ABORT("");
          delete cGrad;
          cGrad = RAP(*cP, *Grad, *cP);
@@ -466,12 +446,9 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       }
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
-         dbg("EliminateRowCol %d", ess_tdof_list[i]);
          mGrad->EliminateRowCol(ess_tdof_list[i]);
       }
    }
-   //dbg("\033[7mmGrad: %d x %d", mGrad->Height(), mGrad->Width());
-   //mGrad->Print();
    return *mGrad;
 }
 

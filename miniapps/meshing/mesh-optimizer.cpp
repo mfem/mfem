@@ -257,6 +257,7 @@ IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
 
 int main(int argc, char *argv[])
 {
+   srand48(0x1234abcd330eul);
    // 0. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
@@ -777,7 +778,7 @@ int main(int argc, char *argv[])
       const int NQ = ir->GetNPoints();
       const int NE = mesh->GetNE();
       const int Q1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-      dbg("[] NQ:%d, Q1D:%d", NQ, Q1D);
+      dbg("NQ:%d, Q1D:%d", NQ, Q1D);
       MFEM_VERIFY( Q1D*Q1D == NQ, "");
       const int flags = GeometricFactors::DETERMINANTS;
       const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags);
