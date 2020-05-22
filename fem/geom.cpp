@@ -1344,15 +1344,14 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
             return NULL;
          }
          ir = FindInIntPts(Geom, Times-1);
-         if (ir == NULL)
+         if (ir) { return ir; }
+
+         ir = new IntegrationRule(Times-1);
+         for (int i = 1; i < Times; i++)
          {
-            ir = new IntegrationRule(Times-1);
-            for (int i = 1; i < Times; i++)
-            {
-               IntegrationPoint &ip = ir->IntPoint(i-1);
-               ip.x = double(i) / Times;
-               ip.y = ip.z = 0.0;
-            }
+            IntegrationPoint &ip = ir->IntPoint(i-1);
+            ip.x = double(i) / Times;
+            ip.y = ip.z = 0.0;
          }
       }
       break;
@@ -1364,18 +1363,17 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
             return NULL;
          }
          ir = FindInIntPts(Geom, ((Times-1)*(Times-2))/2);
-         if (ir == NULL)
-         {
-            ir = new IntegrationRule(((Times-1)*(Times-2))/2);
-            for (int k = 0, j = 1; j < Times-1; j++)
-               for (int i = 1; i < Times-j; i++, k++)
-               {
-                  IntegrationPoint &ip = ir->IntPoint(k);
-                  ip.x = double(i) / Times;
-                  ip.y = double(j) / Times;
-                  ip.z = 0.0;
-               }
-         }
+         if (ir) { return ir; }
+
+         ir = new IntegrationRule(((Times-1)*(Times-2))/2);
+         for (int k = 0, j = 1; j < Times-1; j++)
+            for (int i = 1; i < Times-j; i++, k++)
+            {
+               IntegrationPoint &ip = ir->IntPoint(k);
+               ip.x = double(i) / Times;
+               ip.y = double(j) / Times;
+               ip.z = 0.0;
+            }
       }
       break;
 
@@ -1386,18 +1384,17 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
             return NULL;
          }
          ir = FindInIntPts(Geom, (Times-1)*(Times-1));
-         if (ir == NULL)
-         {
-            ir = new IntegrationRule((Times-1)*(Times-1));
-            for (int k = 0, j = 1; j < Times; j++)
-               for (int i = 1; i < Times; i++, k++)
-               {
-                  IntegrationPoint &ip = ir->IntPoint(k);
-                  ip.x = double(i) / Times;
-                  ip.y = double(j) / Times;
-                  ip.z = 0.0;
-               }
-         }
+         if (ir) { return ir; }
+
+         ir = new IntegrationRule((Times-1)*(Times-1));
+         for (int k = 0, j = 1; j < Times; j++)
+            for (int i = 1; i < Times; i++, k++)
+            {
+               IntegrationPoint &ip = ir->IntPoint(k);
+               ip.x = double(i) / Times;
+               ip.y = double(j) / Times;
+               ip.z = 0.0;
+            }
       }
       break;
 
