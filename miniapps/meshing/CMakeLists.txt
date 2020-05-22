@@ -31,7 +31,8 @@ add_mfem_miniapp(extruder
 
 add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
-  LIBRARIES mfem)
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
@@ -55,7 +56,8 @@ add_test(NAME minimal-surface COMMAND minimal-surface -no-vis)
 if (MFEM_USE_MPI)
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
-    LIBRARIES mfem)
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(pminimal-surface
     MAIN pminimal-surface.cpp
