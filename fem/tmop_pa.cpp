@@ -491,7 +491,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 
       case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B,G,D,X,Y);
       case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B,G,D,X,Y);
-      //case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B,G,D,X,Y);
+      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B,G,D,X,Y);
       //case 0x35: return AddMultPA_Kernel_2D<3,5,1>(ne,W,B,G,D,X,Y);
 
       case 0x41: return AddMultPA_Kernel_2D<4,1,1>(ne,W,B,G,D,X,Y);
@@ -1086,7 +1086,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
 
       case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
       case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
-      //case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
+      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
       //case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
 
       case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
