@@ -447,9 +447,11 @@ public:
    }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
-   void AssembleRHSElementVect(const FiniteElement &fe,
-                               ElementTransformation &Tr, Vector &elvect);
-   void SetIntRule(const IntegrationRule *ir) override
+   virtual void AssembleRHSElementVect(const FiniteElement &fe,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void SetIntRule(const IntegrationRule *ir)
    {
       MFEM_WARNING("Integration rule not used in this class. "
                    "The QuadratureFunction integration rules are used instead");
@@ -476,9 +478,11 @@ public:
    }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
-   void AssembleRHSElementVect(const FiniteElement &fe,
-                               ElementTransformation &Tr, Vector &elvect);
-   void SetIntRule(const IntegrationRule *ir) override
+   virtual void AssembleRHSElementVect(const FiniteElement &fe,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void SetIntRule(const IntegrationRule *ir)
    {
       MFEM_WARNING("Integration rule not used in this class. "
                    "The QuadratureFunction integration rules are used instead");
