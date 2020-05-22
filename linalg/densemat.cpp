@@ -3043,9 +3043,6 @@ void LUFactors::RightSolve(int m, int n, double *X) const
    }
 #else
    // compiling without LAPACK
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
-
    // X <- X U^{-1}
    x = X;
    for (int k = 0; k < n; k++)
@@ -3080,7 +3077,7 @@ void LUFactors::RightSolve(int m, int n, double *X) const
    x = X;
    for (int k = 0; k < n; k++)
    {
-      for (int i = 0; i < m; i++)
+      for (int i = m-1; i >= 0; --i)
       {
          Swap<double>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
       }
