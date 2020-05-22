@@ -1,4 +1,4 @@
-EXEC="mpirun -np 1 phypsys"
+EXEC="mpirun -np 7 phypsys"
 
 SCHEME=1
 MESH=data/wall-bdr-4segment.mesh
@@ -13,9 +13,9 @@ $EXEC $CONFIG -o 1 -r 7 -dt 0.000025
 $EXEC $CONFIG -o 1 -r 8 -dt 0.0000125
 
 # p-refinement & h-coarsening
-$EXEC $CONFIG -o 1 -r 5 -dt 0.00005
-$EXEC $CONFIG -o 3 -r 4 -dt 0.00005
-$EXEC $CONFIG -o 7 -r 3 -dt 0.00005
+$EXEC $CONFIG -o 1 -r 5 -dt 0.000025
+$EXEC $CONFIG -o 3 -r 4 -dt 0.000025
+$EXEC $CONFIG -o 7 -r 3 -dt 0.000025
 
 ## Radial dambreak
 

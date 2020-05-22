@@ -84,8 +84,6 @@ void Bounds::ComputeBounds(const Vector &x)
       {
          xi_min(e*nd + j) = x_min(eldofs[DofMapH1[j]]);
          xi_max(e*nd + j) = x_max(eldofs[DofMapH1[j]]);
-         // xi_min(e*nd + j) = min(xi_min(e*nd + j), x_min(eldofs[DofMapH1[j]]));
-         // xi_max(e*nd + j) = max(xi_max(e*nd + j), x_max(eldofs[DofMapH1[j]]));
       }
    }
 
@@ -124,17 +122,17 @@ void TightBounds::ComputeElementBounds(int n, int e, const Vector &x)
    for (int i = 0; i < nd; i++)
    {
       const int I = eldofs[DofMapH1[i]];
-      x_min(I) = min(x_min(I), xi_min(e*nd + i));
-      x_max(I) = max(x_max(I), xi_max(e*nd + i));
+      x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
+      x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
 
-      // for (int j = 0; j < ClosestNbrs.Width(); j++)
-      // {
-      //    if (ClosestNbrs(i,j) == -1) { break; }
+      for (int j = 0; j < ClosestNbrs.Width(); j++)
+      {
+         if (ClosestNbrs(i,j) == -1) { break; }
 
-      //    const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
-      //    x_min(I) = min(x_min(I), x(J));
-      //    x_max(I) = max(x_max(I), x(J));
-      // }
+         const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
+         x_min(I) = min(x_min(I), x(J));
+         x_max(I) = max(x_max(I), x(J));
+      }
    }
 }
 
@@ -143,18 +141,8 @@ void TightBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
    for (int i = 0; i < nd; i++)
    {
       const int I = eldofs[DofMapH1[i]];
-      // // double quotient = x(n*ne*nd + e*nd + i) / x(e*nd + i);
-      // x_min(I) = min( x_min(I), /* min(quotient, */ xi_min(n*ne*nd + e*nd + i)) /* ) */;
-      // x_max(I) = max( x_max(I), /* max(quotient, */ xi_max(n*ne*nd + e*nd + i)) /* ) */;
-
-      for (int j = 0; j < ClosestNbrs.Width(); j++)
-      {
-         if (ClosestNbrs(i,j) == -1) { break; }
-
-         const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
-         x_min(I) = min(x_min(I), xi_min(J));
-         x_max(I) = max(x_max(I), xi_max(J));
-      }
+      x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
+      x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
    }
 }
 

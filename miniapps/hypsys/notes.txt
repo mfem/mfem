@@ -1,7 +1,6 @@
 ATTENTION
 
 DEBUG
-   -TODO Slightly different results in serial and parallel due to sequetial limiting
 
 PAPER
    \mathcal E_i set is problematic, due to i being local

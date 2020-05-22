@@ -361,6 +361,18 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                   uijMax(I,0) = max(uijMax(I,0), uij(I,J,0));
                   continue;
                }
+            }
+         }
+      }
+
+      for (int n = 1; n < hyp->NumEq; n++)
+      {
+         for (int I = 0; I < nd; I++)
+         {
+            for (int j = 0; j < NumLocNbr; j++)
+            {
+               int J = Dof2LocNbr(I,j);
+               if (J == -1) { break; }
 
                double AveragedBarState = (uij(I,J,n)+uij(J,I,n)) / (uij(I,J,0)+uij(J,I,0));
                uijMin(I,n) = min(uijMin(I,n), AveragedBarState);
