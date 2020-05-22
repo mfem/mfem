@@ -377,6 +377,44 @@ public:
 #endif
 };
 
+/// This class is nothing more than a Vector that executes on Device by default.
+class DeviceVector : public Vector
+{
+public:
+   /// Default constructor for DeviceVector. Sets size = 0 and data = NULL.
+   DeviceVector() : Vector()
+   {
+      this->UseDevice(true);
+   }
+
+   /// Copy constructor. Allocates a new data array and copies the data.
+   DeviceVector(const Vector &v) : Vector(v)
+   {
+      this->UseDevice(true);
+   }
+
+   /// @brief Creates vector of size s.
+   /// @warning Entries are not initialized to zero!
+   explicit DeviceVector(int s) : Vector(s)
+   {
+      this->UseDevice(true);
+   }
+
+   /// Creates a vector referencing an array of doubles, owned by someone else.
+   /** The pointer @a _data can be NULL. The data array can be replaced later
+       with SetData(). */
+   DeviceVector(double *_data, int _size) : Vector(_data,_size)
+   {
+      this->UseDevice(true);
+   }
+
+   /// Create a DeviceVector of size @a size_ using MemoryType @a mt.
+   DeviceVector(int size_, MemoryType mt) : Vector(size_,mt)
+   {
+      this->UseDevice(true);
+   }
+};
+
 // Inline methods
 
 inline bool IsFinite(const double &val)
