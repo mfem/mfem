@@ -44,7 +44,7 @@ public:
 int main(int argc, char *argv[])
 {
    int prob = 1;
-   int ode_solver_type = 3;
+   int ode_solver_type = 4;
    int ode_msr_type = 1;
    int ode_acc_type = 2;
    int ode_rej_type = 1;
@@ -78,8 +78,9 @@ int main(int argc, char *argv[])
    args.AddOption(&prob, "-p", "--problem-type",
                   "Problem Type From Gustafsson 1988:  1 - 7");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
+                  "ODE solver: 1 - Heun-Euler, 2 - RKF12, "
+		  "3 - BogackiShampine, 4 - RKF45, 5 - Cash-Karp, "
+		  "6 - Dormand-Prince.");
    args.AddOption(&ode_msr_type, "-err", "-error-measure",
                   "Error measure:\n"
                   "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
@@ -138,12 +139,12 @@ int main(int argc, char *argv[])
 
    switch (ode_solver_type)
    {
-      case 0: ode_solver = new HeunEulerSolver; break;
-      case 1: ode_solver = new FehlbergRK12Solver; break;
-      case 2: ode_solver = new BogackiShampineSolver; break;
-      case 3: ode_solver = new FehlbergRK45Solver; break;
-      case 4: ode_solver = new CashKarpSolver; break;
-      case 5: ode_solver = new DormandPrinceSolver; break;
+      case 1: ode_solver = new HeunEulerSolver; break;
+      case 2: ode_solver = new FehlbergRK12Solver; break;
+      case 3: ode_solver = new BogackiShampineSolver; break;
+      case 4: ode_solver = new FehlbergRK45Solver; break;
+      case 5: ode_solver = new CashKarpSolver; break;
+      case 6: ode_solver = new DormandPrinceSolver; break;
    }
    switch (ode_msr_type)
    {
