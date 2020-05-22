@@ -298,7 +298,7 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
       MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
    }
    dbg("\033[7;32my: %.15e", y*y);
-   dbg("EXITING!"); exit(0);
+   //dbg("EXITING!"); exit(0);
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const

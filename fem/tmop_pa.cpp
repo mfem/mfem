@@ -283,12 +283,11 @@ static void AddMultPA_Kernel_2D(const int NE,
             const double Jtry1 = D(qx,qy,1,1,e);
             double Jtr_p[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
             DenseMatrix Jtr(Jtr_p, dim, dim);
-            {
+            /*{
                dbg("\033[0mdetJtr: %.15e",Jtr.Det());
                dbg("Jtr: %.15e %.15e",Jtr(0,0),Jtr(0,1));
                dbg("Jtr: %.15e %.15e",Jtr(1,0),Jtr(1,1));
-            }
-
+            }*/
 
             const double detJtr = Jtrx0*Jtry1 - Jtrx1*Jtry0;
             const double weight_detJtr = weight * detJtr;
@@ -296,11 +295,11 @@ static void AddMultPA_Kernel_2D(const int NE,
             // Jrt = Jtr^{-1}
             DenseMatrix Jrt(2);
             kernels::CalcInverse<2>(Jtr_p, Jrt.GetData());
-            {
+            /*{
                dbg("\033[0mdetJrt: %.15e",Jrt.Det());
                dbg("Jrt: %.15e %.15e",Jrt(0,0),Jrt(0,1));
                dbg("Jrt: %.15e %.15e",Jrt(1,0),Jrt(1,1));
-            }
+            }*/
 
             // G = X{^T}.DSh
             const double Gx0 = QQx0[qy][qx];
@@ -309,21 +308,20 @@ static void AddMultPA_Kernel_2D(const int NE,
             const double Gy1 = QQy1[qy][qx];
             double G_p[4] = {Gx0, Gy0, Gx1, Gy1};
             DenseMatrix G(G_p, 2, 2);
-            {
+            /*{
                dbg("\033[0mdetG: %.15e",G.Det());
                dbg("G: %.15e %.15e",G(0,0),G(0,1));
                dbg("G: %.15e %.15e",G(1,0),G(1,1));
-            }
-
+            }*/
 
             // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = G.Jrt
             DenseMatrix Jpt(2);
             Mult(G,Jrt,Jpt);
-            {
+            /*{
                dbg("\033[0mdetJpt %.15e",Jpt.Det());
                dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
                dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
-            }
+            }*/
 
             // metric->EvalP(Jpt, P);
             //const double J[4]= {Jptxx, Jptyx, Jptxy, Jptyy};
@@ -331,27 +329,13 @@ static void AddMultPA_Kernel_2D(const int NE,
             ie.SetJacobian(Jpt.GetData());
             DenseMatrix P(2);
             P.Set(0.5, ie.Get_dI1b());
+
+            P *= weight_detJtr;
             /*{
-               const double detP = P(0,0)*P(1,1) - P(0,1)*P(1,0);
-               dbg("\033[0mdetP %.15e",detP);
+               dbg("\033[0mdetP %.15e",P.Det());
                dbg("P: %.15e %.15e",P(0,0),P(0,1));
                dbg("P: %.15e %.15e",P(1,0),P(1,1));
             }*/
-
-            // P(0,0) = Jptxx; P(0,1) = Jptxy; P(1,0) = Jptyx; P(1,1) = Jptyy;
-
-            //const double Pxx = w * P(0,0);
-            //const double Pxy = w * P(0,1);
-            //const double Pyx = w * P(1,0);
-            //const double Pyy = w * P(1,1);
-            P *= weight_detJtr;
-            //dbg("P:"); P.Print();
-            {
-               const double detP = P.Det();
-               dbg("\033[0mdetP %.15e",detP);
-               dbg("P: %.15e %.15e",P(0,0),P(0,1));
-               dbg("P: %.15e %.15e",P(1,0),P(1,1));
-            }
 
             // PMatO +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)
             double A_p[4];
@@ -361,26 +345,11 @@ static void AddMultPA_Kernel_2D(const int NE,
             QQy0[qy][qx] = A(0,1);
             QQx1[qy][qx] = A(1,0);
             QQy1[qy][qx] = A(1,1);
-            //A.Print();
-            {
-               dbg("\033[0mdetA: %.15e", A.Det());
-               dbg("A: %.15e %.15e",A(0,0), A(0,1));
-               dbg("A: %.15e %.15e",A(1,0), A(1,1));
-            }
-
-            // Jrt . Jpt^t:
-            // |Pxx Pxy|^{T}  => |Pxx Pyx|
-            // |Pyx Pyy|         |Pxy Pyy|
-            //     |Jrt0x Jrt0y|  A0x A0y
-            //     |Jrt1x Jrt1y|  A1x A1y
-            /*const double A0x = Jrt0x*Pxx + Jrt0y*Pxy;
-            const double A0y = Jrt0x*Pyx + Jrt0y*Pyy;
-            const double A1x = Jrt1x*Pxx + Jrt1y*Pxy;
-            const double A1y = Jrt1x*Pyx + Jrt1y*Pyy;
-            QQx0[qy][qx] = A0x;
-            QQy0[qy][qx] = A0y;
-            QQx1[qy][qx] = A1x;
-            QQy1[qy][qx] = A1y;*/
+            /* {
+                dbg("\033[0mdetA: %.15e", A.Det());
+                dbg("A: %.15e %.15e",A(0,0), A(0,1));
+                dbg("A: %.15e %.15e",A(1,0), A(1,1));
+             }*/
          }
       }
       MFEM_SYNC_THREAD;
@@ -451,13 +420,12 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
    //  - Jtr(i) == Wideal
-#if 0
+#if 1
    const FiniteElement *fe = fes->GetFE(0);
    const Geometry::Type geom_type = fe->GetGeomType();
    const DenseMatrix Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
    MFEM_VERIFY(Wideal.Det() == 1.0 ,"");
    {
-      MFEM_VERIFY(Wideal.Det() == 1.0 ,"");
       MFEM_VERIFY(Wideal(0,0)==1.0 && Wideal(1,1)==1.0 &&
                   Wideal(1,0)==0.0 && Wideal(0,1)==0.0,"");
    }
@@ -498,7 +466,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B,G,D,X,Y);
+      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B,G,D,X,Y);/*
       case 0x22: return AddMultPA_Kernel_2D<2,2,1>(ne,W,B,G,D,X,Y);
       case 0x23: return AddMultPA_Kernel_2D<2,3,1>(ne,W,B,G,D,X,Y);
       case 0x24: return AddMultPA_Kernel_2D<2,4,1>(ne,W,B,G,D,X,Y);
@@ -520,7 +488,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
       case 0x52: return AddMultPA_Kernel_2D<5,2,1>(ne,W,B,G,D,X,Y);
       case 0x53: return AddMultPA_Kernel_2D<5,3,1>(ne,W,B,G,D,X,Y);
       case 0x54: return AddMultPA_Kernel_2D<5,4,1>(ne,W,B,G,D,X,Y);
-      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B,G,D,X,Y);
+      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B,G,D,X,Y);*/
       default:  break;
    }
    dbg("kernel id: %x", id);
@@ -988,6 +956,11 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       const FiniteElement *fe = fes->GetFE(0);
       const Geometry::Type geom_type = fe->GetGeomType();
       const DenseMatrix Jtr = Geometries.GetGeomToPerfGeomJac(geom_type);
+      MFEM_VERIFY(Jtr.Det() == 1.0 ,"");
+      {
+         MFEM_VERIFY(Jtr(0,0)==1.0 && Jtr(1,1)==1.0 &&
+                     Jtr(1,0)==0.0 && Jtr(0,1)==0.0,"");
+      }
 #elif 0
       DenseMatrix Jtr(dim);
       Jtr(0,0) = 1.0;
@@ -1039,7 +1012,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
 
    switch (id)
    {
-      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
+      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);/*
       case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
       case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
       case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
@@ -1061,7 +1034,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
       case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
       case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
-      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);
+      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(Xe,ne,W,B1d,G1d,D,Re,Ce);*/
       default:  break;
    }
    dbg("kernel id: %x", id);

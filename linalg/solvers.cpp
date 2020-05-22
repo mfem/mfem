@@ -537,10 +537,6 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("");
-   MFEM_VERIFY(!prec,"");
-   MFEM_VERIFY(!iterative_mode,"");
-
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
@@ -686,12 +682,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          add(r, beta, d, d);
       }
       static int loop = 0;
-      dbg("%d oper->Mult(d, z): d: %.15e", loop, d*d);
+      //dbg("%d oper->Mult(d, z): d: %.15e", loop, d*d);
       oper->Mult(d, z);       //  z = A d
-      dbg("%d oper->Mult(d, z): z: %.15e", loop, z*z);
+      //dbg("%d oper->Mult(d, z): d: %.15e z: %.15e", loop, d*d, z*z);
       loop++;
       /////////////////////////
-      if (i==4) {dbg("Exiting!"); exit(0);}
+      //if (i==14) {dbg("Exiting!"); exit(0);}
       /////////////////////////
 
       den = Dot(d, z);
@@ -1595,7 +1591,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
-   dbg("Result: x:%.15e", x*x); x.Print();
    oper->Mult(x, r);
    dbg("Result: x:%.15e, r:%.15e", x*x, r*r);
    if (have_b)
@@ -1650,13 +1645,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 #endif
       prec->SetOperator(oper->GetGradient(x));
 
-      dbg("prec->Mult, r:%d, c:%d",r.Size(),c.Size());
-      dbg("x:%.15e", r*r);
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      dbg("c: %.15e", c*c);
-      /////////////////////////
-      dbg("Exiting!"); exit(0);
-      /////////////////////////
+      dbg("x:%.15e, c: %.15e", r*r, c*c);
 
       dbg("ComputeScalingFactor");
       const double c_scale = ComputeScalingFactor(x, b);

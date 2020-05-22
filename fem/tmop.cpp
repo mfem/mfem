@@ -1403,11 +1403,10 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    elvect = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
-#if 0
+#if 1
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
    for (int q = 0; q< ir->GetNPoints(); q++)
    {
-      MFEM_VERIFY(Jtr(q).Det() == 1.0 ,"");
       MFEM_VERIFY(Jtr(q)(0,0)==1.0 && Jtr(q)(1,1)==1.0 &&
                   Jtr(q)(1,0)==0.0 && Jtr(q)(0,1)==0.0,"");
    }
@@ -1465,36 +1464,36 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
       T.SetIntPoint(&ip);
       const DenseMatrix &Jtr_i = Jtr(i);
-      {
+      /*{
          dbg("\033[0mdetJtr: %.15e",Jtr_i.Det());
          dbg("Jtr: %.15e %.15e",Jtr_i(0,0),Jtr_i(0,1));
          dbg("Jtr: %.15e %.15e",Jtr_i(1,0),Jtr_i(1,1));
-      }
+      }*/
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
-      {
+      /*{
          dbg("\033[0mdetJrt: %.15e",Jrt.Det());
          dbg("Jrt: %.15e %.15e",Jrt(0,0),Jrt(0,1));
          dbg("Jrt: %.15e %.15e",Jrt(1,0),Jrt(1,1));
-      }
+      }*/
       const double weight = ip.weight * Jtr_i.Det();
       double weight_m = weight ;//* metric_normal;
 
       el.CalcDShape(ip, DSh);
-      {
+      /*{
          MultAtB(PMatI, DSh, G); // G = PMatI^{T} * DSh
          dbg("\033[0mdetG: %.15e",G.Det());
          dbg("G: %.15e %.15e",G(0,0),G(0,1));
          dbg("G: %.15e %.15e",G(1,0),G(1,1));
-      }
+      }*/
 
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
-      {
+      /*{
          dbg("\033[0mdetJpt %.15e",Jpt.Det());
          dbg("Jpt: %.15e %.15e",Jpt(0,0),Jpt(0,1));
          dbg("Jpt: %.15e %.15e",Jpt(1,0),Jpt(1,1));
-      }
+      }*/
 
       // TMOP_Metric_002::EvalP: P == 0.5 * dI1b(Jpt)
       // I1b = I3b^{-2/3}*I1
@@ -1504,20 +1503,19 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       //if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       P *= weight_m;
-      //dbg("P:"); P.Print();
-      {
+      /*{
          const double detP = P.Det();
          dbg("\033[0mdetP %.15e",detP);
          dbg("P: %.15e %.15e",P(0,0),P(0,1));
          dbg("P: %.15e %.15e",P(1,0),P(1,1));
-      }
+      }*/
 
-      {
+      /*{
          MultABt(Jrt, P, G);
          dbg("\033[0mdetA: %.15e",G.Det());
          dbg("A: %.15e %.15e",G(0,0),G(0,1));
          dbg("A: %.15e %.15e",G(1,0),G(1,1));
-      }
+      }*/
 
       AddMultABt(DS, P, PMatO);
 
@@ -1621,6 +1619,11 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
 #if 1
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+   for (int q = 0; q< ir->GetNPoints(); q++)
+   {
+      MFEM_VERIFY(Jtr(q)(0,0)==1.0 && Jtr(q)(1,1)==1.0 &&
+                  Jtr(q)(1,0)==0.0 && Jtr(q)(0,1)==0.0,"");
+   }
 #elif 0
    //const FiniteElement *fe = fes->GetFE(0);
    //const Geometry::Type geom_type = fe->GetGeomType();
