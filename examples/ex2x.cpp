@@ -73,7 +73,8 @@ int main(int argc, char *argv[])
    double lim_max = 2.0;
 
    bool gnuplot = false;
-
+   bool visualization = true;
+   
    OptionsParser args(argc, argv);
    args.AddOption(&prob, "-p", "--problem-type",
                   "Problem Type From Gustafsson 1988:  1 - 7");
@@ -111,6 +112,9 @@ int main(int argc, char *argv[])
                   "Rejection tolerance.");
    args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp", "--no-gnuplot",
                   "Enable or disable GnuPlot visualization.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
 
    args.Parse();
    if (!args.Good())
@@ -124,7 +128,7 @@ int main(int argc, char *argv[])
 
    // 4. Prepare GnuPlot output file if needed
    ofstream ofs;
-   if (gnuplot)
+   if (gnuplot || visualization)
    {
       ofs.open("ex2x.dat");
    }
@@ -216,20 +220,23 @@ int main(int argc, char *argv[])
    ode_controller.SetTimeStep(dt);
    ode_controller.SetTolerance(tol);
    ode_controller.SetRejectionLimit(rho);
-   if (gnuplot) { ode_controller.SetOutput(ofs); }
+   if (gnuplot || visualization) { ode_controller.SetOutput(ofs, true); }
 
    Vector y;
    InitialCondition(prob, y);
 
-   if (gnuplot)
+   if (gnuplot || visualization)
    {
-      ofs << t_init << "\t" << dt;
+      ofs << t_init << '\t' << 0 << '\t' << 0.0 << '\t' << dt;
       for (int i=0; i<y.Size(); i++)
       {
          ofs << "\t" << y(i);
       }
       ofs << endl;
 
+   }
+   if (gnuplot)
+   {
       ofstream ofs_inp("gnuplot_ex2x.inp");
       ofs_inp << "plot 'ex2x.dat' using 1:2 w l t 'dt';\npause -1;\n";
       ofs_inp << "plot ";
@@ -242,16 +249,91 @@ int main(int argc, char *argv[])
             ofs_inp << ", ";
          }
       }
-      ofs_inp << ";" << endl;
+      ofs_inp << ";\npause -1;\n" << endl;
       ofs_inp.close();
    }
-
-   ode_controller.SetOutput(ofs);
 
    ode_controller.Run(y, t_init, t_final);
 
    ofs.close();
 
+   if (visualization)
+     {
+       ifstream ifs("ex2x.dat");
+
+       int nsteps = ode_controller.GetNSteps();
+       int neqns  = tdo.Width();
+       
+       cout << "Num Steps: " << nsteps << endl;
+
+       H1_FECollection fec(1, 1);
+       
+       Mesh rdt_mesh(nsteps);
+       FiniteElementSpace rdt_fespace(&rdt_mesh, &fec);
+       GridFunction dt_gf(&rdt_fespace);
+       GridFunction r_gf(&rdt_fespace);
+
+       Mesh y_mesh(1, (nsteps+1) * neqns, nsteps * neqns);
+       for (int j=0; j<neqns; j++)
+       {
+	 for (int i=0; i<nsteps; i++)
+	 {
+	   int v[2];
+	   v[0] = (nsteps + 1) * j + i;
+	   v[1] = (nsteps + 1) * j + i + 1;
+	   y_mesh.AddSegment(v);
+	 }
+	 for (int i=0; i<=nsteps; i++)
+	 {
+	   double v = 0.0;
+	   y_mesh.AddVertex(&v);
+	 }
+       }
+       FiniteElementSpace y_fespace(&y_mesh, &fec);
+       GridFunction y_gf(&y_fespace);
+       
+       for (int i=0; i<=nsteps; i++)
+	 {
+	   double t, ns, r, dt, y;
+	   //Vector y(neqns);
+	   ifs >> t >> ns >> r >> dt;
+	   
+	   rdt_mesh.GetVertex(i)[0] = t;
+	   dt_gf[i] = dt;
+	   r_gf[i] = r;
+
+	   for (int j=0; j<neqns; j++)
+	   {
+	     ifs >> y;
+
+	     y_mesh.GetVertex((nsteps+1) * j + i)[0] = t;
+	     y_gf[(nsteps + 1) * j + i] = y;
+	   }
+	 }
+       
+       ifs.close();
+
+       char vishost[] = "localhost";
+       int  visport   = 19916;
+       socketstream dt_sock(vishost, visport);
+       dt_sock.precision(8);
+       dt_sock << "solution\n" << rdt_mesh << dt_gf
+	       << " window_title 'Time Step'" << " keys ac" << flush;
+
+       socketstream r_sock(vishost, visport);
+       r_sock.precision(8);
+       r_sock << "solution\n" << rdt_mesh << r_gf
+	       << " window_title 'Error Measure'"
+	      << " window_geometry 400 0 400 350" << " keys ac" << flush;
+
+       socketstream y_sock(vishost, visport);
+       y_sock.precision(8);
+       y_sock << "solution\n" << y_mesh << y_gf
+	       << " window_title 'Solution'"
+	      << " window_geometry 800 0 400 350" << " keys ac" << flush;
+
+     }
+   
    delete ode_solver;
    delete ode_err_msr;
    delete ode_step_acc;
