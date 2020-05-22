@@ -567,6 +567,8 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    return R;
 }
 
+const int SkipDof = std::numeric_limits<int>::max();
+
 void
 FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                     Array<int>& slave_dofs, DenseMatrix& I)
@@ -574,7 +576,8 @@ FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
    for (int i = 0; i < slave_dofs.Size(); i++)
    {
       int sdof = slave_dofs[i];
-      if (!deps.RowSize(sdof)) // not processed yet?
+      if (sdof != SkipDof &&   // not masked
+          !deps.RowSize(sdof)) // not processed yet
       {
          for (int j = 0; j < master_dofs.Size(); j++)
          {
@@ -643,6 +646,47 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    }
 }
 
+void FiniteElementSpace::MaskSlaveDofs(Array<int> &dofs, const DenseMatrix &pm,
+                                       int order) const
+{
+   MFEM_ASSERT(pm.Height() == 2 && pm.Width() == 4, "");
+   double x0 = pm(0,0), x1 = pm(0,2);
+   double y0 = pm(1,0), y1 = pm(1,2);
+
+   bool bdr[4] =
+   {
+      (y0 == 0.0 || y0 == 1.0),
+      (x1 == 0.0 || x1 == 1.0),
+      (y1 == 0.0 || y1 == 1.0),
+      (x0 == 0.0 || x0 == 1.0)
+   };
+
+   int nv = fec->GetNumDof(Geometry::POINT, order);
+   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
+
+   for (int i = 0, prev = 3; i < 4; prev = i, i++)
+   {
+      if (bdr[i] || bdr[prev])
+      {
+         for (int j = 0; j < nv; j++)
+         {
+            dofs[i*nv + j] = SkipDof; // mask out vertex DOFs on boundary
+         }
+      }
+   }
+
+   for (int i = 0; i < 4; i++)
+   {
+      if (bdr[i])
+      {
+         for (int j = 0; j < ne; j++)
+         {
+            dofs[4*nv + i*ne + j] = SkipDof; // mask out edge DOFs on boundary
+         }
+      }
+   }
+}
+
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
                                   Geometry::Type master_geom, int variant) const
 {
@@ -679,8 +723,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // DOFs. Rows of independent DOFs will remain empty.
    SparseMatrix deps(ndofs);
 
-   // collect local edge/face dependencies
-   for (int entity = 2; entity <= 2; entity++)
+   // collect local face/edge dependencies
+   for (int entity = 2; entity >= 1; entity--)
    {
       const NCMesh::NCList &list = mesh->ncmesh->GetNCList(entity);
       if (!list.masters.size()) { continue; }
@@ -715,6 +759,9 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                slave.OrientedPointMatrix(T.GetPointMat());
                slave_fe->GetTransferMatrix(*master_fe, T, I);
 
+               // skip interpolation of slave face boundary DOFs
+               if (entity == 2) { MaskSlaveDofs(slave_dofs, T.GetPointMat(), q); }
+
                // make each slave DOF dependent on all master DOFs
                AddDependencies(deps, master_dofs, slave_dofs, I);
             }
@@ -724,7 +771,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
    if (IsVariableOrder())
    {
-#if 1
       // variable order spaces: handle edge constraints
       T.SetIdentityTransformation(Geometry::SEGMENT);
 
@@ -748,7 +794,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
       }
-#endif
 
       // handle face constraints
       if (mesh->Dimension() > 2)

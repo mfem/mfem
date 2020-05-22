@@ -215,6 +215,8 @@ protected:
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
 
+   void MaskSlaveDofs(Array<int> &dofs, const DenseMatrix &pm, int order) const;
+
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I);
 
