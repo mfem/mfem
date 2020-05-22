@@ -747,7 +747,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
 
             // Jrt = Jtr^{-1}
             DenseMatrix Jrt(dim);
-            kernels::CalcInverse<dim>(Jtr_p, Jrt.HostWrite());
+            kernels::CalcInverse<2>(Jtr_p, Jrt.HostWrite());
 
             // Compute DSh (dof x dim)
             const int dof = D1D*D1D;
