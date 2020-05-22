@@ -34,8 +34,8 @@ TEST_CASE("Quadrature Function Coefficients",
 
    const IntegrationRule ir = qspace.GetElementIntRule(0);
 
-   const GeometricFactors *geom_facts = mesh.GetGeometricFactors(ir,
-                                                                 GeometricFactors::COORDINATES);
+   const GeometricFactors *geom_facts =
+      mesh.GetGeometricFactors(ir, GeometricFactors::COORDINATES);
 
    {
       int nelems = quadf_coeff.Size() / quadf_coeff.GetVDim() / ir.GetNPoints();
@@ -46,7 +46,8 @@ TEST_CASE("Quadrature Function Coefficients",
          for (int j = 0; j < vdim; j++)
          {
             //X has dims nqpts x sdim x ne
-            quadf_coeff((i * vdim) + j) = geom_facts->X((i * vdim * dim) + (vdim * 2) + j );
+            quadf_coeff((i * vdim) + j) =
+               geom_facts->X((i * vdim * dim) + (vdim * 2) + j );
          }
       }
    }
@@ -63,8 +64,8 @@ TEST_CASE("Quadrature Function Coefficients",
             for (int k = 0; k < nqpts; k++)
             {
                //X has dims nqpts x sdim x ne
-               quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) = geom_facts->X((
-                                                                                     i * nqpts * vdim) + (j * nqpts) + k );
+               quadf_vcoeff((i * nqpts * vdim) + (k * vdim ) + j) =
+                  geom_facts->X((i * nqpts * vdim) + (j * nqpts) + k);
             }
          }
       }

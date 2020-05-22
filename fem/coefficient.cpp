@@ -780,7 +780,6 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
-
    QuadF.HostRead();
    Vector temp;
    QuadF.GetElementValues(T.ElementNo, ip.index, temp);
