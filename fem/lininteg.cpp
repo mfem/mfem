@@ -772,11 +772,8 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
 }
 
 void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
-   const FiniteElement &fe,
-   ElementTransformation &Tr,
-   Vector &elvect)
+   const FiniteElement &fe, ElementTransformation &Tr, Vector &elvect)
 {
-
    const IntegrationRule *ir =
       &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
 
@@ -808,7 +805,6 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
                                                     ElementTransformation &Tr,
                                                     Vector &elvect)
 {
-
    const IntegrationRule *ir =
       &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
 
