@@ -538,6 +538,9 @@ void CGSolver::UpdateVectors()
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    dbg("");
+   MFEM_VERIFY(!prec,"");
+   MFEM_VERIFY(!iterative_mode,"");
+
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
@@ -591,18 +594,10 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   {
-      d.HostWrite();
-      dbg("\033[7mStuffing d for CG::Mult!");
-      for (int k=0; k<d.Size(); k++) { d[k] = 1.0;}//drand48();  }
-      dbg("oper->Mult(d, z): d: %.15e", d*d);
-   }
    dbg("oper HxW: %d x %d", oper->Height(), oper->Width());
    oper->Mult(d, z);  // z = A d
-   dbg("oper->Mult(d, z): z: %.15e", z*z); z.Print();
-   /////////////////////////
-   dbg("Exiting!"); exit(0);
-   /////////////////////////
+   dbg("oper->Mult(d, z): z: %.15e", z*z);
+
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
@@ -690,7 +685,15 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
+      static int loop = 0;
+      dbg("%d oper->Mult(d, z): d: %.15e", loop, d*d);
       oper->Mult(d, z);       //  z = A d
+      dbg("%d oper->Mult(d, z): z: %.15e", loop, z*z);
+      loop++;
+      /////////////////////////
+      if (i==4) {dbg("Exiting!"); exit(0);}
+      /////////////////////////
+
       den = Dot(d, z);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
@@ -1592,6 +1595,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
+   dbg("Result: x:%.15e", x*x); x.Print();
    oper->Mult(x, r);
    dbg("Result: x:%.15e, r:%.15e", x*x, r*r);
    if (have_b)
@@ -1636,17 +1640,20 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
 
       dbg("prec->SetOperator(oper->GetGradient(x));");
+#ifndef _WIN32
+      if (getenv("RAND"))
       {
          x.HostWrite();
          dbg("\033[7mStuffing x with drand48 for GetGradient!");
          for (int k=0; k<x.Size(); k++) { x[k] = drand48();  }
       }
+#endif
       prec->SetOperator(oper->GetGradient(x));
 
       dbg("prec->Mult, r:%d, c:%d",r.Size(),c.Size());
       dbg("x:%.15e", r*r);
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      dbg("c: %.15e", c*c); c.Print();
+      dbg("c: %.15e", c*c);
       /////////////////////////
       dbg("Exiting!"); exit(0);
       /////////////////////////
