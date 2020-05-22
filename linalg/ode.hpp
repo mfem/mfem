@@ -164,6 +164,12 @@ public:
    /// Returns the current time step
    double GetTimeStep() const { return this->dt; }
 
+   /// Returns the number of successful steps
+   int GetNSteps() const { return nsteps; }
+  
+   /// Returns the number of rejected steps
+   int GetNRejectedSteps() const { return nrejs_tot; }
+  
    /// Sets (or resets) the initial time step
    void SetTimeStep(double dt) { this->dt = dt; }
 
