@@ -36,7 +36,7 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
-   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
 
    virtual ~LinearFormIntegrator() { }
@@ -437,11 +437,23 @@ private:
 public:
    VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
                                 const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), vqfc(vqfc) { }
+      : LinearFormIntegrator(ir), vqfc(vqfc)
+   {
+      if (ir)
+      {
+         MFEM_WARNING("Integration rule not used in this class. "
+                      "The QuadratureFunction integration rules are used instead");
+      }
+   }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
                                ElementTransformation &Tr, Vector &elvect);
+   void SetIntRule(const IntegrationRule *ir) override
+   {
+      MFEM_WARNING("Integration rule not used in this class. "
+                   "The QuadratureFunction integration rules are used instead");
+   }
 };
 
 /** Class for domain integration L(v) := (f, v) that makes use
@@ -454,11 +466,23 @@ private:
 public:
    QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc,
                           const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), qfc(qfc) { }
+      : LinearFormIntegrator(ir), qfc(qfc)
+   {
+      if (ir)
+      {
+         MFEM_WARNING("Integration rule not used in this class. "
+                      "The QuadratureFunction integration rules are used instead");
+      }
+   }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
    void AssembleRHSElementVect(const FiniteElement &fe,
                                ElementTransformation &Tr, Vector &elvect);
+   void SetIntRule(const IntegrationRule *ir) override
+   {
+      MFEM_WARNING("Integration rule not used in this class. "
+                   "The QuadratureFunction integration rules are used instead");
+   }
 };
 
 }
