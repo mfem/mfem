@@ -2499,24 +2499,19 @@ void HypreSolver::Mult(const Vector &b, Vector &x) const
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
       return;
    }
-   auto b_data = b.HostRead();
-   auto x_data = x.HostWrite();
    if (B == NULL)
    {
       B = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumRows(),
-                             const_cast<double*>(b_data),
+                             nullptr,
                              A -> GetRowStarts());
       X = new HypreParVector(A->GetComm(),
                              A -> GetGlobalNumCols(),
-                             x_data,
+                             nullptr,
                              A -> GetColStarts());
    }
-   else
-   {
-      B -> SetData(const_cast<double*>(b_data));
-      X -> SetData(x_data);
-   }
+   B->Read(b);
+   X->Write(x);
 
    Mult(*B, *X);
 }

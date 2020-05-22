@@ -69,6 +69,20 @@ inline int to_int(HYPRE_Int i)
 
 }
 
+
+/// The MemoryClass used by Hypre objects.
+inline constexpr MemoryClass GetHypreMemoryClass()
+{
+#ifndef HYPRE_USING_CUDA
+   return MemoryClass::HOST;
+#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryClass::MANAGED;
+#else
+   return MemoryClass::DEVICE;
+#endif
+}
+
+
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
 {
@@ -152,6 +166,31 @@ public:
        e.g. created with the constructor:
        HypreParVector(MPI_Comm, HYPRE_Int, double *, HYPRE_Int *). */
    void SetData(double *_data);
+
+   /// TODO: documentation
+   inline const HypreParVector &Read(const Vector &base, int offset = 0)
+   {
+      // TODO: we may need to copy the data if the MemoryTypes of base are not
+      // suitable for GetHypreMemoryClass()
+      MakeRef(const_cast<Vector&>(base), offset);
+      UseDevice(true);
+      hypre_VectorData(hypre_ParVectorLocalVector(x)) =
+         const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
+      return *this;
+   }
+
+   /// TODO: documentation
+   inline HypreParVector &Write(Vector &base, int offset = 0)
+   {
+      // TODO: we may need to allocate memory if the MemoryTypes of base are not
+      // suitable for GetHypreMemoryClass(). Then the data will need to be
+      // copied back to base with a separate call to a new method.
+      MakeRef(base, offset);
+      UseDevice(true);
+      hypre_VectorData(hypre_ParVectorLocalVector(x)) =
+         data.Write(GetHypreMemoryClass(), size);
+      return *this;
+   }
 
    /// Set random values
    HYPRE_Int Randomize(HYPRE_Int seed);
