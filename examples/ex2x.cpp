@@ -74,14 +74,14 @@ int main(int argc, char *argv[])
 
    bool gnuplot = false;
    bool visualization = true;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&prob, "-p", "--problem-type",
                   "Problem Type From Gustafsson 1988:  1 - 7");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Heun-Euler, 2 - RKF12, "
-		  "3 - BogackiShampine, 4 - RKF45, 5 - Cash-Karp, "
-		  "6 - Dormand-Prince.");
+                  "3 - BogackiShampine, 4 - RKF45, 5 - Cash-Karp, "
+                  "6 - Dormand-Prince.");
    args.AddOption(&ode_msr_type, "-err", "-error-measure",
                   "Error measure:\n"
                   "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
@@ -258,82 +258,82 @@ int main(int argc, char *argv[])
    ofs.close();
 
    if (visualization)
-     {
-       ifstream ifs("ex2x.dat");
+   {
+      ifstream ifs("ex2x.dat");
 
-       int nsteps = ode_controller.GetNSteps();
-       int neqns  = tdo.Width();
-       
-       cout << "Num Steps: " << nsteps << endl;
+      int nsteps = ode_controller.GetNSteps();
+      int neqns  = tdo.Width();
 
-       H1_FECollection fec(1, 1);
-       
-       Mesh rdt_mesh(nsteps);
-       FiniteElementSpace rdt_fespace(&rdt_mesh, &fec);
-       GridFunction dt_gf(&rdt_fespace);
-       GridFunction r_gf(&rdt_fespace);
+      cout << "Num Steps: " << nsteps << endl;
 
-       Mesh y_mesh(1, (nsteps+1) * neqns, nsteps * neqns);
-       for (int j=0; j<neqns; j++)
-       {
-	 for (int i=0; i<nsteps; i++)
-	 {
-	   int v[2];
-	   v[0] = (nsteps + 1) * j + i;
-	   v[1] = (nsteps + 1) * j + i + 1;
-	   y_mesh.AddSegment(v);
-	 }
-	 for (int i=0; i<=nsteps; i++)
-	 {
-	   double v = 0.0;
-	   y_mesh.AddVertex(&v);
-	 }
-       }
-       FiniteElementSpace y_fespace(&y_mesh, &fec);
-       GridFunction y_gf(&y_fespace);
-       
-       for (int i=0; i<=nsteps; i++)
-	 {
-	   double t, ns, r, dt, y;
-	   //Vector y(neqns);
-	   ifs >> t >> ns >> r >> dt;
-	   
-	   rdt_mesh.GetVertex(i)[0] = t;
-	   dt_gf[i] = dt;
-	   r_gf[i] = r;
+      H1_FECollection fec(1, 1);
 
-	   for (int j=0; j<neqns; j++)
-	   {
-	     ifs >> y;
+      Mesh rdt_mesh(nsteps);
+      FiniteElementSpace rdt_fespace(&rdt_mesh, &fec);
+      GridFunction dt_gf(&rdt_fespace);
+      GridFunction r_gf(&rdt_fespace);
 
-	     y_mesh.GetVertex((nsteps+1) * j + i)[0] = t;
-	     y_gf[(nsteps + 1) * j + i] = y;
-	   }
-	 }
-       
-       ifs.close();
+      Mesh y_mesh(1, (nsteps+1) * neqns, nsteps * neqns);
+      for (int j=0; j<neqns; j++)
+      {
+         for (int i=0; i<nsteps; i++)
+         {
+            int v[2];
+            v[0] = (nsteps + 1) * j + i;
+            v[1] = (nsteps + 1) * j + i + 1;
+            y_mesh.AddSegment(v);
+         }
+         for (int i=0; i<=nsteps; i++)
+         {
+            double v = 0.0;
+            y_mesh.AddVertex(&v);
+         }
+      }
+      FiniteElementSpace y_fespace(&y_mesh, &fec);
+      GridFunction y_gf(&y_fespace);
 
-       char vishost[] = "localhost";
-       int  visport   = 19916;
-       socketstream dt_sock(vishost, visport);
-       dt_sock.precision(8);
-       dt_sock << "solution\n" << rdt_mesh << dt_gf
-	       << " window_title 'Time Step'" << " keys ac" << flush;
+      for (int i=0; i<=nsteps; i++)
+      {
+         double t, ns, r, dt, y;
+         //Vector y(neqns);
+         ifs >> t >> ns >> r >> dt;
 
-       socketstream r_sock(vishost, visport);
-       r_sock.precision(8);
-       r_sock << "solution\n" << rdt_mesh << r_gf
-	       << " window_title 'Error Measure'"
-	      << " window_geometry 400 0 400 350" << " keys ac" << flush;
+         rdt_mesh.GetVertex(i)[0] = t;
+         dt_gf[i] = dt;
+         r_gf[i] = r;
 
-       socketstream y_sock(vishost, visport);
-       y_sock.precision(8);
-       y_sock << "solution\n" << y_mesh << y_gf
-	       << " window_title 'Solution'"
-	      << " window_geometry 800 0 400 350" << " keys ac" << flush;
+         for (int j=0; j<neqns; j++)
+         {
+            ifs >> y;
 
-     }
-   
+            y_mesh.GetVertex((nsteps+1) * j + i)[0] = t;
+            y_gf[(nsteps + 1) * j + i] = y;
+         }
+      }
+
+      ifs.close();
+
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream dt_sock(vishost, visport);
+      dt_sock.precision(8);
+      dt_sock << "solution\n" << rdt_mesh << dt_gf
+              << " window_title 'Time Step'" << " keys ac" << flush;
+
+      socketstream r_sock(vishost, visport);
+      r_sock.precision(8);
+      r_sock << "solution\n" << rdt_mesh << r_gf
+             << " window_title 'Error Measure'"
+             << " window_geometry 400 0 400 350" << " keys ac" << flush;
+
+      socketstream y_sock(vishost, visport);
+      y_sock.precision(8);
+      y_sock << "solution\n" << y_mesh << y_gf
+             << " window_title 'Solution'"
+             << " window_geometry 800 0 400 350" << " keys ac" << flush;
+
+   }
+
    delete ode_solver;
    delete ode_err_msr;
    delete ode_step_acc;
