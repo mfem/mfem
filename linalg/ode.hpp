@@ -161,7 +161,7 @@ public:
       this->lim = &lim;
    }
 
-   // Returns the current time step
+   /// Returns the current time step
    double GetTimeStep() const { return this->dt; }
 
    /// Sets (or resets) the initial time step
@@ -664,6 +664,10 @@ public:
 
 };
 
+/// Heun-Euler 2-nd order method
+/** Heun-Euler method produces a 2-nd order solution and a 1-st order
+    error estimate in 2 steps.
+*/
 class HeunEulerSolver : public EmbeddedRKSolver
 {
 private:
@@ -673,6 +677,10 @@ public:
    HeunEulerSolver() : EmbeddedRKSolver(2, a, b, b_star, c) {}
 };
 
+/// Runge-Kutta-Fehlberg 2-nd order method
+/** Known as the RKF12 method it produces a 2-nd order solution and a 1-st order
+    error estimate in three steps.
+*/
 class FehlbergRK12Solver : public EmbeddedRKSolver
 {
 private:
@@ -682,6 +690,10 @@ public:
    FehlbergRK12Solver() : EmbeddedRKSolver(3, a, b, b_star, c) {}
 };
 
+/// Bogacki-Shampine 3-rd order method
+/** The Bogacki-Shampine method produces a 3-rd order solution and a
+    2-nd order error estimate in 4 steps.
+*/
 class BogackiShampineSolver : public EmbeddedRKSolver
 {
 private:
@@ -691,6 +703,10 @@ public:
    BogackiShampineSolver() : EmbeddedRKSolver(4, a, b, b_star, c) {}
 };
 
+/// Runge-Kutta-Fehlberg 4-th order method
+/** Known as the RKF45 method it produces a 4-th order solution and a
+    5-th order error estimate in 6 steps.
+*/
 class FehlbergRK45Solver : public EmbeddedRKSolver
 {
 private:
@@ -700,6 +716,9 @@ public:
    FehlbergRK45Solver() : EmbeddedRKSolver(6, a, b, b_star, c) {}
 };
 
+/// Cash-Karp 5-th order method
+/** The Cash-Karp method produces a 5-th order solution and a 4-th
+    order error estimate in 6 steps. */
 class CashKarpSolver : public EmbeddedRKSolver
 {
 private:
@@ -709,6 +728,9 @@ public:
    CashKarpSolver() : EmbeddedRKSolver(6, a, b, b_star, c) {}
 };
 
+/// Dormand-Prince 5-th order method
+/** The Dormand-Prince method produces a 5-th order solution and a
+    4-th order error estimate in 7 steps. */
 class DormandPrinceSolver : public EmbeddedRKSolver
 {
 private:
