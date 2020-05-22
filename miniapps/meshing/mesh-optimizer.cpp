@@ -257,7 +257,9 @@ IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
 
 int main(int argc, char *argv[])
 {
+#ifndef _WIN32
    srand48(0x1234abcd330eul);
+#endif
    // 0. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
