@@ -631,7 +631,7 @@ void FABilinearFormExtension::Assemble()
       if(restF) restF->FillI(mat);
       //  1.3 Sum the non-zeros in I
       auto h_I = mat.HostReadWriteI();
-      size_t cpt = 0;
+      int cpt = 0;
       const int vd = fes.GetVDim();
       const int ndofs = ne*elemDofs*vd;
       for (int i = 0; i < ndofs; i++)
@@ -640,10 +640,11 @@ void FABilinearFormExtension::Assemble()
          h_I[i] = cpt;
          cpt += nnz;
       }
-      h_I[ndofs] = cpt;
+      const int nnz = cpt;
+      h_I[ndofs] = nnz;
       // 2. Fill J and Data
-      mat.GetMemoryJ().New(cpt, mat.GetMemoryJ().GetMemoryType());
-      mat.GetMemoryData().New(cpt, mat.GetMemoryData().GetMemoryType());
+      mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
+      mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
       //  2.1 Fill J and Data with Elem ea_data
       restE->FillJandData(ea_data, mat);
       //  2.2 Fill J and Data with Face ea_data_ext

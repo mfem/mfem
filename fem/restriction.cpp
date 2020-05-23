@@ -314,7 +314,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    });
    auto h_I = mat.HostReadWriteI();
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
-   h_I[0] = 0;
    for (int i = 0; i < vd*all_dofs; i++)
    {
       h_I[i+1] += h_I[i];
@@ -373,7 +372,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
             {
                const int nnz = GetNnzInd(i_L, I);
                J[nnz] = j_L;
-               Data[nnz] = mat_ea(i,j,e);
+               Data[nnz] = mat_ea(i,j,e);//TODO check if it's (j,i,e)
             }
             else // assembly required
             {
@@ -400,7 +399,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
                         const int j_Bloc = j_B[j];
                         if (e_i == e_j)
                         {
-                           val += mat_ea(i_Bloc, j_Bloc, e_i);
+                           val += mat_ea(i_Bloc, j_Bloc, e_i);//TODO check if it's (j,i,e)
                         }
                      }
                   }
@@ -412,7 +411,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
          }
       }
    });
-   // We need to sum the entries of I, we do it on CPU as it is very sequential.
+   // We need to shift again the entries of I, we do it on CPU as it is very sequential.
    auto h_I = mat.HostReadWriteI();
    const int size = vd*all_dofs;
    for (int i = 0; i < size; i++)
@@ -1330,14 +1329,14 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
          //TODO parallelize the loop on j?
          for (int j = 0; j < face_dofs; j++)
          {
-            const int jE1 = d_indices1[f*face_dofs+j]%elem_dofs;
-            const int jE2 = d_indices2[f*face_dofs+j]%elem_dofs;
+            const int jB1 = d_indices1[f*face_dofs+j]%elem_dofs;
+            const int jB2 = d_indices2[f*face_dofs+j]%elem_dofs;
             for (int i = 0; i < face_dofs; i++)
             {
-               const int iE1 = d_indices1[f*face_dofs+i]%elem_dofs;
-               const int iE2 = d_indices2[f*face_dofs+i]%elem_dofs;
-               mfemAtomicAdd(mat_ea(iE1,jE1,e1), mat_fea(i,j,0,f));
-               mfemAtomicAdd(mat_ea(iE2,jE2,e2), mat_fea(i,j,1,f));
+               const int iB1 = d_indices1[f*face_dofs+i]%elem_dofs;
+               const int iB2 = d_indices2[f*face_dofs+i]%elem_dofs;
+               mfemAtomicAdd(mat_ea(iB1,jB1,e1), mat_fea(i,j,0,f));
+               mfemAtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f));
             }
          }
       });
