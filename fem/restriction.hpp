@@ -59,16 +59,13 @@ public:
    void BooleanMask(Vector& y) const;
 
    /// Fill a Sparse Matrix with Element Matrices.
-   void FillSpMat(SparseMatrix &mat, const Vector &mat_ea) const;
+   void FillSpMat(const Vector &mat_ea, SparseMatrix &mat) const;
 
 // private:
    /// Fill the I array of a Sparse Matrix
    int FillI(SparseMatrix &mat) const;
-   /// Fill the J array of a Sparse Matrix
-   // void FillJ(SparseMatrix &mat) const;
-   /// Fill the Data array of a Sparse Matrix
-   // void FillData(SparseMatrix &mat, const Vector &mat_ea) const;
-   void FillJandData(SparseMatrix &mat, const Vector &ea_data) const;
+   /// Fill the J and Data array of a Sparse Matrix
+   void FillJandData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
@@ -87,12 +84,10 @@ public:
    L2ElementRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void FillElemNnz(Array<int> &elem_nnz) const;
+   /// Fill the I array of a Sparse Matrix
    void FillI(SparseMatrix &mat) const;
+   /// Fill the J and Data array of a Sparse Matrix
    void FillJandData(const Vector &ea_data, SparseMatrix &mat) const;
-   void FillJandData(const Array<int> &begin, const Array<int> &stride,
-                     const Vector &ea_data, const int elem_dofs,
-                     SparseMatrix &mat) const;
 };
 
 /// Operator that extracts Face degrees of freedom.
@@ -144,15 +139,12 @@ public:
                      const L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void FillElemNnz(Array<int> &elem_nnz) const;
+   /// Fill the I array of a Sparse Matrix
    void FillI(SparseMatrix &mat) const;
+   /// Fill the J and Data array of a Sparse Matrix
    void FillJandData(const Vector &ea_data,
                      SparseMatrix &mat) const;
-   void FillJandData(Array<int> &begin,
-                     const Array<int> &stride,
-                     const Vector &ea_data_ext,
-                     const int elem_dofs,
-                     SparseMatrix &mat) const;
+   /// This methods adds the DG face matrices to the element matrices.
    void FactorizeBlocks(Vector &fea_data, const int elemDofs,
                         const int ne, Vector &ea_data) const;
 };

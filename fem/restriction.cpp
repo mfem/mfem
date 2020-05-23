@@ -211,31 +211,14 @@ void ElementRestriction::BooleanMask(Vector& y) const
    }
 }
 
-void ElementRestriction::FillSpMat(SparseMatrix &mat, const Vector &mat_ea) const
+void ElementRestriction::FillSpMat(const Vector &mat_ea, SparseMatrix &mat) const
 {
    mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
    const int nnz = FillI(mat);
    mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
    mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
-   // FillJ(mat);
-   // FillData(mat, mat_ea);
-   FillJandData(mat, mat_ea);
+   FillJandData(mat_ea, mat);
 }
-
-// static int multShared(const int i_E, const int elem_dofs, const int dim, const int D1D)
-// {
-//    int sum = 0;
-//    const int e = i_E/elem_dofs;
-//    const int i_B = i_E%elem_dofs;
-//    // i_B = i + j*D1D + k*D1D*D1D;
-//    const int i = i_B%D1D;
-//    const int j = (i_B%(D1D*D1D))/D1D;
-//    const int k = i_B/(D1D*D1D);
-//    sum += (i==0)||(i==D1D-1);
-//    sum += (j==0)||(j==D1D-1);
-//    sum += (k==0)||(k==D1D-1);
-//    return sum;
-// }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
@@ -273,7 +256,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    const int MaxNbNbr = 16;//TODO remove magic number
    const int all_dofs = ndofs;
    const int vd = vdim;
-   const bool t = byvdim;
+   // const bool t = byvdim;//TODO use vd
    const int elt_dofs = dof;
    auto I = mat.WriteI();
    auto d_offsets = offsets.Read();
@@ -342,14 +325,11 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
 
 static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
 {
-   //TODO replace with atomicAdd
    int ind = mfemAtomicAdd(I[i_L],1);
-   // int ind = I[i_L];
-   // I[i_L]++;
    return ind;
 }
 
-void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) const
+void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) const
 {
    const int MaxNbNbr = 16;
    const int all_dofs = ndofs;
@@ -363,9 +343,7 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
    auto d_gatherMap = gatherMap.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
    auto Data = mat.WriteData();
-   //TODO replace with MFEM_FORALL
    MFEM_FORALL(e, ne,
-   // for (int e = 0; e < ne; e++)
    {
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
@@ -374,7 +352,6 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
          int i_B[MaxNbNbr];
          const int i_E = e*elt_dofs + i;
          const int i_L = d_gatherMap[i_E];
-         // std::cout << std::endl << "i_L=" << i_L << std::endl;
          const int i_offset = d_offsets[i_L];
          const int i_nextOffset = d_offsets[i_L+1];
          const int i_nbElts = i_nextOffset - i_offset;
@@ -389,7 +366,6 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
          {
             const int j_E = e*elt_dofs + j;
             const int j_L = d_gatherMap[j_E];
-            // std::cout << "j_L=" << j_L << std::endl;
             const int j_offset = d_offsets[j_L];
             const int j_nextOffset = d_offsets[j_L+1];
             const int j_nbElts = j_nextOffset - j_offset;
@@ -398,7 +374,6 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
                const int nnz = GetNnzInd(i_L, I);
                J[nnz] = j_L;
                Data[nnz] = mat_ea(i,j,e);
-               // std::cout << "(" << i_L << "," << j_L << "," << mat_ea(i,j,e) << ")" << std::endl;
             }
             else // assembly required
             {
@@ -432,14 +407,13 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
                   const int nnz = GetNnzInd(i_L, I);
                   J[nnz] = j_L;
                   Data[nnz] = val;
-                  // std::cout << "(" << i_L << "," << j_L << "," << val << ")" << std::endl;
                }
             }                  
          }
       }
    });
-   auto h_I = mat.HostReadWriteI();
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
+   auto h_I = mat.HostReadWriteI();
    const int size = vd*all_dofs;
    for (int i = 0; i < size; i++)
    {
@@ -447,135 +421,6 @@ void ElementRestriction::FillJandData(SparseMatrix &mat, const Vector &ea_data) 
    }
    h_I[0] = 0;
 }
-
-// void ElementRestriction::FillJ(SparseMatrix &mat) const
-// {
-//    const int MaxNbNbr = 16;
-//    const int all_dofs = ndofs;
-//    const int vd = vdim;
-//    const bool t = byvdim;
-//    const int elt_dofs = dof;
-//    auto I = mat.ReadI();
-//    auto J = mat.WriteJ();
-//    auto d_offsets = offsets.Read();
-//    auto d_indices = indices.Read();
-//    MFEM_FORALL(i_nnz, mat.Height(),
-//    {
-//       int my_elts[MaxNbNbr];
-//       const int i_L = t ? i_nnz/vd : i_nnz%all_dofs;
-//       const int c   = t ? i_nnz%vd : i_nnz/all_dofs;
-//       const int offset = d_offsets[i_L];
-//       const int nextOffset = d_offsets[i_L+1];
-//       const int nbElts = nextOffset - offset;
-//       int cpt = I[i_nnz];
-//       // We load the elts index associated to our dof.
-//       for (int i = 0; i < nbElts; ++i)
-//       {
-//          my_elts[i] = d_indices[offset+i]/elt_dofs;
-//       }
-//       for (int i = nbElts; i < MaxNbNbr; ++i)
-//       {
-//          my_elts[i] = -1;
-//       }
-//       // We look if we're connected to any other dof (all the threads do the same work)
-//       for (int j_L = 0; j_L < all_dofs; j_L++)
-//       {
-//          bool isConnected = false;
-//          const int j_offset = d_offsets[j_L];
-//          const int j_nextOffset = d_offsets[j_L+1];
-//          // double val = 0.0;
-//          for (int k = j_offset; k < j_nextOffset; k++)
-//          {
-//             const int j_E = d_indices[k];
-//             const int e_j = j_E/elt_dofs;
-//             for (int e = 0; e < nbElts; e++)// We might want to use MaxNbNbr for unrolling
-//             {
-//                // if the dofs share an element in common, they are connected.
-//                if (my_elts[e] == e_j)
-//                {
-//                   isConnected = true;
-//                   // Could we fill J and Data?
-//                   // val += mat_ea(i_B,j_B,e_j)
-//                }
-//             }
-//          }
-//          if (isConnected)
-//          {
-//             J[cpt] = t ? c+j_L*vd : j_L+c*all_dofs;
-//             // Add(i_nnz,) using atomics in nnz(i_nnz)
-//             cpt++;
-//          }
-//       }
-//    });
-// }
-
-// void ElementRestriction::FillData(SparseMatrix &mat, const Vector &ea_data) const
-// {
-//    const int MaxNbNbr = 16;
-//    const int ne = this->ne;
-//    const int all_dofs = ndofs;
-//    const int elt_dofs = dof;
-//    const int vd = vdim;
-//    const bool t = byvdim;
-//    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-//    auto d_indices = indices.Read();
-//    auto d_offsets = offsets.Read();
-//    auto I = mat.ReadI();
-//    auto J = mat.WriteJ();
-//    auto Data = mat.WriteData();
-//    MFEM_FORALL(i_nnz, mat.Height(),
-//    {
-//       const int i_L = t ? i_nnz/vd : i_nnz%all_dofs;
-//       // const int c_i = t ? i_nnz%vd : i_nnz/all_dofs; 
-//       const int offset = d_offsets[i_L];
-//       const int nextOffset = d_offsets[i_L+1];
-//       const int nbElts = nextOffset - offset;
-//       int my_elts[MaxNbNbr];
-//       int my_i_B[MaxNbNbr];
-//       // We load the elts index associated to our dof.
-//       for (int i = 0; i < nbElts; ++i)
-//       {
-//          const int i_E = d_indices[offset+i];
-//          const int e_i = i_E/elt_dofs;
-//          const int i_B = i_E%elt_dofs;
-//          my_elts[i] = e_i;
-//          my_i_B[i] = i_B;
-//       }
-//       for (int i = nbElts; i < MaxNbNbr; ++i)
-//       {
-//          my_elts[i] = -1;
-//          my_i_B[i] = -1;
-//       }
-//       const int i_begin = I[i_nnz];
-//       const int i_end = I[i_nnz+1];
-//       for (int nnz = i_begin; nnz < i_end; nnz++)
-//       {
-//          const int j_nnz = J[nnz];
-//          const int j_L = t ? j_nnz/vd : j_nnz%all_dofs;
-//          // const int c_j = t ? j_nnz%vd : j_nnz/all_dofs;
-//          double val = 0.0;
-//          const int j_begin = d_offsets[j_L];
-//          const int j_end = d_offsets[j_L+1];
-//          for (int k = j_begin; k < j_end; k++)
-//          {
-//             const int j_E = d_indices[k];
-//             const int e_j = j_E/elt_dofs;
-//             const int j_B = j_E%elt_dofs;
-//             for (int e = 0; e < nbElts; ++e)
-//             {
-//                const int e_i = my_elts[e];
-//                if (e_i==e_j)
-//                {
-//                   const int i_B = my_i_B[e];
-//                   // c_i and c_j should be used here when available in EA.
-//                   val += mat_ea(i_B,j_B,e_i);
-//                }
-//             }
-//          }
-//          Data[nnz] = val;
-//       }
-//    });
-// }
 
 L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
    : ne(fes.GetNE()),
@@ -626,16 +471,6 @@ void L2ElementRestriction::MultTranspose(const Vector &x, Vector &y) const
    });
 }
 
-void L2ElementRestriction::FillElemNnz(Array<int> &elem_nnz) const
-{
-   auto nnz = elem_nnz.Write();
-   const int elem_dofs = ndof;
-   MFEM_FORALL(e, ne,
-   {
-      nnz[e] = elem_dofs;
-   });
-}
-
 void L2ElementRestriction::FillI(SparseMatrix &mat) const
 {
    const int elem_dofs = ndof;
@@ -672,35 +507,6 @@ void L2ElementRestriction::FillJandData(const Vector &ea_data,
       {
          J[offset+j] = e*elem_dofs+j;
          Data[offset+j] = mat_ea(j,i,e);
-      }
-   });
-}
-
-void L2ElementRestriction::FillJandData(const Array<int> &begin,
-                                        const Array<int> &stride,
-                                        const Vector &ea_data,
-                                        const int elem_dofs,
-                                        SparseMatrix &mat) const
-{
-   auto elem_begin =  begin.Read();
-   auto elem_nnz = stride.Read();
-   auto J = mat.WriteJ();
-   auto Data = mat.WriteData();
-   auto mat_ea = Reshape(ea_data.Read(), elem_dofs, elem_dofs, ne);
-   //TODO add vd
-   MFEM_FORALL(e, ne,
-   {
-      const int offset = elem_begin[e]-elem_dofs;
-      // printf("offset for elt %i is %i",e,offset);
-      const int stride = elem_nnz[e];
-      // printf("stride for elt %i is %i",e,stride);
-      for (int i = 0; i < elem_dofs; i++)
-      {
-         for (int j = 0; j < elem_dofs; j++)
-         {
-            J[offset+i*stride+j] = e*elem_dofs+j;
-            Data[offset+i*stride+j] = mat_ea(j,i,e);
-         }
       }
    });
 }
@@ -1457,92 +1263,6 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
-void L2FaceRestriction::FillElemNnz(Array<int> &elem_nnz) const
-{
-   int e1, e2;
-   int inf1, inf2;
-   const int elem_dofs = fes.GetFE(0)->GetDof();
-   auto nnz = elem_nnz.HostReadWrite();
-   for (int f = 0; f < fes.GetNF(); ++f)
-   {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-      if (e2>=0 || (e2<0 && inf2>=0)) // Interior face
-      {
-         nnz[e1] += elem_dofs;
-         nnz[e2] += elem_dofs;
-      }
-   }
-}
-
-static MFEM_HOST_DEVICE int GetFaceNnz(const int e, int *begin, const int elem_dofs)
-{
-   // int val = begin[e];
-   // begin[e] += elem_dofs;
-   //TODO atomicAdd(face_begin[e1], elem_dofs);
-   int val = mfemAtomicAdd(begin[e],elem_dofs);
-   return val;
-}
-
-static MFEM_HOST_DEVICE int GetNnz(const int iE, int *I, const int dofs)
-{
-   // int val = begin[e];
-   // begin[e] += elem_dofs;
-   //TODO atomicAdd(face_begin[e1], elem_dofs);
-   int val = mfemAtomicAdd(I[iE],dofs);
-   return val;
-}
-
-void L2FaceRestriction::FillJandData(Array<int> &begin,
-                                     const Array<int> &stride,
-                                     const Vector &ea_data,
-                                     const int elem_dofs,
-                                     SparseMatrix &mat) const
-{
-   const int face_dofs = dof;
-   auto d_indices1 = scatter_indices1.Read();
-   auto d_indices2 = scatter_indices2.Read();
-   auto face_begin = begin.ReadWrite();
-   auto elem_nnz = stride.Read();
-   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
-   auto J = mat.WriteJ();
-   auto Data = mat.WriteData();
-   MFEM_FORALL(f, nf,
-   {
-      const int e1 = d_indices1[f*face_dofs]/elem_dofs;
-      const int e2 = d_indices2[f*face_dofs]/elem_dofs;
-      const int offset1 = GetFaceNnz(e1,face_begin,elem_dofs);
-      const int offset2 = GetFaceNnz(e2,face_begin,elem_dofs);
-      const int stride1 = elem_nnz[e1];
-      const int stride2 = elem_nnz[e2];
-      // S'inspirer des lignes suivantes pour compter le nombre de nnz par ligne
-      // Utiliser cette partie du code pour compter les non-zeros par lignes?
-      // Ecrire une optimization pour Gauss-Lobatto pour eviter les zeros?
-      // on sait qu'on en a face dofs par ligne
-      for (int iF = 0; iF < face_dofs; iF++)
-      {
-         const int iE1 = d_indices1[f*face_dofs+iF];
-         const int iE2 = d_indices2[f*face_dofs+iF];
-         // Remplacer ca par un atomic add qui donne le J,
-         // on sait combien on va en mettre sur la ligne
-         // On se sert du I puis on le reset en h_I
-         const int iB1 = iE1%elem_dofs;
-         const int iB2 = iE2%elem_dofs;
-         for (int jF = 0; jF < face_dofs; jF++)
-         {
-            const int jE1 = d_indices1[f*face_dofs+jF];
-            const int jE2 = d_indices2[f*face_dofs+jF];
-            const int jB1 = jE1%elem_dofs;
-            const int jB2 = jE2%elem_dofs;
-            J[offset2+iB2*stride2+jB2] = jE1;
-            J[offset1+iB1*stride1+jB1] = jE2;
-            Data[offset2+iB2*stride2+jB2] = mat_fea(jF,iF,0,f);
-            Data[offset1+iB1*stride1+jB1] = mat_fea(jF,iF,1,f);
-         }
-      }
-   });
-}
-
 void L2FaceRestriction::FillI(SparseMatrix &mat) const
 {
    const int face_dofs = dof;
@@ -1607,6 +1327,7 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
          const int e1 = d_indices1[f*face_dofs]/elem_dofs;
          const int e2 = d_indices2[f*face_dofs]/elem_dofs;
          //TODO avoid recomputing iE1,iE2,jE1,jE2 by storing them?
+         //TODO parallelize the loop on j?
          for (int j = 0; j < face_dofs; j++)
          {
             const int jE1 = d_indices1[f*face_dofs+j]%elem_dofs;
@@ -1630,6 +1351,7 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
       {
          const int e = d_indices[f*face_dofs]/elem_dofs;
          //TODO avoid recomputing iE,jE
+         //TODO parallelize the loop on j?
          for (int j = 0; j < face_dofs; j++)
          {
             const int jE = d_indices[f*face_dofs+j]%elem_dofs;
