@@ -49,6 +49,10 @@ Discretization improvements
   ElementTransformation argument to support evaluation on boundary elements
   and, in the continuous field case, arbitrary mesh edges and faces.
 
+- Added new coefficient and vector coefficient classes for QuadratureFunctions.
+  Additionaly, new LinearForm integrators were also added which make use of
+  these new QuadratureFunction coefficient classes.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
