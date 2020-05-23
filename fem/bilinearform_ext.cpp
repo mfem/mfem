@@ -617,9 +617,7 @@ FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
 
 void FABilinearFormExtension::Assemble()
 {
-   //TODO something is missing
    EABilinearFormExtension::Assemble();
-   // SetupRestrictionOperators(L2FaceValues::SingleValued);
    FiniteElementSpace &fes = *a->FESpace();
    if (fes.IsDGSpace())
    {
@@ -627,22 +625,12 @@ void FABilinearFormExtension::Assemble()
       const L2FaceRestriction *restF = static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
       //1. Fill I
       mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
-      //Remove use I directly instead
-      // Array<int> elem_nnz(ne);
       //  1.1 Increment with restE
-      // const int elem_dofs = fes.GetFE(0)->GetDof();
-      // elem_nnz = elem_dofs;
-      // restE->FillElemNnz(elem_nnz);
       restE->FillI(mat);
       //  1.2 Increment with restF
-      // if(restF) restF->FillElemNnz(elem_nnz);
       if(restF) restF->FillI(mat);
-      //    Init the indirection vector
-      // Array<int> elem_begin(ne);
-      // Vector face_begin(ne);// face_begin(e) + i_B*elem_nnz(e)
-      // auto h_E = elem_begin.HostWrite();
+      //  1.3 Sum the non-zeros in I
       auto h_I = mat.HostReadWriteI();
-      // auto h_nnz = elem_nnz.HostRead();
       size_t cpt = 0;
       const int vd = fes.GetVDim();
       const int ndofs = ne*elemDofs*vd;
@@ -653,42 +641,25 @@ void FABilinearFormExtension::Assemble()
          cpt += nnz;
       }
       h_I[ndofs] = cpt;
-      //TODO take into account vd
-      // for (int e = 0; e < ne; e++)
-      // {
-      //    h_E[e] = cpt + elem_dofs;
-      //    const int row_nnz = h_nnz[e];
-      //    for (int dof = 0; dof < elem_dofs; dof++)
-      //    {
-      //       const int row = e*elem_dofs+dof;
-      //       h_I[row] = cpt;
-      //       cpt += row_nnz;
-      //    }
-      // }
-      // h_I[ne*elem_dofs] = cpt;
-      std::cout << "The number of non-zeros is: " << cpt << std::endl;
+      // 2. Fill J and Data
       mat.GetMemoryJ().New(cpt, mat.GetMemoryJ().GetMemoryType());
       mat.GetMemoryData().New(cpt, mat.GetMemoryData().GetMemoryType());
-      //2. Fill J and Data with Elem ea_data
-      // restE->FillJandData(elem_begin, elem_nnz, ea_data, elem_dofs, mat);
+      //  2.1 Fill J and Data with Elem ea_data
       restE->FillJandData(ea_data, mat);
-      //3. Fill J and Data with Face ea_data_ext
-      // if(restF) restF->FillJandData(elem_begin, elem_nnz, ea_data_ext, elem_dofs, mat);
+      //  2.2 Fill J and Data with Face ea_data_ext
       if (restF) restF->FillJandData(ea_data_ext, mat);
+      //  2.3 Shift indirections in I back to original
       auto I = mat.HostReadWriteI();
       for (int i = ndofs; i > 0; i--)
       {
          I[i] = I[i-1];
       }
       I[0] = 0;
-      std::cout << mat << std::endl;
    }
    else // CG case
    {
       const ElementRestriction &rest = static_cast<const ElementRestriction&>(*elem_restrict);
-      rest.FillSpMat(mat, ea_data);
-      std::cout << "The number of non-zeros is: " << mat.GetMemoryJ().Capacity() << std::endl;
-      std::cout << mat << std::endl;
+      rest.FillSpMat(ea_data, mat);
    }
 }
 
