@@ -145,6 +145,51 @@ virtual ~CutDiffusionIntegrator()
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 };
+
+/** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
+    can be a scalar or a matrix coefficient. */
+class CutBoundaryFaceIntegrator: public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   double sigma, kappa;
+   std::map<int, IntegrationRule *> cutSegmentIntRules;
+   Vector shape1, dshape1dn, nor, nh, ni;
+   DenseMatrix jmat, dshape1, mq, adjJ;
+   // PA extension
+   const FiniteElementSpace *fespace;
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int dim, ne, dofs1D, quad1D;
+   Vector pa_data;
+
+#ifdef MFEM_USE_CEED
+   // CEED extension
+   CeedData* ceedDataPtr;
+#endif
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+  CutBoundaryFaceIntegrator(Coefficient &q, const double s, const double k, 
+                         std::map<int, IntegrationRule *> cutSegmentIntRules):
+                         Q(&q), MQ(NULL), sigma(s), kappa(k),  
+                         cutSegmentIntRules(cutSegmentIntRules)
+  {
+  }
+virtual ~CutBoundaryFaceIntegrator()
+   {
+#ifdef MFEM_USE_CEED
+      delete ceedDataPtr;
+#endif
+   }
+   /** Given a particular Finite Element computes the element stiffness matrix
+       elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+};
+
 /** Integrator for the DG form:
 
     - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
@@ -185,6 +230,7 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 };
+
 class CutDomainNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
@@ -213,6 +259,7 @@ public:
    //                                  ElementTransformation &Ttr,
    //                                  const Vector &elfun, DenseMatrix &elmat);
 };
+
 class CutBoundaryNLFIntegrator : public NonlinearFormIntegrator
 {
 private:

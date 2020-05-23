@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh = new Mesh(10, 10, Element::QUADRILATERAL, true,
+   Mesh *mesh = new Mesh(5, 5, Element::QUADRILATERAL, true,
                          1, 1, true);
    ofstream sol_ofv("square_mesh.vtk");
    sol_ofv.precision(14);
@@ -149,8 +149,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    //b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->AddDomainIntegrator(new CutDomainLFIntegrator(one, CutSquareIntRules, EmbeddedElems));
-   // b->AddBdrFaceIntegrator(
-   //     new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+   b->AddBdrFaceIntegrator(
+       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
    // cout << "RHS: " << endl;
    // b->Print();
@@ -158,6 +158,7 @@ int main(int argc, char *argv[])
    x = 0.0;
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
+   a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
    a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
                                                              immersedFaces, cutinteriorFaces, cutInteriorFaceIntRules));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
@@ -166,49 +167,50 @@ int main(int argc, char *argv[])
    const SparseMatrix &A = a->SpMat();
    //cout << "bilinear form size " << a->Size() << endl;
    //A.Print();
-   //    #ifndef MFEM_USE_SUITESPARSE
-   //    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
-   //    //    non-symmetric one.
-   //    GSSmoother M(A);
-   //    if (sigma == -1.0)
-   //    {
-   //       PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
-   //    }
-   //    else
-   //    {
-   //       GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
-   //    }
-   // #else
-   //    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   //    UMFPackSolver umf_solver;
-   //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   //    umf_solver.SetOperator(A);
-   //    umf_solver.Mult(*b, x);
-   // #endif
+#ifndef MFEM_USE_SUITESPARSE
+   // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
+   //    non-symmetric one.
+   GSSmoother M(A);
+   if (sigma == -1.0)
+   {
+      PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+   }
+   else
+   {
+      GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
+   }
+#else
+   // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(A);
+   umf_solver.Mult(*b, x);
+#endif
 
-   //    ofstream adj_ofs("dgsolcircle.vtk");
-   //    adj_ofs.precision(14);
-   //    mesh->PrintVTK(adj_ofs, 1);
-   //    x.SaveVTK(adj_ofs, "dgSolutioncircle", 1);
-   //    adj_ofs.close();
-   //    // 10. Send the solution by socket to a GLVis server.
-   //    if (visualization)
-   //    {
-   //       char vishost[] = "localhost";
-   //       int  visport   = 19916;
-   //       socketstream sol_sock(vishost, visport);
-   //       sol_sock.precision(8);
-   //       sol_sock << "solution\n" << *mesh << x << flush;
-   //    }
+   ofstream adj_ofs("dgsolcircle.vtk");
+   adj_ofs.precision(14);
+   mesh->PrintVTK(adj_ofs, 1);
+   x.SaveVTK(adj_ofs, "dgSolutioncircle", 1);
+   adj_ofs.close();
+   // 10. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n"
+               << *mesh << x << flush;
+   }
 
-   //    // 11. Free the used memory.
-   //    delete a;
-   //    delete b;
-   //    delete fespace;
-   //    delete fec;
-   //    delete mesh;
-   //    return 0;
+   // 11. Free the used memory.
+   delete a;
+   delete b;
+   delete fespace;
+   delete fec;
+   delete mesh;
+   return 0;
 }
 template <int N>
 void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
@@ -237,7 +239,6 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       auto q = Algoim::quadGen<N>(phi, Algoim::BoundingBox<double, N>(xlower, xupper), dir, side, order);
       int i = 0;
       ir = new IntegrationRule(q.nodes.size());
-      // cout << "quadrature rule for mapped elements " << endl;
       for (const auto &pt : q.nodes)
       {
          IntegrationPoint &ip = ir->IntPoint(i);
@@ -267,7 +268,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       int side;
       int dir;
       int order;
-      order = 4;
+      order = 2;
       // standard reference element
       xlower = {0, 0};
       xupper = {1, 1};
@@ -339,8 +340,29 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
                for (const auto &pt : q.nodes)
                {
                   IntegrationPoint &ip = ir->IntPoint(i);
-                  ip.x = pt.x[0];
-                  ip.y = pt.x[1];
+                  ip.y = 0.0;
+                  if (dir == 0)
+                  {
+                     if (-1 == orient[c])
+                     {
+                        ip.x = 1 - pt.x[1];
+                     }
+                     else
+                     {
+                        ip.x = pt.x[1];
+                     }
+                  }
+                  else if (dir == 1)
+                  {
+                     if (-1 == orient[c])
+                     {
+                        ip.x = 1 - pt.x[0];
+                     }
+                     else
+                     {
+                        ip.x = pt.x[0];
+                     }
+                  }
                   ip.weight = pt.w;
                   i = i + 1;
                   // scaled to original element space
@@ -428,7 +450,6 @@ void findBoundingBox(Mesh *mesh, int id, blitz::TinyVector<double, N> &xmin, bli
          }
       }
    }
-   //cout << min[0] << " , " << max[0] << endl;
    xmin = {min[0], min[1]};
    xmax = {max[0], max[1]};
 }
@@ -522,7 +543,6 @@ bool cutByCircle(Mesh *mesh, int &elemid)
    {
       double *coord = mesh->GetVertex(v[i]);
       Vector lvsval(v.Size());
-      //cout << x[1] << endl;
       lvsval(i) = ((coord[0] - xc) * (coord[0] - xc)) + ((coord[1] - yc) * (coord[1] - yc)) - (r * r);
       if ((lvsval(i) < 0) && (abs(lvsval(i)) > 1e-16))
       {
@@ -613,6 +633,7 @@ void CutDiffusionIntegrator::AssembleElementMatrix(const FiniteElement &el, Elem
       }
    }
 }
+
 const IntegrationRule &CutDiffusionIntegrator::GetRule(
     const FiniteElement &trial_fe, const FiniteElement &test_fe)
 {
@@ -632,6 +653,148 @@ const IntegrationRule &CutDiffusionIntegrator::GetRule(
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
    return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+void CutBoundaryFaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
+                                                      ElementTransformation &Trans,
+                                                      DenseMatrix &elmat)
+{
+   int dim, ndof1, ndofs;
+   bool kappa_is_nonzero = (kappa != 0.);
+   double w, wq = 0.0;
+   dim = el.GetDim();
+   ndof1 = el.GetDof();
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   adjJ.SetSize(dim);
+   if (MQ)
+   {
+      mq.SetSize(dim);
+   }
+   shape1.SetSize(ndof1);
+   dshape1.SetSize(ndof1, dim);
+   dshape1dn.SetSize(ndof1);
+   ndofs = ndof1;
+   elmat.SetSize(ndofs);
+   elmat = 0.0;
+   if (kappa_is_nonzero)
+   {
+      jmat.SetSize(ndofs);
+      jmat = 0.;
+   }
+   const IntegrationRule *ir;
+   ir = cutSegmentIntRules[Trans.ElementNo];
+   if (ir == NULL)
+   {
+      // cout << "element is " << Trans.ElementNo << endl;
+      elmat = 0.0;
+   }
+   // assemble: < {(Q \nabla u).n},[v] >      --> elmat
+   //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
+   else
+   {
+      for (int p = 0; p < ir->GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(p);
+         IntegrationPoint eip1;
+         eip1 = ip;
+         Trans.SetIntPoint(&ip);
+         if (dim == 1)
+         {
+            nor(0) = 2 * eip1.x - 1.0;
+         }
+         else
+         {
+            //CalcOrtho(Trans.Jacobian(), nor);
+            // double ds = sqrt((eip1.x*eip1.x) + (eip1.y*eip1.y));
+            nor(0) = (-2 * eip1.y);
+            nor(1) = (2 * eip1.x);
+         }
+         el.CalcShape(eip1, shape1);
+         el.CalcDShape(eip1, dshape1);
+         Trans.SetIntPoint(&eip1);
+         w = ip.weight / Trans.Weight();
+         if (!MQ)
+         {
+            if (Q)
+            {
+               w *= Q->Eval(Trans, eip1);
+            }
+            ni.Set(w, nor);
+         }
+         else
+         {
+            nh.Set(w, nor);
+            MQ->Eval(mq, Trans, eip1);
+            mq.MultTranspose(nh, ni);
+         }
+         CalcAdjugate(Trans.Jacobian(), adjJ);
+         adjJ.Mult(ni, nh);
+         if (kappa_is_nonzero)
+         {
+            wq = ni * nor;
+         }
+         // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+         // independent of Loc1 and always gives the size of element 1 in
+         // direction perpendicular to the face. Indeed, for linear transformation
+         //     |nor|=measure(face)/measure(ref. face),
+         //   det(J1)=measure(element)/measure(ref. element),
+         // and the ratios measure(ref. element)/measure(ref. face) are
+         // compatible for all element/face pairs.
+         // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+         // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+         // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+         dshape1.Mult(nh, dshape1dn);
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < ndof1; j++)
+            {
+               elmat(i, j) += shape1(i) * dshape1dn(j);
+            }
+
+         if (kappa_is_nonzero)
+         {
+            // only assemble the lower triangular part of jmat
+            wq *= kappa;
+            for (int i = 0; i < ndof1; i++)
+            {
+               const double wsi = wq * shape1(i);
+               for (int j = 0; j <= i; j++)
+               {
+                  jmat(i, j) += wsi * shape1(j);
+               }
+            }
+         }
+      }
+
+      // elmat := -elmat + sigma*elmat^t + jmat
+      if (kappa_is_nonzero)
+      {
+         for (int i = 0; i < ndofs; i++)
+         {
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i, j), aji = elmat(j, i), mij = jmat(i, j);
+               elmat(i, j) = sigma * aji - aij + mij;
+               elmat(j, i) = sigma * aij - aji + mij;
+            }
+            elmat(i, i) = (sigma - 1.) * elmat(i, i) + jmat(i, i);
+         }
+      }
+      else
+      {
+         for (int i = 0; i < ndofs; i++)
+         {
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i, j), aji = elmat(j, i);
+               elmat(i, j) = sigma * aji - aij;
+               elmat(j, i) = sigma * aij - aji;
+            }
+            elmat(i, i) *= (sigma - 1.);
+         }
+      }
+   }
 }
 
 void CutDGDiffusionIntegrator::AssembleFaceMatrix(
@@ -671,8 +834,6 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
    if (immersedFaces[Trans.Face->ElementNo] == true)
    {
       elmat = 0.0;
-      // cout << "immersed face here " << endl;
-      // std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
    }
    else
    {
@@ -684,13 +845,11 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
       const IntegrationRule *ir;
       if (find(cutinteriorFaces.begin(), cutinteriorFaces.end(), Trans.Face->ElementNo) != cutinteriorFaces.end())
       {
-         // std::cout << "use cut element rule for interior faces " << endl;
-         // std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
          ir = cutInteriorFaceIntRules[Trans.Face->ElementNo];
       }
       else
       {
-         const IntegrationRule *ir = IntRule;
+         ir = IntRule;
       }
       if (ir == NULL)
       {
@@ -707,15 +866,17 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
          }
          ir = &IntRules.Get(Trans.FaceGeom, order);
       }
-      // std::cout << "int rule is set " << std::endl;
       // assemble: < {(Q \nabla u).n},[v] >      --> elmat
       //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
+      if (find(cutinteriorFaces.begin(), cutinteriorFaces.end(), Trans.Face->ElementNo) != cutinteriorFaces.end())
+      {
+         std::cout << "face is " << Trans.Face->ElementNo << " elements are " << Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+      }
       for (int p = 0; p < ir->GetNPoints(); p++)
       {
          const IntegrationPoint &ip = ir->IntPoint(p);
          IntegrationPoint eip1, eip2;
          Trans.Loc1.Transform(ip, eip1);
-         // std::cout << "transformation is done  " << std::endl;
          Trans.Face->SetIntPoint(&ip);
          if (dim == 1)
          {
@@ -774,6 +935,8 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
          if (ndof2)
          {
             Trans.Loc2.Transform(ip, eip2);
+            Vector v(dim);
+            Trans.Elem2->Transform(eip2, v);
             el2.CalcShape(eip2, shape2);
             el2.CalcDShape(eip2, dshape2);
             Trans.Elem2->SetIntPoint(&eip2);

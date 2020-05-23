@@ -480,7 +480,6 @@ void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
 {
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
-
    FElem -> CalcShape(ip, shape);
    PointMat.Mult(shape, trans);
 }
@@ -523,7 +522,6 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
    for (int j = 0; j < matrix.Width(); j++)
    {
       ip.Set(matrix.GetColumn(j), matrix.Height());
-
       result.GetColumnReference(j, col);
       Transform(ip, col);
    }
@@ -534,7 +532,6 @@ void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,
 {
    double vec[3];
    Vector v (vec, Transf.GetPointMat().Height());
-
    Transf.Transform (ip1, v);
    ip2.Set(vec, v.Size());
 }

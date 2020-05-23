@@ -2685,7 +2685,11 @@ namespace mfem
       else
       {
          // std::cout << "cut boundary faces " << std::endl;
-         // std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+         // if ( Trans.Face->ElementNo==4)
+         // {
+            //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
+ //        }
+ 
          ndof2 = 0;
       }
       ndofs = ndof1 + ndof2;
@@ -2723,6 +2727,8 @@ namespace mfem
             }
             ir = &IntRules.Get(Trans.FaceGeom, order);
          }
+         int fid = Trans.Face->ElementNo;
+
         // std::cout << "int rule is set " << std::endl;
          // assemble: < {(Q \nabla u).n},[v] >      --> elmat
          //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
@@ -2731,6 +2737,12 @@ namespace mfem
             const IntegrationPoint &ip = ir->IntPoint(p);
             IntegrationPoint eip1, eip2;
             Trans.Loc1.Transform(ip, eip1);
+            // if (fid==4)
+            // {
+               // std::cout << " int point before " << ip.x << " , " << ip.y << std::endl;
+               // std::cout << " int point after transform " << eip1.x << " , " << eip1.y << std::endl;
+
+            //}
            // std::cout << "transformation is done  " << std::endl;
             Trans.Face->SetIntPoint(&ip);
             if (dim == 1)
