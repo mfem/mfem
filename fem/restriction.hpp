@@ -63,7 +63,7 @@ public:
 
    /// Fill the I array of a Sparse Matrix
    int FillI(SparseMatrix &mat) const;
-   /// Fill the J and Data array of a Sparse Matrix
+   /// Fill the J and Data arrays of a Sparse Matrix
    void FillJandData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
@@ -85,7 +85,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /// Fill the I array of a Sparse Matrix
    void FillI(SparseMatrix &mat) const;
-   /// Fill the J and Data array of a Sparse Matrix
+   /// Fill the J and Data arrays of a Sparse Matrix
    void FillJandData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
@@ -140,7 +140,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /// Fill the I array of a Sparse Matrix
    void FillI(SparseMatrix &mat) const;
-   /// Fill the J and Data array of a Sparse Matrix
+   /// Fill the J and Data arrays of a Sparse Matrix
    void FillJandData(const Vector &ea_data,
                      SparseMatrix &mat) const;
    /// This methods adds the DG face matrices to the element matrices.
