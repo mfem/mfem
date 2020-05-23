@@ -292,7 +292,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             const int j_nbElts = j_nextOffset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
             {
-               I[i_L+1]++;
+               I[i_L]++;
             }
             else // assembly required
             {
@@ -306,7 +306,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
                {
-                  I[i_L+1]++;
+                  I[i_L]++;
                }
             }                  
          }
@@ -314,12 +314,17 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    });
    auto h_I = mat.HostReadWriteI();
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
-   for (int i = 0; i < vd*all_dofs; i++)
+   const int ndofs = vd*all_dofs;
+   int sum = 0;
+   for (int i = 0; i < ndofs; i++)
    {
-      h_I[i+1] += h_I[i];
+      const int nnz = h_I[i];
+      h_I[i] = sum;
+      sum+=nnz;
    }
+   h_I[ndofs] = sum;
    // We return the number of nnz
-   return h_I[vd*all_dofs];
+   return h_I[ndofs];
 }
 
 static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
