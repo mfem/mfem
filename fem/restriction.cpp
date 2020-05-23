@@ -333,7 +333,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
    const int MaxNbNbr = 16;
    const int all_dofs = ndofs;
    const int vd = vdim;
-   const bool t = byvdim;
+   // const bool t = byvdim; //TODO use vd
    const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
@@ -372,7 +372,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
             {
                const int nnz = GetNnzInd(i_L, I);
                J[nnz] = j_L;
-               Data[nnz] = mat_ea(i,j,e);//TODO check if it's (j,i,e)
+               Data[nnz] = mat_ea(j,i,e);
             }
             else // assembly required
             {
@@ -399,7 +399,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
                         const int j_Bloc = j_B[j];
                         if (e_i == e_j)
                         {
-                           val += mat_ea(i_Bloc, j_Bloc, e_i);//TODO check if it's (j,i,e)
+                           val += mat_ea(j_Bloc, i_Bloc, e_i);
                         }
                      }
                   }
