@@ -88,10 +88,10 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void FillElemNnz(Array<int> &elem_nnz) const;
-   void FillJandData(const Array<int> &begin,
-                     const Array<int> &stride,
-                     const Vector &ea_data,
-                     const int elem_dofs,
+   void FillI(SparseMatrix &mat) const;
+   void FillJandData(const Vector &ea_data, SparseMatrix &mat) const;
+   void FillJandData(const Array<int> &begin, const Array<int> &stride,
+                     const Vector &ea_data, const int elem_dofs,
                      SparseMatrix &mat) const;
 };
 
@@ -145,6 +145,9 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void FillElemNnz(Array<int> &elem_nnz) const;
+   void FillI(SparseMatrix &mat) const;
+   void FillJandData(const Vector &ea_data,
+                     SparseMatrix &mat) const;
    void FillJandData(Array<int> &begin,
                      const Array<int> &stride,
                      const Vector &ea_data_ext,

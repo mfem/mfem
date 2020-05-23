@@ -636,6 +636,46 @@ void L2ElementRestriction::FillElemNnz(Array<int> &elem_nnz) const
    });
 }
 
+void L2ElementRestriction::FillI(SparseMatrix &mat) const
+{
+   const int elem_dofs = ndof;
+   const int vd = vdim;
+   auto I = mat.ReadWriteI();
+   MFEM_FORALL(dof, ne*elem_dofs*vd,
+   {
+      I[dof] = elem_dofs;
+   });
+}
+
+static MFEM_HOST_DEVICE int AddNnz(const int iE, int *I, const int dofs)
+{
+   int val = mfemAtomicAdd(I[iE],dofs);
+   return val;
+}
+
+void L2ElementRestriction::FillJandData(const Vector &ea_data,
+                                        SparseMatrix &mat) const
+{
+   const int elem_dofs = ndof;
+   const int vd = vdim;
+   auto I = mat.ReadWriteI();
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   auto mat_ea = Reshape(ea_data.Read(), elem_dofs, elem_dofs, ne);
+   //TODO add vd
+   MFEM_FORALL(iE, ne*elem_dofs*vd,
+   {
+      const int offset = AddNnz(iE,I,elem_dofs);
+      const int e = iE/elem_dofs;
+      const int i = iE%elem_dofs;
+      for (int j = 0; j < elem_dofs; j++)
+      {
+         J[offset+j] = e*elem_dofs+j;
+         Data[offset+j] = mat_ea(j,i,e);
+      }
+   });
+}
+
 void L2ElementRestriction::FillJandData(const Array<int> &begin,
                                         const Array<int> &stride,
                                         const Vector &ea_data,
@@ -651,8 +691,9 @@ void L2ElementRestriction::FillJandData(const Array<int> &begin,
    MFEM_FORALL(e, ne,
    {
       const int offset = elem_begin[e]-elem_dofs;
-      printf("offset for elt %i is %i",e,offset);
+      // printf("offset for elt %i is %i",e,offset);
       const int stride = elem_nnz[e];
+      // printf("stride for elt %i is %i",e,stride);
       for (int i = 0; i < elem_dofs; i++)
       {
          for (int j = 0; j < elem_dofs; j++)
@@ -1443,6 +1484,15 @@ static MFEM_HOST_DEVICE int GetFaceNnz(const int e, int *begin, const int elem_d
    return val;
 }
 
+static MFEM_HOST_DEVICE int GetNnz(const int iE, int *I, const int dofs)
+{
+   // int val = begin[e];
+   // begin[e] += elem_dofs;
+   //TODO atomicAdd(face_begin[e1], elem_dofs);
+   int val = mfemAtomicAdd(I[iE],dofs);
+   return val;
+}
+
 void L2FaceRestriction::FillJandData(Array<int> &begin,
                                      const Array<int> &stride,
                                      const Vector &ea_data,
@@ -1465,10 +1515,17 @@ void L2FaceRestriction::FillJandData(Array<int> &begin,
       const int offset2 = GetFaceNnz(e2,face_begin,elem_dofs);
       const int stride1 = elem_nnz[e1];
       const int stride2 = elem_nnz[e2];
+      // S'inspirer des lignes suivantes pour compter le nombre de nnz par ligne
+      // Utiliser cette partie du code pour compter les non-zeros par lignes?
+      // Ecrire une optimization pour Gauss-Lobatto pour eviter les zeros?
+      // on sait qu'on en a face dofs par ligne
       for (int iF = 0; iF < face_dofs; iF++)
       {
          const int iE1 = d_indices1[f*face_dofs+iF];
          const int iE2 = d_indices2[f*face_dofs+iF];
+         // Remplacer ca par un atomic add qui donne le J,
+         // on sait combien on va en mettre sur la ligne
+         // On se sert du I puis on le reset en h_I
          const int iB1 = iE1%elem_dofs;
          const int iB2 = iE2%elem_dofs;
          for (int jF = 0; jF < face_dofs; jF++)
@@ -1482,6 +1539,54 @@ void L2FaceRestriction::FillJandData(Array<int> &begin,
             Data[offset2+iB2*stride2+jB2] = mat_fea(jF,iF,0,f);
             Data[offset1+iB1*stride1+jB1] = mat_fea(jF,iF,1,f);
          }
+      }
+   });
+}
+
+void L2FaceRestriction::FillI(SparseMatrix &mat) const
+{
+   const int face_dofs = dof;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   MFEM_FORALL(fdof, nf*face_dofs,
+   {
+      const int f  = fdof/face_dofs;
+      const int iF = fdof%face_dofs;
+      const int iE1 = d_indices1[f*face_dofs+iF];
+      const int iE2 = d_indices2[f*face_dofs+iF];
+      AddNnz(iE1,I,face_dofs);
+      AddNnz(iE2,I,face_dofs);
+   });
+}
+
+void L2FaceRestriction::FillJandData(const Vector &ea_data,
+                                     SparseMatrix &mat) const
+{
+   const int face_dofs = dof;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   auto mat_fea = Reshape(ea_data.Read(), face_dofs, face_dofs, 2, nf);
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   MFEM_FORALL(fdof, nf*face_dofs,
+   {
+      const int f  = fdof/face_dofs;
+      const int iF = fdof%face_dofs;
+      const int iE1 = d_indices1[f*face_dofs+iF];
+      const int iE2 = d_indices2[f*face_dofs+iF];
+      const int offset1 = AddNnz(iE1,I,face_dofs);
+      const int offset2 = AddNnz(iE2,I,face_dofs);
+      //Could use threads to optimize this loop
+      for (int jF = 0; jF < face_dofs; jF++)
+      {
+         const int jE1 = d_indices1[f*face_dofs+jF];
+         const int jE2 = d_indices2[f*face_dofs+jF];
+         J[offset2+jF] = jE1;
+         J[offset1+jF] = jE2;
+         Data[offset2+jF] = mat_fea(jF,iF,0,f);
+         Data[offset1+jF] = mat_fea(jF,iF,1,f);
       }
    });
 }
