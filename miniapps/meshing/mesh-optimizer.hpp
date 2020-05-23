@@ -227,7 +227,7 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
 }
 #endif
 
-
+/*
 class TMOPLBFGSOptimizer : public TMOPNewtonSolver
 {
 protected:
@@ -380,3 +380,4 @@ void TMOPLBFGSOptimizer::Mult(const Vector &b, Vector &x) const
    final_iter = it;
    final_norm = norm;
 }
+*/
