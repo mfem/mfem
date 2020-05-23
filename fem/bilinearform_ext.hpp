@@ -121,8 +121,6 @@ public:
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   void Update();
-   ~FABilinearFormExtension() { }
 };
 
 /// Data and methods for matrix-free bilinear forms
