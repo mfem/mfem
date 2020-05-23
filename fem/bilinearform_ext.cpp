@@ -535,24 +535,27 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          const int NDOFS = faceDofs;
          auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
          auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
-         auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
-         MFEM_FORALL(glob_j, nf_int*NDOFS,
+         if(!simplify)
          {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            double res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
+            auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
+            MFEM_FORALL(glob_j, nf_int*NDOFS,
             {
-               res += A_int(j, i, 0, f)*X(i, 0, f);
-            }
-            Y(j, 0, f) += res;
-            res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A_int(j, i, 1, f)*X(i, 1, f);
-            }
-            Y(j, 1, f) += res;
-         });
+               const int f = glob_j/NDOFS;
+               const int j = glob_j%NDOFS;
+               double res = 0.0;
+               for (int i = 0; i < NDOFS; i++)
+               {
+                  res += A_int(j, i, 0, f)*X(i, 0, f);
+               }
+               Y(j, 0, f) += res;
+               res = 0.0;
+               for (int i = 0; i < NDOFS; i++)
+               {
+                  res += A_int(j, i, 1, f)*X(i, 1, f);
+               }
+               Y(j, 1, f) += res;
+            });
+         }
          auto A_ext = Reshape(ea_data_ext.Read(), NDOFS, NDOFS, 2, nf_int);
          MFEM_FORALL(glob_j, nf_int*NDOFS,
          {
@@ -579,7 +582,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    // Treatment of boundary faces
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int bFISz = bdrFaceIntegrators.Size();
-   if (bdr_face_restrict_lex && bFISz>0)
+   if (!simplify && bdr_face_restrict_lex && bFISz>0)
    {
       //Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);
