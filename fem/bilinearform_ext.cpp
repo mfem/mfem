@@ -664,11 +664,6 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
-void FABilinearFormExtension::Update()
-{
-   //TODO
-}
-
 void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    mat.Mult(x, y);
