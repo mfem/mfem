@@ -312,19 +312,19 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          }
       }
    });
-   auto h_I = mat.HostReadWriteI();
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
-   const int ndofs = vd*all_dofs;
+   auto h_I = mat.HostReadWriteI();
+   const int nTdofs = vd*all_dofs;
    int sum = 0;
-   for (int i = 0; i < ndofs; i++)
+   for (int i = 0; i < nTdofs; i++)
    {
       const int nnz = h_I[i];
       h_I[i] = sum;
       sum+=nnz;
    }
-   h_I[ndofs] = sum;
+   h_I[nTdofs] = sum;
    // We return the number of nnz
-   return h_I[ndofs];
+   return h_I[nTdofs];
 }
 
 static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
@@ -342,11 +342,11 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
    const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-   auto Data = mat.WriteData();
    MFEM_FORALL(e, ne,
    {
       //TODO use threads here
