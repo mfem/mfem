@@ -646,7 +646,7 @@ void FABilinearFormExtension::Assemble()
       size_t cpt = 0;
       const int vd = fes.GetVDim();
       const int ndofs = ne*elemDofs*vd;
-      for (size_t i = 0; i < ndofs; i++)
+      for (int i = 0; i < ndofs; i++)
       {
          const int nnz = h_I[i];
          h_I[i] = cpt;
@@ -676,7 +676,7 @@ void FABilinearFormExtension::Assemble()
       // if(restF) restF->FillJandData(elem_begin, elem_nnz, ea_data_ext, elem_dofs, mat);
       if (restF) restF->FillJandData(ea_data_ext, mat);
       auto I = mat.HostReadWriteI();
-      for (size_t i = ndofs; i > 0; i--)
+      for (int i = ndofs; i > 0; i--)
       {
          I[i] = I[i-1];
       }
