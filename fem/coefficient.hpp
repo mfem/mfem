@@ -966,7 +966,7 @@ public:
       should have the bounds of 1 <= length <= (length QuadFunc - index). */
    void SetComponent(int _index, int _length);
 
-   const QuadratureFunction *GetQuadFunction() const { return &QuadF; }
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -987,7 +987,7 @@ public:
    /// Constructor with a quadrature function as input
    QuadratureFunctionCoefficient(QuadratureFunction &qf);
 
-   const QuadratureFunction *GetQuadFunction() const { return &QuadF; }
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 
