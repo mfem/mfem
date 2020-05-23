@@ -781,14 +781,15 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
                                                const IntegrationPoint &ip)
 {
    QuadF.HostRead();
-   Vector temp;
-   QuadF.GetElementValues(T.ElementNo, ip.index, temp);
+
    if (index == 0 && vdim == QuadF.GetVDim())
    {
-      V = temp;
+      QuadF.GetElementValues(T.ElementNo, ip.index, V);
    }
    else
    {
+      Vector temp;
+      QuadF.GetElementValues(T.ElementNo, ip.index, temp);
       V.SetSize(vdim);
       for (int i = 0; i < vdim; i++)
       {

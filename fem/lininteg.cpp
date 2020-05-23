@@ -775,7 +775,7 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &fe, ElementTransformation &Tr, Vector &elvect)
 {
    const IntegrationRule *ir =
-      &vqfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
+      &vqfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
 
    const int nqp = ir->GetNPoints();
    const int vdim = vqfc.GetVDim();
@@ -806,7 +806,7 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
                                                     Vector &elvect)
 {
    const IntegrationRule *ir =
-      &qfc.GetQuadFunction()->GetSpace()->GetElementIntRule(Tr.ElementNo);
+      &qfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
 
    const int nqp = ir->GetNPoints();
    const int ndofs = fe.GetDof();
