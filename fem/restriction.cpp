@@ -292,7 +292,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             const int j_nbElts = j_nextOffset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
             {
-               I[i_L]++;
+               mfemAtomicAdd(I[i_L],1);
             }
             else // assembly required
             {
@@ -306,7 +306,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
                {
-                  I[i_L]++;
+                  mfemAtomicAdd(I[i_L],1);
                }
             }                  
          }
