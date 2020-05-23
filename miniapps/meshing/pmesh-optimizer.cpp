@@ -772,7 +772,7 @@ int main (int argc, char *argv[])
    }
    else
    {
-      TMOPLBFGSOptimizer *tns = new TMOPLBFGSOptimizer(pfespace->GetComm(), *ir);
+      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir, 1);
       tns->SetKDim(40);
       solver = tns;
       cout << "TMOPLBFGSOptimizer is used (as all det(J) > 0).\n";
