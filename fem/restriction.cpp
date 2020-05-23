@@ -308,7 +308,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                {
                   mfemAtomicAdd(I[i_L],1);
                }
-            }                  
+            }
          }
       }
    });

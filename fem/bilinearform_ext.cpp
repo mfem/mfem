@@ -669,21 +669,6 @@ void FABilinearFormExtension::Update()
    //TODO
 }
 
-// void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
-//                                                OperatorHandle &A)
-// {
-//    //TODO
-// }
-
-// void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
-//                                                Vector &x, Vector &b,
-//                                                OperatorHandle &A,
-//                                                Vector &X, Vector &B,
-//                                                int copy_interior)
-// {
-//    //TODO
-// }
-
 void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    mat.Mult(x, y);
