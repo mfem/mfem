@@ -18,7 +18,7 @@ void AddDGIntegrators(BilinearForm &k, VectorCoefficient &velocity)
    double alpha = 1.0;
    double beta = -0.5;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -alpha));
-   // k.AddDomainIntegrator(new MassIntegrator);
+   k.AddDomainIntegrator(new MassIntegrator);
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, alpha, beta)));
    k.AddBdrFaceIntegrator(
@@ -515,12 +515,21 @@ int main(int argc, char *argv[])
    AddDGIntegrators(k_test, velocity);
    AddDGIntegrators(k_ref, velocity);
 
+   tic_toc.Clear();
+   tic_toc.Start();
    k_test.Assemble();
    k_test.Finalize();
+   tic_toc.Stop();
+   cout << "test assembly time: " << tic_toc.RealTime() << " sec." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
    k_ref.Assemble();
+   k_ref.Finalize();
+   tic_toc.Stop();
+   cout << "ref assembly time: " << tic_toc.RealTime() << " sec." << endl;
 
-   std::cout << "FA matrix:" << std::endl;
-   std::cout  << k_ref.SpMat() << std::endl;
+   // std::cout << "FA matrix:" << std::endl;
+   // std::cout  << k_ref.SpMat() << std::endl;
 
    GridFunction u(&fes), r_test(&fes), r_ref(&fes), diff(&fes);
    //u.ProjectCoefficient(u0);
