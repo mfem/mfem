@@ -68,6 +68,15 @@
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
+namespace mfem
+{
+
+#ifdef MFEM_USE_CUDA
+// Function used by the macro MFEM_GPU_CHECK.
+void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
+                     const char *file, int line);
+#endif
+
 template <typename T>
 MFEM_HOST_DEVICE T mfemAtomicAdd(T &add, const T val)
 {
@@ -79,15 +88,6 @@ MFEM_HOST_DEVICE T mfemAtomicAdd(T &add, const T val)
    return old;
    #endif
 }
-
-namespace mfem
-{
-
-#ifdef MFEM_USE_CUDA
-// Function used by the macro MFEM_GPU_CHECK.
-void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
-                     const char *file, int line);
-#endif
 
 /// Allocates device memory
 void* CuMemAlloc(void **d_ptr, size_t bytes);
