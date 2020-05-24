@@ -543,6 +543,18 @@ public:
    /// Indicate that integrators are not owned by the BilinearForm
    void UseExternalIntegrators() { extern_bfs = 1; };
 
+  void GetTimings(double& t1, double& t2)
+  {
+    t1 = 0.0;
+    t2 = 0.0;
+    PABilinearFormExtension *paext = dynamic_cast<PABilinearFormExtension*>(ext);
+    if (paext != NULL)
+      {
+	t1 = paext->timingDomain;
+	t2 = paext->timingBoundary;
+      }
+  }
+
    /// Destroys bilinear form.
    virtual ~BilinearForm();
 };

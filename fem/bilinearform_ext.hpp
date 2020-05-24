@@ -110,6 +110,10 @@ protected:
    const Operator *elem_restrict; // Not owned
    const Operator *int_face_restrict_lex; // Not owned
    const Operator *bdr_face_restrict_lex; // Not owned
+  Array<int> gatherMap;
+  Array<int> indices;
+  Array<int> offsets;
+  int ndofs;
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -126,6 +130,8 @@ public:
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
+
+  mutable double timingDomain, timingBoundary;
 };
 
 

@@ -10,7 +10,7 @@ using namespace std;
 #define AIRY_TEST
 
 #define ZERO_RHO_BC
-//#define ZERO_IFND_BC  // TODO: fix this so that only the exterior boundary gets essential BC, or maybe even remove it.
+#define ZERO_IFND_BC  // TODO: fix this so that only the exterior boundary gets essential BC, or maybe even remove it.
 
 //#define ELIMINATE_REDUNDANT_VARS
 //#define EQUATE_REDUNDANT_VARS
@@ -51,8 +51,8 @@ using namespace std;
 
 #define SD_ITERATIVE
 #define SD_ITERATIVE_COMPLEX
-#define SD_ITERATIVE_GMG
-#define SD_ITERATIVE_GMG_PA
+//#define SD_ITERATIVE_GMG
+//#define SD_ITERATIVE_GMG_PA
 //#define SD_ITERATIVE_FULL
 
 //#define IF_ITERATIVE
@@ -61,8 +61,9 @@ using namespace std;
 
 //#define TEST_SD_CMG
 
-#define SDFOSLS
-#define SDFOSLS_PA
+//#define SDFOSLS
+//#define SDFOSLS_PA
+//#define SDFOSLS_INTERFACE_FA
 
 //#define IMPEDANCE_OTHER_SIGN
 
@@ -73,8 +74,8 @@ using namespace std;
 //#define ZERO_ORDER_FOSLS
 //#define ZERO_ORDER_FOSLS_COMPLEX
 
-#define IFFOSLS
-#define IFFOSLS_H
+//#define IFFOSLS
+//#define IFFOSLS_H
 //#define IFFOSLS_ESS
 
 //#define FOSLS_INIT_GUESS
@@ -1323,7 +1324,10 @@ public:
   void GaussSeidelPreconditionerMult(const Vector & x, Vector & y) const;
 
   void PrintTiming(const int myid) const;
-
+#ifdef SDFOSLS
+  void PrintFOSLSTiming(const int myid) const;
+#endif
+  
 private:
 
   int m_rank;
@@ -2001,8 +2005,8 @@ public:
     // A10 = - \omega *( (curl H, G) + (H,curl G)
     // A11 = (curl H, curl G) + \omega^2 (H,G)
 
-    ParBilinearForm *a_EE = new ParBilinearForm(fespace);
-    //a_EE = new ParBilinearForm(fespace);
+    //ParBilinearForm *a_EE = new ParBilinearForm(fespace);
+    a_EE = new ParBilinearForm(fespace);
     ParBilinearForm *a_HH = new ParBilinearForm(fespace);
     ParMixedBilinearForm *a_mix1 = new ParMixedBilinearForm(fespace,fespace);
     ParMixedBilinearForm *a_mix2 = new ParMixedBilinearForm(fespace,fespace);
@@ -2593,7 +2597,14 @@ public:
 	    A(i,j) = static_cast<HypreParMatrix *>(&LS_Maxwellop->GetBlock(i,j));
 	}
   }
-  
+
+  void PrintTimings(const int myid)
+  {
+    double t1, t2;
+    a_EE->GetTimings(t1, t2);
+    cout << myid << ": FOSLSSolver a_EE subdomain integrator timing " << t1 << ", boundary integrator timing " << t2 << endl;
+  }
+
   Vector rhs_E;  // real part
   
   BlockOperator *LS_Maxwellop;
@@ -2631,7 +2642,7 @@ private:
   Vector diag_PA_EE, diag_PA_HH;
 #endif
 
-  //ParBilinearForm *a_EE;
+  ParBilinearForm *a_EE;
   
   OperatorPtr A_EE, A_HH;
   

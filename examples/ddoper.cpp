@@ -7837,6 +7837,17 @@ void DDMInterfaceOperator::PrintTiming(const int myid) const
     }
 }
 
+#ifdef SDFOSLS
+void DDMInterfaceOperator::PrintFOSLSTiming(const int myid) const
+{
+  for (int m=0; m<numSubdomains; ++m)
+    {
+      if (cfosls[m] != NULL)
+	cfosls[m]->PrintTimings(myid);
+    }
+}
+#endif
+
 void DDMInterfaceOperator::GaussSeidelPreconditionerMult(const Vector & x, Vector & y) const
 {
   Vector u, v, w;
@@ -8766,6 +8777,7 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex, con
 #endif
   
 #ifdef SD_ITERATIVE_GMG_PA
+#ifndef SDFOSLS_INTERFACE_FA
   if (!fullAssembly)
     {
       bf_ifNDmass[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -8773,6 +8785,7 @@ void DDMInterfaceOperator::CreateInterfaceMatrices(const int interfaceIndex, con
       bf_ifH1mass[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       bf_ifNDH1grad[interfaceIndex]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
     }
+#endif
 #else
   /*
   BilinearForm *NDmass = new BilinearForm(ifespace[interfaceIndex]);  // TODO: make this a class member and delete at the end.
