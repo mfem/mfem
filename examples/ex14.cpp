@@ -77,11 +77,11 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   // Mesh *mesh = new Mesh(6, 6, Element::QUADRILATERAL, true,
-   //                       1, 1, true);
+  // Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh *mesh = new Mesh(5, 5, Element::QUADRILATERAL, true,
+                         1, 1, true);
    int dim = mesh->Dimension();
-   cout << "number of faces " << mesh->GetNumFaces() << endl;
+   cout << "number of elements " << mesh->GetNE() << endl;
    ofstream sol_ofv("square_disc_mesh.vtk");
    sol_ofv.precision(14);
    mesh->PrintVTK(sol_ofv, 0);
@@ -99,10 +99,10 @@ int main(int argc, char *argv[])
    //       mesh->UniformRefinement();
    //    }
    // }
-   if (mesh->NURBSext)
-   {
-      mesh->SetCurvature(max(order, 1));
-   }
+   // if (mesh->NURBSext)
+   // {
+   //    mesh->SetCurvature(max(order, 1));
+   // }
 
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
@@ -119,8 +119,8 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
-   //cout << "rhs is " << endl;
-   //b->Print();
+//    cout << "rhs is " << endl;
+//   b->Print();
    // 6. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
@@ -142,7 +142,6 @@ int main(int argc, char *argv[])
    //cout << "bilinear form size " << a->Size() << endl;
    //A.Print();
    //cout << x.Size() << endl;
-
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
@@ -187,13 +186,11 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
    }
-
    // 11. Free the used memory.
    delete a;
    delete b;
    delete fespace;
    delete fec;
    delete mesh;
-
    return 0;
 }

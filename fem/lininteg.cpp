@@ -552,7 +552,6 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       int order = 2*el.GetOrder();
       ir = &IntRules.Get(Tr.FaceGeom, order);
    }
-
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);

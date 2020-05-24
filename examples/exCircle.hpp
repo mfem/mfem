@@ -88,6 +88,30 @@ public:
                                          Vector &elvect);
 };
 
+class CutDGDirichletLFIntegrator : public DeltaLFIntegrator
+{
+protected:
+   Coefficient *uD, *Q;
+   MatrixCoefficient *MQ;
+   double sigma, kappa;
+   // these are not thread-safe!
+   Vector shape, dshape_dn, nor, nh, ni;
+   DenseMatrix dshape, mq, adjJ;
+   std::map<int, IntegrationRule *> cutSegmentIntRules;
+
+public:
+   CutDGDirichletLFIntegrator(Coefficient &u, Coefficient &q, const double s, const double k,
+                              std::map<int, IntegrationRule *> cutSegmentIntRules)
+       : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k), cutSegmentIntRules(cutSegmentIntRules),
+        DeltaLFIntegrator(q) {}
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
+};
+
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class CutDiffusionIntegrator: public BilinearFormIntegrator

@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    double sigma = -1.0;
-   double kappa = 1;
+   double kappa = -1.0;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -48,9 +48,13 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   if (kappa < 0)
+   {
+      kappa = (order+1)*(order+1);
+   }
    args.PrintOptions(cout);
 
-   Mesh *mesh = new Mesh(5, 5, Element::QUADRILATERAL, true,
+   Mesh *mesh = new Mesh(10, 10, Element::QUADRILATERAL, true,
                          1, 1, true);
    ofstream sol_ofv("square_mesh.vtk");
    sol_ofv.precision(14);
@@ -147,8 +151,11 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-   //b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   ConstantCoefficient two(2.0);
+   ConstantCoefficient zerop(0.01);
    b->AddDomainIntegrator(new CutDomainLFIntegrator(one, CutSquareIntRules, EmbeddedElems));
+   b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(zero, one, sigma, kappa,
+                                                         cutSegmentIntRules));
    b->AddBdrFaceIntegrator(
        new DGDirichletLFIntegrator(zero, one, sigma, kappa));
    b->Assemble();
@@ -172,7 +179,7 @@ int main(int argc, char *argv[])
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
    GSSmoother M(A);
-   if (sigma == -1.0)
+   if (sigma == 1.0)
    {
       PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
    }
@@ -193,6 +200,8 @@ int main(int argc, char *argv[])
    mesh->PrintVTK(adj_ofs, 1);
    x.SaveVTK(adj_ofs, "dgSolutioncircle", 1);
    adj_ofs.close();
+   cout << "solution is " << endl;
+  // x.Print();
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -228,7 +237,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       xupper = {1, 1};
       int dir = -1;
       int side = -1;
-      int order = 4;
+      int order = 8;
       int elemid = cutelems.at(k);
       findBoundingBox<N>(mesh, elemid, xmin, xmax);
       circle<N> phi;
@@ -268,7 +277,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       int side;
       int dir;
       int order;
-      order = 2;
+      order = 8;
       // standard reference element
       xlower = {0, 0};
       xupper = {1, 1};
@@ -291,6 +300,8 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
          ip.y = pt.x[1];
          ip.weight = pt.w;
          i = i + 1;
+         double xqp = (pt.x[0] * phi.xscale) + phi.xmin;
+         double yqp = (pt.x[1] * phi.yscale) + phi.ymin;
          MFEM_ASSERT(ip.weight > 0, "integration point weight is negative in curved surface int rule from Saye's method");
       }
       cutSegmentIntRules[elemid] = ir;
@@ -708,8 +719,13 @@ void CutBoundaryFaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
          {
             //CalcOrtho(Trans.Jacobian(), nor);
             // double ds = sqrt((eip1.x*eip1.x) + (eip1.y*eip1.y));
-            nor(0) = (-2 * eip1.y);
-            nor(1) = (2 * eip1.x);
+            Vector v(dim);
+            Trans.Transform(eip1, v);
+            double nx = 2*(v(0) - 0.5);
+            double ny = 2*(v(1) - 0.5);
+            double ds = sqrt((nx*nx) + (ny*ny));
+            nor(0) = nx/ds;
+            nor(1) = ny/ds;
          }
          el.CalcShape(eip1, shape1);
          el.CalcDShape(eip1, dshape1);
@@ -1042,4 +1058,96 @@ void CutDGDiffusionIntegrator::AssembleFaceMatrix(
          }
       }
    }
+}
+
+void CutDGDirichletLFIntegrator::AssembleRHSElementVect(
+    const FiniteElement &el, ElementTransformation &Trans,
+    Vector &elvect)
+{
+   int dim, ndof;
+   bool kappa_is_nonzero = (kappa != 0.);
+   double w;
+   dim = el.GetDim();
+   ndof = el.GetDof();
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   adjJ.SetSize(dim);
+   if (MQ)
+   {
+      mq.SetSize(dim);
+   }
+   shape.SetSize(ndof);
+   dshape.SetSize(ndof, dim);
+   dshape_dn.SetSize(ndof);
+
+   elvect.SetSize(ndof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   ir = cutSegmentIntRules[Trans.ElementNo];
+   if (ir == NULL)
+   {
+      elvect = 0.0;
+   }
+   else
+   {
+      for (int p = 0; p < ir->GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(p);
+         IntegrationPoint eip;
+         eip = ip;
+         if (dim == 1)
+         {
+            nor(0) = 2 * eip.x - 1.0;
+         }
+         else
+         {
+            Vector v(dim);
+            Trans.Transform(eip, v);
+            double nx = 2*(v(0) - 0.5);
+            double ny = 2*(v(1) - 0.5);
+            double ds = sqrt((nx*nx) + (ny*ny));
+            nor(0) = nx/ds;
+            nor(1) = ny/ds;
+         }
+         el.CalcShape(eip, shape);
+         el.CalcDShape(eip, dshape);
+         Trans.SetIntPoint(&eip);
+         // compute uD through the face transformation
+         w = ip.weight * uD->Eval(Trans, ip) / Trans.Weight();
+         if (!MQ)
+         {
+            if (Q)
+            {
+               w *= Q->Eval(Trans, eip);
+            }
+            ni.Set(w, nor);
+         }
+         else
+         {
+            nh.Set(w, nor);
+            MQ->Eval(mq, Trans, eip);
+            mq.MultTranspose(nh, ni);
+         }
+         CalcAdjugate(Trans.Jacobian(), adjJ);
+         adjJ.Mult(ni, nh);
+
+         dshape.Mult(nh, dshape_dn);
+         elvect.Add(sigma, dshape_dn);
+
+         if (kappa_is_nonzero)
+         {
+            elvect.Add(kappa * (ni * nor), shape);
+         }
+      }
+   } 
+}
+void CutDGDirichletLFIntegrator::AssembleDeltaElementVect(
+    const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   elvect.SetSize(fe.GetDof());
+   fe.CalcPhysShape(Trans, elvect);
+   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }

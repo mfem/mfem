@@ -2671,7 +2671,6 @@ namespace mfem
       {
          mq.SetSize(dim);
       }
-
       shape1.SetSize(ndof1);
       dshape1.SetSize(ndof1, dim);
       dshape1dn.SetSize(ndof1);
@@ -2684,240 +2683,201 @@ namespace mfem
       }
       else
       {
-         // std::cout << "cut boundary faces " << std::endl;
-         // if ( Trans.Face->ElementNo==4)
-         // {
-            //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
- //        }
- 
          ndof2 = 0;
       }
       ndofs = ndof1 + ndof2;
       elmat.SetSize(ndofs);
       elmat = 0.0;
-      // if ((Trans.Face->ElementNo == 18) || (Trans.Face->ElementNo == 20) || (Trans.Face->ElementNo == 70) || (Trans.Face->ElementNo == 17))
-      // {
-      //    elmat = 0.0;
-      //    return;
-      //    //std::cout << "face is " << Trans.Face->ElementNo << " elements are " <<Trans.Elem1No << " , " << Trans.Elem2No << std::endl;
-      // }
-      // else
-      // {
+      if (kappa_is_nonzero)
+      {
+         jmat.SetSize(ndofs);
+         jmat = 0.;
+      }
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         // a simple choice for the integration order; is this OK?
+         int order;
+         if (ndof2)
+         {
+            order = 2 * max(el1.GetOrder(), el2.GetOrder());
+         }
+         else
+         {
+
+            order = 2 * el1.GetOrder();
+         }
+         ir = &IntRules.Get(Trans.FaceGeom, order);
+      }
+      // assemble: < {(Q \nabla u).n},[v] >      --> elmat
+      //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
+      for (int p = 0; p < ir->GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(p);
+         IntegrationPoint eip1, eip2;
+         Trans.Loc1.Transform(ip, eip1);
+         Trans.Face->SetIntPoint(&ip);
+         if (dim == 1)
+         {
+            nor(0) = 2 * eip1.x - 1.0;
+         }
+         else
+         {
+            CalcOrtho(Trans.Face->Jacobian(), nor);
+         }
+         el1.CalcShape(eip1, shape1);
+         el1.CalcDShape(eip1, dshape1);
+         Trans.Elem1->SetIntPoint(&eip1);
+         w = ip.weight / Trans.Elem1->Weight();
+         if (ndof2)
+         {
+            w /= 2;
+         }
+         if (!MQ)
+         {
+            if (Q)
+            {
+               w *= Q->Eval(*Trans.Elem1, eip1);
+            }
+            ni.Set(w, nor);
+         }
+         else
+         {
+            nh.Set(w, nor);
+            MQ->Eval(mq, *Trans.Elem1, eip1);
+            mq.MultTranspose(nh, ni);
+         }
+         CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+         adjJ.Mult(ni, nh);
          if (kappa_is_nonzero)
          {
-            jmat.SetSize(ndofs);
-            jmat = 0.;
+            wq = ni * nor;
          }
+         // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+         // independent of Loc1 and always gives the size of element 1 in
+         // direction perpendicular to the face. Indeed, for linear transformation
+         //     |nor|=measure(face)/measure(ref. face),
+         //   det(J1)=measure(element)/measure(ref. element),
+         // and the ratios measure(ref. element)/measure(ref. face) are
+         // compatible for all element/face pairs.
+         // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+         // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+         // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
-         const IntegrationRule *ir = IntRule;
-         if (ir == NULL)
+         dshape1.Mult(nh, dshape1dn);
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < ndof1; j++)
+            {
+               elmat(i, j) += shape1(i) * dshape1dn(j);
+            }
+
+         if (ndof2)
          {
-            // a simple choice for the integration order; is this OK?
-            int order;
-            if (ndof2)
-            {
-               order = 2 * max(el1.GetOrder(), el2.GetOrder());
-            }
-            else
-            {
-               
-                  order = 2 * el1.GetOrder();
-              
-            
-            }
-            ir = &IntRules.Get(Trans.FaceGeom, order);
-         }
-         int fid = Trans.Face->ElementNo;
-
-        // std::cout << "int rule is set " << std::endl;
-         // assemble: < {(Q \nabla u).n},[v] >      --> elmat
-         //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
-         for (int p = 0; p < ir->GetNPoints(); p++)
-         {
-            const IntegrationPoint &ip = ir->IntPoint(p);
-            IntegrationPoint eip1, eip2;
-            Trans.Loc1.Transform(ip, eip1);
-            // if (fid==4)
-            // {
-               // std::cout << " int point before " << ip.x << " , " << ip.y << std::endl;
-               // std::cout << " int point after transform " << eip1.x << " , " << eip1.y << std::endl;
-
-            //}
-           // std::cout << "transformation is done  " << std::endl;
-            Trans.Face->SetIntPoint(&ip);
-            if (dim == 1)
-            {
-               nor(0) = 2 * eip1.x - 1.0;
-            }
-            else
-            {
-               CalcOrtho(Trans.Face->Jacobian(), nor);
-            }
-            el1.CalcShape(eip1, shape1);
-            el1.CalcDShape(eip1, dshape1);
-            Trans.Elem1->SetIntPoint(&eip1);
-            w = ip.weight / Trans.Elem1->Weight();
-            if (ndof2)
-            {
-               w /= 2;
-            }
+            Trans.Loc2.Transform(ip, eip2);
+            el2.CalcShape(eip2, shape2);
+            el2.CalcDShape(eip2, dshape2);
+            Trans.Elem2->SetIntPoint(&eip2);
+            w = ip.weight / 2 / Trans.Elem2->Weight();
             if (!MQ)
             {
                if (Q)
                {
-                  w *= Q->Eval(*Trans.Elem1, eip1);
+                  w *= Q->Eval(*Trans.Elem2, eip2);
                }
                ni.Set(w, nor);
             }
             else
             {
                nh.Set(w, nor);
-               MQ->Eval(mq, *Trans.Elem1, eip1);
+               MQ->Eval(mq, *Trans.Elem2, eip2);
                mq.MultTranspose(nh, ni);
             }
-            CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+            CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
             adjJ.Mult(ni, nh);
             if (kappa_is_nonzero)
             {
-               wq = ni * nor;
+               wq += ni * nor;
             }
-            // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
-            // independent of Loc1 and always gives the size of element 1 in
-            // direction perpendicular to the face. Indeed, for linear transformation
-            //     |nor|=measure(face)/measure(ref. face),
-            //   det(J1)=measure(element)/measure(ref. element),
-            // and the ratios measure(ref. element)/measure(ref. face) are
-            // compatible for all element/face pairs.
-            // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
-            // for any tetrahedron vol(tet)=(1/3)*height*area(base).
-            // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
-            dshape1.Mult(nh, dshape1dn);
+            dshape2.Mult(nh, dshape2dn);
+
             for (int i = 0; i < ndof1; i++)
+               for (int j = 0; j < ndof2; j++)
+               {
+                  elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
+               }
+
+            for (int i = 0; i < ndof2; i++)
                for (int j = 0; j < ndof1; j++)
                {
-                  elmat(i, j) += shape1(i) * dshape1dn(j);
+                  elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
                }
 
-            if (ndof2)
-            {
-               Trans.Loc2.Transform(ip, eip2);
-               el2.CalcShape(eip2, shape2);
-               el2.CalcDShape(eip2, dshape2);
-               Trans.Elem2->SetIntPoint(&eip2);
-               w = ip.weight / 2 / Trans.Elem2->Weight();
-               if (!MQ)
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j < ndof2; j++)
                {
-                  if (Q)
-                  {
-                     w *= Q->Eval(*Trans.Elem2, eip2);
-                  }
-                  ni.Set(w, nor);
+                  elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
                }
-               else
-               {
-                  nh.Set(w, nor);
-                  MQ->Eval(mq, *Trans.Elem2, eip2);
-                  mq.MultTranspose(nh, ni);
-               }
-               CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
-               adjJ.Mult(ni, nh);
-               if (kappa_is_nonzero)
-               {
-                  wq += ni * nor;
-               }
-
-               dshape2.Mult(nh, dshape2dn);
-
-               for (int i = 0; i < ndof1; i++)
-                  for (int j = 0; j < ndof2; j++)
-                  {
-                     elmat(i, ndof1 + j) += shape1(i) * dshape2dn(j);
-                  }
-
-               for (int i = 0; i < ndof2; i++)
-                  for (int j = 0; j < ndof1; j++)
-                  {
-                     elmat(ndof1 + i, j) -= shape2(i) * dshape1dn(j);
-                  }
-
-               for (int i = 0; i < ndof2; i++)
-                  for (int j = 0; j < ndof2; j++)
-                  {
-                     elmat(ndof1 + i, ndof1 + j) -= shape2(i) * dshape2dn(j);
-                  }
-            }
-
-            if (kappa_is_nonzero)
-            {
-               // only assemble the lower triangular part of jmat
-               wq *= kappa;
-               for (int i = 0; i < ndof1; i++)
-               {
-                  const double wsi = wq * shape1(i);
-                  for (int j = 0; j <= i; j++)
-                  {
-                     jmat(i, j) += wsi * shape1(j);
-                  }
-               }
-               if (ndof2)
-               {
-                  for (int i = 0; i < ndof2; i++)
-                  {
-                     const int i2 = ndof1 + i;
-                     const double wsi = wq * shape2(i);
-                     for (int j = 0; j < ndof1; j++)
-                     {
-                        jmat(i2, j) -= wsi * shape1(j);
-                     }
-                     for (int j = 0; j <= i; j++)
-                     {
-                        jmat(i2, ndof1 + j) += wsi * shape2(j);
-                     }
-                  }
-               }
-            }
          }
 
-         // elmat := -elmat + sigma*elmat^t + jmat
          if (kappa_is_nonzero)
          {
-            for (int i = 0; i < ndofs; i++)
+            // only assemble the lower triangular part of jmat
+            wq *= kappa;
+            for (int i = 0; i < ndof1; i++)
             {
-               for (int j = 0; j < i; j++)
+               const double wsi = wq * shape1(i);
+               for (int j = 0; j <= i; j++)
                {
-                  double aij = elmat(i, j), aji = elmat(j, i), mij = jmat(i, j);
-                  elmat(i, j) = sigma * aji - aij + mij;
-                  elmat(j, i) = sigma * aij - aji + mij;
+                  jmat(i, j) += wsi * shape1(j);
                }
-               elmat(i, i) = (sigma - 1.) * elmat(i, i) + jmat(i, i);
+            }
+            if (ndof2)
+            {
+               for (int i = 0; i < ndof2; i++)
+               {
+                  const int i2 = ndof1 + i;
+                  const double wsi = wq * shape2(i);
+                  for (int j = 0; j < ndof1; j++)
+                  {
+                     jmat(i2, j) -= wsi * shape1(j);
+                  }
+                  for (int j = 0; j <= i; j++)
+                  {
+                     jmat(i2, ndof1 + j) += wsi * shape2(j);
+                  }
+               }
             }
          }
-         else
-         {
-            for (int i = 0; i < ndofs; i++)
-            {
-               for (int j = 0; j < i; j++)
-               {
-                  double aij = elmat(i, j), aji = elmat(j, i);
-                  elmat(i, j) = sigma * aji - aij;
-                  elmat(j, i) = sigma * aij - aji;
-               }
-               elmat(i, i) *= (sigma - 1.);
-            }
-         }
-        
-         // if(Trans.Face->ElementNo==33)
-         // {
-         //     std::cout << "inside face assemble " << std::endl;
-         //     elmat.Print();
-         // }
-     //  }
+      }
 
-      // if (Trans.Face->ElementNo==16 || Trans.Face->ElementNo==19)
-      // {
-      //    elmat.Print();
-      // }
+      // elmat := -elmat + sigma*elmat^t + jmat
+      if (kappa_is_nonzero)
+      {
+         for (int i = 0; i < ndofs; i++)
+         {
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i, j), aji = elmat(j, i), mij = jmat(i, j);
+               elmat(i, j) = sigma * aji - aij + mij;
+               elmat(j, i) = sigma * aij - aji + mij;
+            }
+            elmat(i, i) = (sigma - 1.) * elmat(i, i) + jmat(i, i);
+         }
+      }
+      else
+      {
+         for (int i = 0; i < ndofs; i++)
+         {
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i, j), aji = elmat(j, i);
+               elmat(i, j) = sigma * aji - aij;
+               elmat(j, i) = sigma * aij - aji;
+            }
+            elmat(i, i) *= (sigma - 1.);
+         }
+      }
    }
 
    // static method
