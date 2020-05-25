@@ -120,7 +120,7 @@ void Symmetrize(const int size, T *data)
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline T Det(const T *data)
 {
-   return TDet<T>(ColumnMajorLayout2D<dim,dim>(), data);
+   return TDetHD<T>(ColumnMajorLayout2D<dim,dim>(), data);
 }
 
 /** @brief Return the inverse a matrix with given @a size and @a data into the
@@ -130,8 +130,8 @@ MFEM_HOST_DEVICE inline
 void CalcInverse(const T *data, T *inv_data)
 {
    typedef ColumnMajorLayout2D<dim,dim> layout_t;
-   const T det = TAdjDet<T>(layout_t(), data, layout_t(), inv_data);
-   TAssign<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
+   const T det = TAdjDetHD<T>(layout_t(), data, layout_t(), inv_data);
+   TAssignHD<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
 }
 
 /** @brief Compute C = A + alpha*B, where the matrices A, B and C are of size @a

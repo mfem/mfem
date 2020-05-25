@@ -65,10 +65,10 @@ struct TMassKernel
    template <int qpts>
    struct f_asm_data { typedef TVector<qpts,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -180,10 +180,10 @@ struct TDiffusionKernel<1,1,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,1,1,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -293,10 +293,10 @@ struct TDiffusionKernel<2,2,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -434,10 +434,10 @@ struct TDiffusionKernel<3,3,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
