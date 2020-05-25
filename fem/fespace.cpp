@@ -1530,6 +1530,8 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    if (face_dof) { return; }
    if (!mesh->BdrInfoAvailable()) { return; }
 
+  // MFEM_VERIFY(bdrElem_dof, "NURBSExt not defined.");
+
    // Find bdr to face mapping
    face_to_be.SetSize(mesh->GetNumFaces());
    face_to_be = -1;
@@ -1547,7 +1549,7 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    {
       int b = face_to_be[f];
       if (b == -1) { continue;}
-      bdrElem_dof->GetRow(b, row);
+      GetBdrElementDofs(b, row);
       Connection conn(f,0);
       for (int i = 0; i < row.Size(); i++)
       {
