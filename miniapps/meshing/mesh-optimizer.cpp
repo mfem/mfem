@@ -380,7 +380,6 @@ int main(int argc, char *argv[])
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
-   GridFunction size;
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
