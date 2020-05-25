@@ -613,7 +613,7 @@ The specific libraries and their options are:
   URL: https://scorec.rpi.edu/pumi
        https://github.com/SCOREC/core
   Options: PUMI_OPT, PUMI_LIB.
-  Versions: PUMI >= 2.2.0.
+  Versions: Any version after commit e013b92e7 in PUMI's master branch
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
