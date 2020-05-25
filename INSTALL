@@ -396,6 +396,12 @@ MFEM_USE_SIDRE = YES/NO
    blueprint specification. When enabled, this option requires installation of
    HDF5 (see also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
+MFEM_USE_SIMD = YES/NO
+   Enables the high performance templated classes to use architecture dependent
+   SIMD intrinsics instead of the generic implementation of class AutoSIMD in
+   linalg/simd/auto.hpp. This option should be combined with suitable
+   compiler options, such as -march=native, to enable optimal vectorization.
+
 MFEM_USE_CONDUIT = YES/NO
    Enables support for converting MFEM Mesh and Grid Function objects to and
    from Conduit Mesh Blueprint Descriptions (https://github.com/LLNL/conduit/)

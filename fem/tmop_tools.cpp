@@ -32,14 +32,26 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
 void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field)
 {
-   dbg("");
-#if defined(MFEM_DEBUG) || defined(MFEM_USE_MPI)
-   int myid = 0;
-#endif
-   Mesh *m = mesh;
+   // TODO: Implement for AMR meshes.
+   const int pnt_cnt = new_field.Size()/ncomp;
 
+   new_field = field0;
+
+   for (int i = 0; i < ncomp; i++)
+   {
+      Vector new_field_temp(new_field.GetData()+i*pnt_cnt, pnt_cnt);
+      ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+   }
+
+   field0 = new_field;
+   nodes0 = new_nodes;
+}
+
+void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
+                                            Vector &new_field)
+{
+   Mesh *m = mesh;
 #ifdef MFEM_USE_MPI
-   if (pfes) { MPI_Comm_rank(pfes->GetComm(), &myid); }
    if (pmesh) { m = pmesh; }
 #endif
 
@@ -48,17 +60,29 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    // This will be used to move the positions.
    GridFunction *mesh_nodes = m->GetNodes();
    *mesh_nodes = nodes0;
-   new_field = field0;
+   double minv = new_field.Min(), maxv = new_field.Max();
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
    subtract(new_nodes, nodes0, u);
 
+   // Define a scalar FE space for the solution, and the advection operator.
    TimeDependentOperator *oper = NULL;
-   // This must be the fes of the ind, associated with the object's mesh.
-   if (fes)  { oper = new SerialAdvectorCGOper(nodes0, u, *fes); }
+   FiniteElementSpace *fess = NULL;
 #ifdef MFEM_USE_MPI
-   else if (pfes) { oper = new ParAdvectorCGOper(nodes0, u, *pfes); }
+   ParFiniteElementSpace *pfess = NULL;
+#endif
+   if (fes)
+   {
+      fess = new FiniteElementSpace(fes->GetMesh(), fes->FEColl(), 1);
+      oper = new SerialAdvectorCGOper(nodes0, u, *fess);
+   }
+#ifdef MFEM_USE_MPI
+   else if (pfes)
+   {
+      pfess = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl(), 1);
+      oper  = new ParAdvectorCGOper(nodes0, u, *pfess);
+   }
 #endif
    MFEM_VERIFY(oper != NULL,
                "No FE space has been given to the AdaptivityEvaluator.");
@@ -71,12 +95,18 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       h_min = std::min(h_min, m->GetElementSize(i));
    }
    double v_max = 0.0;
-   const int s = u.FESpace()->GetVSize() / 2;
+   const int s = new_field.Size();
+
    for (int i = 0; i < s; i++)
    {
-      const double vel = u(i) * u(i) + u(i+s) * u(i+s);
+      double vel = 0.;
+      for (int j = 0; j < dim; j++)
+      {
+         vel += u(i+j*s)*u(i+j*s);
+      }
       v_max = std::max(v_max, vel);
    }
+
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
@@ -85,12 +115,17 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       MPI_Allreduce(&h_loc, &h_min, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
    }
 #endif
-   if (v_max == 0.0)
+
+   if (v_max == 0.0) // No need to change the field.
    {
-      // No mesh motion --> no need to change the field.
       delete oper;
+      delete fess;
+#ifdef MFEM_USE_MPI
+      delete pfess;
+#endif
       return;
    }
+
    v_max = std::sqrt(v_max);
    double dt = dt_scale * h_min / v_max;
 
@@ -100,30 +135,34 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    {
       if (t + dt >= 1.0)
       {
-#ifdef MFEM_DEBUG
-         if (myid == 0)
-         {
-            mfem::out << "Remap took " << ti << " steps." << std::endl;
-         }
-#endif
          dt = 1.0 - t;
          last_step = true;
       }
       ode_solver.Step(new_field, t, dt);
    }
 
-   // Trim the overshoots and undershoots.
-   const double minv = field0.Min(), maxv = field0.Max();
-   for (int i = 0; i < new_field.Size(); i++)
+   double glob_minv = minv,
+          glob_maxv = maxv;
+#ifdef MFEM_USE_MPI
+   if (pfes)
    {
-      if (new_field(i) < minv) { new_field(i) = minv; }
-      if (new_field(i) > maxv) { new_field(i) = maxv; }
+      MPI_Allreduce(&minv, &glob_minv, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      MPI_Allreduce(&maxv, &glob_maxv, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+   }
+#endif
+
+   // Trim the overshoots and undershoots.
+   for (int i = 0; i < s; i++)
+   {
+      if (new_field(i) < glob_minv) { new_field(i) = glob_minv; }
+      if (new_field(i) > glob_maxv) { new_field(i) = glob_maxv; }
    }
 
-   nodes0 = new_nodes;
-   field0 = new_field;
-
    delete oper;
+   delete fess;
+#ifdef MFEM_USE_MPI
+   delete pfess;
+#endif
 }
 
 SerialAdvectorCGOper::SerialAdvectorCGOper(const Vector &x_start,
@@ -240,6 +279,12 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    const double rel_bbox_el = 0.1;
    const double newton_tol  = 1.0e-12;
    const int npts_at_once   = 256;
+
+   if (finder)
+   {
+      finder->FreeData();
+      delete finder;
+   }
 
    FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI

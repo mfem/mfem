@@ -24,48 +24,90 @@ MFEM_LIB_FILE = mfem_is_not_built
 # Distinguish x86 from PowerPC systems
 MFEM_MACHINE ?= $(shell uname -m)
 
-# Choose the switch MFEM_PERF_SW: gcc_x86_64, gcc_ppc64, or clang.
+# Choose the switch MFEM_PERF_SW: gcc_x86_64, gcc_ppc64, clang, etc.
 # The value of MFEM_PERF_SW is used to select MFEM_PERF_CXXFLAGS below.
-ifneq (,$(MFEM_PERF_SW))
-   # Use the value of MFEM_PERF_SW if already defined
-else ifneq (,$(filter %clang++ %mpiclang++,$(MFEM_CXX)))
-   MFEM_PERF_SW = clang
-else ifneq (,$(filter %g++ %mpicxx %mpic++,$(MFEM_CXX)))
-   ifeq ($(MFEM_MACHINE),x86_64)
+define cxx_detect
+cxx_v="$$($(MFEM_HOST_CXX) --version -c 2>&1)";
+if [ 0 -ne $$? ]; then
+  cxx_id="unknown";
+elif [ -z "$${cxx_v##g++*}" ]; then
+  cxx_id="gcc";
+elif [ -z "$${cxx_v##*clang version*}" -o -z "$${cxx_v##*LLVM version*}" ]; then
+  cxx_id="clang";
+elif [ -z "$${cxx_v##*icpc*}" ]; then
+    cxx_id="icc";
+elif [ -z "$${cxx_v##*IBM XL*}" ]; then
+  cxx_id="xlc";
+elif [ -z "$${cxx_v##*pgc++*}" ]; then
+  cxx_id="pgi";
+else
+  cxx_id="unknown";
+fi;
+printf "%s" "$$cxx_id"
+endef
+define DETECT_PERF_CXXFLAGS
+ifneq (,$$(MFEM_HOST_CXX))
+   MFEM_PERF_SW := $$(shell $$(cxx_detect))
+   $$(info Detected host compiler: $$(MFEM_PERF_SW))
+   ifeq (unknown,$$(MFEM_PERF_SW))
+      $$(info -------------------------------------------)
+      $$(info Output from '$$(MFEM_HOST_CXX) --version -c')
+      $$(info -------------------------------------------)
+      $$(shell $$(MFEM_HOST_CXX) --version -c 1>&2)
+      $$(info -------------------------------------------)
+   endif
+endif
+ifeq (gcc,$$(MFEM_PERF_SW))
+   ifeq ($$(MFEM_MACHINE),x86_64)
       MFEM_PERF_SW = gcc_x86_64
-   else ifneq (,$(findstring ppc64,$(MFEM_MACHINE)))
+   else ifneq (,$$(findstring ppc64,$$(MFEM_MACHINE)))
       MFEM_PERF_SW = gcc_ppc64
    endif
 endif
+# Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
+MFEM_PERF_CXXFLAGS = $$(MFEM_PERF_CXXFLAGS_$$(MFEM_PERF_SW))
+# Add MFEM_PERF_CXXFLAGS to MFEM_CXXFLAGS:
+ifeq (YES,$$(MFEM_USE_CUDA))
+  ifneq (,$$(MFEM_PERF_CXXFLAGS))
+    MFEM_CXXFLAGS += -Xcompiler="$$(MFEM_PERF_CXXFLAGS)"
+  endif
+else
+  MFEM_CXXFLAGS += $$(MFEM_PERF_CXXFLAGS)
+endif
+DETECT_PERF_CXXFLAGS_DONE = YES
+endef
 
 # Compiler specific optimizations.
 # For best performance, GCC 5 (or newer) is recommended.
 
+ifneq (YES,$(MFEM_USE_CUDA))
+  PEDANTIC_FLAG = -pedantic
+endif
+
 # - GCC extra options:
-# MFEM_PERF_CXXFLAGS_gcc_common += -std=c++03
-MFEM_PERF_CXXFLAGS_gcc_common += -std=c++11
-MFEM_PERF_CXXFLAGS_gcc_common += -pedantic -Wall
-MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
-# MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
+MFEM_PERF_CXXFLAGS_gcc_common += $(PEDANTIC_FLAG) -Wall
+ifeq ($(MFEM_USE_SIMD),NO)
+  MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
+endif
+#MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
 MFEM_PERF_CXXFLAGS_gcc_x86_64 = -march=native $(MFEM_PERF_CXXFLAGS_gcc_common)
 MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
  $(MFEM_PERF_CXXFLAGS_gcc_common)
 
+# - XLC extra options:
+MFEM_PERF_CXXFLAGS_xlc = -mcpu=native
+
 # - Clang extra options:
 MFEM_PERF_CXXFLAGS_clang += -march=native
-# MFEM_PERF_CXXFLAGS_clang += -std=c++03
-MFEM_PERF_CXXFLAGS_clang += -std=c++11
-MFEM_PERF_CXXFLAGS_clang += -pedantic -Wall
+MFEM_PERF_CXXFLAGS_clang += $(PEDANTIC_FLAG) -Wall
 MFEM_PERF_CXXFLAGS_clang += -fcolor-diagnostics
 MFEM_PERF_CXXFLAGS_clang += -fvectorize
 MFEM_PERF_CXXFLAGS_clang += -fslp-vectorize
-MFEM_PERF_CXXFLAGS_clang += -fslp-vectorize-aggressive
 MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 
-# Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
-MFEM_PERF_CXXFLAGS = $(MFEM_PERF_CXXFLAGS_$(MFEM_PERF_SW))
-# Add MFEM_PERF_CXXFLAGS to MFEM_CXXFLAGS:
-MFEM_CXXFLAGS += $(MFEM_PERF_CXXFLAGS)
+# - Intel C++ compiler extra options:
+MFEM_PERF_CXXFLAGS_icc += -xHost
+
 
 SEQ_MINIAPPS = ex1
 PAR_MINIAPPS = ex1p
@@ -84,6 +126,7 @@ endif
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(if $(DETECT_PERF_CXXFLAGS_DONE),,$(eval $(DETECT_PERF_CXXFLAGS)))
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(MINIAPPS)
