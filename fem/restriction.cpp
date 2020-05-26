@@ -254,7 +254,6 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
 
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
-   constexpr int MaxNbNbr = 16;//TODO remove magic number
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
@@ -268,6 +267,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    });
    MFEM_FORALL(e, ne,
    {
+      constexpr int MaxNbNbr = 16;//TODO remove magic number
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
       {
@@ -336,7 +336,6 @@ static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
 void ElementRestriction::FillJandData(const Vector &ea_data,
                                       SparseMatrix &mat) const
 {
-   constexpr int MaxNbNbr = 16;
    const int all_dofs = ndofs;
    const int vd = vdim;
    // const bool t = byvdim; //TODO use vd
@@ -350,6 +349,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data,
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
    MFEM_FORALL(e, ne,
    {
+      constexpr int MaxNbNbr = 16;//TODO remove magic number
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
       {
