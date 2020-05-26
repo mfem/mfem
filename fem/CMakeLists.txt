@@ -55,6 +55,8 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop_pa.cpp
+  tmop_pa_grad.cpp
+  tmop_pa_energy.cpp
   tmop_tools.cpp
   gslib.cpp
   transfer.cpp
