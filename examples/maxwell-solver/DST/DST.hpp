@@ -36,10 +36,14 @@ private:
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip,bool localdomain) const;
+   void PlotMesh(socketstream & mesh_sock, int ip) const;
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                           int ip, Array<int> directions, int nlayers, bool local=false) const;
-    void GetChiRes(const Vector & res, Vector & cfres,
+   void GetChiRes(const Vector & res, Vector & cfres,
                   int ip, Array<int> directions, int nlayers) const;  
+   void SetSubMeshesAttributes();
+   void GetRestrCoeffAttr(const Array<int> & directions, Array<int> & attr) const;
+   double GetSolOvlpNorm(const Vector & sol, const Array<int> & directions, int ip) const;
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;
    int GetPatchId(const Array<int> & ijk) const;
    void Getijk(int ip, int & i, int & j, int & k ) const;
