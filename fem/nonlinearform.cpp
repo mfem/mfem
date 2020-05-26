@@ -308,7 +308,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    if (ext)
    {
       const Vector &px = Prolongate(x);
-      return ext->GetGradientPA(ess_tdof_list, px);
+      return ext->GetGradient(ess_tdof_list, px);
    }
 
    const int skip_zeros = 0;
@@ -471,7 +471,7 @@ void NonlinearForm::Update()
 void NonlinearForm::Setup()
 {
    dbg("");
-   if (ext) { return ext->AssemblePA(); }
+   if (ext) { return ext->Assemble(); }
 }
 
 NonlinearForm::~NonlinearForm()

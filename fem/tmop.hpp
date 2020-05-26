@@ -898,12 +898,12 @@ protected:
    mutable DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    // PA extension
-   mutable Vector D,JrtD;
+   mutable bool setup;
    int dim, ne, nq;
+   mutable Vector D,G;
    const DofToQuad *maps;
    const GeometricFactors *geom;
    const FiniteElementSpace *fes;
-   DenseTensor JtrT, JrtT, DShT, DST, JptT, PT;//, PMatIT, PMatOT;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      double &metric_energy, double &lim_energy);
