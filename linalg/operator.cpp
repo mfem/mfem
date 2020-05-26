@@ -307,6 +307,8 @@ ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                "incompatible Operators: A->Width() = " << A->Width()
                << ", B->Height() = " << B->Height());
 
+   z.UseDevice(true);
+
    {
       const Solver* SolverB = dynamic_cast<const Solver*>(B);
       if (SolverB)
@@ -331,6 +333,9 @@ SumOperator::SumOperator(const Operator *A_, const Operator *B_,
   MFEM_VERIFY(A->Width() == B->Width() && A->Height() == B->Height(),
 	      "incompatible Operators: A->Width() = " << A->Width()
 	      << ", B->Height() = " << B->Height());
+
+  z.UseDevice(true);
+  w.UseDevice(true);
 }
 
 SumOperator::~SumOperator()

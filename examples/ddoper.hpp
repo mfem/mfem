@@ -1893,6 +1893,8 @@ public:
       n(fespace_->GetTrueVSize()), nfull(fespace_->GetVSize()), LSpcg(comm),
       omega(omega_)
   {
+    precLS = NULL;
+
     z.SetSize(n);
     Minv_x.SetSize(n);
     rhs_E.SetSize(n);
@@ -2490,10 +2492,12 @@ public:
 	initialGuess.SetSize(LS_Maxwellop->Height());
 	initialGuess = 0.0;
 #endif
+	precLS = precMG;
       }
 #else
     blockgmg::BlockMGSolver *precMG = new blockgmg::BlockMGSolver(comm, LS_Maxwellop->Height(), LS_Maxwellop->Width(), blockA, blockAcoef, P);
     LSpcg.SetPreconditioner(*precMG);
+    precLS = precMG;
 #endif
 #endif
   }
@@ -2603,6 +2607,32 @@ public:
     double t1, t2;
     a_EE->GetTimings(t1, t2);
     cout << myid << ": FOSLSSolver a_EE subdomain integrator timing " << t1 << ", boundary integrator timing " << t2 << endl;
+
+    blockgmg::BlockMGPASolver* bmgpa = dynamic_cast<blockgmg::BlockMGPASolver*>(precLS);
+    t1 = 0.0;
+    if (bmgpa) t1 = bmgpa->timeMult;
+
+    cout << myid << ": FOSLSSOLVER BlockMGPASolver Mult timing " << t1 << endl;
+
+    t1 = 0.0;
+    if (bmgpa) t1 = bmgpa->timeMultAc;
+
+    cout << myid << ": FOSLSSOLVER BlockMGPASolver Mult invAc timing " << t1 << endl;
+
+    t1 = 0.0;
+    if (bmgpa) t1 = bmgpa->timeMultPresmooth;
+
+    cout << myid << ": FOSLSSOLVER BlockMGPASolver Mult presmooth timing " << t1 << endl;
+
+    t1 = 0.0;
+    if (bmgpa) t1 = bmgpa->timeMultResidual;
+
+    cout << myid << ": FOSLSSOLVER BlockMGPASolver Mult residual timing " << t1 << endl;
+
+    t1 = 0.0;
+    if (bmgpa) t1 = bmgpa->timeMultRestrict;
+
+    cout << myid << ": FOSLSSOLVER BlockMGPASolver Mult restrict timing " << t1 << endl;
   }
 
   Vector rhs_E;  // real part
@@ -2646,6 +2676,8 @@ private:
   
   OperatorPtr A_EE, A_HH;
   
+  Solver *precLS;
+
   const double omega;
 };
 
@@ -2697,6 +2729,9 @@ public:
     
     xSD.SetSize(2*nSD);
     ySD.SetSize(2*nSD);
+
+    xSD.UseDevice(true);
+    ySD.UseDevice(true);
 
     xAux.SetSize(nAux);
     yAux.SetSize(nAux);

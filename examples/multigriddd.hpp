@@ -269,6 +269,8 @@ public:
 
 };
 
+//#define SWTIMING
+
 class BlockMGPASolver : public Solver
 {
 private:
@@ -299,6 +301,12 @@ public:
 		  std::vector<HypreParMatrix *> const& P_, std::vector<Vector*> const& diag_, Array<int>& ess_tdof_list)
     : Solver(height, width), Af(Af_), Acoef(Acoef_), P(P_), diag(diag_)
   {
+    timeMult = 0.0;
+    timeMultAc = 0.0;
+    timeMultPresmooth = 0.0;
+    timeMultResidual = 0.0;
+    timeMultRestrict = 0.0;
+
     numBlocks = Af.NumRows();
     MFEM_VERIFY(Af.NumCols() == numBlocks, "");
     MFEM_VERIFY(BlkAc.NumCols() == numBlocks && BlkAc.NumRows() == numBlocks, "");
@@ -453,6 +461,12 @@ public:
 
   virtual void Mult(const Vector &r, Vector &z) const
   {
+#ifdef SWTIMING
+    StopWatch sw;
+    sw.Clear();
+    sw.Start();
+#endif
+
     // Residual vectors
     std::vector<Vector> rv(numGrids + 1);
     // correction vectors
@@ -463,6 +477,8 @@ public:
 	int n = (i==0) ? invAc->Height(): BlkA[i]->Width();
 	rv[i].SetSize(n);
 	zv[i].SetSize(n);
+	rv[i].UseDevice(true);
+	zv[i].UseDevice(true);
       }
     // Initial residual
     rv[numGrids] = r;
@@ -471,28 +487,75 @@ public:
     for (int i = numGrids; i > 0 ; i--)
       {
 	// Pre smooth
+#ifdef SWTIMING
+	StopWatch sws;
+	sws.Clear();
+	sws.Start();
+#endif
+
 	S[i - 1]->Mult(rv[i], zv[i]); zv[i] *= theta;
+
+#ifdef SWTIMING
+	sws.Stop();
+	timeMultPresmooth += sws.RealTime();
+#endif
+
 	// compute residual
 	int n = BlkA[i]->Width();
 	Vector w(n);
+	w.UseDevice(true);
+#ifdef SWTIMING
+	StopWatch swop;
+	swop.Clear();
+	swop.Start();
+#endif
 	BlkA[i]->Mult(zv[i], w);
 	rv[i] -= w;
+#ifdef SWTIMING
+	swop.Stop();
+	timeMultResidual += swop.RealTime();
+#endif
 	// Restrict
+#ifdef SWTIMING
+	StopWatch swr;
+	swr.Clear();
+	swr.Start();
+#endif
 	BlkP[i - 1]->MultTranspose(rv[i], rv[i - 1]);
+#ifdef SWTIMING
+	swr.Stop();
+	timeMultRestrict += swr.RealTime();
+#endif
       }
+
+#ifdef SWTIMING
+    StopWatch swAc;
+    swAc.Clear();
+    swAc.Start();
+#endif
 
     // Coarse grid Solve
     invAc->Mult(rv[0], zv[0]);
     //
+
+#ifdef SWTIMING
+    swAc.Stop();
+    timeMultAc += swAc.RealTime();
+#endif
+
     for (int i = 1; i <= numGrids ; i++)
       {
 	// Prolong correction
 	Vector u(BlkP[i - 1]->Height());
+	u.UseDevice(true);
+
 	BlkP[i - 1]->Mult(zv[i - 1], u);
 	// Update correction
 	zv[i] += u;
 	// Update residual
 	Vector v(BlkA[i]->Height());
+	v.UseDevice(true);
+
 	BlkA[i]->Mult(u, v); rv[i] -= v;
 	// Post smooth
 	S[i - 1]->Mult(rv[i], v); v *= theta;
@@ -500,6 +563,11 @@ public:
 	zv[i] += v;
       }
     z = zv[numGrids];
+
+#ifdef SWTIMING
+    sw.Stop();
+    timeMult += sw.RealTime();
+#endif
   }
      
   virtual ~BlockMGPASolver()
@@ -538,6 +606,7 @@ public:
   }
 #endif
 
+  mutable double timeMult, timeMultAc, timeMultPresmooth, timeMultResidual, timeMultRestrict;
 };
 
 }  

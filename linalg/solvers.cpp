@@ -353,6 +353,10 @@ void CGSolver::UpdateVectors()
    r.SetSize(width);
    d.SetSize(width);
    z.SetSize(width);
+
+   r.UseDevice(true);
+   d.UseDevice(true);
+   z.UseDevice(true);
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
