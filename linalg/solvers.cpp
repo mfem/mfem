@@ -2272,17 +2272,37 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    }
 
    std::vector<double> w(n, 0.0);
-   // Compute the discarded-fill weights
    for (int k=0; k<n; ++k)
    {
+      // Find all neighbors i of k
       for (int ii=I[k]; ii<I[k+1]; ++ii)
       {
-         double C_ki = V[ii];
+         int i = J[ii];
+         // Find value of (i,k)
+         double C_ik;
+         for (int kk=I[i]; kk<I[i+1]; ++kk)
+         {
+            if (J[kk] == k)
+            {
+               C_ik = V[kk];
+               break;
+            }
+         }
          for (int jj=I[k]; jj<I[k+1]; ++jj)
          {
-            if (jj == ii) { continue; }
-            double C_jk = V[jj];
-            w[k] += pow(C_jk*C_ki, 2);
+            int j = J[jj];
+            if (j == k) { continue; }
+            double C_kj = V[jj];
+            bool ij_exists = false;
+            for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
+            {
+               if (J[jj2] == j)
+               {
+                  ij_exists = true;
+                  break;
+               }
+            }
+            if (!ij_exists) { w[k] += pow(C_ik*C_kj,2); }
          }
       }
       w[k] = sqrt(w[k]);
@@ -2292,10 +2312,10 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
 
    // Compute ordering
    p.SetSize(n);
-   for (int i=0; i<n; ++i)
+   for (int ii=0; ii<n; ++ii)
    {
       int pi = w_heap.pop();
-      p[n-1-i] = pi;
+      p[ii] = pi;
       w[pi] = -1;
       for (int kk=I[pi]; kk<I[pi+1]; ++kk)
       {
@@ -2303,15 +2323,36 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
          if (w_heap.picked(k)) { continue; }
          // Recompute weight
          w[k] = 0.0;
-         for (int ii=I[k]; ii<I[k+1]; ++ii)
+         // Find all neighbors i of k
+         for (int ii2=I[k]; ii2<I[k+1]; ++ii2)
          {
-            if (w_heap.picked(J[ii])) { continue; }
-            double C_ki = V[ii];
+            int i = J[ii2];
+            if (w_heap.picked(i)) { continue; }
+            // Find value of (i,k)
+            double C_ik;
+            for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
+            {
+               if (J[kk2] == k)
+               {
+                  C_ik = V[kk2];
+                  break;
+               }
+            }
             for (int jj=I[k]; jj<I[k+1]; ++jj)
             {
-               if (jj == ii || w_heap.picked(J[jj])) { continue; }
-               double C_jk = V[jj];
-               w[k] += pow(C_jk*C_ki, 2);
+               int j = J[jj];
+               if (j == k || w_heap.picked(j)) { continue; }
+               double C_kj = V[jj];
+               bool ij_exists = false;
+               for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
+               {
+                  if (J[jj2] == j)
+                  {
+                     ij_exists = true;
+                     break;
+                  }
+               }
+               if (!ij_exists) { w[k] += pow(C_ik*C_kj,2); }
             }
          }
          w[k] = sqrt(w[k]);
