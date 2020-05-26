@@ -215,10 +215,13 @@ protected:
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
 
+#if 0
    void MaskSlaveDofs(Array<int> &dofs, const DenseMatrix &pm, int order) const;
+#endif
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
-                               Array<int>& slave_dofs, DenseMatrix& I);
+                               Array<int>& slave_dofs, DenseMatrix& I,
+                               int skipfirst = 0);
 
    static bool DofFinalizable(int dof, const Array<bool>& finalized,
                               const SparseMatrix& deps);
