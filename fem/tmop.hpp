@@ -900,7 +900,7 @@ protected:
    // PA extension
    mutable bool setup;
    int dim, ne, nq;
-   mutable Vector D,G;
+   mutable Vector Dpa,Gpa,dPpa;
    const DofToQuad *maps;
    const GeometricFactors *geom;
    const FiniteElementSpace *fes;

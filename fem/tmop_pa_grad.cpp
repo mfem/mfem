@@ -83,6 +83,7 @@ static void SetupGradPA_2D(const Vector &xe_,
                            const Array<double> &b1d_,
                            const Array<double> &g1d_,
                            const DenseMatrix &Jtr,
+                           Vector &p_,
                            Vector &g_,
                            const int d1d = 0,
                            const int q1d = 0)
@@ -101,6 +102,7 @@ static void SetupGradPA_2D(const Vector &xe_,
    const auto g1d = Reshape(g1d_.Read(), Q1D, D1D);
    const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
    const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
+   auto P = Reshape(p_.Write(), Q1D, Q1D, VDIM*VDIM, VDIM*VDIM, NE);
    auto G = Reshape(g_.Write(), Q1D, Q1D, dof*VDIM, dof*VDIM, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -250,7 +252,7 @@ static void SetupGradPA_2D(const Vector &xe_,
             Mult(GXh,Jrt,Jpt);
 
             //metric->AssembleH(Jpt, DS, weight_m, elmat);
-            DenseMatrix dP(dim);
+            DenseMatrix dP(&P(qx,qy,0,0,e),dim,dim);
             for (int r = 0; r < dim; r++)//
             {
                for (int c = 0; c < dim; c++)
@@ -288,6 +290,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
                                     const Array<double> &b1d_,
                                     const Array<double> &g1d_,
                                     const DenseMatrix &Jtr,
+                                    const Vector &p_,
                                     const Vector &g_,
                                     const Vector &re_,
                                     Vector &ce_,
@@ -308,6 +311,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
    const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
    const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
    const auto R = Reshape(re_.Read(), D1D, D1D, VDIM, NE);
+   /*const*/ auto paP = Reshape(p_.Read(), Q1D, Q1D, VDIM, VDIM, NE);
    const auto G = Reshape(g_.Read(), Q1D, Q1D, dof*VDIM, dof*VDIM, NE);
    auto C = Reshape(ce_.ReadWrite(), D1D, D1D, VDIM, NE);
    //dbg("D1D:%d, Q1D:%d, nq:%d", D1D, Q1D, Q1D*Q1D);
@@ -530,9 +534,9 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             elmat = 0.0;
             ie.Assemble_ddI1b(0.5*weight_detJtr, elmat.GetData());
 
+#ifdef STD_COMPUTE
+            //exit(0);
             DenseMatrix dP(dim);
-#if 0
-            exit(0);
             DenseMatrix Pelmat(dof*dim);
             Pelmat = 0.0;
             // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
@@ -566,6 +570,10 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             {
                for (int rr = 0; rr < dim; rr++)
                {
+                  DenseMatrix dP(dim);
+                  Dim2Invariant1_dMdM(Jpt, r, rr, dP);
+                  DenseMatrix _P((double*)&paP(qx,qy,r,rr,e),dim,dim);
+                  _P = dP;
                   for (int i = 0; i < dof; i++)
                   {
                      for (int j = 0; j < dof; j++)
@@ -596,18 +604,24 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
 
             double GZ_p[4];
             DenseMatrix GZ(GZ_p, dim, dim);
+            //DenseMatrix dP(dim);
             for (int r = 0; r < dim; r++)
             {
                for (int c = 0; c < dim; c++)
                {
                   GZ(r,c) = 0.0;
-                  Dim2Invariant1_dMdM(Jpt, r, c, dP);
+                  DenseMatrix dP(dim);
+                  DenseMatrix _P((double*)&paP(qx,qy,r,c,e),dim,dim);
+                  dP = _P;
+                  //Dim2Invariant1_dMdM(Jpt, r, c, dP);
                   dP *= 0.5 * weight_detJtr;
+                  //if (r==0 && c==0) { dP.Print(); }
                   for (int rr = 0; rr < dim; rr++)
                   {
                      for (int cc = 0; cc < dim; cc++)
                      {
                         GZ(r,c) += dP(rr,cc) * GR(rr,cc);
+                        //GZ(r,c) += 0.5 * weight_detJtr * P(qx,qy,rr,cc,e) * GR(rr,cc);
                      } // cc
                   } // rr
                } // c
@@ -742,15 +756,11 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
      }*/
    if (!setup)
    {
-      G = 0.0;
+      Gpa = 0.0;
       setup = true;
       switch (id)
       {
-         case 0x32:
-         {
-            SetupGradPA_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,G);
-            break;
-         }
+         case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          default:
          {
             dbg("kernel id: %x", id);
@@ -768,7 +778,8 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);*/
 
       //case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);/*
+      case 0x32:
+         return AddMultGradPA_Kernel_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa,Re,Ce);/*
       case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
       case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
       case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);

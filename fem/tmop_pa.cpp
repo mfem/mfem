@@ -38,12 +38,14 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    const IntegrationRule &ir = *IntRule;
    maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
    geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
-   D.UseDevice(true);
-   D.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
+   Dpa.UseDevice(true);
+   Dpa.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
    const int dof = fes->GetFE(0)->GetDof();
-   G.UseDevice(true);
-   G.SetSize(dof*dim * dof*dim * nq * ne, Device::GetDeviceMemoryType());
+   Gpa.UseDevice(true);
+   Gpa.SetSize(dof*dim * dof*dim * nq * ne, Device::GetDeviceMemoryType());
    setup = false;
+   dPpa.UseDevice(true);
+   dPpa.SetSize(dim*dim * dim*dim * nq * ne, Device::GetDeviceMemoryType());
 }
 
 // *****************************************************************************
@@ -344,7 +346,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
          targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
      }*/
    const auto Jtr = Reshape(Wideal.Read(), dim, dim);
-   auto J = Reshape(D.Write(), Q1D, Q1D, dim, dim, ne);
+   auto J = Reshape(Dpa.Write(), Q1D, Q1D, dim, dim, ne);
    MFEM_FORALL_2D(e, ne, Q1D, Q1D, 1,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -369,7 +371,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
       case 0x25: return AddMultPA_Kernel_2D<2,5,1>(ne,W,B,G,D,X,Y);*/
 
       //case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B,G,D,X,Y);
-      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B1d,G1d,D,X,Y);/*
+      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B1d,G1d,Dpa,X,Y);/*
       case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B,G,D,X,Y);
       case 0x34: return AddMultPA_Kernel_2D<3,4,1>(ne,W,B,G,D,X,Y);
       case 0x35: return AddMultPA_Kernel_2D<3,5,1>(ne,W,B,G,D,X,Y);
