@@ -258,7 +258,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
-   auto I = mat.WriteI();
+   auto I = mat.ReadWriteI();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
@@ -480,7 +480,7 @@ void L2ElementRestriction::FillI(SparseMatrix &mat) const
 {
    const int elem_dofs = ndof;
    const int vd = vdim;
-   auto I = mat.ReadWriteI();
+   auto I = mat.WriteI();
    MFEM_FORALL(dof, ne*elem_dofs*vd,
    {
       I[dof] = elem_dofs;
