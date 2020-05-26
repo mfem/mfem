@@ -179,8 +179,8 @@ int main(int argc, char *argv[])
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    if (fa) { a->SetAssemblyLevel(AssemblyLevel::FULL); }
-   // a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddDomainIntegrator(new MassIntegrator(one));
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   // a->AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
