@@ -1324,7 +1324,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Convert nodes to discontinuous GridFunction
          this->SetCurvature(1, true, Dim, Ordering::byVDIM);
 
-         // Renumber elements to remove slave vertices
+         // Replace "slave" vertex indices in the element connectivity
+         // with their corresponding "master" vertex indices.
          for (int i = 0; i < this->GetNE(); i++)
          {
             Element *el = this->GetElement(i);
@@ -1335,7 +1336,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                v[j] = v2v[v[j]];
             }
          }
-         // Renumber boundary elements to remove slave vertices
+         // Replace "slave" vertex indices in the boundary element connectivity
+         // with their corresponding "master" vertex indices.
          for (int i = 0; i < this->GetNBE(); i++)
          {
             Element *el = this->GetBdrElement(i);
