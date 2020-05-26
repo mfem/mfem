@@ -78,8 +78,8 @@ void GetInterdomainBoundaryPoints(FindPointsGSLIB &finder1,
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file_1   = "left.mesh";
-   const char *mesh_file_2   = "right.mesh";
+   const char *mesh_file_1   = "../../data/square-disc.mesh";
+   const char *mesh_file_2   = "inner.mesh";
    int order                 = 2;
    const char *device_config = "cpu";
    bool visualization        = true;

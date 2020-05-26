@@ -82,7 +82,10 @@ int main(int argc, char *argv[])
    rp_levels                 = 0;
    np_list                   = 0;
    double rel_tol            = 1.e-8;
-   int nmeshes               = 2;
+   int nmeshes               = 3;
+   np_list[0]                = 2;
+   np_list[1]                = 1;
+   np_list[2]                = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file_list[0], "-m1", "--mesh",
