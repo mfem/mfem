@@ -32,8 +32,7 @@ enum class AssemblyLevel
    /// Legacy fully assembled form, i.e. a global sparse matrix in MFEM,
    /// Hypre or PETSC format.
    LEGACYFULL,
-   /// Fully assembled form, i.e. a global sparse matrix in MFEM, Hypre or PETSC
-   /// format.
+   /// Fully assembled form, i.e. a global sparse matrix in MFEM format.
    FULL,
    /// Form assembled at element level, which computes and stores dense element
    /// matrices.
