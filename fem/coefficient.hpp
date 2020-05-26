@@ -53,7 +53,7 @@ public:
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
-   virtual void EvalRevDiff(const double &Q_bar,
+   virtual void EvalRevDiff(const double Q_bar,
                             ElementTransformation &T,
                             const IntegrationPoint &ip,
                             DenseMatrix &PointMat_bar);
@@ -88,7 +88,7 @@ public:
                        const IntegrationPoint &ip)
    { return (constant); }
 
-   virtual void EvalRevDiff(const double &Q_bar,
+   virtual void EvalRevDiff(const double Q_bar,
                             ElementTransformation &T,
                             const IntegrationPoint &ip,
                             DenseMatrix &PointMat_bar) {};
@@ -134,9 +134,9 @@ class FunctionCoefficient : public Coefficient
 {
 protected:
    double (*Function)(const Vector &);
-   void (*FunctionRevDiff)(const Vector &, const double &, Vector &);
+   void (*FunctionRevDiff)(const Vector &, const double, Vector &);
    double (*TDFunction)(const Vector &, double);
-   void (*TDFunctionRevDiff)(const Vector &, double, const double &, Vector &);
+   void (*TDFunctionRevDiff)(const Vector &, double, const double, Vector &);
 
 public:
    /// Define a time-independent coefficient from a C-function
@@ -155,7 +155,7 @@ public:
 
    /// Construct time-independent coefficient that can be differentiated
    FunctionCoefficient(double (*f)(const Vector &),
-                             void (*df)(const Vector &, const double &, Vector &))
+                       void (*df)(const Vector &, const double, Vector &))
    {
       Function = f;
       FunctionRevDiff = df;
@@ -165,7 +165,7 @@ public:
 
    /// Construct time-dependent coefficient that can be differentiated
    FunctionCoefficient(double (*tdf)(const Vector &, double),
-                             void (*dtdf)(const Vector &, double, const double &, Vector &))
+                       void (*dtdf)(const Vector &, double, const double, Vector &))
    {
       Function = NULL;
       FunctionRevDiff = NULL;
@@ -197,7 +197,7 @@ public:
 
    /// Reverse Diff version of Eval
    /// Q_bar: Derivative of functional with respect to Q
-   virtual void EvalRevDiff(const double &Q_bar,
+   virtual void EvalRevDiff(const double Q_bar,
                             ElementTransformation &T,
                             const IntegrationPoint &ip,
                             DenseMatrix &PointMat_bar);

@@ -21,7 +21,7 @@ namespace mfem
 
 using namespace std;
 
-void Coefficient::EvalRevDiff(const double &Q_bar,
+void Coefficient::EvalRevDiff(const double Q_bar,
                               ElementTransformation &T,
                               const IntegrationPoint &ip,
                               DenseMatrix &PointMat_bar)
@@ -55,7 +55,7 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
-void FunctionCoefficient::EvalRevDiff(const double &Q_bar,
+void FunctionCoefficient::EvalRevDiff(const double Q_bar,
                                       ElementTransformation &T,
                                       const IntegrationPoint &ip,
                                       DenseMatrix &PointMat_bar)
