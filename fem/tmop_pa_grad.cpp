@@ -249,28 +249,27 @@ static void SetupGradPA_2D(const Vector &xe_,
 
             // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
             DenseMatrix Jpt(dim);
-            Mult(GXh,Jrt,Jpt);
+            Mult(GXh, Jrt, Jpt);
+            const double sign = Jpt.Det() < 0.0 ? -1.0 : 1.0;
 
-            //metric->AssembleH(Jpt, DS, weight_m, elmat);
             for (int r = 0; r < dim; r++)
             {
                for (int c = 0; c < dim; c++)
                {
                   DenseMatrix dP(&P(0,0,r,c,qx,qy,e),dim,dim);
                   Dim2Invariant1_dMdM(Jpt,r,c,dP);
-                  dP *= 0.5 * weight_detJtr;
+                  dP *= sign * 0.5 * weight_detJtr;
                   for (int rr = 0; rr < dim; rr++)
                   {
                      for (int cc = 0; cc < dim; cc++)
                      {
-                        const double entry_rr_cc = dP(rr,cc);
+                        const double dp = dP(rr,cc);
                         for (int i = 0; i < dof; i++)
                         {
                            for (int j = 0; j < dof; j++)
                            {
                               const double ds = DS(i, c) * DS(j, cc);
-                              const double val = ds * entry_rr_cc;
-                              G(qx, qy, i+r*dof, j+rr*dof, e) += val;
+                              G(qx, qy, i+r*dof, j+rr*dof, e) += ds * dp;
                            }
                         }
                      }
@@ -467,8 +466,6 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double weight = W(qx,qy);
-
             //  Jtr = targetC->ComputeElementTargets
             const double Jtrx0 = J(0,0);
             const double Jtrx1 = J(0,1);
@@ -476,77 +473,29 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             const double Jtry1 = J(1,1);
             double Jtr_p[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
 
-            const double detJtr = Jtrx0*Jtry1 - Jtrx1*Jtry0;
-            const double weight_detJtr = weight * detJtr;
-
             // Jrt = Jtr^{-1}
             DenseMatrix Jrt(dim);
             kernels::CalcInverse<2>(Jtr_p, Jrt.HostWrite());
 
-            // Compute DSh (dof x dim)
-            const int dof = D1D*D1D;
-            DenseMatrix DSh(dof, dim);
-            for (int i1 = 0; i1 < D1D; ++i1)
-            {
-               for (int i2 = 0; i2 < D1D; ++i2)
-               {
-                  const double bg = G1d[qx][i1] * B1d[qy][i2];
-                  const double gb = B1d[qx][i1] * G1d[qy][i2];
-                  const int dof = i2 + i1*D1D;
-                  DSh(dof, 0) = bg;
-                  DSh(dof, 1) = gb;
-               }
-            }
-            //dbg("DSh:"); DSh.Print();
-
-            // Compute DS = DSh Jrt
-            DenseMatrix DS(dof, dim);
-            Mult(DSh, Jrt, DS);
-
-            // GR = DS.R^T
-            // GR = DSh.Jrt.R^T
-            // GR = Jrt.(DSh.R^T)
             const double GRx0h = Rx0[qy][qx];
             const double GRx1h = Rx1[qy][qx];
             const double GRy0h = Ry0[qy][qx];
             const double GRy1h = Ry1[qy][qx];
             double hGR_p[4] = {GRx0h, GRy0h, GRx1h, GRy1h};
             DenseMatrix hGR(hGR_p, dim, dim);
+
+            // GR = R^T . Jrt
             DenseMatrix GR(dim);
             Mult(hGR,Jrt,GR);
 
-            // GX = X^T.DSh
-            const double GXx0h = Xx0[qy][qx];
-            const double GXx1h = Xx1[qy][qx];
-            const double GXy0h = Xy0[qy][qx];
-            const double GXy1h = Xy1[qy][qx];
-            double GXh_p[4] = {GXx0h, GXy0h, GXx1h, GXy1h};
-            DenseMatrix GXh(GXh_p, dim, dim);
-
-            // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
-            DenseMatrix Jpt(dim);
-            Mult(GXh,Jrt,Jpt);
-            const bool flip = Jpt.Det() < 0.0;
-
-            //metric->AssembleH(Jpt, DS, weight_m, elmat);
-            InvariantsEvaluator2D<double> ie;
-            ie.SetJacobian(Jpt.GetData());
-            ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-            DenseMatrix elmat(dof*dim);
-            elmat = 0.0;
-            ie.Assemble_ddI1b(0.5*weight_detJtr, elmat.GetData());
-
-            double GZ_p[4];
-            DenseMatrix GZ(GZ_p, dim, dim);
-            //DenseMatrix dP(dim);
+            // GZ = GR : dP
+            DenseMatrix GZ(dim);
             for (int r = 0; r < dim; r++)
             {
                for (int c = 0; c < dim; c++)
                {
                   GZ(r,c) = 0.0;
-                  DenseMatrix dP(dim);
-                  DenseMatrix _P((double*)&paP(0,0,r,c,qx,qy,e),dim,dim);
-                  dP = _P;
+                  DenseMatrix dP((double*)&paP(0,0,r,c,qx,qy,e),dim,dim);
                   for (int rr = 0; rr < dim; rr++)
                   {
                      for (int cc = 0; cc < dim; cc++)
@@ -557,8 +506,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
                } // c
             } // r
 
-            GZ *= flip ? -1.0 : 1.0;
-
+            // A = Jrt . GZ
             double A_p[4];
             DenseMatrix A(A_p, dim, dim);
             MultABt(Jrt, GZ, A);
