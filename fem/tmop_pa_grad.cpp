@@ -102,7 +102,7 @@ static void SetupGradPA_2D(const Vector &xe_,
    const auto g1d = Reshape(g1d_.Read(), Q1D, D1D);
    const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
    const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
-   auto P = Reshape(p_.Write(), Q1D, Q1D, VDIM*VDIM, VDIM*VDIM, NE);
+   auto P = Reshape(p_.Write(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
    auto G = Reshape(g_.Write(), Q1D, Q1D, dof*VDIM, dof*VDIM, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -252,23 +252,24 @@ static void SetupGradPA_2D(const Vector &xe_,
             Mult(GXh,Jrt,Jpt);
 
             //metric->AssembleH(Jpt, DS, weight_m, elmat);
-            DenseMatrix dP(&P(qx,qy,0,0,e),dim,dim);
-            for (int r = 0; r < dim; r++)//
+            for (int r = 0; r < dim; r++)
             {
                for (int c = 0; c < dim; c++)
                {
-                  Dim2Invariant1_dMdM(Jpt, r, c, dP);
-                  for (int rr = 0; rr < dim; rr++)//
+                  DenseMatrix dP(&P(0,0,r,c,qx,qy,e),dim,dim);
+                  Dim2Invariant1_dMdM(Jpt,r,c,dP);
+                  dP *= 0.5 * weight_detJtr;
+                  for (int rr = 0; rr < dim; rr++)
                   {
                      for (int cc = 0; cc < dim; cc++)
                      {
-                        const double entry_rr_cc = 0.5 * dP(rr,cc);
-                        for (int i = 0; i < dof; i++)//
+                        const double entry_rr_cc = dP(rr,cc);
+                        for (int i = 0; i < dof; i++)
                         {
-                           for (int j = 0; j < dof; j++)//
+                           for (int j = 0; j < dof; j++)
                            {
                               const double ds = DS(i, c) * DS(j, cc);
-                              const double val = weight_detJtr * ds * entry_rr_cc;
+                              const double val = ds * entry_rr_cc;
                               G(qx, qy, i+r*dof, j+rr*dof, e) += val;
                            }
                         }
@@ -311,7 +312,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
    const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
    const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
    const auto R = Reshape(re_.Read(), D1D, D1D, VDIM, NE);
-   /*const*/ auto paP = Reshape(p_.Read(), Q1D, Q1D, VDIM, VDIM, NE);
+   const auto paP = Reshape(p_.Read(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
    const auto G = Reshape(g_.Read(), Q1D, Q1D, dof*VDIM, dof*VDIM, NE);
    auto C = Reshape(ce_.ReadWrite(), D1D, D1D, VDIM, NE);
    //dbg("D1D:%d, Q1D:%d, nq:%d", D1D, Q1D, Q1D*Q1D);
@@ -525,6 +526,7 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
             DenseMatrix Jpt(dim);
             Mult(GXh,Jrt,Jpt);
+            const bool flip = Jpt.Det() < 0.0;
 
             //metric->AssembleH(Jpt, DS, weight_m, elmat);
             InvariantsEvaluator2D<double> ie;
@@ -533,74 +535,6 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             DenseMatrix elmat(dof*dim);
             elmat = 0.0;
             ie.Assemble_ddI1b(0.5*weight_detJtr, elmat.GetData());
-
-#ifdef STD_COMPUTE
-            //exit(0);
-            DenseMatrix dP(dim);
-            DenseMatrix Pelmat(dof*dim);
-            Pelmat = 0.0;
-            // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
-            for (int r = 0; r < dim; r++)
-            {
-               for (int c = 0; c < dim; c++)
-               {
-                  Dim2Invariant1_dMdM(Jpt, r, c, dP);
-                  // Compute each entry of d(Prc)_dJ.
-                  for (int rr = 0; rr < dim; rr++)
-                  {
-                     for (int cc = 0; cc < dim; cc++)
-                     {
-                        const double entry_rr_cc = 0.5 * dP(rr,cc);
-                        for (int i = 0; i < dof; i++)
-                        {
-                           for (int j = 0; j < dof; j++)
-                           {
-                              const double ds = DS(i, c) * DS(j, cc);
-                              const double val = weight_detJtr * ds * entry_rr_cc;
-                              Pelmat(i+r*dof, j+rr*dof) += val;
-                           }
-                        }
-                     }
-                  }
-               }
-            }
-#else
-            DenseMatrix Pelmat(dof*dim);
-            for (int r = 0; r < dim; r++)
-            {
-               for (int rr = 0; rr < dim; rr++)
-               {
-                  DenseMatrix dP(dim);
-                  Dim2Invariant1_dMdM(Jpt, r, rr, dP);
-                  DenseMatrix _P((double*)&paP(qx,qy,r,rr,e),dim,dim);
-                  _P = dP;
-                  for (int i = 0; i < dof; i++)
-                  {
-                     for (int j = 0; j < dof; j++)
-                     {
-                        const double val = G(qx, qy, i+r*dof, j+rr*dof, e);
-                        Pelmat(i+r*dof, j+rr*dof) = val;
-                     }
-                  }
-               }
-            }
-#endif
-            const double EPS = 1.e-4;
-            const bool flip = Jpt.Det() < 0.0;
-            Pelmat *= flip ? -1.0 : 1.0;
-            //dbg("P_ELMAT:"); Pelmat.Print();
-            for (int i = 0; i < dim*dof; i++)
-            {
-               for (int j = 0; j < dim*dof; j++)
-               {
-                  if (fabs(elmat(i,j)-Pelmat(i,j)) > EPS)
-                  {
-                     dbg("\033[31m%.15e", elmat(i,j));
-                     dbg("\033[31m%.15e", Pelmat(i,j));
-                  }
-                  MFEM_VERIFY(fabs(elmat(i,j)-Pelmat(i,j)) < EPS,"");
-               }
-            }
 
             double GZ_p[4];
             DenseMatrix GZ(GZ_p, dim, dim);
@@ -611,19 +545,15 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
                {
                   GZ(r,c) = 0.0;
                   DenseMatrix dP(dim);
-                  DenseMatrix _P((double*)&paP(qx,qy,r,c,e),dim,dim);
+                  DenseMatrix _P((double*)&paP(0,0,r,c,qx,qy,e),dim,dim);
                   dP = _P;
-                  //Dim2Invariant1_dMdM(Jpt, r, c, dP);
-                  dP *= 0.5 * weight_detJtr;
-                  //if (r==0 && c==0) { dP.Print(); }
                   for (int rr = 0; rr < dim; rr++)
                   {
                      for (int cc = 0; cc < dim; cc++)
                      {
                         GZ(r,c) += dP(rr,cc) * GR(rr,cc);
-                        //GZ(r,c) += 0.5 * weight_detJtr * P(qx,qy,rr,cc,e) * GR(rr,cc);
-                     } // cc
-                  } // rr
+                     }
+                  }
                } // c
             } // r
 
