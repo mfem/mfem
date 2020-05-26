@@ -1530,7 +1530,7 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    if (face_dof) { return; }
    if (!mesh->BdrInfoAvailable()) { return; }
 
-  // MFEM_VERIFY(bdrElem_dof, "NURBSExt not defined.");
+   // MFEM_VERIFY(bdrElem_dof, "NURBSExt not defined.");
 
    // Find bdr to face mapping
    face_to_be.SetSize(mesh->GetNumFaces());
