@@ -1355,8 +1355,7 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
       auto d_indices2 = scatter_indices2.Read();
       auto mat_fea = Reshape(fea_data.Read(), face_dofs, face_dofs, 2, nf);
       auto mat_ea = Reshape(ea_data.ReadWrite(), elem_dofs, elem_dofs, ne);
-      for(int f=0; f<nf; f++)
-      // MFEM_FORALL(f, nf,
+      MFEM_FORALL(f, nf,
       {
          const int e1 = d_indices1[f*face_dofs]/elem_dofs;
          const int e2 = d_indices2[f*face_dofs]/elem_dofs;
@@ -1374,7 +1373,7 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
                if (e2 < NE) { mfemAtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f)); }
             }
          }
-      }//);
+      });
    }
    else
    {
