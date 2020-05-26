@@ -225,7 +225,7 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
    //bulding the intersection
-   const int MaxNbNbr = 16;//TODO remove magic number
+   constexpr int MaxNbNbr = 16;//TODO remove magic number
    int inter[MaxNbNbr];
    int cpt = 0;
    for (int i = 0; i < nbElts; i++)
@@ -257,7 +257,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    constexpr int MaxNbNbr = 16;//TODO remove magic number
    const int all_dofs = ndofs;
    const int vd = vdim;
-   // const bool t = byvdim;//TODO use vd
    const int elt_dofs = dof;
    auto I = mat.WriteI();
    auto d_offsets = offsets.Read();
