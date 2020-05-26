@@ -254,7 +254,7 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
 
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
-   const int MaxNbNbr = 16;//TODO remove magic number
+   constexpr int MaxNbNbr = 16;//TODO remove magic number
    const int all_dofs = ndofs;
    const int vd = vdim;
    // const bool t = byvdim;//TODO use vd
@@ -337,7 +337,7 @@ static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
 void ElementRestriction::FillJandData(const Vector &ea_data,
                                       SparseMatrix &mat) const
 {
-   const int MaxNbNbr = 16;
+   constexpr int MaxNbNbr = 16;
    const int all_dofs = ndofs;
    const int vd = vdim;
    // const bool t = byvdim; //TODO use vd
