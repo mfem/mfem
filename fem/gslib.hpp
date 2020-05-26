@@ -38,9 +38,9 @@ protected:
 
    struct comm *gsl_comm;
 
-   void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
-   void GetQuadHexNodalCoordinates();
-   void GetSimplexNodalCoordinates();
+   virtual void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
+   virtual void GetQuadHexNodalCoordinates();
+   virtual void GetSimplexNodalCoordinates();
 
 public:
    FindPointsGSLIB();
@@ -49,7 +49,7 @@ public:
    FindPointsGSLIB(MPI_Comm _comm);
 #endif
 
-   ~FindPointsGSLIB();
+   virtual ~FindPointsGSLIB();
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object @a m.
@@ -62,6 +62,9 @@ public:
        @param[in] npt_max   Number of points for simultaneous iteration. This
                             alters performance and memory footprint. */
    void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+              const int npt_max = 256);
+   void Setup(Mesh &m, const int idsess, GridFunction &gfmax,
+              const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
 
    /** Searches positions given in physical space by @a point_pos. All output
@@ -85,6 +88,11 @@ public:
    /** Setup FindPoints and search positions*/
    void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,  const int npt_max = 256);
+
+   void FindPoints(const Vector &point_pos, Array<unsigned int> &point_id,
+                   Array<unsigned int> &codes,
+                   Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
+                   Vector &ref_pos, Vector &dist);
 
    /** Interpolation of field values at prescribed reference space positions.
 
@@ -128,6 +136,70 @@ public:
    /// Return distance Distance between the sought and the found point
    /// in physical space, for each point found by FindPoints.
    const Vector &GetDist()              const { return gsl_dist; }
+};
+
+
+class OversetFindPointsGSLIB : public FindPointsGSLIB
+{
+protected:
+   bool overset;
+   unsigned int u_idsess;
+   Vector distfint;
+
+public:
+   OversetFindPointsGSLIB() : FindPointsGSLIB(),
+      overset(true) { }
+
+#ifdef MFEM_USE_MPI
+   OversetFindPointsGSLIB(MPI_Comm _comm) : FindPointsGSLIB(_comm),
+      overset(true) { }
+#endif
+
+   /** Initializes the internal mesh in gslib, by sending the positions of the
+       Gauss-Lobatto nodes of the input Mesh object @a m.
+       Note: not tested with periodic (DG meshes).
+       Note: the input mesh @a m must have Nodes set.
+
+       @param[in] m         Input mesh.
+       @param[in] bb_t      Relative size of bounding box around each element.
+       @param[in] newt_tol  Newton tolerance for the gslib search methods.
+       @param[in] npt_max   Number of points for simultaneous iteration. This
+                            alters performance and memory footprint. */
+   void Setup(Mesh &m, const int idsess, GridFunction &gfmax,
+              const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+              const int npt_max = 256);
+
+   /** Searches positions given in physical space by @a point_pos. All output
+       Arrays and Vectors are expected to have the correct size.
+
+       @param[in]  point_pos  Positions to be found. Must by ordered by nodes
+                              (XXX...,YYY...,ZZZ).
+       @param[out] codes      Return codes for each point: inside element (0),
+                              element boundary (1), not found (2).
+       @param[out] proc_ids   MPI proc ids where the points were found.
+       @param[out] elem_ids   Element ids where the points were found.
+       @param[out] ref_pos    Reference coordinates of the found point. Ordered
+                              by vdim (XYZ,XYZ,XYZ...).
+                              Note: the gslib reference frame is [-1,1].
+       @param[out] dist       Distance between the sought and the found point
+                              in physical space. */
+   void FindPoints(const Vector &point_pos, Array<unsigned int> &point_id,
+                   Array<unsigned int> &codes,
+                   Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
+                   Vector &ref_pos, Vector &dist);
+   void FindPoints(const Vector &point_pos, Array<unsigned int> &point_id);
+
+   /** Cleans up memory allocated internally by gslib.
+       Note that in parallel, this must be called before MPI_Finalize(), as
+       it calls MPI_Comm_free() for internal gslib communicators. */
+   void Interpolate(Array<unsigned int> &codes, Array<unsigned int> &proc_ids,
+                    Array<unsigned int> &elem_ids, Vector &ref_pos,
+                    const GridFunction &field_in, Vector &field_out);
+   void Interpolate(const GridFunction &field_in, Vector &field_out);
+   void Interpolate(const Vector &point_pos, Array<unsigned int> &point_id,
+                    const GridFunction &field_in, Vector &field_out);
+
+   void FreeData();
 };
 
 } // namespace mfem
