@@ -569,15 +569,14 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
 
 const int SkipDof = std::numeric_limits<int>::max();
 
-void
-FiniteElementSpace::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
-                                    Array<int>& slave_dofs, DenseMatrix& I)
+void FiniteElementSpace
+   ::AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
+                     Array<int>& slave_dofs, DenseMatrix& I, int skipfirst)
 {
-   for (int i = 0; i < slave_dofs.Size(); i++)
+   for (int i = skipfirst; i < slave_dofs.Size(); i++)
    {
       int sdof = slave_dofs[i];
-      if (sdof != SkipDof &&   // not masked
-          !deps.RowSize(sdof)) // not processed yet
+      if (!deps.RowSize(sdof)) // not processed yet
       {
          for (int j = 0; j < master_dofs.Size(); j++)
          {
@@ -646,6 +645,7 @@ void FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    }
 }
 
+#if 0
 void FiniteElementSpace::MaskSlaveDofs(Array<int> &dofs, const DenseMatrix &pm,
                                        int order) const
 {
@@ -686,6 +686,7 @@ void FiniteElementSpace::MaskSlaveDofs(Array<int> &dofs, const DenseMatrix &pm,
       }
    }
 }
+#endif
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
                                   Geometry::Type master_geom, int variant) const
@@ -732,13 +733,15 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       // loop through all master edges/faces, constrain their slave edges/faces
       for (const NCMesh::Master &master : list.masters)
       {
-         int p = GetEntityDofs(entity, master.index, master_dofs, master.Geom(), 0);
+         Geometry::Type master_geom = master.Geom();
+
+         int p = GetEntityDofs(entity, master.index, master_dofs, master_geom, 0);
          if (!master_dofs.Size()) { continue; }
 
-         const auto *master_fe = fec->GetFE(master.Geom(), p);
+         const auto *master_fe = fec->GetFE(master_geom, p);
          if (!master_fe) { continue; }
 
-         switch (master.geom)
+         switch (master_geom)
          {
             case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
             case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
@@ -749,21 +752,34 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
-            for (int variant = 0; ; variant++)
+
+            int q = GetEntityDofs(entity, slave.index, slave_dofs, master_geom, 0);
+            if (!slave_dofs.Size()) { break; }
+
+            const auto *slave_fe = fec->GetFE(slave.Geom(), q);
+            slave.OrientedPointMatrix(T.GetPointMat());
+            slave_fe->GetTransferMatrix(*master_fe, T, I);
+
+            // variable order spaces: face edges need to be handled separately
+            int skipfirst = 0;
+            if (IsVariableOrder() && entity == 2)
             {
-               int q = GetEntityDofs(entity, slave.index, slave_dofs,
-                                     master.Geom(), variant);
-               if (q < 0 || !slave_dofs.Size()) { break; }
+               int nv = fec->GetNumDof(Geometry::POINT, q);
+               int ne = fec->GetNumDof(Geometry::SEGMENT, q);
+               skipfirst = Geometry::NumVerts[master_geom] * (nv + ne);
+            }
 
-               const auto *slave_fe = fec->GetFE(slave.Geom(), q);
-               slave.OrientedPointMatrix(T.GetPointMat());
-               slave_fe->GetTransferMatrix(*master_fe, T, I);
+            // make each slave DOF dependent on all master DOFs
+            AddDependencies(deps, master_dofs, slave_dofs, I, skipfirst);
 
-               // skip interpolation of slave face boundary DOFs
-               if (entity == 2) { MaskSlaveDofs(slave_dofs, T.GetPointMat(), q); }
+            // handle edge DOFs that were skipped
+            if (skipfirst)
+            {
+               const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, q);
 
-               // make each slave DOF dependent on all master DOFs
-               AddDependencies(deps, master_dofs, slave_dofs, I);
+               T.SetFE(&SegmentFE);
+               // TODO: T based on two points from face pm
+
             }
          }
       }
