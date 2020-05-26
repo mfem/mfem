@@ -3,6 +3,7 @@
 // Compile with: make ex2x
 //
 // Sample runs:  ex2x
+//               ex2x -p 1 -tf 2 -tol 1e-2 -dt 3e-3
 //               ex2x -gp -p 6 -tf 4 -tol 1e-2
 // Description:
 //
@@ -44,10 +45,10 @@ public:
 int main(int argc, char *argv[])
 {
    int prob = 1;
-   int ode_solver_type = 4;
+   int ode_solver_type = 6;
    int ode_msr_type = 1;
-   int ode_acc_type = 2;
-   int ode_rej_type = 1;
+   int ode_acc_type = 3;
+   int ode_rej_type = 2;
    int ode_lim_type = 1;
 
    double t_init  = 0.0;
@@ -71,6 +72,8 @@ int main(int argc, char *argv[])
    double lim_lo  = 1.0;
    double lim_hi  = 1.2;
    double lim_max = 2.0;
+
+   bool epus = true;
 
    bool gnuplot = false;
    bool visualization = true;
@@ -102,6 +105,24 @@ int main(int argc, char *argv[])
                   "Adjustment limiter:\n"
                   "\t   1 - Dead zone limiter\n"
                   "\t   2 - Maximum limiter");
+   args.AddOption(&kP_acc, "-kPa", "--k-P-acc",
+                  "Proportional gain for accepted steps.");
+   args.AddOption(&kI_acc, "-kIa", "--k-I-acc",
+                  "Integral gain for accepted steps.");
+   args.AddOption(&kD_acc, "-kDa", "--k-D-acc",
+                  "Derivative gain for accepted steps.");
+   args.AddOption(&kP_rej, "-kPr", "--k-P-rej",
+                  "Proportional gain for rejected steps.");
+   args.AddOption(&kI_rej, "-kIr", "--k-I-rej",
+                  "Integral gain for rejected steps.");
+   args.AddOption(&kD_rej, "-kDr", "--k-D-rej",
+                  "Derivative gain for rejected steps.");
+   args.AddOption(&lim_lo, "-lo", "--lower-limit",
+                  "Lower limit of dead zone.");
+   args.AddOption(&lim_hi, "-hi", "--upper-limit",
+                  "Upper limit of dead zone.");
+   args.AddOption(&lim_max, "-max", "--max-limit",
+                  "Limiter maximum.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -110,6 +131,9 @@ int main(int argc, char *argv[])
                   "Tolerance.");
    args.AddOption(&rho, "-rho", "--rejection",
                   "Rejection tolerance.");
+   args.AddOption(&epus, "-epus", "--error-per-unit-step",
+                  "-eps", "--error-per-step",
+                  "Select Error per step or error per unit step.");
    args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp", "--no-gnuplot",
                   "Enable or disable GnuPlot visualization.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -220,6 +244,14 @@ int main(int argc, char *argv[])
    ode_controller.SetTimeStep(dt);
    ode_controller.SetTolerance(tol);
    ode_controller.SetRejectionLimit(rho);
+   if (epus)
+   {
+      ode_controller.SetErrorPerUnitStep();
+   }
+   else
+   {
+      ode_controller.SetErrorPerStep();
+   }
    if (gnuplot || visualization) { ode_controller.SetOutput(ofs, true); }
 
    Vector y;
