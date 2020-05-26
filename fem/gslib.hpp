@@ -85,7 +85,7 @@ public:
                    Array<unsigned int> &proc_ids, Array<unsigned int> &elem_ids,
                    Vector &ref_pos, Vector &dist);
    void FindPoints(const Vector &point_pos);
-   /** Setup FindPoints and search positions*/
+   /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,  const int npt_max = 256);
 
@@ -124,8 +124,8 @@ public:
        it calls MPI_Comm_free() for internal gslib communicators. */
    void FreeData();
 
-   /// Return code for each point searched by FindPoints: inside element (0),
-   /// element boundary (1), not found (2).
+   /// Return code for each point searched by FindPoints: inside element (0), on
+   /// element boundary (1), or not found (2).
    const Array<unsigned int> &GetCode() const { return gsl_code; }
    /// Return element number for each point found by FindPoints.
    const Array<unsigned int> &GetElem() const { return gsl_elem; }
