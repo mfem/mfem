@@ -421,7 +421,7 @@ public:
 class LBFGSSolver : public NewtonSolver
 {
 protected:
-   int m = 20;
+   int m = 10;
 
 public:
    LBFGSSolver() : NewtonSolver() { }
