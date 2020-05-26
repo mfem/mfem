@@ -140,7 +140,6 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
 
             x1 = 0.0;
             b = 1.0;
-            fa.SetAssemblyLevel(AssemblyLevel::FULL);
             fa.AddDomainIntegrator(new DiffusionIntegrator(one));
             fa.Assemble();
             fa.FormLinearSystem(ess_tdof_list, x1, b, A_fa, X[1], B[1]);
