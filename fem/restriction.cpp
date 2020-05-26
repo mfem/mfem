@@ -1364,13 +1364,22 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
          for (int j = 0; j < face_dofs; j++)
          {
             const int jB1 = d_indices1[f*face_dofs+j]%elem_dofs;
-            const int jB2 = d_indices2[f*face_dofs+j]%elem_dofs;
             for (int i = 0; i < face_dofs; i++)
             {
                const int iB1 = d_indices1[f*face_dofs+i]%elem_dofs;
-               const int iB2 = d_indices2[f*face_dofs+i]%elem_dofs;
                mfemAtomicAdd(mat_ea(iB1,jB1,e1), mat_fea(i,j,0,f));
-               if (e2 < NE) { mfemAtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f)); }
+            }
+         }
+         if (e2 < NE)
+         {
+            for (int j = 0; j < face_dofs; j++)
+            {
+               const int jB2 = d_indices2[f*face_dofs+j]%elem_dofs;
+               for (int i = 0; i < face_dofs; i++)
+               {
+                  const int iB2 = d_indices2[f*face_dofs+i]%elem_dofs;
+                  mfemAtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f));
+               }
             }
          }
       });
