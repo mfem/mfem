@@ -972,6 +972,12 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      offsets(ndofs+1),
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
+   Build(e_ordering, type);
+}
+
+void L2FaceRestriction::Build(const ElementDofOrdering e_ordering,
+                              const FaceType type)
+{
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);

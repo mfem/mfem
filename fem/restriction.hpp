@@ -146,6 +146,9 @@ public:
    /// This methods adds the DG face matrices to the element matrices.
    void FactorizeBlocks(Vector &fea_data, const int elemDofs,
                         const int ne, Vector &ea_data) const;
+
+protected:
+   virtual void Build(const ElementDofOrdering, const FaceType);
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.
