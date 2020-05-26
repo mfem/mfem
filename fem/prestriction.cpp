@@ -23,27 +23,20 @@
 namespace mfem
 {
 
-ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
+ParL2FaceRestriction::ParL2FaceRestriction(const FiniteElementSpace &fes,
                                            ElementDofOrdering e_ordering,
                                            FaceType type,
                                            L2FaceValues m)
-   : fes(fes),
-     nf(fes.GetNFbyType(type)),
-     vdim(fes.GetVDim()),
-     byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs()),
-     dof(nf>0 ?
-         fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
-         : 0),
-     m(m),
-     nfdofs(nf*dof),
-     scatter_indices1(nf*dof),
-     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
-     offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
+   : L2FaceRestriction(fes, e_ordering, type, m)
+{
+}
+
+void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
+                                 const FaceType type)
 {
    if (nf==0) { return; }
    // If fespace == L2
+   const ParFiniteElementSpace &fes = dynamic_cast<const ParFiniteElementSpace&>(this->fes);
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
@@ -272,6 +265,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   const ParFiniteElementSpace &fes = dynamic_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes),
                 const_cast<Vector&>(x), 0);

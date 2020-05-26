@@ -26,28 +26,17 @@ class ParFiniteElementSpace;
 /// Operator that extracts Face degrees of freedom in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParL2FaceRestriction : public Operator
+class ParL2FaceRestriction : public L2FaceRestriction
 {
-protected:
-   const ParFiniteElementSpace &fes;
-   const int nf;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   const int dof;
-   const L2FaceValues m;
-   const int nfdofs;
-   Array<int> scatter_indices1;
-   Array<int> scatter_indices2;
-   Array<int> offsets;
-   Array<int> gather_indices;
-
 public:
-   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
+   ParL2FaceRestriction(const FiniteElementSpace&, ElementDofOrdering,
                         FaceType type,
                         L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
+
+protected:
+   void Build(const ElementDofOrdering, const FaceType);
 };
 
 }
