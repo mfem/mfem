@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 ifeq ($(MFEM_USE_GSLIB),YES)
    SEQ_MINIAPPS = findpts field-diff ex1
-   PAR_MINIAPPS = pfindpts
+   PAR_MINIAPPS = pfindpts ex1p
 else
    SEQ_MINIAPPS =
    PAR_MINIAPPS =
