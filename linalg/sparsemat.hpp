@@ -580,12 +580,12 @@ public:
 
 inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
 {
-    // HostRead forces synchronization
-    mat.HostReadI();
-    mat.HostReadJ();
-    mat.HostReadData();
-    mat.Print(os);
-    return os;
+   // HostRead forces synchronization
+   mat.HostReadI();
+   mat.HostReadJ();
+   mat.HostReadData();
+   mat.Print(os);
+   return os;
 }
 
 /// Applies f() to each element of the matrix (after it is finalized).

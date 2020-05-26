@@ -36,7 +36,8 @@ void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
 {
    if (nf==0) { return; }
    // If fespace == L2
-   const ParFiniteElementSpace &fes = dynamic_cast<const ParFiniteElementSpace&>(this->fes);
+   const ParFiniteElementSpace &fes =
+      dynamic_cast<const ParFiniteElementSpace&>(this->fes);
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
@@ -265,7 +266,8 @@ void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   const ParFiniteElementSpace &fes = dynamic_cast<const ParFiniteElementSpace&>(this->fes);
+   const ParFiniteElementSpace &fes =
+      dynamic_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes),
                 const_cast<Vector&>(x), 0);
