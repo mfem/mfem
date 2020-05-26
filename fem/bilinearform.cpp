@@ -224,7 +224,7 @@ void BilinearForm::Finalize (int skip_zeros)
 {
    if (assembly == AssemblyLevel::FULL)
    {
-      if (!static_cond) { if(!ext) mat->Finalize(skip_zeros); }
+      if (!static_cond) { if (!ext) { mat->Finalize(skip_zeros); } }
       if (mat_e) { mat_e->Finalize(skip_zeros); }
       if (static_cond) { static_cond->Finalize(); }
       if (hybridization) { hybridization->Finalize(); }

@@ -80,13 +80,13 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
 template <typename T>
 MFEM_HOST_DEVICE T mfemAtomicAdd(T &add, const T val)
 {
-   #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
    return atomicAdd(&add,val);
-   #else
+#else
    T old = add;
    add += val;
    return old;
-   #endif
+#endif
 }
 
 /// Allocates device memory

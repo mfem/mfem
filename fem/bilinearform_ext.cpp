@@ -409,7 +409,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          const int NDOFS = faceDofs;
          auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
          auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
-         if(!simplify)
+         if (!simplify)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
             MFEM_FORALL(glob_j, nf_int*NDOFS,
@@ -535,7 +535,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          const int NDOFS = faceDofs;
          auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
          auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
-         if(!simplify)
+         if (!simplify)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
             MFEM_FORALL(glob_j, nf_int*NDOFS,
@@ -624,14 +624,16 @@ void FABilinearFormExtension::Assemble()
    FiniteElementSpace &fes = *a->FESpace();
    if (fes.IsDGSpace())
    {
-      const L2ElementRestriction *restE = static_cast<const L2ElementRestriction*>(elem_restrict);
-      const L2FaceRestriction *restF = static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
+      const L2ElementRestriction *restE =
+         static_cast<const L2ElementRestriction*>(elem_restrict);
+      const L2FaceRestriction *restF =
+         static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
       //1. Fill I
       mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
       //  1.1 Increment with restE
       restE->FillI(mat);
       //  1.2 Increment with restF
-      if(restF) restF->FillI(mat);
+      if (restF) { restF->FillI(mat); }
       //  1.3 Sum the non-zeros in I
       auto h_I = mat.HostReadWriteI();
       int cpt = 0;
@@ -651,7 +653,7 @@ void FABilinearFormExtension::Assemble()
       //  2.1 Fill J and Data with Elem ea_data
       restE->FillJandData(ea_data, mat);
       //  2.2 Fill J and Data with Face ea_data_ext
-      if (restF) restF->FillJandData(ea_data_ext, mat);
+      if (restF) { restF->FillJandData(ea_data_ext, mat); }
       //  2.3 Shift indirections in I back to original
       auto I = mat.HostReadWriteI();
       for (int i = ndofs; i > 0; i--)
@@ -662,7 +664,8 @@ void FABilinearFormExtension::Assemble()
    }
    else // CG case
    {
-      const ElementRestriction &rest = static_cast<const ElementRestriction&>(*elem_restrict);
+      const ElementRestriction &rest =
+         static_cast<const ElementRestriction&>(*elem_restrict);
       rest.FillSpMat(ea_data, mat);
    }
 }

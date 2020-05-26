@@ -211,7 +211,8 @@ void ElementRestriction::BooleanMask(Vector& y) const
    }
 }
 
-void ElementRestriction::FillSpMat(const Vector &mat_ea, SparseMatrix &mat) const
+void ElementRestriction::FillSpMat(const Vector &mat_ea,
+                                   SparseMatrix &mat) const
 {
    mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
    const int nnz = FillI(mat);
@@ -232,12 +233,12 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
       const int e_i = my_elts[i];
       for (int j = 0; j < nbrNbElts; j++)
       {
-         if(e_i==nbr_elts[j])
+         if (e_i==nbr_elts[j])
          {
             inter[cpt] = e_i;
             cpt++;
          }
-      }      
+      }
    }
    //Finding the minimum
    int min = inter[0];
@@ -333,7 +334,8 @@ static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
    return ind;
 }
 
-void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) const
+void ElementRestriction::FillJandData(const Vector &ea_data,
+                                      SparseMatrix &mat) const
 {
    const int MaxNbNbr = 16;
    const int all_dofs = ndofs;
@@ -412,7 +414,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data, SparseMatrix &mat) 
                   J[nnz] = j_L;
                   Data[nnz] = val;
                }
-            }                  
+            }
          }
       }
    });
