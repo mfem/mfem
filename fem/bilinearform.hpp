@@ -29,6 +29,9 @@ namespace mfem
 /// classes derived from Operator.
 enum class AssemblyLevel
 {
+   /// Legacy fully assembled form, i.e. a global sparse matrix in MFEM,
+   /// Hypre or PETSC format.
+   LEGACYFULL,
    /// Fully assembled form, i.e. a global sparse matrix in MFEM, Hypre or PETSC
    /// format.
    FULL,
@@ -115,7 +118,7 @@ protected:
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
       diag_policy = DIAG_KEEP;
-      assembly = AssemblyLevel::FULL;
+      assembly = AssemblyLevel::LEGACYFULL;
       batch = 1;
       ext = NULL;
    }
