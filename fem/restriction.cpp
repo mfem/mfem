@@ -977,6 +977,26 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    Build(e_ordering, type);
 }
 
+L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
+                                     const FaceType type,
+                                     const L2FaceValues m)
+   : fes(fes),
+     nf(fes.GetNFbyType(type)),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(nf > 0 ?
+         fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+         : 0),
+     m(m),
+     nfdofs(nf*dof),
+     scatter_indices1(nf*dof),
+     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
+     offsets(ndofs+1),
+     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
+{
+}
+
 void L2FaceRestriction::Build(const ElementDofOrdering e_ordering,
                               const FaceType type)
 {
@@ -1328,13 +1348,15 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
 {
    const int face_dofs = dof;
    const int elem_dofs = elemDofs;
+   const int NE = ne;
    if (m==L2FaceValues::DoubleValued)
    {
       auto d_indices1 = scatter_indices1.Read();
       auto d_indices2 = scatter_indices2.Read();
       auto mat_fea = Reshape(fea_data.Read(), face_dofs, face_dofs, 2, nf);
       auto mat_ea = Reshape(ea_data.ReadWrite(), elem_dofs, elem_dofs, ne);
-      MFEM_FORALL(f, nf,
+      for(int f=0; f<nf; f++)
+      // MFEM_FORALL(f, nf,
       {
          const int e1 = d_indices1[f*face_dofs]/elem_dofs;
          const int e2 = d_indices2[f*face_dofs]/elem_dofs;
@@ -1349,10 +1371,10 @@ void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
                const int iB1 = d_indices1[f*face_dofs+i]%elem_dofs;
                const int iB2 = d_indices2[f*face_dofs+i]%elem_dofs;
                mfemAtomicAdd(mat_ea(iB1,jB1,e1), mat_fea(i,j,0,f));
-               mfemAtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f));
+               if (e2 < NE) { mfemAtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f)); }
             }
          }
-      });
+      }//);
    }
    else
    {

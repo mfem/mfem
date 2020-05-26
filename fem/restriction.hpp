@@ -136,6 +136,9 @@ public:
    L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
+   L2FaceRestriction(const FiniteElementSpace&,
+                     const FaceType,
+                     const L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    /// Fill the I array of a Sparse Matrix
@@ -147,8 +150,8 @@ public:
    void FactorizeBlocks(Vector &fea_data, const int elemDofs,
                         const int ne, Vector &ea_data) const;
 
-protected:
-   virtual void Build(const ElementDofOrdering, const FaceType);
+private:
+   void Build(const ElementDofOrdering, const FaceType);
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.

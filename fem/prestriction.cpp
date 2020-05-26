@@ -27,8 +27,9 @@ ParL2FaceRestriction::ParL2FaceRestriction(const FiniteElementSpace &fes,
                                            ElementDofOrdering e_ordering,
                                            FaceType type,
                                            L2FaceValues m)
-   : L2FaceRestriction(fes, e_ordering, type, m)
+   : L2FaceRestriction(fes, type, m)
 {
+   Build(e_ordering, type);
 }
 
 void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
