@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
       m->SetAssemblyLevel(AssemblyLevel::FULL);
       k->SetAssemblyLevel(AssemblyLevel::FULL);
    }
-   
+
    m->AddDomainIntegrator(new MassIntegrator);
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k->AddInteriorFaceIntegrator(
