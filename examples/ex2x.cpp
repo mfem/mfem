@@ -268,10 +268,11 @@ int main(int argc, char *argv[])
 
       H1_FECollection fec(1, 1);
 
-      Mesh rdt_mesh(nsteps);
-      FiniteElementSpace rdt_fespace(&rdt_mesh, &fec);
-      GridFunction dt_gf(&rdt_fespace);
-      GridFunction r_gf(&rdt_fespace);
+      Mesh mesh(nsteps);
+      FiniteElementSpace fespace(&mesh, &fec);
+      GridFunction dt_gf(&fespace);
+      GridFunction r_gf(&fespace);
+      GridFunction n_gf(&fespace);
 
       Mesh y_mesh(1, (nsteps+1) * neqns, nsteps * neqns);
       for (int j=0; j<neqns; j++)
@@ -298,9 +299,10 @@ int main(int argc, char *argv[])
          //Vector y(neqns);
          ifs >> t >> ns >> r >> dt;
 
-         rdt_mesh.GetVertex(i)[0] = t;
+         mesh.GetVertex(i)[0] = t;
          dt_gf[i] = dt;
-         r_gf[i] = r;
+         r_gf[i] = r / tol;
+         n_gf[i] = (double)ns;
 
          for (int j=0; j<neqns; j++)
          {
@@ -315,23 +317,29 @@ int main(int argc, char *argv[])
 
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream dt_sock(vishost, visport);
-      dt_sock.precision(8);
-      dt_sock << "solution\n" << rdt_mesh << dt_gf
-              << " window_title 'Time Step'" << " keys ac" << flush;
-
-      socketstream r_sock(vishost, visport);
-      r_sock.precision(8);
-      r_sock << "solution\n" << rdt_mesh << r_gf
-             << " window_title 'Error Measure'"
-             << " window_geometry 400 0 400 350" << " keys ac" << flush;
-
       socketstream y_sock(vishost, visport);
       y_sock.precision(8);
       y_sock << "solution\n" << y_mesh << y_gf
              << " window_title 'Solution'"
-             << " window_geometry 800 0 400 350" << " keys ac" << flush;
+             << " window_geometry 0 0 400 350" << " keys mac" << flush;
 
+      socketstream n_sock(vishost, visport);
+      n_sock.precision(8);
+      n_sock << "solution\n" << mesh << n_gf
+             << " window_title 'Number of Steps'"
+             << " window_geometry 400 0 400 350" << " keys mac" << flush;
+
+      socketstream r_sock(vishost, visport);
+      r_sock.precision(8);
+      r_sock << "solution\n" << mesh << r_gf
+             << " window_title 'Normalized Error'"
+             << " window_geometry 800 0 400 350" << " keys mac" << flush;
+
+      socketstream dt_sock(vishost, visport);
+      dt_sock.precision(8);
+      dt_sock << "solution\n" << mesh << dt_gf
+              << " window_title 'Time Step'"
+              << " window_geometry 1200 0 400 350" << " keys mac" << flush;
    }
 
    delete ode_solver;
