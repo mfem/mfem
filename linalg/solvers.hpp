@@ -416,6 +416,32 @@ public:
    virtual void ProcessNewState(const Vector &x) const { }
 };
 
+/** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
+    the norm of F(x) - b. Requires only the action of the operator F. */
+class LBFGSSolver : public NewtonSolver
+{
+protected:
+   int m = 10;
+
+public:
+   LBFGSSolver() : NewtonSolver() { }
+
+#ifdef MFEM_USE_MPI
+   LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
+#endif
+
+   void SetKDim(int dim) { m = dim; }
+
+   /// Solve the nonlinear system with right-hand side @a b.
+   /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
+   virtual void Mult(const Vector &b, Vector &x) const;
+
+   virtual void SetPreconditioner(Solver &pr)
+   { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
+   virtual void SetSolver(Solver &solver)
+   { MFEM_WARNING("L-BFGS won't use the given solver."); }
+};
+
 /** Adaptive restarted GMRES.
     m_max and m_min(=1) are the maximal and minimal restart parameters.
     m_step(=1) is the step to use for going from m_max and m_min.
