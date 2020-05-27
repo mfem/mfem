@@ -434,6 +434,13 @@ void VisItDataCollection::RegisterField(const std::string& name,
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
+void VisItDataCollection::RegisterQField(const std::string& name,
+                                         QuadratureFunction *qf)
+{
+   DataCollection::RegisterQField(name, qf);
+   field_info_map[name] = VisItFieldInfo("qpoints", 1);
+}
+
 void VisItDataCollection::SetLevelsOfDetail(int levels_of_detail)
 {
    visit_levels_of_detail = levels_of_detail;
@@ -598,14 +605,28 @@ void VisItDataCollection::LoadFields()
       // TODO: 1) load parallel GridFunction on one processor
       if (serial)
       {
-         field_map.Register(it->first, new GridFunction(mesh, file), own_data);
+         if ((it->second).association == "nodes")
+         {
+            field_map.Register(it->first, new GridFunction(mesh, file), own_data);
+         }
+         else if ((it->second).association == "qpoints")
+         {
+            q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
+         }
       }
       else
       {
 #ifdef MFEM_USE_MPI
-         field_map.Register(
-            it->first,
-            new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
+         if ((it->second).association == "nodes")
+         {
+            field_map.Register(
+               it->first,
+               new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
+         }
+         else if ((it->second).association == "qpoints")
+         {
+            q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
+         }
 #else
          error = READ_ERROR;
          MFEM_WARNING("Reading parallel format in serial is not supported");
