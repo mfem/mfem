@@ -23,7 +23,7 @@
 namespace mfem
 {
 
-ParL2FaceRestriction::ParL2FaceRestriction(const FiniteElementSpace &fes,
+ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            ElementDofOrdering e_ordering,
                                            FaceType type,
                                            L2FaceValues m)
@@ -32,7 +32,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const FiniteElementSpace &fes,
    if (nf==0) { return; }
    // If fespace == L2
    const ParFiniteElementSpace &pfes =
-      dynamic_cast<const ParFiniteElementSpace&>(this->fes);
+      static_cast<const ParFiniteElementSpace&>(this->fes);
    const FiniteElement *fe = pfes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
@@ -262,7 +262,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const FiniteElementSpace &fes,
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    const ParFiniteElementSpace &pfes =
-      dynamic_cast<const ParFiniteElementSpace&>(this->fes);
+      static_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
    x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
