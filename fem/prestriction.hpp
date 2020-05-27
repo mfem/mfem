@@ -29,7 +29,7 @@ class ParFiniteElementSpace;
 class ParL2FaceRestriction : public L2FaceRestriction
 {
 public:
-   ParL2FaceRestriction(const FiniteElementSpace&, ElementDofOrdering,
+   ParL2FaceRestriction(const ParFiniteElementSpace&, ElementDofOrdering,
                         FaceType type,
                         L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
