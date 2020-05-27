@@ -46,6 +46,16 @@
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
+
+//   Adapted size+aspect ratio to discrete material indicator
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
+//   Adapted discrete size+orientation (requires GSLIB)
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1 -ae 1
+//   Adapted discrete aspect-ratio+orientation (requires GSLIB)
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1 -ae 1
+//   Adapted discrete aspect ratio (3D)
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
+
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -72,190 +82,12 @@
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
+#include "mesh-optimizer.hpp"
 
 using namespace mfem;
 using namespace std;
 
-double weight_fun(const Vector &x);
-
 double adapt_lim_fun(const Vector &x);
-
-double ind_values(const Vector &x)
-{
-   const int opt = 6;
-   const double small = 0.001, big = 0.01;
-   double val = 0.;
-
-   // Sine wave.
-   if (opt == 1)
-   {
-      const double X = x(0), Y = x(1);
-      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-   }
-   else if (opt == 2)
-   {
-      // Circle in the middle.
-      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-      val = 0.5*(std::tanh(sf*(r-r1)) - std::tanh(sf*(r-r2)));
-   }
-   else if (opt == 3)
-   {
-      // cross
-      const double X = x(0), Y = x(1);
-      const double r1 = 0.45, r2 = 0.55;
-      const double sf = 40.0;
-
-      val = 0.5 * (std::tanh(sf*(X-r1)) - std::tanh(sf*(X-r2)) +
-                   std::tanh(sf*(Y-r1)) - std::tanh(sf*(Y-r2)));
-   }
-   else if (opt == 4)
-   {
-      // Multiple circles
-      double r1,r2,val,rval;
-      double sf = 10;
-      val = 0.;
-      // circle 1
-      r1= 0.25; r2 = 0.25; rval = 0.1;
-      double xc = x(0) - r1, yc = x(1) - r2;
-      double r = sqrt(xc*xc+yc*yc);
-      val = 0.5*(1+std::tanh(sf*(r+rval))) -
-            0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
-      // circle 2
-      r1= 0.75; r2 = 0.75;
-      xc = x(0) - r1, yc = x(1) - r2;
-      r = sqrt(xc*xc+yc*yc);
-      val += (0.5*(1+std::tanh(sf*(r+rval))) -
-              0.5*(1+std::tanh(sf*(r-rval)))); // std::exp(val1);
-      // circle 3
-      r1= 0.75; r2 = 0.25;
-      xc = x(0) - r1, yc = x(1) - r2;
-      r = sqrt(xc*xc+yc*yc);
-      val += 0.5*(1+std::tanh(sf*(r+rval))) -
-             0.5*(1+std::tanh(sf*(r-rval))); // std::exp(val1);
-      // circle 4
-      r1= 0.25; r2 = 0.75;
-      xc = x(0) - r1, yc = x(1) - r2;
-      r = sqrt(xc*xc+yc*yc);
-      val += 0.5*(1+std::tanh(sf*(r+rval))) -
-             0.5*(1+std::tanh(sf*(r-rval)));
-   }
-   else if (opt == 5)
-   {
-      // cross
-      double X = x(0)-0.5, Y = x(1)-0.5;
-      double rval = std::sqrt(X*X + Y*Y);
-      double thval = 60.*M_PI/180.;
-      double Xmod,Ymod;
-      Xmod = X*std::cos(thval) + Y*std::sin(thval);
-      Ymod= -X*std::sin(thval) + Y*std::cos(thval);
-      X = Xmod+0.5; Y = Ymod+0.5;
-      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = (0.5*(1+std::tanh(sf*(X-r1))) - 0.5*(1+std::tanh(sf*(X-r2))) +
-             0.5*(1+std::tanh(sf*(Y-r1))) - 0.5*(1+std::tanh(sf*(Y-r2))));
-      if (rval > 0.4) { val = 0.; }
-   }
-   else if (opt == 6)
-   {
-      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-   }
-
-   val = std::max(0.,val);
-   val = std::min(1.,val);
-
-   return val * small + (1.0 - val) * big;
-}
-
-class HessianCoefficient : public MatrixCoefficient
-{
-private:
-   int metric;
-
-public:
-   HessianCoefficient(int dim, int metric_id)
-      : MatrixCoefficient(dim), metric(metric_id) { }
-
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      Vector pos(3);
-      T.Transform(ip, pos);
-      if (metric != 14 && metric != 87)
-      {
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-         const double eps = 0.5;
-
-         const double tan1 = std::tanh(sf*(r-r1)),
-                      tan2 = std::tanh(sf*(r-r2));
-
-         K(0, 0) = eps + 1.0 * (tan1 - tan2);
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
-      }
-      else if (metric == 14) // Size + Alignment
-      {
-         const double xc = pos(0), yc = pos(1);
-         double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
-         double alpha_bar = 0.1;
-
-         K(0, 0) =  cos(theta);
-         K(1, 0) =  sin(theta);
-         K(0, 1) = -sin(theta);
-         K(1, 1) =  cos(theta);
-
-         K *= alpha_bar;
-      }
-      else if (metric == 87) // Shape + Size + Alignment
-      {
-         Vector x = pos;
-         double xc = x(0)-0.5, yc = x(1)-0.5;
-         double th = 22.5*M_PI/180.;
-         double xn =  cos(th)*xc + sin(th)*yc;
-         double yn = -sin(th)*xc + cos(th)*yc;
-         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-         double stretch = 1/cos(th2);
-         xc = xn/stretch; yc = yn/stretch;
-         xc = xn; yc=yn;
-
-         double tfac = 20;
-         double s1 = 3;
-         double s2 = 2;
-         double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
-                      - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
-         if (wgt > 1) { wgt = 1; }
-         if (wgt < 0) { wgt = 0; }
-         double  val = wgt;
-
-         xc = pos(0), yc = pos(1);
-         double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
-
-         K(0, 0) =  cos(theta);
-         K(1, 0) =  sin(theta);
-         K(0, 1) = -sin(theta);
-         K(1, 1) =  cos(theta);
-
-         double asp_ratio_tar = 0.1 + 1*(1-val)*(1-val);
-
-         K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
-         K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
-         K(0, 1) *=  pow(asp_ratio_tar,0.5);
-         K(1, 1) *=  pow(asp_ratio_tar,0.5);
-      }
-   }
-};
-
-// Additional IntegrationRules that can be used with the --quad-type option.
-IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
-IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
-
 
 int main(int argc, char *argv[])
 {
@@ -279,7 +111,7 @@ int main(int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   bool fdscheme         = 0;
+   bool fdscheme         = false;
    int adapt_eval        = 0;
 
    // 1. Parse command-line options.
@@ -499,13 +331,15 @@ int main(int argc, char *argv[])
    HessianCoefficient *adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
-   GridFunction size;
+   FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
+   GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
+   GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      case 4:
+      case 4: // Analytic
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
@@ -514,19 +348,181 @@ int main(int argc, char *argv[])
          target_c = tc;
          break;
       }
-      case 5:
+      case 5: // Discrete size 2D
       {
          target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         size.SetSpace(&ind_fes);
-         FunctionCoefficient ind_coeff(ind_values);
-         size.ProjectCoefficient(ind_coeff);
+         if (adapt_eval == 0)
+         {
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
 #ifdef MFEM_USE_GSLIB
-         tc->SetAdaptivityEvaluator(new InterpolatorFP);
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
 #else
-         tc->SetAdaptivityEvaluator(new AdvectorCG);
+            MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
-         tc->SetSerialDiscreteTargetSpec(size);
+         }
+         FunctionCoefficient ind_coeff(discrete_size_2d);
+         size.ProjectCoefficient(ind_coeff);
+         tc->SetSerialDiscreteTargetSize(size);
+         target_c = tc;
+         break;
+      }
+      case 6: // Discrete size + aspect ratio - 2D
+      {
+         GridFunction d_x(&ind_fes), d_y(&ind_fes);
+
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         FunctionCoefficient ind_coeff(material_indicator_2d);
+         disc.ProjectCoefficient(ind_coeff);
+         if (adapt_eval == 0)
+         {
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
+#ifdef MFEM_USE_GSLIB
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB.");
+#endif
+         }
+
+         //Diffuse the interface
+         DiffuseField(disc,2);
+
+         //Get  partials with respect to x and y of the grid function
+         disc.GetDerivative(1,0,d_x);
+         disc.GetDerivative(1,1,d_y);
+
+         //Compute the squared magnitude of the gradient
+         for (int i = 0; i < size.Size(); i++)
+         {
+            size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
+         }
+         const double max = size.Max();
+
+         for (int i = 0; i < d_x.Size(); i++)
+         {
+            d_x(i) = std::abs(d_x(i));
+            d_y(i) = std::abs(d_y(i));
+         }
+         const double eps = 0.01;
+         const double aspr_ratio = 20.0;
+         const double size_ratio = 40.0;
+
+         for (int i = 0; i < size.Size(); i++)
+         {
+            size(i) = (size(i)/max);
+            aspr(i) = (d_x(i)+eps)/(d_y(i)+eps);
+            aspr(i) = 0.1 + 0.9*(1-size(i))*(1-size(i));
+            if (aspr(i) > aspr_ratio) {aspr(i) = aspr_ratio;}
+            if (aspr(i) < 1.0/aspr_ratio) {aspr(i) = 1.0/aspr_ratio;}
+         }
+         Vector vals;
+         const int NE = mesh->GetNE();
+         double volume = 0.0, volume_ind = 0.0;
+
+         for (int i = 0; i < NE; i++)
+         {
+            ElementTransformation *Tr = mesh->GetElementTransformation(i);
+            const IntegrationRule &ir =
+               IntRules.Get(mesh->GetElementBaseGeometry(i), Tr->OrderJ());
+            size.GetValues(i, ir, vals);
+            for (int j = 0; j < ir.GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(j);
+               Tr->SetIntPoint(&ip);
+               volume     += ip.weight * Tr->Weight();
+               volume_ind += vals(j) * ip.weight * Tr->Weight();
+            }
+         }
+
+         const double avg_zone_size = volume / NE;
+
+         const double small_avg_ratio = (volume_ind + (volume - volume_ind) /
+                                         size_ratio) /
+                                        volume;
+
+         const double small_zone_size = small_avg_ratio * avg_zone_size;
+         const double big_zone_size   = size_ratio * small_zone_size;
+
+         for (int i = 0; i < size.Size(); i++)
+         {
+            const double val = size(i);
+            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            size(i) = big_zone_size / (1.0+a*val);
+         }
+
+         DiffuseField(size, 2);
+         DiffuseField(aspr, 2);
+
+         tc->SetSerialDiscreteTargetSize(size);
+         tc->SetSerialDiscreteTargetAspectRatio(aspr);
+         target_c = tc;
+         break;
+      }
+      case 7: // Discrete aspect ratio 3D
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         if (adapt_eval == 0)
+         {
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
+#ifdef MFEM_USE_GSLIB
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB.");
+#endif
+         }
+         VectorFunctionCoefficient fd_aspr3d(dim, discrete_aspr_3d);
+         aspr3d.ProjectCoefficient(fd_aspr3d);
+
+         tc->SetSerialDiscreteTargetAspectRatio(aspr3d);
+         target_c = tc;
+         break;
+      }
+      case 8: // shape/size + orientation 2D
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
+         DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
+         if (adapt_eval == 0)
+         {
+            tc->SetAdaptivityEvaluator(new AdvectorCG);
+         }
+         else
+         {
+#ifdef MFEM_USE_GSLIB
+            tc->SetAdaptivityEvaluator(new InterpolatorFP);
+#else
+            MFEM_ABORT("MFEM is not built with GSLIB.");
+#endif
+         }
+
+         if (metric_id == 14)
+         {
+            ConstantCoefficient ind_coeff(0.1*0.1);
+            size.ProjectCoefficient(ind_coeff);
+            tc->SetSerialDiscreteTargetSize(size);
+         }
+
+         if (metric_id == 87)
+         {
+            FunctionCoefficient aspr_coeff(discrete_aspr_2d);
+            aspr.ProjectCoefficient(aspr_coeff);
+            DiffuseField(aspr,2);
+            tc->SetSerialDiscreteTargetAspectRatio(aspr);
+         }
+
+         FunctionCoefficient ori_coeff(discrete_ori_2d);
+         ori.ProjectCoefficient(ori_coeff);
+         tc->SetSerialDiscreteTargetOrientation(ori);
          target_c = tc;
          break;
       }
@@ -844,22 +840,13 @@ int main(int argc, char *argv[])
    delete coeff1;
    delete adapt_evaluator;
    delete target_c;
+   delete adapt_coeff;
    delete metric;
    delete fespace;
    delete fec;
    delete mesh;
 
    return 0;
-}
-
-// Defined with respect to the icf mesh.
-double weight_fun(const Vector &x)
-{
-   const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
-   const double den = 0.002;
-   double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
-               + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
-   return l2;
 }
 
 double adapt_lim_fun(const Vector &x)
