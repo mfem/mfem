@@ -596,7 +596,8 @@ public:
     supports a set of algorithms chosen by the #TargetType enumeration.
 
     New target-matrix construction algorithms can be defined by deriving new
-    classes and overriding the method ComputeElementTargets(). */
+    classes and overriding the methods ComputeElementTargets() and
+    ContainsVolumeInfo(). */
 class TargetConstructor
 {
 public:
@@ -665,7 +666,7 @@ public:
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
    /// Checks if the target matrices contain non-trivial size specification.
-   bool ContainsVolumeInfo() const;
+   virtual bool ContainsVolumeInfo() const;
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.

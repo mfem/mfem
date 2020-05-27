@@ -1082,7 +1082,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          break;
       }
       default:
-         MFEM_ABORT("Incompatible target type for analytic adaptation!");
+         MFEM_ABORT("Incompatible target type for discrete adaptation!");
    }
 }
 
