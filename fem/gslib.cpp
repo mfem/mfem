@@ -522,7 +522,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
 }
 
 void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
-                                   GridFunction &gfmax,
+                                   GridFunction *gfmax,
                                    const double bb_t, const double newt_tol,
                                    const int npt_max)
 {
@@ -562,7 +562,14 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int idsess,
    int NEtot = pts_cnt/(int)pow(dof1D, dim);
 
    distfint.SetSize(pts_cnt);
-   distfint = 0.;
+   if (!gfmax)
+   {
+      distfint = 0.;
+   }
+   else
+   {
+      GetNodeValues(*gfmax, distfint);
+   }
    u_idsess = (unsigned int)idsess;
 
    if (dim == 2)
@@ -647,54 +654,18 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
    gsl_ref.SetSize(points_cnt * dim);
    gsl_dist.SetSize(points_cnt);
 
-   FindPoints(point_pos, point_id, gsl_code, gsl_proc, gsl_elem, gsl_ref,
-              gsl_dist);
-}
-
-void OversetFindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
-                                         Array<unsigned int> &proc_ids,
-                                         Array<unsigned int> &elem_ids,
-                                         Vector &ref_pos, const GridFunction &field_in,
-                                         Vector &field_out)
-{
-   Vector node_vals;
-   GetNodeValues(field_in, node_vals);
-
-   const int points_cnt = ref_pos.Size() / dim;
-   MFEM_VERIFY(field_out.Size() >= points_cnt,
-               " Increase size of field_out in FindPointsGSLIB::Interpolate.");
-   if (dim==2)
-   {
-      findpts_eval_2(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata2D);
-   }
-   else
-   {
-      findpts_eval_3(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata3D);
-   }
-}
-
-void OversetFindPointsGSLIB::Interpolate(const GridFunction &field_in,
-                                         Vector &field_out)
-{
-   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
+   FindPoints(point_pos, point_id,
+              gsl_code, gsl_proc, gsl_elem, gsl_ref, gsl_dist);
 }
 
 void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
                                          Array<unsigned int> &point_id,
-                                         const GridFunction &field_in, Vector &field_out)
+                                         const GridFunction &field_in,
+                                         Vector &field_out)
 {
    FindPoints(point_pos, point_id);
-   Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in, field_out);
+   FindPointsGSLIB::Interpolate(gsl_code, gsl_proc, gsl_elem, gsl_ref, field_in,
+                                field_out);
 }
 
 void OversetFindPointsGSLIB::FreeData()
