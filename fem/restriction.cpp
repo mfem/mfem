@@ -347,6 +347,7 @@ void ElementRestriction::FillJandData(const Vector &ea_data,
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
+   //TODO parallelize on i_L?
    MFEM_FORALL(e, ne,
    {
       constexpr int MaxNbNbr = 16;//TODO remove magic number
@@ -1283,10 +1284,8 @@ void L2FaceRestriction::FillI(SparseMatrix &mat) const
    auto I = mat.ReadWriteI();
    MFEM_FORALL(fdof, nf*face_dofs,
    {
-      const int f  = fdof/face_dofs;
-      const int iF = fdof%face_dofs;
-      const int iE1 = d_indices1[f*face_dofs+iF];
-      const int iE2 = d_indices2[f*face_dofs+iF];
+      const int iE1 = d_indices1[fdof];
+      const int iE2 = d_indices2[fdof];
       AddNnz(iE1,I,face_dofs);
       AddNnz(iE2,I,face_dofs);
    });
