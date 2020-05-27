@@ -445,6 +445,10 @@ public:
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
 
+   /// Add a quadrature function to the collection and update the root file
+   virtual void RegisterQField(const std::string& q_field_name,
+                               QuadratureFunction *qf);
+
    /// Set VisIt parameter: default levels of detail for the MultiresControl
    void SetLevelsOfDetail(int levels_of_detail);
 
