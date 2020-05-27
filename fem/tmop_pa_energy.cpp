@@ -27,13 +27,13 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
                                                 const Vector &x) const
 {
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
    const IntegrationRule *ir = IntRule;
-   if (!ir)
+   MFEM_VERIFY(ir,"");
+   /*if (!ir)
    {
       dbg("");
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   }*/
 
    const int dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2, "");
@@ -41,57 +41,13 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
    const int NQ = ir->GetNPoints();
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
+   MFEM_VERIFY(D1D==3,"");
+   MFEM_VERIFY(Q1D==2,"");
+   MFEM_VERIFY(NQ == Q1D*Q1D, "");
 
-   DenseTensor JtrQ(dim, dim, NQ*NE);
-   DenseTensor JptQ(dim, dim, NQ*NE);
-
-   x.HostRead();
-   for (int e = 0; e < NE; e++) // NonlinearForm::GetGridFunctionEnergy
-   {
-      Vector el_x;
-      Array<int> vdofs;
-      const FiniteElement *fe = fes.GetFE(e);
-      fes.GetElementVDofs(e, vdofs);
-      ElementTransformation &T = *fes.GetElementTransformation(e);
-      x.GetSubVector(vdofs, el_x);
-      {
-         // TMOP_Integrator::GetElementEnergy
-         // ... fe => el, el_x => elfun
-         const FiniteElement &el = *fe;
-         const Vector &elfun = el_x;
-         const int dof = el.GetDof(), dim = el.GetDim();
-
-         DSh.SetSize(dof, dim);
-         Jrt.SetSize(dim);
-         Jpr.SetSize(dim);
-         Jpt.SetSize(dim);
-         PMatI.UseExternalData(elfun.GetData(), dof, dim);
-         DenseTensor Jtr(dim, dim, NQ);
-         targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-         for (int q = 0; q < NQ; q++)
-         {
-            //dbg("Jtr(%d):",q); Jtr(q).Print();
-            JtrQ(e*NQ+q) = Jtr(q);
-            MFEM_VERIFY(Jtr(q).Det() == 1.0 ,"");
-            {
-               MFEM_VERIFY(Jtr(q)(0,0)==1.0 && Jtr(q)(1,1)==1.0 &&
-                           Jtr(q)(1,0)==0.0 && Jtr(q)(0,1)==0.0,"");
-            }
-         }
-         for (int q = 0; q < NQ; q++)
-         {
-            const IntegrationPoint &ip = ir->IntPoint(q);
-            const DenseMatrix &Jtr_i = Jtr(q);
-            //metric->SetTargetJacobian(Jtr_i);
-            CalcInverse(Jtr_i, Jrt);
-            el.CalcDShape(ip, DSh);
-            MultAtB(PMatI, DSh, Jpr);
-            Mult(Jpr, Jrt, Jpt);
-            JptQ(e*NQ+q) = Jpt;
-            //dbg("Jpt(%d,%d):",e,q); Jpt.Print();
-         }
-      }
-   }
+   const auto b1d = Reshape(maps->B.Read(), Q1D, D1D);
+   const auto g1d = Reshape(maps->G.Read(), Q1D, D1D);
+   const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D);
 
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
@@ -100,33 +56,27 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
    const Geometry::Type geom_type = fe->GetGeomType();
    const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
 
-   const auto b1d = Reshape(maps->B.Read(), Q1D, D1D);
-   const auto g1d = Reshape(maps->G.Read(), Q1D, D1D);
+   const auto Jtr = Reshape(Wideal.Read(), dim, dim);
 
-   const auto W = ir->GetWeights().Read();
-   const auto Jtr = Reshape(JtrQ.Read(), dim, dim, NE*NQ);
-   const auto Jpt = Reshape(JptQ.Read(), dim, dim, NE*NQ);
-   const auto Jid = Reshape(Wideal.Read(), dim, dim);
-
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *elem_restrict_lex = fes.GetElementRestriction(ordering);
    Vector xe;
-   if (elem_restrict_lex)
    {
-      xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      elem_restrict_lex->Mult(x, xe);
+      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *elem_restrict_lex = fes.GetElementRestriction(ordering);
+      if (elem_restrict_lex)
+      {
+         xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+         elem_restrict_lex->Mult(x, xe);
+      }
+      else { MFEM_ABORT("Not implemented!"); }
    }
-   else {MFEM_ABORT("Not implemented!");}
-
    const auto X = Reshape(xe.Read(), D1D, D1D, dim, NE);
-   MFEM_VERIFY(NQ == Q1D*Q1D, "");
+
    Vector energy(NE*NQ), one(NE*NQ);
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
    auto O = Reshape(one.Write(), Q1D, Q1D, NE);
+
    const double metric_normal_d = metric_normal;
    MFEM_VERIFY(metric_normal == 1.0, "");
-   MFEM_VERIFY(D1D==3,"");
-   MFEM_VERIFY(Q1D==2,"");
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
       constexpr int NBZ = 1;
@@ -228,61 +178,31 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const int q = qx + qy * Q1D;
-
             // Jtr = targetC->ComputeElementTargets
-            const double Jtr11 = Jtr(0,0,e*NQ+q);
-            const double Jtr12 = Jtr(1,0,e*NQ+q);
-            const double Jtr21 = Jtr(0,1,e*NQ+q);
-            const double Jtr22 = Jtr(1,1,e*NQ+q);
-            const double detJtr = (Jtr11*Jtr22)-(Jtr21*Jtr12);
+            const double Jtrx0 = Jtr(0,0);
+            const double Jtrx1 = Jtr(0,1);
+            const double Jtry0 = Jtr(1,0);
+            const double Jtry1 = Jtr(1,1);
+            const double Jtr[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
+            const double detJtr = (Jtr[0]*Jtr[3])-(Jtr[1]*Jtr[2]);
 
-            const double weight = W[q] * detJtr;
+            // Jrt = Jtr^{-1}
+            double Jrt[4];
+            kernels::CalcInverse<2>(Jtr, Jrt);
 
-            const double J[4] =
-            {
-               Jpt(0,0,e*NQ+q), Jpt(1,0,e*NQ+q),
-               Jpt(0,1,e*NQ+q), Jpt(1,1,e*NQ+q)
-            };
-            //dbg("Jpt1: %f, %f, %f, %f", J[0], J[1], J[2], J[3]);
+            // Jpr = X^T.DSh
+            const double Jprx0 = Xx0[qy][qx];
+            const double Jprx1 = Xx1[qy][qx];
+            const double Jpry0 = Xy0[qy][qx];
+            const double Jpry1 = Xy1[qy][qx];
+            const double Jpr[4] = {Jprx0, Jpry0, Jprx1, Jpry1};
 
-            {
-               // Jtr = targetC->ComputeElementTargets
-               const double Jtrx0 = Jid(0,0); MFEM_VERIFY(Jtrx0==Jtr11,"");
-               const double Jtrx1 = Jid(0,1); MFEM_VERIFY(Jtrx1==Jtr12,"");
-               const double Jtry0 = Jid(1,0); MFEM_VERIFY(Jtry0==Jtr21,"");
-               const double Jtry1 = Jid(1,1); MFEM_VERIFY(Jtry1==Jtr22,"");
-               double Jtr_p[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
-               DenseMatrix JTR(Jtr_p, dim, dim);
-
-               // Jrt = Jtr^{-1}
-               DenseMatrix Jrt(dim);
-               kernels::CalcInverse<2>(Jtr_p, Jrt.HostWrite());
-               MFEM_VERIFY(Jrt.Det() == detJtr, "");
-               //dbg("Jrt:"); Jrt.Print();
-
-               // Jpr = X^T.DSh
-               const double Jprx0 = Xx0[qy][qx];
-               const double Jprx1 = Xx1[qy][qx];
-               const double Jpry0 = Xy0[qy][qx];
-               const double Jpry1 = Xy1[qy][qx];
-               double Jpr_p[4] = {Jprx0, Jpry0, Jprx1, Jpry1};
-               DenseMatrix Jpr(Jpr_p, dim, dim);
-               //dbg("Jpr(%d,%d):",e,q); Jpr.Print();
-
-               // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-               DenseMatrix J2(dim);
-               Mult(Jpr, Jrt, J2);
-               //dbg("Jpt(%d,%d):",e,q); J2.Print();
-               //dbg("Jpt2: %f, %f, %f, %f", J2(0,0), J2(1,0), J2(0,1), J2(1,1));
-               const double EPS = 1.e-14;
-               MFEM_VERIFY(fabs(J2(0,0)-J[0])<EPS,"");
-               MFEM_VERIFY(fabs(J2(1,0)-J[1])<EPS,"");
-               MFEM_VERIFY(fabs(J2(0,1)-J[2])<EPS,"");
-               MFEM_VERIFY(fabs(J2(1,1)-J[3])<EPS,"");
-            }
+            // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+            double J[4];
+            kernels::Mult(2,2,2, Jpr, Jrt, J);
 
             // TMOP_Metric_002::EvalW: 0.5 * ie.Get_I1b() - 1.0;
+            const double weight = W(qx,qy) * detJtr;
             const double I1 = J[0]*J[0] + J[1]*J[1] +
                               J[2]*J[2] + J[3]*J[3];
             const double detJpt = J[0]*J[3] - J[1]*J[2];
@@ -292,7 +212,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
             const double metric_EvalW = 0.5 * I1b - 1.0;
             const double EvalW = metric_normal_d * metric_EvalW;
             E(qx,qy,e) = weight * EvalW;
-
             O(qx,qy,e) = 1.0;
          }
       }
