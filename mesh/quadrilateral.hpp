@@ -69,7 +69,7 @@ public:
    virtual ~Quadrilateral() { }
 };
 
-extern BiLinear2DFiniteElement QuadrilateralFE;
+extern class BiLinear2DFiniteElement QuadrilateralFE;
 
 }
 
