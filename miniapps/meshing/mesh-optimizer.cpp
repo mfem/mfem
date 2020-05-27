@@ -31,11 +31,6 @@
 //
 // Compile with: make mesh-optimizer
 //
-//   Adaptive limiting:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -ae 0
-//   Adaptive limiting through FD (requires GSLIB):
-//     *  mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
-//
 // Sample runs:
 //   Adapted analytic Hessian:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
@@ -46,7 +41,7 @@
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
-
+//
 //   Adapted size+aspect ratio to discrete material indicator
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Adapted discrete size+orientation (requires GSLIB)
@@ -55,7 +50,12 @@
 //   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd 1 -ae 1
 //   Adapted discrete aspect ratio (3D)
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
-
+//
+//   Adaptive limiting:
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -ae 0
+//   Adaptive limiting through FD (requires GSLIB):
+//     *  mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
+//
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -86,8 +86,6 @@
 
 using namespace mfem;
 using namespace std;
-
-double adapt_lim_fun(const Vector &x);
 
 int main(int argc, char *argv[])
 {
@@ -847,16 +845,4 @@ int main(int argc, char *argv[])
    delete mesh;
 
    return 0;
-}
-
-double adapt_lim_fun(const Vector &x)
-{
-   const double xc = x(0) - 0.1, yc = x(1) - 0.2;
-   const double r = sqrt(xc*xc + yc*yc);
-   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-
-   val = std::max(0.,val);
-   val = std::min(1.,val);
-   return val;
 }
