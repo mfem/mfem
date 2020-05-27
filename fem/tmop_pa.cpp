@@ -62,10 +62,6 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    Dpa.UseDevice(true);
    Dpa.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
 
-   const int dof = fes->GetFE(0)->GetDof();
-   Gpa.UseDevice(true);
-   Gpa.SetSize(dof*dim * dof*dim * nq * ne, Device::GetDeviceMemoryType());
-
    setup = false;
    dPpa.UseDevice(true);
    dPpa.SetSize(dim*dim * dim*dim * nq * ne, Device::GetDeviceMemoryType());
