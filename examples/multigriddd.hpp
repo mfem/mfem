@@ -270,6 +270,7 @@ public:
 };
 
 //#define SWTIMING
+#define SERIAL_PROLONGATION
 
 class BlockMGPASolver : public Solver
 {
@@ -281,7 +282,11 @@ private:
   vector<Array<int>> Poffsets_i;
   vector<Array<int>> Poffsets_j;
   std::vector<Array2D<Operator*>> A;
+#ifdef SERIAL_PROLONGATION
+  std::vector<SparseMatrix *> P;
+#else
   std::vector<HypreParMatrix *> const& P;
+#endif
   std::vector<Vector*> const& diag;
   std::vector<Operator*> Pt;
   std::vector<BlockOperator *> BlkP;
@@ -299,13 +304,27 @@ private:
 public:
   BlockMGPASolver(MPI_Comm comm, const int height, const int width, Array2D<Operator*>& Af_, Array2D<double>& Acoef_, Array2D<HypreParMatrix*> const& BlkAc,
 		  std::vector<HypreParMatrix *> const& P_, std::vector<Vector*> const& diag_, Array<int>& ess_tdof_list)
+#ifdef SERIAL_PROLONGATION
+    : Solver(height, width), Af(Af_), Acoef(Acoef_), diag(diag_)
+#else
     : Solver(height, width), Af(Af_), Acoef(Acoef_), P(P_), diag(diag_)
+#endif
   {
     timeMult = 0.0;
     timeMultAc = 0.0;
     timeMultPresmooth = 0.0;
     timeMultResidual = 0.0;
     timeMultRestrict = 0.0;
+
+#ifdef SERIAL_PROLONGATION
+    P.resize(P_.size());
+    for (int i=0; i<P_.size(); ++i)
+      {
+	P[i] = new SparseMatrix();
+	P_[i]->GetDiag(*P[i]);
+	P[i]->BuildTranspose();
+      }
+#endif
 
     numBlocks = Af.NumRows();
     MFEM_VERIFY(Af.NumCols() == numBlocks, "");
