@@ -431,8 +431,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
             double Jinv[4];
             kernels::CalcInverse<2>(Jtr_p, Jinv);
             MFEM_VERIFY(Jinv[0] == Jrt(0,0),"");
-            MFEM_VERIFY(Jinv[1] == Jrt(0,1),"");
-            MFEM_VERIFY(Jinv[2] == Jrt(1,0),"");
+            MFEM_VERIFY(Jinv[1] == Jrt(1,0),"");
+            MFEM_VERIFY(Jinv[2] == Jrt(0,1),"");
             MFEM_VERIFY(Jinv[3] == Jrt(1,1),"");
 
             const double GRx0h = Rx0[qy][qx];
@@ -443,17 +443,17 @@ static void AddMultGradPA_Kernel_2D(const int NE,
             DenseMatrix hGR(hGR_p, dim, dim);
 
             // GR = R^T . Jrt
-            //DenseMatrix GR(dim);
-            //Mult(hGR,Jrt,GR);
+            DenseMatrix GR(dim);
+            Mult(hGR,Jrt,GR);
             // vs
             //DenseMatrix GRk(dim);
             double GRk[4];
             kernels::Mult(2,2,2,hGR_p, Jinv, GRk);
             //dbg("%f vs  %f", GRk(0,0), GR(0,0));
-            //MFEM_VERIFY(GRk[0+2*0] == GR(0,0),"");
-            //MFEM_VERIFY(GRk[1+2*0] == GR(1,0),"");
-            //MFEM_VERIFY(GRk[0+2*1] == GR(0,1),"");
-            //MFEM_VERIFY(GRk[1+2*1] == GR(1,1),"");
+            MFEM_VERIFY(GRk[0+2*0] == GR(0,0),"");
+            MFEM_VERIFY(GRk[1+2*0] == GR(1,0),"");
+            MFEM_VERIFY(GRk[0+2*1] == GR(0,1),"");
+            MFEM_VERIFY(GRk[1+2*1] == GR(1,1),"");
 
             // GZ = GR : dP
             DenseMatrix GZ(dim);
@@ -475,14 +475,22 @@ static void AddMultGradPA_Kernel_2D(const int NE,
             // A = Jrt . GZ
             double A_p[4];
             DenseMatrix A(A_p, dim, dim);
-            // vs
             MultABt(Jrt, GZ, A);
-            //kernels::MultABt(2,2,2,GZ.GetData(),Jinv,A_p);
-
             Cx0[qy][qx] = A(0,0);
             Cy0[qy][qx] = A(0,1);
             Cx1[qy][qx] = A(1,0);
             Cy1[qy][qx] = A(1,1);
+            // vs
+            double Ak[4];
+            kernels::MultABt(2,2,2, Jinv, GZ.GetData(), Ak);
+            MFEM_VERIFY(Ak[0+2*0] == A(0,0),"");
+            MFEM_VERIFY(Ak[1+2*0] == A(1,0),"");
+            MFEM_VERIFY(Ak[0+2*1] == A(0,1),"");
+            MFEM_VERIFY(Ak[1+2*1] == A(1,1),"");
+            Cx0[qy][qx] = Ak[0];
+            Cy0[qy][qx] = Ak[2];
+            Cx1[qy][qx] = Ak[1];
+            Cy1[qy][qx] = Ak[3];
          } // qx
       } // qy
 
