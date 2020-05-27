@@ -95,8 +95,6 @@ static void SetupGradPA_2D(const Vector &xe_,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int dof = D1D*D1D;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   //constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   //constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b1d = Reshape(b1d_.Read(), Q1D, D1D);
    const auto g1d = Reshape(g1d_.Read(), Q1D, D1D);
