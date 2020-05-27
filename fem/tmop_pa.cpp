@@ -38,11 +38,34 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    const IntegrationRule &ir = *IntRule;
    maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
    geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+
+   // Energy, One & X vectors
+   Epa.UseDevice(true);
+   Epa.SetSize(ne * nq, Device::GetDeviceMemoryType());
+
+   Opa.UseDevice(true);
+   Opa.SetSize(ne * nq, Device::GetDeviceMemoryType());
+
+   Xpa.UseDevice(true);
+   Xpa.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict_lex = fes->GetElementRestriction(ordering);
+   if (elem_restrict_lex)
+   {
+      Xpa.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented!");
+   }
+
    Dpa.UseDevice(true);
    Dpa.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
+
    const int dof = fes->GetFE(0)->GetDof();
    Gpa.UseDevice(true);
    Gpa.SetSize(dof*dim * dof*dim * nq * ne, Device::GetDeviceMemoryType());
+
    setup = false;
    dPpa.UseDevice(true);
    dPpa.SetSize(dim*dim * dim*dim * nq * ne, Device::GetDeviceMemoryType());
@@ -75,7 +98,6 @@ static void AddMultPA_Kernel_2D(const int NE,
    const auto D = Reshape(d_.Read(), Q1D, Q1D, VDIM, VDIM, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
-   //dbg("D1D:%d, Q1D:%d", D1D, Q1D);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);

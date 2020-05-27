@@ -58,22 +58,11 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
 
    const auto Jtr = Reshape(Wideal.Read(), dim, dim);
 
-   Vector xe;
-   {
-      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-      const Operator *elem_restrict_lex = fes.GetElementRestriction(ordering);
-      if (elem_restrict_lex)
-      {
-         xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-         elem_restrict_lex->Mult(x, xe);
-      }
-      else { MFEM_ABORT("Not implemented!"); }
-   }
-   const auto X = Reshape(xe.Read(), D1D, D1D, dim, NE);
+   if (elem_restrict_lex) { elem_restrict_lex->Mult(x, Xpa); }
+   const auto X = Reshape(Xpa.Read(), D1D, D1D, dim, NE);
 
-   Vector energy(NE*NQ), one(NE*NQ);
-   auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
-   auto O = Reshape(one.Write(), Q1D, Q1D, NE);
+   auto E = Reshape(Epa.Write(), Q1D, Q1D, NE);
+   auto O = Reshape(Opa.Write(), Q1D, Q1D, NE);
 
    const double metric_normal_d = metric_normal;
    MFEM_VERIFY(metric_normal == 1.0, "");
@@ -216,7 +205,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
          }
       }
    });
-   return energy * one;
+   return Epa * Opa;
 }
 
 } // namespace mfem
