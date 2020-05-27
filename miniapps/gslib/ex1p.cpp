@@ -235,12 +235,11 @@ int main(int argc, char *argv[])
    // 9. Setup FindPointsGSLIB and determine points on each mesh's boundary that
    //    are interior to another mesh.
    pmesh->SetCurvature(order, false, dim, Ordering::byNODES);
-   GridFunction *dum = pmesh->GetNodes();
-   dum->SetTrueVector();
-   Vector vxyz = dum->GetTrueVector();
+   pmesh->GetNodes()->SetTrueVector();
+   Vector vxyz = pmesh->GetNodes()->GetTrueVector();
 
    OversetFindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(*pmesh, color, x);
+   finder.Setup(*pmesh, color);
 
    Array<int> ess_tdof_list_int;
    GetInterdomainBoundaryPoints(finder, vxyz, color,
@@ -313,7 +312,7 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X, *b, x);
 
       // Interpolate boundary condition
-      finder.Interpolate(x, interp_vals1);
+      finder.FindPointsGSLIB::Interpolate(x, interp_vals1);
 
       double dxmax = std::numeric_limits<float>::min();
       double xinf = x.Normlinf();
@@ -343,7 +342,6 @@ int main(int argc, char *argv[])
 
       if (dxmaxg < rel_tol) { break; }
    }
-
 
    {
       // output files
