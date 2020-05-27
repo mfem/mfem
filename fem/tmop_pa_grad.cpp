@@ -514,7 +514,7 @@ static void AddMultGradPA_Kernel_2D(const int NE,
 void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
                                     Vector &Ce) const
 {
-   dbg("Xe: %d, Re:%d, Ce:%d", Xe.Size(), Re.Size(), Ce.Size());
+   //dbg("Xe: %d, Re:%d, Ce:%d", Xe.Size(), Re.Size(), Ce.Size());
    //dbg("Xe: %.15e, Re: %.15e", Xe*Xe, Re*Re);
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;

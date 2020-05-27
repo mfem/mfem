@@ -900,10 +900,11 @@ protected:
    // PA extension
    mutable bool setup;
    int dim, ne, nq;
-   mutable Vector Dpa,Gpa,dPpa;
+   mutable Vector Epa,Opa,Xpa,Dpa,Gpa,dPpa;
    const DofToQuad *maps;
    const GeometricFactors *geom;
    const FiniteElementSpace *fes;
+   const Operator *elem_restrict_lex = nullptr;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      double &metric_energy, double &lim_energy);

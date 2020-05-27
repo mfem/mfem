@@ -89,13 +89,6 @@ PANonlinearFormExtension::GetGradient(const Vector &x) const
    GradOp.Reset(oper);
    GradOp.SetOperatorOwner(false);
    MFEM_VERIFY(GradOp.Ptr(), "GetGradientPA error!");
-   /*
-      const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
-      const int Ni = integrators.Size();
-      for (int i = 0; i < Ni; ++i)
-      {
-         integrators[i]->AssemblePA(*nlf->FESpace());
-      }*/
    return *GradOp.Ptr();
 }
 
@@ -124,6 +117,13 @@ PAGradOperator::PAGradOperator(const Vector &x,
       Xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       Xe.UseDevice(true);
       elem_restrict_lex->Mult(x, Xe);
+   }
+
+   const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
+   const int Ni = integrators.Size();
+   for (int i = 0; i < Ni; ++i)
+   {
+      integrators[i]->AssemblePA(*nlf->FESpace());
    }
 }
 
