@@ -23,7 +23,7 @@ namespace mfem
 
 // *****************************************************************************
 // dI2_dM = d(det(M))_dM = adj(M)^T.
-static void Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
+/*static void Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
    MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
    dM(0, 0) =  M(1, 1); dM(0, 1) = -M(1, 0);
@@ -38,11 +38,11 @@ void Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
    MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
    dMdM = 0.0;
    dMdM(1-i,1-j) = (i == j) ? 1.0 : -1.0;
-}
+}*/
 
 // *****************************************************************************
 // (dI1_dM)_d(Mij) = d[(2 det(M) M - |M|^2 adj(M)^T) / det(M)^2]_d[Mij].
-static
+/*static
 void Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
                          DenseMatrix &dMdM)
 {
@@ -73,6 +73,56 @@ void Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
              (2.0 * det * M(r,c) - fnorm2 * dI(r,c)) ) / (det2 * det2);
       }
    }
+}*/
+
+// *****************************************************************************
+inline void Invariant2_dM_2D(const double M[2][2], double dM[2][2])
+{
+   dM[0][0] =  M[1][1]; dM[1][0] = -M[0][1];
+   dM[0][1] = -M[1][0]; dM[1][1] =  M[0][0];
+}
+
+// *****************************************************************************
+inline void Invariant2_dMdM_2D(int i, int j, double dMdM[2][2])
+{
+   dMdM[0][0] = dMdM[0][1] = dMdM[1][0] = dMdM[1][1] = 0.0;
+   dMdM[1-j][1-i] = (i == j) ? 1.0 : -1.0;
+}
+
+// *****************************************************************************
+MFEM_HOST_DEVICE inline void Invariant1_dMdM_2D(const double *m,
+                                                const int i, const int j,
+                                                double *dmdm)
+{
+   const double (*M)[2] = (const double (*)[2])(m);
+   double (*dMdM)[2] = (double (*)[2])(dmdm);
+
+   double dI[2][2];
+   Invariant2_dM_2D(M, dI);
+   const double ddet = dI[j][i];
+   const double dfnorm2 = 2.0 * M[j][i];
+
+   const double det = M[0][0]*M[1][1] - M[0][1]*M[1][0];
+   const double det2 = det * det;
+   const double fnorm2 = kernels::FNorm2<2,2>(m);
+
+   double dM[2][2] = {0.0}; dM[j][i] = 1.0;
+   double ddI[2][2];
+   Invariant2_dMdM_2D(i, j, ddI);
+
+   for (int r = 0; r < 2; r++)
+   {
+      for (int c = 0; c < 2; c++)
+      {
+         dMdM[c][r] =
+            (det2 *
+             (2.0 * ddet * M[c][r] + 2.0 * det * dM[c][r]
+              - dfnorm2 * dI[c][r] - fnorm2 * ddI[c][r])
+             - 2.0 * det * ddet *
+             (2.0 * det * M[c][r] - fnorm2 * dI[c][r]) ) / (det2 * det2);
+      }
+   }
+
 }
 
 // *****************************************************************************
@@ -84,16 +134,15 @@ static void SetupGradPA_2D(const Vector &xe_,
                            const Array<double> &g1d_,
                            const DenseMatrix &Jtr,
                            Vector &p_,
-                           Vector &g_,
                            const int d1d = 0,
                            const int q1d = 0)
 {
    dbg("");
    constexpr int dim = 2;
+   constexpr int DIM = 2;
    constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int dof = D1D*D1D;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b1d = Reshape(b1d_.Read(), Q1D, D1D);
@@ -101,7 +150,6 @@ static void SetupGradPA_2D(const Vector &xe_,
    const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
    const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
    auto P = Reshape(p_.Write(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
-   auto G = Reshape(g_.Write(), Q1D, Q1D, dof*VDIM, dof*VDIM, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -205,22 +253,17 @@ static void SetupGradPA_2D(const Vector &xe_,
             const double weight = W(qx,qy);
 
             //  Jtr = targetC->ComputeElementTargets
-            const double Jtrx0 = J(0,0);
-            const double Jtrx1 = J(0,1);
-            const double Jtry0 = J(1,0);
-            const double Jtry1 = J(1,1);
-            double Jtr_p[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
-
-            const double detJtr = Jtrx0*Jtry1 - Jtrx1*Jtry0;
+            const double Jtr_p[4] = {J(0,0), J(1,0), J(0,1), J(1,1)};
+            const double detJtr = J(0,0)*J(1,1) - J(1,0)*J(0,1);
             const double weight_detJtr = weight * detJtr;
 
             // Jrt = Jtr^{-1}
-            DenseMatrix Jrt(dim);
-            kernels::CalcInverse<2>(Jtr_p, Jrt.HostWrite());
+            double Jrt_p[4];
+            kernels::CalcInverse<2>(Jtr_p, Jrt_p);
 
             // Compute DSh (dof x dim)
-            const int dof = D1D*D1D;
-            DenseMatrix DSh(dof, dim);
+            constexpr int DOF = D1D*D1D;
+            double DSh_p[DOF*DIM];
             for (int i1 = 0; i1 < D1D; ++i1)
             {
                for (int i2 = 0; i2 < D1D; ++i2)
@@ -228,14 +271,14 @@ static void SetupGradPA_2D(const Vector &xe_,
                   const double bg = G1d[qx][i1] * B1d[qy][i2];
                   const double gb = B1d[qx][i1] * G1d[qy][i2];
                   const int dof = i2 + i1*D1D;
-                  DSh(dof, 0) = bg;
-                  DSh(dof, 1) = gb;
+                  DSh_p[dof*DIM + 0] = bg;
+                  DSh_p[dof*DIM + 1] = gb;
                }
             }
 
             // Compute DS = DSh Jrt
-            DenseMatrix DS(dof, dim);
-            Mult(DSh, Jrt, DS);
+            double DS_p[DOF*DIM];
+            kernels::Mult(DOF,DIM,DIM, DSh_p, Jrt_p, DS_p);
 
             // GX = X^T.DSh
             const double GXx0h = Xx0[qy][qx];
@@ -243,35 +286,41 @@ static void SetupGradPA_2D(const Vector &xe_,
             const double GXy0h = Xy0[qy][qx];
             const double GXy1h = Xy1[qy][qx];
             double GXh_p[4] = {GXx0h, GXy0h, GXx1h, GXy1h};
-            DenseMatrix GXh(GXh_p, dim, dim);
 
             // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
-            DenseMatrix Jpt(dim);
-            Mult(GXh, Jrt, Jpt);
-            const double sign = Jpt.Det() < 0.0 ? -1.0 : 1.0;
+            double Jpt_p[4] = {-1.0};
+            DenseMatrix Jpt(Jpt_p,dim,dim);
+            kernels::Mult(2,2,2,GXh_p,Jrt_p, Jpt_p);
+
+            const double detJpt = Jpt_p[0]*Jpt_p[3] - Jpt_p[1]*Jpt_p[2];
+            const double sign = ScalarOps<double>::sign(detJpt);
 
             for (int r = 0; r < dim; r++)
             {
                for (int c = 0; c < dim; c++)
                {
+                  //dbg("r:%d, c:%d",r,c);
                   DenseMatrix dP(&P(0,0,r,c,qx,qy,e),dim,dim);
-                  Dim2Invariant1_dMdM(Jpt,r,c,dP);
+                  //Dim2Invariant1_dMdM(Jpt,r,c,dP);
+
+                  //DenseMatrix H(dim);
+                  //Dim2Invariant1_dMdM(Jpt,r,c,H);
+
+                  double G_p[4];
+                  DenseMatrix G(G_p,dim,dim);
+                  Invariant1_dMdM_2D(Jpt_p,r,c, G_p);
+
+                  //dbg("%.8e %.8e", H(0,0), G(0,0));
+                  //dbg("%.8e %.8e", H(1,0), G(1,0));
+                  //dbg("%.8e %.8e", H(0,1), G(0,1));
+                  //dbg("%.8e %.8e", H(1,1), G(1,1));
+                  /*const double EPS = 1.e-14;
+                  MFEM_VERIFY(fabs(H(0,0)-G(0,0))<EPS, "");
+                  MFEM_VERIFY(fabs(H(0,1)-G(0,1))<EPS, "");
+                  MFEM_VERIFY(fabs(H(1,0)-G(1,0))<EPS, "");
+                  MFEM_VERIFY(fabs(H(1,1)-G(1,1))<EPS, "");*/
+                  dP = G;
                   dP *= sign * 0.5 * weight_detJtr;
-                  for (int rr = 0; rr < dim; rr++)
-                  {
-                     for (int cc = 0; cc < dim; cc++)
-                     {
-                        const double dp = dP(rr,cc);
-                        for (int i = 0; i < dof; i++)
-                        {
-                           for (int j = 0; j < dof; j++)
-                           {
-                              const double ds = DS(i, c) * DS(j, cc);
-                              G(qx, qy, i+r*dof, j+rr*dof, e) += ds * dp;
-                           }
-                        }
-                     }
-                  }
                }
             }
          } // qx
@@ -565,33 +614,32 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
      }*/
    if (!setup)
    {
-      Gpa = 0.0;
       setup = true;
       switch (id)
       {
-         /*case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x22: { SetupGradPA_2D<2,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x23: { SetupGradPA_2D<2,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x24: { SetupGradPA_2D<2,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x25: { SetupGradPA_2D<2,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
+         /*case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x22: { SetupGradPA_2D<2,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x23: { SetupGradPA_2D<2,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x24: { SetupGradPA_2D<2,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x25: { SetupGradPA_2D<2,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
 
-         case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }*/
-         case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }/*
-         case 0x34: { SetupGradPA_2D<3,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x35: { SetupGradPA_2D<3,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
+         case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }*/
+         case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }/*
+         case 0x34: { SetupGradPA_2D<3,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x35: { SetupGradPA_2D<3,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
 
-         case 0x41: { SetupGradPA_2D<4,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x42: { SetupGradPA_2D<4,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x43: { SetupGradPA_2D<4,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x44: { SetupGradPA_2D<4,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x45: { SetupGradPA_2D<4,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
+         case 0x41: { SetupGradPA_2D<4,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x42: { SetupGradPA_2D<4,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x43: { SetupGradPA_2D<4,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x44: { SetupGradPA_2D<4,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x45: { SetupGradPA_2D<4,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
 
-         case 0x51: { SetupGradPA_2D<5,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x52: { SetupGradPA_2D<5,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x53: { SetupGradPA_2D<5,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x54: { SetupGradPA_2D<5,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }*/
+         case 0x51: { SetupGradPA_2D<5,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x52: { SetupGradPA_2D<5,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x53: { SetupGradPA_2D<5,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x54: { SetupGradPA_2D<5,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }*/
          default:
          {
             dbg("kernel id: %x", id);

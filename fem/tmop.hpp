@@ -898,9 +898,9 @@ protected:
    mutable DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
    // PA extension
-   mutable bool setup;
    int dim, ne, nq;
-   mutable Vector Epa,Opa,Xpa,Dpa,Gpa,dPpa;
+   mutable bool setup;
+   mutable Vector Epa,Opa,Xpa,Dpa,dPpa;
    const DofToQuad *maps;
    const GeometricFactors *geom;
    const FiniteElementSpace *fes;

@@ -40,6 +40,59 @@ namespace mfem
 namespace kernels
 {
 
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+void FNorm(double &scale_factor, double &scaled_fnorm2, const T *data)
+{
+   int i, hw = H * W;
+   T max_norm = 0.0, entry, fnorm2;
+
+   for (i = 0; i < hw; i++)
+   {
+      entry = fabs(data[i]);
+      if (entry > max_norm)
+      {
+         max_norm = entry;
+      }
+   }
+
+   if (max_norm == 0.0)
+   {
+      scale_factor = scaled_fnorm2 = 0.0;
+      return;
+   }
+
+   fnorm2 = 0.0;
+   for (i = 0; i < hw; i++)
+   {
+      entry = data[i] / max_norm;
+      fnorm2 += entry * entry;
+   }
+
+   scale_factor = max_norm;
+   scaled_fnorm2 = fnorm2;
+}
+
+/// Compute the Frobenius norm of the matrix
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+double FNorm(const T *data)
+{
+   double s, n2;
+   kernels::FNorm<H,W>(s, n2, data);
+   return s*sqrt(n2);
+}
+
+/// Compute the square of the Frobenius norm of the matrix
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+double FNorm2(const T *data)
+{
+   double s, n2;
+   kernels::FNorm<H,W>(s, n2, data);
+   return s*s*n2;
+}
+
 /// Returns the l2 norm of the Vector with given @a size and @a data.
 template<typename T>
 MFEM_HOST_DEVICE inline
