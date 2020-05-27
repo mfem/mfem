@@ -25,7 +25,9 @@ Meshing improvements
 
 - Added support for r-adaptivity with more than one discrete field. This allows
   the user to specify different discrete functions for controlling the 
-  size, aspect-ratio, orientation, and skew of elements in the mesh. 
+  size, aspect-ratio, orientation, and skew of elements in the mesh.
+  
+- Added TMOP capability for approximate tangential mesh relaxation.
 
 Performance improvements
 ------------------------
