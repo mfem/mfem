@@ -37,10 +37,12 @@ BlockOperator::BlockOperator(const Array<int> & offsets)
    for (int i=0; i<nRowBlocks; ++i)
    {
       vr[i].SetSize(row_offsets[i+1] - row_offsets[i]);
+      vr[i].UseDevice(true);
    }
    for (int i=0; i<nColBlocks; ++i)
    {
       vc[i].SetSize(col_offsets[i+1] - col_offsets[i]);
+      vc[i].UseDevice(true);
    }
 }
 

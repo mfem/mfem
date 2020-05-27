@@ -389,7 +389,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-
    if (print_level == 1 || print_level == 3)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
@@ -613,6 +612,9 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    Vector r(n), w(n);
    Array<Vector *> v;
 
+   r.UseDevice(true);
+   w.UseDevice(true);
+
    double resid, l2resid;
    int i, j, k;
 
@@ -678,7 +680,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    for (j = 1; j <= max_iter; )
    {
-      if (v[0] == NULL) { v[0] = new Vector(n); }
+      if (v[0] == NULL) 
+	{
+	  v[0] = new Vector(n); 
+	  v[0]->UseDevice(true);
+	}
       v[0]->Set(1.0/beta, r);
       s = 0.0; s(0) = beta;
 
@@ -702,7 +708,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
          H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
          MFEM_ASSERT(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
-         if (v[i+1] == NULL) { v[i+1] = new Vector(n); }
+         if (v[i+1] == NULL) 
+	   { 
+	     v[i+1] = new Vector(n); 
+	     v[i+1]->UseDevice(true);
+	   }
          v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
 
          for (k = 0; k < i; k++)

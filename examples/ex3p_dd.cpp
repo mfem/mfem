@@ -2161,6 +2161,9 @@ int main(int argc, char *argv[])
    
    HypreParMatrix A;
    Vector B, X;
+   B.UseDevice(true);
+   X.UseDevice(true);
+
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    //a->FormSystemMatrix(ess_tdof_list, A);
 
@@ -2325,7 +2328,12 @@ int main(int argc, char *argv[])
        Vector Bdd(ddi.Width());
        Vector xdd(ddi.Width());
 
+       Bdd.UseDevice(true);
+       xdd.UseDevice(true);
+
        Vector B_Im(B.Size());
+       B_Im.UseDevice(true);
+
        B_Im = 0.0;
        //B_Im = B;
        //B = 0.0;

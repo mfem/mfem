@@ -286,7 +286,11 @@ public:
     
     MPI_Alltoallv(m_send.data(), m_scnt.data(), m_sdspl.data(), MPI_DOUBLE, (double*) m_recv.data(), m_rcnt.data(), m_rdspl.data(), MPI_DOUBLE, m_comm);
 
-    y = 0.0;
+    //y = 0.0;
+    auto y_host = y.HostWrite();
+    for (int i=0; i<y.Size(); ++i)
+      y_host[i] = 0.0;
+
     /*
     for (int ifp=0; ifp<m_nprocs; ++ifp)
       {
@@ -300,9 +304,9 @@ public:
     for (int i=0; i<m_recv.size(); ++i)
       {
 #ifdef USE_SIGN_FLIP
-	y[m_alltrueSD[i]] = (m_alltrueSDflip[i] == 1) ? -m_recv[i] : m_recv[i];
+	y_host[m_alltrueSD[i]] = (m_alltrueSDflip[i] == 1) ? -m_recv[i] : m_recv[i];
 #else
-	y[m_alltrueSD[i]] = m_recv[i];
+	y_host[m_alltrueSD[i]] = m_recv[i];
 #endif
       }
 

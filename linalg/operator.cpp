@@ -413,6 +413,9 @@ TripleProductOperator::TripleProductOperator(
    MemoryType mem_type = GetMemoryType(mem_class*B->GetMemoryClass());
    t1.SetSize(C->Height(), mem_type);
    t2.SetSize(B->Height(), mem_type);
+
+   t1.UseDevice(true);
+   t2.UseDevice(true);
 }
 
 TripleProductOperator::~TripleProductOperator()
