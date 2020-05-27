@@ -121,6 +121,8 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
+      case AssemblyLevel::LEGACYFULL:
+         break;
       case AssemblyLevel::FULL:
          ext = new FABilinearFormExtension(this);
          break;
@@ -1111,6 +1113,8 @@ void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
+      case AssemblyLevel::LEGACYFULL:
+         break;
       case AssemblyLevel::FULL:
          // ext = new FAMixedBilinearFormExtension(this);
          // Use the original BilinearForm implementation for now
