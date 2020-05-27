@@ -117,7 +117,7 @@ static void SetupGradPA_2D(const Vector &xe_,
       double (*B1d)[MD1]  = (double (*)[MD1])(s_BG[0]);
       double (*G1d)[MD1]  = (double (*)[MD1])(s_BG[1]);
 
-      MFEM_SHARED double s_X[NBZ][MD1*MD1];
+      MFEM_SHARED double s_X[2][NBZ][MD1*MD1];
       double (*Xx)[MD1]  = (double (*)[MD1])(s_X[0] + tidz);
       double (*Xy)[MD1]  = (double (*)[MD1])(s_X[1] + tidz);
 
@@ -289,8 +289,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
                                     const Array<double> &g1d_,
                                     const DenseMatrix &Jtr,
                                     const Vector &p_,
-                                    const Vector &re_,
-                                    Vector &ce_,
+                                    const Vector &x_,
+                                    Vector &y_,
                                     const int d1d = 0,
                                     const int q1d = 0)
 {
@@ -298,20 +298,16 @@ static void AddMultGradPA_Kernel_2D(const int NE,
    constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int dof = D1D*D1D;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    const auto b = Reshape(b1d_.Read(), Q1D, D1D);
    const auto g = Reshape(g1d_.Read(), Q1D, D1D);
    const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
-   const auto R = Reshape(re_.Read(), D1D, D1D, VDIM, NE);
-   const auto DP = Reshape(p_.Read(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
-   auto C = Reshape(ce_.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
+   const auto dP = Reshape(p_.Read(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
-
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -319,44 +315,48 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
-      double (*B1d)[MD1]  = (double (*)[MD1])(s_BG[0]);
-      double (*G1d)[MD1]  = (double (*)[MD1])(s_BG[1]);
-      double (*B1dt)[MQ1] = (double (*)[MQ1])(s_BG[0]);
-      double (*G1dt)[MQ1] = (double (*)[MQ1])(s_BG[1]);
+      double (*B1d)[MD1]  = (double (*)[MD1])(s_BG+0);
+      double (*G1d)[MD1]  = (double (*)[MD1])(s_BG+1);
+      double (*B1dt)[MQ1] = (double (*)[MQ1])(s_BG+0);
+      double (*G1dt)[MQ1] = (double (*)[MQ1])(s_BG+1);
 
-      MFEM_SHARED double s_R[2][NBZ][MD1*MD1];
-      double (*Rx)[MD1]  = (double (*)[MD1])(s_R[0] + tidz);
-      double (*Ry)[MD1]  = (double (*)[MD1])(s_R[1] + tidz);
+      MFEM_SHARED double s_Xx[NBZ][MD1][MD1];
+      double (*Xx)[MD1]  = (double (*)[MD1])(s_Xx + tidz);
 
-      MFEM_SHARED double s_DQ[2][4][NBZ][MD1*MQ1];
-      double (*RxB)[MQ1] = (double (*)[MQ1])(s_DQ[0][0] + tidz);
-      double (*RxG)[MQ1] = (double (*)[MQ1])(s_DQ[0][1] + tidz);
-      double (*RyB)[MQ1] = (double (*)[MQ1])(s_DQ[0][2] + tidz);
-      double (*RyG)[MQ1] = (double (*)[MQ1])(s_DQ[0][3] + tidz);
+      MFEM_SHARED double s_Xy[NBZ][MD1][MD1];
+      double (*Xy)[MD1]  = (double (*)[MD1])(s_Xy + tidz);
 
-      double (*CxB)[MQ1] = (double (*)[MQ1])(s_DQ[1][0] + tidz);
-      double (*CxG)[MQ1] = (double (*)[MQ1])(s_DQ[1][1] + tidz);
-      double (*CyB)[MQ1] = (double (*)[MQ1])(s_DQ[1][2] + tidz);
-      double (*CyG)[MQ1] = (double (*)[MQ1])(s_DQ[1][3] + tidz);
+      MFEM_SHARED double s_RDQ[4][NBZ][MD1*MQ1];
+      double (*RxB)[MQ1] = (double (*)[MQ1])(s_RDQ[0] + tidz);
+      double (*RxG)[MQ1] = (double (*)[MQ1])(s_RDQ[1] + tidz);
+      double (*RyB)[MQ1] = (double (*)[MQ1])(s_RDQ[2] + tidz);
+      double (*RyG)[MQ1] = (double (*)[MQ1])(s_RDQ[3] + tidz);
 
-      MFEM_SHARED double s_QQ[2][4][NBZ][MQ1*MQ1];
-      double (*Rx0)[MQ1] = (double (*)[MQ1])(s_QQ[0][0] + tidz);
-      double (*Rx1)[MQ1] = (double (*)[MQ1])(s_QQ[0][1] + tidz);
-      double (*Ry0)[MQ1] = (double (*)[MQ1])(s_QQ[0][2] + tidz);
-      double (*Ry1)[MQ1] = (double (*)[MQ1])(s_QQ[0][3] + tidz);
+      MFEM_SHARED double s_CDQ[4][NBZ][MD1*MQ1];
+      double (*CxB)[MQ1] = (double (*)[MQ1])(s_CDQ[0] + tidz);
+      double (*CxG)[MQ1] = (double (*)[MQ1])(s_CDQ[1] + tidz);
+      double (*CyB)[MQ1] = (double (*)[MQ1])(s_CDQ[2] + tidz);
+      double (*CyG)[MQ1] = (double (*)[MQ1])(s_CDQ[3] + tidz);
 
-      double (*Cx0)[MQ1] = (double (*)[MQ1])(s_QQ[1][0] + tidz);
-      double (*Cx1)[MQ1] = (double (*)[MQ1])(s_QQ[1][1] + tidz);
-      double (*Cy0)[MQ1] = (double (*)[MQ1])(s_QQ[1][2] + tidz);
-      double (*Cy1)[MQ1] = (double (*)[MQ1])(s_QQ[1][3] + tidz);
+      MFEM_SHARED double s_RQQ[4][NBZ][MQ1*MQ1];
+      double (*Rx0)[MQ1] = (double (*)[MQ1])(s_RQQ[0] + tidz);
+      double (*Rx1)[MQ1] = (double (*)[MQ1])(s_RQQ[1] + tidz);
+      double (*Ry0)[MQ1] = (double (*)[MQ1])(s_RQQ[2] + tidz);
+      double (*Ry1)[MQ1] = (double (*)[MQ1])(s_RQQ[3] + tidz);
+
+      MFEM_SHARED double s_YQQ[4][NBZ][MQ1*MQ1];
+      double (*Cx0)[MQ1] = (double (*)[MQ1])(s_YQQ[0] + tidz);
+      double (*Cx1)[MQ1] = (double (*)[MQ1])(s_YQQ[1] + tidz);
+      double (*Cy0)[MQ1] = (double (*)[MQ1])(s_YQQ[2] + tidz);
+      double (*Cy1)[MQ1] = (double (*)[MQ1])(s_YQQ[3] + tidz);
 
       // Load R(x,y) and X(x,y)
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            Rx[dy][dx] = R(dx,dy,0,e);
-            Ry[dy][dx] = R(dx,dy,1,e);
+            Xx[dy][dx] = X(dx,dy,0,e);
+            Xy[dy][dx] = X(dx,dy,1,e);
          }
       }
       // Load B1d and G1d matrices
@@ -380,8 +380,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
             double v[2] = {0};
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double rx = Rx[dy][dx];
-               const double ry = Ry[dy][dx];
+               const double rx = Xx[dy][dx];
+               const double ry = Xy[dy][dx];
                u[0] += B1d[qx][dx] * rx;
                v[0] += G1d[qx][dx] * rx;
                u[1] += B1d[qx][dx] * ry;
@@ -418,81 +418,46 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            //  Jtr = targetC->ComputeElementTargets
-            const double Jtrx0 = J(0,0);
-            const double Jtrx1 = J(0,1);
-            const double Jtry0 = J(1,0);
-            const double Jtry1 = J(1,1);
-            double Jtr_p[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
+            double A[4], B[4], C[4];
 
             // Jrt = Jtr^{-1}
-            DenseMatrix Jrt(dim);
-            kernels::CalcInverse<2>(Jtr_p, Jrt.GetData());
-            double Jinv[4];
-            kernels::CalcInverse<2>(Jtr_p, Jinv);
-            MFEM_VERIFY(Jinv[0] == Jrt(0,0),"");
-            MFEM_VERIFY(Jinv[1] == Jrt(1,0),"");
-            MFEM_VERIFY(Jinv[2] == Jrt(0,1),"");
-            MFEM_VERIFY(Jinv[3] == Jrt(1,1),"");
+            double Jrt[4];
+            const double Jtr_p[4] = { J(0,0), J(1,0), J(0,1), J(1,1) };
+            kernels::CalcInverse<2>(Jtr_p, Jrt);
 
             const double GRx0h = Rx0[qy][qx];
             const double GRx1h = Rx1[qy][qx];
             const double GRy0h = Ry0[qy][qx];
             const double GRy1h = Ry1[qy][qx];
-            double hGR_p[4] = {GRx0h, GRy0h, GRx1h, GRy1h};
-            DenseMatrix hGR(hGR_p, dim, dim);
+            const double hX[4] = {GRx0h, GRy0h, GRx1h, GRy1h};
 
-            // GR = R^T . Jrt
-            DenseMatrix GR(dim);
-            Mult(hGR,Jrt,GR);
-            // vs
-            //DenseMatrix GRk(dim);
-            double GRk[4];
-            kernels::Mult(2,2,2,hGR_p, Jinv, GRk);
-            //dbg("%f vs  %f", GRk(0,0), GR(0,0));
-            MFEM_VERIFY(GRk[0+2*0] == GR(0,0),"");
-            MFEM_VERIFY(GRk[1+2*0] == GR(1,0),"");
-            MFEM_VERIFY(GRk[0+2*1] == GR(0,1),"");
-            MFEM_VERIFY(GRk[1+2*1] == GR(1,1),"");
+            // A = X^T . Jrt
+            kernels::Mult(2,2,2, hX, Jrt, A);
 
-            // GZ = GR : dP
-            DenseMatrix GZ(dim);
+            // B = A : dP
             for (int r = 0; r < dim; r++)
             {
                for (int c = 0; c < dim; c++)
                {
-                  GZ(r,c) = 0.0;
+                  B[r+2*c] = 0.0;
                   for (int i = 0; i < dim; i++)
                   {
                      for (int j = 0; j < dim; j++)
                      {
-                        GZ(r,c) += DP(i,j,r,c,qx,qy,e) * GRk[i+2*j];
+                        B[r+2*c] += dP(i,j,r,c,qx,qy,e) * A[i+2*j];
                      }
                   }
-               } // c
-            } // r
+               }
+            }
 
-            // A = Jrt . GZ
-            double A_p[4];
-            DenseMatrix A(A_p, dim, dim);
-            MultABt(Jrt, GZ, A);
-            Cx0[qy][qx] = A(0,0);
-            Cy0[qy][qx] = A(0,1);
-            Cx1[qy][qx] = A(1,0);
-            Cy1[qy][qx] = A(1,1);
-            // vs
-            double Ak[4];
-            kernels::MultABt(2,2,2, Jinv, GZ.GetData(), Ak);
-            MFEM_VERIFY(Ak[0+2*0] == A(0,0),"");
-            MFEM_VERIFY(Ak[1+2*0] == A(1,0),"");
-            MFEM_VERIFY(Ak[0+2*1] == A(0,1),"");
-            MFEM_VERIFY(Ak[1+2*1] == A(1,1),"");
-            Cx0[qy][qx] = Ak[0];
-            Cy0[qy][qx] = Ak[2];
-            Cx1[qy][qx] = Ak[1];
-            Cy1[qy][qx] = Ak[3];
-         } // qx
-      } // qy
+            // C = Jrt . B
+            kernels::MultABt(2,2,2, Jrt, B, C);
+            Cx0[qy][qx] = C[0];
+            Cy0[qy][qx] = C[2];
+            Cx1[qy][qx] = C[1];
+            Cy1[qy][qx] = C[3];
+         }
+      }
 
       MFEM_SYNC_THREAD;
       if (tidz == 0)
@@ -540,8 +505,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
                u[1] += CyB[dx][qy] * B1dt[dy][qy];
                v[1] += CyG[dx][qy] * G1dt[dy][qy];
             }
-            C(dx,dy,0,e) += u[0] + v[0];
-            C(dx,dy,1,e) += u[1] + v[1];
+            Y(dx,dy,0,e) += u[0] + v[0];
+            Y(dx,dy,1,e) += u[1] + v[1];
          }
       }
    });
