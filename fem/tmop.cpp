@@ -953,6 +953,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          IsoparametricTransformation Tpr;
          Tpr.SetFE(&fe);
          Tpr.ElementNo = e_id;
+         Tpr.ElementType = ElementTransformation::ELEMENT;
          Tpr.GetPointMat().Transpose(point_mat);
 
          for (int i = 0; i < ir.GetNPoints(); i++)
@@ -1956,6 +1957,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
       Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
@@ -2203,6 +2205,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
       Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI);
    }
