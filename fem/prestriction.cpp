@@ -29,28 +29,22 @@ ParL2FaceRestriction::ParL2FaceRestriction(const FiniteElementSpace &fes,
                                            L2FaceValues m)
    : L2FaceRestriction(fes, type, m)
 {
-   Build(e_ordering, type);
-}
-
-void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
-                                 const FaceType type)
-{
    if (nf==0) { return; }
    // If fespace == L2
-   const ParFiniteElementSpace &fes =
+   const ParFiniteElementSpace &pfes =
       dynamic_cast<const ParFiniteElementSpace&>(this->fes);
-   const FiniteElement *fe = fes.GetFE(0);
+   const FiniteElement *fe = pfes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "ParL2FaceRestriction.");
-   MFEM_VERIFY(fes.GetMesh()->Conforming(),
+   MFEM_VERIFY(pfes.GetMesh()->Conforming(),
                "Non-conforming meshes not yet supported with partial assembly.");
    // Assuming all finite elements are using Gauss-Lobatto dofs
    height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*dof;
-   width = fes.GetVSize();
+   width = pfes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
@@ -58,32 +52,32 @@ void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
    }
    if (dof_reorder && nf > 0)
    {
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < pfes.GetNF(); ++f)
       {
          const FiniteElement *fe =
-            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
+            pfes.GetTraceElement(f, pfes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
             dynamic_cast<const TensorBasisElement*>(fe);
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
    }
-   const Table& e2dTable = fes.GetElementToDofTable();
+   const Table& e2dTable = pfes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    Array<int> faceMap1(dof), faceMap2(dof);
    int e1, e2;
    int inf1, inf2;
    int face_id1, face_id2;
    int orientation;
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_dofs = fes.GetFE(0)->GetDof();
-   const int dim = fes.GetMesh()->SpaceDimension();
+   const int dof1d = pfes.GetFE(0)->GetOrder()+1;
+   const int elem_dofs = pfes.GetFE(0)->GetDof();
+   const int dim = pfes.GetMesh()->SpaceDimension();
    // Computation of scatter indices
    int f_ind=0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if (dof_reorder)
       {
          orientation = inf1 % 64;
@@ -131,7 +125,7 @@ void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
             {
                const int se2 = -1 - e2;
                Array<int> sharedDofs;
-               fes.GetFaceNbrElementVDofs(se2, sharedDofs);
+               pfes.GetFaceNbrElementVDofs(se2, sharedDofs);
                for (int d = 0; d < dof; ++d)
                {
                   const int pd = PermuteFaceL2(dim, face_id1, face_id2,
@@ -175,10 +169,10 @@ void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
       offsets[i] = 0;
    }
    f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
@@ -217,10 +211,10 @@ void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
       offsets[i] += offsets[i - 1];
    }
    f_ind = 0;
-   for (int f = 0; f < fes.GetNF(); ++f)
+   for (int f = 0; f < pfes.GetNF(); ++f)
    {
-      fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-      fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
+      pfes.GetMesh()->GetFaceElements(f, &e1, &e2);
+      pfes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
       if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
           (type==FaceType::Boundary && e2<0 && inf2<0) )
       {
@@ -267,10 +261,10 @@ void ParL2FaceRestriction::Build(const ElementDofOrdering e_ordering,
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   const ParFiniteElementSpace &fes =
+   const ParFiniteElementSpace &pfes =
       dynamic_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
-   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&fes),
+   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
                 const_cast<Vector&>(x), 0);
    x_gf.ExchangeFaceNbrData();
 

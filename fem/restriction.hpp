@@ -132,11 +132,12 @@ protected:
    Array<int> offsets;
    Array<int> gather_indices;
 
-public:
-   L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
+   L2FaceRestriction(const FiniteElementSpace&,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
-   L2FaceRestriction(const FiniteElementSpace&,
+
+public:
+   L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
@@ -149,9 +150,6 @@ public:
    /// This methods adds the DG face matrices to the element matrices.
    void FactorizeBlocks(Vector &fea_data, const int elemDofs,
                         const int ne, Vector &ea_data) const;
-
-private:
-   void Build(const ElementDofOrdering, const FaceType);
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.

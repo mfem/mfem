@@ -955,7 +955,6 @@ int PermuteFaceL2(const int dim, const int face_id1,
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
-                                     const ElementDofOrdering e_ordering,
                                      const FaceType type,
                                      const L2FaceValues m)
    : fes(fes),
@@ -973,31 +972,13 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      offsets(ndofs+1),
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
 {
-   Build(e_ordering, type);
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
+                                     const ElementDofOrdering e_ordering,
                                      const FaceType type,
                                      const L2FaceValues m)
-   : fes(fes),
-     nf(fes.GetNFbyType(type)),
-     vdim(fes.GetVDim()),
-     byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs()),
-     dof(nf > 0 ?
-         fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
-         : 0),
-     m(m),
-     nfdofs(nf*dof),
-     scatter_indices1(nf*dof),
-     scatter_indices2(m==L2FaceValues::DoubleValued?nf*dof:0),
-     offsets(ndofs+1),
-     gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*dof)
-{
-}
-
-void L2FaceRestriction::Build(const ElementDofOrdering e_ordering,
-                              const FaceType type)
+   : L2FaceRestriction(fes, type, m)
 {
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
