@@ -73,7 +73,7 @@ MFEM_HOST_DEVICE inline
 void Eval_dI1b(const double w, const double *J, double *dI1b)
 {
    const double det = J[0]*J[3] - J[1]*J[2];
-   const double sign_detJ = ScalarOps<double>::sign(det);
+   const double sign_detJ = det >= 0.0 ? 1.0 : -1.0;
    const double I2b = sign_detJ * det;
 
    const double I1 = J[0]*J[0] + J[1]*J[1] + J[2]*J[2] + J[3]*J[3];
@@ -372,15 +372,15 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 
    switch (id)
    {
-      /*case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x22: return AddMultPA_Kernel_2D<2,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x23: return AddMultPA_Kernel_2D<2,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x24: return AddMultPA_Kernel_2D<2,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x25: return AddMultPA_Kernel_2D<2,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B1d,G1d,Dpa,X,Y);*/
+      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B1d,G1d,Dpa,X,Y);/*
+      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x34: return AddMultPA_Kernel_2D<3,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x35: return AddMultPA_Kernel_2D<3,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
 
@@ -394,7 +394,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
       case 0x52: return AddMultPA_Kernel_2D<5,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x53: return AddMultPA_Kernel_2D<5,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x54: return AddMultPA_Kernel_2D<5,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B1d,G1d,Dpa,X,Y);*/
+      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
       default:  break;
    }
    dbg("kernel id: %x", id);

@@ -73,7 +73,7 @@
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
 
-#define EPS 1.e-12
+#define EPS 1.e-4
 #define MFEM_DBG_COLOR 87
 #include "../../general/dbg.hpp"
 

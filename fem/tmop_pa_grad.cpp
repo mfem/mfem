@@ -89,9 +89,7 @@ static void SetupGradPA_2D(const Vector &xe_,
                            const int q1d = 0)
 {
    dbg("");
-   constexpr int dim = 2;
    constexpr int DIM = 2;
-   constexpr int VDIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -99,19 +97,21 @@ static void SetupGradPA_2D(const Vector &xe_,
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto J = Reshape(j_.Read(), VDIM, VDIM);
-   const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM);
+   const auto X = Reshape(xe_.Read(), D1D, D1D, DIM, NE);
 
-   auto P = Reshape(p_.Write(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
+   auto P = Reshape(p_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      constexpr int DIM = 2;
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int DOF = T_D1D ? T_D1D*T_D1D : MAX_D1D*MAX_D1D;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B)[MD1]  = (double (*)[MD1])(s_BG[0]);
@@ -213,7 +213,6 @@ static void SetupGradPA_2D(const Vector &xe_,
             kernels::CalcInverse<2>(Jtr_p, Jrt_p);
 
             // Compute DSh (dof x dim)
-            constexpr int DOF = D1D*D1D;
             double DSh_p[DOF*DIM];
             for (int i = 0; i < D1D; ++i)
             {
@@ -243,11 +242,11 @@ static void SetupGradPA_2D(const Vector &xe_,
             kernels::Mult(2,2,2,GXh_p,Jrt_p, Jpt_p);
 
             const double detJpt = Jpt_p[0]*Jpt_p[3] - Jpt_p[1]*Jpt_p[2];
-            const double sign = ScalarOps<double>::sign(detJpt);
+            const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
 
-            for (int i = 0; i < dim; i++)
+            for (int i = 0; i < DIM; i++)
             {
-               for (int j = 0; j < dim; j++)
+               for (int j = 0; j < DIM; j++)
                {
                   const double w = sign * 0.5 * weight_detJtr;
                   Invariant1_dMdM_2D(Jpt_p, i,j, qx,qy,e, w, P);
@@ -271,16 +270,16 @@ static void AddMultGradPA_Kernel_2D(const int NE,
                                     const int q1d = 0)
 {
    constexpr int dim = 2;
-   constexpr int VDIM = 2;
+   constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const auto b = Reshape(b1d_.Read(), Q1D, D1D);
    const auto g = Reshape(g1d_.Read(), Q1D, D1D);
-   const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
-   const auto X = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   const auto dP = Reshape(p_.Read(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+   const auto J = Reshape(Jtr.Read(), DIM, DIM);
+   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
+   const auto dP = Reshape(p_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -543,15 +542,15 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       setup = true;
       switch (id)
       {
-         /*case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+         case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x22: { SetupGradPA_2D<2,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x23: { SetupGradPA_2D<2,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x24: { SetupGradPA_2D<2,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x25: { SetupGradPA_2D<2,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
 
-         case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }*/
+         case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-         case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }/*
+         case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x34: { SetupGradPA_2D<3,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x35: { SetupGradPA_2D<3,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
 
@@ -565,7 +564,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
          case 0x52: { SetupGradPA_2D<5,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x53: { SetupGradPA_2D<5,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          case 0x54: { SetupGradPA_2D<5,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-         case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }*/
+         case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
          default:
          {
             dbg("kernel id: %x", id);
@@ -576,15 +575,15 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
 
    switch (id)
    {
-      /*case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
+      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
 
-      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);*/
+      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
-      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);/*
+      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
 
@@ -598,7 +597,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
-      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);*/
+      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       default:  break;
    }
    dbg("kernel id: %x", id);
