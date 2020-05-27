@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_ARRAY
 #define MFEM_ARRAY
@@ -56,6 +56,9 @@ public:
 
    /// Creates an empty array
    inline Array() : size(0) { data.Reset(); }
+
+   /// Creates an empty array with a given MemoryType
+   inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
 
    /// Creates array of asize elements
    explicit inline Array(int asize)
@@ -395,7 +398,7 @@ public:
    inline void MakeRef(const Array2D &master)
    { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
 
-   /// Delete all dynamically allocated memory, reseting all dimentions to zero.
+   /// Delete all dynamically allocated memory, resetting all dimensions to zero.
    inline void DeleteAll() { M = 0; N = 0; array1d.DeleteAll(); }
 
    /// Prints array to stream with width elements per row

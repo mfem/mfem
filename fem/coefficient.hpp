@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_COEFFICIENT
 #define MFEM_COEFFICIENT
@@ -91,7 +91,7 @@ public:
    { constants = 0.0; }
 
    /** c should be a vector defined by attributes, so for region with
-       attribute i  c[i] is the coefficient in that region */
+       attribute i  c[i-1] is the coefficient in that region */
    PWConstCoefficient(Vector &c)
    { constants.SetSize(c.Size()); constants=c; }
 
@@ -138,7 +138,7 @@ public:
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a f, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*f)(Vector &))
+   MFEM_DEPRECATED FunctionCoefficient(double (*f)(Vector &))
    {
       Function = reinterpret_cast<double(*)(const Vector&)>(f);
       TDFunction = NULL;
@@ -147,7 +147,7 @@ public:
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a tdf, uses a const
        Vector argument instead of Vector. */
-   FunctionCoefficient(double (*tdf)(Vector &, double))
+   MFEM_DEPRECATED FunctionCoefficient(double (*tdf)(Vector &, double))
    {
       Function = NULL;
       TDFunction = reinterpret_cast<double(*)(const Vector&,double)>(tdf);
@@ -164,18 +164,18 @@ class GridFunction;
 class GridFunctionCoefficient : public Coefficient
 {
 private:
-   GridFunction *GridF;
+   const GridFunction *GridF;
    int Component;
 
 public:
    GridFunctionCoefficient() : GridF(NULL), Component(1) { }
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
-   GridFunctionCoefficient (GridFunction *gf, int comp = 1)
+   GridFunctionCoefficient (const GridFunction *gf, int comp = 1)
    { GridF = gf; Component = comp; }
 
-   void SetGridFunction(GridFunction *gf) { GridF = gf; }
-   GridFunction * GetGridFunction() const { return GridF; }
+   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
+   const GridFunction * GetGridFunction() const { return GridF; }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
@@ -328,6 +328,7 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip) { V = vec; }
+   const Vector& GetVec() { return vec; }
 };
 
 class VectorFunctionCoefficient : public VectorCoefficient
@@ -399,14 +400,14 @@ public:
 class VectorGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
    VectorGridFunctionCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
-   VectorGridFunctionCoefficient(GridFunction *gf);
+   VectorGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf);
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf);
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -421,13 +422,13 @@ public:
 class GradientGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
-   GradientGridFunctionCoefficient(GridFunction *gf);
+   GradientGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf);
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf);
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -442,13 +443,13 @@ public:
 class CurlGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
-   CurlGridFunctionCoefficient(GridFunction *gf);
+   CurlGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf);
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf);
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -461,13 +462,13 @@ public:
 class DivergenceGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
-   DivergenceGridFunctionCoefficient(GridFunction *gf);
+   DivergenceGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf) { GridFunc = gf; }
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);

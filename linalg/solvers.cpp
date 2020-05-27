@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
 #include "../general/forall.hpp"
@@ -105,6 +105,15 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
+void IterativeSolver::Monitor(int it, double norm, const Vector& r,
+                              const Vector& x, bool final) const
+{
+   if (monitor != nullptr)
+   {
+      monitor->MonitorResidual(it, norm, r, final);
+      monitor->MonitorSolution(it, norm, x, final);
+   }
+}
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
@@ -170,6 +179,174 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_FORALL(i, N, Y[i] += DI[i] * R[i]; );
 }
 
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, double max_eig_estimate_)
+   :
+   Solver(d.Size()),
+   order(order_),
+   max_eig_estimate(max_eig_estimate_),
+   N(d.Size()),
+   dinv(N),
+   diag(d),
+   coeffs(order),
+   ess_tdof_list(ess_tdofs),
+   residual(N),
+   oper(oper_) { Setup(); }
+
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, int power_iterations, double power_tolerance)
+#endif
+   : Solver(d.Size()),
+     order(order_),
+     N(d.Size()),
+     dinv(N),
+     diag(d),
+     coeffs(order),
+     ess_tdof_list(ess_tdofs),
+     residual(N),
+     oper(oper_)
+{
+   OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
+   ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
+
+#ifdef MFEM_USE_MPI
+   PowerMethod powerMethod(comm);
+#else
+   PowerMethod powerMethod;
+#endif
+   Vector ev(oper->Width());
+   max_eig_estimate = powerMethod.EstimateLargestEigenvalue(diagPrecond, ev,
+                                                            power_iterations, power_tolerance);
+
+   Setup();
+}
+
+void OperatorChebyshevSmoother::Setup()
+{
+   // Invert diagonal
+   residual.UseDevice(true);
+   auto D = diag.Read();
+   auto X = dinv.Write();
+   MFEM_FORALL(i, N, X[i] = 1.0 / D[i]; );
+   auto I = ess_tdof_list.Read();
+   MFEM_FORALL(i, ess_tdof_list.Size(), X[I[i]] = 1.0; );
+
+   // Set up Chebyshev coefficients
+   // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
+   // Gauss-Seidel by Adams et al.
+   double upper_bound = 1.2 * max_eig_estimate;
+   double lower_bound = 0.3 * max_eig_estimate;
+   double theta = 0.5 * (upper_bound + lower_bound);
+   double delta = 0.5 * (upper_bound - lower_bound);
+
+   switch (order-1)
+   {
+      case 0:
+      {
+         coeffs[0] = 1.0 / theta;
+         break;
+      }
+      case 1:
+      {
+         double tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
+         coeffs[0] = -4*theta*tmp_0;
+         coeffs[1] = 2*tmp_0;
+         break;
+      }
+      case 2:
+      {
+         double tmp_0 = 3*pow(delta, 2);
+         double tmp_1 = pow(theta, 2);
+         double tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
+         coeffs[0] = tmp_2*(tmp_0 - 12*tmp_1);
+         coeffs[1] = 12/(tmp_0 - 4*tmp_1);
+         coeffs[2] = -4*tmp_2;
+         break;
+      }
+      case 3:
+      {
+         double tmp_0 = pow(delta, 2);
+         double tmp_1 = pow(theta, 2);
+         double tmp_2 = 8*tmp_0;
+         double tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
+         coeffs[0] = tmp_3*(32*pow(theta, 3) - 16*theta*tmp_0);
+         coeffs[1] = tmp_3*(-48*tmp_1 + tmp_2);
+         coeffs[2] = 32*theta*tmp_3;
+         coeffs[3] = -8*tmp_3;
+         break;
+      }
+      case 4:
+      {
+         double tmp_0 = 5*pow(delta, 4);
+         double tmp_1 = pow(theta, 4);
+         double tmp_2 = pow(theta, 2);
+         double tmp_3 = pow(delta, 2);
+         double tmp_4 = 60*tmp_3;
+         double tmp_5 = 20*tmp_3;
+         double tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
+         double tmp_7 = 160*tmp_2;
+         double tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
+         coeffs[0] = tmp_6*(tmp_0 + 80*tmp_1 - tmp_2*tmp_4);
+         coeffs[1] = tmp_8*(tmp_4 - tmp_7);
+         coeffs[2] = tmp_6*(-tmp_5 + tmp_7);
+         coeffs[3] = -80*tmp_8;
+         coeffs[4] = 16*tmp_6;
+         break;
+      }
+      default:
+         MFEM_ABORT("Chebyshev smoother not implemented for order = " << order);
+   }
+}
+
+void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
+{
+   if (iterative_mode)
+   {
+      MFEM_ABORT("Chebyshev smoother not implemented for iterative mode");
+   }
+
+   if (!oper)
+   {
+      MFEM_ABORT("Chebyshev smoother requires operator");
+   }
+
+   residual = x;
+   helperVector.SetSize(x.Size());
+
+   y.UseDevice(true);
+   y = 0.0;
+
+   for (int k = 0; k < order; ++k)
+   {
+      // Apply
+      if (k > 0)
+      {
+         oper->Mult(residual, helperVector);
+         residual = helperVector;
+      }
+
+      // Scale residual by inverse diagonal
+      const int n = N;
+      auto Dinv = dinv.Read();
+      auto R = residual.ReadWrite();
+      MFEM_FORALL(i, n, R[i] *= Dinv[i]; );
+
+      // Add weighted contribution to y
+      auto Y = y.ReadWrite();
+      auto C = coeffs.Read();
+      MFEM_FORALL(i, n, Y[i] += C[k] * R[i]; );
+   }
+}
 
 void SLISolver::UpdateVectors()
 {
@@ -232,23 +409,23 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (prec)
    {
       prec->Mult(r, z); // z = B r
-      nom0 = nom = Dot(z, r);
+      nom0 = nom = sqrt(Dot(z, z));
    }
    else
    {
-      nom0 = nom = Dot(r, r);
+      nom0 = nom = sqrt(Dot(r, r));
    }
 
    if (print_level == 1)
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  ||Br|| = "
                 << nom << '\n';
 
-   r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+   r0 = std::max(nom*rel_tol, abs_tol);
    if (nom <= r0)
    {
       converged = 1;
       final_iter = 0;
-      final_norm = sqrt(nom);
+      final_norm = nom;
       return;
    }
 
@@ -272,16 +449,16 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       if (prec)
       {
          prec->Mult(r, z); //  z = B r
-         nom = Dot(z, r);
+         nom = sqrt(Dot(z, z));
       }
       else
       {
-         nom = Dot(r, r);
+         nom = sqrt(Dot(r, r));
       }
 
-      cf = sqrt(nom/nomold);
+      cf = nom/nomold;
       if (print_level == 1)
-         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+         mfem::out << "   Iteration : " << setw(3) << i << "  ||Br|| = "
                    << nom << "\tConv. rate: " << cf << '\n';
       nomold = nom;
 
@@ -291,8 +468,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
             mfem::out << "Number of SLI iterations: " << i << '\n'
                       << "Conv. rate: " << cf << '\n';
          else if (print_level == 3)
-            mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                      << "(B r_N, r_N) = " << nom << '\n'
+            mfem::out << "||Br_0|| = " << nom0 << '\n'
+                      << "||Br_N|| = " << nom << '\n'
                       << "Number of SLI iterations: " << i << '\n';
          converged = 1;
          final_iter = i;
@@ -308,16 +485,16 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    if (print_level >= 0 && !converged)
    {
       mfem::err << "SLI: No convergence!" << '\n';
-      mfem::out << "(B r_0, r_0) = " << nom0 << '\n'
-                << "(B r_N, r_N) = " << nom << '\n'
+      mfem::out << "||Br_0|| = " << nom0 << '\n'
+                << "||Br_N|| = " << nom << '\n'
                 << "Number of SLI iterations: " << final_iter << '\n';
    }
    if (print_level >= 1 || (print_level >= 0 && !converged))
    {
       mfem::out << "Average reduction factor = "
-                << pow (nom/nom0, 0.5/final_iter) << '\n';
+                << pow (nom/nom0, 1.0/final_iter) << '\n';
    }
-   final_norm = sqrt(nom);
+   final_norm = nom;
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
@@ -382,13 +559,25 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-
    if (print_level == 1 || print_level == 3)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (print_level == 3 ? " ...\n" : "\n");
    }
+   Monitor(0, nom, r, x);
 
+   if (nom < 0.0)
+   {
+      if (print_level >= 0)
+      {
+         mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                   << nom << '\n';
+      }
+      converged = 0;
+      final_iter = 0;
+      final_norm = nom;
+      return;
+   }
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
@@ -436,12 +625,25 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          betanom = Dot(r, r);
       }
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
+      if (betanom < 0.0)
+      {
+         if (print_level >= 0)
+         {
+            mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                      << betanom << '\n';
+         }
+         converged = 0;
+         final_iter = i;
+         break;
+      }
 
       if (print_level == 1)
       {
          mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
                    << betanom << '\n';
       }
+
+      Monitor(i, betanom, r, x);
 
       if (betanom < r0)
       {
@@ -511,6 +713,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
    final_norm = sqrt(betanom);
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -658,6 +862,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "  ||B r|| = " << beta << (print_level == 3 ? " ...\n" : "\n");
    }
 
+   Monitor(0, beta, r, x);
+
    v.SetSize(m+1, NULL);
 
    for (j = 1; j <= max_iter; )
@@ -716,6 +922,8 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  ||B r|| = " << resid << '\n';
          }
+
+         Monitor(j, resid, r, x);
       }
 
       if (print_level == 1 && j <= max_iter)
@@ -765,6 +973,9 @@ finish:
    {
       mfem::out << "GMRES: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
+
    for (i = 0; i < v.Size(); i++)
    {
       delete v[i];
@@ -809,6 +1020,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                 << "   Iteration : " << setw(3) << 0
                 << "  || r || = " << beta << endl;
    }
+
+   Monitor(0, beta, r, x);
 
    Array<Vector*> v(m+1);
    Array<Vector*> z(m+1);
@@ -870,6 +1083,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
                       << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
          }
+         Monitor(j, resid, r, x, resid <= final_norm);
 
          if (resid <= final_norm)
          {
@@ -1002,6 +1216,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "   Iteration : " << setw(3) << 0
                 << "   ||r|| = " << resid << '\n';
 
+   Monitor(0, resid, r, x);
+
    tol_goal = std::max(resid*rel_tol, abs_tol);
 
    if (resid <= tol_goal)
@@ -1020,6 +1236,9 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          if (print_level >= 0)
             mfem::out << "   Iteration : " << setw(3) << i
                       << "   ||r|| = " << resid << '\n';
+
+         Monitor(i, resid, r, x);
+
          final_norm = resid;
          final_iter = i;
          converged = 0;
@@ -1062,6 +1281,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       if (print_level >= 0)
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
+      Monitor(i, resid, r, x);
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
@@ -1083,6 +1303,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   ||r|| = " << resid << '\n';
       }
+      Monitor(i, resid, r, x);
       if (resid < tol_goal)
       {
          final_norm = resid;
@@ -1188,6 +1409,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       mfem::out << "MINRES: iteration " << setw(3) << 0 << ": ||r||_B = "
                 << eta << (print_level == 3 ? " ...\n" : "\n");
    }
+   Monitor(0, eta, *z, x);
 
    for (it = 1; it <= max_iter; it++)
    {
@@ -1255,6 +1477,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "MINRES: iteration " << setw(3) << it << ": ||r||_B = "
                    << fabs(eta) << '\n';
       }
+      Monitor(it, fabs(eta), *z, x);
 
       if (prec)
       {
@@ -1279,6 +1502,7 @@ loop_end:
    {
       mfem::out << "MINRES: number of iterations: " << final_iter << '\n';
    }
+   Monitor(final_iter, final_norm, *z, x, true);
 #if 0
    if (print_level >= 1)
    {
@@ -1345,6 +1569,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
+   ProcessNewState(x);
+
    if (!iterative_mode)
    {
       x = 0.0;
@@ -1375,6 +1601,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          }
          mfem::out << '\n';
       }
+      Monitor(it, norm, r, x);
 
       if (norm <= norm_goal)
       {
@@ -1918,17 +2145,37 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    }
 
    std::vector<double> w(n, 0.0);
-   // Compute the discarded-fill weights
    for (int k=0; k<n; ++k)
    {
+      // Find all neighbors i of k
       for (int ii=I[k]; ii<I[k+1]; ++ii)
       {
-         double C_ki = V[ii];
+         int i = J[ii];
+         // Find value of (i,k)
+         double C_ik;
+         for (int kk=I[i]; kk<I[i+1]; ++kk)
+         {
+            if (J[kk] == k)
+            {
+               C_ik = V[kk];
+               break;
+            }
+         }
          for (int jj=I[k]; jj<I[k+1]; ++jj)
          {
-            if (jj == ii) { continue; }
-            double C_jk = V[jj];
-            w[k] += pow(C_jk*C_ki, 2);
+            int j = J[jj];
+            if (j == k) { continue; }
+            double C_kj = V[jj];
+            bool ij_exists = false;
+            for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
+            {
+               if (J[jj2] == j)
+               {
+                  ij_exists = true;
+                  break;
+               }
+            }
+            if (!ij_exists) { w[k] += pow(C_ik*C_kj,2); }
          }
       }
       w[k] = sqrt(w[k]);
@@ -1938,10 +2185,10 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
 
    // Compute ordering
    p.SetSize(n);
-   for (int i=0; i<n; ++i)
+   for (int ii=0; ii<n; ++ii)
    {
       int pi = w_heap.pop();
-      p[n-1-i] = pi;
+      p[ii] = pi;
       w[pi] = -1;
       for (int kk=I[pi]; kk<I[pi+1]; ++kk)
       {
@@ -1949,15 +2196,36 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
          if (w_heap.picked(k)) { continue; }
          // Recompute weight
          w[k] = 0.0;
-         for (int ii=I[k]; ii<I[k+1]; ++ii)
+         // Find all neighbors i of k
+         for (int ii2=I[k]; ii2<I[k+1]; ++ii2)
          {
-            if (w_heap.picked(J[ii])) { continue; }
-            double C_ki = V[ii];
+            int i = J[ii2];
+            if (w_heap.picked(i)) { continue; }
+            // Find value of (i,k)
+            double C_ik;
+            for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
+            {
+               if (J[kk2] == k)
+               {
+                  C_ik = V[kk2];
+                  break;
+               }
+            }
             for (int jj=I[k]; jj<I[k+1]; ++jj)
             {
-               if (jj == ii || w_heap.picked(J[jj])) { continue; }
-               double C_jk = V[jj];
-               w[k] += pow(C_jk*C_ki, 2);
+               int j = J[jj];
+               if (j == k || w_heap.picked(j)) { continue; }
+               double C_kj = V[jj];
+               bool ij_exists = false;
+               for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
+               {
+                  if (J[jj2] == j)
+                  {
+                     ij_exists = true;
+                     break;
+                  }
+               }
+               if (!ij_exists) { w[k] += pow(C_ik*C_kj,2); }
             }
          }
          w[k] = sqrt(w[k]);

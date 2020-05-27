@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_TEMPLATE_BILININTEG
 #define MFEM_TEMPLATE_BILININTEG
@@ -65,10 +65,10 @@ struct TMassKernel
    template <int qpts>
    struct f_asm_data { typedef TVector<qpts,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -180,10 +180,10 @@ struct TDiffusionKernel<1,1,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,1,1,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -293,10 +293,10 @@ struct TDiffusionKernel<2,2,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -434,10 +434,10 @@ struct TDiffusionKernel<3,3,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.

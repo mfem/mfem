@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_OPERATOR
 #define MFEM_OPERATOR
@@ -759,7 +759,41 @@ public:
        where the "_i" subscripts denote all the nonessential (boundary) trial
        indices and the "_j" subscript denotes the essential test indices */
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
+};
+
+/** @brief PowerMethod helper class to estimate the largest eigenvalue of an
+           operator using the iterative power method. */
+class PowerMethod
+{
+   Vector v1;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+
+public:
+
+#ifdef MFEM_USE_MPI
+   PowerMethod() : comm(MPI_COMM_NULL) {}
+#else
+   PowerMethod() {}
+#endif
+
+#ifdef MFEM_USE_MPI
+   PowerMethod(MPI_Comm _comm) : comm(_comm) {}
+#endif
+
+   /// @brief Returns an estimate of the largest eigenvalue of the operator \p opr
+   /// using the iterative power method.
+   /** \p v0 is being used as the vector for the iterative process and will contain
+       the eigenvector corresponding to the largest eigenvalue after convergence.
+       The maximum number of iterations may set with \p numSteps, the relative
+       tolerance with \p tolerance and the seed of the random initialization of
+       \p v0 with \p seed. */
+   double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                    int numSteps = 10, double tolerance = 1e-8,
+                                    int seed = 12345);
 };
 
 }

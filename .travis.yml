@@ -1,6 +1,15 @@
-language: cpp
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
-sudo: false
+language: cpp
 
 stages:
   - checks
@@ -134,7 +143,8 @@ jobs:
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     - os: linux
       compiler: gcc
@@ -164,7 +174,40 @@ jobs:
           - $TRAVIS_BUILD_DIR/../metis-4.0
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
+
+    - os: linux
+      compiler: gcc
+      name: "Linux: Parallel (cmake)"
+      addons:
+        apt:
+          packages:
+            - mpich
+            - libmpich-dev
+      env: MPI=YES
+           NPROCS=2
+      script:
+        - cd ${TRAVIS_BUILD_DIR}
+        - mkdir ${TRAVIS_BUILD_DIR}/build
+        - cd ${TRAVIS_BUILD_DIR}/build
+        - cmake ..
+             -DMFEM_USE_MPI=ON
+             -DHYPRE_DIR=${TRAVIS_BUILD_DIR}/../hypre-2.10.0b/src/hypre
+             -DMFEM_MPI_NP=$NPROCS
+        - make -j3 mfem examples
+        - cd ${TRAVIS_BUILD_DIR}/build/tests/unit
+        - make -j3
+        - ctest --output-on-failure
+      cache:
+        directories:
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/lib
+          - $TRAVIS_BUILD_DIR/../hypre-2.10.0b/src/hypre/include
+          - $TRAVIS_BUILD_DIR/../metis-4.0
+      before_cache:
+        - cd $TRAVIS_BUILD_DIR/../metis-4.0;
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     # ========================
     #      Mac OS X tests
@@ -210,7 +253,8 @@ jobs:
           - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
     - os: osx
       # osx_image: xcode7.3
@@ -230,8 +274,8 @@ jobs:
           - $HOME/local-cached
       before_cache:
         - cd $TRAVIS_BUILD_DIR/../metis-4.0;
-          mv libmetis.a ..; rm -rf *; mv ../libmetis.a .
-
+          mv libmetis.a Lib ..; rm -rf * ; mv ../libmetis.a ../Lib .;
+          rm -f Lib/*.{c,o}
 
 before_install:
    # No addon for brew yet, have to install OSX packages this way.
@@ -324,8 +368,10 @@ script:
    # Compiler
    - if [ $MPI == "YES" ]; then
         export MYCXX=mpic++;
+        export MAKE_CXX_FLAG=MPICXX=$MYCXX;
      else
         export MYCXX="$CXX";
+        export MAKE_CXX_FLAG=CXX=$MYCXX;
      fi
 
    # Print the compiler version
@@ -338,12 +384,9 @@ script:
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
      fi;
-     if [ "$CXX" == "clang++" ]; then
-        export MFEM_PERF_SW=clang;
-     fi
 
    # Configure the library
-   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG MFEM_CXX="$MYCXX"
+   - make config MFEM_USE_MPI=$MPI MFEM_DEBUG=$DEBUG $MAKE_CXX_FLAG
         MFEM_MPI_NP=$NPROCS CPPFLAGS="$CPPFLAGS"
    # Show the configuration
    - make info
