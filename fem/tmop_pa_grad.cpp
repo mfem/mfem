@@ -17,85 +17,35 @@
 #include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
+#include "../linalg/dtensor.hpp"
 
 namespace mfem
 {
 
 // *****************************************************************************
-// dI2_dM = d(det(M))_dM = adj(M)^T.
-/*static void Dim2Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
-{
-   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
-   dM(0, 0) =  M(1, 1); dM(0, 1) = -M(1, 0);
-   dM(1, 0) = -M(0, 1); dM(1, 1) =  M(0, 0);
-}
-
-// *****************************************************************************
-static
-void Dim2Invariant2_dMdM(const DenseMatrix &M, int i, int j,
-                         DenseMatrix &dMdM)
-{
-   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
-   dMdM = 0.0;
-   dMdM(1-i,1-j) = (i == j) ? 1.0 : -1.0;
-}*/
-
-// *****************************************************************************
-// (dI1_dM)_d(Mij) = d[(2 det(M) M - |M|^2 adj(M)^T) / det(M)^2]_d[Mij].
-/*static
-void Dim2Invariant1_dMdM(const DenseMatrix &M, int i, int j,
-                         DenseMatrix &dMdM)
-{
-   MFEM_ASSERT(M.Height() == 2 && M.Width() == 2, "Incorrect dimensions!");
-
-   // Compute d(det(M))_d(Mij), d(|M|^2)_d(Mij).
-   DenseMatrix dI(2);
-   Dim2Invariant2_dM(M, dI);
-   const double ddet   = dI(i,j);
-   const double dfnorm2 = 2.0 * M(i,j);
-
-   const double det    = M.Det();
-   const double det2   = det * det;
-   const double fnorm2 = M.FNorm2();
-
-   DenseMatrix dM(2); dM = 0.0; dM(i, j) = 1.0;
-   DenseMatrix ddI(2);
-   Dim2Invariant2_dMdM(M, i, j, ddI);
-   for (int r = 0; r < 2; r++)
-   {
-      for (int c = 0; c < 2; c++)
-      {
-         dMdM(r,c) =
-            (det2 *
-             (2.0 * ddet * M(r,c) + 2.0 * det * dM(r,c)
-              - dfnorm2 * dI(r,c) - fnorm2 * ddI(r,c))
-             - 2.0 * det * ddet *
-             (2.0 * det * M(r,c) - fnorm2 * dI(r,c)) ) / (det2 * det2);
-      }
-   }
-}*/
-
-// *****************************************************************************
-inline void Invariant2_dM_2D(const double M[2][2], double dM[2][2])
+MFEM_HOST_DEVICE inline
+void Invariant2_dM_2D(const double M[2][2], double dM[2][2])
 {
    dM[0][0] =  M[1][1]; dM[1][0] = -M[0][1];
    dM[0][1] = -M[1][0]; dM[1][1] =  M[0][0];
 }
 
 // *****************************************************************************
-inline void Invariant2_dMdM_2D(int i, int j, double dMdM[2][2])
+MFEM_HOST_DEVICE inline
+void Invariant2_dMdM_2D(int i, int j, double dMdM[2][2])
 {
    dMdM[0][0] = dMdM[0][1] = dMdM[1][0] = dMdM[1][1] = 0.0;
    dMdM[1-j][1-i] = (i == j) ? 1.0 : -1.0;
 }
 
 // *****************************************************************************
-MFEM_HOST_DEVICE inline void Invariant1_dMdM_2D(const double *m,
-                                                const int i, const int j,
-                                                double *dmdm)
+MFEM_HOST_DEVICE inline
+void Invariant1_dMdM_2D(const double *m,
+                        const int i, const int j,
+                        const int qx, const int qy, const int e,
+                        const double weight, DeviceTensor<7,double> P)
 {
    const double (*M)[2] = (const double (*)[2])(m);
-   double (*dMdM)[2] = (double (*)[2])(dmdm);
 
    double dI[2][2];
    Invariant2_dM_2D(M, dI);
@@ -114,12 +64,13 @@ MFEM_HOST_DEVICE inline void Invariant1_dMdM_2D(const double *m,
    {
       for (int c = 0; c < 2; c++)
       {
-         dMdM[c][r] =
+         P(r,c,i,j,qx,qy,e) =
             (det2 *
              (2.0 * ddet * M[c][r] + 2.0 * det * dM[c][r]
               - dfnorm2 * dI[c][r] - fnorm2 * ddI[c][r])
              - 2.0 * det * ddet *
              (2.0 * det * M[c][r] - fnorm2 * dI[c][r]) ) / (det2 * det2);
+         P(r,c,i,j,qx,qy,e) *= weight;
       }
    }
 
@@ -130,9 +81,9 @@ template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SetupGradPA_2D(const Vector &xe_,
                            const int NE,
                            const Array<double> &w_,
-                           const Array<double> &b1d_,
-                           const Array<double> &g1d_,
-                           const DenseMatrix &Jtr,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const DenseMatrix &j_,
                            Vector &p_,
                            const int d1d = 0,
                            const int q1d = 0)
@@ -144,12 +95,15 @@ static void SetupGradPA_2D(const Vector &xe_,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
-   const auto b1d = Reshape(b1d_.Read(), Q1D, D1D);
-   const auto g1d = Reshape(g1d_.Read(), Q1D, D1D);
-   const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto J = Reshape(j_.Read(), VDIM, VDIM);
    const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
+
    auto P = Reshape(p_.Write(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
+
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -160,8 +114,8 @@ static void SetupGradPA_2D(const Vector &xe_,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
-      double (*B1d)[MD1]  = (double (*)[MD1])(s_BG[0]);
-      double (*G1d)[MD1]  = (double (*)[MD1])(s_BG[1]);
+      double (*B)[MD1]  = (double (*)[MD1])(s_BG[0]);
+      double (*G)[MD1]  = (double (*)[MD1])(s_BG[1]);
 
       MFEM_SHARED double s_X[2][NBZ][MD1*MD1];
       double (*Xx)[MD1]  = (double (*)[MD1])(s_X[0] + tidz);
@@ -188,20 +142,19 @@ static void SetupGradPA_2D(const Vector &xe_,
             Xy[dy][dx] = X(dx,dy,1,e);
          }
       }
-      // Load B1d and G1d matrices
+      // Load B and G matrices
       if (tidz == 0)
       {
          MFEM_FOREACH_THREAD(d,y,D1D)
          {
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
-               B1d[q][d] = b1d(q,d);
-               G1d[q][d] = g1d(q,d);
+               B[q][d] = b(q,d);
+               G[q][d] = g(q,d);
             }
          }
       }
       MFEM_SYNC_THREAD;
-
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -212,10 +165,10 @@ static void SetupGradPA_2D(const Vector &xe_,
             {
                const double xx = Xx[dy][dx];
                const double xy = Xy[dy][dx];
-               u[0] += B1d[qx][dx] * xx;
-               v[0] += G1d[qx][dx] * xx;
-               u[1] += B1d[qx][dx] * xy;
-               v[1] += G1d[qx][dx] * xy;
+               u[0] += B[qx][dx] * xx;
+               v[0] += G[qx][dx] * xx;
+               u[1] += B[qx][dx] * xy;
+               v[1] += G[qx][dx] * xy;
             }
             XxB[dy][qx] = u[0];
             XxG[dy][qx] = v[0];
@@ -224,7 +177,6 @@ static void SetupGradPA_2D(const Vector &xe_,
          }
       }
       MFEM_SYNC_THREAD;
-
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -233,10 +185,10 @@ static void SetupGradPA_2D(const Vector &xe_,
             double v[2] = {0};
             for (int dy = 0; dy < D1D; ++dy)
             {
-               u[0] += XxG[dy][qx] * B1d[qy][dy];
-               v[0] += XxB[dy][qx] * G1d[qy][dy];
-               u[1] += XyG[dy][qx] * B1d[qy][dy];
-               v[1] += XyB[dy][qx] * G1d[qy][dy];
+               u[0] += XxG[dy][qx] * B[qy][dy];
+               v[0] += XxB[dy][qx] * G[qy][dy];
+               u[1] += XyG[dy][qx] * B[qy][dy];
+               v[1] += XyB[dy][qx] * G[qy][dy];
             }
             Xx0[qy][qx] = u[0];
             Xx1[qy][qx] = v[0];
@@ -245,7 +197,6 @@ static void SetupGradPA_2D(const Vector &xe_,
          }
       }
       MFEM_SYNC_THREAD;
-
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -264,13 +215,13 @@ static void SetupGradPA_2D(const Vector &xe_,
             // Compute DSh (dof x dim)
             constexpr int DOF = D1D*D1D;
             double DSh_p[DOF*DIM];
-            for (int i1 = 0; i1 < D1D; ++i1)
+            for (int i = 0; i < D1D; ++i)
             {
-               for (int i2 = 0; i2 < D1D; ++i2)
+               for (int j = 0; j < D1D; ++j)
                {
-                  const double bg = G1d[qx][i1] * B1d[qy][i2];
-                  const double gb = B1d[qx][i1] * G1d[qy][i2];
-                  const int dof = i2 + i1*D1D;
+                  const double bg = G[qx][i] * B[qy][j];
+                  const double gb = B[qx][i] * G[qy][j];
+                  const int dof = j + i*D1D;
                   DSh_p[dof*DIM + 0] = bg;
                   DSh_p[dof*DIM + 1] = gb;
                }
@@ -288,44 +239,22 @@ static void SetupGradPA_2D(const Vector &xe_,
             double GXh_p[4] = {GXx0h, GXy0h, GXx1h, GXy1h};
 
             // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
-            double Jpt_p[4] = {-1.0};
-            DenseMatrix Jpt(Jpt_p,dim,dim);
+            double Jpt_p[4];
             kernels::Mult(2,2,2,GXh_p,Jrt_p, Jpt_p);
 
             const double detJpt = Jpt_p[0]*Jpt_p[3] - Jpt_p[1]*Jpt_p[2];
             const double sign = ScalarOps<double>::sign(detJpt);
 
-            for (int r = 0; r < dim; r++)
+            for (int i = 0; i < dim; i++)
             {
-               for (int c = 0; c < dim; c++)
+               for (int j = 0; j < dim; j++)
                {
-                  //dbg("r:%d, c:%d",r,c);
-                  DenseMatrix dP(&P(0,0,r,c,qx,qy,e),dim,dim);
-                  //Dim2Invariant1_dMdM(Jpt,r,c,dP);
-
-                  //DenseMatrix H(dim);
-                  //Dim2Invariant1_dMdM(Jpt,r,c,H);
-
-                  double G_p[4];
-                  DenseMatrix G(G_p,dim,dim);
-                  Invariant1_dMdM_2D(Jpt_p,r,c, G_p);
-
-                  //dbg("%.8e %.8e", H(0,0), G(0,0));
-                  //dbg("%.8e %.8e", H(1,0), G(1,0));
-                  //dbg("%.8e %.8e", H(0,1), G(0,1));
-                  //dbg("%.8e %.8e", H(1,1), G(1,1));
-                  /*const double EPS = 1.e-14;
-                  MFEM_VERIFY(fabs(H(0,0)-G(0,0))<EPS, "");
-                  MFEM_VERIFY(fabs(H(0,1)-G(0,1))<EPS, "");
-                  MFEM_VERIFY(fabs(H(1,0)-G(1,0))<EPS, "");
-                  MFEM_VERIFY(fabs(H(1,1)-G(1,1))<EPS, "");*/
-                  dP = G;
-                  dP *= sign * 0.5 * weight_detJtr;
+                  const double w = sign * 0.5 * weight_detJtr;
+                  Invariant1_dMdM_2D(Jpt_p, i,j, qx,qy,e, w, P);
                }
             }
          } // qx
       } // qy
-      MFEM_SYNC_THREAD;
    });
 }
 
@@ -563,8 +492,6 @@ static void AddMultGradPA_Kernel_2D(const int NE,
 void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
                                     Vector &Ce) const
 {
-   //dbg("Xe: %d, Re:%d, Ce:%d", Xe.Size(), Re.Size(), Ce.Size());
-   //dbg("Xe: %.15e, Re: %.15e", Xe*Xe, Re*Re);
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
@@ -573,7 +500,6 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
    const Array<double> &B1d = maps->B;
    const Array<double> &G1d = maps->G;
    const int id = (D1D << 4 ) | Q1D;
-
 
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
