@@ -1950,7 +1950,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
             case (ELEMENT_TET4):
             case (ELEMENT_TET10):
             {
-               elements[elcount] = new Tetrahedron(renumberedVertID,ebprop[iblk]);
+#ifdef MFEM_USE_MEMALLOC
+               elements[elcount] = TetMemory.Alloc());
+               elements[elcount]->SetVertices(renumberedVertID);
+               elements[elcount]->SetAttribute(ebprop[iblk]);
+#else
+               elements[elcount] = new Tetrahedron(renumberedVertID,
+                                                   ebprop[iblk]);
+#endif
                break;
             }
             case (ELEMENT_HEX8):
