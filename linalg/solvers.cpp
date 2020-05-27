@@ -1641,6 +1641,133 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
+void LBFGSSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
+
+   // Quadrature points that are checked for negative Jacobians etc.
+   Vector sk, rk, yk, skt, ykt, rho, alpha;
+   DenseMatrix skM(width, m), ykM(width, m);
+
+   //r - r_{k+1}, c - descent direction
+   sk.SetSize(width);    //x_{k+1}-x_k
+   rk.SetSize(width);    //nabla(f(x_{k}))
+   yk.SetSize(width);    //r_{k+1}-r_{k}
+   skt.SetSize(width);   //work vector
+   ykt.SetSize(width);   //work vector
+   rho.SetSize(m);       //1/(dot(yk,sk)
+   alpha.SetSize(m);    //rhok*sk'*c
+
+   int it;
+   double norm0, norm, norm_goal;
+   const bool have_b = (b.Size() == Height());
+
+   if (!iterative_mode)
+   {
+      x = 0.0;
+   }
+
+   // r = F(x)-b
+   oper->Mult(x, r);
+   if (have_b) { r -= b; }
+
+   c = r;           // initial descent direction
+
+   norm0 = norm = Norm(r);
+   norm_goal = std::max(rel_tol*norm, abs_tol);
+   for (it = 0; true; it++)
+   {
+      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
+      if (print_level >= 0)
+      {
+         mfem::out << "LBFGS iteration " <<  it
+                   << " : ||r|| = " << norm;
+         if (it > 0)
+         {
+            mfem::out << ", ||r||/||r_0|| = " << norm/norm0;
+         }
+         mfem::out << '\n';
+      }
+
+      if (norm <= norm_goal)
+      {
+         converged = 1;
+         break;
+      }
+
+      if (it >= max_iter)
+      {
+         converged = 0;
+         break;
+      }
+
+      rk = r;
+      const double c_scale = ComputeScalingFactor(x, b);
+      if (c_scale == 0.0)
+      {
+         converged = 0;
+         break;
+      }
+      add(x, -c_scale, c, x); //x_{k+1} = x_k - c_scale*c
+
+      ProcessNewState(x);
+
+      oper->Mult(x, r);
+      if (have_b)
+      {
+         r -= b;
+      }
+
+      //    LBFGS - construct descent direction
+      int klim;
+      subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
+      sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
+      double gamma = Dot(sk, yk)/Dot(yk, yk);
+
+      //  Save last m vectors
+      if ( it < m)
+      {
+         skM.SetCol(it, sk);
+         ykM.SetCol(it, yk);
+         klim = it+1;
+      }
+      else
+      {
+         for (int i = 0; i < m-1; i++)
+         {
+            skM.SetCol(i, skM.GetColumn(i+1)); //shift columns
+            ykM.SetCol(i, ykM.GetColumn(i+1)); //shift columns
+         }
+         skM.SetCol(m-1, sk); // copy new column
+         ykM.SetCol(m-1, yk); // copy new colum
+         klim = m;
+      }
+
+      c = r;
+      for (int i = klim-1; i > -1; i--)
+      {
+         skM.GetColumn(i, skt);
+         ykM.GetColumn(i, ykt);
+         rho(i) = 1./Dot(skt, ykt);
+         alpha(i) = rho(i)*Dot(skt,c);
+         add(c, -alpha(i), ykt, c);
+      }
+
+      c *= gamma;   // scale search direction
+      for (int i = 0; i < klim ; i++)
+      {
+         skM.GetColumn(i,skt);
+         ykM.GetColumn(i,ykt);
+         double betai = rho(i)*Dot(ykt, c);
+         add(c, alpha(i)-betai, skt, c);
+      }
+
+      norm = Norm(r);
+   }
+
+   final_iter = it;
+   final_norm = norm;
+}
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,

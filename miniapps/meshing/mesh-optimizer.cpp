@@ -725,10 +725,8 @@ int main(int argc, char *argv[])
    }
    else
    {
-      TMOPLBFGSOptimizer *tns = new TMOPLBFGSOptimizer(*ir);
-      tns->SetKDim(40);
+      TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir, 1);
       solver = tns;
-      cout << "TMOPLBFGSOptimizer is used (as all det(J) > 0).\n";
       solver->SetMaxIter(solver_iter);
       solver->SetRelTol(solver_rtol);
       solver->SetAbsTol(0.0);
