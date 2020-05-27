@@ -814,6 +814,7 @@ class GinkgoIluPreconditioner : public GinkgoPreconditionerBase
 public:
    GinkgoIluPreconditioner(std::shared_ptr<const gko::Executor> exec,
                            SparseMatrix &a, const char *trisolve_type = "exact",
+                           int sparsity_power=1,
                            bool iter_mode=false)
       : GinkgoPreconditionerBase(exec, a, iter_mode)
    {
@@ -840,8 +841,18 @@ public:
 
         using l_solver_type = gko::preconditioner::LowerIsai<>;
         using u_solver_type = gko::preconditioner::UpperIsai<>;
+
+        std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(l_solver_type::build()
+                                 .with_sparsity_power(sparsity_power)
+                                 .on(exec));
+        std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(u_solver_type::build()
+                                .with_sparsity_power(sparsity_power)
+                                .on(exec));
+        
         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
                                                         u_solver_type>::build()
+                                .with_l_solver_factory(l_solver_factory)
+                                .with_u_solver_factory(u_solver_factory)
                                 .on(exec);
       }
       else {
@@ -857,6 +868,7 @@ public:
    GinkgoIluPreconditioner(std::shared_ptr<const gko::Executor> exec,
                            SparseMatrix &a, Array<int> &inv_permutation_indices,
                            const char *trisolve_type = "exact",
+                           int sparsity_power=1,
                            bool iter_mode=false)
       : GinkgoPreconditionerBase(exec, a, inv_permutation_indices, iter_mode)
    {
@@ -883,8 +895,18 @@ public:
 
         using l_solver_type = gko::preconditioner::LowerIsai<>;
         using u_solver_type = gko::preconditioner::UpperIsai<>;
+
+        std::shared_ptr<l_solver_type::Factory> l_solver_factory = std::move(l_solver_type::build()
+                                 .with_sparsity_power(sparsity_power)
+                                 .on(exec));
+        std::shared_ptr<u_solver_type::Factory> u_solver_factory = std::move(u_solver_type::build()
+                                .with_sparsity_power(sparsity_power)
+                                .on(exec));
+
         gko_precond_factory_ = gko::preconditioner::Ilu<l_solver_type, 
                                                         u_solver_type>::build()
+                                .with_l_solver_factory(l_solver_factory)
+                                .with_u_solver_factory(u_solver_factory)
                                 .on(exec);
       }
       else {

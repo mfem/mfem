@@ -113,7 +113,9 @@ int main(int argc, char *argv[])
    const char *pc_storage_opt = "auto";
    double pc_acc = 1.e-1;
    int pc_max_bs = 32;
+   bool permute = false;
    bool output_mesh = false;
+   int isai_sparsity_power = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -138,6 +140,10 @@ int main(int argc, char *argv[])
                   "Accuracy parameter for Ginkgo BlockJacobi.");
    args.AddOption(&pc_max_bs, "-pc-mbs", "--preconditioner-max-block-size",
                   "Maximum block size for Ginkgo BlockJacobi.");
+   args.AddOption(&permute, "-per", "--permutation", "-no-per",
+                  "--no-permutation", "Enable preconditioner permutation.");
+   args.AddOption(&isai_sparsity_power, "-isai-sp", "--isai-sparsity-power",
+                  "Power to use for sparsity pattern of ISAI in Ginkgo ILU-ISAI.");
    args.Parse();
    if (!args.Good())
    {
@@ -146,11 +152,17 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, MFEM_GS };
+   enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, GKO_ILU_ISAI, MFEM_GS };
    PCType pc_choice;
    bool pc = true;
+   const char *trisolve_type = "exact"; //only used for ILU
    if (!strcmp(pc_type, "gko:bj")) { pc_choice = GKO_BLOCK_JACOBI; }
    else if (!strcmp(pc_type, "gko:ilu")) { pc_choice = GKO_ILU; }
+   else if (!strcmp(pc_type, "gko:ilu-isai"))
+   { 
+     pc_choice = GKO_ILU_ISAI;
+     trisolve_type = "isai";  
+   }
    else if (!strcmp(pc_type, "mfem:gs")) { pc_choice = MFEM_GS; }
    else if (!strcmp(pc_type, "none"))
    {
@@ -245,6 +257,10 @@ int main(int argc, char *argv[])
    Mesh *mesh_lor = NULL;
    FiniteElementCollection *fec_lor = NULL;
    FiniteElementSpace *fespace_lor = NULL;
+//   Array<int> *reordering = NULL;
+   //*** 
+   Array<int> *inv_reordering = NULL;
+   //***
    if (pc)
    {
       int basis_lor = basis;
@@ -252,6 +268,35 @@ int main(int argc, char *argv[])
       mesh_lor = new Mesh(mesh, order, basis_lor);
       fec_lor = new H1_FECollection(1, dim);
       fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
+
+      if (permute) {
+
+           const Table &pre_reorder_dofs = fespace_lor->GetElementToDofTable();
+           const Table pre_reorder_dofs_copy(pre_reorder_dofs);
+           fespace_lor->ReorderElementToDofTable();
+           const Table &post_reorder_dofs = fespace_lor->GetElementToDofTable();
+
+  //         reordering = new Array<int>(fespace_lor->GetTrueVSize());
+           //***
+           inv_reordering = new Array<int>(fespace_lor->GetTrueVSize());
+           //***
+           for (int i = 0; i < pre_reorder_dofs.Size(); i++) {
+
+               Array<int> old_row;
+               Array<int> new_row;
+               pre_reorder_dofs_copy.GetRow(i, old_row);
+               post_reorder_dofs.GetRow(i, new_row);
+//               old_row.Print();
+//               new_row.Print();
+               for (int j = 0; j < pre_reorder_dofs_copy.RowSize(i); j++) {
+                 int new_dof = new_row.operator[](j);
+                 int old_dof = old_row.operator[](j);
+    //             reordering->operator[](new_dof) = old_dof;
+                 inv_reordering->operator[](old_dof) = new_dof;
+              }
+           }
+      }
+
    }
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -264,6 +309,21 @@ int main(int argc, char *argv[])
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
+
+   Array<int> ess_pc_tdof_list(ess_tdof_list.Size());
+   if (permute) {
+     for (int i = 0; i < ess_tdof_list.Size(); i++) 
+      {
+         ess_pc_tdof_list.operator[](i) = inv_reordering->operator[](
+                ess_tdof_list.operator[](i));
+      }
+   }
+   else {
+
+      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_pc_tdof_list);
    }
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side
@@ -323,7 +383,9 @@ int main(int argc, char *argv[])
       a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
       a_pc->UsePrecomputedSparsity();
       a_pc->Assemble();
-      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+//      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+//***
+      a_pc->FormSystemMatrix(ess_pc_tdof_list, A_pc);
 
       tic_toc.Stop();
       std::cout << "Real time creating A_pc SparseMatrix: " <<
@@ -334,39 +396,119 @@ int main(int argc, char *argv[])
 
          // Create Ginkgo Jacobi preconditioner
 
-         tic_toc.Clear();
-         tic_toc.Start();
 
-         GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, A_pc, pc_storage_opt,
+         if (permute) {
+            tic_toc.Clear();
+            tic_toc.Start();
+            GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, A_pc, *inv_reordering, pc_storage_opt,
                                                       pc_acc, pc_max_bs);
-
-         tic_toc.Stop();
-         std::cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
+            tic_toc.Stop();
+            std::cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
                    tic_toc.RealTime() << std::endl;
 
-         // Use preconditioned CG
-         total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+            // Use preconditioned CG
+             total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
 
-         std::cout << "Real time in PCG: " << it_time << std::endl;
+            std::cout << "Real time in PCG: " << it_time << std::endl;
+         } else {
+            tic_toc.Clear();
+            tic_toc.Start();
+            GinkgoWrappers::GinkgoJacobiPreconditioner M(executor, A_pc, pc_storage_opt,
+                                                      pc_acc, pc_max_bs);
+            tic_toc.Stop();
+            std::cout << "Real time creating Ginkgo BlockJacobi preconditioner: " <<
+                   tic_toc.RealTime() << std::endl;
+
+            // Use preconditioned CG
+             total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+
+            std::cout << "Real time in PCG: " << it_time << std::endl;
+         }
+       
       }
-      else if (pc_choice == GKO_ILU)
+      else if (pc_choice == GKO_ILU || pc_choice == GKO_ILU_ISAI)
       {
+       
+           // Create Ginkgo ILU preconditioner
+  
+         if (permute) {
+           tic_toc.Clear();
+           tic_toc.Start();
 
-         // Create Ginkgo ILU preconditioner
-         tic_toc.Clear();
-         tic_toc.Start();
+           GinkgoWrappers::GinkgoIluPreconditioner M(executor, A_pc, *inv_reordering,
+                                                     trisolve_type, isai_sparsity_power);
 
-         GinkgoWrappers::GinkgoIluPreconditioner M(executor, A_pc);
+           tic_toc.Stop();
+           std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
+                     tic_toc.RealTime() << std::endl;
 
-         tic_toc.Stop();
-         std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
-                   tic_toc.RealTime() << std::endl;
+            
+           //TMP: output ISAI matrices to compare:
+           if (trisolve_type == "isai") {
+             std::cout << "Writing ISAI matrices..." << std::endl;
 
-         // Use preconditioned CG
-         total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+             ofstream l_ofs("isai-l-mat.dat");
+             ofstream u_ofs("isai-u-mat.dat");
+             
+             using l_solver_type = gko::preconditioner::LowerIsai<>;
+             using u_solver_type = gko::preconditioner::UpperIsai<>;
+             auto ilu_precond = gko::as<gko::preconditioner::Ilu<l_solver_type,
+                                                                 u_solver_type>>(
+                                                                M.get_gko_precond()); 
+             const gko::matrix::Csr<> *isai_l_mat = ilu_precond->get_l_solver().get()->
+                                                         get_approximate_inverse().get();
+             const gko::matrix::Csr<> *isai_u_mat = ilu_precond->get_u_solver().get()->
+                                                         get_approximate_inverse().get();
+             gko::write(l_ofs, isai_l_mat, gko::layout_type::coordinate);
+             gko::write(u_ofs, isai_u_mat, gko::layout_type::coordinate);
 
-         std::cout << "Real time in PCG: " << it_time << std::endl;
+           }
+           // END TMP
 
+           // Use preconditioned CG
+           total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+
+           std::cout << "Real time in PCG: " << it_time << std::endl;
+         } else {
+
+           tic_toc.Clear();
+           tic_toc.Start();
+
+           GinkgoWrappers::GinkgoIluPreconditioner M(executor, A_pc, trisolve_type,
+                                                      isai_sparsity_power);
+
+           tic_toc.Stop();
+           std::cout << "Real time creating Ginkgo Ilu preconditioner: " <<
+                     tic_toc.RealTime() << std::endl;
+
+           //TMP: output ISAI matrices to compare:
+           if (trisolve_type == "isai") {
+             std::cout << "Writing ISAI matrices..." << std::endl;
+
+             ofstream l_ofs("isai-l-mat.dat");
+             ofstream u_ofs("isai-u-mat.dat");
+             
+             using l_solver_type = gko::preconditioner::LowerIsai<>;
+             using u_solver_type = gko::preconditioner::UpperIsai<>;
+             auto ilu_precond = gko::as<gko::preconditioner::Ilu<l_solver_type,
+                                                                 u_solver_type>>(
+                                                                M.get_gko_precond()); 
+             const gko::matrix::Csr<> *isai_l_mat = ilu_precond->get_l_solver().get()->
+                                                         get_approximate_inverse().get();
+             const gko::matrix::Csr<> *isai_u_mat = ilu_precond->get_u_solver().get()->
+                                                         get_approximate_inverse().get();
+             gko::write(l_ofs, isai_l_mat, gko::layout_type::coordinate);
+             gko::write(u_ofs, isai_u_mat, gko::layout_type::coordinate);
+
+           }
+           // END TMP
+
+           // Use preconditioned CG
+           total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+
+           std::cout << "Real time in PCG: " << it_time << std::endl;
+
+        }
       }
       else if (pc_choice == MFEM_GS)
       {
