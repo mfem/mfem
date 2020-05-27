@@ -18,8 +18,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=7;
-   int ny=7; 
+   int nx=3;
+   int ny=3; 
    int nz=1;
    ovlpnrlayers = nrlayers+2;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
@@ -225,8 +225,8 @@ void DST::Mult(const Vector &r, Vector &z) const
       }
       // socketstream z1sock(vishost, visport);
       // PlotSolution(z1,z1sock,0,false); cin.get();
-      socketstream zsock(vishost, visport);
-      PlotSolution(z,zsock,0,false); cin.get();
+      // socketstream zsock(vishost, visport);
+      // PlotSolution(z,zsock,0,false); cin.get();
    }
 }
 
@@ -261,19 +261,19 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
    
    if (directions[0]==1)
    {
-      pmlh[0][1] = h*(nlayers-nrlayers);
+      pmlh[0][1] = h*(nlayers-nrlayers-1);
    }
    if (directions[0]==-1)
    {
-      pmlh[0][0] = h*(nlayers-nrlayers);
+      pmlh[0][0] = h*(nlayers-nrlayers-1);
    }
    if (directions[1]==1)
    {
-      pmlh[1][1] = h*(nlayers-nrlayers);
+      pmlh[1][1] = h*(nlayers-nrlayers-1);
    }
    if (directions[1]==-1)
    {
-      pmlh[1][0] = h*(nlayers-nrlayers);
+      pmlh[1][0] = h*(nlayers-nrlayers-1);
    }
 
    // cout << "pmin = " ; pmin.Print(); 
@@ -364,10 +364,10 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
          // Unless it has an original source
          // if (f_orig[ip0]->Norml2() < 1e-8)
          // {
-         if (i==-1 && xdirections[ip0][0] == 1) continue;
-         if (i==1 && xdirections[ip0][1] == 1) continue;
-         if (j==-1 && ydirections[ip0][0] == 1) continue;
-         if (j==1 && ydirections[ip0][1] == 1) continue;
+         // if (i==-1 && xdirections[ip0][0] == 1) continue;
+         // if (i==1 && xdirections[ip0][1] == 1) continue;
+         // if (j==-1 && ydirections[ip0][0] == 1) continue;
+         // if (j==1 && ydirections[ip0][1] == 1) continue;
          // }
          
 
@@ -425,14 +425,16 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
             Vector cfsol0;
             GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
 
-            // cout << "Solution to be transfered" << endl;
-
+            // cout << "ip0 = " << ip0 << endl;
             // char vishost[] = "localhost";
             // int  visport   = 19916;
-            // socketstream mesh1sock(vishost, visport);
-            // PlotMesh(mesh1sock,ip0); 
+            // cout << " Solution to be transfered" << endl;
+            // socketstream sol0sock(vishost, visport);
+            // PlotSolution(sol0,sol0sock,ip0,true); cin.get();
+
+            // cout << "Cut off Solution to be transfered" << endl;
             // socketstream sol1sock(vishost, visport);
-            // PlotSolution(cfsol0,sol1sock,ip0,true); 
+            // PlotSolution(cfsol0,sol1sock,ip0,true); cin.get();
 
             // double norm = GetSolOvlpNorm(cfsol0, directions,ip0); 
             // if (norm < 2e-3) continue;
@@ -533,8 +535,8 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
    string keys;
    // if (ip == 0) 
    keys = "keys mrRljc\n";
-   sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
-   // sol_sock << "solution\n" << *mesh << gf << keys << flush;
+   // sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
+   sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
 
 void DST::PlotMesh(socketstream & mesh_sock, int ip) const
@@ -567,7 +569,7 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    r.SetSubVector(*Dof2GlobalDof0,Psi0);
    Vector zloc(Psi1.Size()); zloc = 0.0;
    r.GetSubVector(*Dof2GlobalDof1,zloc);
-
+   // cout << "ip1 = " << ip1 << endl;
    // cout << "Transfered solution " << endl;
    // char vishost[] = "localhost";
    // int  visport   = 19916;
@@ -600,6 +602,8 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    PmlMat[ip1]->Mult(zloc,Psi);
    Psi *=-1.0;
 
+   
+   // cout << "Residual " << endl;
    // socketstream ressock(vishost, visport);
    // PlotSolution(Psi,ressock,ip1,true); cin.get();
 
@@ -608,6 +612,10 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    // direct[1] = -direction[1];
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
    // Psi1 = Psi;
+
+   // cout << "Cut off Residual " << endl;
+   // socketstream res1sock(vishost, visport);
+   // PlotSolution(Psi1,res1sock,ip1,true); cin.get();
 
    // char vishost[] = "localhost";
    // int  visport   = 19916;
