@@ -160,21 +160,21 @@ static void SetupGradPA_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double xu[2] = {0};
-            double xv[2] = {0};
+            double u[2] = {0};
+            double v[2] = {0};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double xx = Xx[dy][dx];
                const double xy = Xy[dy][dx];
-               xu[0] += B1d[qx][dx] * xx;
-               xv[0] += G1d[qx][dx] * xx;
-               xu[1] += B1d[qx][dx] * xy;
-               xv[1] += G1d[qx][dx] * xy;
+               u[0] += B1d[qx][dx] * xx;
+               v[0] += G1d[qx][dx] * xx;
+               u[1] += B1d[qx][dx] * xy;
+               v[1] += G1d[qx][dx] * xy;
             }
-            XxB[dy][qx] = xu[0];
-            XxG[dy][qx] = xv[0];
-            XyB[dy][qx] = xu[1];
-            XyG[dy][qx] = xv[1];
+            XxB[dy][qx] = u[0];
+            XxG[dy][qx] = v[0];
+            XyB[dy][qx] = u[1];
+            XyG[dy][qx] = v[1];
          }
       }
       MFEM_SYNC_THREAD;
@@ -183,19 +183,19 @@ static void SetupGradPA_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double xu[2] = {0};
-            double xv[2] = {0};
+            double u[2] = {0};
+            double v[2] = {0};
             for (int dy = 0; dy < D1D; ++dy)
             {
-               xu[0] += XxG[dy][qx] * B1d[qy][dy];
-               xv[0] += XxB[dy][qx] * G1d[qy][dy];
-               xu[1] += XyG[dy][qx] * B1d[qy][dy];
-               xv[1] += XyB[dy][qx] * G1d[qy][dy];
+               u[0] += XxG[dy][qx] * B1d[qy][dy];
+               v[0] += XxB[dy][qx] * G1d[qy][dy];
+               u[1] += XyG[dy][qx] * B1d[qy][dy];
+               v[1] += XyB[dy][qx] * G1d[qy][dy];
             }
-            Xx0[qy][qx] = xu[0];
-            Xx1[qy][qx] = xv[0];
-            Xy0[qy][qx] = xu[1];
-            Xy1[qy][qx] = xv[1];
+            Xx0[qy][qx] = u[0];
+            Xx1[qy][qx] = v[0];
+            Xy0[qy][qx] = u[1];
+            Xy1[qy][qx] = v[1];
          }
       }
       MFEM_SYNC_THREAD;
@@ -284,14 +284,11 @@ static void SetupGradPA_2D(const Vector &xe_,
 
 // *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void AddMultGradPA_Kernel_2D(const Vector &xe_,
-                                    const int NE,
-                                    const Array<double> &w_,
+static void AddMultGradPA_Kernel_2D(const int NE,
                                     const Array<double> &b1d_,
                                     const Array<double> &g1d_,
                                     const DenseMatrix &Jtr,
                                     const Vector &p_,
-                                    const Vector &g_,
                                     const Vector &re_,
                                     Vector &ce_,
                                     const int d1d = 0,
@@ -305,16 +302,12 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b1d_.Read(), Q1D, D1D);
    const auto g = Reshape(g1d_.Read(), Q1D, D1D);
    const auto J = Reshape(Jtr.Read(), VDIM, VDIM);
-   const auto X = Reshape(xe_.Read(), D1D, D1D, VDIM, NE);
    const auto R = Reshape(re_.Read(), D1D, D1D, VDIM, NE);
-   const auto paP = Reshape(p_.Read(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
-   const auto G = Reshape(g_.Read(), Q1D, Q1D, dof*VDIM, dof*VDIM, NE);
+   const auto DP = Reshape(p_.Read(), VDIM, VDIM, VDIM, VDIM, Q1D, Q1D, NE);
    auto C = Reshape(ce_.ReadWrite(), D1D, D1D, VDIM, NE);
-   //dbg("D1D:%d, Q1D:%d, nq:%d", D1D, Q1D, Q1D*Q1D);
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -332,43 +325,30 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
       double (*G1dt)[MQ1] = (double (*)[MQ1])(s_BG[1]);
 
       MFEM_SHARED double s_R[2][NBZ][MD1*MD1];
-      MFEM_SHARED double s_X[2][NBZ][MD1*MD1];
       double (*Rx)[MD1]  = (double (*)[MD1])(s_R[0] + tidz);
       double (*Ry)[MD1]  = (double (*)[MD1])(s_R[1] + tidz);
-      double (*Xx)[MD1]  = (double (*)[MD1])(s_X[0] + tidz);
-      double (*Xy)[MD1]  = (double (*)[MD1])(s_X[1] + tidz);
 
-      MFEM_SHARED double s_DQ[3][4][NBZ][MD1*MQ1];
+      MFEM_SHARED double s_DQ[2][4][NBZ][MD1*MQ1];
       double (*RxB)[MQ1] = (double (*)[MQ1])(s_DQ[0][0] + tidz);
       double (*RxG)[MQ1] = (double (*)[MQ1])(s_DQ[0][1] + tidz);
       double (*RyB)[MQ1] = (double (*)[MQ1])(s_DQ[0][2] + tidz);
       double (*RyG)[MQ1] = (double (*)[MQ1])(s_DQ[0][3] + tidz);
 
-      double (*XxB)[MQ1] = (double (*)[MQ1])(s_DQ[1][0] + tidz);
-      double (*XxG)[MQ1] = (double (*)[MQ1])(s_DQ[1][1] + tidz);
-      double (*XyB)[MQ1] = (double (*)[MQ1])(s_DQ[1][2] + tidz);
-      double (*XyG)[MQ1] = (double (*)[MQ1])(s_DQ[1][3] + tidz);
+      double (*CxB)[MQ1] = (double (*)[MQ1])(s_DQ[1][0] + tidz);
+      double (*CxG)[MQ1] = (double (*)[MQ1])(s_DQ[1][1] + tidz);
+      double (*CyB)[MQ1] = (double (*)[MQ1])(s_DQ[1][2] + tidz);
+      double (*CyG)[MQ1] = (double (*)[MQ1])(s_DQ[1][3] + tidz);
 
-      double (*CxB)[MQ1] = (double (*)[MQ1])(s_DQ[2][0] + tidz);
-      double (*CxG)[MQ1] = (double (*)[MQ1])(s_DQ[2][1] + tidz);
-      double (*CyB)[MQ1] = (double (*)[MQ1])(s_DQ[2][2] + tidz);
-      double (*CyG)[MQ1] = (double (*)[MQ1])(s_DQ[2][3] + tidz);
-
-      MFEM_SHARED double s_QQ[3][4][NBZ][MQ1*MQ1];
+      MFEM_SHARED double s_QQ[2][4][NBZ][MQ1*MQ1];
       double (*Rx0)[MQ1] = (double (*)[MQ1])(s_QQ[0][0] + tidz);
       double (*Rx1)[MQ1] = (double (*)[MQ1])(s_QQ[0][1] + tidz);
       double (*Ry0)[MQ1] = (double (*)[MQ1])(s_QQ[0][2] + tidz);
       double (*Ry1)[MQ1] = (double (*)[MQ1])(s_QQ[0][3] + tidz);
 
-      double (*Xx0)[MQ1] = (double (*)[MQ1])(s_QQ[1][0] + tidz);
-      double (*Xx1)[MQ1] = (double (*)[MQ1])(s_QQ[1][1] + tidz);
-      double (*Xy0)[MQ1] = (double (*)[MQ1])(s_QQ[1][2] + tidz);
-      double (*Xy1)[MQ1] = (double (*)[MQ1])(s_QQ[1][3] + tidz);
-
-      double (*Cx0)[MQ1] = (double (*)[MQ1])(s_QQ[2][0] + tidz);
-      double (*Cx1)[MQ1] = (double (*)[MQ1])(s_QQ[2][1] + tidz);
-      double (*Cy0)[MQ1] = (double (*)[MQ1])(s_QQ[2][2] + tidz);
-      double (*Cy1)[MQ1] = (double (*)[MQ1])(s_QQ[2][3] + tidz);
+      double (*Cx0)[MQ1] = (double (*)[MQ1])(s_QQ[1][0] + tidz);
+      double (*Cx1)[MQ1] = (double (*)[MQ1])(s_QQ[1][1] + tidz);
+      double (*Cy0)[MQ1] = (double (*)[MQ1])(s_QQ[1][2] + tidz);
+      double (*Cy1)[MQ1] = (double (*)[MQ1])(s_QQ[1][3] + tidz);
 
       // Load R(x,y) and X(x,y)
       MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -377,8 +357,6 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
          {
             Rx[dy][dx] = R(dx,dy,0,e);
             Ry[dy][dx] = R(dx,dy,1,e);
-            Xx[dy][dx] = X(dx,dy,0,e);
-            Xy[dy][dx] = X(dx,dy,1,e);
          }
       }
       // Load B1d and G1d matrices
@@ -398,35 +376,21 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double ru[2] = {0};
-            double rv[2] = {0};
-            double xu[2] = {0};
-            double xv[2] = {0};
+            double u[2] = {0};
+            double v[2] = {0};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double rx = Rx[dy][dx];
                const double ry = Ry[dy][dx];
-               ru[0] += B1d[qx][dx] * rx;
-               rv[0] += G1d[qx][dx] * rx;
-               ru[1] += B1d[qx][dx] * ry;
-               rv[1] += G1d[qx][dx] * ry;
-               const double xx = Xx[dy][dx];
-               const double xy = Xy[dy][dx];
-               xu[0] += B1d[qx][dx] * xx;
-               xv[0] += G1d[qx][dx] * xx;
-               xu[1] += B1d[qx][dx] * xy;
-               xv[1] += G1d[qx][dx] * xy;
+               u[0] += B1d[qx][dx] * rx;
+               v[0] += G1d[qx][dx] * rx;
+               u[1] += B1d[qx][dx] * ry;
+               v[1] += G1d[qx][dx] * ry;
             }
-            RxB[dy][qx] = ru[0];
-            RxG[dy][qx] = rv[0];
-            RyB[dy][qx] = ru[1];
-            RyG[dy][qx] = rv[1];
-
-            XxB[dy][qx] = xu[0];
-            XxG[dy][qx] = xv[0];
-            XyB[dy][qx] = xu[1];
-            XyG[dy][qx] = xv[1];
-
+            RxB[dy][qx] = u[0];
+            RxG[dy][qx] = v[0];
+            RyB[dy][qx] = u[1];
+            RyG[dy][qx] = v[1];
          }
       }
       MFEM_SYNC_THREAD;
@@ -434,31 +398,19 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double ru[2] = {0};
-            double rv[2] = {0};
-            double xu[2] = {0};
-            double xv[2] = {0};
+            double u[2] = {0};
+            double v[2] = {0};
             for (int dy = 0; dy < D1D; ++dy)
             {
-               ru[0] += RxG[dy][qx] * B1d[qy][dy];
-               rv[0] += RxB[dy][qx] * G1d[qy][dy];
-               ru[1] += RyG[dy][qx] * B1d[qy][dy];
-               rv[1] += RyB[dy][qx] * G1d[qy][dy];
-
-               xu[0] += XxG[dy][qx] * B1d[qy][dy];
-               xv[0] += XxB[dy][qx] * G1d[qy][dy];
-               xu[1] += XyG[dy][qx] * B1d[qy][dy];
-               xv[1] += XyB[dy][qx] * G1d[qy][dy];
+               u[0] += RxG[dy][qx] * B1d[qy][dy];
+               v[0] += RxB[dy][qx] * G1d[qy][dy];
+               u[1] += RyG[dy][qx] * B1d[qy][dy];
+               v[1] += RyB[dy][qx] * G1d[qy][dy];
             }
-            Rx0[qy][qx] = ru[0];
-            Rx1[qy][qx] = rv[0];
-            Ry0[qy][qx] = ru[1];
-            Ry1[qy][qx] = rv[1];
-
-            Xx0[qy][qx] = xu[0];
-            Xx1[qy][qx] = xv[0];
-            Xy0[qy][qx] = xu[1];
-            Xy1[qy][qx] = xv[1];
+            Rx0[qy][qx] = u[0];
+            Rx1[qy][qx] = v[0];
+            Ry0[qy][qx] = u[1];
+            Ry1[qy][qx] = v[1];
          }
       }
       MFEM_SYNC_THREAD;
@@ -475,7 +427,13 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
 
             // Jrt = Jtr^{-1}
             DenseMatrix Jrt(dim);
-            kernels::CalcInverse<2>(Jtr_p, Jrt.HostWrite());
+            kernels::CalcInverse<2>(Jtr_p, Jrt.GetData());
+            double Jinv[4];
+            kernels::CalcInverse<2>(Jtr_p, Jinv);
+            MFEM_VERIFY(Jinv[0] == Jrt(0,0),"");
+            MFEM_VERIFY(Jinv[1] == Jrt(0,1),"");
+            MFEM_VERIFY(Jinv[2] == Jrt(1,0),"");
+            MFEM_VERIFY(Jinv[3] == Jrt(1,1),"");
 
             const double GRx0h = Rx0[qy][qx];
             const double GRx1h = Rx1[qy][qx];
@@ -485,8 +443,17 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             DenseMatrix hGR(hGR_p, dim, dim);
 
             // GR = R^T . Jrt
-            DenseMatrix GR(dim);
-            Mult(hGR,Jrt,GR);
+            //DenseMatrix GR(dim);
+            //Mult(hGR,Jrt,GR);
+            // vs
+            //DenseMatrix GRk(dim);
+            double GRk[4];
+            kernels::Mult(2,2,2,hGR_p, Jinv, GRk);
+            //dbg("%f vs  %f", GRk(0,0), GR(0,0));
+            //MFEM_VERIFY(GRk[0+2*0] == GR(0,0),"");
+            //MFEM_VERIFY(GRk[1+2*0] == GR(1,0),"");
+            //MFEM_VERIFY(GRk[0+2*1] == GR(0,1),"");
+            //MFEM_VERIFY(GRk[1+2*1] == GR(1,1),"");
 
             // GZ = GR : dP
             DenseMatrix GZ(dim);
@@ -495,12 +462,11 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
                for (int c = 0; c < dim; c++)
                {
                   GZ(r,c) = 0.0;
-                  DenseMatrix dP((double*)&paP(0,0,r,c,qx,qy,e),dim,dim);
-                  for (int rr = 0; rr < dim; rr++)
+                  for (int i = 0; i < dim; i++)
                   {
-                     for (int cc = 0; cc < dim; cc++)
+                     for (int j = 0; j < dim; j++)
                      {
-                        GZ(r,c) += dP(rr,cc) * GR(rr,cc);
+                        GZ(r,c) += DP(i,j,r,c,qx,qy,e) * GRk[i+2*j];
                      }
                   }
                } // c
@@ -509,7 +475,9 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
             // A = Jrt . GZ
             double A_p[4];
             DenseMatrix A(A_p, dim, dim);
+            // vs
             MultABt(Jrt, GZ, A);
+            //kernels::MultABt(2,2,2,GZ.GetData(),Jinv,A_p);
 
             Cx0[qy][qx] = A(0,0);
             Cy0[qy][qx] = A(0,1);
@@ -535,19 +503,19 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double cu[2] = {0};
-            double cv[2] = {0};
+            double u[2] = {0};
+            double v[2] = {0};
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               cu[0] += G1dt[dx][qx] * Cx0[qy][qx];
-               cv[0] += B1dt[dx][qx] * Cx1[qy][qx];
-               cu[1] += G1dt[dx][qx] * Cy0[qy][qx];
-               cv[1] += B1dt[dx][qx] * Cy1[qy][qx];
+               u[0] += G1dt[dx][qx] * Cx0[qy][qx];
+               v[0] += B1dt[dx][qx] * Cx1[qy][qx];
+               u[1] += G1dt[dx][qx] * Cy0[qy][qx];
+               v[1] += B1dt[dx][qx] * Cy1[qy][qx];
             }
-            CxB[dx][qy] = cu[0];
-            CxG[dx][qy] = cv[0];
-            CyB[dx][qy] = cu[1];
-            CyG[dx][qy] = cv[1];
+            CxB[dx][qy] = u[0];
+            CxG[dx][qy] = v[0];
+            CyB[dx][qy] = u[1];
+            CyG[dx][qy] = v[1];
          }
       }
       MFEM_SYNC_THREAD;
@@ -555,17 +523,17 @@ static void AddMultGradPA_Kernel_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double cu[2] = {0};
-            double cv[2] = {0};
+            double u[2] = {0};
+            double v[2] = {0};
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               cu[0] += CxB[dx][qy] * B1dt[dy][qy];
-               cv[0] += CxG[dx][qy] * G1dt[dy][qy];
-               cu[1] += CyB[dx][qy] * B1dt[dy][qy];
-               cv[1] += CyG[dx][qy] * G1dt[dy][qy];
+               u[0] += CxB[dx][qy] * B1dt[dy][qy];
+               v[0] += CxG[dx][qy] * G1dt[dy][qy];
+               u[1] += CyB[dx][qy] * B1dt[dy][qy];
+               v[1] += CyG[dx][qy] * G1dt[dy][qy];
             }
-            C(dx,dy,0,e) += cu[0] + cv[0];
-            C(dx,dy,1,e) += cu[1] + cv[1];
+            C(dx,dy,0,e) += u[0] + v[0];
+            C(dx,dy,1,e) += u[1] + v[1];
          }
       }
    });
@@ -649,30 +617,30 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
 
    switch (id)
    {
-      /*case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);*/
+      /*case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);*/
 
-      //case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      //case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
       case 0x32:
-         return AddMultGradPA_Kernel_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa,Re,Ce);/*
-      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
+         return AddMultGradPA_Kernel_2D<3,2,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);/*
+      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
 
-      case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x45: return AddMultGradPA_Kernel_2D<4,5,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x45: return AddMultGradPA_Kernel_2D<4,5,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
 
-      case 0x51: return AddMultGradPA_Kernel_2D<5,1,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);
-      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,G,Re,Ce);*/
+      case 0x51: return AddMultGradPA_Kernel_2D<5,1,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);
+      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(ne,W,B1d,G1d,Jtr,G,Re,Ce);*/
       default:  break;
    }
    dbg("kernel id: %x", id);
