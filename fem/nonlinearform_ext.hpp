@@ -25,9 +25,9 @@ protected:
    const NonlinearForm *nlf;
 
 public:
-   NonlinearFormExtension(const NonlinearForm *nlf);
+   NonlinearFormExtension(const NonlinearForm*);
    virtual void Assemble() = 0;
-   virtual Operator &GetGradient(const Array<int>&, const Vector&) =0;
+   virtual Operator &GetGradient(const Vector&) const = 0;
 };
 
 
@@ -35,18 +35,16 @@ public:
 class PANonlinearFormExtension : public NonlinearFormExtension
 {
 protected:
+   mutable OperatorPtr GradOp;
    const FiniteElementSpace &fes;
    mutable Vector localX, localY;
    const Operator *elem_restrict_lex;
-
-   OperatorPtr GradOp;
-   Array<int> ess_tdof_list;
 
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
    void Assemble();
    void Mult(const Vector &, Vector &) const;
-   Operator &GetGradient(const Array<int>&, const Vector&);
+   Operator &GetGradient(const Vector&) const;
 };
 
 

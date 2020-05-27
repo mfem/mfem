@@ -1683,22 +1683,27 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    elvect = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
-#if 1
-   targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-   for (int q = 0; q< ir->GetNPoints(); q++)
+
+   static bool RAND = getenv("RAND");
+   if (!RAND)
    {
-      MFEM_VERIFY(Jtr(q)(0,0)==1.0 && Jtr(q)(1,1)==1.0 &&
-                  Jtr(q)(1,0)==0.0 && Jtr(q)(0,1)==0.0,"");
+      targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+      for (int q = 0; q< ir->GetNPoints(); q++)
+      {
+         MFEM_VERIFY(Jtr(q)(0,0)==1.0 && Jtr(q)(1,1)==1.0 &&
+                     Jtr(q)(1,0)==0.0 && Jtr(q)(0,1)==0.0,"");
+      }
    }
-#else
-   for (int q = 0; q < ir->GetNPoints(); q++)
+   else
    {
-      Jtr(q)(0,0) = 2.0;
-      Jtr(q)(0,1) = 0.1;
-      Jtr(q)(1,0) = 0.2;
-      Jtr(q)(1,1) = -3.0;
+      for (int q = 0; q < ir->GetNPoints(); q++)
+      {
+         Jtr(q)(0,0) = 1.0;
+         Jtr(q)(0,1) = 0.123;
+         Jtr(q)(1,0) = 0.456;
+         Jtr(q)(1,1) = 1.0;
+      }
    }
-#endif
 
    // Limited case.
    DenseMatrix pos0;
@@ -1898,41 +1903,27 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    elmat = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
-#if 1
-   targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-   for (int q = 0; q< ir->GetNPoints(); q++)
+
+   static bool RAND = getenv("RAND");
+   if (!RAND)
    {
-      MFEM_VERIFY(Jtr(q)(0,0)==1.0 && Jtr(q)(1,1)==1.0 &&
-                  Jtr(q)(1,0)==0.0 && Jtr(q)(0,1)==0.0,"");
+      targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+      for (int q = 0; q< ir->GetNPoints(); q++)
+      {
+         MFEM_VERIFY(Jtr(q)(0,0)==1.0 && Jtr(q)(1,1)==1.0 &&
+                     Jtr(q)(1,0)==0.0 && Jtr(q)(0,1)==0.0,"");
+      }
    }
-#elif 0
-   //const FiniteElement *fe = fes->GetFE(0);
-   //const Geometry::Type geom_type = fe->GetGeomType();
-   //const DenseMatrix Jtr = Geometries.GetGeomToPerfGeomJac(geom_type);
-   for (int q=0; q<ir->GetNPoints(); q++)
+   else
    {
-      Jtr(q)(0,0) = 1.0;
-      Jtr(q)(0,1) = 0.0;
-      Jtr(q)(1,0) = 0.0;
-      Jtr(q)(1,1) = 1.0;
+      for (int q=0; q<ir->GetNPoints(); q++)
+      {
+         Jtr(q)(0,0) = 1.0;
+         Jtr(q)(0,1) = 0.123;
+         Jtr(q)(1,0) = 0.456;
+         Jtr(q)(1,1) = 1.0;
+      }
    }
-#elif 0
-   for (int q=0; q<ir->GetNPoints(); q++)
-   {
-      Jtr(q)(0,0) = 2.0;
-      Jtr(q)(0,1) = 0.0;
-      Jtr(q)(1,0) = 0.0;
-      Jtr(q)(1,1) = -1.0;
-   }
-#else
-   for (int q=0; q<ir->GetNPoints(); q++)
-   {
-      Jtr(q)(0,0) = 2.0;
-      Jtr(q)(0,1) = +1.123;
-      Jtr(q)(1,0) = -1.456;
-      Jtr(q)(1,1) = 1.0;
-   }
-#endif
    //dbg("Jtr:"); Jtr(0).Print();
 
    // Limited case.

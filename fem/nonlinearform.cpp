@@ -161,7 +161,7 @@ void NonlinearForm::Mult(const Vector &X, Vector &y) const
    if (getenv("RAND"))
    {
       x.HostWrite();
-      dbg("\033[7mStuffing x with RANDs!");
+      dbg("\033[7mStuffing x with drand48 for Mult!");
       for (int k=0; k<X.Size(); k++) { x[k] = drand48(); }
    }
 #endif
@@ -305,11 +305,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
    dbg("x.Size: %d %.15e", x.Size(), x*x);
 
-   if (ext)
-   {
-      const Vector &px = Prolongate(x);
-      return ext->GetGradient(ess_tdof_list, px);
-   }
+   if (ext) { return ext->GetGradient(Prolongate(x)); }
 
    const int skip_zeros = 0;
    Array<int> vdofs;

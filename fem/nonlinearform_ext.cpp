@@ -79,11 +79,11 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 }
 
 Operator&
-PANonlinearFormExtension::GetGradient(const Array<int> &ess_tdof_list,
-                                      const Vector &x)
+PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
    dbg("Returning new Grad(X) Operator of size: %d", x.Size());
    GradOp.SetType(Operator::ANY_TYPE);
+   const Array<int> &ess_tdof_list = nlf->GetEssentialTrueDofs();
    Operator *oper =
       new PAGradOperator(x, nlf, fes, ess_tdof_list, elem_restrict_lex);
    GradOp.Reset(oper);
