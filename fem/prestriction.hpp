@@ -34,9 +34,6 @@ public:
                         L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-
-private:
-   void Build(const ElementDofOrdering, const FaceType);
 };
 
 }
