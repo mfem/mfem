@@ -1110,8 +1110,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      }
                      case 4: // 4-node tetrahedron
                      {
+#ifdef MFEM_USE_MEMALLOC
+                        elements_3D.push_back(TetMemory.Alloc());
+                        elements_3D.back()->SetVertices(&vert_indices[0]);
+                        elements_3D.back()->SetAttribute(phys_domain);
+#else
                         elements_3D.push_back(
                            new Tetrahedron(&vert_indices[0], phys_domain));
+#endif
                         break;
                      }
                      case 5: // 8-node hexahedron
@@ -1195,8 +1201,14 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   }
                   case 4: // 4-node tetrahedron
                   {
+#ifdef MFEM_USE_MEMALLOC
+                     elements_3D.push_back(TetMemory.Alloc());
+                     elements_3D.back()->SetVertices(&vert_indices[0]);
+                     elements_3D.back()->SetAttribute(phys_domain);
+#else
                      elements_3D.push_back(
                         new Tetrahedron(&vert_indices[0], phys_domain));
+#endif
                      break;
                   }
                   case 5: // 8-node hexahedron
