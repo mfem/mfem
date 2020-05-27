@@ -682,12 +682,13 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          add(r, beta, d, d);
       }
       static int loop = 0;
-      //dbg("%d oper->Mult(d, z): d: %.15e", loop, d*d);
+      dbg("%d oper->Mult(d, z): d: %.15e", loop, d*d);
       oper->Mult(d, z);       //  z = A d
-      //dbg("%d oper->Mult(d, z): d: %.15e z: %.15e", loop, d*d, z*z);
+      dbg("%d oper->Mult(d, z): d: %.15e z: %.15e", loop, d*d, z*z);
       loop++;
       /////////////////////////
-      //if (i==14) {dbg("Exiting!"); exit(0);}
+      static bool RAND = getenv("RAND");
+      if (RAND) {dbg("Exiting!"); exit(0);}
       /////////////////////////
 
       den = Dot(d, z);

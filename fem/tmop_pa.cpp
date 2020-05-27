@@ -318,22 +318,26 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
    //  - Jtr(i) == Wideal
-#if 1
-   const FiniteElement *fe = fes->GetFE(0);
-   const Geometry::Type geom_type = fe->GetGeomType();
-   const DenseMatrix Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
-   MFEM_VERIFY(Wideal.Det() == 1.0 ,"");
-   {
-      MFEM_VERIFY(Wideal(0,0)==1.0 && Wideal(1,1)==1.0 &&
-                  Wideal(1,0)==0.0 && Wideal(0,1)==0.0,"");
-   }
-#else
    DenseMatrix Wideal(dim);
-   Wideal(0,0) = 2.0;
-   Wideal(0,1) = 0.1;
-   Wideal(1,0) = 0.2;
-   Wideal(1,1) = -3.0;
-#endif
+   static bool RAND = getenv("RAND");
+   if (!RAND)
+   {
+      const FiniteElement *fe = fes->GetFE(0);
+      const Geometry::Type geom_type = fe->GetGeomType();
+      Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
+      MFEM_VERIFY(Wideal.Det() == 1.0 ,"");
+      {
+         MFEM_VERIFY(Wideal(0,0)==1.0 && Wideal(1,1)==1.0 &&
+                     Wideal(1,0)==0.0 && Wideal(0,1)==0.0,"");
+      }
+   }
+   else
+   {
+      Wideal(0,0) = 1.0;
+      Wideal(0,1) = 0.123;
+      Wideal(1,0) = 0.456;
+      Wideal(1,1) = 1.0;
+   }
    /*
       Array<int> vdofs;
       DenseTensor Jtr(dim, dim, ir->GetNPoints());
@@ -364,15 +368,15 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      /*case 0x21: return AddMultPA_Kernel_2D<2,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x22: return AddMultPA_Kernel_2D<2,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x23: return AddMultPA_Kernel_2D<2,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x24: return AddMultPA_Kernel_2D<2,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x25: return AddMultPA_Kernel_2D<2,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B1d,G1d,Dpa,X,Y);*/
       case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B1d,G1d,Dpa,X,Y);/*
       case 0x34: return AddMultPA_Kernel_2D<3,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x35: return AddMultPA_Kernel_2D<3,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
 
@@ -386,7 +390,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
       case 0x52: return AddMultPA_Kernel_2D<5,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x53: return AddMultPA_Kernel_2D<5,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x54: return AddMultPA_Kernel_2D<5,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B1d,G1d,Dpa,X,Y);*/
       default:  break;
    }
    dbg("kernel id: %x", id);

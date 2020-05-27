@@ -95,8 +95,8 @@ static void SetupGradPA_2D(const Vector &xe_,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int dof = D1D*D1D;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   //constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   //constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b1d = Reshape(b1d_.Read(), Q1D, D1D);
    const auto g1d = Reshape(g1d_.Read(), Q1D, D1D);
@@ -516,7 +516,7 @@ static void AddMultGradPA_Kernel_2D(const int NE,
 void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
                                     Vector &Ce) const
 {
-   //dbg("Xe: %d, Re:%d, Ce:%d", Xe.Size(), Re.Size(), Ce.Size());
+   dbg("Xe: %d, Re:%d, Ce:%d", Xe.Size(), Re.Size(), Ce.Size());
    //dbg("Xe: %.15e, Re: %.15e", Xe*Xe, Re*Re);
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
@@ -532,34 +532,26 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
    //  - Jtr(i) == Wideal
    // Get Wideal into Jtr
-#if 1
-   const FiniteElement *fe = fes->GetFE(0);
-   const Geometry::Type geom_type = fe->GetGeomType();
-   const DenseMatrix Jtr = Geometries.GetGeomToPerfGeomJac(geom_type);
-   MFEM_VERIFY(Jtr.Det() == 1.0 ,"");
+   DenseMatrix Jtr(dim);
+   static bool RAND = getenv("RAND");
+   if (!RAND)
    {
-      MFEM_VERIFY(Jtr(0,0)==1.0 && Jtr(1,1)==1.0 &&
-                  Jtr(1,0)==0.0 && Jtr(0,1)==0.0,"");
+      const FiniteElement *fe = fes->GetFE(0);
+      const Geometry::Type geom_type = fe->GetGeomType();
+      Jtr = Geometries.GetGeomToPerfGeomJac(geom_type);
+      MFEM_VERIFY(Jtr.Det() == 1.0 ,"");
+      {
+         MFEM_VERIFY(Jtr(0,0)==1.0 && Jtr(1,1)==1.0 &&
+                     Jtr(1,0)==0.0 && Jtr(0,1)==0.0,"");
+      }
    }
-#elif 0
-   DenseMatrix Jtr(dim);
-   Jtr(0,0) = 1.0;
-   Jtr(0,1) = 0.0;
-   Jtr(1,0) = 0.0;
-   Jtr(1,1) = 1.0;
-#elif 0
-   DenseMatrix Jtr(dim);
-   Jtr(0,0) = 2.0;
-   Jtr(0,1) = 0.0;
-   Jtr(1,0) = 0.0;
-   Jtr(1,1) = -1.0;
-#else
-   DenseMatrix Jtr(dim);
-   Jtr(0,0) = 2.0;
-   Jtr(0,1) = +1.123;
-   Jtr(1,0) = -1.456;
-   Jtr(1,1) = 1.0;
-#endif
+   else
+   {
+      Jtr(0,0) = 1.0;
+      Jtr(0,1) = 0.123;
+      Jtr(1,0) = 0.456;
+      Jtr(1,1) = 1.0;
+   }
    //dbg("Jtr:"); Jtr.Print();
 
    /*
@@ -579,15 +571,15 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       setup = true;
       switch (id)
       {
-         case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
+         /*case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          case 0x22: { SetupGradPA_2D<2,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          case 0x23: { SetupGradPA_2D<2,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          case 0x24: { SetupGradPA_2D<2,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          case 0x25: { SetupGradPA_2D<2,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
 
-         case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
+         case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }*/
          case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
+         case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }/*
          case 0x34: { SetupGradPA_2D<3,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          case 0x35: { SetupGradPA_2D<3,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
 
@@ -601,7 +593,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
          case 0x52: { SetupGradPA_2D<5,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          case 0x53: { SetupGradPA_2D<5,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
          case 0x54: { SetupGradPA_2D<5,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
-         case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }
+         case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa,Gpa); break; }*/
          default:
          {
             dbg("kernel id: %x", id);
@@ -612,15 +604,15 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
 
    switch (id)
    {
-      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
+      /*case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
 
-      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
+      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);*/
       case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
-      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
+      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);/*
       case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
 
@@ -634,7 +626,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
       case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
-      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);
+      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(ne,B1d,G1d,Jtr,dPpa,Re,Ce);*/
       default:  break;
    }
    dbg("kernel id: %x", id);

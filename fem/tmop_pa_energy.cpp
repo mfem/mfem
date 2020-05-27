@@ -17,6 +17,7 @@
 #include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
+#include "../linalg/invariants.hpp"
 
 namespace mfem
 {
@@ -91,7 +92,6 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
    auto O = Reshape(one.Write(), Q1D, Q1D, NE);
    const double metric_normal_d = metric_normal;
    MFEM_VERIFY(metric_normal == 1.0, "");
-   //InvariantsEvaluator2D<double> ie;
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -106,21 +106,24 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
             const double J22 = Jtr(1,1,e*NQ+i);
             const double Jtr_i_Det = (J11*J22)-(J21*J12);
             const double weight = W[i]* Jtr_i_Det;
-            double JPT[4];
-            DenseMatrix Jpt_a(dim);
+            double J[4] =
             {
-               JPT[0] = Jpt(0,0,e*NQ+i);
-               JPT[1] = Jpt(1,0,e*NQ+i);
-               JPT[2] = Jpt(0,1,e*NQ+i);
-               JPT[3] = Jpt(1,1,e*NQ+i);
-               Jpt_a.UseExternalData(JPT, dim, dim);
-            }
+               Jpt(0,0,e*NQ+i), Jpt(1,0,e*NQ+i),
+               Jpt(0,1,e*NQ+i), Jpt(1,1,e*NQ+i)
+            };
+            DenseMatrix Jpt_a(J,dim,dim);
             const double val = metric_normal_d * metric->EvalW(Jpt_a);
+
             // TMOP_Metric_002::EvalW: 0.5 * ie.Get_I1b() - 1.0;
-            // Eval_I1b() // det(J)^{-2/3}*I_1 = I_1/I_3^{1/3}
-            //ie.SetJacobian(Jpt.GetData());
-            //const double metric_EvalW = 0.5 * ie.Get_I1b() - 1.0;
-            //const double val = metric_normal_d * metric_EvalW;
+            const double I1 = J[0]*J[0] + J[1]*J[1] + J[2]*J[2] + J[3]*J[3];
+            const double det = J[0]*J[3] - J[1]*J[2];
+            const double sign_detJ = ScalarOps<double>::sign(det);
+            const double I2b = sign_detJ*det;
+            const double I1b = I1 / I2b;
+            const double metric_EvalW = 0.5 * I1b - 1.0;
+            const double val2 = metric_normal_d * metric_EvalW;
+            MFEM_VERIFY(val == val2,"");
+            dbg("%f, %f", val,val2);
             E(qx,qy,e) = weight * val;
             O(qx,qy,e) = 1.0;
          }
