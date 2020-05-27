@@ -1616,7 +1616,16 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
 
    hypre_ParCSRMatrix * rap;
+#ifdef HYPRE_USING_CUDA
+   {
+      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
+      const bool keepTranspose = false;
+      rap = hypre_ParCSRTMatMatKT(*P,Q,keepTranspose);
+      delete Q;
+   }
+#else
    hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+#endif
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
 
@@ -1642,7 +1651,15 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
       hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
 
    hypre_ParCSRMatrix * rap;
+#ifdef HYPRE_USING_CUDA
+   {
+      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
+      rap = hypre_ParCSRTMatMat(*Rt,Q);
+      delete Q;
+   }
+#else
    hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
+#endif
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
