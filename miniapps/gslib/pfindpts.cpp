@@ -51,6 +51,12 @@ double field_func(const Vector &x)
    return res;
 }
 
+void F_exact(const Vector &p, Vector &F)
+{
+   F(0) = field_func(p);
+   for (int i = 1; i < F.Size(); i++) { F(i) = (i+1)*F(0); }
+}
+
 int main (int argc, char *argv[])
 {
    // Initialize MPI.
@@ -65,6 +71,8 @@ int main (int argc, char *argv[])
    int rs_levels         = 0;
    int rp_levels         = 0;
    bool visualization    = true;
+   int fieldtype         = 0;
+   int ncomp             = 1;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -76,6 +84,10 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&fieldtype, "-ft", "--field-type",
+                  "Field type: 0 - H1, 1 - L2, 2 - H(div).");
+   args.AddOption(&ncomp, "-nc", "--ncomp",
+                  "VDim for GridFunction");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -128,11 +140,34 @@ int main (int argc, char *argv[])
       cout << "Mesh curvature of the curved mesh: " << fec.Name() << endl;
    }
 
+   MFEM_ASSERT(ncomp > 0, " Invalid input for ncomp.");
+   int ncfinal = ncomp;
+   GridFunction field_vals;
+   H1_FECollection fech(mesh_poly_deg, dim);
+   L2_FECollection fecl(mesh_poly_deg, dim);
+   ND_FECollection fechdiv(mesh_poly_deg, dim);
+   ParFiniteElementSpace *sc_fes = NULL;
+   if (fieldtype == 0)
+   {
+      sc_fes = new ParFiniteElementSpace(&pmesh, &fech, ncomp);
+      if (myid == 0) { std::cout << "H1-GridFunction\n"; }
+   }
+   else if (fieldtype == 1)
+   {
+      sc_fes = new ParFiniteElementSpace(&pmesh, &fecl, ncomp);
+      if (myid == 0) { std::cout << "L2-GridFunction\n"; }
+   }
+   else if (fieldtype == 2)
+   {
+      sc_fes = new ParFiniteElementSpace(&pmesh, &fechdiv);
+      ncfinal = 2;
+      if (myid == 0) { std::cout << "H(div)-GridFunction\n"; }
+   }
+   field_vals.SetSpace(sc_fes);
+
    // Define a scalar function on the mesh.
-   ParFiniteElementSpace sc_fes(&pmesh, &fec, 1);
-   GridFunction field_vals(&sc_fes);
-   FunctionCoefficient fc(field_func);
-   field_vals.ProjectCoefficient(fc);
+   VectorFunctionCoefficient F(ncfinal, F_exact);
+   field_vals.ProjectCoefficient(F);
 
    // Display the mesh and the field through glvis.
    if (visualization)
@@ -191,7 +226,7 @@ int main (int argc, char *argv[])
    }
 
    // Find and Interpolate FE function values on the desired points.
-   Vector interp_vals(pts_cnt);
+   Vector interp_vals(pts_cnt*ncfinal);
    // FindPoints using GSLIB and interpolate
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Interpolate(pmesh, vxyz, field_vals, interp_vals);
@@ -202,21 +237,27 @@ int main (int argc, char *argv[])
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
-   for (int i = 0; i < pts_cnt; i++)
+   int npt = 0;
+   for (int j = 0; j < ncfinal; j++)
    {
-      (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
-
-      if (code_out[i] < 2)
+      for (int i = 0; i < pts_cnt; i++)
       {
-         for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
-         const double exact_val = field_func(pos);
+         (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
 
-         max_err  = std::max(max_err, fabs(exact_val - interp_vals[i]));
-         max_dist = std::max(max_dist, dist_p_out(i));
-         if (code_out[i] == 1) { face_pts++; }
+         if (code_out[i] < 2)
+         {
+            for (int d = 0; d < dim; d++) { pos(d) = vxyz(d * pts_cnt + i); }
+            Vector exact_val(ncfinal);
+            F_exact(pos, exact_val);
+            max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
+            max_dist = std::max(max_dist, dist_p_out(i));
+            if (code_out[i] == 1) { face_pts++; }
+         }
+         else { not_found++; }
+         npt++;
       }
-      else { not_found++; }
    }
+
 
    // We print only the task 0 result (other tasks should be identical except
    // the number of points found locally).

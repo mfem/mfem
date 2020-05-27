@@ -84,10 +84,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
    unsigned dof1D = fe->GetOrder() + 1;
-   int NE      = mesh->GetNE(),
-       dof_cnt = fe->GetDof(),
-       pts_cnt = NE * dof_cnt,
-       gt      = fe->GetGeomType();
+   const int gt   = fe->GetGeomType();
 
    if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
        gt == Geometry::PRISM)
@@ -103,8 +100,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
       MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
    }
 
-   pts_cnt = gsl_mesh.Size()/dim;
-   int NEtot = pts_cnt/(int)pow(dof1D, dim);
+   const int pts_cnt = gsl_mesh.Size()/dim,
+             NEtot = pts_cnt/(int)pow(dof1D, dim);
 
    if (dim == 2)
    {
@@ -424,6 +421,7 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
       }
       meshsplit->FinalizeHexMesh(1, 1, true);
    }
+   else { MFEM_ABORT("Unsupported geometry type."); }
 
    // Curve the reference submesh.
    H1_FECollection fec(fe->GetOrder(), dim);
