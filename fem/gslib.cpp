@@ -588,29 +588,39 @@ void FindPointsGSLIB::InterpolateH1(const Array<unsigned int> &codes,
                                     const Vector &ref_pos, const GridFunction &field_in,
                                     Vector &field_out)
 {
+   FiniteElementSpace ind_fes(mesh, field_in.FESpace()->FEColl());
+   GridFunction field_in_scalar(&ind_fes);
    Vector node_vals;
-   GetNodeValues(field_in, node_vals);
 
-   const int points_cnt = codes.Size();
-   MFEM_VERIFY(field_out.Size() >= points_cnt,
-               " Increase size of field_out in FindPointsGSLIB::Interpolate.");
-   if (dim==2)
+   const int ncomp      = field_in.FESpace()->GetVDim(),
+             points_fld = field_in.Size() / ncomp,
+             points_cnt = codes.Size();
+
+   for (int i = 0; i < ncomp; i++)
    {
-      findpts_eval_2(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata2D);
-   }
-   else
-   {
-      findpts_eval_3(field_out.GetData(), sizeof(double),
-                     codes.GetData(), sizeof(unsigned int),
-                     proc_ids.GetData(), sizeof(unsigned int),
-                     elem_ids.GetData(), sizeof(unsigned int),
-                     ref_pos.GetData(), sizeof(double) * dim,
-                     points_cnt, node_vals.GetData(), fdata3D);
+      const int dataptrin  = i*points_fld,
+                dataptrout = i*points_cnt;
+      field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
+      GetNodeValues(field_in_scalar, node_vals);
+
+      if (dim==2)
+      {
+         findpts_eval_2(field_out.GetData()+dataptrout, sizeof(double),
+                        codes.GetData(),       sizeof(unsigned int),
+                        proc_ids.GetData(),    sizeof(unsigned int),
+                        elem_ids.GetData(),    sizeof(unsigned int),
+                        ref_pos.GetData(),     sizeof(double) * dim,
+                        points_cnt, node_vals.GetData(), fdata2D);
+      }
+      else
+      {
+         findpts_eval_3(field_out.GetData()+dataptrout, sizeof(double),
+                        codes.GetData(),       sizeof(unsigned int),
+                        proc_ids.GetData(),    sizeof(unsigned int),
+                        elem_ids.GetData(),    sizeof(unsigned int),
+                        ref_pos.GetData(),     sizeof(double) * dim,
+                        points_cnt, node_vals.GetData(), fdata3D);
+      }
    }
 }
 
@@ -620,8 +630,8 @@ void FindPointsGSLIB::Interpolate(const Array<unsigned int> &codes,
                                   const Vector &ref_pos, const GridFunction &field_in,
                                   Vector &field_out)
 {
-   const char *gf_name = field_in.FESpace()->FEColl()->Name();
-   const int  gf_order = field_in.FESpace()->GetFE(0)->GetOrder(),
+   const char *gf_name   = field_in.FESpace()->FEColl()->Name();
+   const int  gf_order   = field_in.FESpace()->GetFE(0)->GetOrder(),
               mesh_order = mesh->GetNodalFESpace()->GetFE(0)->GetOrder();
 
 
@@ -648,7 +658,10 @@ void FindPointsGSLIB::Interpolate(const Array<unsigned int> &codes,
 
       GridFunctionCoefficient dg_field_in(const_cast<GridFunction *>(&field_in));
       H1_FECollection fecl2(gf_order, dim);
-      FiniteElementSpace fesl2(mesh, &fecl2);
+      const int ncomp      = field_in.FESpace()->GetVDim(),
+                points_fld = field_in.Size() / ncomp,
+                points_cnt = codes.Size();
+      FiniteElementSpace fesl2(mesh, &fecl2, ncomp);
       GridFunction h1_gf(&fesl2);
 
       if (avgtype == mfem::GridFunction::AvgType::ARITHMETIC)
@@ -673,9 +686,13 @@ void FindPointsGSLIB::Interpolate(const Array<unsigned int> &codes,
          InterpolateGeneral(codes, proc_ids, elem_ids, ref_pos, h1_gf, field_outl2);
       }
 
-      for (int i = 0; i < indl2.Size(); i++)
+      for (int j = 0; j < ncomp; j++)
       {
-         field_out(indl2[i]) = field_outl2(indl2[i]);
+         for (int i = 0; i < indl2.Size(); i++)
+         {
+            field_out(indl2[i] + j*points_fld) =
+               field_outl2(indl2[i] + j*points_cnt);
+         }
       }
    }
 }
@@ -692,9 +709,15 @@ void FindPointsGSLIB::InterpolateGeneral(const Array<unsigned int> &codes,
    MapRefPosAndElemIndices(elem_ids_mfem, ref_pos_mfem); //maps element number
    // for simplices, and ref_pos from [-1,1] to [0,1] for both simplices and quads.
 
-   const int ncomp   = field_in.VectorDim(),
-             nptorig = codes.Size();
-   int npt     = nptorig;
+   int ncomp   = field_in.FESpace()->GetVDim(),
+       nptorig = codes.Size(),
+       npt     = nptorig;
+
+   const char *gf_name   = field_in.FESpace()->FEColl()->Name();
+   if ( strncmp(gf_name, "RT", 2) == 0 || strncmp(gf_name, "ND", 2) == 0 )
+   {
+      ncomp = field_in.VectorDim();
+   }
 
    if (gsl_comm->np == 1) //serial
    {
