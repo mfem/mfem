@@ -23,58 +23,41 @@ namespace mfem
 {
 
 // *****************************************************************************
-double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                                const Vector &x) const
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+static double EnergyPA_2D(const int NE,
+                          const double metric_normal,
+                          const DenseMatrix &j_,
+                          const Array<double> &w_,
+                          const Array<double> &b_,
+                          const Array<double> &g_,
+                          const Vector &x_,
+                          Vector &e_,
+                          Vector &o_,
+                          const int d1d = 0,
+                          const int q1d = 0)
 {
-   Mesh *mesh = fes.GetMesh();
-   const IntegrationRule *ir = IntRule;
-   MFEM_VERIFY(ir,"");
-   /*if (!ir)
+   constexpr int dim = 2;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+
+   const auto Jtr = Reshape(j_.Read(), dim, dim);
+   const auto b1d = Reshape(b_.Read(), Q1D, D1D);
+   const auto g1d = Reshape(g_.Read(), Q1D, D1D);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D);
+   const auto X = Reshape(x_.Read(), D1D, D1D, dim, NE);
+
+   auto E = Reshape(e_.Write(), Q1D, Q1D, NE);
+   auto O = Reshape(o_.Write(), Q1D, Q1D, NE);
+
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      dbg("");
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }*/
-
-   const int dim = mesh->Dimension();
-   MFEM_VERIFY(dim == 2, "");
-   const int NE = fes.GetMesh()->GetNE();
-   const int NQ = ir->GetNPoints();
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
-   MFEM_VERIFY(D1D==3,"");
-   MFEM_VERIFY(Q1D==2,"");
-   MFEM_VERIFY(NQ == Q1D*Q1D, "");
-
-   const auto b1d = Reshape(maps->B.Read(), Q1D, D1D);
-   const auto g1d = Reshape(maps->G.Read(), Q1D, D1D);
-   const auto W = Reshape(ir->GetWeights().Read(), Q1D, Q1D);
-
-   // Jtr setup:
-   //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
-   //  - Jtr(i) == Wideal
-   const FiniteElement *fe = fes.GetFE(0);
-   const Geometry::Type geom_type = fe->GetGeomType();
-   const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
-
-   const auto Jtr = Reshape(Wideal.Read(), dim, dim);
-
-   if (elem_restrict_lex) { elem_restrict_lex->Mult(x, Xpa); }
-   const auto X = Reshape(Xpa.Read(), D1D, D1D, dim, NE);
-
-   auto E = Reshape(Epa.Write(), Q1D, Q1D, NE);
-   auto O = Reshape(Opa.Write(), Q1D, Q1D, NE);
-
-   const double metric_normal_d = metric_normal;
-   MFEM_VERIFY(metric_normal == 1.0, "");
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
-   {
-      constexpr int NBZ = 1;
-      constexpr int D1D = 3;
-      constexpr int Q1D = 2;
-      constexpr int MD1 = D1D;
-      constexpr int MQ1 = Q1D;
-
       const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B1d)[MD1]  = (double (*)[MD1])(s_BG[0]);
@@ -199,13 +182,81 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
             const double I2b = sign_detJpt*detJpt;
             const double I1b = I1 / I2b;
             const double metric_EvalW = 0.5 * I1b - 1.0;
-            const double EvalW = metric_normal_d * metric_EvalW;
+            const double EvalW = metric_normal * metric_EvalW;
             E(qx,qy,e) = weight * EvalW;
             O(qx,qy,e) = 1.0;
          }
       }
    });
-   return Epa * Opa;
+   return e_ * o_; // Energy * One
+}
+
+// *****************************************************************************
+double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
+                                                const Vector &x) const
+{
+   const IntegrationRule *ir = IntRule;
+   MFEM_VERIFY(ir,"");
+   /*if (!ir)
+   {
+      dbg("");
+      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
+   }*/
+
+   const int NE = fes.GetMesh()->GetNE();
+   const int D1D = maps->ndof;
+   const int Q1D = maps->nqpt;
+
+   // Jtr setup:
+   //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
+   //  - Jtr(i) == Wideal
+   const FiniteElement *fe = fes.GetFE(0);
+   const Geometry::Type geom_type = fe->GetGeomType();
+   const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
+   const DenseMatrix J = Wideal;
+
+   const double m_n = metric_normal;
+   MFEM_VERIFY(metric_normal == 1.0, "");
+
+   const Array<double> &W = ir->GetWeights();
+   const Array<double> &B = maps->B;
+   const Array<double> &G = maps->G;
+
+   if (elem_restrict_lex) { elem_restrict_lex->Mult(x, Xpa); }
+   else { MFEM_ABORT("Not yet implemented!"); }
+
+   const int id = (D1D << 4 ) | Q1D;
+   switch (id)
+   {
+      case 0x21: return EnergyPA_2D<2,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x22: return EnergyPA_2D<2,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x23: return EnergyPA_2D<2,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x24: return EnergyPA_2D<2,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x25: return EnergyPA_2D<2,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+
+      case 0x31: return EnergyPA_2D<3,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x32: return EnergyPA_2D<3,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x33: return EnergyPA_2D<3,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x34: return EnergyPA_2D<3,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x35: return EnergyPA_2D<3,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+
+      case 0x41: return EnergyPA_2D<4,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x42: return EnergyPA_2D<4,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x43: return EnergyPA_2D<4,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x44: return EnergyPA_2D<4,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x45: return EnergyPA_2D<4,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+
+      case 0x51: return EnergyPA_2D<5,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x52: return EnergyPA_2D<5,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x53: return EnergyPA_2D<5,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x54: return EnergyPA_2D<5,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x55: return EnergyPA_2D<5,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      default: break;
+         //return EnergyPA_2D(NE, m_n, J, W, B, G, Xpa, Epa, Opa, D1D, Q1D);
+   }
+   dbg("kernel id: %x", id);
+   MFEM_ABORT("Unknown kernel.");
+   return 0.0;
 }
 
 } // namespace mfem

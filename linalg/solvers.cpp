@@ -681,11 +681,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
-      static int loop = 0;
-      dbg("%d oper->Mult(d, z): d: %.15e", loop, d*d);
+      //dbg("oper->Mult(d, z): d: %.15e", d*d);
       oper->Mult(d, z);       //  z = A d
-      dbg("%d oper->Mult(d, z): d: %.15e z: %.15e", loop, d*d, z*z);
-      loop++;
+      //dbg("oper->Mult(d, z): d: %.15e z: %.15e", d*d, z*z);
       /////////////////////////
       static bool RAND = getenv("RAND");
       if (RAND) {dbg("Exiting!"); exit(0);}
