@@ -328,38 +328,6 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void ParL2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
-{
-   // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
-   const int dofs = nfdofs;
-   auto d_offsets = offsets.Read();
-   auto d_indices = gather_indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, 2, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   MFEM_FORALL(i, ndofs,
-   {
-      const int offset = d_offsets[i];
-      const int nextOffset = d_offsets[i + 1];
-      for (int c = 0; c < vd; ++c)
-      {
-         double dofValue = 0;
-         for (int j = offset; j < nextOffset; ++j)
-         {
-            int idx_j = d_indices[j];
-            bool isE1 = idx_j < dofs;
-            idx_j = isE1 ? idx_j : idx_j - dofs;
-            dofValue +=  isE1 ?
-            d_x(idx_j % nd, c, 0, idx_j / nd)
-            :d_x(idx_j % nd, c, 1, idx_j / nd);
-         }
-         d_y(t?c:i,t?i:c) += dofValue;
-      }
-   });
-}
-
 } // namespace mfem
 
 #endif
