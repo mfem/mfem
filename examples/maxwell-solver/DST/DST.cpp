@@ -36,8 +36,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    //
    // ----------------- Step 1a -------------------
    // Save the partition for visualization
-   SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
-   SaveMeshPartition(novlp->patch_mesh, "output/mesh_nvlp.", "output/sol_nvlp.");
+   // SaveMeshPartition(povlp->patch_mesh, "output/mesh_ovlp.", "output/sol_ovlp.");
+   // SaveMeshPartition(novlp->patch_mesh, "output/mesh_nvlp.", "output/sol_nvlp.");
 
    ovlp_prob  = new DofMap(bf,povlp); 
    nvlp_prob  = new DofMap(bf,novlp); 
@@ -73,7 +73,7 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    }
 
 
-   SetSubMeshesAttributes();
+   // SetSubMeshesAttributes();
    // char vishost[] = "localhost";
    // int  visport   = 19916;
    // for (int ip = 0; ip<nrpatch; ip++)
@@ -157,6 +157,7 @@ void DST::Mult(const Vector &r, Vector &z) const
    int nsteps = nx + ny - 1;
 
    for (int l=0; l<nsweeps; l++)
+   // for (int l=0; l<; l++)
    {
       z1 = 0.0;
       for (int s = 0; s<nsteps; s++)
@@ -224,8 +225,8 @@ void DST::Mult(const Vector &r, Vector &z) const
       }
       // socketstream z1sock(vishost, visport);
       // PlotSolution(z1,z1sock,0,false); cin.get();
-      // socketstream zsock(vishost, visport);
-      // PlotSolution(z,zsock,0,false); cin.get();
+      socketstream zsock(vishost, visport);
+      PlotSolution(z,zsock,0,false); cin.get();
    }
 }
 
@@ -350,6 +351,8 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
    int ny = nxyz[1];
    int i0, j0, k0;
    Getijk(ip0, i0,j0,k0);
+   int is = sweeps(sweep,0);
+   int js = sweeps(sweep,1);
    for (int i=-1; i<2; i++)
    {
       int i1 = i0 + i;
@@ -359,13 +362,13 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
          if (i==0 && j==0) continue;
 
          // Unless it has an original source
-         if (f_orig[ip0]->Norml2() < 1e-5)
-         {
-            if (i==-1 && xdirections[ip0][0] == 1) continue;
-            if (i==1 && xdirections[ip0][1] == 1) continue;
-            if (j==-1 && ydirections[ip0][0] == 1) continue;
-            if (j==1 && ydirections[ip0][1] == 1) continue;
-         }
+         // if (f_orig[ip0]->Norml2() < 1e-8)
+         // {
+         if (i==-1 && xdirections[ip0][0] == 1) continue;
+         if (i==1 && xdirections[ip0][1] == 1) continue;
+         if (j==-1 && ydirections[ip0][0] == 1) continue;
+         if (j==1 && ydirections[ip0][1] == 1) continue;
+         // }
          
 
          int j1 = j0 + j;
@@ -391,26 +394,26 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
          // ip1 receiving from top
          if (j==-1) ydirections[ip1][1] = 1;
 
-         // cout << "("<< i0 <<","<<j0<<") transfer to: "; 
-         // cout << "("<< i1 <<","<<j1<<") for sweep number: "; 
+         // cout << "("<< i0+1 <<","<<j0+1<<") transfer to: "; 
+         // cout << "("<< i1+1 <<","<<j1+1<<") for sweep number: "; 
          
          for (int l=sweep; l<nsweeps; l++)
          {
             // Conditions on sweeps
             // Rule 1: the transfer source direction has to be similar with 
             // the sweep direction
-            int is = sweeps(l,0); 
-            int js = sweeps(l,1);
-            int ddot = is*i + js * j;
+            int il = sweeps(l,0); 
+            int jl = sweeps(l,1);
+            int ddot = il*i + jl * j;
             if (ddot <= 0) continue;
 
             // Rule 2: The horizontal or vertical transfer source cannot be used
             // in a later sweep that with opposite directions
 
+            // cout << "Candidate sweep: " << "("<< il <<","<<jl<<")" << endl;
+
             if (i==0 || j == 0) // Case of horizontal or vertical transfer source
             {
-               int il = sweeps(l,0);
-               int jl = sweeps(l,1);
                // skip if the two sweeps have opposite direction
                if (is == -il && js == -jl) continue;
             }
@@ -441,7 +444,7 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
             // MFEM_VERIFY(ip1 == jp1, "Check SourceTransfer patch id");
             // MFEM_VERIFY(f_transf[ip1][l]->Size()==raux.Size(), 
             //             "Transfer Sources: inconsistent size");
-            // cout << l << endl;
+            // cout << l+1 << endl;
 
             // if (i1 == 2 && j1== 2)
             // {  
@@ -656,8 +659,8 @@ void DST::SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Ve
    Array<int> direct(2); direct = 0;
    direct[0] = -direction[0];
    direct[1] = -direction[1];
-   // Psi = Psi1;
-   // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+   Psi = Psi1;
+   GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
 
    // char vishost[] = "localhost";
    // int  visport   = 19916;
