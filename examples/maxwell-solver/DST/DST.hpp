@@ -31,6 +31,8 @@ private:
    Array<int> dirx;
    Array<int> diry;
    Array<int> dirz;
+   mutable Array2D<int> xdirections;
+   mutable Array2D<int> ydirections;
    mutable Array<Array<Vector * >> f_transf;
    Array<Array<Vector * >> usol;
 
@@ -41,6 +43,7 @@ private:
                           int ip, Array<int> directions, int nlayers, bool local=false) const;
    void GetChiRes(const Vector & res, Vector & cfres,
                   int ip, Array<int> directions, int nlayers) const;  
+   void GetChiFncn(int ip, Array<int> directions, int nlayers, Vector & chi) const;                    
    void SetSubMeshesAttributes();
    void GetRestrCoeffAttr(const Array<int> & directions, Array<int> & attr) const;
    double GetSolOvlpNorm(const Vector & sol, const Array<int> & directions, int ip) const;
@@ -48,6 +51,7 @@ private:
    int GetPatchId(const Array<int> & ijk) const;
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
+   void SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const;
 public:
    DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
        double omega_, Coefficient * ws_, int nrlayers_);

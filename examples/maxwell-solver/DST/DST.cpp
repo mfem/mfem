@@ -18,8 +18,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=5;
-   int ny=5; 
+   int nx=7;
+   int ny=7; 
    int nz=1;
    ovlpnrlayers = nrlayers+2;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
@@ -83,7 +83,21 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    // }
 
    // cin.get();
-
+   // Array<int> direct(2);
+   // for (int ip=0; ip<nrpatch; ip++)
+   // {
+   //    for (int i=-1; i<2; i++)
+   //    {
+   //       for (int j=-1; j<2; j++)
+   //       {
+   //          if (i==0 && j==0) continue;
+   //          direct[0] = i;
+   //          direct[1] = j;
+   //          Vector Chi;
+   //          GetChiFncn(ip,direct,ovlpnrlayers,Chi);
+   //       }
+   //    }
+   // }
 }
 
 
@@ -124,6 +138,10 @@ void DST::Mult(const Vector &r, Vector &z) const
       GetChiRes(faux,*f_orig[ip],ip,directions,ovlpnrlayers);
    }
 
+   xdirections.SetSize(nrpatch,2);
+   ydirections.SetSize(nrpatch,2);
+   xdirections = 0;
+   ydirections = 0;
 
    z = 0.0; 
    Vector znew(z);
@@ -145,7 +163,7 @@ void DST::Mult(const Vector &r, Vector &z) const
       {
          // the patches involved are the ones such that
          // i+j = s
-         cout << "Step no: " << s << endl;
+         // cout << "Step no: " << s << endl;
          // for (int i=0;i<nx; i++)
          for (int i=nx-1;i>=0; i--)
          {
@@ -180,13 +198,11 @@ void DST::Mult(const Vector &r, Vector &z) const
             PmlMatInv[ip]->Mult(res_local, sol_local);
 
 
-
-
             TransferSources(l,ip, sol_local);
 
-            cout << "sol_local norm = " << sol_local.Norml2() << endl;
+            // cout << "sol_local norm = " << sol_local.Norml2() << endl;
 
-            // cut off the ip solution to all possible directions
+            // // cut off the ip solution to all possible directions
             Array<int>directions(2); directions = 0; 
             
             if (i+1<nx) directions[0] = 1;
@@ -199,16 +215,17 @@ void DST::Mult(const Vector &r, Vector &z) const
             if (j>0) directions[1] = -1;
             GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
             znew = 0.0;
+            // znew.SetSubVector(*Dof2GlobalDof, sol_local);
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
             z+=znew;
             z1 += znew;
 
          }
       }
-      socketstream z1sock(vishost, visport);
-      PlotSolution(z1,z1sock,0,false); cin.get();
-      socketstream zsock(vishost, visport);
-      PlotSolution(z,zsock,0,false); cin.get();
+      // socketstream z1sock(vishost, visport);
+      // PlotSolution(z1,z1sock,0,false); cin.get();
+      // socketstream zsock(vishost, visport);
+      // PlotSolution(z,zsock,0,false); cin.get();
    }
 }
 
@@ -340,13 +357,42 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
       for (int j=-1; j<2; j++)
       {
          if (i==0 && j==0) continue;
+
+         // Unless it has an original source
+         if (f_orig[ip0]->Norml2() < 1e-5)
+         {
+            if (i==-1 && xdirections[ip0][0] == 1) continue;
+            if (i==1 && xdirections[ip0][1] == 1) continue;
+            if (j==-1 && ydirections[ip0][0] == 1) continue;
+            if (j==1 && ydirections[ip0][1] == 1) continue;
+         }
+         
+
          int j1 = j0 + j;
          if (j1 <0 || j1>=ny) continue;
          Array<int> ij1(2); ij1[0] = i1; ij1[1]=j1;
          int ip1 = GetPatchId(ij1);
 
-         cout << "("<< i0 <<","<<j0<<") transfer to: "; 
-         cout << "("<< i1 <<","<<j1<<") for sweep number: "; 
+         // Rule 0:
+         // Each subdomain cannot transfer in the opposite horizontal or vertical 
+         // direction from the subdomains from which has already
+         // received a source
+         // i.e 
+         // if received from left it can't send to the left
+         // if received from right it can't send to the right
+         // if received from top it can't send to the top
+         // if received from bottom it can't send to the bottom
+         // ip1 receiving from left
+         if (i==1)  xdirections[ip1][0] = 1;
+         // ip1 receiving from right
+         if (i==-1) xdirections[ip1][1] = 1;
+         // ip1 receiving from bottom
+         if (j==1)  ydirections[ip1][0] = 1;
+         // ip1 receiving from top
+         if (j==-1) ydirections[ip1][1] = 1;
+
+         // cout << "("<< i0 <<","<<j0<<") transfer to: "; 
+         // cout << "("<< i1 <<","<<j1<<") for sweep number: "; 
          
          for (int l=sweep; l<nsweeps; l++)
          {
@@ -385,16 +431,17 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
             // socketstream sol1sock(vishost, visport);
             // PlotSolution(cfsol0,sol1sock,ip0,true); 
 
-            double norm = GetSolOvlpNorm(cfsol0, directions,ip0); 
+            // double norm = GetSolOvlpNorm(cfsol0, directions,ip0); 
             // if (norm < 2e-3) continue;
 
             Vector raux;
             int jp1 = SourceTransfer(cfsol0,directions,ip0,raux);
+            // SourceTransfer1(cfsol0,directions,ip0,raux);
 
-            MFEM_VERIFY(ip1 == jp1, "Check SourceTransfer patch id");
-            MFEM_VERIFY(f_transf[ip1][l]->Size()==raux.Size(), 
-                        "Transfer Sources: inconsistent size");
-            cout << l << endl;
+            // MFEM_VERIFY(ip1 == jp1, "Check SourceTransfer patch id");
+            // MFEM_VERIFY(f_transf[ip1][l]->Size()==raux.Size(), 
+            //             "Transfer Sources: inconsistent size");
+            // cout << l << endl;
 
             // if (i1 == 2 && j1== 2)
             // {  
@@ -409,11 +456,12 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
             // }
 
             *f_transf[ip1][l]+=raux;
-
             break;
          }
       }  
    }
+   // cin.get();
+
 }
 
 
@@ -556,13 +604,20 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    // direct[0] = -direction[0];
    // direct[1] = -direction[1];
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+   // Psi1 = Psi;
 
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
    // socketstream res1sock(vishost, visport);
    // PlotSolution(Psi1,res1sock,ip1,true); cin.get();
 
    // PmlMatInv[ip1]->Mult(Psi1,zloc);
    // socketstream sol1sock(vishost, visport);
    // PlotSolution(zloc,sol1sock,ip1,true); cin.get();
+
+
+   // socketstream zsock(vishost, visport);
+   // PlotSolution(Psi1,zsock,ip1,true); cin.get();
 
    // char vishost[] = "localhost";
    // int  visport   = 19916;
@@ -571,6 +626,45 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
 
    return ip1;
 }
+
+
+void DST::SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+{
+   int i0,j0,k0;
+   Getijk(ip0,i0,j0,k0);
+
+   int i1 = i0+direction[0];   
+   int j1 = j0+direction[1];   
+   Array<int> ij(2); ij[0]=i1; ij[1]=j1;
+   int ip1 = GetPatchId(ij);
+
+   MFEM_VERIFY(i1 < nxyz[0] && i1>=0, "SourceTransfer: i1 out of bounds");
+   MFEM_VERIFY(j1 < nxyz[1] && j1>=0, "SourceTransfer: j1 out of bounds");
+
+   Vector Psi(Psi0.Size());
+   PmlMat[ip0]->Mult(Psi0,Psi);
+   Psi *=-1.0;
+
+   Array<int> * Dof2GlobalDof0 = &ovlp_prob->Dof2GlobalDof[ip0];
+   Array<int> * Dof2GlobalDof1 = &ovlp_prob->Dof2GlobalDof[ip1];
+   Vector r(2*bf->FESpace()->GetTrueVSize());
+   r = 0.0;
+   r.SetSubVector(*Dof2GlobalDof0,Psi);
+   Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
+   r.GetSubVector(*Dof2GlobalDof1,Psi1);
+
+   Array<int> direct(2); direct = 0;
+   direct[0] = -direction[0];
+   direct[1] = -direction[1];
+   // Psi = Psi1;
+   // GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // socketstream zsock(vishost, visport);
+   // PlotSolution(Psi1,zsock,ip1,true); cin.get();
+}
+
 
 
 void DST::GetChiRes(const Vector & res, Vector & cfres, 
@@ -951,3 +1045,9 @@ double DST::GetSolOvlpNorm(const Vector & sol,
    return norm;
    // return 0.0;
 }
+
+
+void DST::GetChiFncn(int ip, Array<int> directions, int nlayers, Vector & chi) const
+{
+
+}                    
