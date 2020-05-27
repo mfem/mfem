@@ -4,7 +4,8 @@
 // Compile with: make ex28p
 //
 // Sample runs:
-//    mpirun -np 4 ex28p -m ../../data/inline-tri.mesh --slepcopts rc_ex28p
+//    mpirun -np 4 ex28p -m ../../data/inline-tri.mesh --slepcopts rc_ex28p_jd --block
+//    mpirun -np 4 ex28p -m ../../data/inline-tri.mesh --slepcopts rc_ex28p_sinvert --no-block
 //
 // Description:  This example code solves a simple 2D dielectric waveguide
 //               problem corresponding to the generalized eigenvalue equation
@@ -57,6 +58,7 @@ int main(int argc, char *argv[])
    bool par_format = false;
    bool visualization = 1;
    const char *slepcrc_file = "";
+   bool use_block = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -75,6 +77,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&slepcrc_file, "-slepcopts", "--slepcopts",
                   "SlepcOptions file to use.");
+   args.AddOption(&use_block, "-block", "--block", "-no-block",
+                  "--no-block",
+                  "Enable or disable the use of block matrices");
    args.Parse();
    if (!args.Good())
    {
@@ -253,7 +258,20 @@ int main(int argc, char *argv[])
    BlockOperator *tLHSOp = new BlockOperator(block_trueOffsets);
    tLHSOp->SetBlock(0,0,pAtt);
    tLHSOp->SetBlock(1,1,pAzz);
-   LHSOp = new PetscParMatrix(MPI_COMM_WORLD,tLHSOp,Operator::PETSC_MATAIJ);
+   if (use_block)
+   {
+      LHSOp = new PetscParMatrix(MPI_COMM_WORLD,tLHSOp,Operator::PETSC_MATAIJ);
+   }
+   else
+   {
+      // Converting from a BlockOperator creates a MATNEST which preserves the block structure
+      PetscParMatrix *LHSBlock = new PetscParMatrix(MPI_COMM_WORLD,tLHSOp,
+                                                    Operator::PETSC_MATAIJ);
+      // Converting again to MATAIJ to get monolithic matrix
+      LHSOp = new PetscParMatrix(MPI_COMM_WORLD,LHSBlock,Operator::PETSC_MATAIJ);
+      delete LHSBlock;
+
+   }
    delete tLHSOp;
 
    BlockOperator *tRHSOp = new BlockOperator(block_trueOffsets);
@@ -261,7 +279,16 @@ int main(int argc, char *argv[])
    tRHSOp->SetBlock(1,1,pBzz);
    tRHSOp->SetBlock(1,0,pBtz);
    tRHSOp->SetBlock(0,1,pBzt);
-   RHSOp = new PetscParMatrix(MPI_COMM_WORLD,tRHSOp,Operator::PETSC_MATAIJ);
+   if (use_block)
+   {
+      RHSOp = new PetscParMatrix(MPI_COMM_WORLD,tRHSOp,Operator::PETSC_MATAIJ);
+   }
+   else
+   {
+      PetscParMatrix *RHSBlock = new PetscParMatrix(MPI_COMM_WORLD,tRHSOp,
+                                                    Operator::PETSC_MATAIJ);
+      RHSOp = new PetscParMatrix(MPI_COMM_WORLD,RHSBlock,Operator::PETSC_MATAIJ);
+   }
    delete tRHSOp;
 
    // 12. Solve the eigenvalue problem with slepc.
@@ -273,7 +300,8 @@ int main(int argc, char *argv[])
    solver->SetOperators(*LHSOp,*RHSOp);
    solver->SetNumModes(nev);
    solver->SetWhichEigenpairs(SlepcEigenSolver::TARGET_MAGNITUDE);
-   solver->SetTarget(pow(k0,2));
+   // The target is set with a small offset to prevent zero pivots in this example
+   solver->SetTarget(pow(k0,2)-1e-2);
    solver->Solve();
    double re;
    solver->GetEigenvalue(0,re);
@@ -328,7 +356,7 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock.precision(8);
-      u_sock << "solution\n" << *pmesh << *et << "window_title 'Velocity'"
+      u_sock << "solution\n" << *pmesh << *et << "window_title 'Transverse E field'"
              << endl;
       u_sock << "keys Rjl!\n";
       // Make sure all ranks have sent their 'et' solution before initiating
@@ -337,7 +365,7 @@ int main(int argc, char *argv[])
       socketstream p_sock(vishost, visport);
       p_sock << "parallel " << num_procs << " " << myid << "\n";
       p_sock.precision(8);
-      p_sock << "solution\n" << *pmesh << *ez << "window_title 'Pressure'"
+      p_sock << "solution\n" << *pmesh << *ez << "window_title 'Longitudinal E field'"
              << endl;
       p_sock << "keys Rjl!\n";
    }

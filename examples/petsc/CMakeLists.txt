@@ -33,7 +33,7 @@ if (MFEM_USE_MPI)
     rc_ex5p_bddc rc_ex5p_fieldsplit
     rc_ex9p_expl rc_ex9p_impl
     rc_ex10p
-    rc_ex28p
+    rc_ex28p_jd rc_ex28p_sinvert
     )
 endif()
 
