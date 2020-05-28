@@ -560,6 +560,8 @@ protected:
    ParFiniteElementSpace *pfes;
 #endif
 
+   int dim, ncomp;
+
 public:
    AdaptivityEvaluator() : mesh(NULL), fes(NULL)
    {
@@ -708,15 +710,20 @@ class DiscreteAdaptTC : public TargetConstructor
 protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
+   int ncomp, sizeidx, skewidx, aspectratioidx, orientationidx;
    Vector tspec;             //eta(x)
    Vector tspec_sav;
    Vector tspec_pert1h;      //eta(x+h)
    Vector tspec_pert2h;      //eta(x+2*h)
    Vector tspec_pertmix;     //eta(x+h,y+h)
+   // The order inside these perturbation vectors (e.g. in 2D) is
+   // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
+   // same for tspec_pert2h and tspec_pertmix.
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
    const FiniteElementSpace *tspec_fes;
+   const FiniteElementSpace *tspec_fesv;
 
    // These flags can be used by outside functions to avoid recomputing
    // the tspec and tspec_perth fields again on the same mesh.
@@ -726,20 +733,55 @@ protected:
    // Owned.
    AdaptivityEvaluator *adapt_eval;
 
+   void SetDiscreteTargetBase(const GridFunction &tspec_);
+   void SetTspecAtIndex(int idx, const GridFunction &tspec_);
+   void FinalizeSerialDiscreteTargetSpec();
+#ifdef MFEM_USE_MPI
+   void SetTspecAtIndex(int idx, const ParGridFunction &tspec_);
+   void FinalizeParDiscreteTargetSpec(const ParGridFunction &tspec_);
+#endif
+
 public:
    DiscreteAdaptTC(TargetType ttype)
       : TargetConstructor(ttype),
+        ncomp(0),
+        sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
         tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
-        tspec_fes(NULL),
+        tspec_fes(NULL), tspec_fesv(NULL),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
         adapt_eval(NULL) { }
 
-   virtual ~DiscreteAdaptTC() { delete adapt_eval; }
+   virtual ~DiscreteAdaptTC()
+   {
+      delete adapt_eval;
+      delete tspec_fes;
+      delete tspec_fesv;
+   }
 
-   virtual void SetSerialDiscreteTargetSpec(GridFunction &tspec_);
+   /** @name Target specification methods.
+       The following methods are used to specify geometric parameters of the
+       targets when these parameters are given by discrete FE functions.
+       Note that every GridFunction given to the Set methods must use a
+       H1_FECollection of the same order. The number of components must
+       correspond to the type of geometric parameter and dimension.
+
+       @param[in] tspec_  Input values of a geometric parameter. Note that
+                          the methods in this class support only functions that
+                          use H1_FECollection collection of the same order. */
+   ///@{
+   virtual void SetSerialDiscreteTargetSpec(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetSize(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetSkew(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetAspectRatio(const GridFunction &tspec_);
+   virtual void SetSerialDiscreteTargetOrientation(const GridFunction &tspec_);
 #ifdef MFEM_USE_MPI
-   virtual void SetParDiscreteTargetSpec(ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetSpec(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetSize(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetSkew(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetAspectRatio(const ParGridFunction &tspec_);
+   virtual void SetParDiscreteTargetOrientation(const ParGridFunction &tspec_);
 #endif
+   ///@}
 
    /// Used in combination with the Update methods to avoid extra computations.
    void ResetUpdateFlags()
@@ -756,6 +798,7 @@ public:
                                         ElementTransformation &T,
                                         int nodenum, int idir,
                                         const Vector &IntData);
+
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
 
    /** Used for finite-difference based computations. Computes the target
