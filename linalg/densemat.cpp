@@ -3502,18 +3502,17 @@ DenseTensor &DenseTensor::operator=(double c)
    return *this;
 }
 
-void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
 {
-   const int m = Minv.SizeI();
-   const int NE = Minv.SizeK();
+   const int m = Mlu.SizeI();
+   const int NE = Mlu.SizeK();
    P.SetSize(m*NE);
 
-   auto data_all = mfem::Reshape(Minv.ReadWrite(), m, m, NE);
+   auto data_all = mfem::Reshape(Mlu.ReadWrite(), m, m, NE);
    auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
    Array<bool> pivot_flag(1);
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
-   const double TOL = 1.e-9;
 
    MFEM_FORALL(e, NE,
    {
@@ -3570,44 +3569,19 @@ void BatchLUFactor(DenseTensor &Minv, Array<int> &P)
    MFEM_ASSERT(pivot_flag.HostRead()[0], "Batch LU factorization failed \n");
 }
 
-void BatchLUSolve(const DenseTensor &Minv, const Array<int> &P, Vector &X)
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 {
 
-   const int m = Minv.SizeI();
-   const int NE = Minv.SizeK();
+   const int m = Mlu.SizeI();
+   const int NE = Mlu.SizeK();
 
-   auto data_all = mfem::Reshape(Minv.Read(), m, m, NE);
+   auto data_all = mfem::Reshape(Mlu.Read(), m, m, NE);
    auto piv_all = mfem::Reshape(P.Read(), m, NE);
    auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
 
    MFEM_FORALL(e, NE,
    {
-
-      // X <- P X
-      for (int i = 0; i < m; i++)
-      {
-         mfem::kernels::internal::Swap<double>(x_all(i,e), x_all(piv_all(i,e),e));
-      }
-
-      // X <- L^{-1} X
-      for (int j = 0; j < m; j++)
-      {
-         const double x_j = x_all(j,e);
-         for (int i = j+1; i < m; i++)
-         {
-            x_all(i,e) -= data_all(i,j,e) * x_j;
-         }
-      }
-
-      // X <- U^{-1} X
-      for (int j = m-1; j >= 0; j--)
-      {
-         const double x_j = ( x_all(j,e) /= data_all(j,j,e) );
-         for (int i = 0; i < j; i++)
-         {
-            x_all(i,e) -= data_all(i,j,e) * x_j;
-         }
-      }
+     kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
    });
 
 }
