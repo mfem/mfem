@@ -537,22 +537,27 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
+   dbg("b: %.15e", b*b);
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
    if (iterative_mode)
    {
+      dbg("iterative_mode");
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
    }
    else
    {
+      dbg("!iterative_mode");
       r = b;
       x = 0.0;
    }
+   dbg("r: %.15e, x: %.15e", r*r, x*x);
 
    if (prec)
    {
+      dbg("prec");
       prec->Mult(r, z); // z = B r
       d = z;
    }
@@ -560,6 +565,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
+   dbg("d:  %.15e", d*d);
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_level == 1 || print_level == 3)
@@ -620,6 +626,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       alpha = nom/den;
       add(x,  alpha, d, x);     //  x = x + alpha d
       add(r, -alpha, z, r);     //  r = r - alpha A d
+      dbg("[%d] r: %.15e, x: %.15e", i, r*r, x*x);
 
       if (prec)
       {
@@ -630,6 +637,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          betanom = Dot(r, r);
       }
+      dbg("[%d] betanom: %.15e", i, betanom);
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
@@ -681,12 +689,11 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
-      //dbg("oper->Mult(d, z): d: %.15e", d*d);
       oper->Mult(d, z);       //  z = A d
-      //dbg("oper->Mult(d, z): d: %.15e z: %.15e", d*d, z*z);
+      dbg("[%d] oper->Mult(d, z): d: %.15e z: %.15e", i, d*d, z*z);
       /////////////////////////
       static bool RAND = getenv("RAND");
-      if (RAND) {dbg("Exiting!"); exit(0);}
+      if (RAND && i==4) {dbg("Exiting!"); exit(0);}
       /////////////////////////
 
       den = Dot(d, z);
@@ -1584,6 +1591,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    const bool have_b = (b.Size() == Height());
    dbg("ProcessNewState");
    ProcessNewState(x);
+   dbg("x:%.15e",x*x);
 
    if (!iterative_mode)
    {
@@ -1596,10 +1604,11 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    {
       r -= b;
    }
+   dbg("r:%.15e",r*r);
 
-   dbg("Norm");
    norm0 = norm = Norm(r);
    norm_goal = std::max(rel_tol*norm, abs_tol);
+   dbg("norm_goal: %.15e", norm_goal);
 
    prec->iterative_mode = false;
    //dbg("Exiting!"); exit(0);
@@ -1645,6 +1654,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       prec->SetOperator(oper->GetGradient(x));
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      c.HostReadWrite();
       dbg("x:%.15e, c: %.15e", r*r, c*c);
 
       dbg("ComputeScalingFactor");
@@ -1658,15 +1668,16 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
       dbg("ProcessNewState");
       ProcessNewState(x);
+      dbg("x: %.15e",x*x);
 
-      dbg("oper->Mult(x, r)");
       oper->Mult(x, r);
+      dbg("oper->Mult(x, r): x:%.15e r:%.15e", x*x, r*r);
       if (have_b)
       {
          r -= b;
       }
-      dbg("Norm");
       norm = Norm(r);
+      dbg("norm: %.15e", norm);
    }
 
    final_iter = it;

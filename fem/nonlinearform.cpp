@@ -156,6 +156,7 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 void NonlinearForm::Mult(const Vector &X, Vector &y) const
 {
    Vector x(X.Size());
+   x.UseDevice(true);
    x = X;
 #ifndef _WIN32
    if (getenv("RAND"))

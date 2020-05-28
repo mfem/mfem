@@ -659,14 +659,14 @@ int main(int argc, char *argv[])
 
    if (pa) { a.Setup(); }
 
-   const double init_energy = a.GetGridFunctionEnergy(x);
+   const double init_energy = !pa ?
+                              a.GetGridFunctionEnergy(x):
+                              a.GetGridFunctionEnergyPA(x);
    dbg("init_energy: %.15e", init_energy);
-
-   if (pa)
+   if (getenv("RAND"))
    {
-      const double init_energy_mf = a.GetGridFunctionEnergyPA(x);
-      dbg("init_energy: %.15e", init_energy_mf);
-      MFEM_VERIFY(fabs(init_energy-init_energy_mf)<EPS,"");
+      const double init_energy_fa = a.GetGridFunctionEnergy(x);
+      MFEM_VERIFY(fabs(init_energy-init_energy_fa)<EPS,"");
    }
 
    // 15. Visualize the starting mesh and metric values.
@@ -733,7 +733,7 @@ int main(int argc, char *argv[])
 
    // 17. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   //MFEM_VERIFY(lin_solver == 1, "");
+   MFEM_VERIFY(lin_solver == 1, "");
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
    if (lin_solver == 0)
@@ -778,7 +778,8 @@ int main(int argc, char *argv[])
       // Compute the minimum det(J) of the starting mesh on the device.
       const int NQ = ir->GetNPoints();
       const int NE = mesh->GetNE();
-      const int Q1D = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
+      const int Q1D = (int) std::floor(std::pow(ir->GetNPoints(), 1.0/dim) + 0.5);
+      //IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
       dbg("NQ:%d, Q1D:%d", NQ, Q1D);
       MFEM_VERIFY( Q1D*Q1D == NQ, "");
       const int flags = GeometricFactors::DETERMINANTS;

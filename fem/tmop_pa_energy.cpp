@@ -233,24 +233,28 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
       case 0x23: return EnergyPA_2D<2,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x24: return EnergyPA_2D<2,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x25: return EnergyPA_2D<2,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x26: return EnergyPA_2D<2,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
 
       case 0x31: return EnergyPA_2D<3,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x32: return EnergyPA_2D<3,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x33: return EnergyPA_2D<3,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x34: return EnergyPA_2D<3,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x35: return EnergyPA_2D<3,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x36: return EnergyPA_2D<3,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
 
       case 0x41: return EnergyPA_2D<4,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x42: return EnergyPA_2D<4,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x43: return EnergyPA_2D<4,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x44: return EnergyPA_2D<4,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x45: return EnergyPA_2D<4,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x46: return EnergyPA_2D<4,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
 
       case 0x51: return EnergyPA_2D<5,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x52: return EnergyPA_2D<5,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x53: return EnergyPA_2D<5,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x54: return EnergyPA_2D<5,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       case 0x55: return EnergyPA_2D<5,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x56: return EnergyPA_2D<5,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
       default: break;
          //return EnergyPA_2D(NE, m_n, J, W, B, G, Xpa, Epa, Opa, D1D, Q1D);
    }
