@@ -250,7 +250,6 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                                    Vector &_diag)
 {
    constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
@@ -1350,7 +1349,6 @@ static void PACurlCurlAssembleDiagonal2D(const int D1D,
                                          Vector &_diag)
 {
    constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
