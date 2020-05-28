@@ -455,7 +455,7 @@ void NonlinearForm::Update()
    cP = dynamic_cast<const SparseMatrix*>(P);
 }
 
-void NonlinearForm::AssemblePA()
+void NonlinearForm::Setup()
 {
    if (ext) { return ext->Assemble(); }
 }
