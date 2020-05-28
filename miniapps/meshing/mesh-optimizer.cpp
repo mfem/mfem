@@ -681,7 +681,6 @@ int main(int argc, char *argv[])
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
-   MFEM_VERIFY(!pa || lin_solver == 1, "");
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
