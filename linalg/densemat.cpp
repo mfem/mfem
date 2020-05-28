@@ -3581,7 +3581,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 
    MFEM_FORALL(e, NE,
    {
-     kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
+      kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
    });
 
 }
