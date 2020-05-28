@@ -2145,6 +2145,9 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
+   auto bp = b.HostRead();
+   auto xp = x.HostWrite();
+
    bool scale = (sc != 1.0);
    for (int i = 0, j = 0; i < height; i++)
    {
@@ -2159,11 +2162,11 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
             MFEM_VERIFY(std::abs(A[j]) > 0.0, "Diagonal " << j << " must be nonzero");
             if (scale)
             {
-               x(i) = sc * b(i) / A[j];
+               xp[i] = sc * bp[i] / A[j];
             }
             else
             {
-               x(i) = b(i) / A[j];
+               xp[i] = bp[i] / A[j];
             }
             break;
          }
