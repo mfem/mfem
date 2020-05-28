@@ -23,30 +23,28 @@ class NonlinearFormExtension : public Operator
 {
 protected:
    const NonlinearForm *nlf;
-
 public:
    NonlinearFormExtension(const NonlinearForm*);
    virtual void Assemble() = 0;
    virtual Operator &GetGradient(const Vector&) const = 0;
+   virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
 };
-
 
 /// Data and methods for partially-assembled nonlinear forms
 class PANonlinearFormExtension : public NonlinearFormExtension
 {
 protected:
    mutable OperatorPtr GradOp;
-   const FiniteElementSpace &fes;
+   const FiniteElementSpace &fes; // Not owned
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex;
-
+   const Operator *elem_restrict_lex; // Not owned
 public:
    PANonlinearFormExtension(NonlinearForm *nlf);
    void Assemble();
    void Mult(const Vector &, Vector &) const;
    Operator &GetGradient(const Vector&) const;
+   double GetGridFunctionEnergy(const Vector &x) const;
 };
-
 
 class PAGradOperator : public Operator
 {
@@ -65,7 +63,5 @@ public:
                   const Operator *elem_restrict_lex);
    void Mult(const Vector &x, Vector &y) const;
 };
-
-} // namespace mfem
-
+}
 #endif // NONLINEARFORM_EXT_HPP

@@ -72,11 +72,10 @@
 //   2D non-conforming shape and equal size:
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -256,7 +255,6 @@ int main(int argc, char *argv[])
       }
       volume += mesh->GetElementVolume(i);
    }
-
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
@@ -269,7 +267,6 @@ int main(int argc, char *argv[])
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    rdm.HostReadWrite();
-
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < fespace->GetNDofs(); i++)
    {
@@ -616,9 +613,7 @@ int main(int argc, char *argv[])
 
    if (pa) { a.Setup(); }
 
-   const double init_energy = !pa ?
-                              a.GetGridFunctionEnergy(x):
-                              a.GetGridFunctionEnergyPA(x);
+   const double init_energy = a.GetGridFunctionEnergy(x);
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
@@ -713,25 +708,14 @@ int main(int argc, char *argv[])
    // 18. Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
    const int NE = mesh->GetNE();
-   if (!pa)
+   for (int i = 0; i < NE; i++)
    {
-      for (int i = 0; i < NE; i++)
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         ElementTransformation *transf = mesh->GetElementTransformation(i);
-         for (int j = 0; j < ir->GetNPoints(); j++)
-         {
-            transf->SetIntPoint(&ir->IntPoint(j));
-            tauval = min(tauval, transf->Jacobian().Det());
-         }
+         transf->SetIntPoint(&ir->IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
       }
-   }
-   else
-   {
-      const GeometricFactors *geom =
-         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
-      const double tauval_d = geom->detJ.Min();
-      //MFEM_VERIFY(fabs(tauval-tauval_d)<1.e-8,"");
-      tauval = tauval_d;
    }
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
 

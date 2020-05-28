@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 221
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -25,7 +23,6 @@ namespace mfem
 // Setup dim, ne, nq, D, G, maps, geom & fes
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
 {
-   dbg("");
    fes = &fespace;
    MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -309,7 +306,6 @@ static void AddMultPA_Kernel_2D(const int NE,
 // *****************************************************************************
 void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 {
-   dbg("X: %.15e",X*X);
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
@@ -401,7 +397,6 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
       case 0x56: return AddMultPA_Kernel_2D<5,6,1>(ne,W,B1d,G1d,Dpa,X,Y);
       default:  break;
    }
-   dbg("kernel id: %x", id);
    MFEM_ABORT("Unknown kernel.");
 }
 

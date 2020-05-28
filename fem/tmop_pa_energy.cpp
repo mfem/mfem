@@ -197,11 +197,10 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
 {
    const IntegrationRule *ir = IntRule;
    MFEM_VERIFY(ir,"");
-   /*if (!ir)
+   if (!ir)
    {
-      dbg("");
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }*/
+   }
 
    const int NE = fes.GetMesh()->GetNE();
    const int D1D = maps->ndof;

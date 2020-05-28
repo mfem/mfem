@@ -69,7 +69,7 @@ public:
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 
-   /// Compute the local energy on the device
+   /// Compute the local energy with partial assembly.
    virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
                                           const Vector &x) const;
 
@@ -92,6 +92,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled gradient action.
    virtual void AddMultGradPA(const Vector &g,
                               const Vector &x, Vector &y) const;
 

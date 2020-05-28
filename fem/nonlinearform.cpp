@@ -79,33 +79,15 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
-double NonlinearForm::GetGridFunctionEnergyPA(const Vector &x) const
-{
-   double energy = 0.0;
-
-   if (dnfi.Size())
-   {
-      for (int k = 0; k < dnfi.Size(); k++)
-      {
-         energy += dnfi[k]->GetGridFunctionEnergyPA(*fes, x);
-      }
-   }
-
-   if (fnfi.Size())
-   {
-      MFEM_ABORT("TODO: add energy contribution from interior face terms");
-   }
-
-   if (bfnfi.Size())
-   {
-      MFEM_ABORT("TODO: add energy contribution from boundary face terms");
-   }
-
-   return energy;
-}
-
 double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
+   if (ext)
+   {
+      MFEM_VERIFY(fnfi.Size() == 0, "Not Yet implemented!");
+      MFEM_VERIFY(bfnfi.Size() == 0, "Not Yet implemented!");
+      return ext->GetGridFunctionEnergy(x);
+   }
+
    Array<int> vdofs;
    Vector el_x;
    const FiniteElement *fe;
@@ -154,7 +136,6 @@ const Vector &NonlinearForm::Prolongate(const Vector &x) const
 
 void NonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-
    const Vector &px = Prolongate(x);
    if (P) { aux2.SetSize(P->Height()); }
 
@@ -164,7 +145,6 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (ext)
    {
-      py = 0.0;
       ext->Mult(px, py);
       if (Serial())
       {
@@ -287,16 +267,21 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (Serial())
    {
       if (cP) { cP->MultTranspose(py, y); }
-      const int N = ess_tdof_list.Size();
-      const auto tdof = ess_tdof_list.Read();
-      auto Y = y.ReadWrite();
-      MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
+
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         y(ess_tdof_list[i]) = 0.0;
+      }
+      // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
-   if (ext) { return ext->GetGradient(Prolongate(x)); }
+   if (ext)
+   {
+      return ext->GetGradient(Prolongate(x));
+   }
 
    const int skip_zeros = 0;
    Array<int> vdofs;
@@ -426,7 +411,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       if (cP)
       {
-         MFEM_ABORT("");
          delete cGrad;
          cGrad = RAP(*cP, *Grad, *cP);
          mGrad = cGrad;
@@ -436,6 +420,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          mGrad->EliminateRowCol(ess_tdof_list[i]);
       }
    }
+
    return *mGrad;
 }
 

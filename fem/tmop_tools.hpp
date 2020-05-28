@@ -109,7 +109,6 @@ public:
 };
 #endif
 
-
 class TMOPNewtonSolver : public NewtonSolver
 {
 protected:
@@ -132,7 +131,6 @@ public:
 
    virtual void ProcessNewState(const Vector &x) const;
 };
-
 
 /// Allows negative Jacobians. Used for untangling.
 class TMOPDescentNewtonSolver : public TMOPNewtonSolver

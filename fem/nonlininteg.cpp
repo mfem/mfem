@@ -36,7 +36,7 @@ void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
                "   is not implemented for this class.");
 }
 
-void NonlinearFormIntegrator::AddMultPA(const Vector&, Vector&) const
+void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
                "   is not implemented for this class.");
