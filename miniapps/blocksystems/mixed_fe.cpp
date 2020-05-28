@@ -129,6 +129,7 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
     gform.ParallelAssemble(rhs_block1);
 
     ess_data_.SetSize(M_->NumRows() + B_->NumRows());
+    ess_data_ = 0.0;
     Vector ess_data_block0(ess_data_.GetData(), M_->NumRows());
     u_.ParallelProject(ess_data_block0);
 
@@ -143,6 +144,17 @@ void DarcyProblem::ShowError(const Vector &sol, bool verbose)
 {
     u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
     p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
+
+//    socketstream vis_v;
+
+//    const char vishost[] = "localhost";
+//    const int  visport   = 19916;
+
+//    vis_v.open(vishost, visport);
+//    vis_v.precision(8);
+
+//    vis_v << "parallel " << 1 << " " << 0 << "\n";
+//    vis_v << "solution\n" << mesh_ << u_;
 
     double err_u  = u_.ComputeL2Error(ucoeff_, irs_);
     double norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
@@ -196,13 +208,14 @@ int main(int argc, char *argv[])
 
     Array<int> ess_bdr(mesh.bdr_attributes.Max());
     ess_bdr = 0;
-    ess_bdr[1] = 1;
+//    ess_bdr[1] = 1;
 
     IterSolveParameters param;
     DFSParameters dfs_param;
     dfs_param.MG_type = order > 0 && use_tet_mesh ? AlgebraicMG : GeometricMG;
     dfs_param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
     if (order > 0 && use_tet_mesh) dfs_param.ml_particular = false;
+    dfs_param.use_schwarz_smoother = true;
 
     string line = "\n*******************************************************\n";
     {
@@ -221,6 +234,10 @@ int main(int argc, char *argv[])
 
         std::map<const DarcySolver*, double> setup_time;
         ResetTimer();
+//        const_cast<DFSData&>(collector.GetData()).param.CTMC_solve_param.max_iter = 1;
+        const_cast<DFSData&>(collector.GetData()).param.CTMC_solve_param.print_level = -1;
+//        const_cast<DFSData&>(collector.GetData()).param.BBT_solve_param.max_iter = 1;
+        const_cast<DFSData&>(collector.GetData()).param.BBT_solve_param.print_level = -1;
         DivFreeSolver dfs(M, B, collector.hcurl_fes_.get(), collector.GetData());
         setup_time[&dfs] = chrono.RealTime();
 
@@ -232,21 +249,67 @@ int main(int argc, char *argv[])
         solver_to_name[&dfs] = "Divergence free";
         solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
 
+
+//        Vector resid = darcy.GetRHS();
+//        Vector sol0 = darcy.GetBC();
+//        Vector rhs_tmp(resid), correction(resid);
+//        correction = 0.0;
+//        bdp.GetOperator().Mult(sol0, rhs_tmp);
+//        resid -= rhs_tmp;
+//        double tol = resid.Norml2() * 1e-9;
+
+//        ResetTimer();
+//        for (int i =0; i < 1; ++i)
+//        {
+//            correction = 0.0;
+//            dfs.Mult(resid, correction);
+//            sol0 += correction;
+//            bdp.GetOperator().Mult(correction, rhs_tmp);
+//            resid -= rhs_tmp;
+//            double error = resid.Norml2();
+//            std::cout<<"iter " << i << ": resid = "<<error<<"\n";
+//            Vector blk0(resid.GetData(), M.NumRows());
+//            Vector blk1(resid.GetData()+M.NumRows(), B.NumRows());
+//            std::cout<<"iter " << i << ": resid0 = "<<blk0.Norml2()<<"\n";
+//            std::cout<<"iter " << i << ": resid1 = "<<blk1.Norml2()<<"\n";
+
+//            if (error < tol) { break; }
+//        }
+//        cout << "  Solve time: " << chrono.RealTime() << "s.\n";
+//        darcy.ShowError(sol0, verbose);
+
+//        const_cast<DFSData&>(collector.GetData()).param.CTMC_solve_param.max_iter = 500;
+//        const_cast<DFSData&>(collector.GetData()).param.BBT_solve_param.max_iter = 500;
+
+
         for (const auto& solver_pair : solver_to_name)
         {
             auto& solver = solver_pair.first;
             auto& name = solver_pair.second;
 
             if (verbose) cout << line << name << " solver:\n";
-            if (verbose) cout << "  setup time: " << setup_time[solver] << "s.\n";
+            if (verbose) cout << "  Setup time: " << setup_time[solver] << "s.\n";
 
             const Vector& rhs = darcy.GetRHS();
             Vector sol = darcy.GetBC();
             ResetTimer();
             solver->Mult(rhs, sol);
+            chrono.Stop();
 
-            if (verbose) cout << "  solve time: " << chrono.RealTime() << "s.\n";
-            if (verbose) cout << "  iteration count: "
+            Vector resid = darcy.GetRHS();
+            Vector rhs_tmp(resid);
+            bdp.GetOperator().Mult(sol, rhs_tmp);
+            resid -= rhs_tmp;
+            Vector blk0(resid.GetData(), M.NumRows());
+            Vector blk1(resid.GetData()+M.NumRows(), B.NumRows());
+            std::cout<<" resid0 = "<<blk0.Norml2()<<"\n";
+            std::cout<<" resid1 = "<<blk1.Norml2()<<"\n";
+
+
+            if (verbose) cout << "  Solve time: " << chrono.RealTime() << "s.\n";
+            if (verbose) cout << "  Total time: " <<
+                                 setup_time[solver] + chrono.RealTime() << "s.\n";
+            if (verbose) cout << "  Iteration count: "
                               << solver->GetNumIterations() <<"\n";
             if (show_error) darcy.ShowError(sol, verbose);
         }

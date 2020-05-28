@@ -35,7 +35,8 @@ struct DFSData
     Array<OperatorPtr> P_hcurl;
     Array<OperatorPtr> Q_l2;            // Q_l2[l] = W_l P_l2[l] (W_{l+1})^{-1}
     Array<int> coarsest_ess_hdivdofs;
-    OperatorPtr C;                      // discrete curl: ND -> RT
+//    OperatorPtr C;                      // discrete curl: ND -> RT
+    Array<OperatorPtr> C;
     DFSParameters param;
 };
 
@@ -84,6 +85,7 @@ class BlockDiagSolver : public Solver
 public:
     BlockDiagSolver(const OperatorPtr& A, SparseMatrix block_dof);
     virtual void Mult(const Vector &x, Vector &y) const;
+    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
     virtual void SetOperator(const Operator &op) { }
 };
 
@@ -157,12 +159,21 @@ class HiptmairSmoother : public Solver
     OperatorPtr blk_C_;
     OperatorPtr div_kernel_system_;
     OperatorPtr div_kernel_smoother_;
+    OperatorPtr div_kernel_solver_;
 public:
     HiptmairSmoother(BlockOperator& op,
                      MLDivSolver& ml_div_solver,
                      int level,
                      HypreParMatrix& C);
+
+    HiptmairSmoother(BlockOperator& op,
+                     MLDivSolver& ml_div_solver,
+                     int level,
+                     HypreParMatrix& C,
+                     OperatorPtr& CTMC);
+
     virtual void Mult(const Vector & x, Vector & y) const;
+    virtual void MultTranspose(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
 };
 
@@ -181,9 +192,17 @@ class DivFreeSolver : public DarcySolver
 
     OperatorPtr BT_;
     Array<OperatorPtr> Cs_;
+    Array<OperatorPtr> CTMCs_;
     Array<Array<int>> coarse_offsets_;
     Array<OperatorPtr> ops_;
+    Array<OperatorPtr> blk_Ps_;
     Array<OperatorPtr> smoothers_;
+
+    OperatorPtr mono_op_c_; //TODO: this is for testing and need to be removed
+
+//    CGSolver block_solver_;
+//    MINRESSolver block_solver_;
+    GMRESSolver block_solver_;
 
     // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
@@ -194,12 +213,12 @@ public:
                   ParFiniteElementSpace* hcurl_fes, const DFSData& data);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
-    virtual int GetNumIterations() const { return CTMC_solver_.GetNumIterations(); }
+    virtual int GetNumIterations() const { return block_solver_.GetNumIterations(); }
 };
 
 class AbstractMultigrid : public Solver
 {
-    const Array<OperatorPtr>& P_;
+    const Array<OperatorPtr>& Ps_;
 
     Array<OperatorPtr> ops_;
     Array<OperatorPtr> smoothers_;
@@ -210,7 +229,10 @@ class AbstractMultigrid : public Solver
 
     void MG_Cycle(int level) const;
 public:
-    AbstractMultigrid(HypreParMatrix& op, const Array<OperatorPtr>& P);
+    AbstractMultigrid(HypreParMatrix& op, const Array<OperatorPtr>& Ps);
+    AbstractMultigrid(const Array<OperatorPtr>& ops,
+                      const Array<OperatorPtr>& Ps,
+                      const Array<OperatorPtr>& smoothers);
 
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
@@ -224,8 +246,19 @@ class BDPMinresSolver : public DarcySolver
     OperatorPtr BT_;
     OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
     MINRESSolver solver_;
+
+    Array<int> C_col_offsets_;
+    OperatorPtr C_;
+    OperatorPtr CTMC_;
+    OperatorPtr CTMC_prec_;
+    CGSolver CTMC_inv_;
+
+    mutable bool first_step_ = true;
+
 public:
     BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
+    BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+                    HypreParMatrix& C, OperatorPtr& CTMC, IterSolveParameters param);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
     const Operator& GetOperator() const { return op_; }
