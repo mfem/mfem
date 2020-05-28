@@ -289,8 +289,6 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
       Jtr(1,0) = 0.456;
       Jtr(1,1) = 1.0;
    }
-   //dbg("Jtr:"); Jtr.Print();
-
    /*
       Array<int> vdofs;
       DenseTensor Jtr(dim, dim, ir->GetNPoints());

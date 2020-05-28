@@ -88,7 +88,6 @@ static void SetupGradPA_2D(const Vector &xe_,
                            const int d1d = 0,
                            const int q1d = 0)
 {
-   dbg("");
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -260,7 +259,6 @@ static void SetupGradPA_2D(const Vector &xe_,
 void TMOP_Integrator::AssembleGradPA(const DenseMatrix &Jtr,
                                      const Vector &Xe) const
 {
-   dbg("");
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;

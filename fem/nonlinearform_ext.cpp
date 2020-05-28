@@ -33,8 +33,24 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
    {
       localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(true);
+      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
    }
+}
+
+double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
+{
+   double energy = 0.0;
+   const Array<NonlinearFormIntegrator*> &dnfi = *nlf->GetDNFI();
+
+   if (dnfi.Size())
+   {
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         energy += dnfi[k]->GetGridFunctionEnergyPA(fes, x);
+      }
+   }
+
+   return energy;
 }
 
 void PANonlinearFormExtension::Assemble()
@@ -53,8 +69,8 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
    {
-      localY = 0.0;
       elem_restrict_lex->Mult(x, localX);
+      localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(localX, localY);
@@ -63,7 +79,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      y.UseDevice(true);
+      y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {

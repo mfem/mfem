@@ -1568,6 +1568,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    int it;
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
+
    ProcessNewState(x);
 
    if (!iterative_mode)
@@ -1615,7 +1616,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
 
       prec->SetOperator(oper->GetGradient(x));
+
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
