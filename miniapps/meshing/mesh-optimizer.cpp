@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
    // 11. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
-   MFEM_VERIFY(metric_id == 2, "");
+   MFEM_VERIFY(!pa || metric_id == 2, "");
    switch (metric_id)
    {
       case 1: metric = new TMOP_Metric_001; break;
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
-   MFEM_VERIFY(target_id == 1, "");
+   MFEM_VERIFY(!pa || target_id == 1, "");
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
-   MFEM_VERIFY(quad_type == 2, "");
+   MFEM_VERIFY(!pa || quad_type == 2, "");
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
    switch (quad_type)
@@ -565,7 +565,7 @@ int main(int argc, char *argv[])
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
-   MFEM_VERIFY(lim_const == 0.0, "");
+   MFEM_VERIFY(!pa || lim_const == 0.0, "");
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // 14. Setup the final NonlinearForm (which defines the integral of interest,
@@ -581,7 +581,7 @@ int main(int argc, char *argv[])
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
-   MFEM_VERIFY(combomet == 0,"");
+   MFEM_VERIFY(!pa || combomet == 0,"");
    if (combomet > 0)
    {
       // First metric.
@@ -614,7 +614,7 @@ int main(int argc, char *argv[])
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
-   if (pa) { a.AssemblePA(); }
+   if (pa) { a.Setup(); }
 
    const double init_energy = !pa ?
                               a.GetGridFunctionEnergy(x):
@@ -686,7 +686,7 @@ int main(int argc, char *argv[])
    //     here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
-   MFEM_VERIFY(lin_solver == 1, "");
+   MFEM_VERIFY(!pa || lin_solver == 1, "");
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -737,7 +737,7 @@ int main(int argc, char *argv[])
 
    // 19. Finally, perform the nonlinear optimization.
    NewtonSolver *newton = NULL;
-   MFEM_VERIFY(tauval > 0.0, "");
+   MFEM_VERIFY(!pa || tauval > 0.0, "");
    if (tauval > 0.0)
    {
       tauval = 0.0;

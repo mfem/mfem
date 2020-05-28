@@ -164,7 +164,7 @@ public:
    virtual void Update();
 
    /// Setup the NonlinearForm
-   virtual void AssemblePA();
+   virtual void Setup();
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const { return P; }
