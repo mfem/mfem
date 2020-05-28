@@ -271,6 +271,7 @@ public:
 
 //#define SWTIMING
 #define SERIAL_PROLONGATION
+#define ITERATIVE_COARSE_SOLVE
 
 class BlockMGPASolver : public Solver
 {
@@ -300,6 +301,9 @@ private:
   //STRUMPACKSolver *invAc = nullptr;
   Operator *invAc = nullptr;
   double theta = 0.5;
+
+  mutable std::vector<Vector> rv, zv;
+  mutable Vector u, v, w;
 
 public:
   BlockMGPASolver(MPI_Comm comm, const int height, const int width, Array2D<Operator*>& Af_, Array2D<double>& Acoef_, Array2D<HypreParMatrix*> const& BlkAc,
@@ -467,11 +471,37 @@ public:
     delete Ac;
 #else
     Ac->GetDiag(AcSp);  // AcSp does not own the data
+#ifdef ITERATIVE_COARSE_SOLVE
+    //CGSolver *cg_solver = new CGSolver(comm);
+    CGSolver *cg_solver = new CGSolver();
+    cg_solver->SetAbsTol(1.0e-6);
+    cg_solver->SetRelTol(1.0e-6);
+    cg_solver->SetMaxIter(1000);
+    cg_solver->SetOperator(AcSp);
+    cg_solver->SetPrintLevel(0);
+    cg_solver->iterative_mode = false;
+    invAc = cg_solver;
+#else
     UMFPackSolver *umf_solver = new UMFPackSolver();
     umf_solver->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
     umf_solver->SetOperator(AcSp);
     invAc = umf_solver;
 #endif
+#endif
+
+    // Residual vectors
+    rv.resize(numGrids + 1);
+    // correction vectors
+    zv.resize(numGrids + 1);
+    // allocation
+    for (int i = 0; i <= numGrids ; i++)
+      {
+	int n = (i==0) ? invAc->Height(): BlkA[i]->Width();
+	rv[i].SetSize(n);
+	zv[i].SetSize(n);
+	rv[i].UseDevice(true);
+	zv[i].UseDevice(true);
+      }
   }
     
   virtual void SetOperator(const Operator &op) {}
@@ -486,19 +516,6 @@ public:
     sw.Start();
 #endif
 
-    // Residual vectors
-    std::vector<Vector> rv(numGrids + 1);
-    // correction vectors
-    std::vector<Vector> zv(numGrids + 1);
-    // allocation
-    for (int i = 0; i <= numGrids ; i++)
-      {
-	int n = (i==0) ? invAc->Height(): BlkA[i]->Width();
-	rv[i].SetSize(n);
-	zv[i].SetSize(n);
-	rv[i].UseDevice(true);
-	zv[i].UseDevice(true);
-      }
     // Initial residual
     rv[numGrids] = r;
 
@@ -521,7 +538,7 @@ public:
 
 	// compute residual
 	int n = BlkA[i]->Width();
-	Vector w(n);
+	w.SetSize(n);
 	w.UseDevice(true);
 #ifdef SWTIMING
 	StopWatch swop;
@@ -565,14 +582,14 @@ public:
     for (int i = 1; i <= numGrids ; i++)
       {
 	// Prolong correction
-	Vector u(BlkP[i - 1]->Height());
+	u.SetSize(BlkP[i - 1]->Height());
 	u.UseDevice(true);
 
 	BlkP[i - 1]->Mult(zv[i - 1], u);
 	// Update correction
 	zv[i] += u;
 	// Update residual
-	Vector v(BlkA[i]->Height());
+	v.SetSize(BlkA[i]->Height());
 	v.UseDevice(true);
 
 	BlkA[i]->Mult(u, v); rv[i] -= v;
