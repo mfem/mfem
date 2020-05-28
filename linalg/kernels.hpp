@@ -1377,15 +1377,17 @@ have_aa:
 }
 
 
+/// Assuming L.U = P.A for a factored matrix (m x m),
+//  compute x <- A x
+//
+// @param [in] data LU factorization of A
+// @param [in] m square matrix height
+// @param [in] ipiv array storing pivot information
+// @param [in, out] x vector storing right handside and then solution
 MFEM_HOST_DEVICE
-inline void LUSolve(const double *data, const int m, int *ipiv,
-                    const double *b, double *x)
+inline void LUSolve(const double *data, const int m, const int *ipiv,
+                    double *x)
 {
-   for (int t = 0; t < m; ++t)
-   {
-      x[t] = b[t];
-   }
-
    // X <- P X
    for (int i = 0; i < m; i++)
    {
