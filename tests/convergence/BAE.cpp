@@ -1,4 +1,14 @@
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 // Compile with: make BAE
 //
 // Sample runs:  mpirun -np 4 BAE -m ../../data/inline-segment.mesh -sr 1 -pr 4 -prob 0 -o 1
@@ -52,7 +62,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    bool visualization = 1;
    int sr = 1;
