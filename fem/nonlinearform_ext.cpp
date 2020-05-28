@@ -13,8 +13,6 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
-#define MFEM_DBG_COLOR 141
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -33,16 +31,14 @@ PANonlinearFormExtension::PANonlinearFormExtension(NonlinearForm *nlf):
    elem_restrict_lex = fes.GetElementRestriction(ordering);
    if (elem_restrict_lex)
    {
-      dbg("elem_restrict_lex->Height(): %d",elem_restrict_lex->Height());
       localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      localY.UseDevice(true);
    }
 }
 
 void PANonlinearFormExtension::Assemble()
 {
-   dbg("");
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int Ni = integrators.Size();
    for (int i = 0; i < Ni; ++i)
@@ -53,13 +49,12 @@ void PANonlinearFormExtension::Assemble()
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
-   //dbg("");
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int iSz = integrators.Size();
    if (elem_restrict_lex)
    {
-      elem_restrict_lex->Mult(x, localX);
       localY = 0.0;
+      elem_restrict_lex->Mult(x, localX);
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(localX, localY);
@@ -68,8 +63,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      dbg("!elem_restrict_lex");
-      y.UseDevice(true); // typically this is a large vector, so store on device
+      y.UseDevice(true);
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
@@ -81,11 +75,9 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 Operator&
 PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
-   dbg("Returning new Grad(X) Operator of size: %d", x.Size());
    GradOp.SetType(Operator::ANY_TYPE);
-   const Array<int> &ess_tdof_list = nlf->GetEssentialTrueDofs();
-   Operator *oper =
-      new PAGradOperator(x, nlf, fes, ess_tdof_list, elem_restrict_lex);
+   const Array<int> &esstdofs = nlf->GetEssentialTrueDofs();
+   Operator *oper =  new PAGradOperator(x, nlf, fes, esstdofs, elem_restrict_lex);
    GradOp.Reset(oper);
    GradOp.SetOperatorOwner(false);
    MFEM_VERIFY(GradOp.Ptr(), "GetGradientPA error!");
@@ -94,7 +86,7 @@ PANonlinearFormExtension::GetGradient(const Vector &x) const
 
 
 /// PAGradOperator
-PAGradOperator::PAGradOperator(const Vector &x,
+PAGradOperator::PAGradOperator(const Vector &g,
                                const NonlinearForm *nlf,
                                const FiniteElementSpace &fes,
                                const Array<int> &ess_tdof_list,
@@ -105,18 +97,15 @@ PAGradOperator::PAGradOperator(const Vector &x,
    ess_tdof_list(ess_tdof_list),
    elem_restrict_lex(elem_restrict_lex)
 {
-   dbg("[Setup]");
    if (elem_restrict_lex)
    {
-      dbg("[Setup] elem_restrict_lex->Height(): %d",elem_restrict_lex->Height());
-      Re.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      Ce.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      Re.UseDevice(true);
-      Ce.UseDevice(true);
-      //
-      Xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      Xe.UseDevice(true);
-      elem_restrict_lex->Mult(x, Xe);
+      ge.UseDevice(true);
+      ge.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      elem_restrict_lex->Mult(g, ge);
+      xe.UseDevice(true);
+      xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      ye.UseDevice(true);
+      ye.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
    }
 
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
@@ -127,13 +116,11 @@ PAGradOperator::PAGradOperator(const Vector &x,
    }
 }
 
-void PAGradOperator::Mult(const Vector &r, Vector &c) const
+void PAGradOperator::Mult(const Vector &x, Vector &y) const
 {
+   Vector z(x);
+   y.SetSize(x.Size());
    const int csz = ess_tdof_list.Size();
-   Vector z;
-   z = r;
-   // Should see where this is done usually
-   c.SetSize(r.Size());
 
    auto idx = ess_tdof_list.Read();
    auto d_z = z.ReadWrite();
@@ -143,21 +130,18 @@ void PAGradOperator::Mult(const Vector &r, Vector &c) const
    const int Ni = integrators.Size();
    if (elem_restrict_lex)
    {
-      Ce = 0.0;
-      elem_restrict_lex->Mult(z, Re);
+      ye = 0.0;
+      elem_restrict_lex->Mult(z, xe);
       for (int i = 0; i < Ni; ++i)
       {
-         integrators[i]->AddMultGradPA(Xe, Re, Ce);
+         integrators[i]->AddMultGradPA(ge, xe, ye);
       }
-      elem_restrict_lex->MultTranspose(Ce, c);
+      elem_restrict_lex->MultTranspose(ye, y);
    }
-   else
-   {
-      MFEM_ABORT("Not yet implemented!");
-   }
-   //#warning Should if (Serial())...
-   auto d_r = r.Read();
-   auto d_c = c.ReadWrite();
+   else { MFEM_ABORT("Not yet implemented!"); }
+
+   auto d_r = x.Read();
+   auto d_c = y.ReadWrite();
    MFEM_FORALL(i, csz, d_c[idx[i]] = d_r[idx[i]];);
 }
 

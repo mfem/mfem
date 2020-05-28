@@ -51,18 +51,19 @@ public:
 class PAGradOperator : public Operator
 {
 protected:
+   Vector ge;
+   mutable Vector xe, ye;
    const NonlinearForm *nlf;
    const FiniteElementSpace &fes;
-   mutable Vector Xe, Re, Ce;
    const Array<int> &ess_tdof_list;
    const Operator *elem_restrict_lex;
 public:
-   PAGradOperator(const Vector &x,
+   PAGradOperator(const Vector &g,
                   const NonlinearForm *nlf,
                   const FiniteElementSpace &fes,
                   const Array<int> &ess_tdof_list,
                   const Operator *elem_restrict_lex);
-   void Mult(const Vector &, Vector &) const;
+   void Mult(const Vector &x, Vector &y) const;
 };
 
 } // namespace mfem
