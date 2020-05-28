@@ -864,7 +864,7 @@ public:
  *
  * Factorize n matrices of size (m x m) stored in a dense tensor
  * overwriting it with the LU factors. The factorization is such
- * that L.U = Piv.A, where A is the original matrix and Piv is a 
+ * that L.U = Piv.A, where A is the original matrix and Piv is a
  * permutation matrix represented by P.
  *
  * @param [in, out] Mlu batch of square matrices - dimension m x m x n.
