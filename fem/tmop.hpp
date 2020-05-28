@@ -1023,8 +1023,9 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
    using NonlinearFormIntegrator::AddMultGradPA;
-   virtual void AddMultGradPA(const Vector &GradX,
-                              const Vector &x, Vector &y) const;
+   virtual void AddMultGradPA(const Vector &, const Vector &, Vector &) const;
+
+   void AssembleGradPA(const DenseMatrix &Jtr, const Vector &x) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 

@@ -309,7 +309,7 @@ static void AddMultPA_Kernel_2D(const int NE,
 // *****************************************************************************
 void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 {
-   dbg("");
+   dbg("X: %.15e",X*X);
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
@@ -377,24 +377,28 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
       case 0x23: return AddMultPA_Kernel_2D<2,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x24: return AddMultPA_Kernel_2D<2,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x25: return AddMultPA_Kernel_2D<2,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x26: return AddMultPA_Kernel_2D<2,6,1>(ne,W,B1d,G1d,Dpa,X,Y);
 
       case 0x31: return AddMultPA_Kernel_2D<3,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x32: return AddMultPA_Kernel_2D<3,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x33: return AddMultPA_Kernel_2D<3,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x34: return AddMultPA_Kernel_2D<3,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x35: return AddMultPA_Kernel_2D<3,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x36: return AddMultPA_Kernel_2D<3,6,1>(ne,W,B1d,G1d,Dpa,X,Y);
 
       case 0x41: return AddMultPA_Kernel_2D<4,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x42: return AddMultPA_Kernel_2D<4,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x43: return AddMultPA_Kernel_2D<4,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x44: return AddMultPA_Kernel_2D<4,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x45: return AddMultPA_Kernel_2D<4,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x46: return AddMultPA_Kernel_2D<4,6,1>(ne,W,B1d,G1d,Dpa,X,Y);
 
       case 0x51: return AddMultPA_Kernel_2D<5,1,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x52: return AddMultPA_Kernel_2D<5,2,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x53: return AddMultPA_Kernel_2D<5,3,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x54: return AddMultPA_Kernel_2D<5,4,1>(ne,W,B1d,G1d,Dpa,X,Y);
       case 0x55: return AddMultPA_Kernel_2D<5,5,1>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x56: return AddMultPA_Kernel_2D<5,6,1>(ne,W,B1d,G1d,Dpa,X,Y);
       default:  break;
    }
    dbg("kernel id: %x", id);
