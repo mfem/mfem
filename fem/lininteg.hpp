@@ -119,7 +119,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// Class for domain integration L(v) := (f, grad v)
+/// Class for domain integrator L(v) := (f, grad v)
 class DomainLFGradIntegrator : public DeltaLFIntegrator
 {
 private:
