@@ -16,6 +16,10 @@
 //               (Q,grad v), (Q,curl V), (Q, div v)
 //               by solving the appropriate energy projection problems
 //
+//               prob 0: (grad u, grad v) + (u,v) = (grad u_exact, grad v) + (u_exact, v)
+//               prob 1: (curl u, curl v) + (u,v) = (curl u_exact, curl v) + (u_exact, v)
+//               prob 2: (div  u, div  v) + (u,v) = (div  u_exact, div  v) + (u_exact, v)
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -115,10 +119,12 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
+   // 8. Define the solution vector u_gf as a parallel finite element grid function
+   //     corresponding to fespace. 
    ParGridFunction u_gf(fespace);
 
    // 9. Set up the parallel linear form b(.) and the parallel 
-   // bilinear form a(.,.)
+   // bilinear form a(.,.).
    FunctionCoefficient *u=nullptr;
    FunctionCoefficient *divU=nullptr;
    FunctionCoefficient *curlU2D=nullptr;
@@ -132,7 +138,8 @@ int main(int argc, char *argv[])
 
    switch (prob)
    {
-      case 0: //(grad u_ex, grad v) + (u_ex,v)
+      case 0: 
+         //(grad u_ex, grad v) + (u_ex,v)
          u = new FunctionCoefficient(u_exact);
          gradu = new VectorFunctionCoefficient(dim,gradu_exact);
          b.AddDomainIntegrator(new DomainLFGradIntegrator(*gradu));
@@ -143,7 +150,8 @@ int main(int argc, char *argv[])
          a.AddDomainIntegrator(new MassIntegrator(one));
 
          break;
-      case 1: //(curl u_ex, curl v + (u_ex,v)
+      case 1: 
+         //(curl u_ex, curl v) + (u_ex,v)
          U = new VectorFunctionCoefficient(dim,U_exact);
          if (dim == 3)
          {
@@ -156,12 +164,14 @@ int main(int argc, char *argv[])
             b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(*curlU2D));
          }
          b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*U));
+
          // (curl u, curl v) + (u,v)
          a.AddDomainIntegrator(new CurlCurlIntegrator(one));
          a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
          break;
 
-      case 2: //(div u_ex, div v) + (u_ex,v)
+      case 2: 
+         //(div u_ex, div v) + (u_ex,v)
          U = new VectorFunctionCoefficient(dim,U_exact);
          divU = new FunctionCoefficient(divU_exact);
          b.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(*divU));
@@ -176,6 +186,8 @@ int main(int argc, char *argv[])
          break;
    }
 
+   // 10. Perform successive parallel refinements, compute the L2 error
+   // and the corresponding rate of convergence
    double L2err0 = 0.0;
    for (int l = 0; l <= pr; l++)
    {
@@ -266,6 +278,7 @@ int main(int argc, char *argv[])
       u_gf.Update();
    }
 
+   // 11. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -287,6 +300,7 @@ int main(int argc, char *argv[])
                << keys << flush;
    }
    
+   // 12. Free the used memory.
    delete u;
    delete divU;
    delete curlU2D;
@@ -296,6 +310,7 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
+   
    MPI_Finalize();
 
    return 0;
