@@ -1684,6 +1684,7 @@ protected:
       trial_fe.CalcPhysCurlShape(Trans, shape);
    }
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
@@ -1738,6 +1739,7 @@ protected:
       test_fe.CalcPhysCurlShape(Trans, shape);
    }
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 

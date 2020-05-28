@@ -240,7 +240,6 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   Vector &_diag)
 {
    constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HDIV_MAX_D1D;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
@@ -983,7 +982,6 @@ static void PADivDivAssembleDiagonal2D(const int D1D,
                                        Vector &_diag)
 {
    constexpr static int VDIM = 2;
-   constexpr static int MAX_D1D = HDIV_MAX_D1D;
    constexpr static int MAX_Q1D = HDIV_MAX_Q1D;
 
    auto Bo = Reshape(_Bo.Read(), Q1D, D1D-1);
@@ -1736,7 +1734,7 @@ static void PAHdivL2ApplyTranspose2D(const int D1D,
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double aX[HDIV_MAX_D1D];
+         double aX[MAX_D1D];
 
          int osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y components
