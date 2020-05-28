@@ -14,7 +14,7 @@ if (MFEM_USE_MPI)
     MAIN mixed_fe.cpp
     EXTRA_SOURCES mixed_fe_solvers.cpp
     EXTRA_HEADERS mixed_fe_solvers.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem_miniapps_common)
+    LIBRARIES mfem mfem-common)
 
   # Add the corresponding tests to the "test" target
   add_test(NAME tesla_np=4
