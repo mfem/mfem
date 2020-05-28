@@ -520,9 +520,8 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // ir = &IntRules.Get(el.GetGeomType(),
-      //                    oa * el.GetOrder() + ob + Tr.OrderW());
-      ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
+      int intorder = 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)

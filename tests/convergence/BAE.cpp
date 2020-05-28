@@ -47,17 +47,13 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // geometry file
+   // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
-   // finite element order of approximation
    int order = 1;
-   // static condensation flag
    bool visualization = 1;
-   // number of initial ref
    int sr = 1;
    int pr = 1;
 
-   // optional command line inputs
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -73,7 +69,6 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   // check if the inputs are correct
    if (!args.Good())
    {
       if (myid == 0)
@@ -88,22 +83,28 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the mesh from the given mesh file.
+   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
+   //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();  if (dim == 1 ) prob = 0;
 
+   // 4. Set up parameters for exact solution
    alpha.SetSize(dim); // x,y,z coefficients of the solution
    for (int i=0; i<dim; i++) { alpha(i) = M_PI*(double)(i+1);}
-   // 3. Executing uniform h-refinement
+
+   // 5. Refine the serial mesh on all processors to increase the resolution. 
    for (int i = 0; i < sr; i++ )
    {
       mesh->UniformRefinement();
    }
 
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   // 6. Define a finite element space on the mesh.
+   // 7. Define a parallel finite element space on the parallel mesh. 
    FiniteElementCollection *fec=nullptr;
    switch (prob)
    {
@@ -115,12 +116,20 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
    ParGridFunction u_gf(fespace);
-   FunctionCoefficient *u, *divU, *curlU2D;
-   VectorFunctionCoefficient *U, *gradu, *curlU; 
+
+   // 9. Set up the parallel linear form b(.) and the parallel 
+   // bilinear form a(.,.)
+   FunctionCoefficient *u=nullptr;
+   FunctionCoefficient *divU=nullptr;
+   FunctionCoefficient *curlU2D=nullptr;
+   VectorFunctionCoefficient *U=nullptr;
+   VectorFunctionCoefficient *gradu=nullptr;
+   VectorFunctionCoefficient *curlU=nullptr;
 
    ConstantCoefficient one(1.0);
    ParLinearForm b(fespace);
    ParBilinearForm a(fespace);
+
    switch (prob)
    {
       case 0: //(grad u_ex, grad v) + (u_ex,v)
@@ -277,7 +286,13 @@ int main(int argc, char *argv[])
                "window_title 'Numerical Pressure (real part)' "
                << keys << flush;
    }
-
+   
+   delete u;
+   delete divU;
+   delete curlU2D;
+   delete U;
+   delete gradu;
+   delete curlU;
    delete fespace;
    delete fec;
    delete pmesh;

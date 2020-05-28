@@ -119,7 +119,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-
+/// Class for domain integration L(v) := (f, grad v)
 class DomainLFGradIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -312,18 +312,10 @@ class VectorFEDomainLFDivIntegrator : public DeltaLFIntegrator
 private:
    Vector divshape;
    Coefficient &Q;
-   int oa, ob;
-
 public:
    /// Constructs the domain integrator (Q, div v)
-   VectorFEDomainLFDivIntegrator(Coefficient &QF, int a = 2, int b = 0)
-   // the old default was a = 1, b = 1
-   // for simple elliptic problems a = 2, b = -2 is OK
-      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
-
-   /// Constructs a domain integrator with a given Coefficient
-   VectorFEDomainLFDivIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
+   VectorFEDomainLFDivIntegrator(Coefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
