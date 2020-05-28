@@ -9,9 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define MFEM_DBG_COLOR 46
-#include "../general/dbg.hpp"
-
 #include "linalg.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
@@ -537,27 +534,22 @@ void CGSolver::UpdateVectors()
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("b: %.15e", b*b);
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
    if (iterative_mode)
    {
-      dbg("iterative_mode");
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
    }
    else
    {
-      dbg("!iterative_mode");
       r = b;
       x = 0.0;
    }
-   dbg("r: %.15e, x: %.15e", r*r, x*x);
 
    if (prec)
    {
-      dbg("prec");
       prec->Mult(r, z); // z = B r
       d = z;
    }
@@ -565,7 +557,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
-   dbg("d:  %.15e", d*d);
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
    if (print_level == 1 || print_level == 3)
@@ -596,10 +587,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   dbg("oper HxW: %d x %d", oper->Height(), oper->Width());
    oper->Mult(d, z);  // z = A d
-   dbg("oper->Mult(d, z): z: %.15e", z*z);
-
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
@@ -626,7 +614,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       alpha = nom/den;
       add(x,  alpha, d, x);     //  x = x + alpha d
       add(r, -alpha, z, r);     //  r = r - alpha A d
-      dbg("[%d] r: %.15e, x: %.15e", i, r*r, x*x);
 
       if (prec)
       {
@@ -637,7 +624,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          betanom = Dot(r, r);
       }
-      dbg("[%d] betanom: %.15e", i, betanom);
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
@@ -690,12 +676,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          add(r, beta, d, d);
       }
       oper->Mult(d, z);       //  z = A d
-      dbg("[%d] oper->Mult(d, z): d: %.15e z: %.15e", i, d*d, z*z);
-      /////////////////////////
-      static bool RAND = getenv("RAND");
-      if (RAND && i==4) {dbg("Exiting!"); exit(0);}
-      /////////////////////////
-
       den = Dot(d, z);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
@@ -1582,16 +1562,13 @@ void NewtonSolver::SetOperator(const Operator &op)
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("");
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
    double norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
-   dbg("ProcessNewState");
    ProcessNewState(x);
-   dbg("x:%.15e",x*x);
 
    if (!iterative_mode)
    {
@@ -1599,24 +1576,19 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(x, r);
-   dbg("Result: x:%.15e, r:%.15e", x*x, r*r);
    if (have_b)
    {
       r -= b;
    }
-   dbg("r:%.15e",r*r);
 
    norm0 = norm = Norm(r);
    norm_goal = std::max(rel_tol*norm, abs_tol);
-   dbg("norm_goal: %.15e", norm_goal);
 
    prec->iterative_mode = false;
-   //dbg("Exiting!"); exit(0);
 
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
    {
-      dbg("it: %d",it);
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
       if (print_level >= 0)
       {
@@ -1642,22 +1614,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      dbg("prec->SetOperator(oper->GetGradient(x));");
-#ifndef _WIN32
-      if (getenv("RAND"))
-      {
-         x.HostWrite();
-         dbg("\033[7mStuffing x with drand48 for GetGradient!");
-         for (int k=0; k<x.Size(); k++) { x[k] = drand48();  }
-      }
-#endif
       prec->SetOperator(oper->GetGradient(x));
-
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      c.HostReadWrite();
-      dbg("x:%.15e, c: %.15e", r*r, c*c);
-
-      dbg("ComputeScalingFactor");
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
@@ -1666,18 +1624,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x);
 
-      dbg("ProcessNewState");
       ProcessNewState(x);
-      dbg("x: %.15e",x*x);
 
       oper->Mult(x, r);
-      dbg("oper->Mult(x, r): x:%.15e r:%.15e", x*x, r*r);
       if (have_b)
       {
          r -= b;
       }
       norm = Norm(r);
-      dbg("norm: %.15e", norm);
    }
 
    final_iter = it;
