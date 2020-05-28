@@ -102,6 +102,9 @@ public:
 
    /// Conversion function to SLEPc's EPS type.
    operator EPS() const { return eps; }
+
+   /// Conversion function to PetscObject
+   operator PetscObject() const {return (PetscObject)eps; }
 };
 
 }

@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
    if (pmesh->bdr_attributes.Size())
    {
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-      ess_bdr = 0;
+      ess_bdr = 1;
    }
 
    // 10. Assemble the finite element matrices for the LHS and RHS
