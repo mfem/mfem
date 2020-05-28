@@ -19,6 +19,7 @@
 //
 // Device sample runs:
 //    ex9 -pa
+//    ex9 -ea
 //    ex9 -pa -m ../data/periodic-cube.mesh
 //    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
 //
@@ -142,6 +143,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    double t_final = 10.0;
@@ -166,6 +168,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -268,6 +272,11 @@ int main(int argc, char *argv[])
    {
       m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else if (ea)
+   {
+      m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
    }
    m.AddDomainIntegrator(new MassIntegrator);
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
@@ -429,8 +438,9 @@ FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
    bool pa = M.GetAssemblyLevel() == AssemblyLevel::PARTIAL;
+   bool ea = M.GetAssemblyLevel() == AssemblyLevel::ELEMENT;
    Array<int> ess_tdof_list;
-   if (pa)
+   if (pa || ea)
    {
       M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
       M_solver.SetOperator(M);
