@@ -782,9 +782,23 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                IsoparametricTransformation eT;
                eT.SetFE(&SegmentFE);
 
+               const DenseMatrix &pm = slave.point_matrix;
+               double x0 = pm(0,0), x1 = pm(0,2);
+               double y0 = pm(1,0), y1 = pm(1,2);
+
+               bool bdr[4] =
+               {
+                  (y0 == 0.0 || y0 == 1.0),
+                  (x1 == 0.0 || x1 == 1.0),
+                  (y1 == 0.0 || y1 == 1.0),
+                  (x0 == 0.0 || x0 == 1.0)
+               };
+
                // constrain each edge of the slave face
                for (int i = 0; i < E.Size(); i++)
                {
+                  if (bdr[i]) { continue; }
+
                   int order = GetEdgeDofs(E[i], slave_dofs, 0);
 
                   int a = i, b = (i+1) % V.Size();
@@ -795,8 +809,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                   edge_pm.SetSize(2, 2);
                   for (int j = 0; j < 2; j++)
                   {
-                     edge_pm(j, 0) = slave.point_matrix(j, a);
-                     edge_pm(j, 1) = slave.point_matrix(j, b);
+                     edge_pm(j, 0) = pm(j, a);
+                     edge_pm(j, 1) = pm(j, b);
                   }
 
                   const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, order);
@@ -958,8 +972,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                    << ", ndofs = " << ndofs);
    }
 
-   out << "\n\n";
-   DebugDumpDOFs(out, deps, finalized);
+   /*out << "\n\n";
+   DebugDumpDOFs(out, deps, finalized);*/
 
    cP->Finalize();
 
@@ -1941,8 +1955,8 @@ void FiniteElementSpace::Construct()
    // DOFs are now assigned according to current element orders
    orders_changed = false;
 
-   DumpOrders(edge_dofs, 1);
-   DumpOrders(face_dofs, 2);
+   /*DumpOrders(edge_dofs, 1);
+   DumpOrders(face_dofs, 2);*/
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
