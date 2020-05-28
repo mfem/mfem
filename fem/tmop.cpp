@@ -941,6 +941,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          IsoparametricTransformation Tpr;
          Tpr.SetFE(&fe);
          Tpr.ElementNo = e_id;
+         Tpr.ElementType = ElementTransformation::ELEMENT;
          Tpr.GetPointMat().Transpose(point_mat);
 
          for (int i = 0; i < ir.GetNPoints(); i++)
@@ -957,41 +958,175 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 }
 
 #ifdef MFEM_USE_MPI
-void DiscreteAdaptTC::SetParDiscreteTargetSpec(ParGridFunction &tspec_)
+void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction
+                                                    &tspec_)
 {
-   tspec.SetSize(tspec_.Size());
-   tspec = tspec_;
-   tspec_fes   = tspec_.FESpace();
+   MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
+   MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
-   if (!adapt_eval) { MFEM_ABORT("Set adaptivity evaluator\n"); }
+   ParFiniteElementSpace *ptspec_fes = tspec_.ParFESpace();
 
-   adapt_eval->SetParMetaInfo(*tspec_.ParFESpace()->GetParMesh(),
-                              *tspec_.FESpace()->FEColl(),
-                              tspec_.FESpace()->GetVDim());
-
-   adapt_eval->SetInitialField
-   (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
+                              *ptspec_fes->FEColl(), ncomp);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
+
+   delete tspec_fesv;
+   tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
+                                       tspec_fes->FEColl(), ncomp);
+}
+
+void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
+{
+   const int vdim     = tspec_.FESpace()->GetVDim(),
+             dof_cnt  = tspec_.Size()/vdim;
+   for (int i = 0; i < dof_cnt*vdim; i++)
+   {
+      tspec(i+idx*dof_cnt) = tspec_(i);
+   }
+
+   FinalizeParDiscreteTargetSpec(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetSize(const ParGridFunction &tspec_)
+{
+   if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
+   sizeidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeParDiscreteTargetSpec(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetSkew(const ParGridFunction &tspec_)
+{
+   if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
+   skewidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeParDiscreteTargetSpec(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetAspectRatio(const ParGridFunction
+                                                      &tspec_)
+{
+   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
+   aspectratioidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeParDiscreteTargetSpec(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetOrientation(const ParGridFunction
+                                                      &tspec_)
+{
+   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
+   orientationidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeParDiscreteTargetSpec(tspec_);
+}
+
+void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
+{
+   SetParDiscreteTargetSize(tspec_);
+   FinalizeParDiscreteTargetSpec(tspec_);
 }
 #endif
 
-void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(GridFunction &tspec_)
+void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
-   tspec.SetSize(tspec_.Size());
-   tspec = tspec_;
-   tspec_fes   = tspec_.FESpace();
+   const int vdim     = tspec_.FESpace()->GetVDim(),
+             dof_cnt  = tspec_.Size()/vdim;
 
-   if (!adapt_eval) { MFEM_ABORT("Set adaptivity evaluator\n"); }
+   ncomp += vdim;
 
-   adapt_eval->SetSerialMetaInfo(*tspec_.FESpace()->GetMesh(),
-                                 *tspec_.FESpace()->FEColl(),
-                                 tspec_.FESpace()->GetVDim());
-   adapt_eval->SetInitialField
-   (*tspec_.FESpace()->GetMesh()->GetNodes(), tspec);
+   delete tspec_fes;
+   tspec_fes = new FiniteElementSpace(tspec_.FESpace()->GetMesh(),
+                                      tspec_.FESpace()->FEColl(), 1);
+
+   // need to append data to tspec
+   // make a copy of tspec->tspec_temp, increase its size, and
+   // copy data from tspec_temp -> tspec, then add new entries
+   Vector tspec_temp = tspec;
+   tspec.SetSize(ncomp*dof_cnt);
+
+   for (int i = 0; i < tspec_temp.Size(); i++)
+   {
+      tspec(i) = tspec_temp(i);
+   }
+
+   for (int i = 0; i < dof_cnt*vdim; i++)
+   {
+      tspec(i+(ncomp-vdim)*dof_cnt) = tspec_(i);
+   }
+}
+
+void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
+{
+   const int vdim     = tspec_.FESpace()->GetVDim(),
+             dof_cnt  = tspec_.Size()/vdim;
+   for (int i = 0; i < dof_cnt*vdim; i++)
+   {
+      tspec(i+idx*dof_cnt) = tspec_(i);
+   }
+
+   FinalizeSerialDiscreteTargetSpec();
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetSize(const GridFunction &tspec_)
+{
+
+   if (sizeidx > -1) { SetTspecAtIndex(sizeidx, tspec_); return; }
+   sizeidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeSerialDiscreteTargetSpec();
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetSkew(const GridFunction &tspec_)
+{
+   if (skewidx > -1) { SetTspecAtIndex(skewidx, tspec_); return; }
+   skewidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeSerialDiscreteTargetSpec();
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetAspectRatio(
+   const GridFunction &tspec_)
+{
+   if (aspectratioidx > -1) { SetTspecAtIndex(aspectratioidx, tspec_); return; }
+   aspectratioidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeSerialDiscreteTargetSpec();
+}
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(
+   const GridFunction &tspec_)
+{
+   if (orientationidx > -1) { SetTspecAtIndex(orientationidx, tspec_); return; }
+   orientationidx = ncomp;
+   SetDiscreteTargetBase(tspec_);
+   FinalizeSerialDiscreteTargetSpec();
+}
+
+void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec()
+{
+   MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
+   MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
+
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
+                                 *tspec_fes->FEColl(), ncomp);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
+
+   delete tspec_fesv;
+   tspec_fesv = new FiniteElementSpace(tspec_fes->GetMesh(),
+                                       tspec_fes->FEColl(), ncomp);
 }
+
+void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
+{
+   SetSerialDiscreteTargetSize(tspec_);
+   FinalizeSerialDiscreteTargetSpec();
+}
+
 
 void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
                                                 bool use_flag)
@@ -1020,8 +1155,12 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   int cnt = tspec.Size();
-   tspec(dofs[dofidx]) = IntData(dofs[dofidx]+dir*cnt);
+   const int cnt = tspec.Size()/ncomp; //dofs per scalar-field
+
+   for (int i = 0; i < ncomp; i++)
+   {
+      tspec(dofs[dofidx]+i*cnt) = IntData(dofs[dofidx] + i*cnt + dir*cnt*ncomp);
+   }
 }
 
 void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
@@ -1031,7 +1170,11 @@ void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
 
    Array<int> dofs;
    tspec_fes->GetElementDofs(T.ElementNo, dofs);
-   tspec(dofs[dofidx]) = tspec_sav(dofs[dofidx]);
+   const int cnt = tspec.Size()/ncomp;
+   for (int i = 0; i < ncomp; i++)
+   {
+      tspec(dofs[dofidx] + i*cnt) = tspec_sav(dofs[dofidx] + i*cnt);
+   }
 }
 
 void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
@@ -1039,37 +1182,176 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const Vector &elfun,
                                             DenseTensor &Jtr) const
 {
-   MFEM_VERIFY(tspec_fes, "A call to SetDiscreteTargerSpec() is needed.");
+   MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
 
    switch (target_type)
    {
       case IDEAL_SHAPE_GIVEN_SIZE:
+      case GIVEN_SHAPE_AND_SIZE:
       {
          const DenseMatrix &Wideal =
             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
          const int dim = Wideal.Height(),
-                   ntspec_dofs = tspec_fes->GetFE(0)->GetDof();
+                   ndofs = tspec_fes->GetFE(0)->GetDof(),
+                   ntspec_dofs = ndofs*ncomp;
 
-         Vector shape(ntspec_dofs), tspec_vals(ntspec_dofs);
+         Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
+                par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
+
          Array<int> dofs;
-         tspec_fes->GetElementDofs(e_id, dofs);
+         DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
+         tspec_fesv->GetElementVDofs(e_id, dofs);
          tspec.GetSubVector(dofs, tspec_vals);
-
-         const double min_size = tspec_vals.Min();
-         MFEM_ASSERT(min_size > 0.0,
-                     "Non-positive size propagated in the target definition.");
 
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir.IntPoint(i);
             tspec_fes->GetFE(e_id)->CalcShape(ip, shape);
-            const double size = std::max(shape * tspec_vals, min_size);
-            Jtr(i).Set(std::pow(size / Wideal.Det(), 1.0/dim), Wideal);
+            Jtr(i) = Wideal; //Initialize to identity
+
+            if (sizeidx != -1) //Set size
+            {
+               par_vals.SetDataAndSize(tspec_vals.GetData()+sizeidx*ndofs, ndofs);
+               const double min_size = par_vals.Min();
+               MFEM_VERIFY(min_size > 0.0,
+                           "Non-positive size propagated in the target definition.");
+               const double size = std::max(shape * par_vals, min_size);
+               Jtr(i).Set(std::pow(size, 1.0/dim), Jtr(i));
+            } //Done size
+
+            if (target_type == IDEAL_SHAPE_GIVEN_SIZE) { continue; }
+
+            if (aspectratioidx != -1) //Set aspect ratio
+            {
+               if (dim == 2)
+               {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          aspectratioidx*ndofs, ndofs);
+
+                  const double aspectratio = shape * par_vals;
+                  D_rho = 0.;
+                  D_rho(0,0) = 1./pow(aspectratio,0.5);
+                  D_rho(1,1) = pow(aspectratio,0.5);
+               }
+               else
+               {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          aspectratioidx*ndofs, ndofs*3);
+                  par_vals_c1.SetData(par_vals.GetData());
+                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
+                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+
+                  const double rho1 = shape * par_vals_c1;
+                  const double rho2 = shape * par_vals_c2;
+                  const double rho3 = shape * par_vals_c3;
+                  D_rho = 0.;
+                  D_rho(0,0) = pow(rho1,2./3.);
+                  D_rho(1,1) = pow(rho2,2./3.);
+                  D_rho(2,2) = pow(rho3,2./3.);
+               }
+
+               DenseMatrix Temp = Jtr(i);
+               Mult(D_rho, Temp, Jtr(i));
+            } //Done aspect ratio
+
+            if (skewidx != -1) //Set skew
+            {
+               if (dim == 2)
+               {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          skewidx*ndofs, ndofs);
+
+                  const double skew = shape * par_vals;
+
+                  Q_phi = 0.;
+                  Q_phi(0,0) = 1.;
+                  Q_phi(0,1) = cos(skew);
+                  Q_phi(1,1) = sin(skew);
+               }
+               else
+               {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          skewidx*ndofs, ndofs*3);
+                  par_vals_c1.SetData(par_vals.GetData());
+                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
+                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+
+                  const double phi12  = shape * par_vals_c1;
+                  const double phi13  = shape * par_vals_c2;
+                  const double chi = shape * par_vals_c3;
+
+                  Q_phi = 0.;
+                  Q_phi(0,0) = 1.;
+                  Q_phi(0,1) = cos(phi12);
+                  Q_phi(0,2) = cos(phi13);
+
+                  Q_phi(1,1) = sin(phi12);
+                  Q_phi(1,2) = sin(phi13)*cos(chi);
+
+                  Q_phi(2,2) = sin(phi13)*sin(chi);
+               }
+
+               DenseMatrix Temp = Jtr(i);
+               Mult(Q_phi, Temp, Jtr(i));
+            } // done skew
+
+            if (orientationidx != -1) //Set orientation
+            {
+               if (dim == 2)
+               {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          orientationidx*ndofs, ndofs);
+
+                  const double theta = shape * par_vals;
+                  R_theta(0,0) =  cos(theta);
+                  R_theta(0,1) = -sin(theta);
+                  R_theta(1,0) =  sin(theta);
+                  R_theta(1,1) =  cos(theta);
+               }
+               else
+               {
+                  par_vals.SetDataAndSize(tspec_vals.GetData()+
+                                          orientationidx*ndofs, ndofs*3);
+                  par_vals_c1.SetData(par_vals.GetData());
+                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
+                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+
+                  const double theta = shape * par_vals_c1;
+                  const double psi   = shape * par_vals_c2;
+                  const double beta  = shape * par_vals_c3;
+
+                  DenseMatrix R_tp(dim), R_beta(dim), R_theta(dim);
+                  double ct = cos(theta), st = sin(theta),
+                         cp = cos(psi),   sp = sin(psi);
+                  R_tp(0,0) = ct*sp;
+                  R_tp(1,0) = st*sp;
+                  R_tp(2,0) = cp;
+
+                  R_tp(0,1) = -(ct*st*sp*sp)/(1+cp);
+                  R_tp(1,1) = cp+(pow(ct,2.)*pow(sp,2.))/(1+cp);
+                  R_tp(2,1) = -st*sp;
+
+                  R_tp(0,2) = -cp-(pow(st,2.)*pow(sp,2.))/(1+cp);
+                  R_tp(1,2) = -R_tp(0,1);
+                  R_tp(2,2) =  ct*sp;
+
+                  R_beta = 0.;
+                  R_beta(0,0) = 1.;
+                  R_beta(1,1) =  cos(beta);
+                  R_beta(1,2) = -sin(beta);
+                  R_beta(2,1) =  sin(beta);
+                  R_beta(2,2) =  cos(beta);
+
+                  Mult(R_tp, R_beta, R_theta);
+               }
+               DenseMatrix Temp = Jtr(i);
+               Mult(R_theta, Temp, Jtr(i));
+            } // done orientation
          }
          break;
       }
       default:
-         MFEM_ABORT("Incompatible target type for analytic adaptation!");
+         MFEM_ABORT("Incompatible target type for discrete adaptation!");
    }
 }
 
@@ -1079,13 +1361,10 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
 {
    if (use_flag && good_tspec_grad) { return; }
 
-   const int dim = tspec_fes->GetFE(0)->GetDim();
-   const int cnt = x.Size()/dim;
+   const int dim = tspec_fes->GetFE(0)->GetDim(),
+             cnt = x.Size()/dim;
 
-   if (tspec_pert1h.Size() != x.Size())
-   {
-      tspec_pert1h.SetSize(x.Size());
-   }
+   tspec_pert1h.SetSize(x.Size()*ncomp);
 
    Vector TSpecTemp;
    Vector xtemp = x;
@@ -1093,7 +1372,7 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
    {
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += dx; }
 
-      TSpecTemp.SetDataAndSize(tspec_pert1h.GetData() + j*cnt, cnt);
+      TSpecTemp.NewDataAndSize(tspec_pert1h.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= dx; }
@@ -1105,16 +1384,15 @@ void DiscreteAdaptTC::UpdateGradientTargetSpecification(const Vector &x,
 void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
                                                        double dx, bool use_flag)
 {
+
    if (use_flag && good_tspec_hess) { return; }
 
-   const int dim = tspec_fes->GetFE(0)->GetDim();
-   const int cnt = x.Size()/dim;
+   const int dim    = tspec_fes->GetFE(0)->GetDim(),
+             cnt    = x.Size()/dim,
+             totmix = 1+2*(dim-2);
 
-   if (tspec_pert2h.Size() != x.Size())
-   {
-      tspec_pert2h.SetSize(x.Size());
-      tspec_pertmix.SetSize(cnt*(1+2*(dim-2)));
-   }
+   tspec_pert2h.SetSize(cnt*dim*ncomp);
+   tspec_pertmix.SetSize(cnt*totmix*ncomp);
 
    Vector TSpecTemp;
    Vector xtemp = x;
@@ -1124,14 +1402,14 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
    {
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) += 2*dx; }
 
-      TSpecTemp.SetDataAndSize(tspec_pert2h.GetData() + j*cnt, cnt);
+      TSpecTemp.NewDataAndSize(tspec_pert2h.GetData() + j*cnt*ncomp, cnt*ncomp);
       UpdateTargetSpecification(xtemp, TSpecTemp);
 
       for (int i = 0; i < cnt; i++) { xtemp(j*cnt+i) -= 2*dx; }
    }
 
    // T(x+h,y+h)
-   int idx = 0;
+   int j = 0;
    for (int k1 = 0; k1 < dim; k1++)
    {
       for (int k2 = 0; (k1 != k2) && (k2 < dim); k2++)
@@ -1142,7 +1420,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
             xtemp(k2*cnt+i) += dx;
          }
 
-         TSpecTemp.SetDataAndSize(tspec_pertmix.GetData() + idx*cnt, cnt);
+         TSpecTemp.NewDataAndSize(tspec_pertmix.GetData() + j*cnt*ncomp, cnt*ncomp);
          UpdateTargetSpecification(xtemp, TSpecTemp);
 
          for (int i = 0; i < cnt; i++)
@@ -1150,7 +1428,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
             xtemp(k1*cnt+i) -= dx;
             xtemp(k2*cnt+i) -= dx;
          }
-         idx++;
+         j++;
       }
    }
 
@@ -1165,6 +1443,8 @@ void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
    delete mesh;
    mesh = new Mesh(m, true);
    fes = new FiniteElementSpace(mesh, &fec, num_comp);
+   dim = fes->GetFE(0)->GetDim();
+   ncomp = num_comp;
 }
 
 #ifdef MFEM_USE_MPI
@@ -1176,6 +1456,8 @@ void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
    delete pmesh;
    pmesh = new ParMesh(m, true);
    pfes  = new ParFiniteElementSpace(pmesh, &fec, num_comp);
+   dim = pfes->GetFE(0)->GetDim();
+   ncomp = num_comp;
 }
 #endif
 
@@ -1267,6 +1549,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
       Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
@@ -1391,6 +1674,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
       Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
@@ -1484,6 +1768,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
       Tpr->ElementNo = T.ElementNo;
+      Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI);
    }
