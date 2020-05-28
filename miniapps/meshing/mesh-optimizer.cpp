@@ -72,11 +72,6 @@
 //   2D non-conforming shape and equal size:
 //     mesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 
-
-#define EPS 1.e-4
-#define MFEM_DBG_COLOR 87
-#include "../../general/dbg.hpp"
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -90,9 +85,6 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-#ifndef _WIN32
-   srand48(0x1234abcd330eul);
-#endif
    // 0. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
@@ -249,61 +241,23 @@ int main(int argc, char *argv[])
    //
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
-   h0.UseDevice(true);
    h0 = infinity();
-   h0.HostReadWrite();
    double volume = 0.0;
+   Array<int> dofs;
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
-      Array<int> dofs;
-      for (int i = 0; i < mesh->GetNE(); i++)
+      // Get the local scalar element degrees of freedom in dofs.
+      fespace->GetElementDofs(i, dofs);
+      // Adjust the value of h0 in dofs based on the local mesh size.
+      const double hi = mesh->GetElementSize(i);
+      for (int j = 0; j < dofs.Size(); j++)
       {
-         // Get the local scalar element degrees of freedom in dofs.
-         fespace->GetElementDofs(i, dofs);
-         // Adjust the value of h0 in dofs based on the local mesh size.
-         const double hi = mesh->GetElementSize(i);
-         for (int j = 0; j < dofs.Size(); j++)
-         {
-            h0(dofs[j]) = min(h0(dofs[j]), hi);
-         }
-         volume += mesh->GetElementVolume(i);
+         h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
+      volume += mesh->GetElementVolume(i);
    }
+
    const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
-   dbg("small_phys_size:   %.15e", small_phys_size);
-
-   {
-      const int quad_order = mesh_poly_deg;
-      const int geom_type = fespace->GetFE(0)->GetGeomType();
-      const IntegrationRule &ir = IntRules.Get(geom_type, quad_order);
-
-      const int NQ = ir.GetNPoints();
-      const int NE = fespace->GetMesh()->GetNE();
-      const int Q1D = IntRules.Get(Geometry::SEGMENT, quad_order).GetNPoints();
-      const int flags = GeometricFactors::DETERMINANTS;
-      const GeometricFactors *geom = mesh->GetGeometricFactors(ir, flags);
-      MFEM_VERIFY(dim==2, "Only 2D is supported");
-      const auto W = ir.GetWeights().Read();
-      const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
-      Vector volume_d(NE*NQ), one_d(NE*NQ);
-      auto A = Reshape(volume_d.Write(), NQ, NE);
-      auto O = Reshape(one_d.Write(), NQ, NE);
-      MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               const int q = qx + qy * Q1D;
-               const double det = detJ(q,e);
-               A(q,e) = W[q] * det;
-               O(q,e) = 1.0;
-            }
-         }
-      });
-      volume = volume_d * one_d;
-      const double small_phys_size_d = pow(volume, 1.0 / dim) / 100.0;
-      dbg("small_phys_size_d: %.15e", small_phys_size_d);
-   }
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -315,6 +269,7 @@ int main(int argc, char *argv[])
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    rdm.HostReadWrite();
+
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < fespace->GetNDofs(); i++)
    {
@@ -349,11 +304,11 @@ int main(int argc, char *argv[])
    // 11. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
-   //MFEM_VERIFY(metric_id == 2, "");
+   MFEM_VERIFY(metric_id == 2, "");
    switch (metric_id)
    {
       case 1: metric = new TMOP_Metric_001; break;
-      case 2: metric = new TMOP_Metric_002; break; // <== metric ID
+      case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 14: metric = new TMOP_Metric_SSA2D; break;
@@ -383,9 +338,10 @@ int main(int argc, char *argv[])
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
+   MFEM_VERIFY(target_id == 1, "");
    switch (target_id)
    {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break; // <==
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
       case 4: // Analytic
@@ -586,6 +542,7 @@ int main(int argc, char *argv[])
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
+   MFEM_VERIFY(quad_type == 2, "");
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
    switch (quad_type)
@@ -657,17 +614,11 @@ int main(int argc, char *argv[])
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
-   if (pa) { a.Setup(); }
+   if (pa) { a.AssemblePA(); }
 
    const double init_energy = !pa ?
                               a.GetGridFunctionEnergy(x):
                               a.GetGridFunctionEnergyPA(x);
-   dbg("init_energy: %.15e", init_energy);
-   if (getenv("RAND"))
-   {
-      const double init_energy_fa = a.GetGridFunctionEnergy(x);
-      MFEM_VERIFY(fabs(init_energy-init_energy_fa)<EPS,"");
-   }
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
@@ -733,9 +684,9 @@ int main(int argc, char *argv[])
 
    // 17. As we use the Newton method to solve the resulting nonlinear system,
    //     here we setup the linear solver for the system's Jacobian.
-   MFEM_VERIFY(lin_solver == 1, "");
    Solver *S = NULL;
    const double linsol_rtol = 1e-12;
+   MFEM_VERIFY(lin_solver == 1, "");
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -762,52 +713,31 @@ int main(int argc, char *argv[])
    // 18. Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
    const int NE = mesh->GetNE();
-   for (int i = 0; i < NE; i++)
+   if (!pa)
    {
-      ElementTransformation *transf = mesh->GetElementTransformation(i);
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      for (int i = 0; i < NE; i++)
       {
-         transf->SetIntPoint(&ir->IntPoint(j));
-         tauval = min(tauval, transf->Jacobian().Det());
+         ElementTransformation *transf = mesh->GetElementTransformation(i);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            transf->SetIntPoint(&ir->IntPoint(j));
+            tauval = min(tauval, transf->Jacobian().Det());
+         }
       }
    }
-   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
-   dbg("Minimum det(J) of the original mesh: %.15e", tauval);
-   if (pa && dim == 2)
+   else
    {
-      // Compute the minimum det(J) of the starting mesh on the device.
-      const int NQ = ir->GetNPoints();
-      const int NE = mesh->GetNE();
-      const int Q1D = (int) std::floor(std::pow(ir->GetNPoints(), 1.0/dim) + 0.5);
-      //IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-      dbg("NQ:%d, Q1D:%d", NQ, Q1D);
-      MFEM_VERIFY( Q1D*Q1D == NQ, "");
-      const int flags = GeometricFactors::DETERMINANTS;
-      const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags);
-      MFEM_VERIFY(dim==2, "Only 2D is supported");
-      const auto detJ = Reshape(geom->detJ.Read(), NQ, NE);
-      Vector tauval_d(NE*NQ);
-      auto A = Reshape(tauval_d.Write(), NQ, NE);
-      MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               const int q = qx + qy * Q1D;
-               A(q,e) = detJ(q,e);
-            }
-         }
-      });
-      const double tauval_d_min = tauval_d.Min();
-      cout << "Minimum det(J) of the original mesh is " << tauval_d_min << endl;
-      dbg("Minimum det(J) of the original mesh: %.15e", tauval_d_min);
-      MFEM_VERIFY(fabs(tauval-tauval_d_min)<EPS,"");
+      const GeometricFactors *geom =
+         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
+      const double tauval_d = geom->detJ.Min();
+      //MFEM_VERIFY(fabs(tauval-tauval_d)<1.e-8,"");
+      tauval = tauval_d;
    }
+   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
 
    // 19. Finally, perform the nonlinear optimization.
-   //MFEM_VERIFY(tauval > 0.0, "");
    NewtonSolver *newton = NULL;
+   MFEM_VERIFY(tauval > 0.0, "");
    if (tauval > 0.0)
    {
       tauval = 0.0;
@@ -832,13 +762,9 @@ int main(int argc, char *argv[])
    newton->SetRelTol(newton_rtol);
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   dbg("newton->SetOperator(a)");
    newton->SetOperator(a);
-   dbg("newton->Mult");
    newton->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
-   //dbg("returning...");
-   //return 0;
 
    if (newton->GetConverged() == false)
    {
