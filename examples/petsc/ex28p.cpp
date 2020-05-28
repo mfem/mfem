@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
    bzz->AddDomainIntegrator(new DiffusionIntegrator(u_r_func));
    bzz->AddDomainIntegrator(new MassIntegrator(e_r_func));
    bzz->Assemble();
-   btt->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   bzz->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
    bzz->Finalize();
    bzz->ParallelAssemble(Bzzh);
    Bzzh.Get(pBzz);
