@@ -703,7 +703,6 @@ int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
    return 0;
 }
 
-
 void FiniteElementSpace::BuildConformingInterpolation() const
 {
 #ifdef MFEM_USE_MPI
@@ -772,14 +771,39 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             // make each slave DOF dependent on all master DOFs
             AddDependencies(deps, master_dofs, slave_dofs, I, skipfirst);
 
-            // handle edge DOFs that were skipped
+            // handle edge DOFs if they were skipped
             if (skipfirst)
             {
-               const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, q);
+               Array<int> V, E, Eo;
+               mesh->GetFaceVertices(slave.index, V);
+               mesh->GetFaceEdges(slave.index, E, Eo);
+               MFEM_ASSERT(V.Size() == E.Size(), "");
 
-               T.SetFE(&SegmentFE);
-               // TODO: T based on two points from face pm
+               IsoparametricTransformation eT;
+               eT.SetFE(&SegmentFE);
 
+               // constrain each edge of the slave face
+               for (int i = 0; i < E.Size(); i++)
+               {
+                  int order = GetEdgeDofs(E[i], slave_dofs, 0);
+
+                  int a = i, b = (i+1) % V.Size();
+                  if (V[a] > V[b]) { std::swap(a, b); }
+
+                  // copy two points from the face point matrix
+                  DenseMatrix &edge_pm = eT.GetPointMat();
+                  edge_pm.SetSize(2, 2);
+                  for (int j = 0; j < 2; j++)
+                  {
+                     edge_pm(j, 0) = slave.point_matrix(j, a);
+                     edge_pm(j, 1) = slave.point_matrix(j, b);
+                  }
+
+                  const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, order);
+                  edge_fe->GetTransferMatrix(*master_fe, eT, I);
+
+                  AddDependencies(deps, master_dofs, slave_dofs, I, 0);
+               }
             }
          }
       }
