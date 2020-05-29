@@ -608,7 +608,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
 #ifndef MFEM_USE_LEGACY_OPENMP
 
-   Vector myY(y);
+   //Vector myY(y);
    const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
