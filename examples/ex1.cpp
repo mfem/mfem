@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
       //mesh->UniformRefinement();
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->RandomRefinement(0.5);
+         mesh->RandomRefinement(0.5, true);
       }
    }
    srand(seed);
@@ -151,17 +151,17 @@ int main(int argc, char *argv[])
    // 6. At this point all elements have the default order (specified when
    //    construction the FECollection). Now we can p-refine some of them to
    //    obtain a variable-order space...
-   {
+   /*{
       Array<Refinement> refs;
       refs.Append(Refinement(1, 4));
       mesh->GeneralRefinement(refs);
       refs[0].ref_type = 2;
       mesh->GeneralRefinement(refs);
    }
-   fespace->Update(false);
+   fespace->Update(false);*/
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      fespace->SetElementOrder(i, (rand()%2)+order);
+      fespace->SetElementOrder(i, (rand()%5)+order);
       //fespace->SetElementOrder(i, order);
       //fespace->SetElementOrder(i, i ? 3 : 2);
    }
@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
 #endif
 
       // visualize the basis functions
-      if (1)
+      if (0)
       {
          socketstream b_sock(vishost, visport);
          b_sock.precision(8);
@@ -336,8 +336,8 @@ int main(int argc, char *argv[])
          }
       }
 
-      std::ofstream f("mesh.dump");
-      mesh->ncmesh->DebugDump(f);
+      /*std::ofstream f("mesh.dump");
+      mesh->ncmesh->DebugDump(f);*/
    }
 
    // 15. Free the used memory.
