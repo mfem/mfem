@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
-   args.AddOption(&adapt_eval, "-ae", "--adaptivity evaluator",
+   args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.Parse();
    if (!args.Good())
