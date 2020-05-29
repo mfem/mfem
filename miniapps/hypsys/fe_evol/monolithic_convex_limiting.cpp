@@ -374,7 +374,10 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                int J = Dof2LocNbr(I,j);
                if (J == -1) { break; }
 
+               // double quotient =  x(vdofs[n*nd + J]) / x(vdofs[J]);
                double AveragedBarState = (uij(I,J,n)+uij(J,I,n)) / (uij(I,J,0)+uij(J,I,0));
+               // uijMin(I,n) = min( min(uijMin(I,n), AveragedBarState), quotient );
+               // uijMax(I,n) = max( max(uijMax(I,n), AveragedBarState), quotient );
                uijMin(I,n) = min(uijMin(I,n), AveragedBarState);
                uijMax(I,n) = max(uijMax(I,n), AveragedBarState);
             }
@@ -579,6 +582,24 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             LimitedFluxState(j) = ufi(j,0) + gif / sif(j);
          }
 
+// Vector a(hyp->NumEq), b(hyp->NumEq);
+// a =  std::numeric_limits<double>::infinity();
+// b = -std::numeric_limits<double>::infinity();
+
+//          for (int j = 0; j < dofs.NumFaceDofs; j++)
+//          {
+//             uFace.GetColumn(j, uEval);
+//             uNbrFace.GetColumn(j, uNbrEval);
+
+//             for (int n = 1; n < hyp->NumEq; n++)
+//             {
+//                double c = uEval(n) / uEval(0);
+//                double d = uNbrEval(n) / uNbrEval(0);
+//                a(n) = min( min(a(n), c), d);
+//                b(n) = min( min(b(n), c), d);
+//             }
+//          }
+
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
             for (int n = 1; n < hyp->NumEq; n++)
@@ -593,6 +614,10 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
 #if SCHEME == 1
                int J = dofs.BdrDofs(j,i);
+               // // double a = min( min(uEval(n) / uEval(0), uNbrEval(n) / uNbrEval(0)), QuotientAverage );
+               // // double b = max( max(uEval(n) / uEval(0), uNbrEval(n) / uNbrEval(0)), QuotientAverage );
+               // double lower = sif(j) * LimitedFluxState(j) * (min(QuotientAverage, a(n)) - QuotientAverage);
+               // double upper = sif(j) * LimitedFluxState(j) * (max(QuotientAverage, b(n)) - QuotientAverage);
                double lower = sif(j) * LimitedFluxState(j) * (bounds->xi_min(n*ne*nd + e*nd+J) - QuotientAverage);
                double upper = sif(j) * LimitedFluxState(j) * (bounds->xi_max(n*ne*nd + e*nd+J) - QuotientAverage);
 

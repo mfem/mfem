@@ -59,7 +59,7 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
       case 3:
       {
          ProblemName = "Euler Equations of Gas dynamics - Double Mach Reflection";
-         glvis_scale = "off valuerange 1.4 22";
+         glvis_scale = "on";
          SpHeatRatio = 1.4;
          SolutionKnown = false;
          SteadyState = false;

@@ -2,7 +2,7 @@
 
 ParBounds::ParBounds(ParFiniteElementSpace *pfes_, ParFiniteElementSpace *pfesH1_)
    : Bounds(pfes_, pfesH1_), pfes(pfes_), pfesH1(pfesH1_), px_min(pfesH1_),
-   px_max(pfesH1_) { }
+   px_max(pfesH1_) { /* mom_min.SetSize(2*ne*nd); mom_max.SetSize(2*ne*nd); */ }
 
 void ParBounds::ComputeBounds(const Vector &x)
 {

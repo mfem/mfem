@@ -12,6 +12,7 @@ class ParBounds : public Bounds
 public:
    ParFiniteElementSpace *pfes, *pfesH1;
    ParGridFunction px_min, px_max;  // min max values for each H1 dof.
+   // Vector mom_min, mom_max;
 
    ParBounds(ParFiniteElementSpace *pfes_, ParFiniteElementSpace *pfesH1_);
 

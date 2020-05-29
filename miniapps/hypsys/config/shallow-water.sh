@@ -1,4 +1,4 @@
-EXEC="mpirun -np 7 phypsys"
+EXEC="mpirun -np 3 phypsys"
 
 SCHEME=1
 MESH=data/wall-bdr-4segment.mesh
@@ -22,13 +22,13 @@ $EXEC $CONFIG -o 7 -r 3 -dt 0.000025
 MESH=data/wall-bdr-4quad.mesh
 CONFIG="-p 3 -c 2 -vs 50 -tf 1.5 -s 3 -m $MESH -e $SCHEME"
 
-# p-refinement & h-coarsening
-$EXEC $CONFIG -o 1 -r 4 -dt 0.0005
-$EXEC $CONFIG -o 3 -r 3 -dt 0.0005
-$EXEC $CONFIG -o 7 -r 2 -dt 0.0005
+# # p-refinement & h-coarsening
+# $EXEC $CONFIG -o 1 -r 4 -dt 0.0005
+# $EXEC $CONFIG -o 3 -r 3 -dt 0.0005
+# $EXEC $CONFIG -o 7 -r 2 -dt 0.0005
 
 ## Constricted channel
 
 MESH=data/constr-channel.mesh
 CONFIG="-p 3 -c 3 -vs 100 -tf 1000 -s 1 -m $MESH -e $SCHEME"
-$EXEC $CONFIG -r 0 -o 1 -dt 0.025
+$EXEC $CONFIG -r 0 -o 1 -dt 0.01
