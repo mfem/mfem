@@ -112,6 +112,31 @@ public:
                                          Vector &elvect);
 };
 
+class CutDGNeumannLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   VectorFunctionCoefficient &QN;
+   MatrixCoefficient *MQ;
+   // these are not thread-safe!
+   Vector shape, dshape_dn, nor, nh, ni;
+   DenseMatrix dshape, mq, adjJ;
+   std::map<int, IntegrationRule *> cutSegmentIntRules;
+
+public:
+   CutDGNeumannLFIntegrator( VectorFunctionCoefficient &QN, 
+                              std::map<int, IntegrationRule *> cutSegmentIntRules)
+       :  QN(QN), MQ(NULL), cutSegmentIntRules(cutSegmentIntRules)
+        {}
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+   using LinearFormIntegrator::AssembleRHSElementVect;                                  
+   // virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+   //                                       ElementTransformation &Trans,
+   //                                       Vector &elvect);
+};
+
+
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class CutDiffusionIntegrator: public BilinearFormIntegrator

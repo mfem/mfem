@@ -35,7 +35,8 @@
 
 using namespace std;
 using namespace mfem;
-
+double u_exact(const Vector &);
+double f_exact(const Vector &);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -43,7 +44,7 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    int order = 1;
    double sigma = -1.0;
-   double kappa = -1.0;
+   double kappa = 50.0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -77,28 +78,28 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    //    NURBS meshes are projected to second order meshes.
-  // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   Mesh *mesh = new Mesh(5, 5, Element::QUADRILATERAL, true,
-                         1, 1, true);
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh *mesh = new Mesh(10, 10, Element::QUADRILATERAL, true,
+   //                       1, 1, true);
    int dim = mesh->Dimension();
    cout << "number of elements " << mesh->GetNE() << endl;
    ofstream sol_ofv("square_disc_mesh.vtk");
    sol_ofv.precision(14);
-   mesh->PrintVTK(sol_ofv, 0);
+   mesh->PrintVTK(sol_ofv, 1);
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. By default, or if ref_levels < 0,
    //    we choose it to be the largest number that gives a final mesh with no
    //    more than 50,000 elements.
-   // {
-   //    if (ref_levels < 0)
-   //    {
-   //       ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-   //    }
-   //    for (int l = 0; l < ref_levels; l++)
-   //    {
-   //       mesh->UniformRefinement();
-   //    }
-   // }
+   {
+      if (ref_levels < 0)
+      {
+         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      }
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh->UniformRefinement();
+      }
+   }
    // if (mesh->NURBSext)
    // {
    //    mesh->SetCurvature(max(order, 1));
@@ -115,9 +116,11 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   FunctionCoefficient f(f_exact);
+   FunctionCoefficient u(u_exact);
+   b->AddDomainIntegrator(new DomainLFIntegrator(f));
    b->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+      new DGDirichletLFIntegrator(u, one, sigma, kappa));
    b->Assemble();
 //    cout << "rhs is " << endl;
 //   b->Print();
@@ -125,6 +128,7 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero.
    GridFunction x(fespace);
    x = 0.0;
+   x.ProjectCoefficient(u);
 
    // 7. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -139,6 +143,9 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
+   ofstream write("stiffmat.txt");
+   A.PrintMatlab(write);
+   write.close();
    //cout << "bilinear form size " << a->Size() << endl;
    //A.Print();
    //cout << x.Size() << endl;
@@ -149,11 +156,11 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    if (sigma == -1.0)
    {
-      PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+      PCG(A, M, *b, x, 1, 1000, 1e-12, 0.0);
    }
    else
    {
-      GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
+      GMRES(A, M, *b, x, 1, 500, 10, 1e-16, 0.0);
    }
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -172,10 +179,10 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   ofstream adj_ofs("dgsolorig.vtk");
+   ofstream adj_ofs("dgsoldisc.vtk");
    adj_ofs.precision(14);
    mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "dgSolutionorig", 1);
+   x.SaveVTK(adj_ofs, "dgSolution", 1);
    adj_ofs.close();
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -186,6 +193,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;
    }
+  cout << x.ComputeL2Error(u) << endl;
    // 11. Free the used memory.
    delete a;
    delete b;
@@ -193,4 +201,13 @@ int main(int argc, char *argv[])
    delete fec;
    delete mesh;
    return 0;
+}
+double u_exact(const Vector &x)
+{
+   return sin(M_PI* x(0))*sin(M_PI*x(1));
+   //return (2*x(0)) - (2*x(1));
+}
+double f_exact(const Vector &x)
+{
+   return 2*M_PI * M_PI* sin(M_PI*x(0)) * sin(M_PI* x(1));
 }

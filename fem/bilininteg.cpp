@@ -486,16 +486,6 @@ namespace mfem
       elmat.SetSize(nd);
       const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
       elmat = 0.0;
-      // if ((Trans.ElementNo == 6) || (Trans.ElementNo == 7) || (Trans.ElementNo == 28) || (Trans.ElementNo == 29))
-      // {
-      //    elmat=0.0;
-      //    for (int k = 0; k < elmat.Size(); ++k)
-      //    {
-      //       elmat(k, k) = 1.0;
-      //    }
-      // }
-      // else
-      // {
          for (int i = 0; i < ir->GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir->IntPoint(i);
@@ -523,14 +513,6 @@ namespace mfem
                AddMultABt(dshape, dshapedxt, elmat);
             }
          }
-         // elmat=0.0;
-         // for (int k = 0; k < elmat.Size(); ++k)
-         // {
-         //    elmat(k, k) = 1.0;
-         // }
-      //}
-      // std::cout << "inside diffusion assemble " << std::endl;
-      // elmat.Print();
    }
 
    void DiffusionIntegrator::AssembleElementMatrix2(
@@ -2660,7 +2642,6 @@ namespace mfem
       int dim, ndof1, ndof2, ndofs;
       bool kappa_is_nonzero = (kappa != 0.);
       double w, wq = 0.0;
-      //std::cout << "face number " << Trans.Face->ElementNo << std::endl;
       dim = el1.GetDim();
       ndof1 = el1.GetDof();
       nor.SetSize(dim);

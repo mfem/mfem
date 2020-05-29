@@ -1,7 +1,12 @@
 #include "exCircle.hpp"
 using namespace std;
 using namespace mfem;
-
+double u_exact(const Vector &);
+double f_exact(const Vector &);
+void u_neumann(const Vector &, Vector &);
+double CutComputeL2Error( GridFunction &x, FiniteElementSpace *fes,
+    Coefficient &exsol, const std::vector<bool> &EmbeddedElems, 
+    std::map<int, IntegrationRule *> &CutSquareIntRules);
 template <int N>
 struct circle
 {
@@ -31,13 +36,13 @@ struct circle
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int order = 1;
+   int order = 2;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    double sigma = -1.0;
-   double kappa = -1.0;
+   double kappa = 100.0;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -54,7 +59,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh = new Mesh(10, 10, Element::QUADRILATERAL, true,
+   Mesh *mesh = new Mesh(15, 15, Element::QUADRILATERAL, true,
                          1, 1, true);
    ofstream sol_ofv("square_mesh.vtk");
    sol_ofv.precision(14);
@@ -143,49 +148,60 @@ int main(int argc, char *argv[])
    }
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(1, dim);
+   FiniteElementCollection *fec = new DG_FECollection(order, dim);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
    LinearForm *b = new LinearForm(fespace);
+   FunctionCoefficient f(f_exact);
+   FunctionCoefficient u(u_exact);
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
    ConstantCoefficient two(2.0);
    ConstantCoefficient zerop(0.01);
-   b->AddDomainIntegrator(new CutDomainLFIntegrator(one, CutSquareIntRules, EmbeddedElems));
-   b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(zero, one, sigma, kappa,
+   VectorFunctionCoefficient uN(dim, u_neumann);
+   b->AddDomainIntegrator(new CutDomainLFIntegrator(f, CutSquareIntRules, EmbeddedElems));
+   // b->AddDomainIntegrator(new CutDGDirichletLFIntegrator(u, one, sigma, kappa,
+   //                                                       cutSegmentIntRules));
+   b->AddDomainIntegrator(new CutDGNeumannLFIntegrator(uN, 
                                                          cutSegmentIntRules));
    b->AddBdrFaceIntegrator(
-       new DGDirichletLFIntegrator(zero, one, sigma, kappa));
+       new DGDirichletLFIntegrator(u, one, sigma, kappa));
    b->Assemble();
    // cout << "RHS: " << endl;
    // b->Print();
    GridFunction x(fespace);
    x = 0.0;
+   //x.ProjectCoefficient(u);
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new CutDiffusionIntegrator(one, CutSquareIntRules, EmbeddedElems));
-   a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
+   //a->AddDomainIntegrator(new CutBoundaryFaceIntegrator(one, sigma, kappa, cutSegmentIntRules));
    a->AddInteriorFaceIntegrator(new CutDGDiffusionIntegrator(one, sigma, kappa,
-                                                             immersedFaces, cutinteriorFaces, cutInteriorFaceIntRules));
+                                                             immersedFaces, cutinteriorFaces, 
+                                                             cutInteriorFaceIntRules));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    a->Assemble();
    a->Finalize();
    const SparseMatrix &A = a->SpMat();
    //cout << "bilinear form size " << a->Size() << endl;
-   //A.Print();
+   //a->PrintMatlab();
+   //A.PrintMatlab("stiffmat.txt");
+   ofstream write("stiffmat.txt");
+   A.PrintMatlab(write);
+   write.close();
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
    GSSmoother M(A);
-   if (sigma == 1.0)
+   if (sigma == -1.0)
    {
-      PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+      PCG(A, M, *b, x, 1, 1000, 1e-12, 0.0);
    }
    else
    {
-      GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
+      GMRES(A, M, *b, x, 1, 1000, 10, 1e-12, 0.0);
    }
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -195,13 +211,11 @@ int main(int argc, char *argv[])
    umf_solver.Mult(*b, x);
 #endif
 
-   ofstream adj_ofs("dgsolcircle.vtk");
+   ofstream adj_ofs("dgSolcirclelap.vtk");
    adj_ofs.precision(14);
    mesh->PrintVTK(adj_ofs, 1);
-   x.SaveVTK(adj_ofs, "dgSolutioncircle", 1);
+   x.SaveVTK(adj_ofs, "dgSolution", 1);
    adj_ofs.close();
-   cout << "solution is " << endl;
-  // x.Print();
    // 10. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -212,7 +226,9 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n"
                << *mesh << x << flush;
    }
-
+   cout << "h" << " " << "solution norm: "  << endl;
+   cout << 1.0/(sqrt(mesh->GetNE())) << " " << 
+   CutComputeL2Error(x, fespace, u, EmbeddedElems, CutSquareIntRules) << endl;
    // 11. Free the used memory.
    delete a;
    delete b;
@@ -220,6 +236,80 @@ int main(int argc, char *argv[])
    delete fec;
    delete mesh;
    return 0;
+}
+double u_exact(const Vector &x)
+{
+   return sin(M_PI* x(0))*sin(M_PI*x(1));
+   //return (2*x(0)) - (2*x(1));
+}
+double f_exact(const Vector &x)
+{
+   return 2*M_PI * M_PI* sin(M_PI*x(0)) * sin(M_PI* x(1));
+}
+
+void u_neumann(const Vector &x, Vector &u)
+{
+   u(0) = M_PI * cos(M_PI* x(0))*sin(M_PI*x(1));
+   u(1) = M_PI * sin(M_PI* x(0))*cos(M_PI*x(1));
+}
+
+double CutComputeL2Error(GridFunction &x, FiniteElementSpace *fes,
+                         Coefficient &exsol, const std::vector<bool> &EmbeddedElems,
+                         std::map<int, IntegrationRule *> &CutSquareIntRules)
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+   int p = 2;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      if (EmbeddedElems.at(i) == true)
+      {
+         error += 0.0;
+      }
+      else
+      {
+         fe = fes->GetFE(i);
+         const IntegrationRule *ir;
+         ir = CutSquareIntRules[i];
+         if (ir == NULL)
+         {
+            int intorder = 2 * fe->GetOrder() + 1; // <----------
+            ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+         }
+         x.GetValues(i, *ir, vals);
+         T = fes->GetElementTransformation(i);
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir->IntPoint(j);
+            T->SetIntPoint(&ip);
+            double err = fabs(vals(j) - exsol.Eval(*T, ip));
+            if (p < infinity())
+            {
+               err = pow(err, p);
+               error += ip.weight * T->Weight() * err;
+            }
+            else
+            {
+               error = std::max(error, err);
+            }
+         }
+      }
+   }
+   if (p < infinity())
+   {
+      // negative quadrature weights may cause the error to be negative
+      if (error < 0.)
+      {
+         error = -pow(-error, 1. / p);
+      }
+      else
+      {
+         error = pow(error, 1. / p);
+      }
+   }
+   return error;
 }
 template <int N>
 void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
@@ -237,7 +327,7 @@ void GetCutElementIntRule(Mesh *mesh, vector<int> cutelems,
       xupper = {1, 1};
       int dir = -1;
       int side = -1;
-      int order = 8;
+      int order = 4;
       int elemid = cutelems.at(k);
       findBoundingBox<N>(mesh, elemid, xmin, xmax);
       circle<N> phi;
@@ -277,7 +367,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
       int side;
       int dir;
       int order;
-      order = 8;
+      order = 4;
       // standard reference element
       xlower = {0, 0};
       xupper = {1, 1};
@@ -300,6 +390,7 @@ void GetCutSegmentIntRule(Mesh *mesh, vector<int> cutelems, vector<int> cutinter
          ip.y = pt.x[1];
          ip.weight = pt.w;
          i = i + 1;
+        // cout << "elem " << elemid << " , " << ip.weight << endl;
          double xqp = (pt.x[0] * phi.xscale) + phi.xmin;
          double yqp = (pt.x[1] * phi.yscale) + phi.ymin;
          MFEM_ASSERT(ip.weight > 0, "integration point weight is negative in curved surface int rule from Saye's method");
@@ -711,6 +802,7 @@ void CutBoundaryFaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
          IntegrationPoint eip1;
          eip1 = ip;
          Trans.SetIntPoint(&ip);
+         double ds;
          if (dim == 1)
          {
             nor(0) = 2 * eip1.x - 1.0;
@@ -723,9 +815,9 @@ void CutBoundaryFaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
             Trans.Transform(eip1, v);
             double nx = 2*(v(0) - 0.5);
             double ny = 2*(v(1) - 0.5);
-            double ds = sqrt((nx*nx) + (ny*ny));
-            nor(0) = nx/ds;
-            nor(1) = ny/ds;
+            ds = sqrt((nx*nx) + (ny*ny));
+            nor(0) = -nx/ds;
+            nor(1) = -ny/ds;
          }
          el.CalcShape(eip1, shape1);
          el.CalcDShape(eip1, dshape1);
@@ -749,8 +841,13 @@ void CutBoundaryFaceIntegrator::AssembleElementMatrix(const FiniteElement &el,
          adjJ.Mult(ni, nh);
          if (kappa_is_nonzero)
          {
-            wq = ni * nor;
+           wq = ni * nor;
+           //wq = ip.weight*nor.Norml2();
          }
+         std::cout << "normal is " << nor(0) << " , " << nor(1) << endl;
+         std::cout << "norm is " << nor*nor << endl;
+         std::cout << "ds is " << ds << std::endl;
+         std::cout << "wq/ip.weight " << wq/ip.weight << std::endl;
          // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
          // independent of Loc1 and always gives the size of element 1 in
          // direction perpendicular to the face. Indeed, for linear transformation
@@ -1108,8 +1205,8 @@ void CutDGDirichletLFIntegrator::AssembleRHSElementVect(
             double nx = 2*(v(0) - 0.5);
             double ny = 2*(v(1) - 0.5);
             double ds = sqrt((nx*nx) + (ny*ny));
-            nor(0) = nx/ds;
-            nor(1) = ny/ds;
+            nor(0) = -nx/ds;
+            nor(1) = -ny/ds;
          }
          el.CalcShape(eip, shape);
          el.CalcDShape(eip, dshape);
@@ -1143,6 +1240,7 @@ void CutDGDirichletLFIntegrator::AssembleRHSElementVect(
       }
    } 
 }
+
 void CutDGDirichletLFIntegrator::AssembleDeltaElementVect(
     const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
 {
@@ -1150,4 +1248,47 @@ void CutDGDirichletLFIntegrator::AssembleDeltaElementVect(
    elvect.SetSize(fe.GetDof());
    fe.CalcPhysShape(Trans, elvect);
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+}
+
+void CutDGNeumannLFIntegrator::AssembleRHSElementVect(
+    const FiniteElement &el, ElementTransformation &Trans,
+    Vector &elvect)
+{
+   int dim, ndof;
+   double w;
+   Vector Qvec;
+   dim = el.GetDim();
+   ndof = el.GetDof();
+   shape.SetSize(ndof);
+   elvect.SetSize(ndof);
+   elvect = 0.0;
+   nor.SetSize(dim);
+   const IntegrationRule *ir = IntRule;
+   ir = cutSegmentIntRules[Trans.ElementNo];
+   // elvect is zero for elements other than cut
+   if (ir == NULL)
+   {
+      elvect = 0.0;
+   }
+   else
+   {
+      for (int p = 0; p < ir->GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(p);
+         el.CalcShape(ip, shape);
+         Trans.SetIntPoint(&ip);
+         // this evaluates the coefficient for the 
+         // integration points in physical space
+         QN.Eval(Qvec, Trans, ip);
+         Vector v(dim);
+         // transform the integration point to original element 
+         Trans.Transform(ip, v);
+         double nx = 2*(v(0) - 0.5);
+         double ny = 2*(v(1) - 0.5);
+         double ds = sqrt((nx*nx) + (ny*ny));
+         nor(0) = -nx/ds;
+         nor(1) = -ny/ds;
+         elvect.Add(ip.weight*sqrt(Trans.Weight())*(Qvec*nor), shape);
+      }
+   }
 }
