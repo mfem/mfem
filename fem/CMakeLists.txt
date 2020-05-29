@@ -54,10 +54,15 @@ set(SRCS
   restriction.cpp
   staticcond.cpp
   tmop.cpp
+  tmop_pa_2d.cpp
+  tmop_pa_energy_3d.cpp
+  tmop_pa_grad_setup_2d.cpp
+  tmop_pa_3d.cpp
+  tmop_pa_grad_mult_2d.cpp
+  tmop_pa_grad_setup_3d.cpp
   tmop_pa.cpp
-  tmop_pa_energy.cpp
-  tmop_pa_grad_mult.cpp
-  tmop_pa_grad_setup.cpp
+  tmop_pa_energy_2d.cpp
+  tmop_pa_grad_mult_3d.cpp
   tmop_tools.cpp
   gslib.cpp
   transfer.cpp
