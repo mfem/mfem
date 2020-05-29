@@ -76,6 +76,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#define MFEM_DBG_COLOR 226
+#include "../../general/dbg.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -301,7 +303,7 @@ int main(int argc, char *argv[])
    // 11. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
-   MFEM_VERIFY(!pa || metric_id == 2, "");
+   MFEM_VERIFY(!pa || (metric_id == 2 || metric_id == 302), "");
    switch (metric_id)
    {
       case 1: metric = new TMOP_Metric_001; break;
@@ -614,6 +616,8 @@ int main(int argc, char *argv[])
    if (pa) { a.Setup(); }
 
    const double init_energy = a.GetGridFunctionEnergy(x);
+   dbg("init_energy: %.15e", init_energy);
+   exit(0);
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)

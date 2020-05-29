@@ -496,7 +496,7 @@ public:
 template <typename scalar_t, typename scalar_ops = ScalarOps<scalar_t> >
 class InvariantsEvaluator3D
 {
-protected:
+public:
    // Transformation Jacobian
    const scalar_t *J;
 
@@ -593,7 +593,8 @@ protected:
       if (dont(HAVE_I3b_p))
       {
          eval_state |= HAVE_I3b_p;
-         I3b_p = sign_detJ*scalar_ops::pow(Get_I3b(), -2, 3);
+         const double I3b = Get_I3b();
+         I3b_p = sign_detJ*scalar_ops::pow(I3b, -2, 3);
       }
       return I3b_p;
    }
