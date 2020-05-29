@@ -783,40 +783,37 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                eT.SetFE(&SegmentFE);
 
                const DenseMatrix &pm = slave.point_matrix;
-               double x0 = pm(0,0), x1 = pm(0,2);
-               double y0 = pm(1,0), y1 = pm(1,2);
-
-               bool bdr[4] =
-               {
-                  (y0 == 0.0 || y0 == 1.0),
-                  (x1 == 0.0 || x1 == 1.0),
-                  (y1 == 0.0 || y1 == 1.0),
-                  (x0 == 0.0 || x0 == 1.0)
-               };
 
                // constrain each edge of the slave face
                for (int i = 0; i < E.Size(); i++)
                {
-                  if (bdr[i]) { continue; }
-
-                  int order = GetEdgeDofs(E[i], slave_dofs, 0);
-
                   int a = i, b = (i+1) % V.Size();
                   if (V[a] > V[b]) { std::swap(a, b); }
 
-                  // copy two points from the face point matrix
                   DenseMatrix &edge_pm = eT.GetPointMat();
                   edge_pm.SetSize(2, 2);
+
+                  // copy two points from the face point matrix
+                  double mid[2];
                   for (int j = 0; j < 2; j++)
                   {
                      edge_pm(j, 0) = pm(j, a);
                      edge_pm(j, 1) = pm(j, b);
+                     mid[j] = 0.5*(pm(j, a) + pm(j, b));
                   }
 
-                  const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, order);
-                  edge_fe->GetTransferMatrix(*master_fe, eT, I);
+                  // check that the edge does not coincide with master edge
+                  const double eps = 1e-14;
+                  if (mid[0] > eps && mid[0] < 1-eps &&
+                      mid[1] > eps && mid[1] < 1-eps)
+                  {
+                     int order = GetEdgeDofs(E[i], slave_dofs, 0);
 
-                  AddDependencies(deps, master_dofs, slave_dofs, I, 0);
+                     const auto *edge_fe = fec->GetFE(Geometry::SEGMENT, order);
+                     edge_fe->GetTransferMatrix(*master_fe, eT, I);
+
+                     AddDependencies(deps, master_dofs, slave_dofs, I, 0);
+                  }
                }
             }
          }
