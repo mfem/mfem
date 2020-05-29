@@ -137,6 +137,7 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_UMPIRE        = NO
+MFEM_USE_SIMD          = YES
 MFEM_USE_ADIOS2        = NO
 
 # Compile and link options for zlib.

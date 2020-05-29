@@ -283,7 +283,14 @@ const
    }
 
    X.Distribute(&x);
-   mat->Mult(X, Y);
+   if (ext)
+   {
+      ext->Mult(X, Y);
+   }
+   else
+   {
+      mat->Mult(X, Y);
+   }
    pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
