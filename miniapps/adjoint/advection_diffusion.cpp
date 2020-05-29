@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 1. Parse command-line options.
+   // 2. Parse command-line options.
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    double t_final = 2.5;
@@ -222,11 +222,11 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Create a small 1D mesh with a length of 2. This mesh corresponds with the cvsAdvDiff_ASA_p_non_p example. 
+   // 3. Create a small 1D mesh with a length of 2. This mesh corresponds with the cvsAdvDiff_ASA_p_non_p example. 
    
    Mesh *mesh = new Mesh(mx+1, 2.);
 
-   // 3. Refine the mesh to increase the resolution. In this example we do
+   // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter. If the mesh is of NURBS type, we convert it to
    //    a (piecewise-polynomial) high-order mesh.
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 4. Finite Element Spaces
+   // 5. Finite Element Spaces
 
    H1_FECollection fec(1, pmesh->SpaceDimension());
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
-   // 5. Set up material properties, and primal and adjoint variables
+   // 6. Set up material properties, and primal and adjoint variables
 
    // p are the fixed material properties
    Vector p(2);
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
    essential_attr[1] = 1;
    fes->GetEssentialTrueDofs(essential_attr, ess_tdof_list);
 
-   // 6. Setup the TimeDependentAdjointOperator and the CVODESSolver
+   // 7. Setup the TimeDependentAdjointOperator and the CVODESSolver
    
    AdvDiffSUNDIALS adv(U->Size(), U->Size(), p, fes, ess_tdof_list);
 
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
    double t = 0.0;
    adv.SetTime(t);
 
-   // 6. Create the CVODES solver corresponding to the selected step method
+   // 8. Create the CVODES solver corresponding to the selected step method
    CVODESSolver *cvodes = new CVODESSolver(fes->GetComm(),
 					   step_mode ? CV_ADAMS : CV_BDF);
    cvodes->Init(adv);
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
    int checkpoint_steps = 50; ///< steps between checkpoints
    cvodes->InitAdjointSolve(checkpoint_steps, CV_HERMITE);
 
-   // 7. Perform time-integration for the problem (looping over the time
+   // 9. Perform time-integration for the problem (looping over the time
    //    iterations, ti,  with a time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
    cout << "Final Solution: " << t << endl;
    u.Print();
 
-   // 8. Calculate the quadrature int_x u dx at t = 5
+   // 10. Calculate the quadrature int_x u dx at t = 5
    // Since it's only a spatial quadrature we evaluate it at t=5
 
    ParLinearForm obj(fes);
@@ -337,7 +337,7 @@ int main(int argc, char *argv[])
       cout << "g: " << g << endl;
    }
 
-   // 9. Solve the adjoint problem. v is the adjoint solution
+   // 11. Solve the adjoint problem. v is the adjoint solution
    ParGridFunction v(fes);
    v = 1.;
    v.SetSubVector(ess_tdof_list, 0.0);
@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
      qBdot.Print();
    }
 
-   // 10. Free the used memory.
+   // 12. Free the used memory.
    delete U;
    delete V;
    delete cvodes;
