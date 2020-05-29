@@ -253,8 +253,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
 }
 
 // *****************************************************************************
-void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
-                                    Vector &Ce) const
+void TMOP_Integrator::AddMultGradPA_2D(const Vector &Xe, const Vector &Re,
+                                       Vector &Ce) const
 {
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
@@ -303,7 +303,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
    if (!setup)
    {
       setup = true;
-      AssembleGradPA(Jtr,Xe);
+      AssembleGradPA_2D(Jtr,Xe);
    }
 
    switch (id)

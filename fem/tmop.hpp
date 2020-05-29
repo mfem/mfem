@@ -1008,19 +1008,29 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
    /// PA extension
    using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
+   double GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
+                                     const Vector &x) const;
+   double GetGridFunctionEnergyPA_3D(const FiniteElementSpace &fes,
+                                     const Vector &x) const;
    virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
                                           const Vector &x) const;
 
    using NonlinearFormIntegrator::AssemblePA;
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   virtual void AssemblePA(const FiniteElementSpace&);
 
    using NonlinearFormIntegrator::AddMultPA;
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   void AddMultPA_2D(const Vector&, Vector&) const;
+   void AddMultPA_3D(const Vector&, Vector&) const;
+   virtual void AddMultPA(const Vector&, Vector&) const;
 
    using NonlinearFormIntegrator::AddMultGradPA;
-   virtual void AddMultGradPA(const Vector &, const Vector &, Vector &) const;
+   void AddMultGradPA_2D(const Vector&, const Vector&, Vector&) const;
+   void AddMultGradPA_3D(const Vector&, const Vector&, Vector&) const;
+   virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
 
-   void AssembleGradPA(const DenseMatrix &Jtr, const Vector &x) const;
+   void AssembleGradPA_2D(const DenseMatrix&, const Vector&) const;
+   void AssembleGradPA_3D(const DenseMatrix&, const Vector&) const;
+   void AssembleGradPA(const DenseMatrix&, const Vector&) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 
