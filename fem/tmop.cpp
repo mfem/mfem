@@ -13,6 +13,8 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#define MFEM_DBG_COLOR 117
+#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -1572,6 +1574,12 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       el.CalcDShape(ip, DSh);
       MultAtB(PMatI, DSh, Jpr);
       Mult(Jpr, Jrt, Jpt);
+      //dbg("");
+      //const double *J = Jpt.GetData();
+      //dbg("Jpt: %.15e %.15e %.15e", J[0], J[1], J[2]);
+      //dbg("Jpt: %.15e %.15e %.15e", J[3], J[4], J[5]);
+      //dbg("Jpt: %.15e %.15e %.15e", J[6], J[7], J[8]);
+      //if (i == 8) { exit(0); }
 
       double val = metric_normal * metric->EvalW(Jpt);
       if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
