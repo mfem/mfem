@@ -1209,7 +1209,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                    ntspec_dofs = ndofs*ncomp;
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
-                par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
+                par_vals_c1, par_vals_c2, par_vals_c3;
 
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
@@ -1250,9 +1250,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           aspectratioidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   const double rho1 = shape * par_vals_c1;
                   const double rho2 = shape * par_vals_c2;
@@ -1285,9 +1285,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           skewidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   const double phi12  = shape * par_vals_c1;
                   const double phi13  = shape * par_vals_c2;
@@ -1325,9 +1325,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           orientationidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   const double theta = shape * par_vals_c1;
                   const double psi   = shape * par_vals_c2;
