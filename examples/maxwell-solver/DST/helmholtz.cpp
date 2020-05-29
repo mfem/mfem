@@ -12,8 +12,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "DiagST.hpp"
-// #include "DST.hpp"
+#include "DST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -118,7 +117,7 @@ int main(int argc, char *argv[])
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin,pmax);
    double domain_length = pmax[0] - pmin[0];
-   double pml_thickness = 0.125/domain_length;
+   // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
    int nrlayers = 2;
    Array<int> directions;
@@ -127,8 +126,8 @@ int main(int argc, char *argv[])
    {
       for (int comp=0; comp<dim; ++comp)
       {
-         // directions.Append(comp+1);
-         // directions.Append(-comp-1);
+         directions.Append(comp+1);
+         directions.Append(-comp-1);
       }
    }
    // Find uniform h size of the original mesh
@@ -212,22 +211,21 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   // DST S(&a,lengths, omega, &ws, nrlayers);
-   DiagST S(&a,lengths, omega, &ws, nrlayers);
+   DST S(&a,lengths, omega, &ws, nrlayers);
 	S.SetOperator(*A);
    // S.SetLoadVector(B);
    
 
 
 
-   // X = 0.0;
-	// GMRESSolver gmres;
-	// gmres.SetPreconditioner(S);
-	// gmres.SetOperator(*A);
-	// gmres.SetRelTol(1e-8);
-	// gmres.SetMaxIter(50);
-	// gmres.SetPrintLevel(1);
-	// gmres.Mult(B, X);
+   X = 0.0;
+	GMRESSolver gmres;
+	gmres.SetPreconditioner(S);
+	gmres.SetOperator(*A);
+	gmres.SetRelTol(1e-10);
+	gmres.SetMaxIter(50);
+	gmres.SetPrintLevel(1);
+	gmres.Mult(B, X);
 
 
 
@@ -238,7 +236,7 @@ int main(int argc, char *argv[])
    Vector r(B);
    Vector ztemp(r.Size());
    Vector Ax(X.Size());
-   double tol = 1e-8;
+   double tol = 1e-10;
    cout << endl;
    
    for (int i = 0; i<n; i++)
@@ -255,32 +253,38 @@ int main(int argc, char *argv[])
       X += z;
 
       // X1-=z;
-      p_gf = 0.0;
-      a.RecoverFEMSolution(X,B,p_gf);
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         string keys;
-         if (dim ==2 )
-         {
-            keys = "keys mrRljc\n";
-         }
-         else
-         {
-            keys = "keys mc\n";
-         }
-         socketstream sol1_sock_re(vishost, visport);
-         sol1_sock_re.precision(8);
-         sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-                     "window_title 'Numerical Pressure (real part)' "
-                     << keys << flush;
-         cin.get();
+      // p_gf = 0.0;
+      // a.RecoverFEMSolution(X,B,p_gf);
+      //    char vishost[] = "localhost";
+      //    int  visport   = 19916;
+      //    string keys;
+      //    if (dim ==2 )
+      //    {
+      //       keys = "keys mrRljc\n";
+      //    }
+      //    else
+      //    {
+      //       keys = "keys mc\n";
+      //    }
+      //    socketstream sol1_sock_re(vishost, visport);
+      //    sol1_sock_re.precision(8);
+      //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+      //                "window_title 'Numerical Pressure (real part)' "
+      //                << keys << flush;
+      //    cin.get();
    }
+
+
+   a.RecoverFEMSolution(X,B,p_gf);
 
    KLUSolver klu(*A);
    Vector X1(X.Size());
    klu.Mult(B,X1);
    X1-= X;
-   a.RecoverFEMSolution(X1,B,p_gf);
+
+   ComplexGridFunction error_gf(fespace);
+
+   a.RecoverFEMSolution(X1,B,error_gf);
 
 
    if (visualization)
@@ -302,13 +306,11 @@ int main(int argc, char *argv[])
                   "window_title 'Numerical Pressure (real part from KLU)' "
                   << keys << flush;
                   // << keys << "valuerange -0.1 0.1 \n" << flush;
-      // socketstream diff_sock_re(vishost, visport);
-      // diff_sock_re.precision(8);
-      // diff_sock_re << "solution\n" << *mesh_ext << p_gf1.real() <<
-      //             "window_title 'Numerical Pressure (real part from KLU)' "
-      //             << keys << flush;
-
-                                  
+      socketstream err_sock_re(vishost, visport);
+      err_sock_re.precision(8);
+      err_sock_re << "solution\n" << *mesh_ext << error_gf.real() <<
+                  "window_title 'Numerical Pressure (real part from KLU)' "
+                  << keys << flush;
    }
    delete fespace;
    delete fec;
@@ -330,7 +332,7 @@ double f_exact_Re(const Vector &x)
    x0 = 0.15;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.5;
+   x1 = 0.15;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;
