@@ -235,8 +235,8 @@ public:
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
 
-   /** Map a global element number to a local element number. If the
-       global element is not on this processor, return -1. */
+   /** Map a global element number to a local element number. If the global
+       element is not on this processor, return -1. */
    int GetLocalElementNum(long global_element_num) const;
 
    /// Map a local element number to a global element number.
