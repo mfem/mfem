@@ -49,7 +49,6 @@ static double EnergyPA_3D(const int NE,
    auto E = Reshape(e_.Write(), Q1D, Q1D, Q1D, NE);
    auto O = Reshape(o_.Write(), Q1D, Q1D, Q1D, NE);
 
-   //for (int e=0; e<NE; e++)
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -110,7 +109,6 @@ static double EnergyPA_3D(const int NE,
             }
          }
       }
-
       // Load B1d and G1d matrices
       if (tidz == 0)
       {
@@ -124,7 +122,6 @@ static double EnergyPA_3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)

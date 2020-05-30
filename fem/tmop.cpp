@@ -1574,12 +1574,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       el.CalcDShape(ip, DSh);
       MultAtB(PMatI, DSh, Jpr);
       Mult(Jpr, Jrt, Jpt);
-      //dbg("");
-      //const double *J = Jpt.GetData();
-      //dbg("Jpt: %.15e %.15e %.15e", J[0], J[1], J[2]);
-      //dbg("Jpt: %.15e %.15e %.15e", J[3], J[4], J[5]);
-      //dbg("Jpt: %.15e %.15e %.15e", J[6], J[7], J[8]);
-      //if (i == 8) { exit(0); }
 
       double val = metric_normal * metric->EvalW(Jpt);
       if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
@@ -1693,18 +1687,22 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       const DenseMatrix &Jtr_i = Jtr(i);
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
+      //dbg("Jrt:"); Jrt.Print();
       const double weight = ip.weight * Jtr_i.Det();
       double weight_m = weight * metric_normal;
 
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
+      dbg("Jpt:"); Jpt.Print();
 
       metric->EvalP(Jpt, P);
 
       if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       P *= weight_m;
+#warning P = 10.0
+      P = 10.0;
       AddMultABt(DS, P, PMatO);
 
       // TODO: derivatives of adaptivity-based targets.
