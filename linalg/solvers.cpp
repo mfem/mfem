@@ -18,6 +18,8 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#define MFEM_DBG_COLOR 82
+#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -1577,6 +1579,10 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(x, r);
+   dbg("x: %.15e, r: %.15e", x*x, r*r);
+   dbg("r:"); r.Print();
+   exit(0);
+
    if (have_b)
    {
       r -= b;
@@ -1614,10 +1620,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
+#if 1
+      dbg("No prec");
+      c = r;
+#else
+      //prec->SetOperator(oper->GetGradient(x));
 
-      prec->SetOperator(oper->GetGradient(x));
-
-      prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      //prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+#endif
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
