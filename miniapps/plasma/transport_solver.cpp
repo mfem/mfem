@@ -64,6 +64,86 @@ std::string FieldSymbol(FieldType t)
    }
 }
 
+void TransportBC::AddDirichletBC(const Array<int> & bdr, Coefficient &val)
+{
+   for (int i=0; i<bdr.Size(); i++)
+   {
+      if (bc_attr.count(bdr[i]) == 0)
+      {
+         bc_attr.insert(bdr[i]);
+      }
+      else
+      {
+         MFEM_ABORT("Attempting to add a Dirichlet BC on boundary " << bdr[i]
+                    << " which already has a boundary condition defined.");
+      }
+   }
+   CoefficientByAttr * c = new CoefficientByAttr;
+   c->attr = bdr;
+   c->coef = &val;
+   dbc.push_back(*c);
+}
+
+void TransportBC::AddNeumannBC(const Array<int> & bdr, Coefficient &val)
+{
+   for (int i=0; i<bdr.Size(); i++)
+   {
+      if (bc_attr.count(bdr[i]) == 0)
+      {
+         bc_attr.insert(bdr[i]);
+      }
+      else
+      {
+         MFEM_ABORT("Attempting to add a Neumann BC on boundary " << bdr[i]
+                    << " which already has a boundary condition defined.");
+      }
+   }
+   CoefficientByAttr * c = new CoefficientByAttr;
+   c->attr = bdr;
+   c->coef = &val;
+   nbc.push_back(*c);
+}
+
+void TransportBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
+                             Coefficient &b)
+{
+   for (int i=0; i<bdr.Size(); i++)
+   {
+      if (bc_attr.count(bdr[i]) == 0)
+      {
+         bc_attr.insert(bdr[i]);
+      }
+      else
+      {
+         MFEM_ABORT("Attempting to add a Robin BC on boundary " << bdr[i]
+                    << " which already has a boundary condition defined.");
+      }
+   }
+   CoefficientsByAttr * c = new CoefficientsByAttr;
+   c->attr = bdr;
+   c->coefs.SetSize(2);
+   c->coefs[0] = &a;
+   c->coefs[1] = &b;
+   rbc.push_back(*c);
+}
+
+const Array<int> & TransportBC::GetHomogeneousNeumannBCs()
+{
+   if (hbc.Size() < bdr_attr.Size() - bc_attr.size())
+   {
+      hbc.SetSize(bdr_attr.Size() - bc_attr.size());
+      int o = 0;
+      for (int i=0; i<bdr_attr.Size(); i++)
+      {
+         if (bc_attr.count(bdr_attr[i]) == 0)
+         {
+            hbc[o++] = bdr_attr[i];
+         }
+      }
+   }
+   return hbc;
+}
+
 /*
 ChiParaCoefficient::ChiParaCoefficient(BlockVector & nBV, Array<int> & z)
    : nBV_(nBV),

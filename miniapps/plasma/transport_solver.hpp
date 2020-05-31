@@ -21,12 +21,6 @@
 namespace mfem
 {
 
-struct CoefficientByAttr
-{
-   Array<int> attr;
-   Coefficient * coef;
-};
-
 namespace plasma
 {
 
@@ -218,6 +212,48 @@ inline double eta_i_para(double ma, double Ta,
         tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 */
+
+struct CoefficientByAttr
+{
+   Array<int> attr;
+   Coefficient * coef;
+};
+
+struct CoefficientsByAttr
+{
+   Array<int> attr;
+   Array<Coefficient*> coefs;
+};
+
+class TransportBC
+{
+private:
+   std::vector<CoefficientByAttr>  dbc; // Dirichlet BC data
+   std::vector<CoefficientByAttr>  nbc; // Neumann BC data
+   std::vector<CoefficientsByAttr> rbc; // Robin BC data
+   Array<int>  hbc; // Homogeneous Neumann BC boundry attributes
+
+   std::set<int> bc_attr;
+   const Array<int> & bdr_attr;
+
+public:
+   TransportBC(const Mesh & mesh)
+      : bdr_attr(mesh.bdr_attributes) {}
+
+   // Enforce u = val on boundaries with attributes in bdr
+   void AddDirichletBC(const Array<int> & bdr, Coefficient &val);
+
+   // Enforce du/dn = val on boundaries with attributes in bdr
+   void AddNeumannBC(const Array<int> & bdr, Coefficient &val);
+
+   // Enforce du/dn + a u = b on boundaries with attributes in bdr
+   void AddRobinBC(const Array<int> & bdr, Coefficient &a, Coefficient &b);
+
+   const std::vector<CoefficientByAttr> & GetDirichletBCs() const { return dbc; }
+   const std::vector<CoefficientByAttr> & GetNeumannBCs() const { return nbc; }
+   const std::vector<CoefficientsByAttr> & GetRobinBCs() const { return rbc; }
+   const Array<int> & GetHomogeneousNeumannBCs();
+};
 
 class ParGridFunctionArray : public Array<ParGridFunction*>
 {
