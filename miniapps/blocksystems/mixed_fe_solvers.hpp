@@ -21,7 +21,7 @@ struct DFSParameters
     MG_Type MG_type = GeometricMG;
     bool verbose = false;
     bool B_has_nullity_one = false;
-    bool use_schwarz_smoother = false;
+    bool coupled_solve = false;
     IterSolveParameters CTMC_solve_param;
     IterSolveParameters BBT_solve_param;
 };
@@ -159,7 +159,6 @@ class HiptmairSmoother : public Solver
     OperatorPtr blk_C_;
     OperatorPtr div_kernel_system_;
     OperatorPtr div_kernel_smoother_;
-    OperatorPtr div_kernel_solver_;
 public:
     HiptmairSmoother(BlockOperator& op,
                      MLDivSolver& ml_div_solver,
@@ -197,8 +196,6 @@ class DivFreeSolver : public DarcySolver
     Array<OperatorPtr> ops_;
     Array<OperatorPtr> blk_Ps_;
     Array<OperatorPtr> smoothers_;
-
-    OperatorPtr mono_op_c_; //TODO: this is for testing and need to be removed
 
 //    CGSolver block_solver_;
 //    MINRESSolver block_solver_;
@@ -246,19 +243,8 @@ class BDPMinresSolver : public DarcySolver
     OperatorPtr BT_;
     OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
     MINRESSolver solver_;
-
-    Array<int> C_col_offsets_;
-    OperatorPtr C_;
-    OperatorPtr CTMC_;
-    OperatorPtr CTMC_prec_;
-    CGSolver CTMC_inv_;
-
-    mutable bool first_step_ = true;
-
 public:
     BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
-    BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                    HypreParMatrix& C, OperatorPtr& CTMC, IterSolveParameters param);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
     const Operator& GetOperator() const { return op_; }
