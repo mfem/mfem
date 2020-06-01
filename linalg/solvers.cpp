@@ -1580,8 +1580,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    oper->Mult(x, r);
    dbg("x: %.15e, r: %.15e", x*x, r*r);
-   dbg("r:"); r.Print();
-   exit(0);
 
    if (have_b)
    {

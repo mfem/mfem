@@ -53,40 +53,37 @@ static void AddMultPA_Kernel_3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
-      double (*G)[MD1] = (double (*)[MD1])(s_BG+1);
-
-      MFEM_SHARED double s_BGt[2][MQ1*MD1];
-      double (*Bt)[MD1] = (double (*)[MD1])(s_BGt+0);
-      double (*Gt)[MD1] = (double (*)[MD1])(s_BGt+1);
+      double (*B)[MD1] = (double (*)[MD1])(s_BG[0]);
+      double (*G)[MD1] = (double (*)[MD1])(s_BG[1]);
+      double (*Bt)[MQ1] = (double (*)[MQ1])(s_BG[0]);
+      double (*Gt)[MQ1] = (double (*)[MQ1])(s_BG[1]);
 
       MFEM_SHARED double s_DDD[3][MD1*MD1*MD1];
-      double (*Xx)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD+0);
-      double (*Xy)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD+1);
-      double (*Xz)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD+2);
+      double (*Xx)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD[0]);
+      double (*Xy)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD[1]);
+      double (*Xz)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD[2]);
 
       MFEM_SHARED double s_DDQ[9][MD1*MD1*MQ1];
-      double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+0);
-      double (*XxG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+1);
-      double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+2);
-      double (*XyG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+3);
-      double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+4);
-      double (*XzG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+5);
-
-      double (*XxC)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+6);
-      double (*XyC)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+7);
-      double (*XzC)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+8);
+      double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[0]);
+      double (*XxG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[1]);
+      double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[2]);
+      double (*XyG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[3]);
+      double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[4]);
+      double (*XzG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[5]);
+      double (*XxC)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[6]);
+      double (*XyC)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[7]);
+      double (*XzC)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[8]);
 
       MFEM_SHARED double s_DQQ[9][MD1*MQ1*MQ1];
-      double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+0);
-      double (*XxBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+1);
-      double (*XxGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+2);
-      double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+3);
-      double (*XyBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+4);
-      double (*XyGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+5);
-      double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+6);
-      double (*XzBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+7);
-      double (*XzGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+8);
+      double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[0]);
+      double (*XxBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[1]);
+      double (*XxGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[2]);
+      double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[3]);
+      double (*XyBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[4]);
+      double (*XyGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[5]);
+      double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[6]);
+      double (*XzBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[7]);
+      double (*XzGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[8]);
 
       MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
       double (*XxBBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+0);
@@ -131,8 +128,8 @@ static void AddMultPA_Kernel_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] = {0};
-               double v[3] = {0};
+               double u[3] {};
+               double v[3] {};
                for (int dx = 0; dx < D1D; ++dx)
                {
                   const double xx = Xx[dz][dy][dx];
@@ -165,9 +162,9 @@ static void AddMultPA_Kernel_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] = {0};
-               double v[3] = {0};
-               double w[3] = {0};
+               double u[3] {};
+               double v[3] {};
+               double w[3] {};
                for (int dy = 0; dy < D1D; ++dy)
                {
                   const double By = B[qy][dy];
@@ -206,9 +203,9 @@ static void AddMultPA_Kernel_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] = {0};
-               double v[3] = {0};
-               double w[3] = {0};
+               double u[3] {};
+               double v[3] {};
+               double w[3] {};
                for (int dz = 0; dz < D1D; ++dz)
                {
                   const double Bz = B[qz][dz];
@@ -269,7 +266,6 @@ static void AddMultPA_Kernel_3D(const int NE,
                // Jrt = Jtr^{-1}
                double Jrt[9];
                kernels::CalcInverse<3>(Jtr, Jrt);
-               //DenseMatrix JRT(Jrt,3,3); dbg("Jrt:"); JRT.Print();
 
                // Jpr = X^T.DSh
                const double JprxBBG = XxBBG[qz][qy][qx];
@@ -290,8 +286,6 @@ static void AddMultPA_Kernel_3D(const int NE,
                // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
-               DenseMatrix Jpt(J,3,3);
-               dbg("Jpt:"); Jpt.Print();
 
                // metric->EvalP(Jpt, P);
                // TMOP_Metric_302
@@ -365,20 +359,16 @@ static void AddMultPA_Kernel_3D(const int NE,
                }
 
                // P = alpha * dI2b + beta * dI1b
-#warning P = 10.0
-               double P[9] = {10.0};
-               /*for (int i = 0; i < 9; i++)
+               double P[9];
+               for (int i = 0; i < 9; i++)
                {
-                  P[i] = alpha*dI2b[i] + beta*dI1b[i];
+                  P[i] = alpha * dI2b[i] + beta * dI1b[i];
                   P[i] *= weight_detJtr;
-               }*/
+               }
 
                // Y +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)
                double A[9];
                kernels::MultABt(3,3,3, Jrt, P, A);
-               // 0  3  6
-               // 1  4  7
-               // 2  5  8
                XxBBG[qz][qy][qx] = A[0];
                XxBGB[qz][qy][qx] = A[1];
                XxGBB[qz][qy][qx] = A[2];
@@ -412,36 +402,36 @@ static void AddMultPA_Kernel_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double u[3] = {0};
-               double v[3] = {0};
-               double w[3] = {0};
+               double u[3] {};
+               double v[3] {};
+               double w[3] {};
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double Btx = Bt[dx][qx];
                   const double Gtx = Gt[dx][qx];
 
                   u[0] += XxBBG[qz][qy][qx] * Gtx;
-                  u[1] += XyBBG[qz][qy][qx] * Gtx;
-                  u[2] += XzBBG[qz][qy][qx] * Gtx;
-
                   v[0] += XxBGB[qz][qy][qx] * Btx;
-                  v[1] += XyBGB[qz][qy][qx] * Btx;
-                  v[2] += XzBGB[qz][qy][qx] * Btx;
-
                   w[0] += XxGBB[qz][qy][qx] * Btx;
+
+                  u[1] += XyBBG[qz][qy][qx] * Gtx;
+                  v[1] += XyBGB[qz][qy][qx] * Btx;
                   w[1] += XyGBB[qz][qy][qx] * Btx;
+
+                  u[2] += XzBBG[qz][qy][qx] * Gtx;
+                  v[2] += XzBGB[qz][qy][qx] * Btx;
                   w[2] += XzGBB[qz][qy][qx] * Btx;
                }
                XxBB[dx][qy][qz] = u[0];
-               XyBB[dx][qy][qz] = u[1];
-               XzBB[dx][qy][qz] = u[2];
-
                XxBG[dx][qy][qz] = v[0];
-               XyBG[dx][qy][qz] = v[1];
-               XzBG[dx][qy][qz] = v[2];
-
                XxGB[dx][qy][qz] = w[0];
+
+               XyBB[dx][qy][qz] = u[1];
+               XyBG[dx][qy][qz] = v[1];
                XyGB[dx][qy][qz] = w[1];
+
+               XzBB[dx][qy][qz] = u[2];
+               XzBG[dx][qy][qz] = v[2];
                XzGB[dx][qy][qz] = w[2];
             }
          }
@@ -453,37 +443,37 @@ static void AddMultPA_Kernel_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double u[3] = {0};
-               double v[3] = {0};
-               double w[3] = {0};
+               double u[3] {};
+               double v[3] {};
+               double w[3] {};
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double Bty = Bt[dy][qy];
                   const double Gty = Gt[dy][qy];
 
                   u[0] += XxBB[dx][qy][qz] * Bty;
-                  u[1] += XyBB[dx][qy][qz] * Bty;
-                  u[2] += XzBB[dx][qy][qz] * Bty;
-
                   v[0] += XxBG[dx][qy][qz] * Gty;
-                  v[1] += XyBG[dx][qy][qz] * Gty;
-                  v[2] += XzBG[dx][qy][qz] * Gty;
-
                   w[0] += XxGB[dx][qy][qz] * Bty;
+
+                  u[1] += XyBB[dx][qy][qz] * Bty;
+                  v[1] += XyBG[dx][qy][qz] * Gty;
                   w[1] += XyGB[dx][qy][qz] * Bty;
+
+                  u[2] += XzBB[dx][qy][qz] * Bty;
+                  v[2] += XzBG[dx][qy][qz] * Gty;
                   w[2] += XzGB[dx][qy][qz] * Bty;
 
                }
                XxB[dx][dy][qz] = u[0];
-               XyB[dx][dy][qz] = u[1];
-               XzB[dx][dy][qz] = u[2];
-
                XxC[dx][dy][qz] = v[0];
-               XyC[dx][dy][qz] = v[1];
-               XzC[dx][dy][qz] = v[2];
-
                XxG[dx][dy][qz] = w[0];
+
+               XyB[dx][dy][qz] = u[1];
+               XyC[dx][dy][qz] = v[1];
                XyG[dx][dy][qz] = w[1];
+
+               XzB[dx][dy][qz] = u[2];
+               XzC[dx][dy][qz] = v[2];
                XzG[dx][dy][qz] = w[2];
             }
          }
@@ -495,24 +485,24 @@ static void AddMultPA_Kernel_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double u[3] = {0};
-               double v[3] = {0};
-               double w[3] = {0};
+               double u[3] {};
+               double v[3] {};
+               double w[3] {};
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   const double Btz = Bt[dz][qz];
                   const double Gtz = Gt[dz][qz];
 
                   u[0] += XxB[dx][dy][qz] * Btz;
-                  u[1] += XyB[dx][dy][qz] * Btz;
-                  u[2] += XzB[dx][dy][qz] * Btz;
-
                   v[0] += XxC[dx][dy][qz] * Btz;
-                  v[1] += XyC[dx][dy][qz] * Btz;
-                  v[2] += XzC[dx][dy][qz] * Btz;
-
                   w[0] += XxG[dx][dy][qz] * Gtz;
+
+                  u[1] += XyB[dx][dy][qz] * Btz;
+                  v[1] += XyC[dx][dy][qz] * Btz;
                   w[1] += XyG[dx][dy][qz] * Gtz;
+
+                  u[2] += XzB[dx][dy][qz] * Btz;
+                  v[2] += XzC[dx][dy][qz] * Btz;
                   w[2] += XzG[dx][dy][qz] * Gtz;
                }
                Y(dx,dy,dz,0,e) += u[0] + v[0] + w[0];
@@ -522,7 +512,6 @@ static void AddMultPA_Kernel_3D(const int NE,
          }
       }
    });
-   dbg("y:"); y_.Print();
 }
 
 // *****************************************************************************
@@ -544,7 +533,10 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 
    const FiniteElement *fe = fes->GetFE(0);
    const Geometry::Type geom_type = fe->GetGeomType();
-   Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
+   const DenseMatrix &GeomJac = Geometries.GetGeomToPerfGeomJac(geom_type);
+   //dbg("GeomJac:"); GeomJac.Print();
+   Wideal = GeomJac;
+
    MFEM_VERIFY(Wideal.Det() == 1.0 ,"");
    {
       MFEM_VERIFY(Wideal(0,0)==1.0 && Wideal(1,1)==1.0 && Wideal(2,2)==1.0 &&
@@ -553,17 +545,6 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
                   "");
    }
 
-   /*
-      Array<int> vdofs;
-      DenseTensor Jtr(dim, dim, ir->GetNPoints());
-      for (int i = 0; i < fes->GetNE(); i++)
-      {
-         const FiniteElement *el = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
-         T = fes->GetElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
-         targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-     }*/
    const auto Jtr = Reshape(Wideal.Read(), dim, dim);
    auto J = Reshape(Dpa.Write(), Q1D, Q1D, Q1D, dim, dim, ne);
    MFEM_FORALL_3D(e, ne, Q1D, Q1D, Q1D,

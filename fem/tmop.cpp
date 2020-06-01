@@ -1694,15 +1694,12 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
-      dbg("Jpt:"); Jpt.Print();
 
       metric->EvalP(Jpt, P);
 
       if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       P *= weight_m;
-#warning P = 10.0
-      P = 10.0;
       AddMultABt(DS, P, PMatO);
 
       // TODO: derivatives of adaptivity-based targets.

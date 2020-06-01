@@ -148,7 +148,6 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    if (ext)
    {
       ext->Mult(px, py);
-      dbg("py:"); py.Print();
       if (Serial())
       {
          if (cP) { cP->MultTranspose(py, y); }
@@ -182,7 +181,6 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             py.AddElementVector(vdofs, el_y);
          }
       }
-      dbg("py:"); py.Print();
    }
 
    if (fnfi.Size())
