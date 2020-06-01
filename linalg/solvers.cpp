@@ -549,6 +549,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       r = b;
       x = 0.0;
    }
+   dbg("r: %.15e", r*r);
+   MFEM_VERIFY(!prec,"");
 
    if (prec)
    {
@@ -589,7 +591,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
+   dbg("d: %.15e", d*d); d.Print();
+   srand48(0x123456789);
+   for (int k=0; k<d.Size(); k++) { d[k] = drand48(); }
    oper->Mult(d, z);  // z = A d
+   dbg("z: %.15e", z*z); z.Print(); exit(0);
+
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
@@ -1622,9 +1629,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       dbg("No prec");
       c = r;
 #else
-      //prec->SetOperator(oper->GetGradient(x));
+      //srand48(0x123456789);
+      //for (int k=0; k<x.Size(); k++) { x[k] = drand48(); }
+      prec->SetOperator(oper->GetGradient(x));
 
-      //prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      //for (int k=0; k<r.Size(); k++) { r[k] = drand48(); }
+      prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      dbg("x: %.15e, r: %.15e, c: %.15e", x*x, r*r, c*c);
+      //exit(0);
 #endif
 
       const double c_scale = ComputeScalingFactor(x, b);

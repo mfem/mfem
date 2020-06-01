@@ -41,7 +41,7 @@ static void AddMultPA_Kernel_3D(const int NE,
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, VDIM, VDIM, NE);
-   auto X = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
@@ -286,10 +286,10 @@ static void AddMultPA_Kernel_3D(const int NE,
                // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
-
                // metric->EvalP(Jpt, P);
                // TMOP_Metric_302
                // mu_2 = I1b*I2b/9-1
+
                // P = (I1b/9)*dI2b + (I2b/9)*dI1b
                const double detJ = J[0] * (J[4]*J[8] - J[7]*J[5]) -
                                    J[1] * (J[3]*J[8] - J[5]*J[6]) +
@@ -303,7 +303,6 @@ static void AddMultPA_Kernel_3D(const int NE,
                const double I1 = B0 + B1 + B2;
                const double I1b = I1 * I3b_p;
                const double alpha = I1b/9.0;
-
                const double B3 = J[0]*J[1] + J[3]*J[4] + J[6]*J[7];
                const double B4 = J[0]*J[2] + J[3]*J[5] + J[6]*J[8];
                const double B5 = J[1]*J[2] + J[4]*J[5] + J[7]*J[8];
@@ -311,16 +310,14 @@ static void AddMultPA_Kernel_3D(const int NE,
                const double I2 = (I1*I1 - BF2)/2;
                const double I2b = I2 * I3b_p * I3b_p;
                const double beta = I2b/9.0;
-
                // dI1b = 2*I3b^{-2/3}*(J - (1/3)*I1/I3b*dI3b)
-               double dI1b[9];
-               double dI3b[9];
+               double dI1b[9], dI3b[9];
                {
                   const double c1 = 2*I3b_p;
                   const double c2 = I1/(3*I3b);
-                  dI3b[0] = sign_detJ*(J[4]*J[8] - J[5]*J[7]);  // 0  3  6
-                  dI3b[1] = sign_detJ*(J[5]*J[6] - J[3]*J[8]);  // 1  4  7
-                  dI3b[2] = sign_detJ*(J[3]*J[7] - J[4]*J[6]);  // 2  5  8
+                  dI3b[0] = sign_detJ*(J[4]*J[8] - J[5]*J[7]);
+                  dI3b[1] = sign_detJ*(J[5]*J[6] - J[3]*J[8]);
+                  dI3b[2] = sign_detJ*(J[3]*J[7] - J[4]*J[6]);
                   dI3b[3] = sign_detJ*(J[2]*J[7] - J[1]*J[8]);
                   dI3b[4] = sign_detJ*(J[0]*J[8] - J[2]*J[6]);
                   dI3b[5] = sign_detJ*(J[1]*J[6] - J[0]*J[7]);
@@ -332,23 +329,18 @@ static void AddMultPA_Kernel_3D(const int NE,
                      dI1b[i] = c1*(J[i] - c2*dI3b[i]);
                   }
                }
-
-               double dI2b[9];
-               double dI2[9];
+               double dI2b[9], dI2[9];
                {
                   const double c1 = I3b_p*I3b_p;
                   const double c2 = (4*I2/I3b)/3;
                   const double C[6] =
                   { 2*(I1-B0), 2*(I1-B1), 2*(I1-B2), -2*B3, -2*B4, -2*B5 };
-
                   dI2[0] = C[0]*J[0] + C[3]*J[1] + C[4]*J[2];
                   dI2[1] = C[3]*J[0] + C[1]*J[1] + C[5]*J[2];
                   dI2[2] = C[4]*J[0] + C[5]*J[1] + C[2]*J[2];
-
                   dI2[3] = C[0]*J[3] + C[3]*J[4] + C[4]*J[5];
                   dI2[4] = C[3]*J[3] + C[1]*J[4] + C[5]*J[5];
                   dI2[5] = C[4]*J[3] + C[5]*J[4] + C[2]*J[5];
-
                   dI2[6] = C[0]*J[6] + C[3]*J[7] + C[4]*J[8];
                   dI2[7] = C[3]*J[6] + C[1]*J[7] + C[5]*J[8];
                   dI2[8] = C[4]*J[6] + C[5]*J[7] + C[2]*J[8];
@@ -357,7 +349,6 @@ static void AddMultPA_Kernel_3D(const int NE,
                      dI2b[i] = c1*(dI2[i] - c2*dI3b[i]);
                   }
                }
-
                // P = alpha * dI2b + beta * dI1b
                double P[9];
                for (int i = 0; i < 9; i++)
@@ -529,23 +520,20 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
    //  - Jtr(i) == Wideal
-   DenseMatrix Wideal(dim);
+   DenseMatrix Wid(dim);
 
    const FiniteElement *fe = fes->GetFE(0);
    const Geometry::Type geom_type = fe->GetGeomType();
    const DenseMatrix &GeomJac = Geometries.GetGeomToPerfGeomJac(geom_type);
    //dbg("GeomJac:"); GeomJac.Print();
-   Wideal = GeomJac;
+   Wid = GeomJac;
 
-   MFEM_VERIFY(Wideal.Det() == 1.0 ,"");
-   {
-      MFEM_VERIFY(Wideal(0,0)==1.0 && Wideal(1,1)==1.0 && Wideal(2,2)==1.0 &&
-                  Wideal(1,0)==0.0 && Wideal(0,1)==0.0 && Wideal(1,2)==0.0 &&
-                  Wideal(2,0)==0.0 && Wideal(0,2)==0.0 && Wideal(2,1)==0.0,
-                  "");
-   }
+   MFEM_VERIFY(Wid.Det() == 1.0 ,"");
+   MFEM_VERIFY(Wid(0,0)==1.0 && Wid(1,1)==1.0 && Wid(2,2)==1.0 &&
+               Wid(1,0)==0.0 && Wid(0,1)==0.0 && Wid(1,2)==0.0 &&
+               Wid(2,0)==0.0 && Wid(0,2)==0.0 && Wid(2,1)==0.0,  "");
 
-   const auto Jtr = Reshape(Wideal.Read(), dim, dim);
+   const auto Jtr = Reshape(Wid.Read(), dim, dim);
    auto J = Reshape(Dpa.Write(), Q1D, Q1D, Q1D, dim, dim, ne);
    MFEM_FORALL_3D(e, ne, Q1D, Q1D, Q1D,
    {
