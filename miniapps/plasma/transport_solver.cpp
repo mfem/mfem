@@ -998,7 +998,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                Array<int> &offsets,
                                ParGridFunctionArray &yGF,
                                ParGridFunctionArray &kGF,
-                               const vector<TransportBC> & bcs,
+                               const TransportBCs & bcs,
                                double Di_perp, double Xi_perp, double Xe_perp,
                                VectorCoefficient &B3Coef,
                                const Array<int> &term_flags,
@@ -1332,6 +1332,71 @@ DGTransportTDO::TransportOp::~TransportOp()
    }
 }
 
+void DGTransportTDO::TransportOp::SetTimeStep(double dt)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time step: " << dt << " in NLOperator"
+           << endl;
+   }
+
+   NLOperator::SetTimeStep(dt);
+
+   for (int i=0; i<dtSCoefs_.Size(); i++)
+   {
+      dtSCoefs_[i]->SetAConst(dt);
+   }
+   for (int i=0; i<negdtSCoefs_.Size(); i++)
+   {
+      negdtSCoefs_[i]->SetAConst(-dt);
+   }
+   for (int i=0; i<dtVCoefs_.Size(); i++)
+   {
+      dtVCoefs_[i]->SetAConst(dt);
+   }
+   for (int i=0; i<dtMCoefs_.Size(); i++)
+   {
+      dtMCoefs_[i]->SetAConst(dt);
+   }
+}
+
+void
+DGTransportTDO::TransportOp::InitializeGLVis()
+{
+   if ((int)sout_.size() < coefs_.Size())
+   {
+      sout_.resize(coefs_.Size());
+      for (int i=0; i<coefs_.Size(); i++)
+      {
+         sout_[i] = new socketstream;
+      }
+   }
+}
+
+void
+DGTransportTDO::TransportOp::DisplayToGLVis()
+{
+   for (int i=0; i<coefs_.Size(); i++)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+
+      int Wx = 0, Wy = 0; // window position
+      int Ww = 275, Wh = 250; // window size
+      int Dx = 3, Dy = 25;
+
+      ostringstream oss;
+      oss << "coef " << index_ << " " << i + 1;
+
+      coefGF_.ProjectCoefficient(*coefs_[i]);
+
+      int c = i % 4;
+      int r = i / 4;
+      VisualizeField(*sout_[i], vishost, visport, coefGF_, oss.str().c_str(),
+                     Wx + c * (Ww + Dx), Wy + r * (Wh + Dy), Ww, Wh);
+   }
+}
+
 void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
    StateVariableCoef &MCoef)
 {
@@ -1515,34 +1580,6 @@ void DGTransportTDO::NLOperator::SetLogging(int logging, const string & prefix)
    log_prefix_ = prefix;
 }
 
-void DGTransportTDO::TransportOp::SetTimeStep(double dt)
-{
-   if (mpi_.Root() && logging_)
-   {
-      cout << "Setting time step: " << dt << " in NLOperator"
-           << endl;
-   }
-
-   NLOperator::SetTimeStep(dt);
-
-   for (int i=0; i<dtSCoefs_.Size(); i++)
-   {
-      dtSCoefs_[i]->SetAConst(dt);
-   }
-   for (int i=0; i<negdtSCoefs_.Size(); i++)
-   {
-      negdtSCoefs_[i]->SetAConst(-dt);
-   }
-   for (int i=0; i<dtVCoefs_.Size(); i++)
-   {
-      dtVCoefs_[i]->SetAConst(dt);
-   }
-   for (int i=0; i<dtMCoefs_.Size(); i++)
-   {
-      dtMCoefs_[i]->SetAConst(dt);
-   }
-}
-
 void
 DGTransportTDO::NLOperator::RegisterDataFields(DataCollection & dc)
 {
@@ -1557,43 +1594,6 @@ DGTransportTDO::NLOperator::RegisterDataFields(DataCollection & dc)
 void
 DGTransportTDO::NLOperator::PrepareDataFields()
 {
-}
-
-void
-DGTransportTDO::TransportOp::InitializeGLVis()
-{
-   if ((int)sout_.size() < coefs_.Size())
-   {
-      sout_.resize(coefs_.Size());
-      for (int i=0; i<coefs_.Size(); i++)
-      {
-         sout_[i] = new socketstream;
-      }
-   }
-}
-
-void
-DGTransportTDO::TransportOp::DisplayToGLVis()
-{
-   for (int i=0; i<coefs_.Size(); i++)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      int Wx = 0, Wy = 0; // window position
-      int Ww = 275, Wh = 250; // window size
-      int Dx = 3, Dy = 25;
-
-      ostringstream oss;
-      oss << "coef " << index_ << " " << i + 1;
-
-      coefGF_.ProjectCoefficient(*coefs_[i]);
-
-      int c = i % 4;
-      int r = i / 4;
-      VisualizeField(*sout_[i], vishost, visport, coefGF_, oss.str().c_str(),
-                     Wx + c * (Ww + Dx), Wy + r * (Wh + Dy), Ww, Wh);
-   }
 }
 
 void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
@@ -1982,7 +1982,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        ParFiniteElementSpace & vfes,
                                        ParGridFunctionArray & yGF,
                                        ParGridFunctionArray & kGF,
-                                       const std::vector<TransportBC> & bcs,
+                                       const TransportBCs & bcs,
                                        Array<int> & offsets,
                                        double DiPerp,
                                        double XiPerp,

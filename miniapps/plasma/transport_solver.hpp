@@ -255,6 +255,40 @@ public:
    const Array<int> & GetHomogeneousNeumannBCs() const;
 };
 
+class TransportBCs
+{
+private:
+   int neqn_;
+   TransportBC ** bcs_;
+
+public:
+   TransportBCs(const Array<int> & bdr_attr, int neqn)
+      : neqn_(neqn),
+        bcs_(NULL)
+   {
+      bcs_ = new TransportBC*[neqn];
+      for (int i=0; i<neqn_; i++)
+      {
+         bcs_[i] = new TransportBC(bdr_attr);
+      }
+   }
+
+   ~TransportBCs()
+   {
+      for (int i=0; i<neqn_; i++)
+      {
+         delete bcs_[i];
+      }
+      delete [] bcs_;
+   }
+
+   TransportBC & operator()(int i) { return *bcs_[i]; }
+   const TransportBC & operator()(int i) const { return *bcs_[i]; }
+
+   TransportBC & operator[](int i) { return *bcs_[i]; }
+   const TransportBC & operator[](int i) const { return *bcs_[i]; }
+};
+
 class ParGridFunctionArray : public Array<ParGridFunction*>
 {
 private:
@@ -2101,9 +2135,9 @@ private:
 
       virtual void PrepareDataFields();
 
-      virtual void InitializeGLVis();
+      virtual void InitializeGLVis() = 0;
 
-      virtual void DisplayToGLVis();
+      virtual void DisplayToGLVis() = 0;
    };
 
    class TransportOp : public NLOperator
@@ -2662,7 +2696,7 @@ private:
                  const PlasmaParams & plasma,
                  ParFiniteElementSpace & vfes,
                  ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
-                 const std::vector<TransportBC> & bcs,
+                 const TransportBCs & bcs,
                  Array<int> & offsets,
                  // int ion_charge, double ion_mass,
                  // double neutral_mass, double neutral_temp,
@@ -2728,11 +2762,9 @@ public:
                   Array<int> &offsets,
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
-                  const std::vector<TransportBC> & bcs,
+                  const TransportBCs & bcs,
                   double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
-                  // std::vector<CoefficientByAttr> & Ti_dbc,
-                  // std::vector<CoefficientByAttr> & Te_dbc,
                   const Array<int> & term_flags,
                   const Array<int> & vis_flags,
                   bool imex = true,
