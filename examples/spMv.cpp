@@ -155,12 +155,12 @@ int main(int argc, char *argv[])
    Vector y(k.Height());
 
    high_resolution_clock::time_point t1 = high_resolution_clock::now();
-   for(int i=0; i<10; ++i)
+   for (int i=0; i<10; ++i)
    {
-     k.Mult(x,y);
-     y = 0.0;
+      k.Mult(x,y);
+      y = 0.0;
    }
-   
+
    cudaDeviceSynchronize();
    high_resolution_clock::time_point t2 = high_resolution_clock::now();
    duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
