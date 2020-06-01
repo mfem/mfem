@@ -277,8 +277,7 @@ ifeq ($(PETSC_FOUND),YES)
       -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIB)
 endif
 
-SLEPC_ARCH := arch-linux2-c-debug
-SLEPC_DIR := $(MFEM_DIR)/../slepc/$(SLEPC_ARCH)
+SLEPC_DIR := $(MFEM_DIR)/../slepc
 SLEPC_VARS := $(SLEPC_DIR)/lib/slepc/conf/slepc_variables
 SLEPC_FOUND := $(if $(wildcard $(SLEPC_VARS)),YES,)
 SLEPC_INC_VAR = SLEPC_INCLUDE
@@ -286,8 +285,8 @@ SLEPC_LIB_VAR = SLEPC_EXTERNAL_LIB
 ifeq ($(SLEPC_FOUND),YES)
     SLEPC_OPT := $(shell sed -n "s/$(SLEPC_INC_VAR) *= *//p" $(SLEPC_VARS))
     SLEPC_LIB := $(shell sed -n "s/$(SLEPC_LIB_VAR) *= *//p" $(SLEPC_VARS))
-    SLEPC_LIB := -Wl,-rpath,$(abspath $(SLEPC_DIR))/lib\
-        -L$(abspath $(SLEPC_DIR))/lib -lslepc $(SLEPC_LIB)
+    SLEPC_LIB := -Wl,-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
+        -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc $(SLEPC_LIB)
 endif
 
 # MPFR library configuration

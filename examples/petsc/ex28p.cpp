@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
    }
    delete tRHSOp;
 
-   // 12. Solve the eigenvalue problem with slepc.
+   // 11. Solve the eigenvalue problem with slepc.
    std::cout << "Solving...\n";
 
    trueX = 0.0;
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
    solver->GetEigenvector(0,trueX);
    std::cout << "Effective index: " << sqrt(re)/k0 << "\n";
 
-   // 13. Extract the parallel grid function corresponding to the finite element
+   // 12. Extract the parallel grid function corresponding to the finite element
    //     approximation X. This is the local solution on each processor.
    ParGridFunction *et(new ParGridFunction);
    ParGridFunction *ez(new ParGridFunction);
@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
    et->Distribute(&(trueX.GetBlock(0)));
    ez->Distribute(&(trueX.GetBlock(1)));
 
-   // 14. Save the refined mesh and the solution in parallel. This output can be
+   // 13. Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol_*".
    {
       ostringstream mesh_name, u_name, p_name;
@@ -339,8 +339,8 @@ int main(int argc, char *argv[])
       ez->Save(ez_ofs);
    }
 
-   // 15. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5-Parallel", pmesh);
+   // 14. Save data in the VisIt format
+   VisItDataCollection visit_dc("Example28-Parallel", pmesh);
    visit_dc.RegisterField("Exy", et);
    visit_dc.RegisterField("Ez", ez);
    visit_dc.SetFormat(!par_format ?
@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
                       DataCollection::PARALLEL_FORMAT);
    visit_dc.Save();
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -370,7 +370,7 @@ int main(int argc, char *argv[])
       p_sock << "keys Rjl!\n";
    }
 
-   // 17. Free the used memory.
+   // 16. Free the used memory.
    delete et;
    delete ez;
    delete N_space;
