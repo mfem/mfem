@@ -237,8 +237,8 @@ private:
    const Array<int> & bdr_attr;
 
 public:
-   TransportBC(const Mesh & mesh)
-      : bdr_attr(mesh.bdr_attributes) {}
+   TransportBC(const Array<int> & bdr)
+      : bdr_attr(bdr) {}
 
    // Enforce u = val on boundaries with attributes in bdr
    void AddDirichletBC(const Array<int> & bdr, Coefficient &val);
@@ -2013,15 +2013,6 @@ private:
 
    class NLOperator : public Operator
    {
-   private:
-      Array<StateVariableCoef*> coefs_;
-      Array<ProductCoefficient*>             dtSCoefs_;
-      Array<ProductCoefficient*>             negdtSCoefs_;
-      Array<ScalarVectorProductCoefficient*> dtVCoefs_;
-      Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
-      std::vector<socketstream*> sout_;
-      ParGridFunction coefGF_;
-
    protected:
       const MPI_Session &mpi_;
       const DGParams &dg_;
@@ -2087,35 +2078,13 @@ private:
                  const std::string & log_prefix = "");
 
 
-      /** Sets the time derivative on the left hand side of the equation to be:
-             d MCoef / dt
-      */
-      void SetTimeDerivativeTerm(StateVariableCoef &MCoef);
-
-      /** Sets the diffusion term on the right hand side of the equation
-          to be:
-             Div(DCoef Grad y[index])
-          where index is the index of the equation.
-       */
-      void SetDiffusionTerm(StateVariableCoef &DCoef, bool bc = false);
-      void SetDiffusionTerm(StateVariableMatCoef &DCoef, bool bc = false);
-
-      /** Sets the advection term on the right hand side of the
-      equation to be:
-             Div(VCoef y[index])
-          where index is the index of the equation.
-       */
-      void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
-
-      void SetSourceTerm(StateVariableCoef &SCoef);
-
    public:
 
       virtual ~NLOperator();
 
       void SetLogging(int logging, const std::string & prefix = "");
 
-      virtual void SetTimeStep(double dt);
+      virtual void SetTimeStep(double dt) { dt_ = dt; }
 
       virtual void Mult(const Vector &k, Vector &y) const;
 
@@ -2139,6 +2108,15 @@ private:
 
    class TransportOp : public NLOperator
    {
+   private:
+      Array<StateVariableCoef*> coefs_;
+      Array<ProductCoefficient*>             dtSCoefs_;
+      Array<ProductCoefficient*>             negdtSCoefs_;
+      Array<ScalarVectorProductCoefficient*> dtVCoefs_;
+      Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
+      std::vector<socketstream*> sout_;
+      ParGridFunction coefGF_;
+
    protected:
       const PlasmaParams &plasma_;
 
@@ -2156,16 +2134,20 @@ private:
 
       ProductCoefficient      ne0Coef_;
 
+      const TransportBC & bcs_;
+
       TransportOp(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma, int index,
                   const std::string &field_name,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
+                  const TransportBC & bcs,
                   int term_flag, int vis_flag,
                   int logging = 0,
                   const std::string & log_prefix = "")
          : NLOperator(mpi, dg, index, field_name,
                       yGF, kGF, term_flag, vis_flag, logging, log_prefix),
+           coefGF_(yGF[0]->ParFESpace()),
            plasma_(plasma),
            m_n_(plasma.m_n),
            T_n_(plasma.T_n),
@@ -2177,9 +2159,39 @@ private:
            vi0Coef_(*yCoefPtrs_[ION_PARA_VELOCITY]),
            Ti0Coef_(*yCoefPtrs_[ION_TEMPERATURE]),
            Te0Coef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
-           ne0Coef_(z_i_, ni0Coef_)
+           ne0Coef_(z_i_, ni0Coef_),
+           bcs_(bcs)
       {}
 
+      ~TransportOp();
+
+      virtual void SetTimeStep(double dt);
+
+      /** Sets the time derivative on the left hand side of the equation to be:
+             d MCoef / dt
+      */
+      void SetTimeDerivativeTerm(StateVariableCoef &MCoef);
+
+      /** Sets the diffusion term on the right hand side of the equation
+          to be:
+             Div(DCoef Grad y[index])
+          where index is the index of the equation.
+       */
+      void SetDiffusionTerm(StateVariableCoef &DCoef, bool bc = false);
+      void SetDiffusionTerm(StateVariableMatCoef &DCoef, bool bc = false);
+
+      /** Sets the advection term on the right hand side of the
+      equation to be:
+             Div(VCoef y[index])
+          where index is the index of the equation.
+       */
+      void SetAdvectionTerm(StateVariableVecCoef &VCoef, bool bc = false);
+
+      void SetSourceTerm(StateVariableCoef &SCoef);
+
+      virtual void InitializeGLVis();
+
+      virtual void DisplayToGLVis();
    };
 
    /** The NeutralDensityOp is an mfem::Operator designed to work with
@@ -2245,6 +2257,7 @@ private:
                        const PlasmaParams & plasma,
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
+                       const TransportBC & bcs,
                        int term_flag = 3,
                        int vis_flag = 0, int logging = 0,
                        const std::string & log_prefix = "");
@@ -2337,6 +2350,7 @@ private:
                    ParFiniteElementSpace & vfes,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
+                   const TransportBC & bcs,
                    double DPerp,
                    VectorCoefficient & B3Coef,
                    int term_flag = 7, int vis_flag = 0, int logging = 0,
@@ -2428,6 +2442,7 @@ private:
                     const PlasmaParams & plasma,
                     ParFiniteElementSpace & vfes,
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
+                    const TransportBC & bcs,
                     // int ion_charge, double ion_mass,
                     double DPerp,
                     VectorCoefficient & B3Coef,
@@ -2495,8 +2510,6 @@ private:
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
 
-      const std::vector<CoefficientByAttr> & dbc_;
-
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
 
@@ -2505,9 +2518,9 @@ private:
                           const PlasmaParams & plasma,
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
+                          const TransportBC & bcs,
                           double ChiPerp,
                           VectorCoefficient & B3Coef,
-                          std::vector<CoefficientByAttr> & dbc,
                           int term_flag = 0, int vis_flag = 0, int logging = 0,
                           const std::string & log_prefix = "");
 
@@ -2570,8 +2583,6 @@ private:
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
 
-      const std::vector<CoefficientByAttr> & dbc_;
-
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
 
@@ -2580,9 +2591,9 @@ private:
                                const PlasmaParams & plasma,
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
+                               const TransportBC & bcs,
                                double ChiPerp,
                                VectorCoefficient & B3Coef,
-                               std::vector<CoefficientByAttr> & dbc,
                                int term_flag = 0, int vis_flag = 0,
                                int logging = 0,
                                const std::string & log_prefix = "");
@@ -2605,7 +2616,8 @@ private:
               const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
-              int index, const std::string &field_name,
+              const TransportBC & bcs, int index,
+              const std::string &field_name,
               int term_flag = 0, int vis_flag = 0,
               int logging = 0, const std::string & log_prefix = "");
 
@@ -2615,7 +2627,7 @@ private:
          {
             std::cout << "Setting time step: " << dt << " in DummyOp\n";
          }
-         NLOperator::SetTimeStep(dt);
+         TransportOp::SetTimeStep(dt);
       }
 
       void Update();
@@ -2650,13 +2662,14 @@ private:
                  const PlasmaParams & plasma,
                  ParFiniteElementSpace & vfes,
                  ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
+                 const std::vector<TransportBC> & bcs,
                  Array<int> & offsets,
                  // int ion_charge, double ion_mass,
                  // double neutral_mass, double neutral_temp,
                  double DiPerp, double XiPerp, double XePerp,
                  VectorCoefficient & B3Coef,
-                 std::vector<CoefficientByAttr> & Ti_dbc,
-                 std::vector<CoefficientByAttr> & Te_dbc,
+                 // std::vector<CoefficientByAttr> & Ti_dbc,
+                 // std::vector<CoefficientByAttr> & Te_dbc,
                  const Array<int> & term_flags,
                  const Array<int> & vis_flags,
                  // VectorCoefficient & bHatCoef,
@@ -2715,10 +2728,11 @@ public:
                   Array<int> &offsets,
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
+                  const std::vector<TransportBC> & bcs,
                   double Di_perp, double Xi_perp, double Xe_perp,
                   VectorCoefficient & B3Coef,
-                  std::vector<CoefficientByAttr> & Ti_dbc,
-                  std::vector<CoefficientByAttr> & Te_dbc,
+                  // std::vector<CoefficientByAttr> & Ti_dbc,
+                  // std::vector<CoefficientByAttr> & Te_dbc,
                   const Array<int> & term_flags,
                   const Array<int> & vis_flags,
                   bool imex = true,
