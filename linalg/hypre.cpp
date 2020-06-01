@@ -21,6 +21,10 @@
 #include <cmath>
 #include <cstdlib>
 
+#ifdef MFEM_USE_SUNDIALS
+#include <nvector/nvector_parallel.h>
+#endif
+
 using namespace std;
 
 namespace mfem
