@@ -2225,67 +2225,20 @@ private:
    private:
       enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
       enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
-      /*
-       int    z_i_;
-       double m_n_;
-       double T_n_;
-      */
-      /*
-       StateVariableGridFunctionCoef &nn0Coef_;
-       StateVariableGridFunctionCoef &ni0Coef_;
-       StateVariableGridFunctionCoef &Te0Coef_;
-      */
-      // SumCoefficient &nn1Coef_;
-      // SumCoefficient &ni1Coef_;
-      // SumCoefficient &Te1Coef_;
 
-      // ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
-      /*
-       mutable GridFunctionCoefficient nn0Coef_;
-       mutable GridFunctionCoefficient ni0Coef_;
-       mutable GridFunctionCoefficient Te0Coef_;
-
-       GridFunctionCoefficient dnnCoef_;
-       GridFunctionCoefficient dniCoef_;
-       GridFunctionCoefficient dTeCoef_;
-
-       mutable SumCoefficient  nn1Coef_;
-       mutable SumCoefficient  ni1Coef_;
-       mutable SumCoefficient  Te1Coef_;
-      */
-      // ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
       ConstantCoefficient      vnCoef_;
       ApproxIonizationRate     izCoef_;
       ApproxRecombinationRate  rcCoef_;
 
       NeutralDiffusionCoef      DCoef_;
-      // ProductCoefficient      dtDCoef_;
 
       IonSourceCoef           SizCoef_;
       IonSinkCoef             SrcCoef_;
 
-      //ProductCoefficient   negSrcCoef_;
-
       StateVariableSumCoef SCoef_;
-
-      // IonSourceCoef       dSizdnnCoef_;
-      // IonSourceCoef       dSizdniCoef_;
-
-      // ProductCoefficient dtdSizdnnCoef_;
-      // ProductCoefficient dtdSizdniCoef_;
 
       ParGridFunction * DGF_;
       ParGridFunction * SGF_;
-
-      // ProductCoefficient     nnizCoef_; // nn * iz
-      // ProductCoefficient     neizCoef_; // ne * iz
-      // ProductCoefficient dtdSndnnCoef_; // - dt * dSn/dnn
-      // ProductCoefficient dtdSndniCoef_; // - dt * dSn/dni
-
-      // mutable DiffusionIntegrator   diff_;
-      // mutable DGDiffusionIntegrator dg_diff_;
 
    public:
       NeutralDensityOp(const MPI_Session & mpi, const DGParams & dg,
@@ -2307,10 +2260,6 @@ private:
       virtual void RegisterDataFields(DataCollection & dc);
 
       virtual void PrepareDataFields();
-
-      // void Mult(const Vector &k, Vector &y) const;
-
-      // Operator *GetGradientBlock(int i);
    };
 
    /** The IonDensityOp is an mfem::Operator designed to worth with a
@@ -2363,63 +2312,20 @@ private:
                      ADVECTION_COEF = 1, SOURCE_COEF = 2
                     };
 
-      // int    z_i_;
       double DPerpConst_;
-
-      // StateVariableGridFunctionCoef &ni0Coef_;
-
-      // SumCoefficient &nn1Coef_;
-      // SumCoefficient &ni1Coef_;
-      // SumCoefficient &Te1Coef_;
-
-      // ProductCoefficient ne1Coef_;
-      /*
-        GridFunctionCoefficient nn0Coef_;
-        GridFunctionCoefficient ni0Coef_;
-        GridFunctionCoefficient vi0Coef_;
-        GridFunctionCoefficient Te0Coef_;
-
-        GridFunctionCoefficient dnnCoef_;
-        GridFunctionCoefficient dniCoef_;
-        GridFunctionCoefficient dviCoef_;
-        GridFunctionCoefficient dTeCoef_;
-
-        mutable SumCoefficient  nn1Coef_;
-        mutable SumCoefficient  ni1Coef_;
-        mutable SumCoefficient  vi1Coef_;
-        mutable SumCoefficient  Te1Coef_;
-       */
-      //ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
 
       ApproxIonizationRate     izCoef_;
       ApproxRecombinationRate  rcCoef_;
 
       ConstantCoefficient DPerpCoef_;
-      // MatrixCoefficient * PerpCoef_;
-      // ScalarMatrixProductCoefficient DCoef_;
       IonDiffusionCoef DCoef_;
-      // ScalarMatrixProductCoefficient dtDCoef_;
 
-      // VectorCoefficient * B3Coef_;
       IonAdvectionCoef ViCoef_;
-      // ScalarVectorProductCoefficient ViCoef_;
-      // ScalarVectorProductCoefficient dtViCoef_;
 
       IonSourceCoef           SizCoef_;
       IonSinkCoef             SrcCoef_;
 
       StateVariableSumCoef SCoef_;
-      // ProductCoefficient   negSizCoef_;
-
-      // IonSourceCoef           dSizdnnCoef_;
-      // IonSourceCoef           dSizdniCoef_;
-
-      // ProductCoefficient   negdtdSizdnnCoef_;
-      // ProductCoefficient   negdtdSizdniCoef_;
-
-      // ProductCoefficient nnizCoef_;
-      // ProductCoefficient niizCoef_;
 
       ParGridFunction * DPerpGF_;
       ParGridFunction * AGF_;
@@ -2490,42 +2396,8 @@ private:
                      ADVECTION_COEF = 2, SOURCE_COEF = 3
                     };
 
-      // int    z_i_;
-      // double m_i_;
       double DPerpConst_;
       ConstantCoefficient DPerpCoef_;
-
-      // StateVariableGridFunctionCoef &ni0Coef_;
-      // StateVariableGridFunctionCoef &vi0Coef_;
-      // StateVariableGridFunctionCoef &Ti0Coef_;
-
-      // SumCoefficient &nn1Coef_;
-      // SumCoefficient &ni1Coef_;
-      // SumCoefficient &Te1Coef_;
-      /*
-        GridFunctionCoefficient nn0Coef_;
-        GridFunctionCoefficient ni0Coef_;
-        GridFunctionCoefficient vi0Coef_;
-        GridFunctionCoefficient Ti0Coef_;
-        GridFunctionCoefficient Te0Coef_;
-
-        GridFunctionCoefficient dnnCoef_;
-        GridFunctionCoefficient dniCoef_;
-        GridFunctionCoefficient dviCoef_;
-        GridFunctionCoefficient dTiCoef_;
-        GridFunctionCoefficient dTeCoef_;
-
-        mutable SumCoefficient  nn1Coef_;
-        mutable SumCoefficient  ni1Coef_;
-        mutable SumCoefficient  vi1Coef_;
-        mutable SumCoefficient  Ti1Coef_;
-        mutable SumCoefficient  Te1Coef_;
-       */
-      // ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
-
-      // ProductCoefficient    mini1Coef_;
-      // ProductCoefficient    mivi1Coef_;
 
       VectorCoefficient * B3Coef_;
 
@@ -2533,10 +2405,8 @@ private:
       IonMomentumParaDiffusionCoef   EtaParaCoef_;
       IonMomentumPerpDiffusionCoef   EtaPerpCoef_;
       Aniso2DDiffusionCoef           EtaCoef_;
-      // ScalarMatrixProductCoefficient dtEtaCoef_;
 
       IonMomentumAdvectionCoef miniViCoef_;
-      // ScalarVectorProductCoefficient dtminiViCoef_;
 
       GradPressureCoefficient gradPCoef_;
 
@@ -2614,36 +2484,7 @@ private:
       enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
       enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
 
-      // int    z_i_;
-      // double m_i_;
       double ChiPerpConst_;
-
-      // StateVariableGridFunctionCoef &ni0Coef_;
-      // StateVariableGridFunctionCoef &Ti0Coef_;
-      /*
-        GridFunctionCoefficient nn0Coef_;
-        GridFunctionCoefficient ni0Coef_;
-        GridFunctionCoefficient vi0Coef_;
-        GridFunctionCoefficient Ti0Coef_;
-        GridFunctionCoefficient Te0Coef_;
-
-        GridFunctionCoefficient dnnCoef_;
-        GridFunctionCoefficient dniCoef_;
-        GridFunctionCoefficient dviCoef_;
-        GridFunctionCoefficient dTiCoef_;
-        GridFunctionCoefficient dTeCoef_;
-
-        mutable SumCoefficient  nn1Coef_;
-        mutable SumCoefficient  ni1Coef_;
-        mutable SumCoefficient  vi1Coef_;
-        mutable SumCoefficient  Ti1Coef_;
-        mutable SumCoefficient  Te1Coef_;
-       */
-      // ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
-
-      // ProductCoefficient      thTiCoef_; // 3/2 * Ti
-      // ProductCoefficient      thniCoef_; // 3/2 * ni
 
       ApproxIonizationRate     izCoef_;
 
@@ -2653,7 +2494,6 @@ private:
       IonThermalParaDiffusionCoef      ChiParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
-      // ScalarMatrixProductCoefficient   dtChiCoef_;
 
       const std::vector<CoefficientByAttr> & dbc_;
 
@@ -2665,7 +2505,6 @@ private:
                           const PlasmaParams & plasma,
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
-                          // int ion_charge, double ion_mass,
                           double ChiPerp,
                           VectorCoefficient & B3Coef,
                           std::vector<CoefficientByAttr> & dbc,
@@ -2720,41 +2559,7 @@ private:
       enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
       enum VisField {DIFFUSION_COEF = 0, SOURCE_COEF = 1};
 
-      // int    z_i_;
-      // double m_i_;
       double ChiPerpConst_;
-
-      // StateVariableGridFunctionCoef &ni0Coef_;
-      // StateVariableGridFunctionCoef &Te0Coef_;
-      /*
-       GridFunctionCoefficient nn0Coef_;
-       GridFunctionCoefficient ni0Coef_;
-       GridFunctionCoefficient vi0Coef_;
-       GridFunctionCoefficient Ti0Coef_;
-       GridFunctionCoefficient Te0Coef_;
-
-       GridFunctionCoefficient dnnCoef_;
-       GridFunctionCoefficient dniCoef_;
-       GridFunctionCoefficient dviCoef_;
-       GridFunctionCoefficient dTiCoef_;
-       GridFunctionCoefficient dTeCoef_;
-      */
-      // GradientGridFunctionCoefficient grad_Te0Coef_;
-      // GradientGridFunctionCoefficient grad_dTeCoef_;
-      /*
-       mutable SumCoefficient  nn1Coef_;
-       mutable SumCoefficient  ni1Coef_;
-       mutable SumCoefficient  vi1Coef_;
-       mutable SumCoefficient  Ti1Coef_;
-       mutable SumCoefficient  Te1Coef_;
-      */
-      // mutable VectorSumCoefficient  grad_Te1Coef_;
-
-      // ProductCoefficient      ne0Coef_;
-      // ProductCoefficient      ne1Coef_;
-
-      // ProductCoefficient      thTeCoef_; // 3/2 * Te
-      // ProductCoefficient      thneCoef_; // 3/2 * ne
 
       ApproxIonizationRate     izCoef_;
 
@@ -2762,14 +2567,8 @@ private:
 
       StaticPressureCoef               presCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
-      // ElectronThermalParaDiffusionCoef dChidTParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Aniso2DDiffusionCoef             ChiCoef_;
-      // ScalarMatrixProductCoefficient   dtChiCoef_;
-
-      // Aniso2DDiffusionCoef             dChidTCoef_;
-      // MatVecCoefficient                dChiGradTCoef_;
-      // ScalarVectorProductCoefficient   dtdChiGradTCoef_;
 
       const std::vector<CoefficientByAttr> & dbc_;
 
@@ -2781,7 +2580,6 @@ private:
                                const PlasmaParams & plasma,
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
-                               // int ion_charge, double ion_mass,
                                double ChiPerp,
                                VectorCoefficient & B3Coef,
                                std::vector<CoefficientByAttr> & dbc,
