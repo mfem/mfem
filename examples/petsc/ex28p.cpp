@@ -115,6 +115,9 @@ int main(int argc, char *argv[])
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
+   //
+   //    We also define a second attribute region in the middle of the mesh to
+   //    represent the core of the dielectric waveguide.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int l = 0; l < par_ref_levels; l++)
@@ -122,6 +125,16 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
    pmesh->ReorientTetMesh();
+
+   Vector cent(dim);
+   for (int i=0; i<pmesh->GetNE(); i++)
+   {
+	   pmesh->GetElementCenter(i, cent);
+	   if (fabs(cent[0]-0.5)<0.25 && fabs(cent[1]-0.5)<0.125)
+	   {
+		   pmesh->GetElement(i)->SetAttribute(2);
+	   }
+   }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
@@ -169,7 +182,7 @@ int main(int argc, char *argv[])
    // coefficient. The dielectric contsant is the square of the refractive
    // index.
    e_r(0) = -pow(k0*1.0,2);
-   // This is an example to use different refractive indices in mesh domains
+   // This is the refractive index used in the waveguide core
    e_r(1) = -pow(k0*2.0,2);
    PWConstCoefficient e_r_func(e_r);
 
@@ -301,7 +314,7 @@ int main(int argc, char *argv[])
    solver->SetNumModes(nev);
    solver->SetWhichEigenpairs(SlepcEigenSolver::TARGET_MAGNITUDE);
    // The target is set with a small offset to prevent zero pivots in this example
-   solver->SetTarget(pow(k0,2)-1e-2);
+   solver->SetTarget(pow(k0*2.0,2)-1e-2);
    solver->Solve();
    double re;
    solver->GetEigenvalue(0,re);

@@ -136,6 +136,8 @@ examples/petsc/Example9*
 examples/petsc/deformed.*
 examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
+examples/petsc/mode_*
+examples/petsc/Example28*
 
 examples/pumi/ex1
 examples/pumi/ex[126]p
