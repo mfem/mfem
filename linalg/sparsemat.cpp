@@ -30,7 +30,7 @@ using namespace std;
 
 void SparseMatrix::InitCuSparse()
 {
-  /* initialize cusparse library */
+  /* Initialize cusparse library */
   cusparseCreate(&handle);
 }
 
@@ -621,25 +621,21 @@ if(Device::Allows(Backend::CUDA_MASK))
 {
    //UseDevice();
    /* create and setup matrix descriptor */
-   cusparseSpMatDescr_t matA_descr;
-   cusparseDnVecDescr_t vecX_descr;
-   cusparseDnVecDescr_t vecY_descr;
-
-   cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(), const_cast<int *>(d_I),
-                     const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
-                     CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
-
-   cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x), CUDA_R_64F);
-   cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
    
    
    const double alpha = a; 
    const double beta  = 1.0;
 
+   //Initialize once
    if(!isInit) 
    {
-
-
+     cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(), const_cast<int *>(d_I),
+                       const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
+                       CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
+     
+     cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x), CUDA_R_64F);
+     cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
+     
      cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
                              vecX_descr, &beta, vecY_descr, CUDA_R_64F,
                              CUSPARSE_CSRMV_ALG1, &bufferSize);
@@ -650,14 +646,14 @@ if(Device::Allows(Backend::CUDA_MASK))
      isInit = true;
    }
 
+   //Update input/output vectors
+   cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
+   cusparseDnVecSetValues(vecY_descr, d_y);
+
+
    // Y = alpha A * X + beta * Y 
    cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG1, dBuffer);
-
-   //Can this be done once?
-   cusparseDestroySpMat(matA_descr);
-   cusparseDestroyDnVec(vecX_descr);
-   cusparseDestroyDnVec(vecY_descr);
+                vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG2, dBuffer);
 }else{
 
    //Native version
