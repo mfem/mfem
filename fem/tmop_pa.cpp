@@ -43,10 +43,8 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    Opa.UseDevice(true);
    Opa.SetSize(ne * nq, Device::GetDeviceMemoryType());
 
-   const int dim_d = dim == 2 ? dim*dim :
-                     dim == 3 ? dim*dim*dim : -1;
    Xpa.UseDevice(true);
-   Xpa.SetSize(dim_d * nq * ne, Device::GetDeviceMemoryType());
+   Xpa.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    elem_restrict_lex = fes->GetElementRestriction(ordering);
    if (elem_restrict_lex)
@@ -59,11 +57,11 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    }
 
    Dpa.UseDevice(true);
-   Dpa.SetSize(dim_d * nq * ne, Device::GetDeviceMemoryType());
+   Dpa.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
 
    setup = false;
    dPpa.UseDevice(true);
-   dPpa.SetSize(dim_d * dim_d * nq * ne, Device::GetDeviceMemoryType());
+   dPpa.SetSize(dim*dim * dim*dim * nq * ne, Device::GetDeviceMemoryType());
 }
 
 void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
