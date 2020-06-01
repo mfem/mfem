@@ -1951,7 +1951,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
             case (ELEMENT_TET10):
             {
 #ifdef MFEM_USE_MEMALLOC
-               elements[elcount] = TetMemory.Alloc());
+               elements[elcount] = TetMemory.Alloc();
                elements[elcount]->SetVertices(renumberedVertID);
                elements[elcount]->SetAttribute(ebprop[iblk]);
 #else
