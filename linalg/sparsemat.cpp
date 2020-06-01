@@ -31,7 +31,9 @@ using namespace std;
 void SparseMatrix::InitCuSparse()
 {
    /* Initialize cusparse library */
+#ifdef MFEM_USE_CUDA
    cusparseCreate(&handle);
+#endif
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols)
@@ -608,7 +610,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
 #ifndef MFEM_USE_LEGACY_OPENMP
 
-   //Vector myY(y);
    const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
@@ -617,10 +618,10 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
 
+#ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK))
    {
-      //UseDevice();
-      /* create and setup matrix descriptor */
+
 
 
       const double alpha = a;
@@ -629,11 +630,13 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       //Initialize once
       if (!isInit)
       {
+        /* create and setup matrix descriptor */
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
                            const_cast<int *>(d_I),
                            const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
                            CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 
+         //Update input/output vectors
          cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x),
                              CUDA_R_64F);
          cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
@@ -659,6 +662,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
                    vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG2, dBuffer);
    }
    else
+#endif
    {
 
       //Native version
@@ -674,13 +678,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       });
 
    }
-
-   /*
-   myY -= y;
-   double error = myY.Norml2();
-   printf("error %g \n",error);
-   if(error > 1e-12){printf("error too high %g \n",error); exit(-1);}
-   */
 
 #else
    const double *Ap = A, *xp = x.GetData();
