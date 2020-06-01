@@ -231,7 +231,7 @@ private:
    std::vector<CoefficientByAttr>  dbc; // Dirichlet BC data
    std::vector<CoefficientByAttr>  nbc; // Neumann BC data
    std::vector<CoefficientsByAttr> rbc; // Robin BC data
-   Array<int>  hbc; // Homogeneous Neumann BC boundry attributes
+   mutable Array<int>  hbc; // Homogeneous Neumann BC boundry attributes
 
    std::set<int> bc_attr;
    const Array<int> & bdr_attr;
@@ -252,7 +252,7 @@ public:
    const std::vector<CoefficientByAttr> & GetDirichletBCs() const { return dbc; }
    const std::vector<CoefficientByAttr> & GetNeumannBCs() const { return nbc; }
    const std::vector<CoefficientsByAttr> & GetRobinBCs() const { return rbc; }
-   const Array<int> & GetHomogeneousNeumannBCs();
+   const Array<int> & GetHomogeneousNeumannBCs() const;
 };
 
 class ParGridFunctionArray : public Array<ParGridFunction*>

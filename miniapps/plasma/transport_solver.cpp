@@ -127,9 +127,9 @@ void TransportBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
    rbc.push_back(*c);
 }
 
-const Array<int> & TransportBC::GetHomogeneousNeumannBCs()
+const Array<int> & TransportBC::GetHomogeneousNeumannBCs() const
 {
-   if (hbc.Size() < bdr_attr.Size() - bc_attr.size())
+   if (hbc.Size() != bdr_attr.Size() - bc_attr.size())
    {
       hbc.SetSize(bdr_attr.Size() - bc_attr.size());
       int o = 0;
