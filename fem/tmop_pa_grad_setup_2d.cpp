@@ -56,7 +56,7 @@ void Invariant1_dMdM_2D(const double *m,
    const double det2 = det * det;
    const double fnorm2 = kernels::FNorm2<2,2>(m);
 
-   double dM[2][2] = {0.0}; dM[j][i] = 1.0;
+   double dM[2][2] {{}}; dM[j][i] = 1.0;
    double ddI[2][2];
    Invariant2_dMdM_2D(i, j, ddI);
 
@@ -84,7 +84,7 @@ static void SetupGradPA_2D(const Vector &xe_,
                            const Array<double> &b_,
                            const Array<double> &g_,
                            const DenseMatrix &j_,
-                           Vector &p_,
+                           Vector &dp_,
                            const int d1d = 0,
                            const int q1d = 0)
 {
@@ -98,8 +98,7 @@ static void SetupGradPA_2D(const Vector &xe_,
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto J = Reshape(j_.Read(), DIM, DIM);
    const auto X = Reshape(xe_.Read(), D1D, D1D, DIM, NE);
-
-   auto P = Reshape(p_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
+   auto dP = Reshape(dp_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -110,7 +109,6 @@ static void SetupGradPA_2D(const Vector &xe_,
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int DOF = T_D1D ? T_D1D*T_D1D : MAX_D1D*MAX_D1D;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B)[MD1]  = (double (*)[MD1])(s_BG[0]);
@@ -200,55 +198,37 @@ static void SetupGradPA_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double weight = W(qx,qy);
+            const double ip_weight = W(qx,qy);
 
             //  Jtr = targetC->ComputeElementTargets
-            const double Jtr_p[4] = {J(0,0), J(1,0), J(0,1), J(1,1)};
-            const double detJtr = J(0,0)*J(1,1) - J(1,0)*J(0,1);
-            const double weight_detJtr = weight * detJtr;
+            const double Jtr[4] = {J(0,0), J(1,0), J(0,1), J(1,1)};
+            const double detJtr =kernels::Det<2>(Jtr);
+            const double weight = ip_weight * detJtr;
 
             // Jrt = Jtr^{-1}
-            double Jrt_p[4];
-            kernels::CalcInverse<2>(Jtr_p, Jrt_p);
+            double Jrt[4];
+            kernels::CalcInverse<2>(Jtr, Jrt);
 
-            // Compute DSh (dof x dim)
-            double DSh_p[DOF*DIM];
-            for (int i = 0; i < D1D; ++i)
-            {
-               for (int j = 0; j < D1D; ++j)
-               {
-                  const double bg = G[qx][i] * B[qy][j];
-                  const double gb = B[qx][i] * G[qy][j];
-                  const int dof = j + i*D1D;
-                  DSh_p[dof*DIM + 0] = bg;
-                  DSh_p[dof*DIM + 1] = gb;
-               }
-            }
-
-            // Compute DS = DSh Jrt
-            double DS_p[DOF*DIM];
-            kernels::Mult(DOF,DIM,DIM, DSh_p, Jrt_p, DS_p);
-
-            // GX = X^T.DSh
+            // Jpr = X^T.DSh
             const double GXx0h = Xx0[qy][qx];
             const double GXx1h = Xx1[qy][qx];
             const double GXy0h = Xy0[qy][qx];
             const double GXy1h = Xy1[qy][qx];
-            double GXh_p[4] = {GXx0h, GXy0h, GXx1h, GXy1h};
+            const double Jpr[4] = {GXx0h, GXy0h, GXx1h, GXy1h};
 
             // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
-            double Jpt_p[4];
-            kernels::Mult(2,2,2,GXh_p,Jrt_p, Jpt_p);
+            double Jpt[4];
+            kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
-            const double detJpt = Jpt_p[0]*Jpt_p[3] - Jpt_p[1]*Jpt_p[2];
+            const double detJpt = Jpt[0]*Jpt[3] - Jpt[1]*Jpt[2];
             const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
 
             for (int i = 0; i < DIM; i++)
             {
                for (int j = 0; j < DIM; j++)
                {
-                  const double w = sign * 0.5 * weight_detJtr;
-                  Invariant1_dMdM_2D(Jpt_p, i,j, qx,qy,e, w, P);
+                  const double w = sign * 0.5 * weight;
+                  Invariant1_dMdM_2D(Jpt, i,j, qx,qy,e, w, dP);
                }
             }
          } // qx
@@ -264,39 +244,39 @@ void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
    const int Q1D = maps->nqpt;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
-   const Array<double> &B1d = maps->B;
-   const Array<double> &G1d = maps->G;
+   const Array<double> &B = maps->B;
+   const Array<double> &G = maps->G;
    const int id = (D1D << 4 ) | Q1D;
 
    switch (id)
    {
-      case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x22: { SetupGradPA_2D<2,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x23: { SetupGradPA_2D<2,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x24: { SetupGradPA_2D<2,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x25: { SetupGradPA_2D<2,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x26: { SetupGradPA_2D<2,6,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+      case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x22: { SetupGradPA_2D<2,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x23: { SetupGradPA_2D<2,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x24: { SetupGradPA_2D<2,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x25: { SetupGradPA_2D<2,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x26: { SetupGradPA_2D<2,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
 
-      case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x34: { SetupGradPA_2D<3,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x35: { SetupGradPA_2D<3,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x36: { SetupGradPA_2D<3,6,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+      case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x34: { SetupGradPA_2D<3,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x35: { SetupGradPA_2D<3,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x36: { SetupGradPA_2D<3,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
 
-      case 0x41: { SetupGradPA_2D<4,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x42: { SetupGradPA_2D<4,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x43: { SetupGradPA_2D<4,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x44: { SetupGradPA_2D<4,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x45: { SetupGradPA_2D<4,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x46: { SetupGradPA_2D<4,6,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+      case 0x41: { SetupGradPA_2D<4,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x42: { SetupGradPA_2D<4,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x43: { SetupGradPA_2D<4,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x44: { SetupGradPA_2D<4,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x45: { SetupGradPA_2D<4,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x46: { SetupGradPA_2D<4,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
 
-      case 0x51: { SetupGradPA_2D<5,1,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x52: { SetupGradPA_2D<5,2,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x53: { SetupGradPA_2D<5,3,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x54: { SetupGradPA_2D<5,4,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
-      case 0x56: { SetupGradPA_2D<5,6,1>(Xe,ne,W,B1d,G1d,Jtr,dPpa); break; }
+      case 0x51: { SetupGradPA_2D<5,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x52: { SetupGradPA_2D<5,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x53: { SetupGradPA_2D<5,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x54: { SetupGradPA_2D<5,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x56: { SetupGradPA_2D<5,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       default:
       {
          dbg("kernel id: %x", id);

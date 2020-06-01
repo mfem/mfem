@@ -1687,7 +1687,6 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       const DenseMatrix &Jtr_i = Jtr(i);
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
-      //dbg("Jrt:"); Jrt.Print();
       const double weight = ip.weight * Jtr_i.Det();
       double weight_m = weight * metric_normal;
 
@@ -1792,6 +1791,8 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       metric->AssembleH(Jpt, DS, weight_m, elmat);
+      elmat = 1.0;
+      //dbg("elmat:"); elmat.Print(); //exit(0);
 
       // TODO: derivatives of adaptivity-based targets.
 

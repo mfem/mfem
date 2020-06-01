@@ -319,7 +319,7 @@ double
 TMOP_Integrator::GetGridFunctionEnergyPA_3D(const FiniteElementSpace &fes,
                                             const Vector &x) const
 {
-   dbg("");
+   //dbg("");
    const IntegrationRule *ir = IntRule;
    MFEM_VERIFY(ir,"");
 

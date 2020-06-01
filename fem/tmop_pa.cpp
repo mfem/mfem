@@ -90,7 +90,6 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
 double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
                                                 const Vector &x) const
 {
-   dbg("");
    if (dim == 2) { return GetGridFunctionEnergyPA_2D(fes,x); }
    if (dim == 3) { return GetGridFunctionEnergyPA_3D(fes,x); }
    MFEM_ABORT("Not yet implemented!");
