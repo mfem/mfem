@@ -92,6 +92,10 @@ protected:
    mutable size_t bufferSize{0}; 
    mutable void *dBuffer = NULL;
    mutable bool isInit{false};
+
+   mutable cusparseSpMatDescr_t matA_descr;
+   mutable cusparseDnVecDescr_t vecX_descr;
+   mutable cusparseDnVecDescr_t vecY_descr;
 #endif
 
 public:
@@ -599,6 +603,10 @@ public:
      Destroy();
 #ifdef MFEM_USE_CUDA
      if(handle) { cusparseDestroy(handle);}
+     cusparseDestroySpMat(matA_descr);
+     cusparseDestroyDnVec(vecX_descr);
+     cusparseDestroyDnVec(vecY_descr);
+     cudaFree(dBuffer);
 #endif
    }
 
