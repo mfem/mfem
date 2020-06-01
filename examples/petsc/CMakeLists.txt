@@ -22,8 +22,6 @@ if (MFEM_USE_MPI)
     ex6p.cpp
     ex9p.cpp
     ex10p.cpp
-    ex11p.cpp
-    ex28p.cpp
     )
   list(APPEND PETSC_RC_FILES
     rc_ex1p
@@ -33,6 +31,15 @@ if (MFEM_USE_MPI)
     rc_ex5p_bddc rc_ex5p_fieldsplit
     rc_ex9p_expl rc_ex9p_impl
     rc_ex10p
+    )
+endif()
+
+if (MFEM_USE_SLEPC)
+  list(APPEND PETSC_EXAMPLES_SRCS
+    ex11p.cpp
+    ex28p.cpp
+    )
+  list(APPEND PETSC_RC_FILES
     rc_ex28p_jd rc_ex28p_sinvert
     )
 endif()
