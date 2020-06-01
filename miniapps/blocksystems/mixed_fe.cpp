@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
     dfs_param.MG_type = order > 0 && use_tet_mesh ? AlgebraicMG : GeometricMG;
     dfs_param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
     if (order > 0 && use_tet_mesh) dfs_param.ml_particular = false;
-    dfs_param.use_schwarz_smoother = true;
+    dfs_param.coupled_solve = true;
 
     string line = "\n*******************************************************\n";
     {
