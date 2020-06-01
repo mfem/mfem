@@ -13,6 +13,7 @@
 #include <fstream>
 #include <iostream>
 #include "DST.hpp"
+#include "AdditiveST.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -138,9 +139,9 @@ int main(int argc, char *argv[])
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
-   lengths[0][1] = 0.0;
-   lengths[1][1] = 0.0;
-   lengths[1][0] = 0.0;
+   // lengths[0][1] = 0.0;
+   // lengths[1][1] = 0.0;
+   // lengths[1][0] = 0.0;
    // lengths[0][0] = 0.0;
    CartesianPML pml(mesh_ext,lengths);
    pml.SetOmega(omega);
@@ -211,29 +212,33 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   DST S(&a,lengths, omega, &ws, nrlayers);
-	S.SetOperator(*A);
-   // S.SetLoadVector(B);
+   DST S1(&a,lengths, omega, &ws, nrlayers);
+   // AdditiveST S2(&a,lengths, omega, &ws, nrlayers);
    
 
    StopWatch chrono;
 
-   chrono.Clear();
-   chrono.Start();
+   // chrono.Clear();
+   // chrono.Start();
    X = 0.0;
 	GMRESSolver gmres;
-	gmres.SetPreconditioner(S);
+	gmres.SetPreconditioner(S1);
 	gmres.SetOperator(*A);
 	gmres.SetRelTol(1e-10);
 	gmres.SetMaxIter(50);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
-   chrono.Stop();
-   cout << "GMRES time: " << chrono.RealTime() << endl; 
+
+   // X = 0.0;
+	// gmres.SetPreconditioner(S2);
+	// gmres.Mult(B, X);
+
+   // chrono.Stop();
+   // cout << "GMRES time: " << chrono.RealTime() << endl; 
 
 
 
-   int n= 20;
+   int n= 200;
    X = 0.0;
    Vector z(X.Size()); z = 0.0;
    Vector r(B);
@@ -253,7 +258,7 @@ int main(int argc, char *argv[])
          cout << "Convergence in " << i+1 << " iterations" << endl;
          break;
       }
-      S.Mult(r,z); 
+      S1.Mult(r,z); 
       X += z;
 
       // X1-=z;
@@ -335,10 +340,10 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.3;
+   x0 = 0.15;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.45;
+   x1 = 0.15;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;
@@ -352,8 +357,8 @@ double f_exact_Re(const Vector &x)
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   // x0 = 0.85;
-   // x1 = 0.15;
+   x0 = 0.85;
+   x1 = 0.15;
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
