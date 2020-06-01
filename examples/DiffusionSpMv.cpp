@@ -110,8 +110,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-     int ref_levels = 5;
-        //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 5;
+      //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -190,16 +190,17 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
-     high_resolution_clock::time_point t1 = high_resolution_clock::now();
+      high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-     //GSSmoother M((SparseMatrix&)(*A));
-     //PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-     for(int i=0; i<10; ++i){
-     a->SpMat().Mult(x, y);
-     x = 1.0;
-     }
-     
+      //GSSmoother M((SparseMatrix&)(*A));
+      //PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      for (int i=0; i<10; ++i)
+      {
+         a->SpMat().Mult(x, y);
+         x = 1.0;
+      }
+
       cudaDeviceSynchronize();
       high_resolution_clock::time_point t2 = high_resolution_clock::now();
       duration<double> time_span = duration_cast<duration<double>>(t2 - t1);

@@ -30,8 +30,8 @@ using namespace std;
 
 void SparseMatrix::InitCuSparse()
 {
-  /* Initialize cusparse library */
-  cusparseCreate(&handle);
+   /* Initialize cusparse library */
+   cusparseCreate(&handle);
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols)
@@ -617,58 +617,63 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
 
-if(Device::Allows(Backend::CUDA_MASK))
-{
-   //UseDevice();
-   /* create and setup matrix descriptor */
-   
-   
-   const double alpha = a; 
-   const double beta  = 1.0;
-
-   //Initialize once
-   if(!isInit) 
+   if (Device::Allows(Backend::CUDA_MASK))
    {
-     cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(), const_cast<int *>(d_I),
-                       const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
-                       CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
-     
-     cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x), CUDA_R_64F);
-     cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
-     
-     cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                             vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                             CUSPARSE_CSRMV_ALG1, &bufferSize);
-     if(bufferSize > 0)
-       {
-         cudaMalloc(&dBuffer, bufferSize);
-       }
-     isInit = true;
-   }
-
-   //Update input/output vectors
-   cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
-   cusparseDnVecSetValues(vecY_descr, d_y);
+      //UseDevice();
+      /* create and setup matrix descriptor */
 
 
-   // Y = alpha A * X + beta * Y 
-   cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG2, dBuffer);
-}else{
+      const double alpha = a;
+      const double beta  = 1.0;
 
-   //Native version
-   MFEM_FORALL(i, height,
-   {
-      double d = 0.0;
-      const int end = d_I[i+1];
-      for (int j = d_I[i]; j < end; j++)
+      //Initialize once
+      if (!isInit)
       {
-         d += d_A[j] * d_x[d_J[j]];
-      }
-      d_y[i] += a * d;
-   });
+         cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
+                           const_cast<int *>(d_I),
+                           const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
+                           CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 
- }
+         cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x),
+                             CUDA_R_64F);
+         cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
+
+         cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
+                                 matA_descr,
+                                 vecX_descr, &beta, vecY_descr, CUDA_R_64F,
+                                 CUSPARSE_CSRMV_ALG1, &bufferSize);
+         if (bufferSize > 0)
+         {
+            cudaMalloc(&dBuffer, bufferSize);
+         }
+         isInit = true;
+      }
+
+      //Update input/output vectors
+      cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
+      cusparseDnVecSetValues(vecY_descr, d_y);
+
+
+      // Y = alpha A * X + beta * Y
+      cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
+                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG2, dBuffer);
+   }
+   else
+   {
+
+      //Native version
+      MFEM_FORALL(i, height,
+      {
+         double d = 0.0;
+         const int end = d_I[i+1];
+         for (int j = d_I[i]; j < end; j++)
+         {
+            d += d_A[j] * d_x[d_J[j]];
+         }
+         d_y[i] += a * d;
+      });
+
+   }
 
    /*
    myY -= y;
@@ -1086,10 +1091,10 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
    delete [] Rows;
    Rows = NULL;
-   
+
 #ifdef MFEM_USE_CUDA
 
-#endif   
+#endif
 }
 
 void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const

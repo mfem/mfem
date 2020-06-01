@@ -89,7 +89,7 @@ protected:
    cusparseStatus_t status;
    cusparseHandle_t handle=0;
    cusparseMatDescr_t descr=0;
-   mutable size_t bufferSize{0}; 
+   mutable size_t bufferSize{0};
    mutable void *dBuffer = NULL;
    mutable bool isInit{false};
 
@@ -100,12 +100,12 @@ protected:
 
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() 
-   { 
-     SetEmpty();
+   SparseMatrix()
+   {
+      SetEmpty();
 #ifdef MFEM_USE_CUDA
-     InitCuSparse();
-#endif 
+      InitCuSparse();
+#endif
    }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
@@ -599,19 +599,20 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix() { 
-     Destroy();
+   virtual ~SparseMatrix()
+   {
+      Destroy();
 #ifdef MFEM_USE_CUDA
-     if(handle) { cusparseDestroy(handle);}
-     cusparseDestroySpMat(matA_descr);
-     cusparseDestroyDnVec(vecX_descr);
-     cusparseDestroyDnVec(vecY_descr);
-     cudaFree(dBuffer);
+      if (handle) { cusparseDestroy(handle);}
+      cusparseDestroySpMat(matA_descr);
+      cusparseDestroyDnVec(vecX_descr);
+      cusparseDestroyDnVec(vecY_descr);
+      cudaFree(dBuffer);
 #endif
    }
 
-  Type GetType() const { return MFEM_SPARSEMAT; }
-   
+   Type GetType() const { return MFEM_SPARSEMAT; }
+
 };
 
 /// Applies f() to each element of the matrix (after it is finalized).
