@@ -630,7 +630,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       //Initialize once
       if (!isInit)
       {
-        /* create and setup matrix descriptor */
+         /* create and setup matrix descriptor */
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
                            const_cast<int *>(d_I),
                            const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
