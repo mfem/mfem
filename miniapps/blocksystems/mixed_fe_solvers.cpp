@@ -1072,10 +1072,16 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
 //            in = y;
 //        }
 
-//        Vector y_bc(y);
-        block_solver_.Mult(x, y);
-//        CTMC_prec_->Mult(x, y);
-//        y += y_bc;
+        Vector resid(y.Size()), correction(y.Size());
+        resid = 0.0;
+        ops_[0]->Mult(y, resid);
+        resid -= x;
+        resid *= -1.0;
+
+        correction = 0.0;
+        block_solver_.Mult(resid, correction);
+        y += correction;
+        //        CTMC_prec_->Mult(x, y);
 
 //        Vector resid(y), correction;
 //        for (int i = 0; i < 20; ++i)

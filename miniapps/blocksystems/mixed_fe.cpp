@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 
     Array<int> ess_bdr(mesh.bdr_attributes.Max());
     ess_bdr = 0;
-//    ess_bdr[1] = 1;
+    ess_bdr[1] = 1;
 
     IterSolveParameters param;
     DFSParameters dfs_param;
