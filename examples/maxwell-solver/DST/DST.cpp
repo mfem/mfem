@@ -18,8 +18,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=16;
-   int ny=16; 
+   int nx=4;
+   int ny=4; 
    int nz=1;
    ovlpnrlayers = nrlayers+2;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
@@ -120,8 +120,17 @@ void DST::Mult(const Vector &r, Vector &z) const
 
    int nsteps = nx + ny - 1;
 
+   StopWatch chrono;
+   StopWatch chrono1;
+   // double t1 = 0.0;
+   // double t2 = 0.0;
+   // double t3 = 0.0;
+   // double t4 = 0.0;
    for (int l=0; l<nsweeps; l++)
    {
+      // cout << "sweep no = " << l << endl;
+      chrono1.Clear();
+      chrono1.Start();
       for (int s = 0; s<nsteps; s++)
       {
          for (int i=nx-1;i>=0; i--)
@@ -151,12 +160,38 @@ void DST::Mult(const Vector &r, Vector &z) const
             // res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
             // Extend by zero to the PML mesh
-            if (res_local.Norml2() < 1e-10) continue;
+            if (res_local.Norml2() < 1e-12) continue;
+
+            // if (ip == 0) 
+            // {
+               // chrono.Clear();
+               // chrono.Start();
+            // }
             PmlMatInv[ip]->Mult(res_local, sol_local);
 
+            // if (ip == 0) 
+            // {
+               // chrono.Stop();
+               // cout << "ip 0 time: " << chrono.RealTime() << endl; 
+               // cout << "ip 0 size " << PmlMatInv[ip]->Height() << endl;
+            // }
+            // t2 += chrono.RealTime();
+            // if (ip == 0) 
+            // {
+               // chrono.Clear();
+               // chrono.Start();
+            // }
             TransferSources(l,ip, sol_local);
+            // if (ip == 0) 
+            // {
+               // chrono.Stop();
+               // cout << "transfer time: " << chrono.RealTime() << endl; 
+            // }
+            // t3 += chrono.RealTime();
 
             // // cut off the ip solution to all possible directions
+            // chrono.Clear();
+            // chrono.Start();
             Array<int>directions(2); directions = 0; 
             if (i+1<nx) directions[0] = 1;
             if (j+1<ny) directions[1] = 1;
@@ -167,14 +202,30 @@ void DST::Mult(const Vector &r, Vector &z) const
             if (i>0) directions[0] = -1;
             if (j>0) directions[1] = -1;
             GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
+            
+            // chrono.Stop();
+
+            // t4 += chrono.RealTime();
+            
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
             z+=znew;
+
          }
       }
-      // socketstream zsock(vishost, visport);
-      // PlotSolution(z,zsock,0,false); cin.get();
+   // chrono1.Stop();
+   // t1+=chrono1.RealTime() ;
+   // cout << "sweep time: " << chrono1.RealTime() << endl; 
    }
+
+   // cout << "total it time: " << t1 << endl; 
+   // cout << "local solves time: " << t2 << endl; 
+   // cout << "transfer time: " << t3 << endl; 
+   // cout << "cutoff time: " << t4 << endl; 
+
+
+   // SaveMeshPartition(novlp->patch_mesh, "output/mesh_nvlp.", "output/sol_nvlp.");
+   // cin.get();
 }
 
 
@@ -338,6 +389,15 @@ SparseMatrix * DST::GetPmlSystemMatrix(int ip)
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
 
+   int i,j,k;
+   int nx = nxyz[0];
+   int ny = nxyz[1];
+   Getijk(ip,i,j,k);
+   if (i == 0 ) length[0][0] = Pmllength[0][0];
+   if (j == 0 ) length[1][0] = Pmllength[1][0];
+   if (i == nx-1 ) length[0][1] = Pmllength[0][1];
+   if (j == ny-1 ) length[1][1] = Pmllength[1][1];
+
    CartesianPML pml(povlp->patch_mesh[ip], length);
    pml.SetOmega(omega);
 
@@ -371,7 +431,7 @@ SparseMatrix * DST::GetPmlSystemMatrix(int ip)
    a.FormSystemMatrix(ess_tdof_list,Alocal);
    ComplexSparseMatrix * AZ_ext = Alocal.As<ComplexSparseMatrix>();
    SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
-   Mat->Threshold(0.0);
+   Mat->Threshold(1e-13);
    return Mat;
 }
 
@@ -406,6 +466,49 @@ void DST::PlotMesh(socketstream & mesh_sock, int ip) const
    mesh_sock << "mesh\n" << *mesh << flush;
 }
 
+void DST::SaveSolution(Vector & sol, int ip, bool localdomain) const
+{
+   FiniteElementSpace * fes;
+   if (!localdomain)
+   {
+      fes = bf->FESpace();
+   }
+   else
+   {
+      // fes = ovlp_prob->fespaces[ip];
+      fes = nvlp_prob->fespaces[ip];
+   }
+   Mesh * mesh = fes->GetMesh();
+   int n = fes->GetTrueVSize();
+   GridFunction gf_re(fes);
+   GridFunction gf_im(fes);
+   double * data = sol.GetData();
+   gf_re.SetData(data);
+   gf_im.SetData(&data[n]);
+   cout << "saving mesh no " << ip << endl;
+   // string mfilename = "output/globalmesh.";
+   string mfilename = "output/mesh_nvlp.";
+   ostringstream mesh_name;
+   mesh_name << mfilename << setfill('0') << setw(6) << ip;
+   ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(8);
+   mesh->Print(mesh_ofs);
+
+   // string sfilename_re = "output/sol_re.";
+   // string sfilename_im = "output/sol_im.";
+   string sfilename_re = "output/sol_nvlp.";
+   // string sfilename_im = "output/sol_im.";
+
+   ostringstream solre_name;
+   solre_name << sfilename_re << setfill('0') << setw(6) << ip;
+   ofstream solre_ofs(solre_name.str().c_str());
+   gf_re.Save(solre_ofs);
+
+   // ostringstream solim_name;
+   // solim_name << sfilename_im << setfill('0') << setw(6) << ip;
+   // ofstream solim_ofs(solim_name.str().c_str());
+   // gf_im.Save(solim_ofs);
+}
 
 int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
 {

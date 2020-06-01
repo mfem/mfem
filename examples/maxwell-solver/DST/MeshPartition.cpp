@@ -685,6 +685,17 @@ void SaveMeshPartition(Array<Mesh *> meshes, string mfilename, string sfilename)
       x.Save(sol_ofs);
    }
 }
+
+void SaveMesh(Mesh * mesh, string mfilename)
+{
+   cout << "saving global mesh " << endl;
+   ostringstream mesh_name;
+   mesh_name << mfilename;
+   ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(8);
+   mesh->Print(mesh_ofs);
+}
+
 MeshPartition::~MeshPartition()
 {
    for (int ip = 0; ip<nrpatch; ++ip)

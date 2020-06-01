@@ -138,9 +138,9 @@ int main(int argc, char *argv[])
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
-   // lengths[0][1] = 0.0;
-   // lengths[1][1] = 0.0;
-   // lengths[1][0] = 0.0;
+   lengths[0][1] = 0.0;
+   lengths[1][1] = 0.0;
+   lengths[1][0] = 0.0;
    // lengths[0][0] = 0.0;
    CartesianPML pml(mesh_ext,lengths);
    pml.SetOmega(omega);
@@ -216,8 +216,10 @@ int main(int argc, char *argv[])
    // S.SetLoadVector(B);
    
 
+   StopWatch chrono;
 
-
+   chrono.Clear();
+   chrono.Start();
    X = 0.0;
 	GMRESSolver gmres;
 	gmres.SetPreconditioner(S);
@@ -226,7 +228,8 @@ int main(int argc, char *argv[])
 	gmres.SetMaxIter(50);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
-
+   chrono.Stop();
+   cout << "GMRES time: " << chrono.RealTime() << endl; 
 
 
 
@@ -238,7 +241,8 @@ int main(int argc, char *argv[])
    Vector Ax(X.Size());
    double tol = 1e-10;
    cout << endl;
-   
+   chrono.Clear();
+   chrono.Start();
    for (int i = 0; i<n; i++)
    {
       A->Mult(X,Ax); Ax *=-1.0;
@@ -274,6 +278,8 @@ int main(int argc, char *argv[])
       //    cin.get();
    }
 
+   // chrono.Stop();
+   // cout << "Solver time: " << chrono.RealTime() << endl; 
 
    a.RecoverFEMSolution(X,B,p_gf);
 
@@ -303,9 +309,9 @@ int main(int argc, char *argv[])
       socketstream sol_sock_re(vishost, visport);
       sol_sock_re.precision(8);
       sol_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-                  "window_title 'Numerical Pressure (real part from KLU)' "
-                  << keys << flush;
-                  // << keys << "valuerange -0.1 0.1 \n" << flush;
+                  "window_title 'Numerical Pressure (real part from DST)' "
+                  // << keys << flush;
+                  << keys << "valuerange -0.08 0.08 \n" << flush;
       socketstream err_sock_re(vishost, visport);
       err_sock_re.precision(8);
       err_sock_re << "solution\n" << *mesh_ext << error_gf.real() <<
@@ -329,10 +335,10 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.15;
+   x0 = 0.3;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.15;
+   x1 = 0.45;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;
@@ -346,18 +352,18 @@ double f_exact_Re(const Vector &x)
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   x0 = 0.85;
-   x1 = 0.85;
+   // x0 = 0.85;
+   // x1 = 0.15;
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
    // f_re += coeff*exp(alpha);
 
-   // x0 = 0.5;
-   // x1 = 0.8;
-   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   // if (dim == 3) { beta += pow(x2-x(2),2); }
-   // alpha = -pow(n,2) * beta;
+   x0 = 0.8;
+   x1 = 0.4;
+   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   if (dim == 3) { beta += pow(x2-x(2),2); }
+   alpha = -pow(n,2) * beta;
    // f_re += coeff*exp(alpha);
 
    bool in_pml = false;
@@ -429,6 +435,24 @@ double wavespeed(const Vector &x)
    //    ws = 2.65;
    //    // ws = 0.5;
    // }
+
+   // if (x(0) <= x(1) && x(1) >= 1.0-x(0))
+   // {
+   //    ws = 1.0;
+   // }
+   // else if (x(0) > x(1) && x(1) >= 1.0-x(0))
+   // {
+   //    ws = 3.0;
+   // }
+   // else if (x(0) <= x(1) && x(1) < 1.0-x(0))
+   // {
+   //    ws = 2.0;
+   // }
+   // else
+   // {
+   //    ws = 4.0;
+   // }
+   
 
 
    ws = 1.0;

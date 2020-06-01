@@ -41,6 +41,7 @@ private:
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip,bool localdomain) const;
+   void SaveSolution(Vector & sol, int ip,bool localdomain) const;
    void PlotMesh(socketstream & mesh_sock, int ip) const;
   
    // void SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const;
