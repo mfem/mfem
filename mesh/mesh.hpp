@@ -1353,8 +1353,9 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 class GeometricFactors
 {
 public:
-   const Mesh *mesh;
-   const IntegrationRule *IntRule;
+   const Mesh *mesh{nullptr};
+   const GridFunction *nodes{nullptr};
+   const IntegrationRule *IntRule{nullptr};
    int computed_factors;
 
    enum FactorFlags
@@ -1364,7 +1365,11 @@ public:
       DETERMINANTS = 1 << 2,
    };
 
-   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,const int flags);
+
+   GeometricFactors(const GridFunction *nodes, const IntegrationRule &ir, const int flags);
+
+   void Assemble(const int flags); 
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)
@@ -1388,6 +1393,8 @@ public:
        - NQ = number of quadrature points per element, and
        - NE = number of elements in the mesh. */
    Vector detJ;
+
+   Vector Enodes;
 };
 
 /** @brief Structure for storing face geometric factors: coordinates, Jacobians,

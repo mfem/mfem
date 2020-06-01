@@ -337,7 +337,6 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
 {
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
-   ElTr->ElementType = ElementTransformation::ELEMENT;
    if (Nodes == NULL)
    {
       GetPointMatrix(i, ElTr->GetPointMat());
@@ -368,7 +367,6 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
 {
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
-   ElTr->ElementType = ElementTransformation::ELEMENT;
    DenseMatrix &pm = ElTr->GetPointMat();
    nodes.HostRead();
    if (Nodes == NULL)
@@ -422,7 +420,6 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
 {
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
-   ElTr->ElementType = ElementTransformation::BDR_ELEMENT;
    DenseMatrix &pm = ElTr->GetPointMat();
    if (Nodes == NULL)
    {
@@ -465,7 +462,6 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
 
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
-         FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
@@ -478,7 +474,6 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
 {
    FTr->Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
    FTr->ElementNo = FaceNo;
-   FTr->ElementType = ElementTransformation::FACE;
    DenseMatrix &pm = FTr->GetPointMat();
    if (Nodes == NULL)
    {
@@ -531,7 +526,6 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
 
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
-         FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
@@ -560,7 +554,6 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
 
    EdTr->Attribute = 1;
    EdTr->ElementNo = EdgeNo;
-   EdTr->ElementType = ElementTransformation::EDGE;
    DenseMatrix &pm = EdTr->GetPointMat();
    if (Nodes == NULL)
    {
@@ -859,7 +852,6 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
 {
    FaceInfo &face_info = faces_info[FaceNo];
 
-   FaceElemTr.SetConfigurationMask(0);
    FaceElemTr.Elem1 = NULL;
    FaceElemTr.Elem2 = NULL;
 
@@ -885,14 +877,8 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    }
 
    // setup the face transformation
-   if (mask & 16)
-   {
-      GetFaceTransformation(FaceNo, &FaceElemTr);
-   }
-   else
-   {
-      FaceElemTr.SetGeometryType(GetFaceGeometryType(FaceNo));
-   }
+   FaceElemTr.FaceGeom = GetFaceGeometryType(FaceNo);
+   FaceElemTr.Face = (mask & 16) ? GetFaceTransformation(FaceNo) : NULL;
 
    // setup Loc1 & Loc2
    int face_type = GetFaceElementType(FaceNo);
@@ -922,8 +908,6 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
          }
       }
    }
-
-   FaceElemTr.SetConfigurationMask(mask);
 
    return &FaceElemTr;
 }
@@ -968,9 +952,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
       return NULL;
    }
    tr = GetFaceElementTransformations(fn);
-   tr->Attribute = boundary[BdrElemNo]->GetAttribute();
-   tr->ElementNo = BdrElemNo;
-   tr->ElementType = ElementTransformation::BDR_FACE;
+   tr->Face->Attribute = boundary[BdrElemNo]->GetAttribute();
    return tr;
 }
 
@@ -10439,14 +10421,14 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    IntRule = &ir;
    computed_factors = flags;
 
-   const GridFunction *nodes = mesh->GetNodes();
+   this->nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
    const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
    const int ND   = fe->GetDof();
-   const int NQ   = ir.GetNPoints();
+   const int NQ   = IntRule->GetNPoints();
 
    // For now, we are not using tensor product evaluation
    const Operator *elem_restr = fespace->GetElementRestriction(
@@ -10469,13 +10451,13 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
       eval_flags |= QuadratureInterpolator::DETERMINANTS;
    }
 
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(ir);
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(*IntRule);
    // For now, we are not using tensor product evaluation (not implemented)
    qi->DisableTensorProducts();
    qi->SetOutputLayout(QVectorLayout::byNODES);
    if (elem_restr)
    {
-      Vector Enodes(vdim*ND*NE);
+      Enodes.SetSize(vdim*ND*NE);
       elem_restr->Mult(*nodes, Enodes);
       qi->Mult(Enodes, eval_flags, X, J, detJ);
    }
@@ -10483,6 +10465,110 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
    {
       qi->Mult(*nodes, eval_flags, X, J, detJ);
    }
+}
+
+GeometricFactors::GeometricFactors(const GridFunction *nodes,
+                                   const IntegrationRule &ir,
+                                   int flags)
+{
+   this->nodes = nodes;
+   IntRule = &ir;
+   computed_factors = flags;
+
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int dim  = fe->GetDim();
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int ND   = fe->GetDof();
+   const int NQ   = IntRule->GetNPoints();
+
+   // For now, we are not using tensor product evaluation
+   const Operator *elem_restr = fespace->GetElementRestriction(
+                                   ElementDofOrdering::NATIVE);
+
+   unsigned eval_flags = 0;
+   if (flags & GeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::VALUES;
+   }
+   if (flags & GeometricFactors::JACOBIANS)
+   {
+      J.SetSize(dim*vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & GeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NE);
+      eval_flags |= QuadratureInterpolator::DETERMINANTS;
+   }
+
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(*IntRule);
+   // For now, we are not using tensor product evaluation (not implemented)
+   qi->DisableTensorProducts();
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   if (elem_restr)
+   {
+      Enodes.SetSize(vdim*ND*NE);
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
+   }
+}
+
+void GeometricFactors::Assemble(const int flags)
+{
+
+   computed_factors = flags;
+
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int dim  = fe->GetDim();
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int ND   = fe->GetDof();
+   const int NQ   = IntRule->GetNPoints();
+
+   // For now, we are not using tensor product evaluation
+   const Operator *elem_restr = fespace->GetElementRestriction(
+                                   ElementDofOrdering::NATIVE);
+
+   unsigned eval_flags = 0;
+   if (flags & GeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::VALUES;
+   }
+   if (flags & GeometricFactors::JACOBIANS)
+   {
+      J.SetSize(dim*vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::DERIVATIVES;
+   }
+   if (flags & GeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NE);
+      eval_flags |= QuadratureInterpolator::DETERMINANTS;
+   }
+
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(*IntRule);
+   // For now, we are not using tensor product evaluation (not implemented)
+   qi->DisableTensorProducts();
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   if (elem_restr)
+   {
+      Enodes.SetSize(vdim*ND*NE);
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
+   }
+
 }
 
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
