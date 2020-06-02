@@ -370,8 +370,7 @@ int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
 int RobertsTDAOperator::SUNImplicitSolveB(Vector &x, const Vector &b,
 					  double tol)
 {
-  // The tolerance is ignored in this example as we're trying to replicate
-  // CVODES cvsRoberts_ASAi_dns
+  // The argument "tol" is ignored in this implementation for simplicity.
    adjointSolver.SetRelTol(1e-14);
    adjointSolver.Mult(b, x);
    return (0);
