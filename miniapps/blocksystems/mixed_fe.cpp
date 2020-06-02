@@ -182,6 +182,7 @@ int main(int argc, char *argv[])
     int order = 0;
     int num_refines = 2;
     bool use_tet_mesh = false;
+    bool coupled_solve = true;
     bool show_error = false;
     OptionsParser args(argc, argv);
     args.AddOption(&order, "-o", "--order",
@@ -190,6 +191,8 @@ int main(int argc, char *argv[])
                    "Number of parallel refinement steps.");
     args.AddOption(&use_tet_mesh, "-tet", "--tet-mesh", "-hex", "--hex-mesh",
                    "Use a tetrahedral or hexahedral mesh (on unit cube).");
+    args.AddOption(&coupled_solve, "-cs", "--coupled-solve", "-ss", "--separate-solve",
+                   "Whether to solve all unknowns together in divergence free solver.");
     args.AddOption(&show_error, "-se", "--show-error", "-no-se", "--no-show-error",
                    "Show or not show approximation error.");
     args.Parse();
@@ -210,17 +213,17 @@ int main(int argc, char *argv[])
     ess_bdr = 0;
     ess_bdr[1] = 1;
 
-    IterSolveParameters param;
-    DFSParameters dfs_param;
-    dfs_param.MG_type = order > 0 && use_tet_mesh ? AlgebraicMG : GeometricMG;
-    dfs_param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
-    if (order > 0 && use_tet_mesh) dfs_param.ml_particular = false;
-    dfs_param.coupled_solve = true;
+    DFSParameters param;
+    param.MG_type = order > 0 && use_tet_mesh ? AlgebraicMG : GeometricMG;
+    param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
+    if (order > 0 && use_tet_mesh) param.ml_particular = false;
+    param.coupled_solve = coupled_solve;
+    param.print_level = 1;
 
     string line = "\n*******************************************************\n";
     {
         ResetTimer();
-        DarcyProblem darcy(mesh, num_refines, order, ess_bdr, dfs_param);
+        DarcyProblem darcy(mesh, num_refines, order, ess_bdr, param);
         HypreParMatrix& M = darcy.GetM();
         HypreParMatrix& B = darcy.GetB();
         const DFSDataCollector& collector = darcy.GetDFSDataCollector();
@@ -234,10 +237,6 @@ int main(int argc, char *argv[])
 
         std::map<const DarcySolver*, double> setup_time;
         ResetTimer();
-//        const_cast<DFSData&>(collector.GetData()).param.CTMC_solve_param.max_iter = 1;
-        const_cast<DFSData&>(collector.GetData()).param.CTMC_solve_param.print_level = -1;
-//        const_cast<DFSData&>(collector.GetData()).param.BBT_solve_param.max_iter = 1;
-        const_cast<DFSData&>(collector.GetData()).param.BBT_solve_param.print_level = -1;
         DivFreeSolver dfs(M, B, collector.hcurl_fes_.get(), collector.GetData());
         setup_time[&dfs] = chrono.RealTime();
 
@@ -248,39 +247,6 @@ int main(int argc, char *argv[])
         std::map<const DarcySolver*, std::string> solver_to_name;
         solver_to_name[&dfs] = "Divergence free";
         solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
-
-
-//        Vector resid = darcy.GetRHS();
-//        Vector sol0 = darcy.GetBC();
-//        Vector rhs_tmp(resid), correction(resid);
-//        correction = 0.0;
-//        bdp.GetOperator().Mult(sol0, rhs_tmp);
-//        resid -= rhs_tmp;
-//        double tol = resid.Norml2() * 1e-9;
-
-//        ResetTimer();
-//        for (int i =0; i < 1; ++i)
-//        {
-//            correction = 0.0;
-//            dfs.Mult(resid, correction);
-//            sol0 += correction;
-//            bdp.GetOperator().Mult(correction, rhs_tmp);
-//            resid -= rhs_tmp;
-//            double error = resid.Norml2();
-//            std::cout<<"iter " << i << ": resid = "<<error<<"\n";
-//            Vector blk0(resid.GetData(), M.NumRows());
-//            Vector blk1(resid.GetData()+M.NumRows(), B.NumRows());
-//            std::cout<<"iter " << i << ": resid0 = "<<blk0.Norml2()<<"\n";
-//            std::cout<<"iter " << i << ": resid1 = "<<blk1.Norml2()<<"\n";
-
-//            if (error < tol) { break; }
-//        }
-//        cout << "  Solve time: " << chrono.RealTime() << "s.\n";
-//        darcy.ShowError(sol0, verbose);
-
-//        const_cast<DFSData&>(collector.GetData()).param.CTMC_solve_param.max_iter = 500;
-//        const_cast<DFSData&>(collector.GetData()).param.BBT_solve_param.max_iter = 500;
-
 
         for (const auto& solver_pair : solver_to_name)
         {
