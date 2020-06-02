@@ -1367,7 +1367,7 @@ public:
 
    GeometricFactors() = default;
 
-   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,const int flags);
+   GeometricFactors(const Mesh *mesh, const IntegrationRule &ir, int flags);
 
    GeometricFactors(const GridFunction *nodes, const IntegrationRule &ir,
                     const int flags);
@@ -1399,6 +1399,11 @@ public:
        - NE = number of elements in the mesh. */
    Vector detJ;
 
+   /// Element restricted nodes
+   /** This array uses a column-major layout with dimensions (SDIM x NQ x NE) where
+       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+       - NQ   = number of quadrature points per element, and
+       - NE   = number of elements in the mesh. */
    Vector Enodes;
 };
 
