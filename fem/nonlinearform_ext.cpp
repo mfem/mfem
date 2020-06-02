@@ -143,25 +143,19 @@ void PAGradOperator::Mult(const Vector &x, Vector &y) const
 
    auto idx = ess_tdof_list.Read();
    auto d_z = z.ReadWrite();
-#warning no 0.0
-   //MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
+   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
 
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int Ni = integrators.Size();
    if (elem_restrict_lex)
    {
-      dbg("ye = 0.0");
       ye = 0.0;
-      dbg("elem_restrict_lex");
       elem_restrict_lex->Mult(z, xe);
       for (int i = 0; i < Ni; ++i)
       {
          integrators[i]->AddMultGradPA(ge, xe, ye);
       }
-      dbg("ye: %.15e", ye*ye); ye.Print();
-      dbg("MultTranspose");
       elem_restrict_lex->MultTranspose(ye, y);
-      dbg("y: %.15e", y*y); y.Print();
    }
    else { MFEM_ABORT("Not yet implemented!"); }
 

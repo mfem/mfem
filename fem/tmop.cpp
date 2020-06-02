@@ -778,8 +778,7 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
                      for (int j = 0; j < dof; j++)
                      {
                         A(i+r*dof, j+rr*dof) +=
-                           DS(i, c) * DS(j, cc) * weight * entry_rr_cc;
-                        A(i+r*dof, j+rr*dof) = 1.0;
+                           weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
                      }
                   }
                }
@@ -1966,7 +1965,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
 
       metric->AssembleH(Jpt, DS, weight_m, elmat);
-      elmat = 1.0;
+      //elmat = 1.0;
       //dbg("elmat:"); elmat.Print(); //exit(0);
 
       // TODO: derivatives of adaptivity-based targets.

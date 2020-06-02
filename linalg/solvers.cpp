@@ -591,12 +591,10 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   dbg("d: %.15e", d*d); d.Print();
-   //srand48(0x123456789);
    for (int k=0; k<d.Size(); k++) { d[k] = drand48(); }
-   //d = 12345.0;
+   dbg("d: %.15e", d*d); d.Print();
    oper->Mult(d, z);  // z = A d
-   dbg("z: %.15e", z*z); exit(0);//z.Print(); exit(0);
+   dbg("z: %.15e", z*z); z.Print(); exit(0);
 
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
@@ -1587,6 +1585,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    dbg("First oper->Mult");
+   srand48(0x123456789);
+   for (int k=0; k<x.Size(); k++) { x[k] = drand48(); }
    oper->Mult(x, r);
    dbg("x: %.15e, r: %.15e", x*x, r*r);
 
@@ -1632,7 +1632,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       c = r;
 #else
       dbg("GetGradient");
-      srand48(0x123456789);
       for (int k=0; k<x.Size(); k++) { x[k] = drand48(); }
       prec->SetOperator(oper->GetGradient(x));
 
