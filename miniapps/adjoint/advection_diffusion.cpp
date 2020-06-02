@@ -80,7 +80,7 @@ public:
       TimeDependentAdjointOperator(ydot_dim, ybdot_dim),
       p_(p),
       M(NULL), K(NULL), K_adj(NULL),
-      Mf(NULL), MK(NULL),
+      Mf(NULL), 
       m(NULL), k(NULL),
       pfes(fes),
       M_solver(fes->GetComm()),
@@ -128,8 +128,6 @@ public:
       K_adj = k1->ParallelAssemble();
       K_adj->EliminateRowsCols(ess_tdof_list);
 
-      MK = ParMult(M, K);
-
       M_prec.SetType(HypreSmoother::Jacobi);
       M_solver.SetPreconditioner(M_prec);
       M_solver.SetOperator(*M);
@@ -162,16 +160,15 @@ protected:
    ParFiniteElementSpace *pfes;
 
    // Internal matrices
-   ParBilinearForm * m;
-   ParBilinearForm * k;
-   ParBilinearForm * k1;
+   ParBilinearForm *m;
+   ParBilinearForm *k;
+   ParBilinearForm *k1;
 
    HypreParMatrix *M;
    HypreParMatrix *K;
    HypreParMatrix *K_adj;
 
    HypreParMatrix *Mf;
-   HypreParMatrix *MK;
    HypreParMatrix *I;
 
    CGSolver M_solver;
@@ -186,13 +183,13 @@ double u_init(const Vector &x)
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    double t_final = 2.5;
@@ -208,7 +205,8 @@ int main(int argc, char *argv[])
    args.AddOption(&mx, "-m", "--mx", "The number of mesh elements in the x-dir");
    args.AddOption(&ser_ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&step_mode, "-a", "--adams", "-no-a","--no-adams", "A switch to toggle between CV_ADAMS, and CV_BDF stepping modes");
+   args.AddOption(&step_mode, "-a", "--adams", "-no-a","--no-adams",
+		  "A switch to toggle between CV_ADAMS, and CV_BDF stepping modes");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -222,14 +220,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 3. Create a small 1D mesh with a length of 2. This mesh corresponds with the cvsAdvDiff_ASA_p_non_p example. 
-   
+   // Create a small 1D mesh with a length of 2. This mesh corresponds with the
+   // cvsAdvDiff_ASA_p_non_p example.    
    Mesh *mesh = new Mesh(mx+1, 2.);
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter. If the mesh is of NURBS type, we convert it to
-   //    a (piecewise-polynomial) high-order mesh.
+   // Refine the mesh to increase the resolution. In this example we do
+   // 'ref_levels' of uniform refinement, where 'ref_levels' is a
+   // command-line parameter. If the mesh is of NURBS type, we convert it to
+   // a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -242,8 +240,7 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 5. Finite Element Spaces
-
+   // Finite Element Spaces
    H1_FECollection fec(1, pmesh->SpaceDimension());
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
@@ -253,8 +250,7 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
-   // 6. Set up material properties, and primal and adjoint variables
-
+   // Set up material properties, and primal and adjoint variables
    // p are the fixed material properties
    Vector p(2);
    p[0] = 1.0;
@@ -273,22 +269,20 @@ int main(int argc, char *argv[])
    HypreParVector *U = u.GetTrueDofs();
 
    // Get boundary conditions
-
    Array<int> ess_tdof_list;
    Array<int> essential_attr(pmesh->bdr_attributes.Size());
    essential_attr[0] = 1;
    essential_attr[1] = 1;
    fes->GetEssentialTrueDofs(essential_attr, ess_tdof_list);
 
-   // 7. Setup the TimeDependentAdjointOperator and the CVODESSolver
-   
+   // Setup the TimeDependentAdjointOperator and the CVODESSolver  
    AdvDiffSUNDIALS adv(U->Size(), U->Size(), p, fes, ess_tdof_list);
 
    // Set the initial time to the TimeDependentAdjointOperator
    double t = 0.0;
    adv.SetTime(t);
 
-   // 8. Create the CVODES solver corresponding to the selected step method
+   // Create the CVODES solver corresponding to the selected step method
    CVODESSolver *cvodes = new CVODESSolver(fes->GetComm(),
 					   step_mode ? CV_ADAMS : CV_BDF);
    cvodes->Init(adv);
@@ -299,11 +293,11 @@ int main(int argc, char *argv[])
    cvodes->SetSStolerances(reltol, abstol);
 
    // Initialize adjoint problem settings
-   int checkpoint_steps = 50; ///< steps between checkpoints
+   int checkpoint_steps = 50; // steps between checkpoints
    cvodes->InitAdjointSolve(checkpoint_steps, CV_HERMITE);
 
-   // 9. Perform time-integration for the problem (looping over the time
-   //    iterations, ti,  with a time-step dt).
+   // Perform time-integration for the problem (looping over the time
+   // iterations, ti,  with a time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -323,9 +317,8 @@ int main(int argc, char *argv[])
    cout << "Final Solution: " << t << endl;
    u.Print();
 
-   // 10. Calculate the quadrature int_x u dx at t = 5
+   // Calculate the quadrature int_x u dx at t = 5
    // Since it's only a spatial quadrature we evaluate it at t=5
-
    ParLinearForm obj(fes);
    ConstantCoefficient one(1.0);
    obj.AddDomainIntegrator(new DomainLFIntegrator(one));
@@ -337,7 +330,7 @@ int main(int argc, char *argv[])
       cout << "g: " << g << endl;
    }
 
-   // 11. Solve the adjoint problem. v is the adjoint solution
+   // Solve the adjoint problem. v is the adjoint solution
    ParGridFunction v(fes);
    v = 1.;
    v.SetSubVector(ess_tdof_list, 0.0);
@@ -369,7 +362,7 @@ int main(int argc, char *argv[])
      qBdot.Print();
    }
 
-   // 12. Free the used memory.
+   // Free the used memory.
    delete U;
    delete V;
    delete cvodes;
