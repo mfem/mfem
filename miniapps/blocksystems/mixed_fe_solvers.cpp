@@ -396,14 +396,12 @@ void DFSDataCollector::DataFinalize(ParMesh* mesh)
 
     for (int l = 0; l < data_.P_l2.Size(); ++l)
     {
-        auto WP = ParMult(W.As<HypreParMatrix>(), data_.P_l2[l].As<HypreParMatrix>());
-        WP->CopyRowStarts();
         OperatorPtr PT_l2(data_.P_l2[l].As<HypreParMatrix>()->Transpose());
-        W.Reset(ParMult(PT_l2.As<HypreParMatrix>(), WP));
-        W.As<HypreParMatrix>()->CopyRowStarts();
+        auto PTW = ParMult(PT_l2.As<HypreParMatrix>(), W.As<HypreParMatrix>(), true);
+        W.Reset(ParMult(PTW, data_.P_l2[l].As<HypreParMatrix>()));
         auto cW_inv = new BlockDiagSolver(W, move(el_l2dof_[l+1]));
         //TODO: maybe store the product is better if it needs to be applied in iterations
-        data_.Q_l2[l].Reset(new ProductOperator(WP, cW_inv, true, true));
+        data_.Q_l2[l].Reset(new ProductOperator(cW_inv, PTW, true, true));
     }
 
     el_l2dof_.DeleteAll();
@@ -570,7 +568,7 @@ void MLDivSolver::Mult(const Vector & x, Vector & y) const
         PT_F_l.SetSize(data_.P_l2[l]->NumCols());
         data_.P_l2[l]->MultTranspose(F_l, PT_F_l);
         Pi_F_l.SetSize(data_.P_l2[l]->NumRows());
-        data_.Q_l2[l]->Mult(PT_F_l, Pi_F_l);
+        data_.Q_l2[l]->MultTranspose(PT_F_l, Pi_F_l);
         F_l -= Pi_F_l;
 
         auto& agg_hdivdof_l = *data_.agg_hdivdof[l].As<SparseMatrix>();
@@ -665,7 +663,7 @@ void MLDivSolver::Mult(int l, const Vector & x, Vector & y) const
     data_.P_l2[l]->MultTranspose(Pi_x.GetBlock(1), coarse_vec);
 
     Vector agg_average(Pi_x.BlockSize(1));
-    data_.Q_l2[l]->Mult(coarse_vec, agg_average);
+    data_.Q_l2[l]->MultTranspose(coarse_vec, agg_average);
     Pi_x.GetBlock(1) -= agg_average;
 
     for (int agg = 0; agg < agg_hdivdof_l.NumRows(); agg++)
@@ -688,7 +686,7 @@ void MLDivSolver::Mult(int l, const Vector & x, Vector & y) const
         blk_y.GetBlock(1).AddElementVector(l2dofs_a, sol_a.GetBlock(1));
     }
 
-    data_.Q_l2[l].As<ProductOperator>()->MultTranspose(blk_y.GetBlock(1), coarse_vec);
+    data_.Q_l2[l].As<ProductOperator>()->Mult(blk_y.GetBlock(1), coarse_vec);
     data_.P_l2[l]->Mult(coarse_vec, agg_average);
     blk_y.GetBlock(1) -= agg_average;
 }
