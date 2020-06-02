@@ -820,50 +820,38 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       }
    }
 
+   // variable order spaces: enforce minimum rule on conforming edges/faces
    if (IsVariableOrder())
    {
-      // variable order spaces: handle edge constraints
-      T.SetIdentityTransformation(Geometry::SEGMENT);
-
-      MFEM_ASSERT(edge_dofs.Size() == mesh->GetNEdges()+1, "");
-      for (int edge = 0; edge < mesh->GetNEdges(); edge++)
+      for (int entity = 1; entity < mesh->Dimension(); entity++)
       {
-         if (edge_dofs.RowSize(edge) <= 1) { continue; }
+         const Table &ent_dofs = (entity == 1) ? edge_dofs : face_dofs;
+         int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
+         MFEM_ASSERT(ent_dofs.Size() == num_ent+1, "");
 
-         int p = GetEdgeDofs(edge, master_dofs, 0); // lowest order DOFs
-         const auto *master_fe = fec->GetFE(Geometry::SEGMENT, p);
-
-         // constrain all higher order edges: interpolate the lowest order edge
-         for (int variant = 1; ; variant++)
+         // add constraints within edges/faces holding multiple DOF sets
+         Geometry::Type last_geom = Geometry::INVALID;
+         for (int i = 0; i < num_ent; i++)
          {
-            int q = GetEdgeDofs(edge, slave_dofs, variant);
-            if (q < 0) { break; }
+            if (ent_dofs.RowSize(i) <= 1) { continue; }
 
-            const auto *slave_fe = fec->GetFE(Geometry::SEGMENT, q);
-            slave_fe->GetTransferMatrix(*master_fe, T, I);
+            Geometry::Type geom =
+               (entity == 1) ? Geometry::SEGMENT : mesh->GetFaceGeometry(i);
 
-            AddDependencies(deps, master_dofs, slave_dofs, I);
-         }
-      }
+            if (geom != last_geom)
+            {
+               T.SetIdentityTransformation(geom);
+               last_geom = geom;
+            }
 
-      // handle face constraints
-      if (mesh->Dimension() > 2)
-      {
-         MFEM_ASSERT(face_dofs.Size() == mesh->GetNFaces()+1, "");
-         for (int face = 0; face < mesh->GetNFaces(); face++)
-         {
-            if (face_dofs.RowSize(face) <= 1) { continue; }
-
-            Geometry::Type geom = mesh->GetFaceGeometry(face);
-            T.SetIdentityTransformation(geom);
-
-            int p = GetFaceDofs(face, master_dofs, 0); // lowest order DOFs
+            // get lowest order variant DOFs and FE
+            int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
             const auto *master_fe = fec->GetFE(geom, p);
 
-            // constrain all higher order faces: interpolate the lowest order face
+            // constrain all higher order DOFs: interpolate lowest order function
             for (int variant = 1; ; variant++)
             {
-               int q = GetFaceDofs(face, slave_dofs, variant);
+               int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
                if (q < 0) { break; }
 
                const auto *slave_fe = fec->GetFE(geom, q);
