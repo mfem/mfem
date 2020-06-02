@@ -549,12 +549,10 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
-   //dbg("this:"); this->Print();
-   //dbg("x:"); x.Print();
+   dbg("");
    if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMult(x, y);
-   //dbg("y: %.15e",y*y); y.Print();
 }
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const

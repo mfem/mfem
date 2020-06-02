@@ -663,17 +663,13 @@ static void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
 
    DenseMatrix Madj(3);
-   CalcAdjugate(M, Madj); //dbg("Madj:"); Madj.Print();
+   CalcAdjugate(M, Madj);
    const double fnorm = M.FNorm(), det = fabs(M.Det());
-   //dbg("fnorm: %.15e, det: %.15e", fnorm, det);
 
-   Dim3Invariant3_dM(M, dM); //dbg("dM:"); dM.Print();
+   Dim3Invariant3_dM(M, dM);
    dM *= -(2./3.) * fnorm * fnorm * pow(det, -1./3.);
-   //dbg("dM1:"); dM.Print();
    dM.Add(2.0 * pow(det, 2./3.), M);
-   //dbg("dM2:"); dM.Print();
    dM *= 1.0 / pow(det, 4./3.);
-   //dbg("dM3:"); dM.Print();
 }
 
 // *****************************************************************************
@@ -754,6 +750,8 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
       DenseMatrix dI1_dM(dim), dI1_dMdM(dim), dI2_dM(dim), dI2_dMdM(dim);
       Dim3Invariant1_dM(Jpt, dI1_dM);
       Dim3Invariant2_dM(Jpt, dI2_dM);
+      const double detJpt = Jpt.Det();
+      const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
 
       // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
       for (int r = 0; r < dim; r++)
@@ -778,7 +776,7 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
                      for (int j = 0; j < dof; j++)
                      {
                         A(i+r*dof, j+rr*dof) +=
-                           weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                           sign * weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
                      }
                   }
                }

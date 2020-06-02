@@ -690,6 +690,7 @@ int main(int argc, char *argv[])
    }
    else if (lin_solver == 1)
    {
+      dbg("CGSolver");
       CGSolver *cg = new CGSolver;
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
@@ -699,6 +700,7 @@ int main(int argc, char *argv[])
    }
    else
    {
+      dbg("MINRESSolver");
       MINRESSolver *minres = new MINRESSolver;
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);

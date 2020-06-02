@@ -81,6 +81,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
+      MFEM_ABORT("Not yet implemented!");
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -136,8 +137,8 @@ PAGradOperator::PAGradOperator(const Vector &g,
 
 void PAGradOperator::Mult(const Vector &x, Vector &y) const
 {
-   dbg("");
    Vector z(x);
+   z.UseDevice(true);
    y.SetSize(x.Size());
    const int csz = ess_tdof_list.Size();
 
