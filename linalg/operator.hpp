@@ -489,7 +489,6 @@ public:
 
       \param[in] y The current value at time t
       \param[out] qdot The current quadrate rate value at t
-
     */
    virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const {};
    /** @brief Perform the action of the operator:
@@ -498,7 +497,6 @@ public:
        @param[in] y The primal solution at time t
        @param[in] yB The adjoint solution at time t
        @param[out] yBdot the rate at time t
-
     */
    virtual void AdjointRateMult(const Vector &y, Vector & yB,
                                 Vector &yBdot) const = 0;
@@ -511,7 +509,6 @@ public:
       \param[in] yB the value of the adjoint solution at time t
       \param[out] qBdot the value of the sensitivity of the qaudrature rate at
       time t
-
     */
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                           Vector &qBdot) const {}
@@ -530,7 +527,8 @@ public:
        If not re-implemented, this method simply generates an error.
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
-       details, see the SUNDIALS User Guides. */
+       details, see the SUNDIALS User Guides.
+    */
 
    virtual int SUNImplicitSetupB(const double t, const Vector &x,
                                  const Vector &xB, const Vector &fxB,
