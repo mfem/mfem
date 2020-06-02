@@ -1400,9 +1400,9 @@ public:
    Vector detJ;
 
    /// Element restricted nodes
-   /** This array uses a column-major layout with dimensions (SDIM x NQ x NE) where
+   /** This array uses a column-major layout with dimensions (ND x SDIM x NE) where
+       - ND   = number of degrees of freedom per element,
        - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
-       - NQ   = number of quadrature points per element, and
        - NE   = number of elements in the mesh. */
    Vector Enodes;
 };
