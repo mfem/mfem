@@ -27,6 +27,10 @@ Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
+- Added a Full Assembly mode compatible with Device, this level of assembly
+  builds up on Element Assembly to enable Sparse Matrix assembly. All integrators
+  supported by the Element Assembly are supported by the Full Assembly.
+
 Discretization improvements
 ---------------------------
 - Added support for matrix-free interpolation and restriction operators between
