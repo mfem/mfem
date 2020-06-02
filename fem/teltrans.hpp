@@ -70,8 +70,9 @@ public:
        structure.
        @tparam EvalOps is a sum (bitwise or) of constants from the enum EvalOperations
        @tparam NE is the number of elements to be processed in the Eval() method.
+       @tparam impl_traits_t specifies additional parameters and types to be used by the Eval() method
    */
-   template<int EvalOps, int NE> struct Result;
+   template<int EvalOps, typename impl_traits_t> struct Result;
 
    static const int dim  = Mesh_t::dim;
    static const int sdim = Mesh_t::space_dim;
@@ -90,13 +91,17 @@ protected:
 
    const Element* const *elements;
 
-   template <int NE>
+   template <typename vint_t, int NE>
    inline MFEM_ALWAYS_INLINE
-   void SetAttributes(int el, int (&attrib)[NE]) const
+   void SetAttributes(int el, vint_t (&attrib)[NE]) const
    {
+      const int vsize = sizeof(vint_t)/sizeof(attrib[0][0]);
       for (int i = 0; i < NE; i++)
       {
-         attrib[i] = elements[el+i]->GetAttribute();
+         for (int j = 0; j < vsize; i++)
+         {
+            attrib[i][j] = elements[el+j+i*vsize]->GetAttribute();
+         }
       }
    }
 
@@ -111,25 +116,30 @@ public:
    { }
 
    /// Evaluate coordinates and/or Jacobian matrices at quadrature points.
-   template<int EvalOps, int NE>
+   template<int EvalOps, typename impl_traits_t>
    inline MFEM_ALWAYS_INLINE
-   void Eval(int el, Result<EvalOps,NE> &F)
+   void Eval(int el, Result<EvalOps,impl_traits_t> &F)
    {
       F.Eval(el, *this);
    }
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
-   template<int EvalOps, int NE>
+   template<int EvalOps, typename impl_traits_t>
    inline MFEM_ALWAYS_INLINE
-   void EvalSerialized(int el, const real_t *nodeData, Result<EvalOps,NE> &F)
+   void EvalSerialized(int el, const typename impl_traits_t::vreal_t *nodeData,
+                       Result<EvalOps,impl_traits_t> &F)
    {
       F.EvalSerialized(el, *this, nodeData);
    }
 #endif
 
-   template <int NE> struct Result<0,NE> // 0 = EvalNone
+   // Specialization of the Result<> class
+
+   // Case EvalOps = 0 = EvalNone
+   template <typename it_t> struct Result<0,it_t>
    {
-      static const int ne = NE;
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vreal_t vreal_t;
       // x_type x;
       // Jt_type Jt;
       // int attrib[NE];
@@ -142,20 +152,23 @@ public:
       }
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(int el, T_type &T, const real_t *nodeData) { }
+      void EvalSerialized(int el, T_type &T, const vreal_t *nodeData) { }
 #endif
    };
-   template <int NE> struct Result<1,NE> // 1 = EvalCoordinates
+
+   // Case EvalOps = 1 = EvalCoordinates
+   template <typename it_t> struct Result<1,it_t>
    {
-      static const int ne = NE;
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vreal_t vreal_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
-      typedef TTensor3<qpts,sdim,NE,real_t,true> x_type;
+      typedef TTensor3<qpts,sdim,NE,vreal_t,true> x_type;
 #else
-      typedef TTensor3<qpts,sdim,NE,real_t/*,true*/> x_type;
+      typedef TTensor3<qpts,sdim,ne,vreal_t/*,true*/> x_type;
 #endif
       x_type x;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,ne,vreal_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -164,8 +177,8 @@ public:
       void Eval(int el, T_type &T)
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
-         MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
+         MFEM_STATIC_ASSERT(ne == 1, "only ne == 1 is supported");
+         TTensor3<dofs,sdim,1,vreal_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
@@ -178,25 +191,30 @@ public:
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(int el, T_type &T, const real_t *nodeData)
+      void EvalSerialized(int el, T_type &T, const vreal_t *nodeData)
       {
+         const int SS = sizeof(nodeData[0])/sizeof(nodeData[0][0]);
+         MFEM_ASSERT(el % (SS*ne) == 0, "invalid element index: " << el);
          T.evaluator.Calc(nodes_dof_t::layout.merge_23(),
-                          &nodeData[el*nodes_dof_t::size],
+                          &nodeData[el/SS*nodes_dof_t::size],
                           x.layout.merge_23(), x);
       }
 #endif
    };
-   template <int NE> struct Result<2,NE> // 2 = EvalJacobians
+
+   // Case EvalOps = 2 = EvalJacobians
+   template <typename it_t> struct Result<2,it_t>
    {
-      static const int ne = NE;
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vreal_t vreal_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
-      typedef TTensor4<qpts,dim,sdim,NE,real_t,true> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t,true> Jt_type;
 #else
-      typedef TTensor4<qpts,dim,sdim,NE,real_t/*,true*/> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t/*,true*/> Jt_type;
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,ne,vreal_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -205,8 +223,8 @@ public:
       void Eval(int el, T_type &T)
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
-         MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
+         MFEM_STATIC_ASSERT(ne == 1, "only ne == 1 is supported");
+         TTensor3<dofs,sdim,1,vreal_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
@@ -219,27 +237,32 @@ public:
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(int el, T_type &T, const real_t *nodeData)
+      void EvalSerialized(int el, T_type &T, const vreal_t *nodeData)
       {
+         const int SS = sizeof(nodeData[0])/sizeof(nodeData[0][0]);
+         MFEM_ASSERT(el % (SS*ne) == 0, "invalid element index: " << el);
          T.evaluator.CalcGrad(nodes_dof_t::layout.merge_23(),
-                              &nodeData[el*nodes_dof_t::size],
+                              &nodeData[el/SS*nodes_dof_t::size],
                               Jt.layout.merge_34(), Jt);
       }
 #endif
    };
-   template <int NE> struct Result<3,NE> // 3 = EvalCoordinates|EvalJacobians
+
+   // Case EvalOps = 3 = EvalCoordinates|EvalJacobians
+   template <typename it_t> struct Result<3,it_t>
    {
-      static const int ne = NE;
-      typedef TTensor3<qpts,sdim,NE,real_t,true> x_type;
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vreal_t vreal_t;
+      typedef TTensor3<qpts,sdim,ne,vreal_t,true> x_type;
       x_type x;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
-      typedef TTensor4<qpts,dim,sdim,NE,real_t,true> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t,true> Jt_type;
 #else
-      typedef TTensor4<qpts,dim,sdim,NE,real_t/*,true*/> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t/*,true*/> Jt_type;
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,ne,vreal_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -248,8 +271,8 @@ public:
       void Eval(int el, T_type &T)
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
-         MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
+         MFEM_STATIC_ASSERT(ne == 1, "only ne == 1 is supported");
+         TTensor3<dofs,sdim,1,vreal_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
@@ -264,39 +287,45 @@ public:
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(int el, T_type &T, const real_t *nodeData)
+      void EvalSerialized(int el, T_type &T, const vreal_t *nodeData)
       {
+         const int SS = sizeof(nodeData[0])/sizeof(nodeData[0][0]);
+         MFEM_ASSERT(el % (SS*ne) == 0, "invalid element index: " << el);
          T.evaluator.Calc(nodes_dof_t::layout.merge_23(),
-                          &nodeData[el*nodes_dof_t::size],
+                          &nodeData[el/SS*nodes_dof_t::size],
                           x.layout.merge_23(), x);
          T.evaluator.CalcGrad(nodes_dof_t::layout.merge_23(),
-                              &nodeData[el*nodes_dof_t::size],
+                              &nodeData[el/SS*nodes_dof_t::size],
                               Jt.layout.merge_34(), Jt);
       }
 #endif
    };
-   template <int NE> struct Result<6,NE> // 6 = EvalJacobians|LoadAttributes
+
+   // Case EvalOps = 6 = EvalJacobians|LoadAttributes
+   template <typename it_t> struct Result<6,it_t>
    {
-      static const int ne = NE;
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vreal_t vreal_t;
+      typedef typename it_t::vint_t  vint_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
-      typedef TTensor4<qpts,dim,sdim,NE,real_t,true> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t,true> Jt_type;
 #else
-      typedef TTensor4<qpts,dim,sdim,NE,real_t/*,true*/> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t/*,true*/> Jt_type;
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,ne,vreal_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
-      int attrib[NE];
+      vint_t attrib[ne];
 
       inline MFEM_ALWAYS_INLINE
       void Eval(int el, T_type &T)
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
-         MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
+         MFEM_STATIC_ASSERT(ne == 1, "only ne == 1 is supported");
+         TTensor3<dofs,sdim,1,vreal_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
@@ -310,26 +339,31 @@ public:
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(int el, T_type &T, const real_t *nodeData)
+      void EvalSerialized(int el, T_type &T, const vreal_t *nodeData)
       {
+         const int SS = sizeof(nodeData[0])/sizeof(nodeData[0][0]);
+         MFEM_ASSERT(el % (SS*ne) == 0, "invalid element index: " << el);
          T.evaluator.CalcGrad(nodes_dof_t::layout.merge_23(),
-                              &nodeData[el*nodes_dof_t::size],
+                              &nodeData[el/SS*nodes_dof_t::size],
                               Jt.layout.merge_34(), Jt);
          T.SetAttributes(el, attrib);
       }
 #endif
    };
-   template <int NE> struct Result<10,NE> // 10 = EvalJacobians|LoadElementIdxs
+
+   // Case EvalOps = 10 = EvalJacobians|LoadElementIdxs
+   template <typename it_t> struct Result<10,it_t>
    {
-      static const int ne = NE;
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vreal_t vreal_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
-      typedef TTensor4<qpts,dim,sdim,NE,real_t,true> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t,true> Jt_type;
 #else
-      typedef TTensor4<qpts,dim,sdim,NE,real_t/*,true*/> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,ne,vreal_t/*,true*/> Jt_type;
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,ne,vreal_t> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -339,8 +373,8 @@ public:
       void Eval(int el, T_type &T)
       {
 #ifdef MFEM_TEMPLATE_ELTRANS_HAS_NODE_DOFS
-         MFEM_STATIC_ASSERT(NE == 1, "only NE == 1 is supported");
-         TTensor3<dofs,sdim,1,real_t> &nodes_dof = T.nodes_dof;
+         MFEM_STATIC_ASSERT(ne == 1, "only ne == 1 is supported");
+         TTensor3<dofs,sdim,1,vreal_t> &nodes_dof = T.nodes_dof;
 #elif !defined(MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES)
          nodes_dof_t nodes_dof;
 #endif
@@ -354,10 +388,12 @@ public:
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(int el, T_type &T, const real_t *nodeData)
+      void EvalSerialized(int el, T_type &T, const vreal_t *nodeData)
       {
+         const int SS = sizeof(nodeData[0])/sizeof(nodeData[0][0]);
+         MFEM_ASSERT(el % (SS*ne) == 0, "invalid element index: " << el);
          T.evaluator.CalcGrad(nodes_dof_t::layout.merge_23(),
-                              &nodeData[el*nodes_dof_t::size],
+                              &nodeData[el/SS*nodes_dof_t::size],
                               Jt.layout.merge_34(), Jt);
          first_elem_idx = el;
       }
