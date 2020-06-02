@@ -19,6 +19,7 @@ namespace mfem
 ElementTransformation::ElementTransformation()
    : IntPoint(static_cast<IntegrationPoint *>(NULL)),
      EvalState(0),
+     geom(Geometry::INVALID),
      Attribute(-1),
      ElementNo(-1)
 { }
@@ -549,6 +550,78 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
    {
       Transform (ir1.IntPoint(i), ir2.IntPoint(i));
    }
+}
+
+void FaceElementTransformations::SetIntPoint(const IntegrationPoint *ip)
+{
+   IsoparametricTransformation::SetIntPoint(ip);
+
+   if (Elem1)
+   {
+      Loc1.Transform(*ip, eip1);
+      Elem1->SetIntPoint(&eip1);
+   }
+   if (Elem2)
+   {
+      Loc2.Transform(*ip, eip2);
+      Elem2->SetIntPoint(&eip2);
+   }
+}
+
+ElementTransformation &
+FaceElementTransformations::GetElement1Transformation()
+{
+   MFEM_VERIFY(mask & 1 && Elem1 != NULL, "The ElementTransformation "
+               "for the element has not been configured for side 1.");
+   return *Elem1;
+}
+
+ElementTransformation &
+FaceElementTransformations::GetElement2Transformation()
+{
+   MFEM_VERIFY(mask & 2 && Elem2 != NULL, "The ElementTransformation "
+               "for the element has not been configured for side 2.");
+   return *Elem2;
+}
+
+IntegrationPointTransformation &
+FaceElementTransformations::GetIntPoint1Transformation()
+{
+   MFEM_VERIFY(mask & 4, "The IntegrationPointTransformation "
+               "for the element has not been configured for side 1.");
+   return Loc1;
+}
+
+IntegrationPointTransformation &
+FaceElementTransformations::GetIntPoint2Transformation()
+{
+   MFEM_VERIFY(mask & 8, "The IntegrationPointTransformation "
+               "for the element has not been configured for side 2.");
+   return Loc2;
+}
+
+void FaceElementTransformations::Transform(const IntegrationPoint &ip,
+                                           Vector &trans)
+{
+   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+               "for the face has not been configured.");
+   IsoparametricTransformation::Transform(ip, trans);
+}
+
+void FaceElementTransformations::Transform(const IntegrationRule &ir,
+                                           DenseMatrix &tr)
+{
+   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+               "for the face has not been configured.");
+   IsoparametricTransformation::Transform(ir, tr);
+}
+
+void FaceElementTransformations::Transform(const DenseMatrix &matrix,
+                                           DenseMatrix &result)
+{
+   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+               "for the face has not been configured.");
+   IsoparametricTransformation::Transform(matrix, result);
 }
 
 }
