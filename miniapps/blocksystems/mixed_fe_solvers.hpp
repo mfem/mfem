@@ -165,12 +165,6 @@ public:
                      int level,
                      HypreParMatrix& C);
 
-    HiptmairSmoother(BlockOperator& op,
-                     MLDivSolver& ml_div_solver,
-                     int level,
-                     HypreParMatrix& C,
-                     OperatorPtr& CTMC);
-
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void MultTranspose(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
@@ -190,8 +184,6 @@ class DivFreeSolver : public DarcySolver
     CGSolver CTMC_solver_;
 
     OperatorPtr BT_;
-    Array<OperatorPtr> Cs_;
-    Array<OperatorPtr> CTMCs_;
     Array<Array<int>> coarse_offsets_;
     Array<OperatorPtr> ops_;
     Array<OperatorPtr> blk_Ps_;
