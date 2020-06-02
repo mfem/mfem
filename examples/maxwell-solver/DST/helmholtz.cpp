@@ -340,10 +340,10 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.15;
+   x0 = 0.5;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.15;
+   x1 = 0.5;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;

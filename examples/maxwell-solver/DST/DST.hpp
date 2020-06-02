@@ -33,6 +33,8 @@ private:
   
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                           int ip, Array<int> directions, int nlayers, bool local=false) const;
+   void GetCutOffSolution(const Vector & sol, Vector & cfsol,
+                          int ip, Array<int> directx, Array<int> directy, int nlayers, bool local=false) const;                          
    void GetChiRes(const Vector & res, Vector & cfres,
                   int ip, Array<int> directions, int nlayers) const;  
    

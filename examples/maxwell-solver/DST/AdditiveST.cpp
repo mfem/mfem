@@ -15,8 +15,8 @@ AdditiveST::AdditiveST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    // 1. Ovelapping partition with overlap = 2h 
    partition_kind = 2; // Non Overlapping partition 
-   int nx=3;
-   int ny=3; 
+   int nx=2;
+   int ny=2; 
    int nz=1;
    ovlpnrlayers = nrlayers+2;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
@@ -78,8 +78,11 @@ void AdditiveST::Mult(const Vector &r, Vector &z) const
          *f_diag[ip][i] = 0.0;
       }
    }
-   Vector res(r.Size());
-   for (int ip=0; ip<nrpatch; ip++)
+   socketstream res_sock(vishost, visport);
+   Vector res(r);
+   PlotSolution(res,res_sock,0,false); 
+   // for (int ip=0; ip<nrpatch; ip++)
+   for (int ip=nrpatch-1; ip>=0; ip--)
    {
       Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
       r.GetSubVector(*Dof2GlobalDof,*f_orig[ip]);

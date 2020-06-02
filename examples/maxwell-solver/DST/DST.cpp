@@ -74,7 +74,11 @@ void DST::Mult(const Vector &r, Vector &z) const
          *f_transf[ip][i] = 0.0;
       }
    }
-   Vector res(r.Size());
+
+   // socketstream res_sock(vishost, visport);
+   // Vector res(r);
+   // PlotSolution(res,res_sock,0,false); 
+
    for (int ip=0; ip<nrpatch; ip++)
    {
       Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
@@ -140,16 +144,20 @@ void DST::Mult(const Vector &r, Vector &z) const
             if (res_local.Norml2() < 1e-12) continue;
             PmlMatInv[ip]->Mult(res_local, sol_local);
             TransferSources(l,ip, sol_local);
-            Array<int>directions(2); directions = 0; 
-            if (i+1<nx) directions[0] = 1;
-            if (j+1<ny) directions[1] = 1;
+            Array<int>directx(2); directx = 0; 
+            Array<int>directy(2); directy = 0; 
+            if (i+1<nx) directx[1] = 1;
+            if (j+1<ny) directy[1] = 1;
+            if (i>0) directx[0] = 1;
+            if (j>0) directy[0] = 1;
             Vector cfsol_local;
-            GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
-            sol_local = cfsol_local;
-            directions = 0.0;
-            if (i>0) directions[0] = -1;
-            if (j>0) directions[1] = -1;
-            GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
+            GetCutOffSolution(sol_local,cfsol_local,ip,directx, directy,ovlpnrlayers,true);
+            // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
+            // sol_local = cfsol_local;
+            // directions = 0.0;
+            // if (i>0) directions[0] = -1;
+            // if (j>0) directions[1] = -1;
+            // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
             
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
@@ -201,6 +209,74 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
       pmlh[1][1] = h*(nlayers-nrlayers-1);
    }
    if (directions[1]==-1)
+   {
+      pmlh[1][0] = h*(nlayers-nrlayers-1);
+   }
+
+   CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
+   double * data = sol.GetData();
+   FiniteElementSpace * fes;
+   if (!local)
+   {
+      fes = bf->FESpace();
+   }
+   else
+   {
+      fes = ovlp_prob->fespaces[ip];
+   }
+   int n = fes->GetTrueVSize();
+   GridFunction solgf_re(fes, data);
+   GridFunction solgf_im(fes, &data[n]);
+
+   GridFunctionCoefficient coeff1_re(&solgf_re);
+   GridFunctionCoefficient coeff1_im(&solgf_im);
+
+   ProductCoefficient prod_re(coeff1_re, cf);
+   ProductCoefficient prod_im(coeff1_im, cf);
+
+   ComplexGridFunction gf(fes);
+   gf.ProjectCoefficient(prod_re,prod_im);
+
+   cfsol.SetSize(sol.Size());
+   cfsol = gf;
+}
+
+void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol, 
+                  int ip, Array<int> directx, Array<int> directy, int nlayers, bool local) const
+{
+
+
+   Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
+   
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
+   double h = GetUniformMeshElementSize(povlp->patch_mesh[ip]);
+
+   int i, j, k;
+   Getijk(ip,i,j,k);
+   int nx = nxyz[0];
+   int ny = nxyz[1];
+   if (directx[1]==1) pmax[0] -= h*nrlayers; 
+   if (directy[1]==1) pmax[1] -= h*nrlayers; 
+
+   if (directx[0]==1) pmin[0] += h*nrlayers; 
+   if (directy[0]==1) pmin[1] += h*nrlayers; 
+
+   Array2D<double> pmlh(dim,2); pmlh = 0.0;
+   
+   if (directx[1]==1)
+   {
+      pmlh[0][1] = h*(nlayers-nrlayers-1);
+   }
+   if (directx[0]==1)
+   {
+      pmlh[0][0] = h*(nlayers-nrlayers-1);
+   }
+   if (directy[1]==1)
+   {
+      pmlh[1][1] = h*(nlayers-nrlayers-1);
+   }
+   if (directy[0]==1)
    {
       pmlh[1][0] = h*(nlayers-nrlayers-1);
    }
@@ -297,8 +373,16 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
             Array<int> directions(2);
             directions[0] = i;
             directions[1] = j;
+            // Vector cfsol0;
+            // GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
+            Array<int> directx(2); directx = 0;
+            Array<int> directy(2); directy = 0;
+            if (i==-1) directx[0] = 1;
+            if (i==1) directx[1] = 1;
+            if (j==-1) directy[0] = 1;
+            if (j==1) directy[1] = 1;
             Vector cfsol0;
-            GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
+            GetCutOffSolution(sol0,cfsol0,ip0,directx,directy,ovlpnrlayers,true);
 
             Vector raux;
             int jp1 = SourceTransfer(cfsol0,directions,ip0,raux);
