@@ -282,7 +282,8 @@ public:
    CVODESSolver(MPI_Comm comm, int lmm);
 #endif
 
-   /** Initialize CVODE: Calls CVodeInit() and sets some defaults. We define this to force the TDO to be a TimeDependenAdjointOperator
+   /** Initialize CVODE: Calls CVodeInit() and sets some defaults. We define this
+       to force the TDO to be a TimeDependenAdjointOperator.
        @param[in] f_ the TimeDependentAdjointOperator that defines the ODE system
 
        @note All other methods must be called after Init(). */
@@ -339,7 +340,9 @@ public:
    void UseSundialsLinearSolverB();
 
    /**
-      \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
+      \brief Tolerance specification functions for the adjoint problem.
+
+      It should be called after InitB() is called.
 
       \param[in] reltol the scalar relative error tolerance.
       \param[in] abstol the scalar absolute error tolerance.
@@ -347,7 +350,9 @@ public:
    void SetSStolerancesB(double reltol, double abstol);
 
    /**
-      \brief Tolerance specification functions the adjoint problem. It should be called after InitB() is called.
+      \brief Tolerance specification functions for the adjoint problem.
+
+      It should be called after InitB() is called.
 
       \param[in] reltol the scalar relative error tolerance
       \param[in] abstol the vector of absolute error tolerances

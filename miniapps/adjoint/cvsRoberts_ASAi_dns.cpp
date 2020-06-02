@@ -66,9 +66,6 @@
 // *   d(phi)/dt = g(t,y,p)
 // *   phi(t1) = 0
 
-
-
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -131,7 +128,7 @@ protected:
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   // Parse command-line options.
    double t_final = 4e7;
    double dt = 0.01;
 
@@ -154,30 +151,30 @@ int main(int argc, char *argv[])
    
    args.PrintOptions(cout);
 
-   // 2. The original cvsRoberts_ASAi_dns problem is a fixed sized problem
-   //    of size 3. Define the solution vector.
+   // The original cvsRoberts_ASAi_dns problem is a fixed sized problem
+   // of size 3. Define the solution vector.
    Vector u(3);
    u = 0.;
    u[0] = 1.;
 
-   // 3. Define the TimeDependentAdjointOperator which implements the various
-   //    rate equations: rate, quadrature rate, adjoint rate, and quadrature
-   //    sensitivity rate equation
+   // Define the TimeDependentAdjointOperator which implements the various
+   // rate equations: rate, quadrature rate, adjoint rate, and quadrature
+   // sensitivity rate equation
 
    // Define material parameters p
    Vector p(3);
    p[0] = 0.04;
    p[1] = 1.0e4;
    p[2] = 3.0e7;
+   
    // 3 is the size of the adjoint solution vector
    RobertsTDAOperator adv(3, p);
 
-   // 4. Set the inital time
+   // Set the inital time
    double t = 0.0;
    adv.SetTime(t);
 
-   // 5. Create the CVODES solver and set the various tolerances
-
+   // Create the CVODES solver and set the various tolerances
    // Set absolute tolerances for the solution
    Vector abstol_v(3);
    abstol_v[0] = 1.0e-8;
@@ -220,8 +217,8 @@ int main(int argc, char *argv[])
    // Initialize the adjoint solve
    cvodes->InitAdjointSolve(150, CV_HERMITE);
 
-   // 6. Perform time-integration (looping over the time iterations, ti,
-   //    with a time-step dt).
+   // Perform time-integration (looping over the time iterations, ti,
+   // with a time-step dt).
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -245,8 +242,7 @@ int main(int argc, char *argv[])
    cvodes->EvalQuadIntegration(t, q);
    q.Print();
 
-   // 7. Solve the adjoint problem at different points in time
-
+   // Solve the adjoint problem at different points in time.
    // Create the adjoint solution vector
    Vector w(3);
    w=0.;
@@ -289,7 +285,7 @@ int main(int argc, char *argv[])
 
    }
 
-   // 8. Free the used memory.
+   // Free the used memory.
    delete cvodes;
 
    return 0;
@@ -347,9 +343,6 @@ int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
 
    // M = I- gamma J
    // J = dfB/dyB
-   // Let's create a SparseMatrix and fill in the entries since this example
-   // doesn't contain finite elements
-
    delete adjointMatrix;
    adjointMatrix = new SparseMatrix(y.Size(), yB.Size());
    for (int j = 0; j < y.Size(); j++)
