@@ -427,11 +427,14 @@ static void SetupGradPA_3D(const Vector &xe_,
                                        + dI1_dM(rr,cc)*dI2_dM(r,c)
                                        + dI2_dMdM(rr,cc)*I1);
                            dP(rr,cc,r,c,qx,qy,qz,e) = sign * weight * entry_rr_cc;
-                           //dbg("dP: %.15e", dP(rr,cc,r,c,qx,qy,qz,e));
+                           dbg("dP: %.15e", dP(rr,cc,r,c,qx,qy,qz,e));
                         }
                      }
                   }
                }
+               DenseMatrix A(&dP(0,0,0,0,qx,qy,qz,e),9,9);
+               dbg("A:"); A.Print();
+               exit(0);
             } // qx
          } // qy
       } // qz
