@@ -137,8 +137,6 @@ class MLDivSolver : public Solver
 {
     const DFSData& data_;
     Array<Array<OperatorPtr> > agg_solvers_;
-    OperatorPtr coarsest_M_;
-    OperatorPtr coarsest_B_;
     OperatorPtr coarsest_solver_;
 public:
     MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data);
@@ -247,12 +245,15 @@ class AbstractMultigrid : public Solver
     mutable Array<Vector> resid_;
     mutable Vector cor_cor_;
 
+    bool smoothers_are_symmetric_;
+
     void MG_Cycle(int level) const;
 public:
     AbstractMultigrid(HypreParMatrix& op, const Array<OperatorPtr>& Ps);
     AbstractMultigrid(const Array<OperatorPtr>& ops,
                       const Array<OperatorPtr>& Ps,
-                      const Array<OperatorPtr>& smoothers);
+                      const Array<OperatorPtr>& smoothers,
+                      bool smoother_is_symmetric = false);
 
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
@@ -267,10 +268,11 @@ class BDPMinresSolver : public DarcySolver
     OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
     MINRESSolver solver_;
 public:
-    BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
+    BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+                    bool own_input, IterSolveParameters param);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
-    const Operator& GetOperator() const { return op_; }
+    const BlockOperator& GetOperator() const { return op_; }
     virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
 

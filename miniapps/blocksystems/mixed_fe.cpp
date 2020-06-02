@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
         setup_time[&dfs] = chrono.RealTime();
 
         ResetTimer();
-        BDPMinresSolver bdp(M, B, param);
+        BDPMinresSolver bdp(M, B, false, param);
         setup_time[&bdp] = chrono.RealTime();
 
         std::map<const DarcySolver*, std::string> solver_to_name;
