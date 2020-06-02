@@ -147,7 +147,9 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (ext)
    {
+      py = 0.0;
       ext->Mult(px, py);
+      dbg("py:"); py.Print();
       if (Serial())
       {
          if (cP) { cP->MultTranspose(py, y); }
@@ -156,6 +158,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          auto Y = y.ReadWrite();
          MFEM_FORALL(i, N, Y[tdof[i]] = 0.0; );
       }
+      dbg("y:"); y.Print();
       return;
    }
 
@@ -268,12 +271,14 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (Serial())
    {
+      dbg("py:"); py.Print();
       if (cP) { cP->MultTranspose(py, y); }
 
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          y(ess_tdof_list[i]) = 0.0;
       }
+      dbg("y:"); y.Print();
       // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
    }
 }

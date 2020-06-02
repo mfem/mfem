@@ -15,6 +15,8 @@
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
+#define MFEM_DBG_COLOR 45
+#include "../general/dbg.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -547,9 +549,12 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
+   //dbg("this:"); this->Print();
+   dbg("x:"); x.Print();
    if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMult(x, y);
+   dbg("y: %.15e",y*y); y.Print();
 }
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const

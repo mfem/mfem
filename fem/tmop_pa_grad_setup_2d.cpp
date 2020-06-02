@@ -236,6 +236,7 @@ static void SetupGradPA_2D(const Vector &xe_,
    });
 }
 
+// *****************************************************************************
 void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
                                         const Vector &Xe) const
 {
