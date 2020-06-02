@@ -68,6 +68,8 @@ Discretization improvements
   Additionaly, new LinearForm integrators were also added which make use of
   these new QuadratureFunction coefficient classes.
 
+- Added support face integrals on the boundaries of NURBS meshes.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -90,12 +92,6 @@ Linear and nonlinear solvers
 New and updated examples and miniapps
 -------------------------------------
 
-- Adding a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
-  stitching together opposite surfaces of a mesh to create a topologically
-  periodic mesh.
-
-- Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
-
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
   Matched Layer (PML) for the simulation of electromagnetic wave propagation.
   The example defines and solves several indefinite Maxwell problems.
@@ -116,13 +112,13 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Minimal Surface, which solves Plateau's problem:
   the Dirichlet problem for the minimal surface equation.
 
-- Added support face integrals on the boundaries of NURBS meshes.
-
 - Added partial assembly support to examples 4/4p and 5/5p, with diagonal
   preconditioning.
 
 - Added a new test problem in example 24/24p, demonstrating a mixed bilinear
   form for H(div) and L_2, with partial assembly support.
+
+- Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
 
 Improved testing
 ----------------
