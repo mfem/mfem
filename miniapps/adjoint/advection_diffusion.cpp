@@ -84,7 +84,8 @@ public:
       m(NULL), k(NULL),
       pfes(fes),
       M_solver(fes->GetComm()),
-      ess_tdof_list(ess_tdof)
+      ess_tdof_list(ess_tdof),
+      p0(NULL), mp0(NULL), p2(NULL)
    {
       int skip_zeros = 0;
       ParMesh * pmesh = pfes->GetParMesh();
@@ -97,25 +98,22 @@ public:
       m->Assemble(skip_zeros);
       m->Finalize(skip_zeros);
 
+      // Define coefficients
+      mp0 = new ConstantCoefficient(-p_[0]);
+      p0 = new ConstantCoefficient(p_[0]);
+      Vector p2vec(fes->GetParMesh()->SpaceDimension());
+      p2vec = p_[1];     
+      p2 = new VectorConstantCoefficient(p2vec);
+      
       k = new ParBilinearForm(pfes);
-      k->AddDomainIntegrator(
-	   new DiffusionIntegrator(
-		  *(new ConstantCoefficient(-p_[0]))));
-      Vector p2(fes->GetParMesh()->SpaceDimension());
-      p2 = p_[1];
-      k->AddDomainIntegrator(
-	   new ConvectionIntegrator(
-		  *(new VectorConstantCoefficient(p2))));
+      k->AddDomainIntegrator(new DiffusionIntegrator(*mp0));
+      k->AddDomainIntegrator(new ConvectionIntegrator(*p2));
       k->Assemble(skip_zeros);
       k->Finalize(skip_zeros);
 
       k1 = new ParBilinearForm(pfes);
-      k1->AddDomainIntegrator(
-	   new DiffusionIntegrator(
-		  *(new ConstantCoefficient(p_[0]))));
-      k1->AddDomainIntegrator(
-	   new ConvectionIntegrator(
-		  *(new VectorConstantCoefficient(p2))));
+      k1->AddDomainIntegrator(new DiffusionIntegrator(*p0));
+      k1->AddDomainIntegrator(new ConvectionIntegrator(*p2));
       k1->Assemble(skip_zeros);
       k1->Finalize(skip_zeros);
 
@@ -138,7 +136,7 @@ public:
       M_solver.SetPrintLevel(0);
 
    }
-
+  
    virtual void Mult(const Vector &x, Vector &y) const;
   
    virtual void AdjointRateMult(const Vector &y, Vector &yB,
@@ -153,7 +151,20 @@ public:
   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                          Vector &qbdot) const;
 
-
+  ~AdvDiffSUNDIALS()
+  {
+    delete m;
+    delete k;
+    delete k1;
+    delete M;
+    delete K;
+    delete K_adj;
+    delete Mf;
+    delete p0;
+    delete mp0;
+    delete p2;
+  }
+  
 protected:
    Vector p_;
    Array<int> ess_tdof_list;
@@ -169,10 +180,12 @@ protected:
    HypreParMatrix *K_adj;
 
    HypreParMatrix *Mf;
-   HypreParMatrix *I;
 
    CGSolver M_solver;
    HypreSmoother M_prec;
+  ConstantCoefficient *p0;
+  ConstantCoefficient *mp0;
+  VectorConstantCoefficient *p2;
 };
 
 // Initial conditions for the problem
@@ -363,6 +376,8 @@ int main(int argc, char *argv[])
    }
 
    // Free the used memory.
+   delete fes;
+   delete pmesh;
    delete U;
    delete V;
    delete cvodes;
@@ -460,9 +475,9 @@ void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
    delete dP1;
 
    ParBilinearForm dp2(pfes);
-   Vector p2(pfes->GetParMesh()->SpaceDimension()); p2 = 1.;
-   dp2.AddDomainIntegrator(
-       new ConvectionIntegrator(*(new VectorConstantCoefficient(p2))));
+   Vector p2vec(pfes->GetParMesh()->SpaceDimension()); p2vec = 1.;
+   VectorConstantCoefficient dp2_coef(p2vec);
+   dp2.AddDomainIntegrator(new ConvectionIntegrator(dp2_coef));
    dp2.Assemble();
    dp2.Finalize();
 
