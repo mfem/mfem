@@ -1533,9 +1533,9 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    // MFEM_VERIFY(bdrElem_dof, "NURBSExt not defined.");
 
    // Find bdr to face mapping
-   face_to_be.SetSize(mesh->GetNumFaces());
+   face_to_be.SetSize(GetNF());
    face_to_be = -1;
-   for (int b = 0; b < bdrElem_dof->Size(); b++)
+   for (int b = 0; b < GetNBE(); b++)
    {
       int f = mesh->GetBdrElementEdgeIndex(b);
       face_to_be[f] = b;
@@ -1545,7 +1545,7 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    // Sort will destroy orientation info in ordering of dofs
    Array<Connection> face_dof_list;
    Array<int> row;
-   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   for (int f = 0; f < GetNF(); f++)
    {
       int b = face_to_be[f];
       if (b == -1) { continue;}
@@ -1557,7 +1557,7 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
          face_dof_list.Append(conn);
       }
    }
-   face_dof = new Table(mesh->GetNumFaces(), face_dof_list);
+   face_dof = new Table(GetNF(), face_dof_list);
 
 }
 
