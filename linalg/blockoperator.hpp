@@ -76,6 +76,9 @@ public:
    //! Return a reference to block i,j
    Operator & GetBlock(int i, int j)
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
+   //! Return a const reference to block i,j
+   const Operator & GetBlock(int i, int j) const
+   { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
    double GetBlockCoef(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return coef(i,j); }
@@ -87,6 +90,10 @@ public:
    Array<int> & RowOffsets() { return row_offsets; }
    //! Return the columns offsets for block starts
    Array<int> & ColOffsets() { return col_offsets; }
+   //! Return the const row offsets for block starts
+   const Array<int> & RowOffsets() const { return row_offsets; }
+   //! Return the const columns offsets for block starts
+   const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
