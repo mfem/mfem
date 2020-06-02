@@ -15,14 +15,13 @@ struct IterSolveParameters
     bool iter_mode = false;
 };
 
-struct DFSParameters
+struct DFSParameters : IterSolveParameters
 {
     bool ml_particular = true;
     MG_Type MG_type = GeometricMG;
     bool verbose = false;
     bool B_has_nullity_one = false;
     bool coupled_solve = false;
-    IterSolveParameters CTMC_solve_param;
     IterSolveParameters BBT_solve_param;
 };
 
@@ -143,7 +142,6 @@ class MLDivSolver : public Solver
     OperatorPtr coarsest_solver_;
 public:
     MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data);
-    MLDivSolver(const Array<OperatorPtr>& M, const Array<OperatorPtr>& B, const DFSData& data);
 
     virtual void Mult(const Vector & x, Vector & y) const;
     void Mult(int level, const Vector & x, Vector & y) const;
@@ -203,26 +201,6 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
-class HiptmairSmoother : public Solver
-{
-    Array<int> C_col_offsets_;
-    int level_;
-    BlockOperator& op_;
-    MLDivSolver& ml_div_solver_;
-    OperatorPtr blk_C_;
-    OperatorPtr div_kernel_system_;
-    OperatorPtr div_kernel_smoother_;
-public:
-    HiptmairSmoother(BlockOperator& op,
-                     MLDivSolver& ml_div_solver,
-                     int level,
-                     HypreParMatrix& C);
-
-    virtual void Mult(const Vector & x, Vector & y) const;
-    virtual void MultTranspose(const Vector & x, Vector & y) const;
-    virtual void SetOperator(const Operator &op) { }
-};
-
 class DivFreeSolver : public DarcySolver
 {
     const DFSData& data_;
@@ -237,7 +215,7 @@ class DivFreeSolver : public DarcySolver
     CGSolver CTMC_solver_;
 
     OperatorPtr BT_;
-    Array<Array<int>> coarse_offsets_;
+    Array<Array<int>> ops_offsets_;
     Array<OperatorPtr> ops_;
     Array<OperatorPtr> blk_Ps_;
     Array<OperatorPtr> smoothers_;
