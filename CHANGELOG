@@ -91,7 +91,6 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-
 - Added a new example, Example 25/25p, to demonstrate the use of a Perfectly
   Matched Layer (PML) for the simulation of electromagnetic wave propagation.
   The example defines and solves several indefinite Maxwell problems.
