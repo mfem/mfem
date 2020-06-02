@@ -1353,7 +1353,7 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 class GeometricFactors
 {
 public:
-   const Mesh *mesh {nullptr};
+   const Mesh *mesh{nullptr};
    const GridFunction *nodes{nullptr};
    const IntegrationRule *IntRule{nullptr};
    int computed_factors;
@@ -1365,12 +1365,14 @@ public:
       DETERMINANTS = 1 << 2,
    };
 
+   GeometricFactors() = default;
+
    GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,const int flags);
 
-   GeometricFactors(const GridFunction *nodes, const IntegrationRule &ir,
-                    const int flags);
+   GeometricFactors(const GridFunction *nodes, const IntegrationRule &ir, const int flags);
 
-   void Assemble(const int flags);
+   //Overrides calcuating geometric factors with mesh nodes and uses user defined nodes
+   void Assemble(const GridFunction *nodes, const IntegrationRule &ir, const int flags);
 
    /// Mapped (physical) coordinates of all quadrature points.
    /** This array uses a column-major layout with dimensions (NQ x SDIM x NE)

@@ -10520,9 +10520,13 @@ GeometricFactors::GeometricFactors(const GridFunction *nodes,
    }
 }
 
-void GeometricFactors::Assemble(const int flags)
+void GeometricFactors::Assemble(const GridFunction *nodes,
+                                const IntegrationRule &ir,
+                                int flags)
 {
-
+   this->mesh = NULL;
+   this->nodes = nodes;
+   IntRule = &ir;
    computed_factors = flags;
 
    const FiniteElementSpace *fespace = nodes->FESpace();
