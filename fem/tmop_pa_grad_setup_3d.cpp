@@ -27,7 +27,7 @@ double Dim3Invariant1(const DenseMatrix &M)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
 
-   const double fnorm = M.FNorm(), det = M.Det();
+   const double fnorm = M.FNorm(), det = fabs(M.Det());
    return fnorm * fnorm / pow(det, 2.0/3.0);
 }
 
@@ -39,17 +39,17 @@ double Dim3Invariant2(const DenseMatrix &M)
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
 
-   const double fnorm = Madj.FNorm(), det = M.Det();
+   const double fnorm = Madj.FNorm(), det = fabs(M.Det());
    return fnorm * fnorm / pow(det, 4.0/3.0);
 }
 
 // I3 = det(M).
-double Dim3Invariant3(const DenseMatrix &M)
+/*double Dim3Invariant3(const DenseMatrix &M)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
 
    return M.Det();
-}
+}*/
 
 // dI3_dM = d(det(M))_dM = adj(M)^T.
 void Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM)
@@ -66,17 +66,13 @@ void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
 
    DenseMatrix Madj(3);
-   CalcAdjugate(M, Madj); //dbg("Madj:"); Madj.Print();
-   const double fnorm = M.FNorm(), det = M.Det();
-   //dbg("fnorm: %.15e, det: %.15e", fnorm, det);
+   CalcAdjugate(M, Madj);
+   const double fnorm = M.FNorm(), det = fabs(M.Det());
 
    Dim3Invariant3_dM(M, dM); //dbg("dM:"); dM.Print();
    dM *= -(2./3.) * fnorm * fnorm * pow(det, -1./3.);
-   //dbg("dM1:"); dM.Print();
    dM.Add(2.0 * pow(det, 2./3.), M);
-   //dbg("dM2:"); dM.Print();
    dM *= 1.0 / pow(det, 4./3.);
-   //dbg("dM3:"); dM.Print();
 }
 
 // dI2_dM = [ -4/3 |adj(M)|^2  det(M)^(1/3) adj(M)^T ] / det(M)^(8/3).
@@ -87,7 +83,7 @@ void Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
    DenseMatrix Madj(3);
    // dM will have Madj^t because it is the third invariant's derivative.
    CalcAdjugate(M, Madj);
-   const double fnorm = Madj.FNorm(), det = M.Det();
+   const double fnorm = Madj.FNorm(), det = fabs(M.Det());
 
    Dim3Invariant3_dM(M, dM);
    dM *= -(4./3.)* fnorm * fnorm * pow(det, 1./3.);
@@ -100,7 +96,7 @@ void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j, DenseMatrix &dMdM)
 
    DenseMatrix dI(3);
    Dim3Invariant3_dM(M, dI);
-   const double fnorm  = M.FNorm(), det = M.Det();
+   const double fnorm  = M.FNorm(), det = fabs(M.Det());
 
    DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
    for (int r = 0; r < 3; r++)
@@ -124,7 +120,7 @@ void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j, DenseMatrix &dMdM)
    Dim3Invariant3_dM(M, dI);
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
-   const double det   = M.Det();
+   const double det   = fabs(M.Det());
    const double fnorm = Madj.FNorm();
 
    DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
@@ -403,11 +399,12 @@ static void SetupGradPA_3D(const Vector &xe_,
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
 
-               const double detJpt = kernels::Det<3>(J);
-               const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
+               //const double detJpt = kernels::Det<3>(J);
+               //const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
 
                // metric->AssembleH(Jpt, DS, weight_m, elmat);
                DenseMatrix Jpt(J,DIM,DIM);
+               //dbg("Grad Setup Jpt:"); Jpt.Print(); //exit(0);
                const double I1 = Dim3Invariant1(Jpt), I2 = Dim3Invariant2(Jpt);
                DenseMatrix dI1_dM(DIM), dI1_dMdM(DIM), dI2_dM(DIM), dI2_dMdM(DIM);
 
@@ -430,7 +427,8 @@ static void SetupGradPA_3D(const Vector &xe_,
                                        + dI1_dM(r,c)*dI2_dM(rr,cc)
                                        + dI1_dM(rr,cc)*dI2_dM(r,c)
                                        + dI2_dMdM(rr,cc)*I1);
-                           dP(rr,cc,r,c,qx,qy,qz,e) = sign * weight * entry_rr_cc;
+                           dP(rr,cc,r,c,qx,qy,qz,e) = /*sign **/ weight * entry_rr_cc;
+                           //dbg("dP: %.15e", dP(rr,cc,r,c,qx,qy,qz,e));
                         }
                      }
                   }
