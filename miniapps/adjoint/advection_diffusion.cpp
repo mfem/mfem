@@ -118,13 +118,16 @@ public:
       k1->Finalize(skip_zeros);
 
       M = m->ParallelAssemble();
-      M->EliminateRowsCols(ess_tdof_list);
+      HypreParMatrix *temp = M->EliminateRowsCols(ess_tdof_list);
+      delete temp;
 
       K = k->ParallelAssemble();
-      K->EliminateRowsCols(ess_tdof_list);
+      temp = K->EliminateRowsCols(ess_tdof_list);
+      delete temp;
 
       K_adj = k1->ParallelAssemble();
-      K_adj->EliminateRowsCols(ess_tdof_list);
+      temp = K_adj->EliminateRowsCols(ess_tdof_list);
+      delete temp;
 
       M_prec.SetType(HypreSmoother::Jacobi);
       M_solver.SetPreconditioner(M_prec);
@@ -412,7 +415,8 @@ int AdvDiffSUNDIALS::SUNImplicitSetup(const Vector &y,
 
    delete Mf;
    Mf = Add(1., *M, -gamma, *K);
-   Mf->EliminateRowsCols(ess_tdof_list);
+   HypreParMatrix *temp = Mf->EliminateRowsCols(ess_tdof_list);
+   delete temp;
    return 0;
 }
 
@@ -468,7 +472,8 @@ void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
    dp1.Finalize();
 
    HypreParMatrix * dP1 = dp1.ParallelAssemble();
-   dP1->EliminateRowsCols(ess_tdof_list);
+   HypreParMatrix *temp = dP1->EliminateRowsCols(ess_tdof_list);
+   delete temp;
 
    Vector b1(y.Size());
    dP1->Mult(y, b1);
@@ -482,7 +487,8 @@ void AdvDiffSUNDIALS::QuadratureSensitivityMult(const Vector &y,
    dp2.Finalize();
 
    HypreParMatrix * dP2 = dp2.ParallelAssemble();
-   dP2->EliminateRowsCols(ess_tdof_list);
+   temp = dP2->EliminateRowsCols(ess_tdof_list);
+   delete temp;
 
    Vector b2(y.Size());
    dP2->Mult(y, b2);
