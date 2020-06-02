@@ -616,23 +616,19 @@ void TMOP_Metric_302::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 
 // *****************************************************************************
 // I1 = |M|^2/ det(M)^(2/3).
-static double Dim3Invariant1(const DenseMatrix &M)
+static double Dim3Invariant1b(const DenseMatrix &M)
 {
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    const double fnorm = M.FNorm(), det = fabs(M.Det());
-   return fnorm * fnorm / pow(det, 2.0/3.0);
+   const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
+   return sign * fnorm * fnorm / pow(det, 2.0/3.0);
 }
 
 // *****************************************************************************
 // I2 = |adj(M)|^2 / det(M)^(4/3).
-static double Dim3Invariant2(const DenseMatrix &M)
+static double Dim3Invariant2b(const DenseMatrix &M)
 {
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
-
    const double fnorm = Madj.FNorm(), det = fabs(M.Det());
    return fnorm * fnorm / pow(det, 4.0/3.0);
 }
@@ -647,46 +643,54 @@ static double Dim3Invariant2(const DenseMatrix &M)
 }*/
 
 // *****************************************************************************
-// dI3_dM = d(det(M))_dM = adj(M)^T.
-static void Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM)
+// dI3b = d(det(M))_dM = adj(M)^T.
+// dI3b = adj(M)^T
+static void Get_dI3b(const DenseMatrix &M, DenseMatrix &dM)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    CalcAdjugateTranspose(M, dM);
+   const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
+   dM *= sign;
 }
 
 // *****************************************************************************
-// dI1_dM = [ 2 det(M) M - 2/3 |M|^2 det(M)^(-1/3) adj(M)^T ] / det(M)^4/3.
-static void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
+// dI1b_dM = [ 2 det(M) M - 2/3 |M|^2 det(M)^(-1/3) adj(M)^T ] / det(M)^4/3.
+static void Get_dI1b(const DenseMatrix &M, DenseMatrix &dM)
 {
-   //dbg("M:"); M.Print();
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
    const double fnorm = M.FNorm(), det = fabs(M.Det());
+   const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
 
-   Dim3Invariant3_dM(M, dM);
+   Get_dI3b(M, dM);
    dM *= -(2./3.) * fnorm * fnorm * pow(det, -1./3.);
    dM.Add(2.0 * pow(det, 2./3.), M);
    dM *= 1.0 / pow(det, 4./3.);
+   dM *= sign;
 }
 
 // *****************************************************************************
-// dI2_dM = [ -4/3 |adj(M)|^2  det(M)^(1/3) adj(M)^T ] / det(M)^(8/3).
-static void Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
+// dI2b = [ -4/3 |adj(M)|^2  det(M)^(1/3) adj(M)^T ] / det(M)^(8/3).
+/*static void Get_dI2b(const DenseMatrix &M, DenseMatrix &dM)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
+   dbg("M:");
+   for (int k=0; k<9; k++) { dbg("%.15e", M.GetData()[k]); }
 
    DenseMatrix Madj(3);
    // dM will have Madj^t because it is the third invariant's derivative.
    CalcAdjugate(M, Madj);
+   const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
+   //Madj *= sign;
    const double fnorm = Madj.FNorm(), det = fabs(M.Det());
 
-   Dim3Invariant3_dM(M, dM);
-   dM *= -(4./3.)* fnorm * fnorm * pow(det, 1./3.);
+   Get_dI3b(M, dM);
+
+   dM *= -(4./3.)* fnorm * fnorm * sign *pow(det, 1./3.);
    dM *= 1.0 / (pow(det, 8./3.));
-}
+   //dM *= sign;
+}*/
 
 // *****************************************************************************
 static void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
@@ -695,18 +699,19 @@ static void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j,
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
 
    DenseMatrix dI(3);
-   Dim3Invariant3_dM(M, dI);
-   const double fnorm  = M.FNorm(), det = fabs(M.Det());
+   Get_dI3b(M, dI);
+   const double fnorm = M.FNorm(), det = fabs(M.Det());
+   const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
 
    DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
    for (int r = 0; r < 3; r++)
    {
       for (int c = 0; c < 3; c++)
       {
-         dMdM(r,c) = (2.0 * det * det * dM(r,c)
-                      + dI(i,j) * (10./9.) * fnorm * fnorm * dI(r,c)
-                      - (4./3.) * dI(i,j) * det * M(r,c)
-                      - (4./3.) * det * M(i,j) * dI(r,c))
+         dMdM(r,c) = sign * (2.0 * det * det * dM(r,c)
+                             + dI(i,j) * (10./9.) * fnorm * fnorm * dI(r,c)
+                             - (4./3.) * dI(i,j) * det * M(r,c)
+                             - (4./3.) * det * M(i,j) * dI(r,c))
                      / pow(det, 8./3.);
       }
    }
@@ -719,11 +724,12 @@ static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
 
    DenseMatrix dI(3);
-   Dim3Invariant3_dM(M, dI);
+   Get_dI3b(M, dI);
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
-   const double det   = fabs(M.Det());
+   const double det  = fabs(M.Det());
    const double fnorm = Madj.FNorm();
+   //const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
 
    DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
    for (int r = 0; r < 3; r++)
@@ -741,42 +747,70 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
+   //dbg("before A:"); A.Print();
    static bool OLD = getenv("OLD");
+   DenseMatrix Id(3);
+   Id = 0.0; Id(0,0) = Id(1,1) = Id(2,2) = 1.0;
+   //const int dof = DS.Height(), dim = DS.Width();
+   dbg("DS:"); DS.Print();
    if (OLD)
    {
+      ie.SetJacobian(Jpt.GetData());
       dbg("\033[7m[MFEM_USE_OLD_TMOP_INVARIANTS]");
       const int dof = DS.Height(), dim = DS.Width();
-      const double I1 = Dim3Invariant1(Jpt), I2 = Dim3Invariant2(Jpt);
-      DenseMatrix dI1_dM(dim), dI1_dMdM(dim), dI2_dM(dim), dI2_dMdM(dim);
-      Dim3Invariant1_dM(Jpt, dI1_dM);
-      Dim3Invariant2_dM(Jpt, dI2_dM);
-      const double detJpt = Jpt.Det();
-      const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
+      //const double I1b = Dim3Invariant1b(Jpt), I2b = Dim3Invariant2b(Jpt);
+      DenseMatrix dI1b(dim), dI2b((double*)ie.Get_dI2b(),dim,dim);
+      //DenseMatrix dI1_dMdM(dim), dI2_dMdM(dim);
+
+      dbg("dI1b:");
+      Get_dI1b(Jpt, dI1b);
+      for (int k=0; k<9; k++) { dbg("%.15e", dI1b.GetData()[k]); }
+      dbg("ie.dI2b:");
+      for (int k=0; k<9; k++) { dbg("%.15e", ie.Get_dI2b()[k]); }
+
+      dbg("dI3b:");
+      DenseMatrix dI3b(dim);
+      Get_dI3b(Jpt, dI3b);
+      for (int k=0; k<9; k++) { dbg("%.15e", dI3b.GetData()[k]); }
+      // Can't get it working, pulling ie one
+      /*dbg("dI2b:");
+      Get_dI2b(Jpt, dI2b);
+      for (int k=0; k<9; k++) { dbg("%.15e", dI2b.GetData()[k]); }*/
 
       // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
       for (int r = 0; r < dim; r++)
       {
          for (int c = 0; c < dim; c++)
          {
-            Dim3Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
-            Dim3Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
+            //Dim3Invariant1_dMdM(Jpt, r, c, dI1_dMdM);
+            //Dim3Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
             // Compute each entry of d(Prc)_dJ.
             for (int rr = 0; rr < dim; rr++)
             {
                for (int cc = 0; cc < dim; cc++)
                {
-                  const double entry_rr_cc =
-                     (1./9.)*(dI1_dMdM(rr,cc)*I2
-                              + dI1_dM(r,c)*dI2_dM(rr,cc)
-                              + dI1_dM(rr,cc)*dI2_dM(r,c)
-                              + dI2_dMdM(rr,cc)*I1);
-                  //dbg("%.15e",weight*entry_rr_cc);
+                  //const double entry_rr_cc = (weight/9.) * (2.);
+                  //const double entry_rr_cc = (weight/9.) * (I1b + I2b);
+                  //const double entry_rr_cc = (weight/9.) * (1.0);
+                  //const double entry_rr_cc = (weight/9.) * (2.0);
+                  const double entry_rr_cc = (weight) * (
+                                                dI1b(r,c)*dI2b(rr,cc)
+                                                + dI1b(rr,cc)*dI2b(r,c));
+
+                  // std:
+                  /*const double entry_rr_cc =
+                     (1./9.) * (  dI1_dMdM(rr,cc)*I2b
+                                  + dI1b(r,c)*dI2b(rr,cc)
+                                  + dI1b(rr,cc)*dI2b(r,c)
+                                  + dI2_dMdM(rr,cc)*I1b
+                               );*/
                   for (int i = 0; i < dof; i++)
                   {
                      for (int j = 0; j < dof; j++)
                      {
-                        A(i+r*dof, j+rr*dof) +=
-                           sign * weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                        //const double ds = DS(i, r) * DS(j, rr);
+                        const double ds = DS(i, c) * DS(j, cc);
+                        A(i+r*dof, j+rr*dof) += ds * weight * entry_rr_cc;
                      }
                   }
                }
@@ -791,11 +825,29 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
       //    = (dI2b x dI1b + dI1b x dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
       ie.SetJacobian(Jpt.GetData());
       ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-      const double c1 = weight/9;
+
+      //ie.Assemble_TProd(weight/9, Id.GetData(), Id.GetData(), A.GetData());
+      /*ie.Assemble_TProd(ie.Get_I1b(), Id.GetData(), A.GetData());
+      ie.Assemble_TProd(ie.Get_I2b(), Id.GetData(), A.GetData());*/
+      //ie.Assemble_TProd(1.0, Id.GetData(), A.GetData());
+      //ie.Assemble_TProd(1.0, Id.GetData(), Id.GetData(), A.GetData());
+
+      dbg("dI1b:");
+      for (int k=0; k<9; k++) { dbg("%.15e", ie.Get_dI1b()[k]); }
+      dbg("dI2b:");
+      for (int k=0; k<9; k++) { dbg("%.15e", ie.Get_dI2b()[k]); }
+      dbg("dI3b:");
+      for (int k=0; k<9; k++) { dbg("%.15e", ie.Get_dI3b()[k]); }
+      ie.Assemble_TProd(1.0, ie.Get_dI1b(), ie.Get_dI2b(), A.GetData());
+
+      // std:
+      /*const double c1 = weight/9;
       ie.Assemble_TProd(c1, ie.Get_dI1b(), ie.Get_dI2b(), A.GetData());
       ie.Assemble_ddI2b(c1*ie.Get_I1b(), A.GetData());
-      ie.Assemble_ddI1b(c1*ie.Get_I2b(), A.GetData());
+      ie.Assemble_ddI1b(c1*ie.Get_I2b(), A.GetData());*/
    }
+   dbg("after A:"); A.Print();
+   exit(0);
 }
 
 

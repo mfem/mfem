@@ -1375,7 +1375,6 @@ void MINRESSolver::SetOperator(const Operator &op)
 
 void MINRESSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("MINRESSolver::Mult");
    // Based on the MINRES algorithm on p. 86, Fig. 6.9 in
    // "Iterative Krylov Methods for Large Linear Systems",
    // by Henk A. van der Vorst, 2003.
@@ -1395,14 +1394,12 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    }
    else
    {
-      dbg("oper->Mult");
       oper->Mult(x, v1);
       subtract(b, v1, v1);
    }
 
    if (prec)
    {
-      dbg("prec->Mult");
       prec->Mult(v1, u1);
    }
    eta = beta = sqrt(Dot(*z, v1));
@@ -1427,13 +1424,11 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
 
    for (it = 1; it <= max_iter; it++)
    {
-      dbg("Iteration %d",it);
       v1 /= beta;
       if (prec)
       {
          u1 /= beta;
       }
-      dbg("oper->Mult(*z, q)");
       oper->Mult(*z, q);
       alpha = Dot(*z, q);
       dbg("alpha: %.15e",alpha); exit(0);

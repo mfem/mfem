@@ -202,7 +202,7 @@ static void SetupGradPA_2D(const Vector &xe_,
 
             //  Jtr = targetC->ComputeElementTargets
             const double Jtr[4] = {J(0,0), J(1,0), J(0,1), J(1,1)};
-            const double detJtr =kernels::Det<2>(Jtr);
+            const double detJtr = kernels::Det<2>(Jtr);
             const double weight = ip_weight * detJtr;
 
             // Jrt = Jtr^{-1}
