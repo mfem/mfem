@@ -399,17 +399,16 @@ static void SetupGradPA_3D(const Vector &xe_,
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
 
-               //const double detJpt = kernels::Det<3>(J);
-               //const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
+               const double detJpt = kernels::Det<3>(J);
+               const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
 
                // metric->AssembleH(Jpt, DS, weight_m, elmat);
                DenseMatrix Jpt(J,DIM,DIM);
-               //dbg("Grad Setup Jpt:"); Jpt.Print(); //exit(0);
                const double I1 = Dim3Invariant1(Jpt), I2 = Dim3Invariant2(Jpt);
                DenseMatrix dI1_dM(DIM), dI1_dMdM(DIM), dI2_dM(DIM), dI2_dMdM(DIM);
 
-               Dim3Invariant1_dM(Jpt, dI1_dM); //dI1_dM.Print(); //exit(0);
-               Dim3Invariant2_dM(Jpt, dI2_dM); //dI2_dM.Print(); //exit(0);
+               Dim3Invariant1_dM(Jpt, dI1_dM);
+               Dim3Invariant2_dM(Jpt, dI2_dM);
 
                for (int r = 0; r < DIM; r++)
                {
@@ -427,7 +426,7 @@ static void SetupGradPA_3D(const Vector &xe_,
                                        + dI1_dM(r,c)*dI2_dM(rr,cc)
                                        + dI1_dM(rr,cc)*dI2_dM(r,c)
                                        + dI2_dMdM(rr,cc)*I1);
-                           dP(rr,cc,r,c,qx,qy,qz,e) = /*sign **/ weight * entry_rr_cc;
+                           dP(rr,cc,r,c,qx,qy,qz,e) = sign * weight * entry_rr_cc;
                            //dbg("dP: %.15e", dP(rr,cc,r,c,qx,qy,qz,e));
                         }
                      }
