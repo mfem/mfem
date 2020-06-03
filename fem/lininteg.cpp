@@ -307,7 +307,7 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
-      ir = &IntRules.Get(Tr.FaceGeom, intorder);
+      ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -316,9 +316,11 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
       IntegrationPoint eip;
       Tr.Loc1.Transform(ip, eip);
 
-      Tr.Face->SetIntPoint(&ip);
-      Q.Eval(vec, *Tr.Face, ip);
-      vec *= Tr.Face->Weight() * ip.weight;
+      Tr.SetIntPoint(&ip);
+
+      // Use Tr transformation in case Q depends on boundary attribute
+      Q.Eval(vec, Tr, ip);
+      vec *= Tr.Weight() * ip.weight;
       el.CalcShape(eip, shape);
       for (int k = 0; k < vdim; k++)
       {
@@ -510,7 +512,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       {
          order++;
       }
-      ir = &IntRules.Get(Tr.FaceGeom, order);
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    shape.SetSize(ndof);
@@ -524,8 +526,10 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       Tr.Loc1.Transform(ip, eip);
       el.CalcShape(eip, shape);
 
-      Tr.Face->SetIntPoint(&ip);
+      Tr.SetIntPoint(&ip);
 
+      // Use Tr.Elem1 transformation for u so that it matches the coefficient
+      // used with the ConvectionIntegrator and/or the DGTraceIntegrator.
       u->Eval(vu, *Tr.Elem1, eip);
 
       if (dim == 1)
@@ -534,12 +538,12 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       }
       else
       {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
+         CalcOrtho(Tr.Jacobian(), nor);
       }
 
       un = vu * nor;
       w = 0.5*alpha*un - beta*fabs(un);
-      w *= ip.weight*f->Eval(*Tr.Elem1, eip);
+      w *= ip.weight*f->Eval(Tr, ip);
       elvect.Add(w, shape);
    }
 }
@@ -582,7 +586,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
    {
       // a simple choice for the integration order; is this OK?
       int order = 2*el.GetOrder();
-      ir = &IntRules.Get(Tr.FaceGeom, order);
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -591,33 +595,33 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       IntegrationPoint eip;
 
       Tr.Loc1.Transform(ip, eip);
-      Tr.Face->SetIntPoint(&ip);
+      Tr.SetIntPoint(&ip);
       if (dim == 1)
       {
          nor(0) = 2*eip.x - 1.0;
       }
       else
       {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
+         CalcOrtho(Tr.Jacobian(), nor);
       }
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
-      Tr.Elem1->SetIntPoint(&eip);
+
       // compute uD through the face transformation
-      w = ip.weight * uD->Eval(*Tr.Face, ip) / Tr.Elem1->Weight();
+      w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
       if (!MQ)
       {
          if (Q)
          {
-            w *= Q->Eval(*Tr.Elem1, eip);
+            w *= Q->Eval(Tr, ip);
          }
          ni.Set(w, nor);
       }
       else
       {
          nh.Set(w, nor);
-         MQ->Eval(mq, *Tr.Elem1, eip);
+         MQ->Eval(mq, Tr, ip);
          mq.MultTranspose(nh, ni);
       }
       CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
@@ -676,7 +680,7 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       const int order = 2*el.GetOrder(); // <-----
-      ir = &IntRules.Get(Tr.FaceGeom, order);
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    for (int pi = 0; pi < ir->GetNPoints(); ++pi)
@@ -684,11 +688,10 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(pi);
       IntegrationPoint eip;
       Tr.Loc1.Transform(ip, eip);
-      Tr.Face->SetIntPoint(&ip);
-      Tr.Elem1->SetIntPoint(&eip);
+      Tr.SetIntPoint(&ip);
 
       // Evaluate the Dirichlet b.c. using the face transformation.
-      uD.Eval(u_dir, *Tr.Face, ip);
+      uD.Eval(u_dir, Tr, ip);
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
@@ -702,7 +705,7 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       }
       else
       {
-         CalcOrtho(Tr.Face->Jacobian(), nor);
+         CalcOrtho(Tr.Jacobian(), nor);
       }
 
       double wL, wM, jcoef;
@@ -765,6 +768,60 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
                           t3*dshape_du(idof) + tj*shape(idof));
          }
       }
+   }
+}
+
+void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &fe, ElementTransformation &Tr, Vector &elvect)
+{
+   const IntegrationRule *ir =
+      &vqfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
+
+   const int nqp = ir->GetNPoints();
+   const int vdim = vqfc.GetVDim();
+   const int ndofs = fe.GetDof();
+   Vector shape(ndofs);
+   Vector temp(vdim);
+   elvect.SetSize(vdim * ndofs);
+   elvect = 0.0;
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Tr.SetIntPoint(&ip);
+      const double w = Tr.Weight() * ip.weight;
+      vqfc.Eval(temp, Tr, ip);
+      fe.CalcShape(ip, shape);
+      for (int ind = 0; ind < vdim; ind++)
+      {
+         for (int nd = 0; nd < ndofs; nd++)
+         {
+            elvect(nd + ind * ndofs) += w * shape(nd) * temp(ind);
+         }
+      }
+   }
+}
+
+void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
+                                                    ElementTransformation &Tr,
+                                                    Vector &elvect)
+{
+   const IntegrationRule *ir =
+      &qfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
+
+   const int nqp = ir->GetNPoints();
+   const int ndofs = fe.GetDof();
+   Vector shape(ndofs);
+   elvect.SetSize(ndofs);
+   elvect = 0.0;
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Tr.SetIntPoint (&ip);
+      const double w = Tr.Weight() * ip.weight;
+      double temp = qfc.Eval(Tr, ip);
+      fe.CalcShape(ip, shape);
+      shape *= (w * temp);
+      elvect += shape;
    }
 }
 

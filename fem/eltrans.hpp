@@ -48,7 +48,29 @@ protected:
    const DenseMatrix &EvalInverseJ();
 
 public:
-   int Attribute, ElementNo;
+
+   /** This enumeration declares the values stored in
+       ElementTransformation::ElementType and indicates which group of objects
+       the index stored in ElementTransformation::ElementNo refers:
+
+       | ElementType | Range of ElementNo
+       +-------------+-------------------------
+       | ELEMENT     | [0, Mesh::GetNE()     )
+       | BDR_ELEMENT | [0, Mesh::GetNBE()    )
+       | EDGE        | [0, Mesh::GetNEdges() )
+       | FACE        | [0, Mesh::GetNFaces() )
+       | BDR_FACE    | [0, Mesh::GetNBE()    )
+   */
+   enum
+   {
+      ELEMENT     = 1,
+      BDR_ELEMENT = 2,
+      EDGE        = 3,
+      FACE        = 4,
+      BDR_FACE    = 5
+   };
+
+   int Attribute, ElementNo, ElementType;
 
    ElementTransformation();
 
@@ -356,12 +378,58 @@ public:
    void Transform (const IntegrationRule  &, IntegrationRule  &);
 };
 
-class FaceElementTransformations
+class FaceElementTransformations : public IsoparametricTransformation
 {
+private:
+   int mask;
+
+   IntegrationPoint eip1, eip2;
+
 public:
-   int Elem1No, Elem2No, FaceGeom;
-   ElementTransformation *Elem1, *Elem2, *Face;
+   int Elem1No, Elem2No;
+   Geometry::Type &FaceGeom; ///< @deprecated Use GetGeometryType instead
+   ElementTransformation *Elem1, *Elem2;
+   ElementTransformation *Face; ///< @deprecated No longer necessary
    IntegrationPointTransformation Loc1, Loc2;
+
+   FaceElementTransformations() : FaceGeom(geom), Face(this) {}
+
+   /** @brief Method to set the geometry type of the face.
+
+       @note This method is designed to be used when
+       [Par]Mesh::GetFaceTransformation will not be called i.e. when the face
+       transformation will not be needed but the neighboring element
+       transformations will be.  Using this method to override the GeometryType
+       should only be done with great care.
+   */
+   void SetGeometryType(Geometry::Type g) { geom = g; }
+
+   /// Set the mask indicating which portions of the object have been setup
+   /** The argument @a m is a bitmask used in
+       Mesh::GetFaceElementTransformations to indicate which portions of the
+       FaceElement Transformations object have been configured.
+
+       mask &  1: Elem1 is configured
+       mask &  2: Elem2 is configured
+       mask &  4: Loc1 is configured
+       mask &  8: Loc2 is configured
+       mask & 16: The Face transformation itself is configured
+   */
+   void SetConfigurationMask(int m) { mask = m; }
+   int  GetConfigurationMask() const { return mask; }
+
+   /** @brief Set the integration point in the Face and the two neighboring
+       elements, if present. */
+   void SetIntPoint(const IntegrationPoint *ip);
+
+   virtual void Transform(const IntegrationPoint &, Vector &);
+   virtual void Transform(const IntegrationRule &, DenseMatrix &);
+   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
+
+   ElementTransformation & GetElement1Transformation();
+   ElementTransformation & GetElement2Transformation();
+   IntegrationPointTransformation & GetIntPoint1Transformation();
+   IntegrationPointTransformation & GetIntPoint2Transformation();
 };
 
 /*                 Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))
