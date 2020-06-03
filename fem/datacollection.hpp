@@ -391,9 +391,10 @@ class VisItFieldInfo
 public:
    std::string association;
    int num_components;
-   VisItFieldInfo() { association = ""; num_components = 0; }
-   VisItFieldInfo(std::string _association, int _num_components)
-   { association = _association; num_components = _num_components; }
+   int lod;
+   VisItFieldInfo() { association = ""; num_components = 0; lod = 1;}
+   VisItFieldInfo(std::string _association, int _num_components, int _lod = 1)
+   { association = _association; num_components = _num_components; lod =_lod;}
 };
 
 /// Data collection with VisIt I/O routines

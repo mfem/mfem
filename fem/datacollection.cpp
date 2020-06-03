@@ -415,9 +415,6 @@ void VisItDataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
 void VisItDataCollection::RegisterField(const std::string& name,
                                         GridFunction *gf)
 {
-   DataCollection::RegisterField(name, gf);
-   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim());
-
    int LOD = 1;
    if (gf->FESpace()->GetNURBSext())
    {
@@ -431,14 +428,28 @@ void VisItDataCollection::RegisterField(const std::string& name,
       }
    }
 
+   DataCollection::RegisterField(name, gf);
+   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
 void VisItDataCollection::RegisterQField(const std::string& name,
                                          QuadratureFunction *qf)
 {
+   int LOD = 1;
+   Mesh *mesh = qf->GetSpace()->GetMesh();
+   for (int e=0; e<qf->GetSpace()->GetNE(); e++)
+   {
+      int locLOD = GlobGeometryRefiner.GetRefinementLevel(
+                      mesh->GetElementBaseGeometry(e),
+                      qf->GetElementIntRule(e));
+
+      LOD = std::max(LOD,locLOD);
+   }
+
    DataCollection::RegisterQField(name, qf);
-   field_info_map[name] = VisItFieldInfo("elements", 1);
+   field_info_map[name] = VisItFieldInfo("elements", 1, LOD);
+   visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
 void VisItDataCollection::SetLevelsOfDetail(int levels_of_detail)
@@ -661,7 +672,7 @@ std::string VisItDataCollection::GetVisItRootString()
    {
       ftags["assoc"] = picojson::value((it->second).association);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
-      ftags["lod"] = picojson::value(to_string(visit_levels_of_detail));
+      ftags["lod"] = picojson::value(to_string((it->second).lod));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
       field["tags"] = picojson::value(ftags);
       fields[it->first] = picojson::value(field);

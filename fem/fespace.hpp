@@ -712,6 +712,12 @@ public:
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
 
+   /// Returns the mesh
+   inline Mesh *GetMesh() const { return mesh; }
+
+   /// Returns number of elements in the mesh.
+   inline int GetNE() const { return mesh->GetNE(); }
+
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetElementIntRule(int idx) const
    { return *int_rule[mesh->GetElementBaseGeometry(idx)]; }
