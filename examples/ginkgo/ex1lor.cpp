@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, GKO_ILU_ISAI, MFEM_GS };
+   enum PCType { NONE, GKO_BLOCK_JACOBI, GKO_ILU, GKO_ILU_ISAI, MFEM_GS, MFEM_UMFPACK };
    PCType pc_choice;
    bool pc = true;
    const char *trisolve_type = "exact"; //only used for ILU
@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
      trisolve_type = "isai";  
    }
    else if (!strcmp(pc_type, "mfem:gs")) { pc_choice = MFEM_GS; }
+   else if (!strcmp(pc_type, "mfem:umf")) { pc_choice = MFEM_UMFPACK; }
    else if (!strcmp(pc_type, "none"))
    {
       pc_choice = NONE;
@@ -521,6 +522,27 @@ int main(int argc, char *argv[])
 
          tic_toc.Stop();
          std::cout << "Real time creating MFEM GS preconditioner: " <<
+                   tic_toc.RealTime() << std::endl;
+
+         // Use preconditioned CG
+         total_its = pcg_solve(*A, M, B, X, 0, X.Size(), 1e-12, 0.0, it_time);
+
+         std::cout << "Real time in PCG: " << it_time << std::endl;
+
+      }
+      else if (pc_choice == MFEM_UMFPACK)
+      {
+
+         // Create MFEM preconditioner
+         tic_toc.Clear();
+         tic_toc.Start();
+
+         UMFPackSolver M;
+         M.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         M.SetOperator(A_pc);
+
+         tic_toc.Stop();
+         std::cout << "Real time creating MFEM UMFPACK preconditioner: " <<
                    tic_toc.RealTime() << std::endl;
 
          // Use preconditioned CG
