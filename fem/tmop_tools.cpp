@@ -499,6 +499,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
+            ti->UpdateAfterMeshChange(x_loc);
             ti->ComputeFDh(x_loc, *pfesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
@@ -534,6 +535,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
+            ti->UpdateAfterMeshChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
             UpdateDiscreteTC(*ti, x_loc);
          }

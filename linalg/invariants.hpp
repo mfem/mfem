@@ -593,8 +593,8 @@ public:
       if (dont(HAVE_I3b_p))
       {
          eval_state |= HAVE_I3b_p;
-         const double I3b = Get_I3b();
-         I3b_p = sign_detJ*scalar_ops::pow(I3b, -2, 3);
+         const scalar_t i3b = Get_I3b();
+         I3b_p = sign_detJ*scalar_ops::pow(i3b, -2, 3);
       }
       return I3b_p;
    }
