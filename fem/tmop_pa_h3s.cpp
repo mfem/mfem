@@ -23,22 +23,26 @@ namespace mfem
 {
 
 // *****************************************************************************
-// I1 = |M|^2/ det(M)^(2/3).
-static double Dim3Invariant1b(const DenseMatrix &M)
+// I1b = I1 / det(M)^(2/3).
+MFEM_HOST_DEVICE inline
+double Dim3Invariant1b(const double *M)
 {
-   const double fnorm = M.FNorm(), det = fabs(M.Det());
-   const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
-   return sign * fnorm * fnorm / pow(det, 2.0/3.0);
+   const double fnorm2 = kernels::FNorm2<3,3>(M);
+   const double det = fabs(kernels::Det<3>(M));
+   const double sign = kernels::Det<3>(M) >= 0.0 ? 1.0 : -1.0;
+   return sign * fnorm2 / pow(det, 2.0/3.0);
 }
 
 // *****************************************************************************
 // I2 = |adj(M)|^2 / det(M)^(4/3).
-static double Dim3Invariant2b(const DenseMatrix &M)
+MFEM_HOST_DEVICE inline
+double Dim3Invariant2b(const double *M)
 {
-   DenseMatrix Madj(3);
-   CalcAdjugate(M, Madj);
-   const double fnorm = Madj.FNorm(), det = fabs(M.Det());
-   return fnorm * fnorm / pow(det, 4.0/3.0);
+   double Madj[9];
+   kernels::CalcAdjugate<3>(M, Madj);
+   const double fnorm2 = kernels::FNorm2<3,3>(Madj);
+   const double det = fabs(kernels::Det<3>(M));
+   return fnorm2 / pow(det, 4.0/3.0);
 }
 
 // *****************************************************************************
@@ -46,20 +50,18 @@ static double Dim3Invariant2b(const DenseMatrix &M)
 // X1_ijkl = (2/3*I1b/I3) [ 2/3 dI3b_ij dI3b_kl + dI3b_kj dI3b_il ]
 // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
 // X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
-static void Dim3Invariant1b_dMdM(const DenseMatrix &M, int i, int j,
-                                 DenseMatrix &dMdM)
+MFEM_HOST_DEVICE inline
+void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> ie,
+                          const DeviceMatrix &M, int i, int j,
+                          DeviceMatrix &dMdM)
 {
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
-   InvariantsEvaluator3D<double> ie;
-   ie.SetJacobian(M.GetData());
-
    // X1_ijkl = (2/3*I1b/I3) [ 2/3 dI3b_ij dI3b_kl + dI3b_kj dI3b_il ]
-   DenseMatrix X1(3);
+   double X1_p[9], X2_p[9], X3_p[9];
+   DeviceMatrix X1(X1_p,3,3);
    const double I3 = ie.Get_I3();
    const double I1b = ie.Get_I1b();
    const double alpha = (2./3.)*I1b/I3;
-   DenseMatrix dI3b((double*)ie.Get_dI3b(),3,3);
+   DeviceMatrix dI3b((double*)ie.Get_dI3b(),3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -71,7 +73,7 @@ static void Dim3Invariant1b_dMdM(const DenseMatrix &M, int i, int j,
 
    // ddI1_ijkl = 2 δ_ik δ_jl
    // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
-   DenseMatrix X2(3);
+   DeviceMatrix X2(X2_p,3,3);
    const double beta = ie.Get_I3b_p();
    for (int k=0; k<3; k++)
    {
@@ -83,7 +85,7 @@ static void Dim3Invariant1b_dMdM(const DenseMatrix &M, int i, int j,
    }
 
    // X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
-   DenseMatrix X3(3);
+   DeviceMatrix X3(X3_p,3,3);
    const double I3b = ie.Get_I3b();
    const double gamma = -(4./3.)*ie.Get_I3b_p()/I3b;
    for (int k=0; k<3; k++)
@@ -108,13 +110,13 @@ static void Dim3Invariant1b_dMdM(const DenseMatrix &M, int i, int j,
 //    x1_ijkl = (2 I1) δ_ik δ_jl
 //    x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
 //    x3_ijkl = -2 (J J^t)_ik δ_jl = -2 B_ik δ_jl
-static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
-                                DenseMatrix &dMdM)
+MFEM_HOST_DEVICE inline
+void Dim3Invariant2_dMdM(InvariantsEvaluator3D<double> ie,
+                         const DeviceMatrix &M, int i, int j,
+                         DeviceMatrix &dMdM)
 {
-   InvariantsEvaluator3D<double> ie;
-   ie.SetJacobian(M.GetData());
-
-   DenseMatrix x1(3), x2(3), x3(3);
+   double x1_p[9], x2_p[9], x3_p[9];
+   DeviceMatrix x1(x1_p,3,3), x2(x2_p,3,3), x3(x3_p,3,3);
 
    // x1_ijkl = (2 I1) δ_ik δ_jl
    const double I1 = ie.Get_I1();
@@ -128,11 +130,11 @@ static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
    }
 
    // x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
-   x2 = 0.0;
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
       {
+         x2(k,l) = 0.0;
          for (int u=0; u<3; u++)
          {
             for (int v=0; v<3; v++)
@@ -148,7 +150,7 @@ static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
 
    //    x3_ijkl = -2 B_ik δ_jl
    double b[9];
-   const double *J = M.GetData();
+   const double *J = M;
    b[0] = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
    b[1] = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
    b[2] = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
@@ -162,7 +164,7 @@ static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
       b[3], b[1], b[5],
       b[4], b[5], b[2]
    };
-   DenseMatrix B(b_p,3,3);
+   DeviceMatrix B(b_p,3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -188,22 +190,22 @@ static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
 //               4/3 det(J)^{-10/3} I2 dI3b_il dI3b_kj
 //    X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
 //    X3_ijkl =      det(J)^{-4/3} ddI2_ijkl
-static void Dim3Invariant2b_dMdM(const DenseMatrix &M, int i, int j,
-                                 DenseMatrix &dMdM)
+MFEM_HOST_DEVICE inline
+void Dim3Invariant2b_dMdM(InvariantsEvaluator3D<double> ie,
+                          const DeviceMatrix &M, int i, int j,
+                          DeviceMatrix &dMdM)
 {
-   InvariantsEvaluator3D<double> ie;
-   ie.SetJacobian(M.GetData());
-
+   double X1_p[9], X2_p[9], X3_p[9];
    // X1_ijkl = 16/9 det(J)^{-10/3} I2 dI3b_ij dI3b_kl +
    //               4/3 det(J)^{-10/3} I2 dI3b_il dI3b_kj
-   DenseMatrix X1(3);
+   DeviceMatrix X1(X1_p,3,3);
    const double I3b_p = ie.Get_I3b_p(); // I3b^{-2/3}
    const double I3b = ie.Get_I3b();     // det(J)
    const double I2 = ie.Get_I2();
    const double I3b_p43 = I3b_p*I3b_p;
    const double I3b_p73 = I3b_p*I3b_p/I3b;
    const double I3b_p103 = I3b_p*I3b_p/(I3b*I3b);
-   DenseMatrix dI3b((double*)ie.Get_dI3b(),3,3);
+   DeviceMatrix dI3b((double*)ie.Get_dI3b(),3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -215,8 +217,8 @@ static void Dim3Invariant2b_dMdM(const DenseMatrix &M, int i, int j,
    }
 
    // X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
-   DenseMatrix X2(3);
-   DenseMatrix dI2((double*)ie.Get_dI2(),3,3);
+   DeviceMatrix X2(X2_p,3,3);
+   DeviceMatrix dI2((double*)ie.Get_dI2(),3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -225,11 +227,12 @@ static void Dim3Invariant2b_dMdM(const DenseMatrix &M, int i, int j,
       }
    }
 
-   DenseMatrix ddI2(3);
-   Dim3Invariant2_dMdM(M, i, j, ddI2);
+   double ddI2_p[9];
+   DeviceMatrix ddI2(ddI2_p,3,3);
+   Dim3Invariant2_dMdM(ie, M, i, j, ddI2);
 
    // X3_ijkl =  det(J)^{-4/3} ddI2_ijkl
-   DenseMatrix X3(3);
+   DeviceMatrix X3(X3_p,3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -507,39 +510,38 @@ static void SetupGradPA_3D(const Vector &xe_,
                };
 
                // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-               double J[9];
-               kernels::Mult(3,3,3, Jpr, Jrt, J);
+               double Jpt[9];
+               kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
-               const double detJpt = kernels::Det<3>(J);
-               const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
-
-               // metric->AssembleH(Jpt, DS, weight_m, elmat);
-               DenseMatrix Jpt(J,DIM,DIM);
+               // metric->AssembleH
+               DeviceMatrix Jpt_dm(Jpt,DIM,DIM);
                InvariantsEvaluator3D<double> ie;
-               ie.SetJacobian(Jpt.GetData());
-               //ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+               ie.SetJacobian(Jpt);
+
+               //const double I1b = ie.Get_I1b();
                const double I1b = Dim3Invariant1b(Jpt);
                const double I2b = Dim3Invariant2b(Jpt);
-               DenseMatrix dI1b((double*)ie.Get_dI1b(),DIM,DIM);
-               DenseMatrix dI2b((double*)ie.Get_dI2b(),DIM,DIM);
-               DenseMatrix dI1b_dMdM(DIM), dI2b_dMdM(DIM);
+               DeviceMatrix dI1b((double*)ie.Get_dI1b(),DIM,DIM);
+               DeviceMatrix dI2b((double*)ie.Get_dI2b(),DIM,DIM);
+               double dI1b_dMdM_p[9], dI2b_dMdM_p[9];
+               DeviceMatrix dI1b_dMdM(dI1b_dMdM_p,DIM,DIM);
+               DeviceMatrix dI2b_dMdM(dI2b_dMdM_p,DIM,DIM);
                for (int r = 0; r < DIM; r++)
                {
                   for (int c = 0; c < DIM; c++)
                   {
-                     Dim3Invariant1b_dMdM(Jpt, r, c, dI1b_dMdM);
-                     Dim3Invariant2b_dMdM(Jpt, r, c, dI2b_dMdM);
-
+                     Dim3Invariant1b_dMdM(ie, Jpt_dm, r, c, dI1b_dMdM);
+                     Dim3Invariant2b_dMdM(ie, Jpt_dm, r, c, dI2b_dMdM);
                      for (int rr = 0; rr < DIM; rr++)
                      {
                         for (int cc = 0; cc < DIM; cc++)
                         {
                            const double entry_rr_cc =
-                              (1./9.) * (dI1b_dMdM(rr,cc)*I2b
-                                         + dI1b(r,c)*dI2b(rr,cc)
-                                         + dI1b(rr,cc)*dI2b(r,c)
-                                         + dI2b_dMdM(rr,cc)*I1b);
-                           dP(rr,cc,r,c,qx,qy,qz,e) = weight * entry_rr_cc;
+                              (weight/9.) * (dI1b_dMdM(rr,cc)*I2b
+                                             + dI1b(r,c)*dI2b(rr,cc)
+                                             + dI1b(rr,cc)*dI2b(r,c)
+                                             + dI2b_dMdM(rr,cc)*I1b);
+                           dP(rr,cc,r,c,qx,qy,qz,e) = entry_rr_cc;
                         }
                      }
                   }
@@ -565,8 +567,8 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
 
    switch (id)
    {
-      case 0x21: { SetupGradPA_3D<2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x22: { SetupGradPA_3D<2,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      //case 0x21: { SetupGradPA_3D<2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x22: { SetupGradPA_3D<2,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }/*
       case 0x23: { SetupGradPA_3D<2,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x24: { SetupGradPA_3D<2,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x25: { SetupGradPA_3D<2,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
@@ -591,7 +593,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
       case 0x53: { SetupGradPA_3D<5,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x54: { SetupGradPA_3D<5,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x55: { SetupGradPA_3D<5,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x56: { SetupGradPA_3D<5,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x56: { SetupGradPA_3D<5,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }*/
       default:
       {
          dbg("kernel id: %x", id);

@@ -176,8 +176,8 @@ MFEM_HOST_DEVICE inline T Det(const T *data)
    return TDetHD<T>(ColumnMajorLayout2D<dim,dim>(), data);
 }
 
-/** @brief Return the inverse a matrix with given @a size and @a data into the
-    matrix with data @a inv_data. */
+/** @brief Return the inverse of a matrix with given @a size and @a data into
+   the matrix with data @a inv_data. */
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline
 void CalcInverse(const T *data, T *inv_data)
@@ -185,6 +185,15 @@ void CalcInverse(const T *data, T *inv_data)
    typedef ColumnMajorLayout2D<dim,dim> layout_t;
    const T det = TAdjDetHD<T>(layout_t(), data, layout_t(), inv_data);
    TAssignHD<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
+}
+
+/** @brief Return the adjugate of a matrix */
+template<int dim, typename T>
+MFEM_HOST_DEVICE inline
+void CalcAdjugate(const T *data, T *adj_data)
+{
+   typedef ColumnMajorLayout2D<dim,dim> layout_t;
+   TAdjugateHD<T>(layout_t(), data, layout_t(), adj_data);
 }
 
 /** @brief Compute C = A + alpha*B, where the matrices A, B and C are of size @a

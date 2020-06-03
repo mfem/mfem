@@ -260,7 +260,7 @@ static void AddMultPA_Kernel_3D(const int NE,
                   Jtrx1, Jtry1, Jtrz1,
                   Jtrx2, Jtry2, Jtrz2
                };
-               const double detJtr =kernels::Det<3>(Jtr);
+               const double detJtr = kernels::Det<3>(Jtr);
                const double weight_detJtr = weight * detJtr;
 
                // Jrt = Jtr^{-1}
