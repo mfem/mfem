@@ -2359,7 +2359,7 @@ private:
                      ADVECTION_COEF = 1, SOURCE_COEF = 2
                     };
 
-      double DPerpConst_;
+      // double DPerpConst_;
 
       ApproxIonizationRate     izCoef_;
       ApproxRecombinationRate  rcCoef_;
@@ -2675,7 +2675,7 @@ private:
       int logging_;
 
       ParFiniteElementSpace &fes_;
-      ParGridFunctionArray  &yGF_;
+      // ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
       /*
        NeutralDensityOp n_n_op_;
@@ -2833,7 +2833,7 @@ public:
 
 class MultiSpeciesDiffusion;
 class MultiSpeciesAdvection;
-
+/*
 class TransportSolver : public ODESolver
 {
 private:
@@ -2870,6 +2870,7 @@ public:
 
    void Step(Vector &x, double &t, double &dt);
 };
+*/
 /*
 class ChiParaCoefficient : public Coefficient
 {
@@ -2965,6 +2966,7 @@ public:
  double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 */
+/*
 class MultiSpeciesDiffusion : public TimeDependentOperator
 {
 private:
@@ -2994,7 +2996,7 @@ public:
 
    void ImplicitSolve(const double dt, const Vector &x, Vector &y);
 };
-
+*/
 
 // Time-dependent operator for the right-hand side of the ODE representing the
 // DG weak form for the diffusion term. (modified from ex14p)
@@ -3007,7 +3009,7 @@ private:
    double dg_kappa_;
 
    ParFiniteElementSpace &fes_;
-   ParFiniteElementSpace &dfes_;
+   // ParFiniteElementSpace &dfes_;
    ParFiniteElementSpace &vfes_;
 
    ParBilinearForm m_;

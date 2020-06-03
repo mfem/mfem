@@ -1995,7 +1995,8 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
      neq_(5),
      logging_(logging),
      fes_(*yGF[0]->ParFESpace()),
-     yGF_(yGF), kGF_(kGF),
+     // yGF_(yGF),
+     kGF_(kGF),
      op_(neq_),
      offsets_(offsets),
      grad_(NULL)
@@ -2483,7 +2484,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 1, "Ion Density", yGF, kGF, bcs,
                  term_flag, vis_flag, logging, log_prefix),
-     DPerpConst_(DPerp),
+     // DPerpConst_(DPerp),
      izCoef_(Te0Coef_),
      rcCoef_(Te0Coef_),
      DPerpCoef_(DPerp),
@@ -3267,7 +3268,7 @@ void DGTransportTDO::DummyOp::Update()
 {
    NLOperator::Update();
 }
-
+/*
 TransportSolver::TransportSolver(ODESolver * implicitSolver,
                                  ODESolver * explicitSolver,
                                  ParFiniteElementSpace & sfes,
@@ -3311,7 +3312,8 @@ void TransportSolver::Step(Vector &x, double &t, double &dt)
    msDiff_->Assemble();
    impSolver_->Step(x, t, dt);
 }
-
+*/
+/*
 MultiSpeciesDiffusion::MultiSpeciesDiffusion(ParFiniteElementSpace & sfes,
                                              ParFiniteElementSpace & vfes,
                                              BlockVector & nBV,
@@ -3342,7 +3344,7 @@ void MultiSpeciesDiffusion::Update()
 void MultiSpeciesDiffusion::ImplicitSolve(const double dt,
                                           const Vector &x, Vector &y)
 {}
-
+*/
 DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
                            ParFiniteElementSpace &dfes,
                            ParFiniteElementSpace &vfes,
@@ -3355,7 +3357,7 @@ DiffusionTDO::DiffusionTDO(ParFiniteElementSpace &fes,
      dg_sigma_(dg_sigma),
      dg_kappa_(dg_kappa),
      fes_(fes),
-     dfes_(dfes),
+     // dfes_(dfes),
      vfes_(vfes),
      m_(&fes_),
      d_(&fes_),
