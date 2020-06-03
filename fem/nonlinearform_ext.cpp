@@ -14,8 +14,6 @@
 
 #include "nonlinearform.hpp"
 #include "../general/forall.hpp"
-#define MFEM_DBG_COLOR 165
-#include "../general/dbg.hpp"
 
 namespace mfem
 {
