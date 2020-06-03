@@ -189,18 +189,18 @@ class GridFunction;
 class GridFunctionCoefficient : public Coefficient
 {
 private:
-   GridFunction *GridF;
+   const GridFunction *GridF;
    int Component;
 
 public:
    GridFunctionCoefficient() : GridF(NULL), Component(1) { }
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
-   GridFunctionCoefficient (GridFunction *gf, int comp = 1)
+   GridFunctionCoefficient (const GridFunction *gf, int comp = 1)
    { GridF = gf; Component = comp; }
 
-   void SetGridFunction(GridFunction *gf) { GridF = gf; }
-   GridFunction * GetGridFunction() const { return GridF; }
+   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
+   const GridFunction * GetGridFunction() const { return GridF; }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
@@ -425,14 +425,14 @@ public:
 class VectorGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
    VectorGridFunctionCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
-   VectorGridFunctionCoefficient(GridFunction *gf);
+   VectorGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf);
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf);
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -447,13 +447,13 @@ public:
 class GradientGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
-   GradientGridFunctionCoefficient(GridFunction *gf);
+   GradientGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf);
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf);
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -468,13 +468,13 @@ public:
 class CurlGridFunctionCoefficient : public VectorCoefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
-   CurlGridFunctionCoefficient(GridFunction *gf);
+   CurlGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf);
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf);
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -487,13 +487,13 @@ public:
 class DivergenceGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *GridFunc;
+   const GridFunction *GridFunc;
 
 public:
-   DivergenceGridFunctionCoefficient(GridFunction *gf);
+   DivergenceGridFunctionCoefficient(const GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
-   GridFunction * GetGridFunction() const { return GridFunc; }
+   void SetGridFunction(const GridFunction *gf) { GridFunc = gf; }
+   const GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
@@ -969,6 +969,54 @@ public:
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
+};
+
+class QuadratureFunction;
+
+/** @brief Vector quadrature function coefficient which requires that the
+   quadrature rules used for this vector coefficient be the same as those that
+   live within the supplied QuadratureFunction. */
+class VectorQuadratureFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const QuadratureFunction &QuadF; //do not own
+   int index;
+
+public:
+   /// Constructor with a quadrature function as input
+   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
+
+   /** Set the starting index within the QuadFunc that'll be used to
+      project outwards as well as the corresponding length. The projected length
+      should have the bounds of 1 <= length <= (length QuadFunc - index). */
+   void SetComponent(int _index, int _length);
+
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~VectorQuadratureFunctionCoefficient() { }
+};
+
+/** @brief Quadrature function coefficient which requires that the quadrature
+   rules used for this coefficient be the same as those that live within the
+   supplied QuadratureFunction. */
+class QuadratureFunctionCoefficient : public Coefficient
+{
+private:
+   const QuadratureFunction &QuadF;
+
+public:
+   /// Constructor with a quadrature function as input
+   QuadratureFunctionCoefficient(QuadratureFunction &qf);
+
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+   virtual ~QuadratureFunctionCoefficient() { }
 };
 
 /** Compute the Lp norm of a function f.
