@@ -1412,6 +1412,8 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
 
 int GeometryRefiner::GetRefinementLevel(Geometry::Type geom, int Npts)
 {
+   int Nmax = 100;
+   double eps = 1e-6;
    switch (geom)
    {
       case Geometry::POINT:
@@ -1424,15 +1426,15 @@ int GeometryRefiner::GetRefinementLevel(Geometry::Type geom, int Npts)
       }
       case Geometry::TRIANGLE:
       {
-         return (sqrt(8*Npts + 1) - 3)/2;
+         return (sqrt(8*Npts + 1) - 3 + eps)/2;
       }
       case Geometry::SQUARE:
       {
-         return sqrt(Npts)-1;
+         return sqrt(Npts)-1 + eps;
       }
       case Geometry::CUBE:
       {
-         return cbrt(Npts)-1;
+         return cbrt(Npts)-1 + eps;
       }
       case Geometry::TETRAHEDRON:
       {
@@ -1442,7 +1444,7 @@ int GeometryRefiner::GetRefinementLevel(Geometry::Type geom, int Npts)
          {
             n++;
             np = (n+3)*(n+2)*(n+1)/6;
-            if (n > 111) { np = Npts; n = -1; }
+            if (n > Nmax) { return -1; }
          }
 
          return n;
@@ -1455,7 +1457,7 @@ int GeometryRefiner::GetRefinementLevel(Geometry::Type geom, int Npts)
          {
             n++;
             np = (n+1)*(n+1)*(n+2)/2;
-            if (n > 111) { np = Npts; n = -1; }
+            if (n > Nmax) { return -1; }
          }
 
          return n;
