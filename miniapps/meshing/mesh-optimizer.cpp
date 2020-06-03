@@ -111,10 +111,10 @@ int main(int argc, char *argv[])
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
-   int fdscheme          = false;
+   bool fdscheme         = false;
+   int adapt_eval        = 0;
    const char *devopt    = "cpu";
    bool pa               = false;
-   int adapt_eval        = 0;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
