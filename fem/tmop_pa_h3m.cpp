@@ -282,12 +282,6 @@ static void AddMultGradPA_Kernel_3D(const int NE,
                   JprxBGB, JpryBGB, JprzBGB,
                   JprxGBB, JpryGBB, JprzGBB
                };
-               const double Jpr2[9] =
-               {
-                  JprxBBG, JprxBGB, JprxGBB,
-                  JpryBBG, JpryBGB, JpryGBB,
-                  JprzBBG, JprzBGB, JprzGBB
-               };
 
                // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                double Jpt[9];

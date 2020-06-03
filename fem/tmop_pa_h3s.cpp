@@ -51,7 +51,7 @@ double Dim3Invariant2b(const double *M)
 // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
 // X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
 MFEM_HOST_DEVICE inline
-void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> ie,
+void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> &ie,
                           const DeviceMatrix &M, int i, int j,
                           DeviceMatrix &dMdM)
 {
@@ -111,7 +111,7 @@ void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> ie,
 //    x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
 //    x3_ijkl = -2 (J J^t)_ik δ_jl = -2 B_ik δ_jl
 MFEM_HOST_DEVICE inline
-void Dim3Invariant2_dMdM(InvariantsEvaluator3D<double> ie,
+void Dim3Invariant2_dMdM(InvariantsEvaluator3D<double> &ie,
                          const DeviceMatrix &M, int i, int j,
                          DeviceMatrix &dMdM)
 {
@@ -154,7 +154,6 @@ void Dim3Invariant2_dMdM(InvariantsEvaluator3D<double> ie,
    b[0] = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
    b[1] = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
    b[2] = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
-
    b[3] = J[0]*J[1] + J[3]*J[4] + J[6]*J[7]; // B(0,1)
    b[4] = J[0]*J[2] + J[3]*J[5] + J[6]*J[8]; // B(0,2)
    b[5] = J[1]*J[2] + J[4]*J[5] + J[7]*J[8]; // B(1,2)
@@ -191,7 +190,7 @@ void Dim3Invariant2_dMdM(InvariantsEvaluator3D<double> ie,
 //    X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
 //    X3_ijkl =      det(J)^{-4/3} ddI2_ijkl
 MFEM_HOST_DEVICE inline
-void Dim3Invariant2b_dMdM(InvariantsEvaluator3D<double> ie,
+void Dim3Invariant2b_dMdM(InvariantsEvaluator3D<double> &ie,
                           const DeviceMatrix &M, int i, int j,
                           DeviceMatrix &dMdM)
 {
