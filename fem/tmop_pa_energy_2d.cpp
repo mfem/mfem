@@ -13,7 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 201
+#define MFEM_DBG_COLOR 190
 #include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
@@ -192,8 +192,9 @@ static double EnergyPA_2D(const int NE,
 }
 
 // *****************************************************************************
-double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                                const Vector &x) const
+double
+TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
+                                            const Vector &x) const
 {
    const IntegrationRule *ir = IntRule;
    MFEM_VERIFY(ir,"");

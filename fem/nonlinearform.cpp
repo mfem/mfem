@@ -145,6 +145,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (ext)
    {
+      py = 0.0;
       ext->Mult(px, py);
       if (Serial())
       {
