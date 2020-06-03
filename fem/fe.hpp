@@ -37,7 +37,8 @@ public:
       ClosedUniform   = 4,  ///< Nodes: x_i = i/(n-1),     i=0,...,n-1
       OpenHalfUniform = 5,  ///< Nodes: x_i = (i+1/2)/n,   i=0,...,n-1
       Serendipity     = 6,  ///< Serendipity basis (squares / cubes)
-      NumBasisTypes   = 7   /**< Keep track of maximum types to prevent
+      ClosedGL        = 7,  ///< Closed GaussLegendre
+      NumBasisTypes   = 8   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
    /** @brief If the input does not represents a valid BasisType, abort with an
@@ -69,6 +70,7 @@ public:
          case ClosedUniform:   return Quadrature1D::ClosedUniform;
          case OpenHalfUniform: return Quadrature1D::OpenHalfUniform;
          case Serendipity:     return Quadrature1D::GaussLobatto;
+         case ClosedGL:        return Quadrature1D::ClosedGL;
       }
       return Quadrature1D::Invalid;
    }
@@ -82,6 +84,7 @@ public:
          case Quadrature1D::OpenUniform:     return OpenUniform;
          case Quadrature1D::ClosedUniform:   return ClosedUniform;
          case Quadrature1D::OpenHalfUniform: return OpenHalfUniform;
+         case Quadrature1D::ClosedGL:        return ClosedGL;
       }
       return Invalid;
    }
