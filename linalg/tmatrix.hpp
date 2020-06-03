@@ -639,7 +639,7 @@ inline void TAdjugateHD(const A_layout_t &a, const A_data_t &A,
    MFEM_STATIC_ASSERT(A_layout_t::rank == 2 && B_layout_t::rank == 2,
                       "invalid ranks");
    internal::MatrixOps<A_layout_t::dim_1,A_layout_t::dim_2>::
-   template Adjugate<scalar_t>(a, A, b, B);
+   template AdjugateHD<scalar_t>(a, A, b, B);
 }
 
 // Compute the adjugate and the determinant of a (small) matrix: B = adj(A),
