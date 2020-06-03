@@ -436,7 +436,7 @@ void VisItDataCollection::RegisterField(const std::string& name,
 void VisItDataCollection::RegisterQField(const std::string& name,
                                          QuadratureFunction *qf)
 {
-   int LOD = 1;
+   int LOD = -1;
    Mesh *mesh = qf->GetSpace()->GetMesh();
    for (int e=0; e<qf->GetSpace()->GetNE(); e++)
    {
