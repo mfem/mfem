@@ -1301,299 +1301,10 @@ DGTransportTDO::NLOperator::~NLOperator()
    }
 }
 
-DGTransportTDO::TransportOp::~TransportOp()
-{
-   for (int i=0; i<coefs_.Size(); i++)
-   {
-      delete coefs_[i];
-   }
-   for (int i=0; i<dtSCoefs_.Size(); i++)
-   {
-      delete dtSCoefs_[i];
-   }
-   for (int i=0; i<dtVCoefs_.Size(); i++)
-   {
-      delete dtVCoefs_[i];
-   }
-   for (int i=0; i<dtMCoefs_.Size(); i++)
-   {
-      delete dtMCoefs_[i];
-   }
-
-   for (int i=0; i<yGF_.Size(); i++)
-   {
-      delete yCoefPtrs_[i];
-      delete kCoefPtrs_[i];
-   }
-
-   for (unsigned int i=0; i<sout_.size(); i++)
-   {
-      delete sout_[i];
-   }
-}
-
-void DGTransportTDO::TransportOp::SetTimeStep(double dt)
-{
-   if (mpi_.Root() && logging_)
-   {
-      cout << "Setting time step: " << dt << " in NLOperator"
-           << endl;
-   }
-
-   NLOperator::SetTimeStep(dt);
-
-   for (int i=0; i<dtSCoefs_.Size(); i++)
-   {
-      dtSCoefs_[i]->SetAConst(dt);
-   }
-   for (int i=0; i<negdtSCoefs_.Size(); i++)
-   {
-      negdtSCoefs_[i]->SetAConst(-dt);
-   }
-   for (int i=0; i<dtVCoefs_.Size(); i++)
-   {
-      dtVCoefs_[i]->SetAConst(dt);
-   }
-   for (int i=0; i<dtMCoefs_.Size(); i++)
-   {
-      dtMCoefs_[i]->SetAConst(dt);
-   }
-}
-
-void
-DGTransportTDO::TransportOp::InitializeGLVis()
-{
-   if ((int)sout_.size() < coefs_.Size())
-   {
-      sout_.resize(coefs_.Size());
-      for (int i=0; i<coefs_.Size(); i++)
-      {
-         sout_[i] = new socketstream;
-      }
-   }
-}
-
-void
-DGTransportTDO::TransportOp::DisplayToGLVis()
-{
-   for (int i=0; i<coefs_.Size(); i++)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      int Wx = 0, Wy = 0; // window position
-      int Ww = 275, Wh = 250; // window size
-      int Dx = 3, Dy = 25;
-
-      ostringstream oss;
-      oss << "coef " << index_ << " " << i + 1;
-
-      coefGF_.ProjectCoefficient(*coefs_[i]);
-
-      int c = i % 4;
-      int r = i / 4;
-      VisualizeField(*sout_[i], vishost, visport, coefGF_, oss.str().c_str(),
-                     Wx + c * (Ww + Dx), Wy + r * (Wh + Dy), Ww, Wh);
-   }
-}
-
-void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
-   StateVariableCoef &MCoef)
-{
-   for (int i=0; i<5; i++)
-   {
-      if (MCoef.NonTrivialValue((FieldType)i))
-      {
-         if ( mpi_.Root() && logging_ > 1)
-         {
-            cout << field_name_
-                 << ": Adding time derivative term proportional to d "
-                 << FieldSymbol((FieldType)i) << " / dt" << endl;
-         }
-
-         StateVariableCoef * coef = MCoef.Clone();
-         coef->SetDerivType((FieldType)i);
-         coefs_.Append(coef);
-         dbfi_m_[i].Append(new MassIntegrator(*coef));
-
-         if (blf_[i] == NULL)
-         {
-            blf_[i] = new ParBilinearForm(&fes_);
-         }
-         blf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
-      }
-   }
-}
-
-void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef,
-                                                   bool bc)
-{
-   if ( mpi_.Root() && logging_ > 1)
-   {
-      cout << field_name_ << ": Adding isotropic diffusion term" << endl;
-   }
-
-   ProductCoefficient * dtDCoef = new ProductCoefficient(dt_, DCoef);
-   dtSCoefs_.Append(dtDCoef);
-
-   dbfi_.Append(new DiffusionIntegrator(DCoef));
-   fbfi_.Append(new DGDiffusionIntegrator(DCoef,
-                                          dg_.sigma,
-                                          dg_.kappa));
-   if (bc)
-   {
-      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
-                                              dg_.sigma,
-                                              dg_.kappa));
-      bfbfi_marker_.Append(NULL);
-   }
-
-   if (blf_[index_] == NULL)
-   {
-      blf_[index_] = new ParBilinearForm(&fes_);
-   }
-
-   blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
-   blf_[index_]->AddInteriorFaceIntegrator(
-      new DGDiffusionIntegrator(*dtDCoef,
-                                dg_.sigma,
-                                dg_.kappa));
-   if (bc)
-   {
-      blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
-                                                                   dg_.sigma,
-                                                                   dg_.kappa));
-   }
-}
-
-void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef,
-                                                   bool bc)
-{
-   if ( mpi_.Root() && logging_ > 1)
-   {
-      cout << field_name_ << ": Adding anisotropic diffusion term" << endl;
-   }
-
-   ScalarMatrixProductCoefficient * dtDCoef =
-      new ScalarMatrixProductCoefficient(dt_, DCoef);
-   dtMCoefs_.Append(dtDCoef);
-
-   dbfi_.Append(new DiffusionIntegrator(DCoef));
-   fbfi_.Append(new DGDiffusionIntegrator(DCoef,
-                                          dg_.sigma,
-                                          dg_.kappa));
-   if (bc)
-   {
-      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
-                                              dg_.sigma,
-                                              dg_.kappa));
-      bfbfi_marker_.Append(NULL);
-   }
-
-   if (blf_[index_] == NULL)
-   {
-      blf_[index_] = new ParBilinearForm(&fes_);
-   }
-
-   blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
-   blf_[index_]->AddInteriorFaceIntegrator(
-      new DGDiffusionIntegrator(*dtDCoef,
-                                dg_.sigma,
-                                dg_.kappa));
-   if (bc)
-   {
-      blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
-                                                                   dg_.sigma,
-                                                                   dg_.kappa));
-   }
-}
-
-void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
-                                                   bool bc)
-{
-   if ( mpi_.Root() && logging_ > 1)
-   {
-      cout << field_name_ << ": Adding advection term" << endl;
-   }
-
-   ScalarVectorProductCoefficient * dtVCoef =
-      new ScalarVectorProductCoefficient(dt_, VCoef);
-   dtVCoefs_.Append(dtVCoef);
-
-   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(VCoef));
-   fbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
-
-   if (bc)
-   {
-      bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
-      bfbfi_marker_.Append(NULL);
-   }
-
-   if (blf_[index_] == NULL)
-   {
-      blf_[index_] = new ParBilinearForm(&fes_);
-   }
-
-   blf_[index_]->AddDomainIntegrator(
-      new MixedScalarWeakDivergenceIntegrator(*dtVCoef));
-   blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-                                                                 1.0, -0.5));
-
-   if (bc)
-   {
-      blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
-                                                               1.0, -0.5));
-   }
-}
-
-void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
-{
-   if ( mpi_.Root() && logging_ > 1)
-   {
-      cout << field_name_ << ": Adding source term" << endl;
-   }
-
-   dlfi_.Append(new DomainLFIntegrator(SCoef));
-
-   for (int i=0; i<5; i++)
-   {
-      if (SCoef.NonTrivialValue((FieldType)i))
-      {
-         StateVariableCoef * coef = SCoef.Clone();
-         coef->SetDerivType((FieldType)i);
-         ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
-         negdtSCoefs_.Append(dtdSCoef);
-
-         if (blf_[i] == NULL)
-         {
-            blf_[i] = new ParBilinearForm(&fes_);
-         }
-         blf_[i]->AddDomainIntegrator(new MassIntegrator(*dtdSCoef));
-
-      }
-   }
-}
-
 void DGTransportTDO::NLOperator::SetLogging(int logging, const string & prefix)
 {
    logging_ = logging;
    log_prefix_ = prefix;
-}
-
-void
-DGTransportTDO::NLOperator::RegisterDataFields(DataCollection & dc)
-{
-   dc_ = &dc;
-
-   if (this->CheckVisFlag(0))
-   {
-      dc.RegisterField(field_name_, yGF_[index_]);
-   }
-}
-
-void
-DGTransportTDO::NLOperator::PrepareDataFields()
-{
 }
 
 void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
@@ -1973,6 +1684,295 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
    else
    {
       return NULL;
+   }
+}
+
+void
+DGTransportTDO::NLOperator::RegisterDataFields(DataCollection & dc)
+{
+   dc_ = &dc;
+
+   if (this->CheckVisFlag(0))
+   {
+      dc.RegisterField(field_name_, yGF_[index_]);
+   }
+}
+
+void
+DGTransportTDO::NLOperator::PrepareDataFields()
+{
+}
+
+DGTransportTDO::TransportOp::~TransportOp()
+{
+   for (int i=0; i<coefs_.Size(); i++)
+   {
+      delete coefs_[i];
+   }
+   for (int i=0; i<dtSCoefs_.Size(); i++)
+   {
+      delete dtSCoefs_[i];
+   }
+   for (int i=0; i<dtVCoefs_.Size(); i++)
+   {
+      delete dtVCoefs_[i];
+   }
+   for (int i=0; i<dtMCoefs_.Size(); i++)
+   {
+      delete dtMCoefs_[i];
+   }
+
+   for (int i=0; i<yGF_.Size(); i++)
+   {
+      delete yCoefPtrs_[i];
+      delete kCoefPtrs_[i];
+   }
+
+   for (unsigned int i=0; i<sout_.size(); i++)
+   {
+      delete sout_[i];
+   }
+}
+
+void DGTransportTDO::TransportOp::SetTimeStep(double dt)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time step: " << dt << " in NLOperator"
+           << endl;
+   }
+
+   NLOperator::SetTimeStep(dt);
+
+   for (int i=0; i<dtSCoefs_.Size(); i++)
+   {
+      dtSCoefs_[i]->SetAConst(dt);
+   }
+   for (int i=0; i<negdtSCoefs_.Size(); i++)
+   {
+      negdtSCoefs_[i]->SetAConst(-dt);
+   }
+   for (int i=0; i<dtVCoefs_.Size(); i++)
+   {
+      dtVCoefs_[i]->SetAConst(dt);
+   }
+   for (int i=0; i<dtMCoefs_.Size(); i++)
+   {
+      dtMCoefs_[i]->SetAConst(dt);
+   }
+}
+
+void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
+   StateVariableCoef &MCoef)
+{
+   for (int i=0; i<5; i++)
+   {
+      if (MCoef.NonTrivialValue((FieldType)i))
+      {
+         if ( mpi_.Root() && logging_ > 1)
+         {
+            cout << field_name_
+                 << ": Adding time derivative term proportional to d "
+                 << FieldSymbol((FieldType)i) << " / dt" << endl;
+         }
+
+         StateVariableCoef * coef = MCoef.Clone();
+         coef->SetDerivType((FieldType)i);
+         coefs_.Append(coef);
+         dbfi_m_[i].Append(new MassIntegrator(*coef));
+
+         if (blf_[i] == NULL)
+         {
+            blf_[i] = new ParBilinearForm(&fes_);
+         }
+         blf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
+      }
+   }
+}
+
+void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef,
+                                                   bool bc)
+{
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << field_name_ << ": Adding isotropic diffusion term" << endl;
+   }
+
+   ProductCoefficient * dtDCoef = new ProductCoefficient(dt_, DCoef);
+   dtSCoefs_.Append(dtDCoef);
+
+   dbfi_.Append(new DiffusionIntegrator(DCoef));
+   fbfi_.Append(new DGDiffusionIntegrator(DCoef,
+                                          dg_.sigma,
+                                          dg_.kappa));
+   if (bc)
+   {
+      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
+                                              dg_.sigma,
+                                              dg_.kappa));
+      bfbfi_marker_.Append(NULL);
+   }
+
+   if (blf_[index_] == NULL)
+   {
+      blf_[index_] = new ParBilinearForm(&fes_);
+   }
+
+   blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
+   blf_[index_]->AddInteriorFaceIntegrator(
+      new DGDiffusionIntegrator(*dtDCoef,
+                                dg_.sigma,
+                                dg_.kappa));
+   if (bc)
+   {
+      blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
+                                                                   dg_.sigma,
+                                                                   dg_.kappa));
+   }
+}
+
+void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef,
+                                                   bool bc)
+{
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << field_name_ << ": Adding anisotropic diffusion term" << endl;
+   }
+
+   ScalarMatrixProductCoefficient * dtDCoef =
+      new ScalarMatrixProductCoefficient(dt_, DCoef);
+   dtMCoefs_.Append(dtDCoef);
+
+   dbfi_.Append(new DiffusionIntegrator(DCoef));
+   fbfi_.Append(new DGDiffusionIntegrator(DCoef,
+                                          dg_.sigma,
+                                          dg_.kappa));
+   if (bc)
+   {
+      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
+                                              dg_.sigma,
+                                              dg_.kappa));
+      bfbfi_marker_.Append(NULL);
+   }
+
+   if (blf_[index_] == NULL)
+   {
+      blf_[index_] = new ParBilinearForm(&fes_);
+   }
+
+   blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
+   blf_[index_]->AddInteriorFaceIntegrator(
+      new DGDiffusionIntegrator(*dtDCoef,
+                                dg_.sigma,
+                                dg_.kappa));
+   if (bc)
+   {
+      blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
+                                                                   dg_.sigma,
+                                                                   dg_.kappa));
+   }
+}
+
+void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef &VCoef,
+                                                   bool bc)
+{
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << field_name_ << ": Adding advection term" << endl;
+   }
+
+   ScalarVectorProductCoefficient * dtVCoef =
+      new ScalarVectorProductCoefficient(dt_, VCoef);
+   dtVCoefs_.Append(dtVCoef);
+
+   dbfi_.Append(new MixedScalarWeakDivergenceIntegrator(VCoef));
+   fbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
+
+   if (bc)
+   {
+      bfbfi_.Append(new DGTraceIntegrator(VCoef, 1.0, -0.5));
+      bfbfi_marker_.Append(NULL);
+   }
+
+   if (blf_[index_] == NULL)
+   {
+      blf_[index_] = new ParBilinearForm(&fes_);
+   }
+
+   blf_[index_]->AddDomainIntegrator(
+      new MixedScalarWeakDivergenceIntegrator(*dtVCoef));
+   blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+                                                                 1.0, -0.5));
+
+   if (bc)
+   {
+      blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
+                                                               1.0, -0.5));
+   }
+}
+
+void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
+{
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << field_name_ << ": Adding source term" << endl;
+   }
+
+   dlfi_.Append(new DomainLFIntegrator(SCoef));
+
+   for (int i=0; i<5; i++)
+   {
+      if (SCoef.NonTrivialValue((FieldType)i))
+      {
+         StateVariableCoef * coef = SCoef.Clone();
+         coef->SetDerivType((FieldType)i);
+         ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
+         negdtSCoefs_.Append(dtdSCoef);
+
+         if (blf_[i] == NULL)
+         {
+            blf_[i] = new ParBilinearForm(&fes_);
+         }
+         blf_[i]->AddDomainIntegrator(new MassIntegrator(*dtdSCoef));
+
+      }
+   }
+}
+
+void
+DGTransportTDO::TransportOp::InitializeGLVis()
+{
+   if ((int)sout_.size() < coefs_.Size())
+   {
+      sout_.resize(coefs_.Size());
+      for (int i=0; i<coefs_.Size(); i++)
+      {
+         sout_[i] = new socketstream;
+      }
+   }
+}
+
+void
+DGTransportTDO::TransportOp::DisplayToGLVis()
+{
+   for (int i=0; i<coefs_.Size(); i++)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+
+      int Wx = 0, Wy = 0; // window position
+      int Ww = 275, Wh = 250; // window size
+      int Dx = 3, Dy = 25;
+
+      ostringstream oss;
+      oss << "coef " << index_ << " " << i + 1;
+
+      coefGF_.ProjectCoefficient(*coefs_[i]);
+
+      int c = i % 4;
+      int r = i / 4;
+      VisualizeField(*sout_[i], vishost, visport, coefGF_, oss.str().c_str(),
+                     Wx + c * (Ww + Dx), Wy + r * (Wh + Dy), Ww, Wh);
    }
 }
 
