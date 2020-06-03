@@ -13,6 +13,7 @@
 #define MFEM_FE
 
 #include "../config/config.hpp"
+#include "../mfem_export.h"
 #include "../general/array.hpp"
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"
@@ -1818,7 +1819,7 @@ public:
    ~Poly_1D();
 };
 
-extern Poly_1D poly1d;
+MFEM_EXPORT extern Poly_1D poly1d;
 
 class TensorBasisElement
 {

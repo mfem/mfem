@@ -12,6 +12,7 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
+#include "../mfem_export.h"
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
@@ -118,7 +119,7 @@ private:
    enum MODES {SEQUENTIAL, ACCELERATED};
 
    static bool device_env, mem_host_env, mem_device_env;
-   static Device device_singleton;
+   static MFEM_EXPORT Device device_singleton;
 
    MODES mode;
    int dev = 0; ///< Device ID of the configured device.

@@ -12,6 +12,7 @@
 #ifndef MFEM_MEM_MANAGER_HPP
 #define MFEM_MEM_MANAGER_HPP
 
+#include "../mfem_export.h"
 #include "globals.hpp"
 #include "error.hpp"
 #include <cstring> // std::memcpy
@@ -49,7 +50,7 @@ constexpr int DeviceMemoryType = static_cast<int>(MemoryType::MANAGED);
 constexpr int DeviceMemoryTypeSize = MemoryTypeSize - DeviceMemoryType;
 
 /// Memory type names, used during Device:: configuration.
-extern const char *MemoryTypeName[MemoryTypeSize];
+MFEM_EXPORT extern const char *MemoryTypeName[MemoryTypeSize];
 
 /// Memory classes identify sets of memory types.
 /** This type is used by kernels that can work with multiple MemoryType%s.
@@ -472,7 +473,7 @@ private:
 
 
 /// The memory manager class
-class MemoryManager
+class MFEM_EXPORT MemoryManager
 {
 private:
 
@@ -978,7 +979,7 @@ inline int Memory<T>::CompareHostAndDevice(int size) const
 
 
 /// The (single) global memory manager object
-extern MemoryManager mm;
+MFEM_EXPORT extern MemoryManager mm;
 
 } // namespace mfem
 

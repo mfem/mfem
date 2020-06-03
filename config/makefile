@@ -31,9 +31,9 @@ CONFIG_HPP = _config.hpp
 CONFIG_MK = config.mk
 
 .SUFFIXES:
-.PHONY: all get-hypre-version header config-mk
+.PHONY: all get-hypre-version header config-mk mfem-export
 
-all: header config-mk
+all: header config-mk mfem-export
 
 MPI = $(MFEM_USE_MPI:NO=)
 GHV_CXX ?= $(MFEM_CXX)
@@ -88,6 +88,21 @@ config-mk:
 	set -- "$$@" -e tb -e ba -e ":b" -e 's/^$$//' -e tc -e ba && \
 	set -- "$$@" -e ":c" -e d -e ":a" && \
 	sed "$$@" $(SRC)config.mk.in > $(CONFIG_MK)
+
+# The target below generates a file 'mfem_export.h' that defines
+# an empty macro MFEM_EXPORT. The latter is required for shared
+# library builds on Windows.
+define MFEM_EXPORT
+#ifndef MFEM_EXPORT_H
+#define MFEM_EXPORT_H
+#define MFEM_EXPORT
+#endif /* MFEM_EXPORT_H */
+endef
+
+export MFEM_EXPORT
+
+mfem-export:
+	@echo "$$MFEM_EXPORT" > ${MFEM_DIR}/mfem_export.h
 
 clean:
 	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log

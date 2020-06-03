@@ -13,6 +13,7 @@
 #define MFEM_INTRULES
 
 #include "../config/config.hpp"
+#include "../mfem_export.h"
 #include "../general/array.hpp"
 
 namespace mfem
@@ -373,10 +374,10 @@ public:
 };
 
 /// A global object with all integration rules (defined in intrules.cpp)
-extern IntegrationRules IntRules;
+MFEM_EXPORT extern IntegrationRules IntRules;
 
 /// A global object with all refined integration rules
-extern IntegrationRules RefinedIntRules;
+MFEM_EXPORT extern IntegrationRules RefinedIntRules;
 
 }
 

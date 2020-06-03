@@ -65,6 +65,7 @@ set(XSDK_ENABLE_C OFF)
 set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
+message(STATUS "CMake Version: ${CMAKE_VERSION}")
 if (CMAKE_VERSION VERSION_LESS 3.2 OR
     MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
@@ -413,6 +414,13 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+
+# Generate export symbols and add to list of header files
+include(GenerateExportHeader)
+set(_export_header ${CMAKE_CURRENT_SOURCE_DIR}/mfem_export.h)
+generate_export_header(mfem EXPORT_FILE_NAME ${_export_header})
+list(APPEND ${HEADERS} ${_export_header})
+
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
@@ -551,7 +559,7 @@ foreach(Header mfem.hpp mfem-performance.hpp)
   install(FILES ${PROJECT_BINARY_DIR}/InstallHeaders/${Header}
     DESTINATION ${INSTALL_INCLUDE_DIR})
 endforeach()
-install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
+install(FILES ${MASTER_HEADERS} ${_export_header} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
 # Install the headers; currently, the miniapps headers are excluded
 install(DIRECTORY ${MFEM_SOURCE_DIRS}

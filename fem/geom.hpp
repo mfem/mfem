@@ -13,6 +13,7 @@
 #define MFEM_GEOM
 
 #include "../config/config.hpp"
+#include "../mfem_export.h"
 #include "../linalg/densemat.hpp"
 #include "intrules.hpp"
 
@@ -28,7 +29,7 @@ namespace mfem
     Geometry::CUBE - the unit cube
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
 */
-class Geometry
+class MFEM_EXPORT Geometry
 {
 public:
    enum Type
@@ -116,7 +117,7 @@ template <> struct Geometry::Constants<Geometry::POINT>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::SEGMENT>
+template <> struct MFEM_EXPORT Geometry::Constants<Geometry::SEGMENT>
 {
    static const int Dimension = 1;
    static const int NumVert = 2;
@@ -128,7 +129,7 @@ template <> struct Geometry::Constants<Geometry::SEGMENT>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::TRIANGLE>
+template <> struct MFEM_EXPORT Geometry::Constants<Geometry::TRIANGLE>
 {
    static const int Dimension = 2;
    static const int NumVert = 3;
@@ -154,7 +155,7 @@ template <> struct Geometry::Constants<Geometry::TRIANGLE>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::SQUARE>
+template <> struct MFEM_EXPORT Geometry::Constants<Geometry::SQUARE>
 {
    static const int Dimension = 2;
    static const int NumVert = 4;
@@ -174,7 +175,7 @@ template <> struct Geometry::Constants<Geometry::SQUARE>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
+template <> struct MFEM_EXPORT Geometry::Constants<Geometry::TETRAHEDRON>
 {
    static const int Dimension = 3;
    static const int NumVert = 4;
@@ -196,7 +197,7 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
    static const int InvOrient[NumOrient];
 };
 
-template <> struct Geometry::Constants<Geometry::CUBE>
+template <> struct MFEM_EXPORT Geometry::Constants<Geometry::CUBE>
 {
    static const int Dimension = 3;
    static const int NumVert = 8;
@@ -214,7 +215,7 @@ template <> struct Geometry::Constants<Geometry::CUBE>
    };
 };
 
-template <> struct Geometry::Constants<Geometry::PRISM>
+template <> struct MFEM_EXPORT Geometry::Constants<Geometry::PRISM>
 {
    static const int Dimension = 3;
    static const int NumVert = 6;
@@ -233,7 +234,7 @@ template <> struct Geometry::Constants<Geometry::PRISM>
 };
 
 // Defined in fe.cpp to ensure construction after 'mfem::WedgeFE'.
-extern Geometry Geometries;
+MFEM_EXPORT extern Geometry Geometries;
 
 
 class RefinedGeometry
@@ -276,7 +277,7 @@ public:
    ~GeometryRefiner();
 };
 
-extern GeometryRefiner GlobGeometryRefiner;
+MFEM_EXPORT extern GeometryRefiner GlobGeometryRefiner;
 
 }
 
