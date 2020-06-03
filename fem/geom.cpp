@@ -1409,6 +1409,65 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
    return ir;
 }
 
+
+int GeometryRefiner::GetRefinementLevel(Geometry::Type geom, int Npts)
+{
+   switch (geom)
+   {
+      case Geometry::POINT:
+      {
+         return 1;
+      }
+      case Geometry::SEGMENT:
+      {
+         return Npts - 1;
+      }
+      case Geometry::TRIANGLE:
+      {
+         return (sqrt(8*Npts + 1) - 3)/2;
+      }
+      case Geometry::SQUARE:
+      {
+         return sqrt(Npts)-1;
+      }
+      case Geometry::CUBE:
+      {
+         return cbrt(Npts)-1;
+      }
+      case Geometry::TETRAHEDRON:
+      {
+         int np = 0;
+         int n = 0;
+         while (Npts != np)
+         {
+            n++;
+            np = (n+3)*(n+2)*(n+1)/6;
+            if (n > 111) { np = Npts; n = -1; }
+         }
+
+         return n;
+      }
+      case Geometry::PRISM:
+      {
+         int np = 0;
+         int n = 0;
+         while (Npts != np)
+         {
+            n++;
+            np = (n+1)*(n+1)*(n+2)/2;
+            if (n > 111) { np = Npts; n = -1; }
+         }
+
+         return n;
+      }
+
+      default:
+         mfem_error("Non existing Geometry.");
+   }
+
+   return -1;
+}
+
 GeometryRefiner GlobGeometryRefiner;
 
 }
