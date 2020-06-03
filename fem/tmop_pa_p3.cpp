@@ -508,7 +508,6 @@ static void AddMultPA_Kernel_3D(const int NE,
 // *****************************************************************************
 void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 {
-   dbg("");
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
