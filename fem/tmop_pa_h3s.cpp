@@ -24,105 +24,229 @@ namespace mfem
 
 // *****************************************************************************
 // I1 = |M|^2/ det(M)^(2/3).
-double Dim3Invariant1(const DenseMatrix &M)
+static double Dim3Invariant1b(const DenseMatrix &M)
 {
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    const double fnorm = M.FNorm(), det = fabs(M.Det());
-   return fnorm * fnorm / pow(det, 2.0/3.0);
+   const double sign = M.Det() >= 0.0 ? 1.0 : -1.0;
+   return sign * fnorm * fnorm / pow(det, 2.0/3.0);
 }
 
 // *****************************************************************************
 // I2 = |adj(M)|^2 / det(M)^(4/3).
-double Dim3Invariant2(const DenseMatrix &M)
+static double Dim3Invariant2b(const DenseMatrix &M)
 {
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
-
    const double fnorm = Madj.FNorm(), det = fabs(M.Det());
    return fnorm * fnorm / pow(det, 4.0/3.0);
 }
 
 // *****************************************************************************
-// dI3_dM = d(det(M))_dM = adj(M)^T.
-void Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM)
+// ddI1b = X1 + X2 + X3, where
+// X1_ijkl = (2/3*I1b/I3) [ 2/3 dI3b_ij dI3b_kl + dI3b_kj dI3b_il ]
+// X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
+// X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
+static void Dim3Invariant1b_dMdM(const DenseMatrix &M, int i, int j,
+                                 DenseMatrix &dMdM)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-   CalcAdjugateTranspose(M, dM);
-}
 
-// *****************************************************************************
-// dI1_dM = [ 2 det(M) M - 2/3 |M|^2 det(M)^(-1/3) adj(M)^T ] / det(M)^4/3.
-void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
-{
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-   DenseMatrix Madj(3);
-   CalcAdjugate(M, Madj);
-   const double fnorm = M.FNorm(), det = fabs(M.Det());
-   Dim3Invariant3_dM(M, dM);
-   dM *= -(2./3.) * fnorm * fnorm * pow(det, -1./3.);
-   dM.Add(2.0 * pow(det, 2./3.), M);
-   dM *= 1.0 / pow(det, 4./3.);
-}
+   InvariantsEvaluator3D<double> ie;
+   ie.SetJacobian(M.GetData());
 
-// *****************************************************************************
-// dI2_dM = [ -4/3 |adj(M)|^2  det(M)^(1/3) adj(M)^T ] / det(M)^(8/3).
-void Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
-{
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-   DenseMatrix Madj(3);
-   // dM will have Madj^t because it is the third invariant's derivative.
-   CalcAdjugate(M, Madj);
-   const double fnorm = Madj.FNorm(), det = fabs(M.Det());
-   Dim3Invariant3_dM(M, dM);
-   dM *= -(4./3.)* fnorm * fnorm * pow(det, 1./3.);
-   dM *= 1.0 / (pow(det, 8./3.));
-}
-
-// *****************************************************************************
-void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j, DenseMatrix &dMdM)
-{
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-   DenseMatrix dI(3);
-   Dim3Invariant3_dM(M, dI);
-   const double fnorm  = M.FNorm(), det = fabs(M.Det());
-   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
-   for (int r = 0; r < 3; r++)
+   // X1_ijkl = (2/3*I1b/I3) [ 2/3 dI3b_ij dI3b_kl + dI3b_kj dI3b_il ]
+   DenseMatrix X1(3);
+   const double I3 = ie.Get_I3();
+   const double I1b = ie.Get_I1b();
+   const double alpha = (2./3.)*I1b/I3;
+   DenseMatrix dI3b((double*)ie.Get_dI3b(),3,3);
+   for (int k=0; k<3; k++)
    {
-      for (int c = 0; c < 3; c++)
+      for (int l=0; l<3; l++)
       {
-         dMdM(r,c) = (2.0 * det * det * dM(r,c)
-                      + dI(i,j) * (10./9.) * fnorm * fnorm * dI(r,c)
-                      - (4./3.) * dI(i,j) * det * M(r,c)
-                      - (4./3.) * det * M(i,j) * dI(r,c))
-                     / pow(det, 8./3.);
+         X1(k,l) = alpha * ((2./3.)*dI3b(i,j) * dI3b(k,l) +
+                            dI3b(k,j)*dI3b(i,l));
+      }
+   }
+
+   // ddI1_ijkl = 2 δ_ik δ_jl
+   // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
+   DenseMatrix X2(3);
+   const double beta = ie.Get_I3b_p();
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         const double ddI1_ijkl = (i==k && j==l) ? 2.0 : 0.0;
+         X2(k,l) = beta * ddI1_ijkl;
+      }
+   }
+
+   // X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
+   DenseMatrix X3(3);
+   const double I3b = ie.Get_I3b();
+   const double gamma = -(4./3.)*ie.Get_I3b_p()/I3b;
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         X3(k,l) = gamma * (M(i,j) * dI3b(k,l) + dI3b(i,j) * M(k,l));
+      }
+   }
+
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         dMdM(k,l) = X1(k,l) + X2(k,l) + X3(k,l);
       }
    }
 }
 
 // *****************************************************************************
-void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j, DenseMatrix &dMdM)
+// ddI2 = x1 + x2 + x3
+//    x1_ijkl = (2 I1) δ_ik δ_jl
+//    x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
+//    x3_ijkl = -2 (J J^t)_ik δ_jl = -2 B_ik δ_jl
+static void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j,
+                                DenseMatrix &dMdM)
 {
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-   DenseMatrix dI(3);
-   Dim3Invariant3_dM(M, dI);
-   DenseMatrix Madj(3);
-   CalcAdjugate(M, Madj);
-   const double det   = fabs(M.Det());
-   const double fnorm = Madj.FNorm();
-   DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
-   for (int r = 0; r < 3; r++)
+   InvariantsEvaluator3D<double> ie;
+   ie.SetJacobian(M.GetData());
+
+   DenseMatrix x1(3), x2(3), x3(3);
+
+   // x1_ijkl = (2 I1) δ_ik δ_jl
+   const double I1 = ie.Get_I1();
+   for (int k=0; k<3; k++)
    {
-      for (int c = 0; c < 3; c++)
+      for (int l=0; l<3; l++)
       {
-         dMdM(r,c) = (28./9.) * fnorm * fnorm *
-                     det * det * dI(i,j) * dI(r,c) / pow(det, 16./3.);
+         const double ik_jl = (i==k && j==l) ? 1.0 : 0.0;
+         x1(k,l) = 2.0 * I1 * ik_jl;
+      }
+   }
+
+   // x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
+   x2 = 0.0;
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         for (int u=0; u<3; u++)
+         {
+            for (int v=0; v<3; v++)
+            {
+               const double ku_iv = k==u && i==v ? 1.0 : 0.0;
+               const double ik_uv = i==k && u==v ? 1.0 : 0.0;
+               const double kv_iu = k==v && i==u ? 1.0 : 0.0;
+               x2(k,l) += 2.0 * (2.*ku_iv - ik_uv - kv_iu) * M(v,j) * M(u,l);
+            }
+         }
+      }
+   }
+
+   //    x3_ijkl = -2 B_ik δ_jl
+   double b[9];
+   const double *J = M.GetData();
+   b[0] = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
+   b[1] = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
+   b[2] = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
+
+   b[3] = J[0]*J[1] + J[3]*J[4] + J[6]*J[7]; // B(0,1)
+   b[4] = J[0]*J[2] + J[3]*J[5] + J[6]*J[8]; // B(0,2)
+   b[5] = J[1]*J[2] + J[4]*J[5] + J[7]*J[8]; // B(1,2)
+   double b_p[9] =
+   {
+      b[0], b[3], b[4],
+      b[3], b[1], b[5],
+      b[4], b[5], b[2]
+   };
+   DenseMatrix B(b_p,3,3);
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         const double jl = j==l ? 1.0 : 0.0;
+         x3(k,l) = -2.0 * B(i,k) * jl;
+      }
+   }
+
+   // ddI2 = x1 + x2 + x3
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         dMdM(k,l) = x1(k,l) + x2(k,l) + x3(k,l);
       }
    }
 }
 
+// *****************************************************************************
+// ddI2b = X1 + X2 + X3
+//    X1_ijkl = 16/9 det(J)^{-10/3} I2 dI3b_ij dI3b_kl +
+//               4/3 det(J)^{-10/3} I2 dI3b_il dI3b_kj
+//    X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
+//    X3_ijkl =      det(J)^{-4/3} ddI2_ijkl
+static void Dim3Invariant2b_dMdM(const DenseMatrix &M, int i, int j,
+                                 DenseMatrix &dMdM)
+{
+   InvariantsEvaluator3D<double> ie;
+   ie.SetJacobian(M.GetData());
+
+   // X1_ijkl = 16/9 det(J)^{-10/3} I2 dI3b_ij dI3b_kl +
+   //               4/3 det(J)^{-10/3} I2 dI3b_il dI3b_kj
+   DenseMatrix X1(3);
+   const double I3b_p = ie.Get_I3b_p(); // I3b^{-2/3}
+   const double I3b = ie.Get_I3b();     // det(J)
+   const double I2 = ie.Get_I2();
+   const double I3b_p43 = I3b_p*I3b_p;
+   const double I3b_p73 = I3b_p*I3b_p/I3b;
+   const double I3b_p103 = I3b_p*I3b_p/(I3b*I3b);
+   DenseMatrix dI3b((double*)ie.Get_dI3b(),3,3);
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         const double up = (16./9.)*I3b_p103*I2*dI3b(i,j)*dI3b(k,l);
+         const double down = (4./3.)*I3b_p103*I2*dI3b(i,l)*dI3b(k,j);
+         X1(k,l) = up + down;
+      }
+   }
+
+   // X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
+   DenseMatrix X2(3);
+   DenseMatrix dI2((double*)ie.Get_dI2(),3,3);
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         X2(k,l) = -(4./3.)*I3b_p73*(dI2(i,j)*dI3b(k,l) + dI2(k,l)*dI3b(i,j));
+      }
+   }
+
+   DenseMatrix ddI2(3);
+   Dim3Invariant2_dMdM(M, i, j, ddI2);
+
+   // X3_ijkl =  det(J)^{-4/3} ddI2_ijkl
+   DenseMatrix X3(3);
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         X3(k,l) = I3b_p43 * ddI2(k,l);
+      }
+   }
+
+   // ddI2b = X1 + X2 + X3
+   for (int k=0; k<3; k++)
+   {
+      for (int l=0; l<3; l++)
+      {
+         dMdM(k,l) = X1(k,l) + X2(k,l) + X3(k,l);
+      }
+   }
+}
 
 // *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -391,30 +515,31 @@ static void SetupGradPA_3D(const Vector &xe_,
 
                // metric->AssembleH(Jpt, DS, weight_m, elmat);
                DenseMatrix Jpt(J,DIM,DIM);
-               const double I1 = Dim3Invariant1(Jpt), I2 = Dim3Invariant2(Jpt);
-               DenseMatrix dI1_dM(DIM), dI1_dMdM(DIM), dI2_dM(DIM), dI2_dMdM(DIM);
-
-               Dim3Invariant1_dM(Jpt, dI1_dM);
-               Dim3Invariant2_dM(Jpt, dI2_dM);
-
+               InvariantsEvaluator3D<double> ie;
+               ie.SetJacobian(Jpt.GetData());
+               //ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+               const double I1b = Dim3Invariant1b(Jpt);
+               const double I2b = Dim3Invariant2b(Jpt);
+               DenseMatrix dI1b((double*)ie.Get_dI1b(),DIM,DIM);
+               DenseMatrix dI2b((double*)ie.Get_dI2b(),DIM,DIM);
+               DenseMatrix dI1b_dMdM(DIM), dI2b_dMdM(DIM);
                for (int r = 0; r < DIM; r++)
                {
                   for (int c = 0; c < DIM; c++)
                   {
-                     Dim3Invariant1_dMdM(Jpt, r,c, dI1_dMdM);
-                     Dim3Invariant2_dMdM(Jpt, r,c, dI2_dMdM);
-                     // Compute each entry of d(Prc)_dJ.
+                     Dim3Invariant1b_dMdM(Jpt, r, c, dI1b_dMdM);
+                     Dim3Invariant2b_dMdM(Jpt, r, c, dI2b_dMdM);
+
                      for (int rr = 0; rr < DIM; rr++)
                      {
                         for (int cc = 0; cc < DIM; cc++)
                         {
                            const double entry_rr_cc =
-                              (1./9.)*(dI1_dMdM(rr,cc)*I2
-                                       + dI1_dM(r,c)*dI2_dM(rr,cc)
-                                       + dI1_dM(rr,cc)*dI2_dM(r,c)
-                                       + dI2_dMdM(rr,cc)*I1);
-                           dP(rr,cc,r,c,qx,qy,qz,e) = sign * weight * entry_rr_cc;
-                           //dbg("dP: %.15e", dP(rr,cc,r,c,qx,qy,qz,e));
+                              (1./9.) * (dI1b_dMdM(rr,cc)*I2b
+                                         + dI1b(r,c)*dI2b(rr,cc)
+                                         + dI1b(rr,cc)*dI2b(r,c)
+                                         + dI2b_dMdM(rr,cc)*I1b);
+                           dP(rr,cc,r,c,qx,qy,qz,e) = weight * entry_rr_cc;
                         }
                      }
                   }

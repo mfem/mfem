@@ -34,8 +34,6 @@ static void AddMultGradPA_Kernel_3D(const int NE,
                                     const int d1d = 0,
                                     const int q1d = 0)
 {
-   dbg("");
-   //dbg("x_:"); x_.Print();
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
