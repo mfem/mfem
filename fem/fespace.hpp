@@ -169,6 +169,10 @@ protected:
 
    void BuildElementToDofTable();
 
+   ///
+   void CalculateMinimumOrders(Array<int> &edge_min_order,
+                               Array<int> &face_min_order) const;
+
    /// Build the table edge_dofs in variable order space, return total edge DOFs.
    /** NOTE: 'edge_orders' may already contain data from AssignFaceDofs. */
    int AssignEdgeDofs(Array<Connection> &edge_orders);

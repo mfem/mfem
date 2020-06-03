@@ -1947,6 +1947,96 @@ void FiniteElementSpace::Construct()
    // later.
 }
 
+void FiniteElementSpace::CalculateMinimumOrders(Array<int> &edge_min_order,
+                                                Array<int> &face_min_order) const
+{
+   edge_min_order.SetSize(mesh->GetNEdges());
+   face_min_order.SetSize(mesh->GetNFaces());
+
+   edge_min_order = INT_MAX;
+   face_min_order = INT_MAX;
+
+   // initial edge/face order is the minimum of incident element orders
+   Array<int> E, F, ori;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      int order = elem_order[i];
+
+      mesh->GetElementEdges(i, E, ori);
+      for (int j = 0; j < E.Size(); j++)
+      {
+         int &emo = edge_min_order[E[j]];
+         emo = std::min(emo, order);
+      }
+
+      mesh->GetElementFaces(i, F, ori);
+      for (int j = 0; j < F.Size(); j++)
+      {
+         int &fmo = face_min_order[F[j]];
+         fmo = std::min(fmo, order);
+      }
+   }
+
+   // iterate while minimum orders propagate by master/slave relations
+   bool done;
+   do
+   {
+      done = true;
+
+      // propagate from slave edges to master edges
+      const NCMesh::NCList &edge_list = mesh->ncmesh->GetEdgeList();
+      for (const NCMesh::Master &master : edge_list.masters)
+      {
+         int min_order = INT_MAX;
+         for (int i = master.slaves_begin; i < master.slaves_end; i++)
+         {
+            const NCMesh::Slave &slave = edge_list.slaves[i];
+            min_order = std::min(edge_min_order[slave.index], min_order);
+         }
+
+         if (min_order < edge_min_order[master.index])
+         {
+            edge_min_order[master.index] = min_order;
+            done = false;
+         }
+      }
+
+      // propagate from slave faces(+edges) to master faces(+edges)
+      const NCMesh::NCList &face_list = mesh->ncmesh->GetFaceList();
+      for (const NCMesh::Master &master : face_list.masters)
+      {
+         int min_order = INT_MAX;
+         for (int i = master.slaves_begin; i < master.slaves_end; i++)
+         {
+            const NCMesh::Slave &slave = face_list.slaves[i];
+            min_order = std::min(face_min_order[slave.index], min_order);
+
+            mesh->GetFaceEdges(slave.index, E, ori);
+            for (int j = 0; j < E.Size(); j++)
+            {
+               min_order = std::min(edge_min_order[E[j]], min_order);
+            }
+         }
+
+         if (min_order < face_min_order[master.index])
+         {
+            face_min_order[master.index] = min_order;
+            done = false;
+         }
+         mesh->GetFaceEdges(master.index, E, ori);
+         for (int j = 0; j < E.Size(); j++)
+         {
+            if (min_order < edge_min_order[E[j]])
+            {
+               edge_min_order[E[j]] = min_order;
+               done = false;
+            }
+         }
+      }
+   }
+   while (!done);
+}
+
 int FiniteElementSpace::AssignEdgeDofs(Array<Connection> &edge_orders)
 {
    MFEM_ASSERT(IsVariableOrder(), "");
