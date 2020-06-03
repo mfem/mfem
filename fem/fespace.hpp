@@ -174,12 +174,10 @@ protected:
                                Array<int> &face_min_order) const;
 
    /// Build the table edge_dofs in variable order space, return total edge DOFs.
-   /** NOTE: 'edge_orders' may already contain data from AssignFaceDofs. */
-   int AssignEdgeDofs(Array<Connection> &edge_orders);
+   int AssignVarOrderEdgeDofs(const Array<int> &edge_orders);
 
    /// Build the table face_dofs in variable order space, return total face DOFs.
-   /** NOTE: in 3D hp-refinement, faces influence the orders on adjacent edges.*/
-   int AssignFaceDofs(Array<Connection> &edge_orders);
+   int AssignVarOrderFaceDofs(const Array<int> &face_min_order);
 
    /// Build the edge_dofs or face_dofs tables. Used by Assign{Edge,Face}Dofs().
    int MakeDofTable(int ent_dim, Array<Connection> &entity_order,
