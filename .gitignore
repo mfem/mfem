@@ -166,7 +166,9 @@ miniapps/hypsys/grid.mesh
 miniapps/hypsys/hypsys
 miniapps/hypsys/initial.gf
 miniapps/hypsys/phypsys
+miniapps/hypsys/results
 miniapps/hypsys/ultimate.gf
+miniapps/hypsys/various
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
