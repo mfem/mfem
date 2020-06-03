@@ -11,7 +11,7 @@
 
 #include "mfem.hpp"
 #include "catch.hpp"
-#include "../../../linalg/dtensor.hpp"
+#include "linalg/dtensor.hpp"
 
 using namespace mfem;
 
