@@ -588,6 +588,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(d, z);  // z = A d
+
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
@@ -1577,6 +1578,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(x, r);
+
    if (have_b)
    {
       r -= b;
@@ -1614,7 +1616,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-
       prec->SetOperator(oper->GetGradient(x));
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]

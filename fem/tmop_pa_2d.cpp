@@ -227,13 +227,15 @@ static void AddMultPA_Kernel_2D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                u[0] += Gt[dx][qx] * QQx0[qy][qx];
-               v[0] += Bt[dx][qx] * QQx1[qy][qx];
                u[1] += Gt[dx][qx] * QQy0[qy][qx];
+
+               v[0] += Bt[dx][qx] * QQx1[qy][qx];
                v[1] += Bt[dx][qx] * QQy1[qy][qx];
             }
             DQxB[dx][qy] = u[0];
-            DQxG[dx][qy] = v[0];
             DQyB[dx][qy] = u[1];
+
+            DQxG[dx][qy] = v[0];
             DQyG[dx][qy] = v[1];
          }
       }
@@ -247,8 +249,9 @@ static void AddMultPA_Kernel_2D(const int NE,
             for (int qy = 0; qy < Q1D; ++qy)
             {
                u[0] += DQxB[dx][qy] * Bt[dy][qy];
-               v[0] += DQxG[dx][qy] * Gt[dy][qy];
                u[1] += DQyB[dx][qy] * Bt[dy][qy];
+
+               v[0] += DQxG[dx][qy] * Gt[dy][qy];
                v[1] += DQyG[dx][qy] * Gt[dy][qy];
             }
             Y(dx,dy,0,e) += u[0] + v[0];

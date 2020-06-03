@@ -13,6 +13,8 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#define MFEM_DBG_COLOR 123
+#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -27,7 +29,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    Mesh *mesh = fes->GetMesh();
    dim = mesh->Dimension();
    MFEM_VERIFY(IntRule,"");
-   MFEM_VERIFY(dim == 2, "");
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
    nq = IntRule->GetNPoints();
    ne = fes->GetMesh()->GetNE();
    const IntegrationRule &ir = *IntRule;
@@ -42,7 +44,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    Opa.SetSize(ne * nq, Device::GetDeviceMemoryType());
 
    Xpa.UseDevice(true);
-   Xpa.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
+   Xpa.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    elem_restrict_lex = fes->GetElementRestriction(ordering);
    if (elem_restrict_lex)
@@ -51,11 +53,11 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
    }
    else
    {
-      MFEM_ABORT("Not implemented!");
+      MFEM_ABORT("Not yet implemented!");
    }
 
    Dpa.UseDevice(true);
-   Dpa.SetSize(dim * dim * nq * ne, Device::GetDeviceMemoryType());
+   Dpa.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
 
    setup = false;
    dPpa.UseDevice(true);
@@ -66,6 +68,7 @@ void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
 {
    if (dim == 2) { return AddMultPA_2D(X,Y); }
    if (dim == 3) { return AddMultPA_3D(X,Y); }
+   MFEM_ABORT("Not yet implemented!");
 }
 
 void TMOP_Integrator::AssembleGradPA(const DenseMatrix &Jtr,
@@ -73,6 +76,7 @@ void TMOP_Integrator::AssembleGradPA(const DenseMatrix &Jtr,
 {
    if (dim == 2) { return AssembleGradPA_2D(Jtr,Xe); }
    if (dim == 3) { return AssembleGradPA_3D(Jtr,Xe); }
+   MFEM_ABORT("Not yet implemented!");
 }
 
 void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
@@ -80,6 +84,16 @@ void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
 {
    if (dim == 2) { return AddMultGradPA_2D(Xe,Re,Ce); }
    if (dim == 3) { return AddMultGradPA_3D(Xe,Re,Ce); }
+   MFEM_ABORT("Not yet implemented!");
+}
+
+double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
+                                                const Vector &x) const
+{
+   if (dim == 2) { return GetGridFunctionEnergyPA_2D(fes,x); }
+   if (dim == 3) { return GetGridFunctionEnergyPA_3D(fes,x); }
+   MFEM_ABORT("Not yet implemented!");
+   return 0.0;
 }
 
 } // namespace mfem
