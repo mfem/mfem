@@ -23,6 +23,186 @@ namespace mfem
 {
 
 // *****************************************************************************
+// I3b = det(J)
+MFEM_HOST_DEVICE inline
+double Get_I3b(const double *J, double &sign)
+{
+   const double I3b = J[0] * (J[4]*J[8] - J[7]*J[5]) -
+                      J[1] * (J[3]*J[8] - J[5]*J[6]) +
+                      J[2] * (J[3]*J[7] - J[4]*J[6]);
+   sign = I3b >=0 ? 1.0 : -1.0;
+   return std::fabs(I3b);
+}
+
+MFEM_HOST_DEVICE inline
+double Get_I3b(const double *J)
+{
+   const double I3b = J[0] * (J[4]*J[8] - J[7]*J[5]) -
+                      J[1] * (J[3]*J[8] - J[5]*J[6]) +
+                      J[2] * (J[3]*J[7] - J[4]*J[6]);
+   return std::fabs(I3b);
+}
+
+// *****************************************************************************
+// I3b_p = I3b^{-2/3}
+MFEM_HOST_DEVICE inline
+double Get_I3b_p(const double *J)
+{
+   double sign_detJ;
+   const double i3b = Get_I3b(J,sign_detJ);
+   return sign_detJ * std::pow(i3b, -2./3.);
+}
+
+// *****************************************************************************
+// I1 = ||J||_F^2
+MFEM_HOST_DEVICE inline
+double Get_I1(const double *J)
+{
+   double B[3];
+   B[0] = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
+   B[1] = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
+   B[2] = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
+   return B[0] + B[1] + B[2];
+}
+
+// *****************************************************************************
+// I1b = det(J)^{-2/3} * I_1
+MFEM_HOST_DEVICE inline
+double Get_I1b(const double *J)
+{
+   return Get_I1(J) * Get_I3b_p(J);
+}
+
+// *****************************************************************************
+// I2 = (1/2)*(I_1^2-||J J^t||_F^2)
+MFEM_HOST_DEVICE inline
+double Get_I2(const double *J)
+{
+   // B = JJ^t, diag and then off
+   double B[6];
+   B[0] = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
+   B[1] = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
+   B[2] = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
+   const double I1 = B[0] + B[1] + B[2];
+   B[3] = J[0]*J[1] + J[3]*J[4] + J[6]*J[7]; // B(0,1)
+   B[4] = J[0]*J[2] + J[3]*J[5] + J[6]*J[8]; // B(0,2)
+   B[5] = J[1]*J[2] + J[4]*J[5] + J[7]*J[8]; // B(1,2)
+   const double BF2 = B[0]*B[0] + B[1]*B[1] + B[2]*B[2] +
+                      2*(B[3]*B[3] + B[4]*B[4] + B[5]*B[5]);
+   return (I1*I1 - BF2)/2.;
+}
+
+// *****************************************************************************
+// I2b = I2*I3b^{-4/3}
+MFEM_HOST_DEVICE inline
+double Get_I2b(const double *J)
+{
+   const double I3b_p = Get_I3b_p(J);
+   return Get_I2(J)*I3b_p*I3b_p;
+}
+
+// *****************************************************************************
+// I3 = det(J)^2
+MFEM_HOST_DEVICE inline
+double Get_I3(const double *J)
+{
+   double sign;
+   const double I3b = Get_I3b(J,sign);
+   return I3b * I3b;
+}
+
+// *****************************************************************************
+MFEM_HOST_DEVICE inline
+double *Get_dI3b(const double *J, double *dI3b)
+{
+   double sign_detJ;
+   Get_I3b(J,sign_detJ);
+   // I3b = det(J)
+   // dI3b = adj(J)^T
+   dI3b[0] = sign_detJ*(J[4]*J[8] - J[5]*J[7]);  // 0  3  6
+   dI3b[1] = sign_detJ*(J[5]*J[6] - J[3]*J[8]);  // 1  4  7
+   dI3b[2] = sign_detJ*(J[3]*J[7] - J[4]*J[6]);  // 2  5  8
+   dI3b[3] = sign_detJ*(J[2]*J[7] - J[1]*J[8]);
+   dI3b[4] = sign_detJ*(J[0]*J[8] - J[2]*J[6]);
+   dI3b[5] = sign_detJ*(J[1]*J[6] - J[0]*J[7]);
+   dI3b[6] = sign_detJ*(J[1]*J[5] - J[2]*J[4]);
+   dI3b[7] = sign_detJ*(J[2]*J[3] - J[0]*J[5]);
+   dI3b[8] = sign_detJ*(J[0]*J[4] - J[1]*J[3]);
+   return dI3b;
+}
+
+// *****************************************************************************
+// dI1b = 2*I3b^{-2/3}*(J - (1/3)*I1/I3b*dI3b)
+MFEM_HOST_DEVICE inline
+double *Get_dI1b(const double *J, double *dI1b)
+{
+   const double I3b = Get_I3b(J);
+   const double c1 = 2.0*Get_I3b_p(J);
+   const double c2 = Get_I1(J)/(3.0*I3b);
+   double dI3b[9];
+   Get_dI3b(J,dI3b);
+   for (int i = 0; i < 9; i++)
+   {
+      dI1b[i] = c1*(J[i] - c2*dI3b[i]);
+   }
+   return dI1b;
+}
+
+// *****************************************************************************
+// dI2 = 2 I_1 J - 2 J J^t J = 2 (I_1 I - B) J
+MFEM_HOST_DEVICE inline
+double *Get_dI2(const double *J, double *dI2)
+{
+   const double I1 = Get_I1(J);
+   double B[6];
+   B[0] = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
+   B[1] = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
+   B[2] = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
+   B[3] = J[0]*J[1] + J[3]*J[4] + J[6]*J[7]; // B(0,1)
+   B[4] = J[0]*J[2] + J[3]*J[5] + J[6]*J[8]; // B(0,2)
+   B[5] = J[1]*J[2] + J[4]*J[5] + J[7]*J[8]; // B(1,2)
+   const double C[6] =
+   {
+      2*(I1 - B[0]), 2*(I1 - B[1]), 2*(I1 - B[2]),
+      -2*B[3], -2*B[4], -2*B[5]
+   };
+   //       | C[0]  C[3]  C[4] |  | J[0]  J[3]  J[6] |
+   // dI2 = | C[3]  C[1]  C[5] |  | J[1]  J[4]  J[7] |
+   //       | C[4]  C[5]  C[2] |  | J[2]  J[5]  J[8] |
+   dI2[0] = C[0]*J[0] + C[3]*J[1] + C[4]*J[2];
+   dI2[1] = C[3]*J[0] + C[1]*J[1] + C[5]*J[2];
+   dI2[2] = C[4]*J[0] + C[5]*J[1] + C[2]*J[2];
+
+   dI2[3] = C[0]*J[3] + C[3]*J[4] + C[4]*J[5];
+   dI2[4] = C[3]*J[3] + C[1]*J[4] + C[5]*J[5];
+   dI2[5] = C[4]*J[3] + C[5]*J[4] + C[2]*J[5];
+
+   dI2[6] = C[0]*J[6] + C[3]*J[7] + C[4]*J[8];
+   dI2[7] = C[3]*J[6] + C[1]*J[7] + C[5]*J[8];
+   dI2[8] = C[4]*J[6] + C[5]*J[7] + C[2]*J[8];
+   return dI2;
+}
+
+// *****************************************************************************
+// dI2b = I3b^{-4/3} * [ dI2 - (4/3)*I2/I3b*dI3b ]
+MFEM_HOST_DEVICE inline
+double *Get_dI2b(const double *J, double *dI2b)
+{
+   const double I3b = Get_I3b(J);
+   const double I3b_p = Get_I3b_p(J);
+   const double c1 = I3b_p*I3b_p;
+   const double c2 = (4.*Get_I2(J)/I3b)/3.;
+   double dI2[9], dI3b[9];
+   Get_dI2(J,dI2);
+   Get_dI3b(J,dI3b);
+   for (int i = 0; i < 9; i++)
+   {
+      dI2b[i] = c1*(dI2[i] - c2*dI3b[i]);
+   }
+   return dI2b;
+}
+
+// *****************************************************************************
 // I1b = I1 / det(M)^(2/3).
 MFEM_HOST_DEVICE inline
 double Dim3Invariant1b(const double *M)
@@ -51,17 +231,18 @@ double Dim3Invariant2b(const double *M)
 // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
 // X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
 MFEM_HOST_DEVICE inline
-void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> &ie,
-                          const DeviceMatrix &M, int i, int j,
+void Dim3Invariant1b_dMdM(const DeviceMatrix &M, int i, int j,
                           DeviceMatrix &dMdM)
 {
    // X1_ijkl = (2/3*I1b/I3) [ 2/3 dI3b_ij dI3b_kl + dI3b_kj dI3b_il ]
    double X1_p[9], X2_p[9], X3_p[9];
    DeviceMatrix X1(X1_p,3,3);
-   const double I3 = ie.Get_I3();
-   const double I1b = ie.Get_I1b();
+   const double I3 = Get_I3(M);
+   const double I1b = Get_I1b(M);
    const double alpha = (2./3.)*I1b/I3;
-   DeviceMatrix dI3b((double*)ie.Get_dI3b(),3,3);
+
+   double ddI3b_p[9];
+   DeviceMatrix dI3b(Get_dI3b(M,ddI3b_p),3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -74,7 +255,7 @@ void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> &ie,
    // ddI1_ijkl = 2 δ_ik δ_jl
    // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
    DeviceMatrix X2(X2_p,3,3);
-   const double beta = ie.Get_I3b_p();
+   const double beta = Get_I3b_p(M);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -86,8 +267,8 @@ void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> &ie,
 
    // X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
    DeviceMatrix X3(X3_p,3,3);
-   const double I3b = ie.Get_I3b();
-   const double gamma = -(4./3.)*ie.Get_I3b_p()/I3b;
+   const double I3b = Get_I3b(M);
+   const double gamma = -(4./3.)*Get_I3b_p(M)/I3b;
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -111,15 +292,14 @@ void Dim3Invariant1b_dMdM(InvariantsEvaluator3D<double> &ie,
 //    x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
 //    x3_ijkl = -2 (J J^t)_ik δ_jl = -2 B_ik δ_jl
 MFEM_HOST_DEVICE inline
-void Dim3Invariant2_dMdM(InvariantsEvaluator3D<double> &ie,
-                         const DeviceMatrix &M, int i, int j,
+void Dim3Invariant2_dMdM(const DeviceMatrix &M, int i, int j,
                          DeviceMatrix &dMdM)
 {
    double x1_p[9], x2_p[9], x3_p[9];
    DeviceMatrix x1(x1_p,3,3), x2(x2_p,3,3), x3(x3_p,3,3);
 
    // x1_ijkl = (2 I1) δ_ik δ_jl
-   const double I1 = ie.Get_I1();
+   const double I1 = Get_I1(M);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -190,21 +370,21 @@ void Dim3Invariant2_dMdM(InvariantsEvaluator3D<double> &ie,
 //    X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
 //    X3_ijkl =      det(J)^{-4/3} ddI2_ijkl
 MFEM_HOST_DEVICE inline
-void Dim3Invariant2b_dMdM(InvariantsEvaluator3D<double> &ie,
-                          const DeviceMatrix &M, int i, int j,
+void Dim3Invariant2b_dMdM(const DeviceMatrix &M, int i, int j,
                           DeviceMatrix &dMdM)
 {
    double X1_p[9], X2_p[9], X3_p[9];
    // X1_ijkl = 16/9 det(J)^{-10/3} I2 dI3b_ij dI3b_kl +
    //               4/3 det(J)^{-10/3} I2 dI3b_il dI3b_kj
    DeviceMatrix X1(X1_p,3,3);
-   const double I3b_p = ie.Get_I3b_p(); // I3b^{-2/3}
-   const double I3b = ie.Get_I3b();     // det(J)
-   const double I2 = ie.Get_I2();
+   const double I3b_p = Get_I3b_p(M); // I3b^{-2/3}
+   const double I3b = Get_I3b(M);     // det(J)
+   const double I2 = Get_I2(M);
    const double I3b_p43 = I3b_p*I3b_p;
    const double I3b_p73 = I3b_p*I3b_p/I3b;
    const double I3b_p103 = I3b_p*I3b_p/(I3b*I3b);
-   DeviceMatrix dI3b((double*)ie.Get_dI3b(),3,3);
+   double dI3b_p[9];
+   DeviceMatrix dI3b(Get_dI3b(M,dI3b_p),3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -217,7 +397,8 @@ void Dim3Invariant2b_dMdM(InvariantsEvaluator3D<double> &ie,
 
    // X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
    DeviceMatrix X2(X2_p,3,3);
-   DeviceMatrix dI2((double*)ie.Get_dI2(),3,3);
+   double dI2_p[9];
+   DeviceMatrix dI2(Get_dI2(M,dI2_p),3,3);
    for (int k=0; k<3; k++)
    {
       for (int l=0; l<3; l++)
@@ -228,7 +409,7 @@ void Dim3Invariant2b_dMdM(InvariantsEvaluator3D<double> &ie,
 
    double ddI2_p[9];
    DeviceMatrix ddI2(ddI2_p,3,3);
-   Dim3Invariant2_dMdM(ie, M, i, j, ddI2);
+   Dim3Invariant2_dMdM(M, i, j, ddI2);
 
    // X3_ijkl =  det(J)^{-4/3} ddI2_ijkl
    DeviceMatrix X3(X3_p,3,3);
@@ -273,7 +454,7 @@ static void SetupGradPA_3D(const Vector &xe_,
    const auto X = Reshape(xe_.Read(), D1D, D1D, D1D, DIM, NE);
    auto dP = Reshape(dp_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, Q1D,
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       constexpr int DIM = 3;
       const int tidz = MFEM_THREAD_ID(z);
@@ -514,33 +695,32 @@ static void SetupGradPA_3D(const Vector &xe_,
 
                // metric->AssembleH
                DeviceMatrix Jpt_dm(Jpt,DIM,DIM);
-               InvariantsEvaluator3D<double> ie;
-               ie.SetJacobian(Jpt);
-
-               //const double I1b = ie.Get_I1b();
-               const double I1b = Dim3Invariant1b(Jpt);
-               const double I2b = Dim3Invariant2b(Jpt);
-               DeviceMatrix dI1b((double*)ie.Get_dI1b(),DIM,DIM);
-               DeviceMatrix dI2b((double*)ie.Get_dI2b(),DIM,DIM);
+               const double I1b = Get_I1b(Jpt);
+               const double I2b = Get_I2b(Jpt);
+               double dI1b_p[9], dI2b_p[9];
+               DeviceMatrix dI1b(Get_dI1b(Jpt,dI1b_p),DIM,DIM);
+               DeviceMatrix dI2b(Get_dI2b(Jpt,dI2b_p),DIM,DIM);
                double dI1b_dMdM_p[9], dI2b_dMdM_p[9];
                DeviceMatrix dI1b_dMdM(dI1b_dMdM_p,DIM,DIM);
                DeviceMatrix dI2b_dMdM(dI2b_dMdM_p,DIM,DIM);
-               for (int r = 0; r < DIM; r++)
+               for (int i = 0; i < DIM; i++)
                {
-                  for (int c = 0; c < DIM; c++)
+                  for (int j = 0; j < DIM; j++)
                   {
-                     Dim3Invariant1b_dMdM(ie, Jpt_dm, r, c, dI1b_dMdM);
-                     Dim3Invariant2b_dMdM(ie, Jpt_dm, r, c, dI2b_dMdM);
-                     for (int rr = 0; rr < DIM; rr++)
+                     Dim3Invariant1b_dMdM(Jpt_dm, i, j, dI1b_dMdM);
+                     Dim3Invariant2b_dMdM(Jpt_dm, i, j, dI2b_dMdM);
+                     for (int r = 0; r < DIM; r++)
                      {
-                        for (int cc = 0; cc < DIM; cc++)
+                        for (int c = 0; c < DIM; c++)
                         {
                            const double entry_rr_cc =
-                              (weight/9.) * (dI1b_dMdM(rr,cc)*I2b
-                                             + dI1b(r,c)*dI2b(rr,cc)
-                                             + dI1b(rr,cc)*dI2b(r,c)
-                                             + dI2b_dMdM(rr,cc)*I1b);
-                           dP(rr,cc,r,c,qx,qy,qz,e) = entry_rr_cc;
+                              (weight/9.) * (
+                                 dI1b_dMdM(r,c)*I2b
+                                 + dI1b(i,j)*dI2b(r,c)
+                                 + dI1b(r,c)*dI2b(i,j)
+                                 + dI2b_dMdM(r,c)*I1b
+                              );
+                           dP(r,c,i,j,qx,qy,qz,e) = entry_rr_cc;
                         }
                      }
                   }
@@ -566,8 +746,8 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
 
    switch (id)
    {
-      //case 0x21: { SetupGradPA_3D<2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x22: { SetupGradPA_3D<2,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }/*
+      case 0x21: { SetupGradPA_3D<2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x22: { SetupGradPA_3D<2,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x23: { SetupGradPA_3D<2,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x24: { SetupGradPA_3D<2,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x25: { SetupGradPA_3D<2,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
@@ -592,7 +772,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
       case 0x53: { SetupGradPA_3D<5,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x54: { SetupGradPA_3D<5,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x55: { SetupGradPA_3D<5,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x56: { SetupGradPA_3D<5,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }*/
+      case 0x56: { SetupGradPA_3D<5,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }
       default:
       {
          dbg("kernel id: %x", id);

@@ -13,7 +13,6 @@
 #define MFEM_INVARIANTS_HPP
 
 #include "../config/config.hpp"
-#include "../general/cuda.hpp"
 #include "../general/error.hpp"
 #include <cmath>
 
@@ -27,10 +26,10 @@ namespace mfem
 template <typename scalar_t>
 struct ScalarOps
 {
-   MFEM_HOST_DEVICE static scalar_t sign(const scalar_t &a)
+   static scalar_t sign(const scalar_t &a)
    { return (a >= scalar_t(0)) ? scalar_t(1) : scalar_t(-1); }
 
-   MFEM_HOST_DEVICE static scalar_t pow(const scalar_t &x, int m, int n)
+   static scalar_t pow(const scalar_t &x, int m, int n)
    { return std::pow(x, scalar_t(m)/n); }
 };
 
@@ -542,10 +541,9 @@ public:
    // Bitwise OR of EvalMasks
    int eval_state;
 
-   MFEM_HOST_DEVICE bool dont(int have_mask) const
-   { return !(eval_state & have_mask); }
+   bool dont(int have_mask) const { return !(eval_state & have_mask); }
 
-   MFEM_HOST_DEVICE void Eval_I1()
+   void Eval_I1()
    {
       eval_state |= HAVE_I1;
       B[0] = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
@@ -553,12 +551,12 @@ public:
       B[2] = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
       I1 = B[0] + B[1] + B[2];
    }
-   MFEM_HOST_DEVICE void Eval_I1b() // det(J)^{-2/3}*I_1 = I_1/I_3^{1/3}
+   void Eval_I1b() // det(J)^{-2/3}*I_1 = I_1/I_3^{1/3}
    {
       eval_state |= HAVE_I1b;
       I1b = Get_I1()*Get_I3b_p();
    }
-   MFEM_HOST_DEVICE void Eval_B_offd()
+   void Eval_B_offd()
    {
       eval_state |= HAVE_B_offd;
       // B = J J^t
@@ -567,7 +565,7 @@ public:
       B[4] = J[0]*J[2] + J[3]*J[5] + J[6]*J[8]; // B(0,2)
       B[5] = J[1]*J[2] + J[4]*J[5] + J[7]*J[8]; // B(1,2)
    }
-   MFEM_HOST_DEVICE void Eval_I2()
+   void Eval_I2()
    {
       eval_state |= HAVE_I2;
       Get_I1();
@@ -576,13 +574,13 @@ public:
                            2*(B[3]*B[3] + B[4]*B[4] + B[5]*B[5]);
       I2 = (I1*I1 - BF2)/2;
    }
-   MFEM_HOST_DEVICE void Eval_I2b() // I2b = I2*I3b^{-4/3}
+   void Eval_I2b() // I2b = I2*I3b^{-4/3}
    {
       eval_state |= HAVE_I2b;
       Get_I3b_p();
       I2b = Get_I2()*I3b_p*I3b_p;
    }
-   MFEM_HOST_DEVICE void Eval_I3b() // det(J)
+   void Eval_I3b() // det(J)
    {
       eval_state |= HAVE_I3b;
       I3b = J[0]*(J[4]*J[8] - J[7]*J[5]) - J[1]*(J[3]*J[8] - J[5]*J[6]) +
@@ -590,7 +588,7 @@ public:
       sign_detJ = scalar_ops::sign(I3b);
       I3b = sign_detJ*I3b;
    }
-   MFEM_HOST_DEVICE scalar_t Get_I3b_p()  // I3b^{-2/3}
+   scalar_t Get_I3b_p()  // I3b^{-2/3}
    {
       if (dont(HAVE_I3b_p))
       {
@@ -600,7 +598,7 @@ public:
       }
       return I3b_p;
    }
-   MFEM_HOST_DEVICE void Eval_dI1()
+   void Eval_dI1()
    {
       eval_state |= HAVE_dI1;
       for (int i = 0; i < 9; i++)
@@ -608,7 +606,7 @@ public:
          dI1[i] = 2*J[i];
       }
    }
-   MFEM_HOST_DEVICE void Eval_dI1b()
+   void Eval_dI1b()
    {
       eval_state |= HAVE_dI1b;
       // I1b = I3b^{-2/3}*I1
@@ -621,7 +619,7 @@ public:
          dI1b[i] = c1*(J[i] - c2*dI3b[i]);
       }
    }
-   MFEM_HOST_DEVICE void Eval_dI2()
+   void Eval_dI2()
    {
       eval_state |= HAVE_dI2;
       // dI2 = 2 I_1 J - 2 J J^t J = 2 (I_1 I - B) J
@@ -649,7 +647,7 @@ public:
       dI2[7] = C[3]*J[6] + C[1]*J[7] + C[5]*J[8];
       dI2[8] = C[4]*J[6] + C[5]*J[7] + C[2]*J[8];
    }
-   MFEM_HOST_DEVICE void Eval_dI2b()
+   void Eval_dI2b()
    {
       eval_state |= HAVE_dI2b;
       // I2b = det(J)^{-4/3}*I2 = I3b^{-4/3}*I2
@@ -665,7 +663,7 @@ public:
          dI2b[i] = c1*(dI2[i] - c2*dI3b[i]);
       }
    }
-   MFEM_HOST_DEVICE void Eval_dI3()
+   void Eval_dI3()
    {
       eval_state |= HAVE_dI3;
       // I3 = I3b^2
@@ -677,7 +675,7 @@ public:
          dI3[i] = c1*dI3b[i];
       }
    }
-   MFEM_HOST_DEVICE void Eval_dI3b()
+   void Eval_dI3b()
    {
       eval_state |= HAVE_dI3b;
       // I3b = det(J)
@@ -740,7 +738,7 @@ public:
    }
 
    /// The Jacobian should use column-major storage.
-   MFEM_HOST_DEVICE void SetJacobian(const scalar_t *Jac) { J = Jac; eval_state = 0; }
+   void SetJacobian(const scalar_t *Jac) { J = Jac; eval_state = 0; }
 
    /// The @a Deriv matrix is `dof x 3`, using column-major storage.
    void SetDerivativeMatrix(int height, const scalar_t *Deriv)
@@ -759,34 +757,34 @@ public:
       D = Deriv;
    }
 
-   MFEM_HOST_DEVICE scalar_t Get_I1()  { if (dont(HAVE_I1 )) { Eval_I1();  } return I1; }
-   MFEM_HOST_DEVICE scalar_t Get_I1b() { if (dont(HAVE_I1b)) { Eval_I1b(); } return I1b; }
-   MFEM_HOST_DEVICE scalar_t Get_I2()  { if (dont(HAVE_I2 )) { Eval_I2();  } return I2; }
-   MFEM_HOST_DEVICE scalar_t Get_I2b() { if (dont(HAVE_I2b)) { Eval_I2b(); } return I2b; }
-   MFEM_HOST_DEVICE scalar_t Get_I3()  { if (dont(HAVE_I3b)) { Eval_I3b(); } return I3b*I3b; }
-   MFEM_HOST_DEVICE scalar_t Get_I3b() { if (dont(HAVE_I3b)) { Eval_I3b(); } return I3b; }
+   scalar_t Get_I1()  { if (dont(HAVE_I1 )) { Eval_I1();  } return I1; }
+   scalar_t Get_I1b() { if (dont(HAVE_I1b)) { Eval_I1b(); } return I1b; }
+   scalar_t Get_I2()  { if (dont(HAVE_I2 )) { Eval_I2();  } return I2; }
+   scalar_t Get_I2b() { if (dont(HAVE_I2b)) { Eval_I2b(); } return I2b; }
+   scalar_t Get_I3()  { if (dont(HAVE_I3b)) { Eval_I3b(); } return I3b*I3b; }
+   scalar_t Get_I3b() { if (dont(HAVE_I3b)) { Eval_I3b(); } return I3b; }
 
-   MFEM_HOST_DEVICE const scalar_t *Get_dI1()
+   const scalar_t *Get_dI1()
    {
       if (dont(HAVE_dI1 )) { Eval_dI1();  } return dI1;
    }
-   MFEM_HOST_DEVICE const scalar_t *Get_dI1b()
+   const scalar_t *Get_dI1b()
    {
       if (dont(HAVE_dI1b)) { Eval_dI1b(); } return dI1b;
    }
-   MFEM_HOST_DEVICE const scalar_t *Get_dI2()
+   const scalar_t *Get_dI2()
    {
       if (dont(HAVE_dI2)) { Eval_dI2(); } return dI2;
    }
-   MFEM_HOST_DEVICE const scalar_t *Get_dI2b()
+   const scalar_t *Get_dI2b()
    {
       if (dont(HAVE_dI2b)) { Eval_dI2b(); } return dI2b;
    }
-   MFEM_HOST_DEVICE const scalar_t *Get_dI3()
+   const scalar_t *Get_dI3()
    {
       if (dont(HAVE_dI3)) { Eval_dI3(); } return dI3;
    }
-   MFEM_HOST_DEVICE const scalar_t *Get_dI3b()
+   const scalar_t *Get_dI3b()
    {
       if (dont(HAVE_dI3b)) { Eval_dI3b(); } return dI3b;
    }
