@@ -18,8 +18,6 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
-#define MFEM_DBG_COLOR 82
-#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -549,8 +547,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       r = b;
       x = 0.0;
    }
-   dbg("r: %.15e", r*r);
-   MFEM_VERIFY(!prec,"");
 
    if (prec)
    {
@@ -591,11 +587,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   //dbg("\033[7mPushing drand48 into d");
-   //for (int k=0; k<d.Size(); k++) { d[k] = drand48(); }
-   dbg("d: %.15e", d*d); //d.Print();
    oper->Mult(d, z);  // z = A d
-   dbg("z: %.15e", z*z); //z.Print(); exit(0);
 
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
@@ -806,7 +798,6 @@ inline void Update(Vector &x, int k, DenseMatrix &h, Vector &s,
 
 void GMRESSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("");
    // Generalized Minimum Residual method following the algorithm
    // on p. 20 of the SIAM Templates book.
 
@@ -878,7 +869,6 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    for (j = 1; j <= max_iter; )
    {
-      dbg("%d",i);
       if (v[0] == NULL) { v[0] = new Vector(n); }
       v[0]->Set(1.0/beta, r);
       s = 0.0; s(0) = beta;
@@ -1431,7 +1421,6 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       }
       oper->Mult(*z, q);
       alpha = Dot(*z, q);
-      dbg("alpha: %.15e",alpha); exit(0);
       MFEM_ASSERT(IsFinite(alpha), "alpha = " << alpha);
       if (it > 1) // (v0 == 0) for (it == 1)
       {
@@ -1448,7 +1437,6 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       }
       else
       {
-         dbg("prec->Mult");
          prec->Mult(v0, q);
          beta = sqrt(Dot(v0, q));
       }
@@ -1589,11 +1577,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
-   dbg("First oper->Mult");
-   srand48(0x123456789);
-   for (int k=0; k<x.Size(); k++) { x[k] = drand48(); }
    oper->Mult(x, r);
-   dbg("x: %.15e, r: %.15e", x*x, r*r);
 
    if (have_b)
    {
@@ -1632,22 +1616,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-#if 0
-      dbg("No prec");
-      c = r;
-#else
-      dbg("GetGradient");
-      //dbg("\033[7mPushing drand48 into prec(GetGradient(x))");
-      //for (int k=0; k<x.Size(); k++) { x[k] = drand48(); }
       prec->SetOperator(oper->GetGradient(x));
 
-      //dbg("\033[7mPushing drand48 into prec->Mult(r)");
-      //for (int k=0; k<r.Size(); k++) { r[k] = drand48(); }
-      //dbg("prec->Mult");
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      dbg("x: %.15e, r: %.15e, c: %.15e", x*x, r*r, c*c);
-      exit(0);
-#endif
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)

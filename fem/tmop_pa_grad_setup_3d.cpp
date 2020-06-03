@@ -22,6 +22,7 @@
 namespace mfem
 {
 
+// *****************************************************************************
 // I1 = |M|^2/ det(M)^(2/3).
 double Dim3Invariant1(const DenseMatrix &M)
 {
@@ -31,6 +32,7 @@ double Dim3Invariant1(const DenseMatrix &M)
    return fnorm * fnorm / pow(det, 2.0/3.0);
 }
 
+// *****************************************************************************
 // I2 = |adj(M)|^2 / det(M)^(4/3).
 double Dim3Invariant2(const DenseMatrix &M)
 {
@@ -43,61 +45,49 @@ double Dim3Invariant2(const DenseMatrix &M)
    return fnorm * fnorm / pow(det, 4.0/3.0);
 }
 
-// I3 = det(M).
-/*double Dim3Invariant3(const DenseMatrix &M)
-{
-   MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
-   return M.Det();
-}*/
-
+// *****************************************************************************
 // dI3_dM = d(det(M))_dM = adj(M)^T.
 void Dim3Invariant3_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    CalcAdjugateTranspose(M, dM);
 }
 
+// *****************************************************************************
 // dI1_dM = [ 2 det(M) M - 2/3 |M|^2 det(M)^(-1/3) adj(M)^T ] / det(M)^4/3.
 void Dim3Invariant1_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
-   //dbg("M:"); M.Print();
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
    const double fnorm = M.FNorm(), det = fabs(M.Det());
-
-   Dim3Invariant3_dM(M, dM); //dbg("dM:"); dM.Print();
+   Dim3Invariant3_dM(M, dM);
    dM *= -(2./3.) * fnorm * fnorm * pow(det, -1./3.);
    dM.Add(2.0 * pow(det, 2./3.), M);
    dM *= 1.0 / pow(det, 4./3.);
 }
 
+// *****************************************************************************
 // dI2_dM = [ -4/3 |adj(M)|^2  det(M)^(1/3) adj(M)^T ] / det(M)^(8/3).
 void Dim3Invariant2_dM(const DenseMatrix &M, DenseMatrix &dM)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    DenseMatrix Madj(3);
    // dM will have Madj^t because it is the third invariant's derivative.
    CalcAdjugate(M, Madj);
    const double fnorm = Madj.FNorm(), det = fabs(M.Det());
-
    Dim3Invariant3_dM(M, dM);
    dM *= -(4./3.)* fnorm * fnorm * pow(det, 1./3.);
    dM *= 1.0 / (pow(det, 8./3.));
 }
 
+// *****************************************************************************
 void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j, DenseMatrix &dMdM)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    DenseMatrix dI(3);
    Dim3Invariant3_dM(M, dI);
    const double fnorm  = M.FNorm(), det = fabs(M.Det());
-
    DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
    for (int r = 0; r < 3; r++)
    {
@@ -112,17 +102,16 @@ void Dim3Invariant1_dMdM(const DenseMatrix &M, int i, int j, DenseMatrix &dMdM)
    }
 }
 
+// *****************************************************************************
 void Dim3Invariant2_dMdM(const DenseMatrix &M, int i, int j, DenseMatrix &dMdM)
 {
    MFEM_ASSERT(M.Height() == 3 && M.Width() == 3, "Incorrect dimensions!");
-
    DenseMatrix dI(3);
    Dim3Invariant3_dM(M, dI);
    DenseMatrix Madj(3);
    CalcAdjugate(M, Madj);
    const double det   = fabs(M.Det());
    const double fnorm = Madj.FNorm();
-
    DenseMatrix dM(3); dM = 0.0; dM(i, j) = 1.0;
    for (int r = 0; r < 3; r++)
    {
@@ -206,7 +195,6 @@ static void SetupGradPA_3D(const Vector &xe_,
       double (*XzBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+7);
       double (*XzGBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+8);
 
-      // Load X(x,y,z)
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -219,7 +207,6 @@ static void SetupGradPA_3D(const Vector &xe_,
             }
          }
       }
-      // Load B1d and G1d matrices
       if (tidz == 0)
       {
          MFEM_FOREACH_THREAD(d,y,D1D)
@@ -427,14 +414,11 @@ static void SetupGradPA_3D(const Vector &xe_,
                                        + dI1_dM(rr,cc)*dI2_dM(r,c)
                                        + dI2_dMdM(rr,cc)*I1);
                            dP(rr,cc,r,c,qx,qy,qz,e) = sign * weight * entry_rr_cc;
-                           dbg("dP: %.15e", dP(rr,cc,r,c,qx,qy,qz,e));
+                           //dbg("dP: %.15e", dP(rr,cc,r,c,qx,qy,qz,e));
                         }
                      }
                   }
                }
-               DenseMatrix A(&dP(0,0,0,0,qx,qy,qz,e),9,9);
-               dbg("A:"); A.Print();
-               exit(0);
             } // qx
          } // qy
       } // qz
@@ -445,7 +429,6 @@ static void SetupGradPA_3D(const Vector &xe_,
 void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
                                         const Vector &Xe) const
 {
-   dbg("");
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
@@ -490,7 +473,6 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
          MFEM_ABORT("Unknown kernel.");
       }
    }
-   //dbg("dPpa:"); dPpa.Print();
 }
 
 } // namespace mfem
