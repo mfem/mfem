@@ -988,8 +988,8 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
                                      + dI1b(rr,cc)*dI2b(r,c));*/
 
                   //const double entry_rr_cc = (weight/9.) * (dI1b_dMdM(rr,cc)*I2b);
-                  const double entry_rr_cc = (weight/9.) * (dI2_dMdM(rr,cc));
-                  //const double entry_rr_cc = (weight/9.) * (dI2b_dMdM(rr,cc));//*I1b);
+                  //const double entry_rr_cc = (weight/9.) * (dI2_dMdM(rr,cc));
+                  const double entry_rr_cc = (weight/9.) * (dI2b_dMdM(rr,cc)*I1b);
 
                   // std:
                   /*const double entry_rr_cc =
@@ -1035,8 +1035,8 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
       for (int k=0; k<9; k++) { dbg("%.15e", ie.Get_dI3b()[k]); }
       //ie.Assemble_TProd(c1, ie.Get_dI1b(), ie.Get_dI2b(), A.GetData());
       //ie.Assemble_ddI1b(c1*ie.Get_I2b(), A.GetData());
-      ie.Assemble_ddI2(c1, A.GetData());
-      //ie.Assemble_ddI2b(c1/**ie.Get_I1b()*/, A.GetData());
+      //ie.Assemble_ddI2(c1, A.GetData());
+      ie.Assemble_ddI2b(c1*ie.Get_I1b(), A.GetData());
 
       // std:
       /*
