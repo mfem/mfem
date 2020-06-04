@@ -312,7 +312,8 @@ int main(int argc, char *argv[])
    // 11. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
-   MFEM_VERIFY(!pa || (metric_id == 2 || metric_id == 302), "");
+   MFEM_VERIFY(!pa || (metric_id == 2 ||
+                       metric_id == 302 || metric_id == 321), "");
    switch (metric_id)
    {
       case 1: metric = new TMOP_Metric_001; break;
