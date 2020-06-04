@@ -24,7 +24,7 @@ namespace mfem
 
 // *****************************************************************************
 // P_302 = (I1b/9)*dI2b + (I2b/9)*dI1b
-static MFEM_HOST_DEVICE
+static MFEM_HOST_DEVICE inline
 void EvalP_302(const double *J, double *P)
 {
    kernels::InvariantsEvaluator3D ie(J);
@@ -35,7 +35,7 @@ void EvalP_302(const double *J, double *P)
 
 // *****************************************************************************
 // P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
-static MFEM_HOST_DEVICE
+static MFEM_HOST_DEVICE inline
 void EvalP_321(const double *J, double *P)
 {
    kernels::InvariantsEvaluator3D ie(J);

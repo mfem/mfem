@@ -24,7 +24,7 @@ namespace mfem
 
 // *****************************************************************************
 // mu_302 = I1b * I2b / 9 - 1
-static MFEM_HOST_DEVICE
+static MFEM_HOST_DEVICE inline
 double EvalW_302(const double *J)
 {
    kernels::InvariantsEvaluator3D ie(J);
@@ -33,7 +33,7 @@ double EvalW_302(const double *J)
 
 // *****************************************************************************
 // mu_321 = I1 + I2/I3 - 6
-static MFEM_HOST_DEVICE
+static MFEM_HOST_DEVICE inline
 double EvalW_321(const double *J)
 {
    kernels::InvariantsEvaluator3D ie(J);
