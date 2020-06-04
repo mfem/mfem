@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <cmath>
 #include <cstdlib>
+#include <climits> // INT_MAX
 
 using namespace std;
 
@@ -1856,6 +1857,11 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                                                (*(blocks(i, j)));
                MFEM_ASSERT(parcsr_op != NULL, "const_cast failed");
                csr_blocks(i, j) = hypre_MergeDiagAndOffd(parcsr_op);
+#if MFEM_HYPRE_VERSION >= 21600
+               MFEM_VERIFY(csr_blocks(i, j)->num_rows < INT_MAX,"Number of "
+                           "local rows is too large to store as an integer.");
+               hypre_CSRMatrixBigJtoJ(csr_blocks(i, j));
+#endif
             }
 
             for (int k = 0; k < csr_blocks(i, j)->num_rows; ++k)
