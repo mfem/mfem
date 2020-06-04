@@ -19,6 +19,9 @@
 #include <cmath>
 #include <set>
 
+#define MFEM_DBG_COLOR 87
+#include "../general/dbg.hpp"
+
 namespace mfem
 {
 
@@ -1368,7 +1371,6 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    // "Iterative Krylov Methods for Large Linear Systems",
    // by Henk A. van der Vorst, 2003.
    // Extended to support an SPD preconditioner.
-
    int it;
    double beta, eta, gamma0, gamma1, sigma0, sigma1;
    double alpha, delta, rho1, rho2, rho3, norm_goal;

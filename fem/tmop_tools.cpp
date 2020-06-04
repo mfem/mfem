@@ -369,6 +369,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Decreases the scaling of the update until the new mesh is valid.
    for (int i = 0; i < 12; i++)
    {
+      // x_out = x - scale*c
       add(x, -scale, c, x_out);
 
       if (serial)

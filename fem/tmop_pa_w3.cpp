@@ -27,7 +27,8 @@ namespace mfem
 static MFEM_HOST_DEVICE inline
 double EvalW_302(const double *J)
 {
-   kernels::InvariantsEvaluator3D ie(J);
+   double B[9];
+   kernels::InvariantsEvaluator3D ie(J,B);
    return ie.Get_I1b()*ie.Get_I2b()/9. - 1.;
 }
 
@@ -36,7 +37,8 @@ double EvalW_302(const double *J)
 static MFEM_HOST_DEVICE inline
 double EvalW_321(const double *J)
 {
-   kernels::InvariantsEvaluator3D ie(J);
+   double B[9];
+   kernels::InvariantsEvaluator3D ie(J,B);
    return ie.Get_I1() + ie.Get_I2()/ie.Get_I3() - 6.0;
 }
 
@@ -293,7 +295,7 @@ static double EnergyPA_3D(const int mid,
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
                const double EvalW = mid == 302 ? EvalW_302(J) :
-                                    //mid == 321 ? EvalW_321(J) :
+                                    mid == 321 ? EvalW_321(J) :
                                     0.0;
                E(qx,qy,qz,e) = weight * EvalW;
                O(qx,qy,qz,e) = 1.0;
