@@ -536,7 +536,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    switch (id)
    {
       case 0x21: return AddMultPA_Kernel_3D<2,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x22: return AddMultPA_Kernel_3D<2,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);/*
+      case 0x22: return AddMultPA_Kernel_3D<2,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
       case 0x23: return AddMultPA_Kernel_3D<2,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
       case 0x24: return AddMultPA_Kernel_3D<2,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
       case 0x25: return AddMultPA_Kernel_3D<2,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
@@ -561,7 +561,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
       case 0x53: return AddMultPA_Kernel_3D<5,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
       case 0x54: return AddMultPA_Kernel_3D<5,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
       case 0x55: return AddMultPA_Kernel_3D<5,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x56: return AddMultPA_Kernel_3D<5,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);*/
+      case 0x56: return AddMultPA_Kernel_3D<5,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
       default:  break;
    }
    dbg("id: %x",id);

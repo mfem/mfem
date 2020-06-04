@@ -551,7 +551,6 @@ int main(int argc, char *argv[])
    if (fdscheme) { he_nlf_integ->EnableFiniteDifferences(x); }
 
    // 12. Setup the quadrature rule for the non-linear form integrator.
-   MFEM_VERIFY(!pa || quad_type == 2, "");
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
    switch (quad_type)

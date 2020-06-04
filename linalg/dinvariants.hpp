@@ -448,9 +448,7 @@ public:
    // ddI3b_ijkl = (1/I3b) (δ_ks δ_it - δ_kt δ_si) dI3b_tj dI3b_sl
    MFEM_HOST_DEVICE inline double *Get_ddI3b(int i, int j)
    {
-
       const double c1 = 1./Get_I3b();
-      // x2_ijkl = (δ_ks δ_it - δ_kt δ_si ) J_vj J_ul
       ConstDeviceMatrix di3b(dI3b,3,3);
       DeviceMatrix ddi3b(ddI3b,3,3);
       for (int k=0; k<3; k++)
