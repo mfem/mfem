@@ -231,8 +231,8 @@ double Dim3Invariant2b(const double *M)
 // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
 // X3_ijkl = -(4/3*I3b^{-5/3}) (J_ij dI3b_kl + dI3b_ij J_kl)
 MFEM_HOST_DEVICE inline
-void Dim3Invariant1b_dMdM(const DeviceMatrix &M, int i, int j,
-                          DeviceMatrix &dMdM)
+void Get_ddI1b_ij(ConstDeviceMatrix &M, int i, int j,
+                  DeviceMatrix &dMdM)
 {
    // X1_ijkl = (2/3*I1b/I3) [ 2/3 dI3b_ij dI3b_kl + dI3b_kj dI3b_il ]
    double X1_p[9], X2_p[9], X3_p[9];
@@ -292,8 +292,7 @@ void Dim3Invariant1b_dMdM(const DeviceMatrix &M, int i, int j,
 //    x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
 //    x3_ijkl = -2 (J J^t)_ik δ_jl = -2 B_ik δ_jl
 MFEM_HOST_DEVICE inline
-void Dim3Invariant2_dMdM(const DeviceMatrix &M, int i, int j,
-                         DeviceMatrix &dMdM)
+void Get_ddI2_ij(ConstDeviceMatrix &M, int i, int j, DeviceMatrix &dMdM)
 {
    double x1_p[9], x2_p[9], x3_p[9];
    DeviceMatrix x1(x1_p,3,3), x2(x2_p,3,3), x3(x3_p,3,3);
@@ -370,8 +369,7 @@ void Dim3Invariant2_dMdM(const DeviceMatrix &M, int i, int j,
 //    X2_ijkl = -4/3 det(J)^{-7/3} (dI2_ij dI3b_kl + dI2_kl dI3b_ij)
 //    X3_ijkl =      det(J)^{-4/3} ddI2_ijkl
 MFEM_HOST_DEVICE inline
-void Dim3Invariant2b_dMdM(const DeviceMatrix &M, int i, int j,
-                          DeviceMatrix &dMdM)
+void Get_ddI2b_ij(ConstDeviceMatrix &M, int i, int j, DeviceMatrix &dMdM)
 {
    double X1_p[9], X2_p[9], X3_p[9];
    // X1_ijkl = 16/9 det(J)^{-10/3} I2 dI3b_ij dI3b_kl +
@@ -409,7 +407,7 @@ void Dim3Invariant2b_dMdM(const DeviceMatrix &M, int i, int j,
 
    double ddI2_p[9];
    DeviceMatrix ddI2(ddI2_p,3,3);
-   Dim3Invariant2_dMdM(M, i, j, ddI2);
+   Get_ddI2_ij(M, i, j, ddI2);
 
    // X3_ijkl =  det(J)^{-4/3} ddI2_ijkl
    DeviceMatrix X3(X3_p,3,3);
@@ -432,8 +430,54 @@ void Dim3Invariant2b_dMdM(const DeviceMatrix &M, int i, int j,
 }
 
 // *****************************************************************************
+// dP = (dI2b x dI1b + dI1b x dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
+static MFEM_HOST_DEVICE
+void EvalH_302(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *Jpt, DeviceTensor<8,double> dP)
+{
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(Jpt);
+
+   const double I1b = ie.Get_I1b();
+   const double I2b = ie.Get_I2b();
+   ConstDeviceMatrix dI1b(ie.Get_dI1b(),DIM,DIM);
+   ConstDeviceMatrix dI2b(ie.Get_dI2b(),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddI1b(ie.Get_ddI1b_ij(i,j),DIM,DIM);
+         ConstDeviceMatrix ddI2b(ie.Get_ddI2b_ij(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double entry_rr_cc =
+                  (weight/9.) * (
+                     (dI2b(r,c)*dI1b(i,j) + dI1b(r,c)*dI2b(i,j))
+                     + ddI2b(r,c)*I1b
+                     + ddI1b(r,c)*I2b);
+               dP(r,c,i,j,qx,qy,qz,e) = entry_rr_cc;
+            }
+         }
+      }
+   }
+}
+
+// *****************************************************************************
+// dP = ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2) + (1/I3)*ddI2
+//      + (6*I2/I3b^4)*(dI3b x dI3b) + (-2*I2/I3b^3)*ddI3b
+static MFEM_HOST_DEVICE
+void EvalH_321(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *J, double *dP)
+{
+
+}
+
+// *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0>
-static void SetupGradPA_3D(const Vector &xe_,
+static void SetupGradPA_3D(const int mid,
+                           const Vector &xe_,
                            const int NE,
                            const Array<double> &w_,
                            const Array<double> &b_,
@@ -456,7 +500,6 @@ static void SetupGradPA_3D(const Vector &xe_,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      constexpr int DIM = 3;
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -694,37 +737,8 @@ static void SetupGradPA_3D(const Vector &xe_,
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
                // metric->AssembleH
-               DeviceMatrix Jpt_dm(Jpt,DIM,DIM);
-               const double I1b = Get_I1b(Jpt);
-               const double I2b = Get_I2b(Jpt);
-               double dI1b_p[9], dI2b_p[9];
-               DeviceMatrix dI1b(Get_dI1b(Jpt,dI1b_p),DIM,DIM);
-               DeviceMatrix dI2b(Get_dI2b(Jpt,dI2b_p),DIM,DIM);
-               double dI1b_dMdM_p[9], dI2b_dMdM_p[9];
-               DeviceMatrix dI1b_dMdM(dI1b_dMdM_p,DIM,DIM);
-               DeviceMatrix dI2b_dMdM(dI2b_dMdM_p,DIM,DIM);
-               for (int i = 0; i < DIM; i++)
-               {
-                  for (int j = 0; j < DIM; j++)
-                  {
-                     Dim3Invariant1b_dMdM(Jpt_dm, i, j, dI1b_dMdM);
-                     Dim3Invariant2b_dMdM(Jpt_dm, i, j, dI2b_dMdM);
-                     for (int r = 0; r < DIM; r++)
-                     {
-                        for (int c = 0; c < DIM; c++)
-                        {
-                           const double entry_rr_cc =
-                              (weight/9.) * (
-                                 dI1b_dMdM(r,c)*I2b
-                                 + dI1b(i,j)*dI2b(r,c)
-                                 + dI1b(r,c)*dI2b(i,j)
-                                 + dI2b_dMdM(r,c)*I1b
-                              );
-                           dP(r,c,i,j,qx,qy,qz,e) = entry_rr_cc;
-                        }
-                     }
-                  }
-               }
+               if (mid == 302) { EvalH_302(e,qx,qy,qz,weight,Jpt,dP); }
+               if (mid == 321) { EvalH_321(e,qx,qy,qz,weight,Jpt,dP); }
             } // qx
          } // qy
       } // qz
@@ -738,6 +752,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
    MFEM_VERIFY(IntRule,"");
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
+   const int mid = metric->Id();
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = maps->B;
@@ -746,33 +761,33 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
 
    switch (id)
    {
-      case 0x21: { SetupGradPA_3D<2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x22: { SetupGradPA_3D<2,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x23: { SetupGradPA_3D<2,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x24: { SetupGradPA_3D<2,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x25: { SetupGradPA_3D<2,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x26: { SetupGradPA_3D<2,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x21: { SetupGradPA_3D<2,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x22: { SetupGradPA_3D<2,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }/*
+      case 0x23: { SetupGradPA_3D<2,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x24: { SetupGradPA_3D<2,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x25: { SetupGradPA_3D<2,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x26: { SetupGradPA_3D<2,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
 
-      case 0x31: { SetupGradPA_3D<3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x32: { SetupGradPA_3D<3,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x33: { SetupGradPA_3D<3,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x34: { SetupGradPA_3D<3,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x35: { SetupGradPA_3D<3,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x36: { SetupGradPA_3D<3,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x31: { SetupGradPA_3D<3,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x32: { SetupGradPA_3D<3,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x33: { SetupGradPA_3D<3,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x34: { SetupGradPA_3D<3,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x35: { SetupGradPA_3D<3,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x36: { SetupGradPA_3D<3,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
 
-      case 0x41: { SetupGradPA_3D<4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x42: { SetupGradPA_3D<4,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x43: { SetupGradPA_3D<4,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x44: { SetupGradPA_3D<4,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x45: { SetupGradPA_3D<4,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x46: { SetupGradPA_3D<4,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x41: { SetupGradPA_3D<4,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x42: { SetupGradPA_3D<4,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x43: { SetupGradPA_3D<4,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x44: { SetupGradPA_3D<4,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x45: { SetupGradPA_3D<4,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x46: { SetupGradPA_3D<4,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
 
-      case 0x51: { SetupGradPA_3D<5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x52: { SetupGradPA_3D<5,2>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x53: { SetupGradPA_3D<5,3>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x54: { SetupGradPA_3D<5,4>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x55: { SetupGradPA_3D<5,5>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x56: { SetupGradPA_3D<5,6>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x51: { SetupGradPA_3D<5,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x52: { SetupGradPA_3D<5,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x53: { SetupGradPA_3D<5,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x54: { SetupGradPA_3D<5,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x55: { SetupGradPA_3D<5,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x56: { SetupGradPA_3D<5,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }*/
       default:
       {
          dbg("kernel id: %x", id);

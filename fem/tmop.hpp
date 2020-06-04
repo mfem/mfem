@@ -68,6 +68,7 @@ public:
    */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const = 0;
+   virtual int Id() const = 0;
 };
 
 
@@ -85,6 +86,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 1; };
 };
 
 /// Skew metric, 2D.
@@ -100,6 +103,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+
+   virtual int Id() const { return -1; };
 };
 
 /// Skew metric, 3D.
@@ -115,6 +120,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+
+   virtual int Id() const { return -1; };
 };
 
 /// Aspect ratio metric, 2D.
@@ -130,6 +137,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+
+   virtual int Id() const { return -1; };
 };
 
 /// Aspect ratio metric, 3D.
@@ -145,6 +154,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+
+   virtual int Id() const { return -1; };
 };
 
 /// Shape+Size+Orientation metric, 2D.
@@ -160,6 +171,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+
+   virtual int Id() const { return -1; };
 };
 
 /// Shape+Size metric, 2D.
@@ -175,6 +188,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+
+   virtual int Id() const { return -1; };
 };
 
 /// Shape, ideal barrier metric, 2D
@@ -191,6 +206,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 2; };
 };
 
 /// Shape & area, ideal barrier metric, 2D
@@ -207,6 +224,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 7; };
 };
 
 /// Shape & area metric, 2D
@@ -223,6 +242,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 9; };
 };
 
 /// Shifted barrier form of metric 2 (shape, ideal barrier metric), 2D
@@ -242,6 +263,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 22; };
 };
 
 /// Shape, ideal barrier metric, 2D
@@ -258,6 +281,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 50; };
 };
 
 /// Area metric, 2D
@@ -274,6 +299,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 55; };
 
 };
 
@@ -294,6 +321,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+   virtual int Id() const { return 56; };
+
 };
 
 /// Shape, ideal barrier metric, 2D
@@ -312,6 +341,8 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+   virtual int Id() const { return 58; };
+
 };
 
 /// Area, ideal barrier metric, 2D
@@ -328,6 +359,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 77; };
 
 };
 
@@ -348,6 +381,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 211; };
 };
 
 /// Shifted barrier form of metric 56 (area, ideal barrier metric), 2D
@@ -368,6 +403,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 252; };
 };
 
 /// Shape, ideal barrier metric, 3D
@@ -384,6 +421,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 301; };
 };
 
 /// Shape, ideal barrier metric, 3D
@@ -400,6 +439,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 302; };
 };
 
 /// Shape, ideal barrier metric, 3D
@@ -416,6 +457,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 303; };
 };
 
 /// Volume metric, 3D
@@ -432,6 +475,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 315; };
 };
 
 /// Volume, ideal barrier metric, 3D
@@ -450,6 +495,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 316; };
 };
 
 /// Shape & volume, ideal barrier metric, 3D
@@ -466,6 +513,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 321; };
 };
 
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
@@ -485,6 +534,8 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 352; };
 };
 
 

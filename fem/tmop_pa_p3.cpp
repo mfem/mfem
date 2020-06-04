@@ -22,8 +22,33 @@ namespace mfem
 {
 
 // *****************************************************************************
+// P_302 = (I1b/9)*dI2b + (I2b/9)*dI1b
+static MFEM_HOST_DEVICE
+void EvalP_302(const double *J, double *P)
+{
+   kernels::InvariantsEvaluator3D ie(J);
+   const double alpha = ie.Get_I1b()/9.;
+   const double beta = ie.Get_I2b()/9.;
+   kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
+}
+
+// *****************************************************************************
+// P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
+static MFEM_HOST_DEVICE
+void EvalP_321(const double *J, double *P)
+{
+   kernels::InvariantsEvaluator3D ie(J);
+   const double I3 = ie.Get_I3();
+   const double alpha = 1.0/I3;
+   const double beta = -2.*ie.Get_I2()/(I3*ie.Get_I3b());
+   kernels::Add(3,3, alpha, ie.Get_dI2(), beta, ie.Get_dI3b(), P);
+   kernels::Add(3,3, ie.Get_dI1(), P);
+}
+
+// *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0>
-static void AddMultPA_Kernel_3D(const int NE,
+static void AddMultPA_Kernel_3D(const int mid,
+                                const int NE,
                                 const Array<double> &w_,
                                 const Array<double> &b_,
                                 const Array<double> &g_,
@@ -286,76 +311,12 @@ static void AddMultPA_Kernel_3D(const int NE,
                // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
-               // metric->EvalP(Jpt, P);
-               // TMOP_Metric_302
-               // mu_2 = I1b*I2b/9-1
 
-               // P = (I1b/9)*dI2b + (I2b/9)*dI1b
-               const double detJ = J[0] * (J[4]*J[8] - J[7]*J[5]) -
-                                   J[1] * (J[3]*J[8] - J[5]*J[6]) +
-                                   J[2] * (J[3]*J[7] - J[4]*J[6]);
-               const double sign_detJ = ScalarOps<double>::sign(detJ);
-               const double I3b = sign_detJ * detJ;
-               const double I3b_p = sign_detJ*std::pow(I3b, -2./3.);
-               const double B0 = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
-               const double B1 = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
-               const double B2 = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
-               const double I1 = B0 + B1 + B2;
-               const double I1b = I1 * I3b_p;
-               const double alpha = I1b/9.0;
-               const double B3 = J[0]*J[1] + J[3]*J[4] + J[6]*J[7];
-               const double B4 = J[0]*J[2] + J[3]*J[5] + J[6]*J[8];
-               const double B5 = J[1]*J[2] + J[4]*J[5] + J[7]*J[8];
-               const double BF2 = B0*B0+B1*B1+B2*B2+2*(B3*B3+B4*B4+B5*B5);
-               const double I2 = (I1*I1 - BF2)/2;
-               const double I2b = I2 * I3b_p * I3b_p;
-               const double beta = I2b/9.0;
-               // dI1b = 2*I3b^{-2/3}*(J - (1/3)*I1/I3b*dI3b)
-               double dI1b[9], dI3b[9];
-               {
-                  const double c1 = 2*I3b_p;
-                  const double c2 = I1/(3*I3b);
-                  dI3b[0] = sign_detJ*(J[4]*J[8] - J[5]*J[7]);
-                  dI3b[1] = sign_detJ*(J[5]*J[6] - J[3]*J[8]);
-                  dI3b[2] = sign_detJ*(J[3]*J[7] - J[4]*J[6]);
-                  dI3b[3] = sign_detJ*(J[2]*J[7] - J[1]*J[8]);
-                  dI3b[4] = sign_detJ*(J[0]*J[8] - J[2]*J[6]);
-                  dI3b[5] = sign_detJ*(J[1]*J[6] - J[0]*J[7]);
-                  dI3b[6] = sign_detJ*(J[1]*J[5] - J[2]*J[4]);
-                  dI3b[7] = sign_detJ*(J[2]*J[3] - J[0]*J[5]);
-                  dI3b[8] = sign_detJ*(J[0]*J[4] - J[1]*J[3]);
-                  for (int i = 0; i < 9; i++)
-                  {
-                     dI1b[i] = c1*(J[i] - c2*dI3b[i]);
-                  }
-               }
-               double dI2b[9], dI2[9];
-               {
-                  const double c1 = I3b_p*I3b_p;
-                  const double c2 = (4*I2/I3b)/3;
-                  const double C[6] =
-                  { 2*(I1-B0), 2*(I1-B1), 2*(I1-B2), -2*B3, -2*B4, -2*B5 };
-                  dI2[0] = C[0]*J[0] + C[3]*J[1] + C[4]*J[2];
-                  dI2[1] = C[3]*J[0] + C[1]*J[1] + C[5]*J[2];
-                  dI2[2] = C[4]*J[0] + C[5]*J[1] + C[2]*J[2];
-                  dI2[3] = C[0]*J[3] + C[3]*J[4] + C[4]*J[5];
-                  dI2[4] = C[3]*J[3] + C[1]*J[4] + C[5]*J[5];
-                  dI2[5] = C[4]*J[3] + C[5]*J[4] + C[2]*J[5];
-                  dI2[6] = C[0]*J[6] + C[3]*J[7] + C[4]*J[8];
-                  dI2[7] = C[3]*J[6] + C[1]*J[7] + C[5]*J[8];
-                  dI2[8] = C[4]*J[6] + C[5]*J[7] + C[2]*J[8];
-                  for (int i = 0; i < 9; i++)
-                  {
-                     dI2b[i] = c1*(dI2[i] - c2*dI3b[i]);
-                  }
-               }
-               // P = alpha * dI2b + beta * dI1b
+               // metric->EvalP(Jpt, P);
                double P[9];
-               for (int i = 0; i < 9; i++)
-               {
-                  P[i] = alpha * dI2b[i] + beta * dI1b[i];
-                  P[i] *= weight_detJtr;
-               }
+               if (mid == 302) { EvalP_302(J,P); }
+               if (mid == 321) { EvalP_321(J,P); }
+               for (int i = 0; i < 9; i++) { P[i] *= weight_detJtr; }
 
                // Y +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)
                double A[9];
@@ -516,6 +477,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const Array<double> &B1d = maps->B;
    const Array<double> &G1d = maps->G;
    const int id = (D1D << 4 ) | Q1D;
+   const int mid = metric->Id();
 
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
@@ -561,33 +523,33 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_3D<2,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x22: return AddMultPA_Kernel_3D<2,2>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x23: return AddMultPA_Kernel_3D<2,3>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x24: return AddMultPA_Kernel_3D<2,4>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x25: return AddMultPA_Kernel_3D<2,5>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x26: return AddMultPA_Kernel_3D<2,6>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x21: return AddMultPA_Kernel_3D<2,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x22: return AddMultPA_Kernel_3D<2,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x23: return AddMultPA_Kernel_3D<2,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x24: return AddMultPA_Kernel_3D<2,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x25: return AddMultPA_Kernel_3D<2,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x26: return AddMultPA_Kernel_3D<2,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_3D<3,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x32: return AddMultPA_Kernel_3D<3,2>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x33: return AddMultPA_Kernel_3D<3,3>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x34: return AddMultPA_Kernel_3D<3,4>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x35: return AddMultPA_Kernel_3D<3,5>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x36: return AddMultPA_Kernel_3D<3,6>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x31: return AddMultPA_Kernel_3D<3,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x32: return AddMultPA_Kernel_3D<3,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x33: return AddMultPA_Kernel_3D<3,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x34: return AddMultPA_Kernel_3D<3,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x35: return AddMultPA_Kernel_3D<3,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x36: return AddMultPA_Kernel_3D<3,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
 
-      case 0x41: return AddMultPA_Kernel_3D<4,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x42: return AddMultPA_Kernel_3D<4,2>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x43: return AddMultPA_Kernel_3D<4,3>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x44: return AddMultPA_Kernel_3D<4,4>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x45: return AddMultPA_Kernel_3D<4,5>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x46: return AddMultPA_Kernel_3D<4,6>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x41: return AddMultPA_Kernel_3D<4,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x42: return AddMultPA_Kernel_3D<4,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x43: return AddMultPA_Kernel_3D<4,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x44: return AddMultPA_Kernel_3D<4,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x45: return AddMultPA_Kernel_3D<4,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x46: return AddMultPA_Kernel_3D<4,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
 
-      case 0x51: return AddMultPA_Kernel_3D<5,1>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x52: return AddMultPA_Kernel_3D<5,2>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x53: return AddMultPA_Kernel_3D<5,3>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x54: return AddMultPA_Kernel_3D<5,4>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x55: return AddMultPA_Kernel_3D<5,5>(ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x56: return AddMultPA_Kernel_3D<5,6>(ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x51: return AddMultPA_Kernel_3D<5,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x52: return AddMultPA_Kernel_3D<5,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x53: return AddMultPA_Kernel_3D<5,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x54: return AddMultPA_Kernel_3D<5,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x55: return AddMultPA_Kernel_3D<5,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x56: return AddMultPA_Kernel_3D<5,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
       default:  break;
    }
    dbg("id: %x",id);
