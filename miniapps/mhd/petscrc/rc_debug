@@ -1,5 +1,5 @@
 # matrix-free Jacobian action, full preconditioner constructed using PetscPreconditionerFactory
-#-snes_monitor
+-snes_monitor
 -snes_mf_operator
 -snes_max_it 20
 -snes_rtol 1e-4
@@ -44,7 +44,7 @@
 #-ksp_type preonly
 -ksp_type fgmres
 -ksp_converged_reason
--ksp_gmres_restart 50
+-ksp_gmres_restart 100
 #-ksp_view
 #-ksp_rtol 1e-4
 #-ksp_monitor_true_residual

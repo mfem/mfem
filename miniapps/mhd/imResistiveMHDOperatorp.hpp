@@ -1071,7 +1071,6 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
       KBMat->Mult(psi, z);
       z.Neg();
       M_solver2.Mult(z, J);
-      jout->SetFromTrueDofs(J);
    }
    else if (iUpdateJ==1)
    {
@@ -1085,6 +1084,8 @@ void ResistiveMHDOperator::UpdateJ(Vector &k, ParGridFunction *jout)
    }
    else
       MFEM_ABORT("Error: wrong option of iUpdateJ"); 
+   
+   jout->SetFromTrueDofs(J);
 }
 
 void ResistiveMHDOperator::DestroyHypre()
@@ -1579,17 +1580,20 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    //compute resiual from y3 to stabilize B.grad Psi
    if(usefd)
    {
-     delete StabMass;
-     StabMass = new ParBilinearForm(&fespace);
-     StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, Bfield, true));
-     StabMass->Assemble(); 
-     StabMass->TrueAddMult(z2, y2);
+     if (true) //XXX turn off for testing adaptive meshes
+     {
+        delete StabMass;
+        StabMass = new ParBilinearForm(&fespace);
+        StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, Bfield, true));
+        StabMass->Assemble(); 
+        StabMass->TrueAddMult(z2, y2);
 
-     delete StabNv;
-     StabNv = new ParBilinearForm(&fespace);
-     StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity, Bfield, true));
-     StabNv->Assemble(); 
-     StabNv->TrueAddMult(wNew, y2);
+        delete StabNv;
+        StabNv = new ParBilinearForm(&fespace);
+        StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity, Bfield, true));
+        StabNv->Assemble(); 
+        StabNv->TrueAddMult(wNew, y2);
+     }
 
      delete StabNb;
      StabNb = new ParBilinearForm(&fespace);
@@ -1647,7 +1651,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      StabE0->ParallelAssemble(z);
      y2+=z;
    }
-   else if(usesupg && true)
+   else if(usesupg && false)
    {
      //---add supg only to y3 (omega)---
      delete StabMass;

@@ -1,6 +1,6 @@
 #include "InitialConditions.hpp"
 
-double vari_coeff=5.;
+double vari_coeff=8.;
 double visc_bdy=5e-4;
 double tau=200.;
 
