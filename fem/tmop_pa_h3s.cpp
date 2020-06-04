@@ -29,29 +29,38 @@ static MFEM_HOST_DEVICE inline
 void EvalH_302(const int e, const int qx, const int qy, const int qz,
                const double weight, const double *J, DeviceTensor<8,double> dP)
 {
+   double B[9];
+   double *dI1 = nullptr;
+   double dI1b[9], ddI1b[9];
+   double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
+   double dI3b[9];
    constexpr int DIM = 3;
-   kernels::InvariantsEvaluator3D ie(J);
+   kernels::InvariantsEvaluator3D ie(J, B,
+                                     dI1, dI1b, ddI1b,
+                                     dI2, dI2b, ddI2, ddI2b,
+                                     dI3b);
 
-   const double I1b = ie.Get_I1b();
-   const double I2b = ie.Get_I2b();
-   ConstDeviceMatrix dI1b(ie.Get_dI1b(),DIM,DIM);
-   ConstDeviceMatrix dI2b(ie.Get_dI2b(),DIM,DIM);
+   const double I1b = ie.Get_I1b(B);
+   const double I2b = ie.Get_I2b(B);
+   ConstDeviceMatrix di1b(ie.Get_dI1b(B,dI3b,dI1b),DIM,DIM);
+   ConstDeviceMatrix di2b(ie.Get_dI2b(B,dI2,dI3b,dI2b),DIM,DIM);
 
    for (int i = 0; i < DIM; i++)
    {
       for (int j = 0; j < DIM; j++)
       {
-         ConstDeviceMatrix ddI1b(ie.Get_ddI1b_ij(i,j),DIM,DIM);
-         ConstDeviceMatrix ddI2b(ie.Get_ddI2b_ij(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b_ij(i,j,B,dI3b,ddI1b),DIM,DIM);
+         ConstDeviceMatrix ddi2b(ie.Get_ddI2b_ij(i,j,B,dI2,dI3b,ddI2,ddI2b),DIM,
+                                 DIM);
          for (int r = 0; r < DIM; r++)
          {
             for (int c = 0; c < DIM; c++)
             {
                const double entry_rr_cc =
                   (weight/9.) * (
-                     ddI2b(r,c)*I1b
-                     + (dI2b(r,c)*dI1b(i,j) + dI1b(r,c)*dI2b(i,j))
-                     + ddI1b(r,c)*I2b);
+                     ddi2b(r,c)*I1b
+                     + (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
+                     + ddi1b(r,c)*I2b);
                dP(r,c,i,j,qx,qy,qz,e) = entry_rr_cc;
             }
          }
@@ -356,14 +365,14 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
 
    switch (id)
    {
-      //case 0x21: { SetupGradPA_3D<2,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x22: { SetupGradPA_3D<2,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }/*
+      case 0x21: { SetupGradPA_3D<2,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x22: { SetupGradPA_3D<2,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x23: { SetupGradPA_3D<2,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x24: { SetupGradPA_3D<2,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x25: { SetupGradPA_3D<2,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x26: { SetupGradPA_3D<2,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
 
-      case 0x31: { SetupGradPA_3D<3,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x31: { SetupGradPA_3D<3,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }/*
       case 0x32: { SetupGradPA_3D<3,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x33: { SetupGradPA_3D<3,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
       case 0x34: { SetupGradPA_3D<3,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
