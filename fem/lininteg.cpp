@@ -771,4 +771,58 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &fe, ElementTransformation &Tr, Vector &elvect)
+{
+   const IntegrationRule *ir =
+      &vqfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
+
+   const int nqp = ir->GetNPoints();
+   const int vdim = vqfc.GetVDim();
+   const int ndofs = fe.GetDof();
+   Vector shape(ndofs);
+   Vector temp(vdim);
+   elvect.SetSize(vdim * ndofs);
+   elvect = 0.0;
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Tr.SetIntPoint(&ip);
+      const double w = Tr.Weight() * ip.weight;
+      vqfc.Eval(temp, Tr, ip);
+      fe.CalcShape(ip, shape);
+      for (int ind = 0; ind < vdim; ind++)
+      {
+         for (int nd = 0; nd < ndofs; nd++)
+         {
+            elvect(nd + ind * ndofs) += w * shape(nd) * temp(ind);
+         }
+      }
+   }
+}
+
+void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
+                                                    ElementTransformation &Tr,
+                                                    Vector &elvect)
+{
+   const IntegrationRule *ir =
+      &qfc.GetQuadFunction().GetSpace()->GetElementIntRule(Tr.ElementNo);
+
+   const int nqp = ir->GetNPoints();
+   const int ndofs = fe.GetDof();
+   Vector shape(ndofs);
+   elvect.SetSize(ndofs);
+   elvect = 0.0;
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Tr.SetIntPoint (&ip);
+      const double w = Tr.Weight() * ip.weight;
+      double temp = qfc.Eval(Tr, ip);
+      fe.CalcShape(ip, shape);
+      shape *= (w * temp);
+      elvect += shape;
+   }
+}
+
 }
