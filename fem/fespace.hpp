@@ -169,19 +169,15 @@ protected:
 
    void BuildElementToDofTable();
 
-   ///
+   /** In a variable order space, calculate the "true" (minimum) polynomial
+       order for each edge and face. */
    void CalculateMinimumOrders(Array<int> &edge_min_order,
                                Array<int> &face_min_order) const;
 
-   /// Build the table edge_dofs in variable order space, return total edge DOFs.
-   int AssignVarOrderEdgeDofs(const Array<int> &edge_orders);
-
-   /// Build the table face_dofs in variable order space, return total face DOFs.
-   int AssignVarOrderFaceDofs(const Array<int> &face_min_order);
-
-   /// Build the edge_dofs or face_dofs tables. Used by Assign{Edge,Face}Dofs().
-   int MakeDofTable(int ent_dim, Array<Connection> &entity_order,
-                    Table &entity_dof);
+   /** Build the table edge_dofs (or face_dofs) in a variable order space;
+       return total edge/face DOFs. */
+   int AssignVarOrderDofs(int ent_dim, const Array<int> &ent_min_order,
+                          Table &entity_dofs);
 
    /// Search row of a DOF table for a DOF set of size 'ndof', return first DOF.
    int FindDofs(const Table &dof_table, int row, int ndof) const;
