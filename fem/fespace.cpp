@@ -1976,11 +1976,14 @@ void FiniteElementSpace::CalculateMinimumOrders(Array<int> &edge_min_order,
          emo = std::min(emo, order);
       }
 
-      mesh->GetElementFaces(i, F, ori);
-      for (int j = 0; j < F.Size(); j++)
+      if (mesh->Dimension() > 2)
       {
-         int &fmo = face_min_order[F[j]];
-         fmo = std::min(fmo, order);
+         mesh->GetElementFaces(i, F, ori);
+         for (int j = 0; j < F.Size(); j++)
+         {
+            int &fmo = face_min_order[F[j]];
+            fmo = std::min(fmo, order);
+         }
       }
    }
 
