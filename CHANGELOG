@@ -24,8 +24,10 @@ Meshing improvements
   and orientation based metrics.
 
 - Added support for r-adaptivity with more than one discrete field. This allows
-  the user to specify different discrete functions for controlling the 
-  size, aspect-ratio, orientation, and skew of elements in the mesh. 
+  the user to specify different discrete functions for controlling the
+  size, aspect-ratio, orientation, and skew of elements in the mesh.
+
+- Added TMOP capability for approximate tangential mesh relaxation.
 
 Performance improvements
 ------------------------
@@ -61,6 +63,10 @@ Discretization improvements
   methods. Expanded the GetValue and GetVectorValue methods which accept an
   ElementTransformation argument to support evaluation on boundary elements
   and, in the continuous field case, arbitrary mesh edges and faces.
+
+- Added new coefficient and vector coefficient classes for QuadratureFunctions.
+  Additionaly, new LinearForm integrators were also added which make use of
+  these new QuadratureFunction coefficient classes.
 
 Linear and nonlinear solvers
 ----------------------------
