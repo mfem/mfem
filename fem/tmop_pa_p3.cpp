@@ -15,6 +15,7 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
+#include "../linalg/dinvariants.hpp"
 #define MFEM_DBG_COLOR 82
 #include "../general/dbg.hpp"
 
@@ -315,7 +316,7 @@ static void AddMultPA_Kernel_3D(const int mid,
                // metric->EvalP(Jpt, P);
                double P[9];
                if (mid == 302) { EvalP_302(J,P); }
-               if (mid == 321) { EvalP_321(J,P); }
+               //if (mid == 321) { EvalP_321(J,P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight_detJtr; }
 
                // Y +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)

@@ -17,7 +17,7 @@
 #include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../linalg/invariants.hpp"
+#include "../linalg/dinvariants.hpp"
 
 namespace mfem
 {
@@ -293,7 +293,7 @@ static double EnergyPA_3D(const int mid,
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
                const double EvalW = mid == 302 ? EvalW_302(J) :
-                                    mid == 321 ? EvalW_321(J) :
+                                    //mid == 321 ? EvalW_321(J) :
                                     0.0;
                E(qx,qy,qz,e) = weight * EvalW;
                O(qx,qy,qz,e) = 1.0;
