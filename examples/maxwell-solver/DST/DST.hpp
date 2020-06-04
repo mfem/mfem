@@ -9,12 +9,8 @@ class DST : public Solver//
 private:
    int nrpatch;
    int dim;
-   SesquilinearForm *bf=nullptr;
    MeshPartition * povlp=nullptr;
    MeshPartition * novlp=nullptr;
-   double omega = 0.5;
-   Coefficient * ws;
-   int nrlayers;
    int ovlpnrlayers;
    int nxyz[3];
    const Operator * A=nullptr;
@@ -22,12 +18,18 @@ private:
    DofMap * nvlp_prob = nullptr;
    Array<SparseMatrix *> PmlMat;
    Array<KLUSolver *> PmlMatInv;
-   Array2D<double> Pmllength;
    Array3D<int> subdomains;
    mutable Array<Vector *> f_orig;
    int nsweeps;
    Array2D<int> sweeps;
    mutable Array<Array<Vector * >> f_transf;
+
+   SesquilinearForm *bf=nullptr;
+   Array2D<double> Pmllength;
+   double omega = 0.5;
+   Coefficient * ws;
+   int nrlayers;
+
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
   
@@ -41,7 +43,8 @@ private:
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;
    int GetPatchId(const Array<int> & ijk) const;
    void Getijk(int ip, int & i, int & j, int & k ) const;
-   int SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
+   void SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
+   void SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip,bool localdomain) const;
    void SaveSolution(Vector & sol, int ip,bool localdomain) const;
    void PlotMesh(socketstream & mesh_sock, int ip) const;

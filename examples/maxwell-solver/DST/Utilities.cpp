@@ -103,10 +103,10 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
 DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_) 
                : bf(bf_), partition(partition_)
 {
-   int partition_kind = partition->partition_kind;
+   // int partition_kind = partition->partition_kind;
    // MFEM_VERIFY(partition_kind == 1, "Check Partition kind");
    fespace = bf->FESpace();
-   Mesh * mesh = fespace->GetMesh();
+   // Mesh * mesh = fespace->GetMesh();
    const FiniteElementCollection * fec = fespace->FEColl();
    nrpatch = partition->nrpatch;
 
@@ -161,7 +161,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
 
    int partition_kind = partition->partition_kind;
    fespace = bf->FESpace();
-   Mesh * mesh = fespace->GetMesh();
+   // Mesh * mesh = fespace->GetMesh();
    const FiniteElementCollection * fec = fespace->FEColl();
    nrpatch = partition->nrpatch;
 

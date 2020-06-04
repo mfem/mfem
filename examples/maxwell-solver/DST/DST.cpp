@@ -64,8 +64,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
 void DST::Mult(const Vector &r, Vector &z) const
 {
-   char vishost[] = "localhost";
-   int  visport   = 19916;
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
    for (int ip=0; ip<nrpatch; ip++)
    {
       *f_orig[ip] = 0.0;
@@ -172,11 +172,11 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
                   int ip, Array<int> directions, int nlayers, bool local) const
 {
 
-   int d = directions.Size();
-   int directx = directions[0]; // 1,0,-1
-   int directy = directions[1]; // 1,0,-1
-   int directz;
-   if (d ==3) directz = directions[2];
+   // int d = directions.Size();
+   // int directx = directions[0]; // 1,0,-1
+   // int directy = directions[1]; // 1,0,-1
+   // int directz;
+   // if (d ==3) directz = directions[2];
 
    Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
    
@@ -186,8 +186,6 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
 
    int i, j, k;
    Getijk(ip,i,j,k);
-   int nx = nxyz[0];
-   int ny = nxyz[1];
    if (directions[0]==1) pmax[0] -= h*nrlayers; 
    if (directions[1]==1) pmax[1] -= h*nrlayers; 
 
@@ -254,8 +252,8 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
 
    int i, j, k;
    Getijk(ip,i,j,k);
-   int nx = nxyz[0];
-   int ny = nxyz[1];
+   // int nx = nxyz[0];
+   // int ny = nxyz[1];
    if (directx[1]==1) pmax[0] -= h*nrlayers; 
    if (directy[1]==1) pmax[1] -= h*nrlayers; 
 
@@ -385,8 +383,8 @@ void DST::TransferSources(int sweep, int ip0, Vector & sol0) const
             GetCutOffSolution(sol0,cfsol0,ip0,directx,directy,ovlpnrlayers,true);
 
             Vector raux;
-            int jp1 = SourceTransfer(cfsol0,directions,ip0,raux);
-            // SourceTransfer1(cfsol0,directions,ip0,raux);
+            // SourceTransfer(cfsol0,directions,ip0,raux);
+            SourceTransfer1(cfsol0,directions,ip0,raux);
             *f_transf[ip1][l]+=raux;
             break;
          }
@@ -521,7 +519,7 @@ void DST::SaveSolution(Vector & sol, int ip, bool localdomain) const
    // gf_im.Save(solim_ofs);
 }
 
-int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
 {
    int i0,j0,k0;
    Getijk(ip0,i0,j0,k0);
@@ -553,18 +551,17 @@ int DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vect
    direct[1] = -direction[1];
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
 
-   return ip1;
 }
 
 void DST::GetChiRes(const Vector & res, Vector & cfres, 
                     int ip, Array<int> directions, int nlayers) const
 {
    // int l,k;
-   int d = directions.Size();
-   int directx = directions[0]; // 1,0,-1
-   int directy = directions[1]; // 1,0,-1
-   int directz;
-   if (d ==3) directz = directions[2];
+   // int d = directions.Size();
+   // int directx = directions[0]; // 1,0,-1
+   // int directy = directions[1]; // 1,0,-1
+   // int directz;
+   // if (d ==3) directz = directions[2];
 
    Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
    double h = GetUniformMeshElementSize(mesh);
@@ -622,35 +619,35 @@ void DST::GetChiRes(const Vector & res, Vector & cfres,
 
 
 
-// void DST::SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
-// {
-//    int i0,j0,k0;
-//    Getijk(ip0,i0,j0,k0);
+void DST::SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+{
+   int i0,j0,k0;
+   Getijk(ip0,i0,j0,k0);
 
-//    int i1 = i0+direction[0];   
-//    int j1 = j0+direction[1];   
-//    Array<int> ij(2); ij[0]=i1; ij[1]=j1;
-//    int ip1 = GetPatchId(ij);
+   int i1 = i0+direction[0];   
+   int j1 = j0+direction[1];   
+   Array<int> ij(2); ij[0]=i1; ij[1]=j1;
+   int ip1 = GetPatchId(ij);
 
-//    MFEM_VERIFY(i1 < nxyz[0] && i1>=0, "SourceTransfer: i1 out of bounds");
-//    MFEM_VERIFY(j1 < nxyz[1] && j1>=0, "SourceTransfer: j1 out of bounds");
+   MFEM_VERIFY(i1 < nxyz[0] && i1>=0, "SourceTransfer: i1 out of bounds");
+   MFEM_VERIFY(j1 < nxyz[1] && j1>=0, "SourceTransfer: j1 out of bounds");
 
-//    Vector Psi(Psi0.Size());
-//    PmlMat[ip0]->Mult(Psi0,Psi);
-//    Psi *=-1.0;
+   Vector Psi(Psi0.Size());
+   PmlMat[ip0]->Mult(Psi0,Psi);
+   Psi *=-1.0;
 
-//    Array<int> * Dof2GlobalDof0 = &ovlp_prob->Dof2GlobalDof[ip0];
-//    Array<int> * Dof2GlobalDof1 = &ovlp_prob->Dof2GlobalDof[ip1];
-//    Vector r(2*bf->FESpace()->GetTrueVSize());
-//    r = 0.0;
-//    r.SetSubVector(*Dof2GlobalDof0,Psi);
-//    Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
-//    r.GetSubVector(*Dof2GlobalDof1,Psi1);
+   Array<int> * Dof2GlobalDof0 = &ovlp_prob->Dof2GlobalDof[ip0];
+   Array<int> * Dof2GlobalDof1 = &ovlp_prob->Dof2GlobalDof[ip1];
+   Vector r(2*bf->FESpace()->GetTrueVSize());
+   r = 0.0;
+   r.SetSubVector(*Dof2GlobalDof0,Psi);
+   Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
+   r.GetSubVector(*Dof2GlobalDof1,Psi1);
 
-//    Array<int> direct(2); direct = 0;
-//    direct[0] = -direction[0];
-//    direct[1] = -direction[1];
-//    Psi = Psi1;
-//    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
-// }
+   Array<int> direct(2); direct = 0;
+   direct[0] = -direction[0];
+   direct[1] = -direction[1];
+   Psi = Psi1;
+   GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+}
 

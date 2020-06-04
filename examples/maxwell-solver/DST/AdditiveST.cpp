@@ -194,11 +194,11 @@ void AdditiveST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
                   int ip, Array<int> directions, int nlayers, bool local) const
 {
 
-   int d = directions.Size();
-   int directx = directions[0]; // 1,0,-1
-   int directy = directions[1]; // 1,0,-1
-   int directz;
-   if (d ==3) directz = directions[2];
+   // int d = directions.Size();
+   // int directx = directions[0]; // 1,0,-1
+   // int directy = directions[1]; // 1,0,-1
+   // int directz;
+   // if (d ==3) directz = directions[2];
 
    Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
    
@@ -208,8 +208,8 @@ void AdditiveST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
 
    int i, j, k;
    Getijk(ip,i,j,k);
-   int nx = nxyz[0];
-   int ny = nxyz[1];
+   // int nx = nxyz[0];
+   // int ny = nxyz[1];
    if (directions[0]==1) pmax[0] -= h*nrlayers; 
    if (directions[1]==1) pmax[1] -= h*nrlayers; 
 
@@ -312,7 +312,7 @@ void AdditiveST::AdditiveTransferSources(int s, int ip0, Vector & sol0) const
          GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
 
          Vector raux;
-         int jp1 = SourceTransfer(cfsol0,directions,ip0,raux);
+         SourceTransfer(cfsol0,directions,ip0,raux);
          if (abs(i)+abs(j) == 2)
          {
             *f_diag[ip1][s]+=raux;
@@ -484,11 +484,11 @@ void AdditiveST::GetChiRes(const Vector & res, Vector & cfres,
                     int ip, Array<int> directions, int nlayers) const
 {
    // int l,k;
-   int d = directions.Size();
-   int directx = directions[0]; // 1,0,-1
-   int directy = directions[1]; // 1,0,-1
-   int directz;
-   if (d ==3) directz = directions[2];
+   // int d = directions.Size();
+   // int directx = directions[0]; // 1,0,-1
+   // int directy = directions[1]; // 1,0,-1
+   // int directz;
+   // if (d ==3) directz = directions[2];
 
    Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
    double h = GetUniformMeshElementSize(mesh);

@@ -9,12 +9,8 @@ class AdditiveST : public Solver//
 private:
    int nrpatch;
    int dim;
-   SesquilinearForm *bf=nullptr;
    MeshPartition * povlp=nullptr;
    MeshPartition * novlp=nullptr;
-   double omega = 0.5;
-   Coefficient * ws;
-   int nrlayers;
    int ovlpnrlayers;
    int nxyz[3];
    const Operator * A=nullptr;
@@ -22,12 +18,18 @@ private:
    DofMap * nvlp_prob = nullptr;
    Array<SparseMatrix *> PmlMat;
    Array<KLUSolver *> PmlMatInv;
-   Array2D<double> Pmllength;
    Array3D<int> subdomains;
    mutable Array<Vector *> f_orig;
    mutable Array<Vector *> usol;
    mutable Array<Array<Vector * >> f_s;
    mutable Array<Array<Vector * >> f_diag;
+
+   SesquilinearForm *bf=nullptr;
+   Array2D<double> Pmllength;
+   double omega = 0.5;
+   Coefficient * ws;
+   int nrlayers;
+
 
    SparseMatrix * GetPmlSystemMatrix(int ip);
   

@@ -117,10 +117,10 @@ int main(int argc, char *argv[])
    double hl = GetUniformMeshElementSize(mesh);
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin,pmax);
-   double domain_length = pmax[0] - pmin[0];
+   // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 2;
+   int nrlayers = 4;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -222,7 +222,8 @@ int main(int argc, char *argv[])
    // chrono.Start();
    X = 0.0;
 	GMRESSolver gmres;
-	gmres.SetPreconditioner(S1);
+	// gmres.iterative_mode = true;
+   gmres.SetPreconditioner(S1);
 	gmres.SetOperator(*A);
 	gmres.SetRelTol(1e-10);
 	gmres.SetMaxIter(50);
@@ -236,52 +237,60 @@ int main(int argc, char *argv[])
    // chrono.Stop();
    // cout << "GMRES time: " << chrono.RealTime() << endl; 
 
-
-
-   int n= 200;
    X = 0.0;
-   Vector z(X.Size()); z = 0.0;
-   Vector r(B);
-   Vector ztemp(r.Size());
-   Vector Ax(X.Size());
-   double tol = 1e-10;
-   cout << endl;
-   chrono.Clear();
-   chrono.Start();
-   for (int i = 0; i<n; i++)
-   {
-      A->Mult(X,Ax); Ax *=-1.0;
-      r = b; r+=Ax;
-      cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
-      if (r.Norml2() < tol) 
-      {
-         cout << "Convergence in " << i+1 << " iterations" << endl;
-         break;
-      }
-      S1.Mult(r,z); 
-      X += z;
+   SLISolver sli;
+   sli.iterative_mode = true;
+   sli.SetPreconditioner(S1);
+   sli.SetOperator(*A);
+   sli.SetRelTol(1e-10);
+   sli.SetMaxIter(50);
+   sli.SetPrintLevel(1);
+   sli.Mult(B,X);
 
-      // X1-=z;
-      // p_gf = 0.0;
-      // a.RecoverFEMSolution(X,B,p_gf);
-      //    char vishost[] = "localhost";
-      //    int  visport   = 19916;
-      //    string keys;
-      //    if (dim ==2 )
-      //    {
-      //       keys = "keys mrRljc\n";
-      //    }
-      //    else
-      //    {
-      //       keys = "keys mc\n";
-      //    }
-      //    socketstream sol1_sock_re(vishost, visport);
-      //    sol1_sock_re.precision(8);
-      //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
-      //                "window_title 'Numerical Pressure (real part)' "
-      //                << keys << flush;
-      //    cin.get();
-   }
+   // int n= 200;
+   // X = 0.0;
+   // Vector z(X.Size()); z = 0.0;
+   // Vector r(B);
+   // Vector ztemp(r.Size());
+   // Vector Ax(X.Size());
+   // double tol = 1e-10;
+   // cout << endl;
+   // chrono.Clear();
+   // chrono.Start();
+   // for (int i = 0; i<n; i++)
+   // {
+   //    A->Mult(X,Ax); Ax *=-1.0;
+   //    r = b; r+=Ax;
+   //    cout << "   ST Solver   Iteration :   " << i <<"  || r || = " <<  r.Norml2() << endl;
+   //    if (r.Norml2() < tol) 
+   //    {
+   //       cout << "Convergence in " << i << " iterations" << endl;
+   //       break;
+   //    }
+   //    S1.Mult(r,z); 
+   //    X += z;
+
+   //    // X1-=z;
+   //    // p_gf = 0.0;
+   //    // a.RecoverFEMSolution(X,B,p_gf);
+   //    //    char vishost[] = "localhost";
+   //    //    int  visport   = 19916;
+   //    //    string keys;
+   //    //    if (dim ==2 )
+   //    //    {
+   //    //       keys = "keys mrRljc\n";
+   //    //    }
+   //    //    else
+   //    //    {
+   //    //       keys = "keys mc\n";
+   //    //    }
+   //    //    socketstream sol1_sock_re(vishost, visport);
+   //    //    sol1_sock_re.precision(8);
+   //    //    sol1_sock_re << "solution\n" << *mesh_ext << p_gf.real() <<
+   //    //                "window_title 'Numerical Pressure (real part)' "
+   //    //                << keys << flush;
+   //    //    cin.get();
+   // }
 
    // chrono.Stop();
    // cout << "Solver time: " << chrono.RealTime() << endl; 
