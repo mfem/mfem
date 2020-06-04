@@ -855,17 +855,13 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
       DenseMatrix dI1b((double*)ie.Get_dI1b(),dim,dim);
       DenseMatrix dI2b((double*)ie.Get_dI2b(),dim,dim);
       DenseMatrix dI1b_dMdM(dim), dI2b_dMdM(dim);
-      //DenseMatrix dI2_dMdM(dim);
-
       // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
       for (int r = 0; r < dim; r++)
       {
          for (int c = 0; c < dim; c++)
          {
             Dim3Invariant1b_dMdM(Jpt, r, c, dI1b_dMdM);
-            //Dim3Invariant2_dMdM(Jpt, r, c, dI2_dMdM);
             Dim3Invariant2b_dMdM(Jpt, r, c, dI2b_dMdM);
-
             // Compute each entry of d(Prc)_dJ.
             for (int rr = 0; rr < dim; rr++)
             {

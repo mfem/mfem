@@ -23,8 +23,27 @@ namespace mfem
 {
 
 // *****************************************************************************
+// mu_302 = I1b * I2b / 9 - 1
+static MFEM_HOST_DEVICE
+double EvalW_302(const double *J)
+{
+   kernels::InvariantsEvaluator3D ie(J);
+   return ie.Get_I1b()*ie.Get_I2b()/9. - 1.;
+}
+
+// *****************************************************************************
+// mu_321 = I1 + I2/I3 - 6
+static MFEM_HOST_DEVICE
+double EvalW_321(const double *J)
+{
+   kernels::InvariantsEvaluator3D ie(J);
+   return ie.Get_I1() + ie.Get_I2()/ie.Get_I3() - 6.0;
+}
+
+// *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0>
-static double EnergyPA_3D(const int NE,
+static double EnergyPA_3D(const int mid,
+                          const int NE,
                           const double metric_normal,
                           const DenseMatrix &j_,
                           const Array<double> &w_,
@@ -273,38 +292,9 @@ static double EnergyPA_3D(const int NE,
                // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
-
-               // TMOP_Metric_302::EvalW
-               // mu_2 = |J|^2 |J^{-1}|^2 / 9 - 1
-               // mu_2 = I1b * I2b / 9 - 1
-
-               //   I1b = I1/I3^{1/3} = I1 * I3b_p
-               //        I1 = ||J||_F^2
-               //       I3b = det(J)
-               //     I3b_p = I3b^{-2/3}
-               const double detJpt = J[0] * (J[4]*J[8] - J[7]*J[5]) -
-                                     J[1] * (J[3]*J[8] - J[5]*J[6]) +
-                                     J[2] * (J[3]*J[7] - J[4]*J[6]);
-               const double sign_detJpt = ScalarOps<double>::sign(detJpt);
-               const double I3b = sign_detJpt * detJpt;
-               const double I3b_p = sign_detJpt*std::pow(I3b, -2./3.);
-               // B = J J^t
-               const double B0 = J[0]*J[0] + J[3]*J[3] + J[6]*J[6];
-               const double B1 = J[1]*J[1] + J[4]*J[4] + J[7]*J[7];
-               const double B2 = J[2]*J[2] + J[5]*J[5] + J[8]*J[8];
-               const double I1 = B0 + B1 + B2;
-               const double I1b = I1 * I3b_p;
-               //   I2b = I2*I3b^{-4/3}
-               //     I2 = (1/2)*(I1^2-||J J^t||_F^2)
-               const double B3 = J[0]*J[1] + J[3]*J[4] + J[6]*J[7]; // B(0,1)
-               const double B4 = J[0]*J[2] + J[3]*J[5] + J[6]*J[8]; // B(0,2)
-               const double B5 = J[1]*J[2] + J[4]*J[5] + J[7]*J[8]; // B(1,2)
-               const double BF2 = B0*B0 + B1*B1 + B2*B2 +
-                                  2*(B3*B3 + B4*B4 + B5*B5);
-               const double I2 = (I1*I1 - BF2)/2;
-               const double I2b = I2 * I3b_p * I3b_p;
-               const double EvalW = I1b * I2b / 9.0 - 1.0;
-
+               const double EvalW = mid == 302 ? EvalW_302(J) :
+                                    mid == 321 ? EvalW_321(J) :
+                                    0.0;
                E(qx,qy,qz,e) = weight * EvalW;
                O(qx,qy,qz,e) = 1.0;
             }
@@ -335,7 +325,7 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const FiniteElementSpace &fes,
    const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
    const DenseMatrix J = Wideal;
 
-   const double m_n = metric_normal;
+   const double mn = metric_normal;
    MFEM_VERIFY(metric_normal == 1.0, "");
 
    const Array<double> &W = ir->GetWeights();
@@ -345,36 +335,37 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const FiniteElementSpace &fes,
    if (elem_restrict_lex) { elem_restrict_lex->Mult(x, Xpa); }
    else { MFEM_ABORT("Not yet implemented!"); }
 
+   const int mid = metric->Id();
    const int id = (D1D << 4 ) | Q1D;
    switch (id)
    {
-      case 0x21: return EnergyPA_3D<2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x22: return EnergyPA_3D<2,2>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x23: return EnergyPA_3D<2,3>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x24: return EnergyPA_3D<2,4>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x25: return EnergyPA_3D<2,5>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x26: return EnergyPA_3D<2,6>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x21: return EnergyPA_3D<2,1>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x22: return EnergyPA_3D<2,2>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x23: return EnergyPA_3D<2,3>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x24: return EnergyPA_3D<2,4>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x25: return EnergyPA_3D<2,5>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x26: return EnergyPA_3D<2,6>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
 
-      case 0x31: return EnergyPA_3D<3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x32: return EnergyPA_3D<3,2>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x33: return EnergyPA_3D<3,3>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x34: return EnergyPA_3D<3,4>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x35: return EnergyPA_3D<3,5>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x36: return EnergyPA_3D<3,6>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x31: return EnergyPA_3D<3,1>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x32: return EnergyPA_3D<3,2>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x33: return EnergyPA_3D<3,3>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x34: return EnergyPA_3D<3,4>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x35: return EnergyPA_3D<3,5>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x36: return EnergyPA_3D<3,6>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
 
-      case 0x41: return EnergyPA_3D<4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x42: return EnergyPA_3D<4,2>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x43: return EnergyPA_3D<4,3>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x44: return EnergyPA_3D<4,4>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x45: return EnergyPA_3D<4,5>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x46: return EnergyPA_3D<4,6>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x41: return EnergyPA_3D<4,1>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x42: return EnergyPA_3D<4,2>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x43: return EnergyPA_3D<4,3>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x44: return EnergyPA_3D<4,4>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x45: return EnergyPA_3D<4,5>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x46: return EnergyPA_3D<4,6>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
 
-      case 0x51: return EnergyPA_3D<5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x52: return EnergyPA_3D<5,2>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x53: return EnergyPA_3D<5,3>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x54: return EnergyPA_3D<5,4>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x55: return EnergyPA_3D<5,5>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x56: return EnergyPA_3D<5,6>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x51: return EnergyPA_3D<5,1>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x52: return EnergyPA_3D<5,2>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x53: return EnergyPA_3D<5,3>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x54: return EnergyPA_3D<5,4>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x55: return EnergyPA_3D<5,5>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
+      case 0x56: return EnergyPA_3D<5,6>(mid,NE,mn,J,W,B,G,Xpa,Epa,Opa);
 
       default: break;
          //return EnergyPA_3D(NE, m_n, J, W, B, G, Xpa, Epa, Opa, D1D, Q1D);
