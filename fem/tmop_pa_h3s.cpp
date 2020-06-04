@@ -25,7 +25,7 @@ namespace mfem
 
 // *****************************************************************************
 // dP_302 = (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
-static MFEM_HOST_DEVICE
+static MFEM_HOST_DEVICE inline
 void EvalH_302(const int e, const int qx, const int qy, const int qz,
                const double weight, const double *J, DeviceTensor<8,double> dP)
 {
@@ -49,8 +49,8 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
             {
                const double entry_rr_cc =
                   (weight/9.) * (
-                     (dI2b(r,c)*dI1b(i,j) + dI1b(r,c)*dI2b(i,j))
-                     + ddI2b(r,c)*I1b
+                     ddI2b(r,c)*I1b
+                     + (dI2b(r,c)*dI1b(i,j) + dI1b(r,c)*dI2b(i,j))
                      + ddI1b(r,c)*I2b);
                dP(r,c,i,j,qx,qy,qz,e) = entry_rr_cc;
             }
@@ -62,7 +62,7 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
 // *****************************************************************************
 // dP_321 = ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2) + (1/I3)*ddI2
 //               + (6*I2/I3b^4)*(dI3b x dI3b) + (-2*I2/I3b^3)*ddI3b
-static MFEM_HOST_DEVICE
+static MFEM_HOST_DEVICE inline
 void EvalH_321(const int e, const int qx, const int qy, const int qz,
                const double weight, const double *J, double *dP)
 {
