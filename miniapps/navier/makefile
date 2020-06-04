@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-# SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/navier/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -40,10 +40,10 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.cpp $(NAVIER_COMMON_OBJ)
+%: $(SRC)%.cpp $(NAVIER_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(NAVIER_COMMON_OBJ) $(MFEM_LIBS)
 
-%.o: %.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
