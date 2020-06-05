@@ -440,9 +440,9 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    Mesh *mesh = qf->GetSpace()->GetMesh();
    for (int e=0; e<qf->GetSpace()->GetNE(); e++)
    {
-      int locLOD = GlobGeometryRefiner.GetRefinementLevel(
+      int locLOD = GlobGeometryRefiner.GetRefinementLevelFromElems(
                       mesh->GetElementBaseGeometry(e),
-                      qf->GetElementIntRule(e));
+                      qf->GetElementIntRule(e).GetNPoints());
 
       LOD = std::max(LOD,locLOD);
    }
