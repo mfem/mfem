@@ -33,6 +33,16 @@ double EvalW_302(const double *J)
 }
 
 // *****************************************************************************
+// mu_303 = I1b/3 - 1
+static MFEM_HOST_DEVICE inline
+double EvalW_303(const double *J)
+{
+   double B[9];
+   kernels::InvariantsEvaluator3D ie(J,B);
+   return ie.Get_I1b()/3. - 1.;
+}
+
+// *****************************************************************************
 // mu_321 = I1 + I2/I3 - 6
 static MFEM_HOST_DEVICE inline
 double EvalW_321(const double *J)
@@ -294,6 +304,7 @@ static double EnergyPA_3D(const int mid,
                double J[9];
                kernels::Mult(3,3,3, Jpr, Jrt, J);
                const double EvalW = mid == 302 ? EvalW_302(J) :
+                                    mid == 303 ? EvalW_303(J) :
                                     mid == 321 ? EvalW_321(J) :
                                     0.0;
                E(qx,qy,qz,e) = weight * EvalW;

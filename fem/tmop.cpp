@@ -632,6 +632,7 @@ double TMOP_Metric_303::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
    return ie.Get_I1b()/3.0 - 1.0;
+
 }
 
 void TMOP_Metric_303::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const

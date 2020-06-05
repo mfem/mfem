@@ -23,13 +23,13 @@ namespace mfem
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   PA.fes = &fes;
+   MFEM_VERIFY(IntRule,"");
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
+
+   PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
    const int dim = PA.dim = mesh->Dimension();
-   MFEM_VERIFY(IntRule,"");
-   MFEM_VERIFY(dim == 2 || dim == 3, "");
    const int nq = PA.nq = IntRule->GetNPoints();
    const int ne = PA.ne = fes.GetMesh()->GetNE();
    const IntegrationRule &ir = *IntRule;
@@ -38,13 +38,14 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    // Energy, One & X vectors
    PA.E.UseDevice(true);
-   PA.E.SetSize(ne * nq, Device::GetDeviceMemoryType());
+   PA.E.SetSize(ne*nq, Device::GetDeviceMemoryType());
 
    PA.O.UseDevice(true);
-   PA.O.SetSize(ne * nq, Device::GetDeviceMemoryType());
+   PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
 
    PA.X.UseDevice(true);
-   PA.X.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
+   PA.X.SetSize(dim*dim * nq*ne, Device::GetDeviceMemoryType());
+
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    PA.elem_restrict_lex = fes.GetElementRestriction(ordering);
    if (PA.elem_restrict_lex)
@@ -56,34 +57,35 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_ABORT("Not yet implemented!");
    }
 
+   // P (AddMultPA) & A (AddMultGradPA) setup vectors
    PA.P.UseDevice(true);
-   PA.P.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
+   PA.P.SetSize(dim*dim * nq*ne, Device::GetDeviceMemoryType());
 
    PA.setup = false;
    PA.A.UseDevice(true);
-   PA.A.SetSize(dim*dim * dim*dim * nq * ne, Device::GetDeviceMemoryType());
+   PA.A.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
 }
 
-void TMOP_Integrator::AddMultPA(const Vector &Xe, Vector &Ye) const
+void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (PA.dim == 2) { return AddMultPA_2D(Xe,Ye); }
-   if (PA.dim == 3) { return AddMultPA_3D(Xe,Ye); }
+   if (PA.dim == 2) { return AddMultPA_2D(x,y); }
+   if (PA.dim == 3) { return AddMultPA_3D(x,y); }
    MFEM_ABORT("Not yet implemented!");
 }
 
 void TMOP_Integrator::AssembleGradPA(const DenseMatrix &Jtr,
-                                     const Vector &Xe) const
+                                     const Vector &x) const
 {
-   if (PA.dim == 2) { return AssembleGradPA_2D(Jtr,Xe); }
-   if (PA.dim == 3) { return AssembleGradPA_3D(Jtr,Xe); }
+   if (PA.dim == 2) { return AssembleGradPA_2D(Jtr,x); }
+   if (PA.dim == 3) { return AssembleGradPA_3D(Jtr,x); }
    MFEM_ABORT("Not yet implemented!");
 }
 
-void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
-                                    Vector &Ce) const
+void TMOP_Integrator::AddMultGradPA(const Vector &x, const Vector &r,
+                                    Vector &c) const
 {
-   if (PA.dim == 2) { return AddMultGradPA_2D(Xe,Re,Ce); }
-   if (PA.dim == 3) { return AddMultGradPA_3D(Xe,Re,Ce); }
+   if (PA.dim == 2) { return AddMultGradPA_2D(x,r,c); }
+   if (PA.dim == 3) { return AddMultGradPA_3D(x,r,c); }
    MFEM_ABORT("Not yet implemented!");
 }
 
