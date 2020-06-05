@@ -1427,7 +1427,7 @@ int GeometryRefiner::GetRefinementLevelFromPoints(Geometry::Type geom, int Npts)
          for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
          {
             np = (n+1)*(n+2)/2;
-            if (np == Npts) return n;
+            if (np == Npts) { return n; }
          }
          return -1;
       }
@@ -1436,7 +1436,7 @@ int GeometryRefiner::GetRefinementLevelFromPoints(Geometry::Type geom, int Npts)
          for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
          {
             np = (n+1)*(n+1);
-            if (np == Npts) return n;
+            if (np == Npts) { return n; }
          }
          return -1;
       }
@@ -1445,7 +1445,7 @@ int GeometryRefiner::GetRefinementLevelFromPoints(Geometry::Type geom, int Npts)
          for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
          {
             np = (n+1)*(n+1)*(n+1);
-            if (np == Npts) return n;
+            if (np == Npts) { return n; }
          }
          return -1;
       }
@@ -1454,7 +1454,7 @@ int GeometryRefiner::GetRefinementLevelFromPoints(Geometry::Type geom, int Npts)
          for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
          {
             np = (n+3)*(n+2)*(n+1)/6;
-            if (np == Npts) return n;
+            if (np == Npts) { return n; }
          }
          return -1;
       }
@@ -1463,7 +1463,7 @@ int GeometryRefiner::GetRefinementLevelFromPoints(Geometry::Type geom, int Npts)
          for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
          {
             np = (n+1)*(n+1)*(n+2)/2;
-            if (np == Npts) return n;
+            if (np == Npts) { return n; }
          }
          return -1;
       }
@@ -1494,7 +1494,7 @@ int GeometryRefiner::GetRefinementLevelFromElems(Geometry::Type geom, int Nels)
       {
          for (int n = 0; (n < 15) && (n*n < Nels+1) ; n++)
          {
-            if (n*n == Nels) return n-1;
+            if (n*n == Nels) { return n-1; }
          }
          return -1;
       }
@@ -1504,7 +1504,7 @@ int GeometryRefiner::GetRefinementLevelFromElems(Geometry::Type geom, int Nels)
       {
          for (int n = 0; (n < 15) && (n*n*n < Nels+1) ; n++)
          {
-            if (n*n*n == Nels) return n-1;
+            if (n*n*n == Nels) { return n-1; }
          }
          return -1;
       }
