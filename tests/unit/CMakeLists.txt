@@ -30,6 +30,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
+  linalg/test_cg_indefinite.cpp
   mesh/test_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
@@ -47,6 +48,7 @@ set(UNIT_TESTS_SRCS
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_kernels.cpp
+  fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
   miniapps/test_sedov.cpp
 )

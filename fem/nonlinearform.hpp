@@ -120,7 +120,7 @@ public:
    void SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
                               Vector *rhs = NULL);
 
-   /// (DEPRECATED) Specify essential boundary conditions.
+   /// Specify essential boundary conditions.
    /** @deprecated Use either SetEssentialBC() or SetEssentialTrueDofs(). */
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 

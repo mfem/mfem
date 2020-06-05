@@ -1695,7 +1695,6 @@ void ParMesh::GetFaceNbrElementTransformation(
          MFEM_ABORT("Nodes are not ParGridFunction!");
       }
    }
-   ElTr->FinalizeTransformation();
 }
 
 void ParMesh::DeleteFaceNbrData()
@@ -2355,7 +2354,6 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
 #endif
       FaceTransformation.SetFE(face_el);
    }
-   FaceTransformation.FinalizeTransformation();
    return &FaceTransformation;
 }
 
@@ -2394,11 +2392,14 @@ GetSharedFaceTransformations(int sf, bool fill2)
    }
 
    // setup the face transformation if the face is not a ghost
-   FaceElemTr.FaceGeom = face_geom;
    if (!is_ghost)
    {
-      FaceElemTr.Face = GetFaceTransformation(FaceNo);
+      GetFaceTransformation(FaceNo, &FaceElemTr);
       // NOTE: The above call overwrites FaceElemTr.Loc1
+   }
+   else
+   {
+      FaceElemTr.SetGeometryType(face_geom);
    }
 
    // setup Loc1 & Loc2
@@ -2438,8 +2439,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
-      FaceElemTr.Face =
-         GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
    }
 
    return &FaceElemTr;
