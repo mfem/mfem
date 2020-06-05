@@ -24,7 +24,7 @@ namespace mfem
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    PA.fes = &fes;
-   MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES,
+   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
    Mesh *mesh = fes.GetMesh();
    const int dim = PA.dim = mesh->Dimension();
