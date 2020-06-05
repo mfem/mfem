@@ -1410,65 +1410,113 @@ const IntegrationRule *GeometryRefiner::RefineInterior(Geometry::Type Geom,
 }
 
 
-int GeometryRefiner::GetRefinementLevel(Geometry::Type geom, int Npts)
+int GeometryRefiner::GetRefinementLevelFromPoints(Geometry::Type geom, int Npts)
 {
-   int Nmax = 100;
-   double eps = 1e-6;
    switch (geom)
    {
       case Geometry::POINT:
       {
-         return 1;
+         return -1;
       }
       case Geometry::SEGMENT:
       {
-         return Npts - 1;
+         return Npts -1;
       }
       case Geometry::TRIANGLE:
       {
-         return (sqrt(8*Npts + 1) - 3 + eps)/2;
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+1)*(n+2)/2;
+            if (np == Npts) return n;
+         }
+         return -1;
       }
       case Geometry::SQUARE:
       {
-         return sqrt(Npts)-1 + eps;
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+1)*(n+1);
+            if (np == Npts) return n;
+         }
+         return -1;
       }
       case Geometry::CUBE:
       {
-         return cbrt(Npts)-1 + eps;
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
+         {
+            np = (n+1)*(n+1)*(n+1);
+            if (np == Npts) return n;
+         }
+         return -1;
       }
       case Geometry::TETRAHEDRON:
       {
-         int np = 0;
-         int n = 0;
-         while (Npts != np)
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
          {
-            n++;
             np = (n+3)*(n+2)*(n+1)/6;
-            if (n > Nmax) { return -1; }
+            if (np == Npts) return n;
          }
-
-         return n;
+         return -1;
       }
       case Geometry::PRISM:
       {
-         int np = 0;
-         int n = 0;
-         while (Npts != np)
+         for (int n = 0, np = 0; (n < 15) && (np < Npts) ; n++)
          {
-            n++;
             np = (n+1)*(n+1)*(n+2)/2;
-            if (n > Nmax) { return -1; }
+            if (np == Npts) return n;
          }
-
-         return n;
+         return -1;
       }
-
       default:
+      {
          mfem_error("Non existing Geometry.");
+      }
    }
 
    return -1;
 }
+
+
+int GeometryRefiner::GetRefinementLevelFromElems(Geometry::Type geom, int Nels)
+{
+   switch (geom)
+   {
+      case Geometry::POINT:
+      {
+         return -1;
+      }
+      case Geometry::SEGMENT:
+      {
+         return Nels;
+      }
+      case Geometry::TRIANGLE:
+      case Geometry::SQUARE:
+      {
+         for (int n = 0; (n < 15) && (n*n < Nels+1) ; n++)
+         {
+            if (n*n == Nels) return n-1;
+         }
+         return -1;
+      }
+      case Geometry::CUBE:
+      case Geometry::TETRAHEDRON:
+      case Geometry::PRISM:
+      {
+         for (int n = 0; (n < 15) && (n*n*n < Nels+1) ; n++)
+         {
+            if (n*n*n == Nels) return n-1;
+         }
+         return -1;
+      }
+      default:
+      {
+         mfem_error("Non existing Geometry.");
+      }
+   }
+
+   return -1;
+}
+
 
 GeometryRefiner GlobGeometryRefiner;
 
