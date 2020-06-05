@@ -156,8 +156,8 @@ static void SetupGradPA_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double xx = Xx[dy][dx];
@@ -178,8 +178,8 @@ static void SetupGradPA_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int dy = 0; dy < D1D; ++dy)
             {
                u[0] += XxG[dy][qx] * B[qy][dy];
@@ -236,7 +236,6 @@ static void SetupGradPA_2D(const Vector &xe_,
    });
 }
 
-// *****************************************************************************
 void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
                                         const Vector &X) const
 {

@@ -106,8 +106,8 @@ static double EnergyPA_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double xx = Xx[dy][dx];
@@ -129,8 +129,8 @@ static double EnergyPA_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int dy = 0; dy < D1D; ++dy)
             {
                u[0] += XxG[dy][qx] * B1d[qy][dy];

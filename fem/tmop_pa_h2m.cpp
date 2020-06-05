@@ -22,7 +22,6 @@
 namespace mfem
 {
 
-// *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void AddMultGradPA_Kernel_2D(const int NE,
                                     const Array<double> &b1d_,
@@ -217,8 +216,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int qx = 0; qx < Q1D; ++qx)
             {
                u[0] += G1dt[dx][qx] * Cx0[qy][qx];
@@ -237,8 +236,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int qy = 0; qy < Q1D; ++qy)
             {
                u[0] += CxB[dx][qy] * B1dt[dy][qy];
@@ -253,7 +252,6 @@ static void AddMultGradPA_Kernel_2D(const int NE,
    });
 }
 
-// *****************************************************************************
 void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
                                        Vector &C) const
 {

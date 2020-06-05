@@ -19,7 +19,6 @@
 namespace mfem
 {
 
-// *****************************************************************************
 // dI1b = 2*I3b^{-2/3}*(J - (1/3)*I1/I3b*dI3b)
 MFEM_HOST_DEVICE inline
 void Eval_dI1b(const double w, const double *J, double *dI1b)
@@ -45,7 +44,6 @@ void Eval_dI1b(const double w, const double *J, double *dI1b)
    dI1b[3] = w * c1 * (J[3] - c2*dI2b3);
 }
 
-// *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void AddMultPA_Kernel_2D(const int NE,
                                 const Array<double> &w_,
@@ -124,8 +122,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double cx = Xx[dy][dx];
@@ -146,8 +144,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int dy = 0; dy < D1D; ++dy)
             {
                u[0] += DQxG[dy][qx] * B[qy][dy];
@@ -222,8 +220,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int qx = 0; qx < Q1D; ++qx)
             {
                u[0] += Gt[dx][qx] * QQx0[qy][qx];
@@ -244,8 +242,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] = {0};
-            double v[2] = {0};
+            double u[2] {};
+            double v[2] {};
             for (int qy = 0; qy < Q1D; ++qy)
             {
                u[0] += DQxB[dx][qy] * Bt[dy][qy];
@@ -261,7 +259,6 @@ static void AddMultPA_Kernel_2D(const int NE,
    });
 }
 
-// *****************************************************************************
 void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;

@@ -25,7 +25,6 @@
 #include "tmatrix.hpp"
 #include "tlayout.hpp"
 #include "ttensor.hpp"
-#include "dtensor.hpp"
 
 // This header contains stand-alone functions for "small" dense linear algebra
 // (at quadrature point or element-level) designed to be inlined directly into
