@@ -481,35 +481,29 @@ static void AddMultPA_Kernel_3D(const int mid,
 // *****************************************************************************
 void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 {
-   MFEM_VERIFY(IntRule,"");
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
+   const int N = PA.ne;
+   const int dim = PA.dim;
+   const int mid = metric->Id();
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
-   const Array<double> &B1d = maps->B;
-   const Array<double> &G1d = maps->G;
-   const int id = (D1D << 4 ) | Q1D;
-   const int mid = metric->Id();
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   const Vector &P = PA.P;
 
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
    //  - Jtr(i) == Wideal
-   DenseMatrix Wid(dim);
-
-   const FiniteElement *fe = fes->GetFE(0);
+   DenseMatrix Wideal(dim);
+   const FiniteElement *fe = PA.fes->GetFE(0);
    const Geometry::Type geom_type = fe->GetGeomType();
-   const DenseMatrix &GeomJac = Geometries.GetGeomToPerfGeomJac(geom_type);
-   //dbg("GeomJac:"); GeomJac.Print();
-   Wid = GeomJac;
+   Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
 
-   MFEM_VERIFY(Wid.Det() == 1.0 ,"");
-   MFEM_VERIFY(Wid(0,0)==1.0 && Wid(1,1)==1.0 && Wid(2,2)==1.0 &&
-               Wid(1,0)==0.0 && Wid(0,1)==0.0 && Wid(1,2)==0.0 &&
-               Wid(2,0)==0.0 && Wid(0,2)==0.0 && Wid(2,1)==0.0,  "");
-
-   const auto Jtr = Reshape(Wid.Read(), dim, dim);
-   auto J = Reshape(Dpa.Write(), Q1D, Q1D, Q1D, dim, dim, ne);
-   MFEM_FORALL_3D(e, ne, Q1D, Q1D, Q1D,
+   const auto Jtr = Reshape(Wideal.Read(), dim, dim);
+   auto J = Reshape(PA.P.Write(), Q1D, Q1D, Q1D, dim, dim, N);
+   MFEM_FORALL_3D(e, N, Q1D, Q1D, Q1D,
    {
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -535,33 +529,33 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_3D<2,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x22: return AddMultPA_Kernel_3D<2,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x23: return AddMultPA_Kernel_3D<2,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x24: return AddMultPA_Kernel_3D<2,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x25: return AddMultPA_Kernel_3D<2,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x26: return AddMultPA_Kernel_3D<2,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x21: return AddMultPA_Kernel_3D<2,1>(mid,N,W,B,G,P,X,Y);
+      case 0x22: return AddMultPA_Kernel_3D<2,2>(mid,N,W,B,G,P,X,Y);
+      case 0x23: return AddMultPA_Kernel_3D<2,3>(mid,N,W,B,G,P,X,Y);
+      case 0x24: return AddMultPA_Kernel_3D<2,4>(mid,N,W,B,G,P,X,Y);
+      case 0x25: return AddMultPA_Kernel_3D<2,5>(mid,N,W,B,G,P,X,Y);
+      case 0x26: return AddMultPA_Kernel_3D<2,6>(mid,N,W,B,G,P,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_3D<3,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x32: return AddMultPA_Kernel_3D<3,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x33: return AddMultPA_Kernel_3D<3,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x34: return AddMultPA_Kernel_3D<3,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x35: return AddMultPA_Kernel_3D<3,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x36: return AddMultPA_Kernel_3D<3,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x31: return AddMultPA_Kernel_3D<3,1>(mid,N,W,B,G,P,X,Y);
+      case 0x32: return AddMultPA_Kernel_3D<3,2>(mid,N,W,B,G,P,X,Y);
+      case 0x33: return AddMultPA_Kernel_3D<3,3>(mid,N,W,B,G,P,X,Y);
+      case 0x34: return AddMultPA_Kernel_3D<3,4>(mid,N,W,B,G,P,X,Y);
+      case 0x35: return AddMultPA_Kernel_3D<3,5>(mid,N,W,B,G,P,X,Y);
+      case 0x36: return AddMultPA_Kernel_3D<3,6>(mid,N,W,B,G,P,X,Y);
 
-      case 0x41: return AddMultPA_Kernel_3D<4,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x42: return AddMultPA_Kernel_3D<4,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x43: return AddMultPA_Kernel_3D<4,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x44: return AddMultPA_Kernel_3D<4,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x45: return AddMultPA_Kernel_3D<4,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x46: return AddMultPA_Kernel_3D<4,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x41: return AddMultPA_Kernel_3D<4,1>(mid,N,W,B,G,P,X,Y);
+      case 0x42: return AddMultPA_Kernel_3D<4,2>(mid,N,W,B,G,P,X,Y);
+      case 0x43: return AddMultPA_Kernel_3D<4,3>(mid,N,W,B,G,P,X,Y);
+      case 0x44: return AddMultPA_Kernel_3D<4,4>(mid,N,W,B,G,P,X,Y);
+      case 0x45: return AddMultPA_Kernel_3D<4,5>(mid,N,W,B,G,P,X,Y);
+      case 0x46: return AddMultPA_Kernel_3D<4,6>(mid,N,W,B,G,P,X,Y);
 
-      case 0x51: return AddMultPA_Kernel_3D<5,1>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x52: return AddMultPA_Kernel_3D<5,2>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x53: return AddMultPA_Kernel_3D<5,3>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x54: return AddMultPA_Kernel_3D<5,4>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x55: return AddMultPA_Kernel_3D<5,5>(mid,ne,W,B1d,G1d,Dpa,X,Y);
-      case 0x56: return AddMultPA_Kernel_3D<5,6>(mid,ne,W,B1d,G1d,Dpa,X,Y);
+      case 0x51: return AddMultPA_Kernel_3D<5,1>(mid,N,W,B,G,P,X,Y);
+      case 0x52: return AddMultPA_Kernel_3D<5,2>(mid,N,W,B,G,P,X,Y);
+      case 0x53: return AddMultPA_Kernel_3D<5,3>(mid,N,W,B,G,P,X,Y);
+      case 0x54: return AddMultPA_Kernel_3D<5,4>(mid,N,W,B,G,P,X,Y);
+      case 0x55: return AddMultPA_Kernel_3D<5,5>(mid,N,W,B,G,P,X,Y);
+      case 0x56: return AddMultPA_Kernel_3D<5,6>(mid,N,W,B,G,P,X,Y);
       default:  break;
    }
    dbg("id: %x",id);

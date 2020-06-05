@@ -25,7 +25,6 @@ namespace mfem
 // *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static double EnergyPA_2D(const int NE,
-                          const double metric_normal,
                           const DenseMatrix &j_,
                           const Array<double> &w_,
                           const Array<double> &b_,
@@ -37,6 +36,7 @@ static double EnergyPA_2D(const int NE,
                           const int q1d = 0)
 {
    constexpr int dim = 2;
+   constexpr double metric_normal =  1.0;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -196,12 +196,19 @@ double
 TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
                                             const Vector &x) const
 {
-   const IntegrationRule *ir = IntRule;
-   MFEM_VERIFY(ir,"");
+   MFEM_VERIFY(metric_normal == 1.0, "");
 
-   const int NE = fes.GetMesh()->GetNE();
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
+   const int N = PA.ne;
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const IntegrationRule *ir = IntRule;
+   const Array<double> &W = ir->GetWeights();
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   const Vector &X = PA.X;
+   Vector &E = PA.E;
+   Vector &O = PA.O;
 
    // Jtr setup:
    //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
@@ -211,46 +218,39 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
    const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
    const DenseMatrix J = Wideal;
 
-   const double m_n = metric_normal;
-   MFEM_VERIFY(metric_normal == 1.0, "");
-
-   const Array<double> &W = ir->GetWeights();
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
-
-   if (elem_restrict_lex) { elem_restrict_lex->Mult(x, Xpa); }
+   if (PA.elem_restrict_lex) { PA.elem_restrict_lex->Mult(x, PA.X); }
    else { MFEM_ABORT("Not yet implemented!"); }
 
-   const int id = (D1D << 4 ) | Q1D;
    switch (id)
    {
-      case 0x21: return EnergyPA_2D<2,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x22: return EnergyPA_2D<2,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x23: return EnergyPA_2D<2,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x24: return EnergyPA_2D<2,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x25: return EnergyPA_2D<2,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x26: return EnergyPA_2D<2,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x21: return EnergyPA_2D<2,1,1>(N,J,W,B,G,X,E,O);
+      case 0x22: return EnergyPA_2D<2,2,1>(N,J,W,B,G,X,E,O);
+      case 0x23: return EnergyPA_2D<2,3,1>(N,J,W,B,G,X,E,O);
+      case 0x24: return EnergyPA_2D<2,4,1>(N,J,W,B,G,X,E,O);
+      case 0x25: return EnergyPA_2D<2,5,1>(N,J,W,B,G,X,E,O);
+      case 0x26: return EnergyPA_2D<2,6,1>(N,J,W,B,G,X,E,O);
 
-      case 0x31: return EnergyPA_2D<3,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x32: return EnergyPA_2D<3,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x33: return EnergyPA_2D<3,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x34: return EnergyPA_2D<3,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x35: return EnergyPA_2D<3,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x36: return EnergyPA_2D<3,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x31: return EnergyPA_2D<3,1,1>(N,J,W,B,G,X,E,O);
+      case 0x32: return EnergyPA_2D<3,2,1>(N,J,W,B,G,X,E,O);
+      case 0x33: return EnergyPA_2D<3,3,1>(N,J,W,B,G,X,E,O);
+      case 0x34: return EnergyPA_2D<3,4,1>(N,J,W,B,G,X,E,O);
+      case 0x35: return EnergyPA_2D<3,5,1>(N,J,W,B,G,X,E,O);
+      case 0x36: return EnergyPA_2D<3,6,1>(N,J,W,B,G,X,E,O);
 
-      case 0x41: return EnergyPA_2D<4,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x42: return EnergyPA_2D<4,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x43: return EnergyPA_2D<4,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x44: return EnergyPA_2D<4,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x45: return EnergyPA_2D<4,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x46: return EnergyPA_2D<4,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x41: return EnergyPA_2D<4,1,1>(N,J,W,B,G,X,E,O);
+      case 0x42: return EnergyPA_2D<4,2,1>(N,J,W,B,G,X,E,O);
+      case 0x43: return EnergyPA_2D<4,3,1>(N,J,W,B,G,X,E,O);
+      case 0x44: return EnergyPA_2D<4,4,1>(N,J,W,B,G,X,E,O);
+      case 0x45: return EnergyPA_2D<4,5,1>(N,J,W,B,G,X,E,O);
+      case 0x46: return EnergyPA_2D<4,6,1>(N,J,W,B,G,X,E,O);
 
-      case 0x51: return EnergyPA_2D<5,1,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x52: return EnergyPA_2D<5,2,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x53: return EnergyPA_2D<5,3,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x54: return EnergyPA_2D<5,4,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x55: return EnergyPA_2D<5,5,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
-      case 0x56: return EnergyPA_2D<5,6,1>(NE, m_n, J, W, B, G, Xpa, Epa, Opa);
+      case 0x51: return EnergyPA_2D<5,1,1>(N,J,W,B,G,X,E,O);
+      case 0x52: return EnergyPA_2D<5,2,1>(N,J,W,B,G,X,E,O);
+      case 0x53: return EnergyPA_2D<5,3,1>(N,J,W,B,G,X,E,O);
+      case 0x54: return EnergyPA_2D<5,4,1>(N,J,W,B,G,X,E,O);
+      case 0x55: return EnergyPA_2D<5,5,1>(N,J,W,B,G,X,E,O);
+      case 0x56: return EnergyPA_2D<5,6,1>(N,J,W,B,G,X,E,O);
+
       default: break;
          //return EnergyPA_2D(NE, m_n, J, W, B, G, Xpa, Epa, Opa, D1D, Q1D);
    }

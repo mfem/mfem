@@ -238,46 +238,48 @@ static void SetupGradPA_2D(const Vector &xe_,
 
 // *****************************************************************************
 void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
-                                        const Vector &Xe) const
+                                        const Vector &X) const
 {
-   MFEM_VERIFY(IntRule,"");
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
+   const int N = PA.ne;
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
-   const int id = (D1D << 4 ) | Q1D;
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   Vector &A = PA.A;
 
    switch (id)
    {
-      case 0x21: { SetupGradPA_2D<2,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x22: { SetupGradPA_2D<2,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x23: { SetupGradPA_2D<2,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x24: { SetupGradPA_2D<2,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x25: { SetupGradPA_2D<2,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x26: { SetupGradPA_2D<2,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x21: { SetupGradPA_2D<2,1,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x22: { SetupGradPA_2D<2,2,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x23: { SetupGradPA_2D<2,3,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x24: { SetupGradPA_2D<2,4,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x25: { SetupGradPA_2D<2,5,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x26: { SetupGradPA_2D<2,6,1>(X,N,W,B,G,Jtr,A); break; }
 
-      case 0x31: { SetupGradPA_2D<3,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x32: { SetupGradPA_2D<3,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x33: { SetupGradPA_2D<3,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x34: { SetupGradPA_2D<3,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x35: { SetupGradPA_2D<3,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x36: { SetupGradPA_2D<3,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x31: { SetupGradPA_2D<3,1,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x32: { SetupGradPA_2D<3,2,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x33: { SetupGradPA_2D<3,3,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x34: { SetupGradPA_2D<3,4,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x35: { SetupGradPA_2D<3,5,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x36: { SetupGradPA_2D<3,6,1>(X,N,W,B,G,Jtr,A); break; }
 
-      case 0x41: { SetupGradPA_2D<4,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x42: { SetupGradPA_2D<4,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x43: { SetupGradPA_2D<4,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x44: { SetupGradPA_2D<4,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x45: { SetupGradPA_2D<4,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x46: { SetupGradPA_2D<4,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x41: { SetupGradPA_2D<4,1,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x42: { SetupGradPA_2D<4,2,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x43: { SetupGradPA_2D<4,3,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x44: { SetupGradPA_2D<4,4,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x45: { SetupGradPA_2D<4,5,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x46: { SetupGradPA_2D<4,6,1>(X,N,W,B,G,Jtr,A); break; }
 
-      case 0x51: { SetupGradPA_2D<5,1,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x52: { SetupGradPA_2D<5,2,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x53: { SetupGradPA_2D<5,3,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x54: { SetupGradPA_2D<5,4,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x55: { SetupGradPA_2D<5,5,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x56: { SetupGradPA_2D<5,6,1>(Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x51: { SetupGradPA_2D<5,1,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x52: { SetupGradPA_2D<5,2,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x53: { SetupGradPA_2D<5,3,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x54: { SetupGradPA_2D<5,4,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x55: { SetupGradPA_2D<5,5,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x56: { SetupGradPA_2D<5,6,1>(X,N,W,B,G,Jtr,A); break; }
+
       default:
       {
          dbg("kernel id: %x", id);
