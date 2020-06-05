@@ -78,31 +78,6 @@ public:
    { return (constant); }
 };
 
-/// class for quadrature coefficient
-class QuadratureCoefficient : public Coefficient
-{
-
-private:
-   const int nip;
-   const int NE;
-public:
-   Vector *qData{nullptr};
-
-   //Set external data
-   QuadratureCoefficient(Vector *Data, int in_nip, int in_NE)
-      : qData(Data), nip(in_nip), NE(in_NE)
-   { }
-
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
-
-   Vector *Data()
-   {
-      return qData;
-   }
-
-};
-
 /// class for piecewise constant coefficient
 class PWConstCoefficient : public Coefficient
 {

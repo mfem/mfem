@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool pa = false;
+   bool pa = true;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -168,7 +168,16 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   //a->AddDomainIntegrator(new DiffusionIntegrator(one));
+
+   int intOrder = 3;
+   QuadratureSpace qspace(mesh, intOrder);
+   int qFieldSz = 4*mesh->GetNE();
+   Vector qScale(qFieldSz); qScale = 2.0;
+   QuadratureFunction quadfunction(&qspace, qScale, 1);
+   QuadratureFunctionCoefficient quadCoeff(quadfunction);
+
+   a->AddDomainIntegrator(new MassIntegrator(quadCoeff));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
