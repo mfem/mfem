@@ -51,6 +51,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
+   printf("nq sz %d \n", nq);
    Vector *coeff{nullptr};
    bool own_coeff{true};
    if (Q == nullptr)
@@ -63,11 +64,13 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
    {
       coeff = new Vector;
       coeff->SetSize(1);
-      (*coeff)(0) = 1.0;
+      (*coeff)(0) = cQ->constant;
    }
-   else if (QuadratureCoefficient* cQ = dynamic_cast<QuadratureCoefficient*>(Q))
+   else if (QuadratureFunctionCoefficient* cQ =
+               dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      coeff = cQ->Data();
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      coeff = &dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun));
       own_coeff = false;
    }
    else
@@ -81,6 +84,7 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
          for (int q = 0; q < nq; ++q)
          {
             C(q,e) = Q->Eval(T, ir->IntPoint(q));
+            printf("%f \n",C(q, e));
          }
       }
    }
