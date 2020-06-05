@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 ifeq ($(MFEM_USE_GSLIB),YES)
-   SEQ_MINIAPPS = findpts field-diff
+   SEQ_MINIAPPS = findpts field-diff field-interp
    PAR_MINIAPPS = pfindpts
 else
    SEQ_MINIAPPS =
