@@ -1,43 +1,9 @@
 #pragma once
 #include "MeshPartition.hpp"
 
-struct hash_pair {
-   template <class T1, class T2>
-   size_t operator()(const pair<T1, T2>& p) const{
-      auto hash1 = hash<T1>{}(p.first);
-      auto hash2 = hash<T2>{}(p.second);
-      return hash1 ^ hash2;
-   }
-};
-
-struct UniqueIndexGenerator
-{
-   int counter = 0;
-   std::unordered_map<pair<int,int>,int, hash_pair> idx;
-   int Get(int i, int j)
-   {
-      pair<int,int> p1(i,j);
-      std::unordered_map<pair<int,int>,int, hash_pair>::iterator f = idx.find(p1);
-      if (f == idx.end())
-      {
-         idx[p1] = counter;
-         return counter++;
-      }
-      else
-      {
-         return (*f).second;
-      }
-   }
-   void Reset()
-   {
-      counter = 0;
-      idx.clear();
-   }
-};
 
 
-
-// Function coefficient that takes the boundingbox of the mesh as an input
+// Function coefficient that takes the bounding box of the mesh as an input
 class CutOffFnCoefficient : public Coefficient
 {
 private:
@@ -67,9 +33,6 @@ const Vector & pmax, const Array2D<double> & h_);
 
 class DofMap // Constructs dof maps for a given partition
 {
-   FiniteElementSpace *fespace=nullptr;
-   SesquilinearForm * bf=nullptr;
-   MeshPartition * partition=nullptr;
 public:
    int nrpatch, nx, ny, nz;
    vector<Array<int>> Dof2GlobalDof;
@@ -78,12 +41,13 @@ public:
    Array<FiniteElementSpace *> fespaces;
    Array<FiniteElementSpace *> PmlFespaces;
    // constructor
-   // Non PML contructor dof map
-   DofMap(SesquilinearForm * bf_, MeshPartition * partition_);
+   // Non PML constructor dof map
+   DofMap(FiniteElementSpace * fes, MeshPartition * partition);
    // PML
-   DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers);
-   ~DofMap();
+   DofMap(FiniteElementSpace * fes , MeshPartition * partition, int nrlayers);
+   ~DofMap(){};
 };
+
 
 
 class LocalDofMap // Constructs dof mapbetween two partitions
@@ -100,4 +64,3 @@ public:
                MeshPartition * part2_);
    ~LocalDofMap();
 };
-

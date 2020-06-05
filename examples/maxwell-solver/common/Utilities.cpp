@@ -100,14 +100,9 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
 }
 
 
-DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_) 
-               : bf(bf_), partition(partition_)
+DofMap::DofMap(FiniteElementSpace * fes , MeshPartition * partition) 
 {
-   // int partition_kind = partition->partition_kind;
-   // MFEM_VERIFY(partition_kind == 1, "Check Partition kind");
-   fespace = bf->FESpace();
-   // Mesh * mesh = fespace->GetMesh();
-   const FiniteElementCollection * fec = fespace->FEColl();
+   const FiniteElementCollection * fec = fes->FEColl();
    nrpatch = partition->nrpatch;
 
    fespaces.SetSize(nrpatch);
@@ -132,7 +127,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_)
          Array<int> ElemDofs;
          Array<int> GlobalElemDofs;
          fespaces[ip]->GetElementDofs(iel,ElemDofs);
-         fespace->GetElementDofs(iel_idx,GlobalElemDofs);
+         fes->GetElementDofs(iel_idx,GlobalElemDofs);
          // the sizes have to match
          MFEM_VERIFY(ElemDofs.Size() == GlobalElemDofs.Size(),
                      "Size inconsistency");
@@ -145,14 +140,13 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_)
             int pdof = (pdof_ >= 0) ? pdof_ : abs(pdof_) - 1;
             int gdof = (gdof_ >= 0) ? gdof_ : abs(gdof_) - 1;
             Dof2GlobalDof[ip][pdof] = gdof;
-            Dof2GlobalDof[ip][pdof+nrdof] = gdof+fespace->GetTrueVSize();
+            Dof2GlobalDof[ip][pdof+nrdof] = gdof+fes->GetTrueVSize();
          }
       }
    }
 }
 
-DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers) 
-               : bf(bf_), partition(partition_)
+DofMap::DofMap(FiniteElementSpace * fes , MeshPartition * partition, int nrlayers) 
 {
 
    nx = partition->nxyz[0];
@@ -160,9 +154,8 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
    nz = partition->nxyz[2];
 
    int partition_kind = partition->partition_kind;
-   fespace = bf->FESpace();
    // Mesh * mesh = fespace->GetMesh();
-   const FiniteElementCollection * fec = fespace->FEColl();
+   const FiniteElementCollection * fec = fes->FEColl();
    nrpatch = partition->nrpatch;
 
    fespaces.SetSize(nrpatch);
@@ -271,7 +264,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
          Array<int> GlobalElemDofs;
          fespaces[ip]->GetElementDofs(iel,ElemDofs);
          PmlFespaces[ip]->GetElementDofs(iel,PmlElemDofs);
-         fespace->GetElementDofs(iel_idx,GlobalElemDofs);
+         fes->GetElementDofs(iel_idx,GlobalElemDofs);
          // the sizes have to match
          MFEM_VERIFY(ElemDofs.Size() == GlobalElemDofs.Size(),
                      "Size inconsistency");
@@ -289,7 +282,7 @@ DofMap::DofMap(SesquilinearForm * bf_ , MeshPartition * partition_, int nrlayers
             int pmldof = (pmldof_ >= 0) ? pmldof_ : abs(pmldof_) - 1;
 
             Dof2GlobalDof[ip][pdof] = gdof;
-            Dof2GlobalDof[ip][pdof+nrdof] = gdof+fespace->GetTrueVSize();
+            Dof2GlobalDof[ip][pdof+nrdof] = gdof+fes->GetTrueVSize();
             Dof2PmlDof[ip][pdof] = pmldof;
             Dof2PmlDof[ip][pdof+nrdof] = pmldof+PmlFespaces[ip]->GetTrueVSize();
          }

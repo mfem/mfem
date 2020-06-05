@@ -1,9 +1,8 @@
-//Additive Source Transfer Preconditioner
+//Diagonal Source Transfer Preconditioner
 
-#include "AdditiveST.hpp"
+#include "DST2D.hpp"
 
-
-AdditiveST::AdditiveST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+DST2D::DST2D(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, Coefficient * ws_,  int nrlayers_)
    : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), 
      bf(bf_), Pmllength(Pmllength_), omega(omega_), ws(ws_), nrlayers(nrlayers_)
@@ -13,10 +12,9 @@ AdditiveST::AdditiveST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    int partition_kind;
 
-   // 1. Ovelapping partition with overlap = 2h 
-   partition_kind = 2; // Non Overlapping partition 
-   int nx=2;
-   int ny=2; 
+   partition_kind = 2; 
+   int nx=3;
+   int ny=3; 
    int nz=1;
    ovlpnrlayers = nrlayers+2;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
@@ -30,9 +28,8 @@ AdditiveST::AdditiveST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    nrpatch = povlp->nrpatch;
    subdomains = povlp->subdomains;
 
-
-   ovlp_prob  = new DofMap(bf,povlp); 
-   nvlp_prob  = new DofMap(bf,novlp); 
+   ovlp_prob  = new DofMap(bf->FESpace(),povlp); 
+   nvlp_prob  = new DofMap(bf->FESpace(),novlp); 
    PmlMat.SetSize(nrpatch);
    PmlMatInv.SetSize(nrpatch);
    for (int ip=0; ip<nrpatch; ip++)
@@ -41,50 +38,51 @@ AdditiveST::AdditiveST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
       PmlMatInv[ip] = new KLUSolver;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
    }
+   nsweeps = pow(2,dim);
+   sweeps.SetSize(nsweeps,dim);
+   // 2D
+   sweeps(0,0) =  1; sweeps(0,1) = 1;
+   sweeps(1,0) = -1; sweeps(1,1) = 1;
+   sweeps(2,0) =  1; sweeps(2,1) =-1;
+   sweeps(3,0) = -1; sweeps(3,1) =-1;
 
-   int nsteps = nx + ny - 1;
-
+   // Set up src arrays size
    f_orig.SetSize(nrpatch);
-   usol.SetSize(nrpatch);
-   f_s.SetSize(nrpatch);
-   f_diag.SetSize(nrpatch);
+   f_transf.SetSize(nrpatch);
    // Construct a simple map used for directions of transfer
    for (int ip=0; ip<nrpatch; ip++)
    {
       int n = 2*ovlp_prob->fespaces[ip]->GetTrueVSize(); // (x 2 for complex ) 
       f_orig[ip] = new Vector(n); *f_orig[ip] = 0.0;
-      usol[ip] = new Vector(n); *usol[ip] = 0.0;
-      f_s[ip].SetSize(nsteps);
-      f_diag[ip].SetSize(nsteps);
-      for (int i=0;i<nsteps; i++)
+      f_transf[ip].SetSize(nsweeps);
+      for (int i=0;i<nsweeps; i++)
       {
-         f_s[ip][i] = new Vector(n); 
-         f_diag[ip][i] = new Vector(n);
+         f_transf[ip][i] = new Vector(n);
       }
    }
 }
 
-void AdditiveST::Mult(const Vector &r, Vector &z) const
+void DST2D::Mult(const Vector &r, Vector &z) const
 {
-   char vishost[] = "localhost";
-   int  visport   = 19916;
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
    for (int ip=0; ip<nrpatch; ip++)
    {
       *f_orig[ip] = 0.0;
-      *usol[ip] = 0.0;
-      for (int i=0;i< f_s[ip].Size(); i++)
+      for (int i=0;i<nsweeps; i++)
       {
-         *f_s[ip][i] = 0.0;
-         *f_diag[ip][i] = 0.0;
+         *f_transf[ip][i] = 0.0;
       }
    }
-   socketstream res_sock(vishost, visport);
-   Vector res(r);
-   PlotSolution(res,res_sock,0,false); 
-   // for (int ip=0; ip<nrpatch; ip++)
-   for (int ip=nrpatch-1; ip>=0; ip--)
+
+   // socketstream res_sock(vishost, visport);
+   // Vector res(r);
+   // PlotSolution(res,res_sock,0,false); 
+
+   for (int ip=0; ip<nrpatch; ip++)
    {
       Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
+      
       r.GetSubVector(*Dof2GlobalDof,*f_orig[ip]);
 
       // make sure that f_ij is compactly supported in \Omega_ij (non overlapping)
@@ -102,12 +100,6 @@ void AdditiveST::Mult(const Vector &r, Vector &z) const
       if (j>0) directions[1] = -1;
       *f_orig[ip] = 0.0;
       GetChiRes(faux,*f_orig[ip],ip,directions,ovlpnrlayers);
-      // Array<int> * nDof2GlobalDof = &nvlp_prob->Dof2GlobalDof[ip];
-      // Vector faux(nDof2GlobalDof->Size());
-      // r.GetSubVector(*nDof2GlobalDof,faux);
-      // res = 0.0;
-      // res.SetSubVector(*nDof2GlobalDof,faux);
-      // res.GetSubVector(*Dof2GlobalDof,*f_orig[ip]);
    }
 
    z = 0.0; 
@@ -118,79 +110,65 @@ void AdditiveST::Mult(const Vector &r, Vector &z) const
    // --------------------------------------------
    int nx = nxyz[0];
    int ny = nxyz[1];
-   int nsteps = (nx + ny - 1);
 
-   for (int s = 0; s<nsteps; s++)
+   int nsteps = nx + ny - 1;
+
+   for (int l=0; l<nsweeps; l++)
    {
-      for (int ip = 0; ip<nrpatch; ip++)
+      for (int s = 0; s<nsteps; s++)
       {
-         Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
-         int ndofs = Dof2GlobalDof->Size();
+         for (int i=nx-1;i>=0; i--)
+         {
+            int j;
+            switch (l)
+            {
+               case 0:  j = s-i;         break;
+               case 1:  j = s-nx+i+1;    break;
+               case 2:  j = nx+i-s-1;    break;
+               default: j = nx+ny-i-s-2; break;
+            }
+            if (j<0 || j>=ny) continue;
 
-         Vector sol_local(ndofs); sol_local = 0.0;
-         Vector res_local(ndofs); res_local = 0.0;
-         if (s==0) 
-         {
-            res_local = *f_orig[ip];
-         }
-         else if (s == 1)
-         {
-            res_local = *f_s[ip][s-1];
-         }
-         else
-         {
-            res_local = *f_s[ip][s-1];
-            res_local += *f_diag[ip][s-2];
-         }
-         // cout << "reslocal norm = " << res_local.Norml2() << endl;
-         if (res_local.Norml2() < 1e-12) continue;
-         PmlMatInv[ip]->Mult(res_local, sol_local);
-         AdditiveTransferSources(s, ip, sol_local);
-         *usol[ip] += sol_local;
+            Array<int> ij(2); ij[0] = i; ij[1]=j;
+            int ip = GetPatchId(ij);
 
-         // Array<int>directions(2); directions = 0; 
-         // int i,j,k;
-         // Getijk(ip,i,j,k);
-         // if (i+1<nx) directions[0] = 1;
-         // if (j+1<ny) directions[1] = 1;
-         // Vector cfsol_local;
-         // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
-         // sol_local = cfsol_local;
-         // directions = 0.0;
-         // if (i>0) directions[0] = -1;
-         // if (j>0) directions[1] = -1;
-         // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
-         // znew = 0.0;
-         // znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
-         // z+=znew;
+            // Solve the PML problem in patch ip with all sources
+            // Original and all transfered 
+            Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
+            int ndofs = Dof2GlobalDof->Size();
+
+            Vector sol_local(ndofs); sol_local = 0.0;
+            Vector res_local(ndofs); res_local = 0.0;
+            if (l==0) res_local += *f_orig[ip];
+            res_local += *f_transf[ip][l];
+            if (res_local.Norml2() < 1e-12) continue;
+            PmlMatInv[ip]->Mult(res_local, sol_local);
+            TransferSources(l,ip, sol_local);
+            Array<int>directx(2); directx = 0; 
+            Array<int>directy(2); directy = 0; 
+            if (i+1<nx) directx[1] = 1;
+            if (j+1<ny) directy[1] = 1;
+            if (i>0) directx[0] = 1;
+            if (j>0) directy[0] = 1;
+            Vector cfsol_local;
+            GetCutOffSolution(sol_local,cfsol_local,ip,directx, directy,ovlpnrlayers,true);
+            // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
+            // sol_local = cfsol_local;
+            // directions = 0.0;
+            // if (i>0) directions[0] = -1;
+            // if (j>0) directions[1] = -1;
+            // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
+            
+            znew = 0.0;
+            znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
+            z+=znew;
+         }
       }
-      // socketstream sol1_sock(vishost, visport);
-      // PlotSolution(z,sol1_sock,0,false); cin.get();
-   }
-   for (int ip = 0; ip<nrpatch; ip++)
-   {
-      Array<int> * Dof2GlobalDof = &ovlp_prob->Dof2GlobalDof[ip];
-
-      Array<int>directions(2); directions = 0; 
-      int i,j,k;
-      Getijk(ip,i,j,k);
-      if (i+1<nx) directions[0] = 1;
-      if (j+1<ny) directions[1] = 1;
-      Vector cfsol_local;
-      GetCutOffSolution(*usol[ip],cfsol_local,ip,directions,ovlpnrlayers,true);
-      *usol[ip] = cfsol_local;
-      directions = 0.0;
-      if (i>0) directions[0] = -1;
-      if (j>0) directions[1] = -1;
-      GetCutOffSolution(*usol[ip],cfsol_local,ip,directions,ovlpnrlayers,true);
-      znew = 0.0;
-      znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
-      z+=znew;
    }
 }
 
 
-void AdditiveST::GetCutOffSolution(const Vector & sol, Vector & cfsol, 
+void DST2D::GetCutOffSolution(const Vector & sol, Vector & cfsol, 
                   int ip, Array<int> directions, int nlayers, bool local) const
 {
 
@@ -208,8 +186,6 @@ void AdditiveST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
 
    int i, j, k;
    Getijk(ip,i,j,k);
-   // int nx = nxyz[0];
-   // int ny = nxyz[1];
    if (directions[0]==1) pmax[0] -= h*nrlayers; 
    if (directions[1]==1) pmax[1] -= h*nrlayers; 
 
@@ -263,20 +239,87 @@ void AdditiveST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
    cfsol = gf;
 }
 
+void DST2D::GetCutOffSolution(const Vector & sol, Vector & cfsol, 
+                  int ip, Array<int> directx, Array<int> directy, int nlayers, bool local) const
+{
 
-AdditiveST::~AdditiveST()
+
+   Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
+   
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
+   double h = GetUniformMeshElementSize(povlp->patch_mesh[ip]);
+
+   int i, j, k;
+   Getijk(ip,i,j,k);
+   // int nx = nxyz[0];
+   // int ny = nxyz[1];
+   if (directx[1]==1) pmax[0] -= h*nrlayers; 
+   if (directy[1]==1) pmax[1] -= h*nrlayers; 
+
+   if (directx[0]==1) pmin[0] += h*nrlayers; 
+   if (directy[0]==1) pmin[1] += h*nrlayers; 
+
+   Array2D<double> pmlh(dim,2); pmlh = 0.0;
+   
+   if (directx[1]==1)
+   {
+      pmlh[0][1] = h*(nlayers-nrlayers-1);
+   }
+   if (directx[0]==1)
+   {
+      pmlh[0][0] = h*(nlayers-nrlayers-1);
+   }
+   if (directy[1]==1)
+   {
+      pmlh[1][1] = h*(nlayers-nrlayers-1);
+   }
+   if (directy[0]==1)
+   {
+      pmlh[1][0] = h*(nlayers-nrlayers-1);
+   }
+
+   CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
+   double * data = sol.GetData();
+   FiniteElementSpace * fes;
+   if (!local)
+   {
+      fes = bf->FESpace();
+   }
+   else
+   {
+      fes = ovlp_prob->fespaces[ip];
+   }
+   int n = fes->GetTrueVSize();
+   GridFunction solgf_re(fes, data);
+   GridFunction solgf_im(fes, &data[n]);
+
+   GridFunctionCoefficient coeff1_re(&solgf_re);
+   GridFunctionCoefficient coeff1_im(&solgf_im);
+
+   ProductCoefficient prod_re(coeff1_re, cf);
+   ProductCoefficient prod_im(coeff1_im, cf);
+
+   ComplexGridFunction gf(fes);
+   gf.ProjectCoefficient(prod_re,prod_im);
+
+   cfsol.SetSize(sol.Size());
+   cfsol = gf;
+}
+
+DST2D::~DST2D()
 {
 }
 
 
-void AdditiveST::Getijk(int ip, int & i, int & j, int & k) const
+void DST2D::Getijk(int ip, int & i, int & j, int & k) const
 {
    k = ip/(nxyz[0]*nxyz[1]);
    j = (ip-k*nxyz[0]*nxyz[1])/nxyz[0];
    i = (ip-k*nxyz[0]*nxyz[1])%nxyz[0];
 }
 
-int AdditiveST::GetPatchId(const Array<int> & ijk) const
+int DST2D::GetPatchId(const Array<int> & ijk) const
 {
    int d=ijk.Size();
    int z = (d==2)? 0 : ijk[2];
@@ -284,14 +327,15 @@ int AdditiveST::GetPatchId(const Array<int> & ijk) const
 }
 
 
-
-void AdditiveST::AdditiveTransferSources(int s, int ip0, Vector & sol0) const
+void DST2D::TransferSources(int sweep, int ip0, Vector & sol0) const
 {
  // Find all neighbors of patch ip0
    int nx = nxyz[0];
    int ny = nxyz[1];
    int i0, j0, k0;
    Getijk(ip0, i0,j0,k0);
+   int is = sweeps(sweep,0);
+   int js = sweeps(sweep,1);
    for (int i=-1; i<2; i++)
    {
       int i1 = i0 + i;
@@ -305,27 +349,50 @@ void AdditiveST::AdditiveTransferSources(int s, int ip0, Vector & sol0) const
          Array<int> ij1(2); ij1[0] = i1; ij1[1]=j1;
          int ip1 = GetPatchId(ij1);
 
-         Array<int> directions(2);
-         directions[0] = i;
-         directions[1] = j;
-         Vector cfsol0;
-         GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
+         for (int l=sweep; l<nsweeps; l++)
+         {
+            // Conditions on sweeps
+            // Rule 1: the transfer source direction has to be similar with 
+            // the sweep direction
+            int il = sweeps(l,0); 
+            int jl = sweeps(l,1);
+            int ddot = il*i + jl * j;
+            if (ddot <= 0) continue;
 
-         Vector raux;
-         SourceTransfer(cfsol0,directions,ip0,raux);
-         if (abs(i)+abs(j) == 2)
-         {
-            *f_diag[ip1][s]+=raux;
+            // Rule 2: The horizontal or vertical transfer source cannot be used
+            // in a later sweep that with opposite directions
+
+            if (i==0 || j == 0) // Case of horizontal or vertical transfer source
+            {
+               // skip if the two sweeps have opposite direction
+               if (is == -il && js == -jl) continue;
+            }
+
+            Array<int> directions(2);
+            directions[0] = i;
+            directions[1] = j;
+            // Vector cfsol0;
+            // GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
+            Array<int> directx(2); directx = 0;
+            Array<int> directy(2); directy = 0;
+            if (i==-1) directx[0] = 1;
+            if (i==1) directx[1] = 1;
+            if (j==-1) directy[0] = 1;
+            if (j==1) directy[1] = 1;
+            Vector cfsol0;
+            GetCutOffSolution(sol0,cfsol0,ip0,directx,directy,ovlpnrlayers,true);
+
+            Vector raux;
+            // SourceTransfer(cfsol0,directions,ip0,raux);
+            SourceTransfer1(cfsol0,directions,ip0,raux);
+            *f_transf[ip1][l]+=raux;
+            break;
          }
-         else
-         {
-            *f_s[ip1][s]+=raux;
-         }
-      }
+      }  
    }
 }
 
-SparseMatrix * AdditiveST::GetPmlSystemMatrix(int ip)
+SparseMatrix * DST2D::GetPmlSystemMatrix(int ip)
 {
    double h = GetUniformMeshElementSize(povlp->patch_mesh[ip]);
    Array2D<double> length(dim,2);
@@ -377,7 +444,7 @@ SparseMatrix * AdditiveST::GetPmlSystemMatrix(int ip)
    return Mat;
 }
 
-void AdditiveST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip, 
+void DST2D::PlotSolution(Vector & sol, socketstream & sol_sock, int ip, 
                   bool localdomain) const
 {
    FiniteElementSpace * fes;
@@ -395,18 +462,20 @@ void AdditiveST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
    gf.SetData(data);
    
    string keys;
+   // if (ip == 0) 
    keys = "keys mrRljc\n";
+   // sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
    sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
 
-void AdditiveST::PlotMesh(socketstream & mesh_sock, int ip) const
+void DST2D::PlotMesh(socketstream & mesh_sock, int ip) const
 {
    FiniteElementSpace * fes = ovlp_prob->fespaces[ip];
    Mesh * mesh = fes->GetMesh();
    mesh_sock << "mesh\n" << *mesh << flush;
 }
 
-void AdditiveST::SaveSolution(Vector & sol, int ip, bool localdomain) const
+void DST2D::SaveSolution(Vector & sol, int ip, bool localdomain) const
 {
    FiniteElementSpace * fes;
    if (!localdomain)
@@ -426,6 +495,7 @@ void AdditiveST::SaveSolution(Vector & sol, int ip, bool localdomain) const
    gf_re.SetData(data);
    gf_im.SetData(&data[n]);
    cout << "saving mesh no " << ip << endl;
+   // string mfilename = "output/globalmesh.";
    string mfilename = "output/mesh_nvlp.";
    ostringstream mesh_name;
    mesh_name << mfilename << setfill('0') << setw(6) << ip;
@@ -433,16 +503,23 @@ void AdditiveST::SaveSolution(Vector & sol, int ip, bool localdomain) const
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
 
+   // string sfilename_re = "output/sol_re.";
+   // string sfilename_im = "output/sol_im.";
    string sfilename_re = "output/sol_nvlp.";
+   // string sfilename_im = "output/sol_im.";
 
    ostringstream solre_name;
    solre_name << sfilename_re << setfill('0') << setw(6) << ip;
    ofstream solre_ofs(solre_name.str().c_str());
    gf_re.Save(solre_ofs);
 
+   // ostringstream solim_name;
+   // solim_name << sfilename_im << setfill('0') << setw(6) << ip;
+   // ofstream solim_ofs(solim_name.str().c_str());
+   // gf_im.Save(solim_ofs);
 }
 
-int AdditiveST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+void DST2D::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
 {
    int i0,j0,k0;
    Getijk(ip0,i0,j0,k0);
@@ -474,13 +551,9 @@ int AdditiveST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip
    direct[1] = -direction[1];
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
 
-   return ip1;
 }
 
-
-
-
-void AdditiveST::GetChiRes(const Vector & res, Vector & cfres, 
+void DST2D::GetChiRes(const Vector & res, Vector & cfres, 
                     int ip, Array<int> directions, int nlayers) const
 {
    // int l,k;
@@ -543,3 +616,38 @@ void AdditiveST::GetChiRes(const Vector & res, Vector & cfres,
    cfres.SetSize(res.Size());
    cfres = gf;
 }
+
+
+
+void DST2D::SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+{
+   int i0,j0,k0;
+   Getijk(ip0,i0,j0,k0);
+
+   int i1 = i0+direction[0];   
+   int j1 = j0+direction[1];   
+   Array<int> ij(2); ij[0]=i1; ij[1]=j1;
+   int ip1 = GetPatchId(ij);
+
+   MFEM_VERIFY(i1 < nxyz[0] && i1>=0, "SourceTransfer: i1 out of bounds");
+   MFEM_VERIFY(j1 < nxyz[1] && j1>=0, "SourceTransfer: j1 out of bounds");
+
+   Vector Psi(Psi0.Size());
+   PmlMat[ip0]->Mult(Psi0,Psi);
+   Psi *=-1.0;
+
+   Array<int> * Dof2GlobalDof0 = &ovlp_prob->Dof2GlobalDof[ip0];
+   Array<int> * Dof2GlobalDof1 = &ovlp_prob->Dof2GlobalDof[ip1];
+   Vector r(2*bf->FESpace()->GetTrueVSize());
+   r = 0.0;
+   r.SetSubVector(*Dof2GlobalDof0,Psi);
+   Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
+   r.GetSubVector(*Dof2GlobalDof1,Psi1);
+
+   Array<int> direct(2); direct = 0;
+   direct[0] = -direction[0];
+   direct[1] = -direction[1];
+   Psi = Psi1;
+   GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+}
+

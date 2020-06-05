@@ -1,10 +1,10 @@
 #pragma once
-#include "Utilities.hpp"
-#include "PML.hpp"
+#include "../common/Utilities.hpp"
+#include "../common/PML.hpp"
 using namespace std;
 using namespace mfem;
 
-class AdditiveST : public Solver//
+class AdditiveST2D : public Solver//
 {
 private:
    int nrpatch;
@@ -46,11 +46,11 @@ private:
    void SaveSolution(Vector & sol, int ip,bool localdomain) const;
    void PlotMesh(socketstream & mesh_sock, int ip) const;
 public:
-   AdditiveST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
+   AdditiveST2D(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
        double omega_, Coefficient * ws_, int nrlayers_);
    virtual void SetOperator(const Operator &op) {A = &op;}
    virtual void Mult(const Vector &r, Vector &z) const;
-   virtual ~AdditiveST();
+   virtual ~AdditiveST2D();
 };
 
 

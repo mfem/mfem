@@ -12,8 +12,8 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "DST.hpp"
-#include "AdditiveST.hpp"
+#include "DST2D.hpp"
+#include "AdditiveST2D.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   DST S1(&a,lengths, omega, &ws, nrlayers);
+   DST2D S1(&a,lengths, omega, &ws, nrlayers);
    // AdditiveST S2(&a,lengths, omega, &ws, nrlayers);
    
 

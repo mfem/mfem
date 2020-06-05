@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../../..
 MFEM_BUILD_DIR ?= ../../..
-SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/maxwell-solver/DiagST,)
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/maxwell-solver/DST2D,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
@@ -31,7 +31,7 @@ endif
 .PHONY: all clean
 .PRECIOUS: %.o
 
-COMMON_O= PML.o MeshPartition.o Utilities.o DST.o AdditiveST.o
+COMMON_O= ../common/PML.o ../common/MeshPartition.o ../common/Utilities.o DST2D.o AdditiveST2D.o
 
 # Remove built-in rules
 %: %.cpp
