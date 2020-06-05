@@ -180,6 +180,19 @@ double weight_fun(const Vector &x)
    return l2;
 }
 
+// Used for the adaptive limiting examples.
+double adapt_lim_fun(const Vector &x)
+{
+   const double xc = x(0) - 0.1, yc = x(1) - 0.2;
+   const double r = sqrt(xc*xc + yc*yc);
+   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
+   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+
+   val = std::max(0.,val);
+   val = std::min(1.,val);
+   return val;
+}
+
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
    //Setup the Laplacian operator
