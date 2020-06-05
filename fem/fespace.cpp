@@ -713,7 +713,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    if (cP_is_set) { return; }
    cP_is_set = true;
 
-   Array<int> master_dofs, slave_dofs;
+   Array<int> master_dofs, slave_dofs, highest_dofs;
 
    IsoparametricTransformation T;
    DenseMatrix I;
@@ -722,6 +722,12 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // expresses the slave DOF as a linear combination of its immediate master
    // DOFs. Rows of independent DOFs will remain empty.
    SparseMatrix deps(ndofs);
+
+   // For the restriction matrix purposes in variable order space:
+   // For each edge with more DOF sets, the dependency matrix will contain
+   // a row that expresses the master true DOF (lowest order)
+   // as a linear combination of the highest order set of DOFs.
+   SparseMatrix sped(ndofs);
 
    // collect local face/edge dependencies
    for (int entity = 2; entity >= 1; entity--)
@@ -746,6 +752,31 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
             case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
             default: MFEM_ABORT("unsupported geometry");
+         }
+
+         // Find dependencies for restriction matrix
+         // If edge/face has more sets of dofs, the lowest order set (master dofs) interpolate the highest order set
+         if (IsVariableOrder())
+         {
+             int variant = 0;
+             for (int var = 1; ; var++)
+             {
+                 int o = GetEntityDofs(entity, master.index, highest_dofs, master_geom, var);
+                 if (o == -1)
+                 {
+                     variant = var-1;
+                     break;
+                 }
+             }
+             if (variant > 0)
+             {
+                 int q = GetEntityDofs(entity, master.index, highest_dofs, master_geom, variant);
+                 const auto *highest_fe = fec->GetFE(master_geom, q);
+                 T.SetIdentityTransformation(master_geom);
+                 master_fe->GetTransferMatrix(*highest_fe, T, I);
+                 // Add dependencies only for the edge inner dofs
+                 AddDependencies(sped, highest_dofs, master_dofs, I, 2);
+             }
          }
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
@@ -864,6 +895,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
    deps.Finalize();
+   sped.Finalize();
 
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;
@@ -880,19 +912,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
    // create the conforming restriction matrix cR
-   int *cR_J;
-   {
-      int *cR_I = Memory<int>(n_true_dofs+1);
-      double *cR_A = Memory<double>(n_true_dofs);
-      cR_J = Memory<int>(n_true_dofs);
-      for (int i = 0; i < n_true_dofs; i++)
-      {
-         cR_I[i] = i;
-         cR_A[i] = 1.0;
-      }
-      cR_I[n_true_dofs] = n_true_dofs;
-      cR = new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs);
-   }
+   cR = new SparseMatrix(n_true_dofs, ndofs);
 
    // create the conforming prolongation matrix cP
    cP = new SparseMatrix(ndofs, n_true_dofs);
@@ -900,16 +920,33 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    Array<bool> finalized(ndofs);
    finalized = false;
 
-   // put identity in the restriction and prolongation matrices for true DOFs
+   Array<int> cols;
+   Vector srow;
+
+   // put identity in the prolongation matrix for true DOFs
+   // restriction matrix for variable order space: lowest order edge/face true dofs interpolate the highest order
    for (int i = 0, true_dof = 0; i < ndofs; i++)
    {
+      // true dof
       if (!deps.RowSize(i))
       {
-         cR_J[true_dof] = i;
-         cP->Add(i, true_dof++, 1.0);
-         finalized[i] = true;
+          // variable order space, edge/face lowest order true dof
+          if (sped.RowSize(i))
+          {
+             sped.GetRow(i, cols, srow);
+             cR->AddRow(true_dof, cols, srow);
+          }
+          else
+          {
+             cR->Add(true_dof, i, 1.0);
+          }
+
+          cP->Add(i, true_dof++, 1.0);
+          finalized[i] = true;
       }
+
    }
+
 
    // Now calculate cP rows of slave DOFs as combinations of cP rows of their
    // master DOFs. It is possible that some slave DOFs depend on DOFs that are
@@ -920,8 +957,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // cP matrix), in the third iteration slaves of slaves of slaves, etc.
    bool finished;
    int n_finalized = n_true_dofs;
-   Array<int> cols;
-   Vector srow;
+//   Array<int> cols;
+//   Vector srow;
    do
    {
       finished = true;
@@ -961,6 +998,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    DebugDumpDOFs(out, deps, finalized);*/
 
    cP->Finalize();
+   cR->Finalize();
 
    if (vdim > 1)
    {
