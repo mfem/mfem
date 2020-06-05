@@ -617,11 +617,11 @@ void TMOP_Metric_302::AssembleH(const DenseMatrix &Jpt,
                                 const double weight,
                                 DenseMatrix &A) const
 {
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    // P  = (I1b/9)*dI2b + (I2b/9)*dI1b
    // dP = (dI2b x dI1b)/9 + (I1b/9)*ddI2b + (dI1b x dI2b)/9 + (I2b/9)*ddI1b
    //    = (dI2b x dI1b + dI1b x dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    const double c1 = weight/9;
    ie.Assemble_TProd(c1, ie.Get_dI1b(), ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI2b(c1*ie.Get_I1b(), A.GetData());

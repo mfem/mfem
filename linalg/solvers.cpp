@@ -19,9 +19,6 @@
 #include <cmath>
 #include <set>
 
-#define MFEM_DBG_COLOR 87
-#include "../general/dbg.hpp"
-
 namespace mfem
 {
 

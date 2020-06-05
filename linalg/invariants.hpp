@@ -496,7 +496,7 @@ public:
 template <typename scalar_t, typename scalar_ops = ScalarOps<scalar_t> >
 class InvariantsEvaluator3D
 {
-public:
+protected:
    // Transformation Jacobian
    const scalar_t *J;
 
