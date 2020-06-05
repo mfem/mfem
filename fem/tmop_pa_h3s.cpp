@@ -65,6 +65,39 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
 }
 
 // *****************************************************************************
+// dP_303 = ddI1b/3
+static MFEM_HOST_DEVICE inline
+void EvalH_303(const int e, const int qx, const int qy, const int qz,
+               const double weight, const double *J, DeviceTensor<8,double> dP)
+{
+   double B[9];
+   double         dI1b[9], ddI1[9], ddI1b[9];
+   double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
+   double dI3b[9], ddI3b[9];
+   constexpr int DIM = 3;
+   kernels::InvariantsEvaluator3D ie(J, B,
+                                     nullptr, dI1b, ddI1, ddI1b,
+                                     dI2, dI2b, ddI2, ddI2b,
+                                     dI3b, ddI3b);
+   const double c1 = weight/3.;
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double dp = ddi1b(r,c);
+               dP(r,c,i,j,qx,qy,qz,e) = c1 * dp;
+            }
+         }
+      }
+   }
+}
+
+// *****************************************************************************
 // dP_321 = ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2)
 //               + (1/I3)*ddI2
 //               + (6*I2/I3b^4)*(dI3b x dI3b)
@@ -382,6 +415,7 @@ static void SetupGradPA_3D(const int mid,
 
                // metric->AssembleH
                if (mid == 302) { EvalH_302(e,qx,qy,qz,weight,Jpt,dP); }
+               if (mid == 303) { EvalH_303(e,qx,qy,qz,weight,Jpt,dP); }
                if (mid == 321) { EvalH_321(e,qx,qy,qz,weight,Jpt,dP); }
             } // qx
          } // qy

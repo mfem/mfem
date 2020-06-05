@@ -39,6 +39,20 @@ void EvalP_302(const double *J, double *P)
 }
 
 // *****************************************************************************
+// P_303 = dI1b/3
+static MFEM_HOST_DEVICE inline
+void EvalP_303(const double *J, double *P)
+{
+   double B[9];
+   double dI1b[9], dI3b[9];
+   kernels::InvariantsEvaluator3D ie(J,B,
+                                     nullptr, dI1b, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr, nullptr,
+                                     dI3b, nullptr);
+   kernels::Set(3,3, 1./3., ie.Get_dI1b(), P);
+}
+
+// *****************************************************************************
 // P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
 static MFEM_HOST_DEVICE inline
 void EvalP_321(const double *J, double *P)
@@ -327,6 +341,7 @@ static void AddMultPA_Kernel_3D(const int mid,
                // metric->EvalP(Jpt, P);
                double P[9];
                if (mid == 302) { EvalP_302(J,P); }
+               if (mid == 303) { EvalP_303(J,P); }
                if (mid == 321) { EvalP_321(J,P); }
                for (int i = 0; i < 9; i++) { P[i] *= weight_detJtr; }
 
