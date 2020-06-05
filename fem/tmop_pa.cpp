@@ -21,77 +21,77 @@
 namespace mfem
 {
 
-void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fespace)
+void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   fes = &fespace;
+   PA.fes = &fes;
    MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
-   Mesh *mesh = fes->GetMesh();
-   dim = mesh->Dimension();
+   Mesh *mesh = fes.GetMesh();
+   const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(IntRule,"");
    MFEM_VERIFY(dim == 2 || dim == 3, "");
-   nq = IntRule->GetNPoints();
-   ne = fes->GetMesh()->GetNE();
+   const int nq = PA.nq = IntRule->GetNPoints();
+   const int ne = PA.ne = fes.GetMesh()->GetNE();
    const IntegrationRule &ir = *IntRule;
-   maps = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-   geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+   PA.maps = &fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+   PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
 
    // Energy, One & X vectors
-   Epa.UseDevice(true);
-   Epa.SetSize(ne * nq, Device::GetDeviceMemoryType());
+   PA.E.UseDevice(true);
+   PA.E.SetSize(ne * nq, Device::GetDeviceMemoryType());
 
-   Opa.UseDevice(true);
-   Opa.SetSize(ne * nq, Device::GetDeviceMemoryType());
+   PA.O.UseDevice(true);
+   PA.O.SetSize(ne * nq, Device::GetDeviceMemoryType());
 
-   Xpa.UseDevice(true);
-   Xpa.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
+   PA.X.UseDevice(true);
+   PA.X.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = fes->GetElementRestriction(ordering);
-   if (elem_restrict_lex)
+   PA.elem_restrict_lex = fes.GetElementRestriction(ordering);
+   if (PA.elem_restrict_lex)
    {
-      Xpa.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      PA.X.SetSize(PA.elem_restrict_lex->Height(), Device::GetMemoryType());
    }
    else
    {
       MFEM_ABORT("Not yet implemented!");
    }
 
-   Dpa.UseDevice(true);
-   Dpa.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
+   PA.P.UseDevice(true);
+   PA.P.SetSize(dim*dim * nq * ne, Device::GetDeviceMemoryType());
 
-   setup = false;
-   dPpa.UseDevice(true);
-   dPpa.SetSize(dim*dim * dim*dim * nq * ne, Device::GetDeviceMemoryType());
+   PA.setup = false;
+   PA.A.UseDevice(true);
+   PA.A.SetSize(dim*dim * dim*dim * nq * ne, Device::GetDeviceMemoryType());
 }
 
-void TMOP_Integrator::AddMultPA(const Vector &X, Vector &Y) const
+void TMOP_Integrator::AddMultPA(const Vector &Xe, Vector &Ye) const
 {
-   if (dim == 2) { return AddMultPA_2D(X,Y); }
-   if (dim == 3) { return AddMultPA_3D(X,Y); }
+   if (PA.dim == 2) { return AddMultPA_2D(Xe,Ye); }
+   if (PA.dim == 3) { return AddMultPA_3D(Xe,Ye); }
    MFEM_ABORT("Not yet implemented!");
 }
 
 void TMOP_Integrator::AssembleGradPA(const DenseMatrix &Jtr,
                                      const Vector &Xe) const
 {
-   if (dim == 2) { return AssembleGradPA_2D(Jtr,Xe); }
-   if (dim == 3) { return AssembleGradPA_3D(Jtr,Xe); }
+   if (PA.dim == 2) { return AssembleGradPA_2D(Jtr,Xe); }
+   if (PA.dim == 3) { return AssembleGradPA_3D(Jtr,Xe); }
    MFEM_ABORT("Not yet implemented!");
 }
 
 void TMOP_Integrator::AddMultGradPA(const Vector &Xe, const Vector &Re,
                                     Vector &Ce) const
 {
-   if (dim == 2) { return AddMultGradPA_2D(Xe,Re,Ce); }
-   if (dim == 3) { return AddMultGradPA_3D(Xe,Re,Ce); }
+   if (PA.dim == 2) { return AddMultGradPA_2D(Xe,Re,Ce); }
+   if (PA.dim == 3) { return AddMultGradPA_3D(Xe,Re,Ce); }
    MFEM_ABORT("Not yet implemented!");
 }
 
 double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
                                                 const Vector &x) const
 {
-   if (dim == 2) { return GetGridFunctionEnergyPA_2D(fes,x); }
-   if (dim == 3) { return GetGridFunctionEnergyPA_3D(fes,x); }
+   if (PA.dim == 2) { return GetGridFunctionEnergyPA_2D(fes,x); }
+   if (PA.dim == 3) { return GetGridFunctionEnergyPA_3D(fes,x); }
    MFEM_ABORT("Not yet implemented!");
    return 0.0;
 }

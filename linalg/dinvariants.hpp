@@ -48,7 +48,7 @@ public:
       J(J), B(B),
       dI1(nullptr), dI1b(nullptr), ddI1(nullptr), ddI1b(nullptr),
       dI2(nullptr), dI2b(nullptr), ddI2(nullptr), ddI2b(nullptr),
-      dI3b(nullptr),ddI3b(nullptr) { }
+      dI3b(nullptr), ddI3b(nullptr) { }
 
    MFEM_HOST_DEVICE inline double Get_I3b(double &sign_detJ) // det(J) + sign
    {
@@ -129,10 +129,7 @@ public:
 
    MFEM_HOST_DEVICE inline double *Get_dI1()
    {
-      for (int i = 0; i < 9; i++)
-      {
-         dI1[i] = 2*J[i];
-      }
+      for (int i = 0; i < 9; i++) { dI1[i] = 2*J[i]; }
       return dI1;
    }
 
@@ -146,10 +143,7 @@ public:
       const double c1 = 2.0 * I3b_p;
       const double c2 = Get_I1()/(3.0 * I3b);
       Get_dI3b(sign_detJ);
-      for (int i = 0; i < 9; i++)
-      {
-         dI1b[i] = c1*(J[i] - c2*dI3b[i]);
-      }
+      for (int i = 0; i < 9; i++) { dI1b[i] = c1*(J[i] - c2*dI3b[i]); }
       return dI1b;
    }
 
@@ -195,26 +189,9 @@ public:
       const double c2 = (4*I2/I3b)/3;
       Get_dI2();
       Get_dI3b(sign_detJ);
-      for (int i = 0; i < 9; i++)
-      {
-         dI2b[i] = c1*(dI2[i] - c2*dI3b[i]);
-      }
+      for (int i = 0; i < 9; i++) { dI2b[i] = c1*(dI2[i] - c2*dI3b[i]); }
       return dI2b;
    }
-
-   /*MFEM_HOST_DEVICE inline double *Get_dI3()
-   {
-      // I3 = I3b^2
-      // dI3 = 2*I3b*dI3b = 2*det(J)*adj(J)^T
-      double sign_detJ;
-      const double c1 = 2*Get_I3b(sign_detJ);
-      Get_dI3b(sign_detJ);
-      for (int i = 0; i < 9; i++)
-      {
-         dI3[i] = c1*dI3b[i];
-      }
-      return dI3;
-   }*/
 
    MFEM_HOST_DEVICE inline double *Get_dI3b(const double sign_detJ)
    {
@@ -232,8 +209,6 @@ public:
       return dI3b;
    }
 
-
-   // *****************************************************************************
    // ddI1_ijkl = 2 I_ijkl = 2 δ_ik δ_jl
    MFEM_HOST_DEVICE inline double *Get_ddI1(int i, int j)
    {
@@ -249,7 +224,6 @@ public:
       return ddI1;
    }
 
-   // *****************************************************************************
    // ddI1b = X1 + X2 + X3, where
    // X1_ijkl = (2/3*I1b/I3) [ 2/3 dI3b_ij dI3b_kl + dI3b_kj dI3b_il ]
    // X2_ijkl = (I3b^{-2/3}) ddI1_ijkl
@@ -264,7 +238,6 @@ public:
       const double I3 = Get_I3();
       const double I1b = Get_I1b();
       const double alpha = (2./3.)*I1b/I3;
-
       ConstDeviceMatrix di3b(Get_dI3b(sign_detJ),3,3);
       for (int k=0; k<3; k++)
       {
@@ -309,7 +282,6 @@ public:
       return ddI1b;
    }
 
-   // *****************************************************************************
    // ddI2 = x1 + x2 + x3
    //    x1_ijkl = (2 I1) δ_ik δ_jl
    //    x2_ijkl = 2 ( 2 δ_ku δ_iv - δ_ik δ_uv - δ_kv δ_iu ) J_vj J_ul
@@ -318,7 +290,6 @@ public:
    {
       double x1_p[9], x2_p[9], x3_p[9];
       DeviceMatrix x1(x1_p,3,3), x2(x2_p,3,3), x3(x3_p,3,3);
-
       // x1_ijkl = (2 I1) δ_ik δ_jl
       const double I1 = Get_I1();
       for (int k=0; k<3; k++)
@@ -382,7 +353,6 @@ public:
       return ddI2;
    }
 
-   // *****************************************************************************
    // ddI2b = X1 + X2 + X3
    //    X1_ijkl = 16/9 det(J)^{-10/3} I2 dI3b_ij dI3b_kl +
    //               4/3 det(J)^{-10/3} I2 dI3b_il dI3b_kj
@@ -418,7 +388,7 @@ public:
       {
          for (int l=0; l<3; l++)
          {
-            X2(k,l) = -(4./3.)*I3b_p73*(di2(i,j)*di3b(k,l) + di2(k,l)*di3b(i,j));
+            X2(k,l) = -(4./3.)*I3b_p73*(di2(i,j)*di3b(k,l)+di2(k,l)*di3b(i,j));
          }
       }
       // X3_ijkl =  det(J)^{-4/3} ddI2_ijkl
@@ -443,7 +413,6 @@ public:
       return ddI2b;
    }
 
-   // *****************************************************************************
    // dI3b = adj(J)^T
    // ddI3b_ijkl = (1/I3b) (δ_ks δ_it - δ_kt δ_si) dI3b_tj dI3b_sl
    MFEM_HOST_DEVICE inline double *Get_ddI3b(int i, int j)

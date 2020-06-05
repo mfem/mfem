@@ -391,47 +391,49 @@ static void SetupGradPA_3D(const int mid,
 
 // *****************************************************************************
 void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
-                                        const Vector &Xe) const
+                                        const Vector &X) const
 {
-   MFEM_VERIFY(IntRule,"");
-   const int D1D = maps->ndof;
-   const int Q1D = maps->nqpt;
+   const int N = PA.ne;
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
    const int mid = metric->Id();
+   const int id = (D1D << 4 ) | Q1D;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
-   const int id = (D1D << 4 ) | Q1D;
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   Vector &A = PA.A;
 
    switch (id)
    {
-      case 0x21: { SetupGradPA_3D<2,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x22: { SetupGradPA_3D<2,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x23: { SetupGradPA_3D<2,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x24: { SetupGradPA_3D<2,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x25: { SetupGradPA_3D<2,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x26: { SetupGradPA_3D<2,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x21: { SetupGradPA_3D<2,1>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x22: { SetupGradPA_3D<2,2>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x23: { SetupGradPA_3D<2,3>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x24: { SetupGradPA_3D<2,4>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x25: { SetupGradPA_3D<2,5>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x26: { SetupGradPA_3D<2,6>(mid,X,N,W,B,G,Jtr,A); break; }
 
-      case 0x31: { SetupGradPA_3D<3,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x32: { SetupGradPA_3D<3,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x33: { SetupGradPA_3D<3,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x34: { SetupGradPA_3D<3,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x35: { SetupGradPA_3D<3,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x36: { SetupGradPA_3D<3,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x31: { SetupGradPA_3D<3,1>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x32: { SetupGradPA_3D<3,2>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x33: { SetupGradPA_3D<3,3>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x34: { SetupGradPA_3D<3,4>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x35: { SetupGradPA_3D<3,5>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x36: { SetupGradPA_3D<3,6>(mid,X,N,W,B,G,Jtr,A); break; }
 
-      case 0x41: { SetupGradPA_3D<4,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x42: { SetupGradPA_3D<4,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x43: { SetupGradPA_3D<4,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x44: { SetupGradPA_3D<4,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x45: { SetupGradPA_3D<4,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x46: { SetupGradPA_3D<4,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x41: { SetupGradPA_3D<4,1>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x42: { SetupGradPA_3D<4,2>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x43: { SetupGradPA_3D<4,3>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x44: { SetupGradPA_3D<4,4>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x45: { SetupGradPA_3D<4,5>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x46: { SetupGradPA_3D<4,6>(mid,X,N,W,B,G,Jtr,A); break; }
 
-      case 0x51: { SetupGradPA_3D<5,1>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x52: { SetupGradPA_3D<5,2>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x53: { SetupGradPA_3D<5,3>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x54: { SetupGradPA_3D<5,4>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x55: { SetupGradPA_3D<5,5>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
-      case 0x56: { SetupGradPA_3D<5,6>(mid,Xe,ne,W,B,G,Jtr,dPpa); break; }
+      case 0x51: { SetupGradPA_3D<5,1>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x52: { SetupGradPA_3D<5,2>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x53: { SetupGradPA_3D<5,3>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x54: { SetupGradPA_3D<5,4>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x55: { SetupGradPA_3D<5,5>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x56: { SetupGradPA_3D<5,6>(mid,X,N,W,B,G,Jtr,A); break; }
+
       default:
       {
          dbg("kernel id: %x", id);
