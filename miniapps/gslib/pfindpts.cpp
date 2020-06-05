@@ -242,7 +242,10 @@ int main (int argc, char *argv[])
    {
       for (int i = 0; i < pts_cnt; i++)
       {
-         (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+         if (j == 1)
+         {
+            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+         }
 
          if (code_out[i] < 2)
          {
@@ -251,26 +254,49 @@ int main (int argc, char *argv[])
             F_exact(pos, exact_val);
             max_err  = std::max(max_err, fabs(exact_val(j) - interp_vals[npt]));
             max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1) { face_pts++; }
+            if (code_out[i] == 1 && j == 1) { face_pts++; }
          }
-         else { not_found++; }
+         else { if (j == 1) { not_found++; } }
          npt++;
       }
    }
 
+   int pts_cnt_glob = pts_cnt,
+       found_loc_glob = found_loc,
+       found_away_glob = found_away,
+       not_found_glob  = not_found,
+       face_pts_glob   = face_pts;
+   double max_err_glob = max_err,
+          max_dist_glob = max_dist;
+
+   MPI_Allreduce(&pts_cnt,    &pts_cnt_glob,    1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&found_loc,  &found_loc_glob,  1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&found_away, &found_away_glob, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&not_found,  &not_found_glob,  1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&face_pts,   &face_pts_glob,   1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+
+   MPI_Allreduce(&max_err,  &max_err_glob,  1, MPI_DOUBLE, MPI_MAX,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(&max_dist, &max_dist_glob, 1, MPI_DOUBLE, MPI_MAX,
+                 MPI_COMM_WORLD);
 
    // We print only the task 0 result (other tasks should be identical except
    // the number of points found locally).
    if (myid == 0)
    {
-      cout << setprecision(16) << "--- Task " << myid << ": "
-           << "\nSearched points:      " << pts_cnt
-           << "\nFound on local mesh:  " << found_loc
-           << "\nFound on other tasks: " << found_away
-           << "\nMax interp error:     " << max_err
-           << "\nMax dist (of found):  " << max_dist
-           << "\nPoints not found:     " << not_found
-           << "\nPoints on faces:      " << face_pts << endl;
+      cout << setprecision(16)
+           << "Searched points:      "   << pts_cnt_glob
+           << "\nFound on local mesh:  " << found_loc_glob
+           << "\nFound on other tasks: " << found_away_glob
+           << "\nMax interp error:     " << max_err_glob
+           << "\nMax dist (of found):  " << max_dist_glob
+           << "\nPoints not found:     " << not_found_glob
+           << "\nPoints on faces:      " << face_pts_glob << endl;
    }
 
    // Free the internal gslib data.
