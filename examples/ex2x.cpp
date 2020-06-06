@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
    int ode_msr_type = 1;
    int ode_acc_type = 3;
    int ode_rej_type = 2;
-   int ode_lim_type = 1;
+   int ode_lim_type = 2;
 
    double t_init  = 0.0;
    double t_final = 1.0;;
