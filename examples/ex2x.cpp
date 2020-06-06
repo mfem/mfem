@@ -25,7 +25,7 @@
 //              The algorithm implemented here is based on the paper
 //              "A PI STEPSIZE CONTROL FOR THE NUMERICAL SOLUTION OF
 //              ORDINARY DIFFERENTIAL EQUATIONS" by Kjell Gustafsson,
-//              Michael Lundh, and Gustaf Soderlind, BIT 28 (1988),
+//              Michael Lundh, and Gustaf Söderlind, BIT 28 (1988),
 //              270-287.  Most of the sample runs shown above mimic
 //              the numerical tests shown in figures 6 through 13 of
 //              this paper.
