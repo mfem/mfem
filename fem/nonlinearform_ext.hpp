@@ -65,6 +65,7 @@ public:
                   const Array<int> &ess_tdof_list,
                   const Operator *elem_restrict_lex);
    void Mult(const Vector &x, Vector &y) const;
+   const Operator *GetProlongation() const {return fes.GetProlongationMatrix();}
 };
 
 }
