@@ -37,20 +37,6 @@
 using namespace std;
 using namespace mfem;
 
-/*
-class InitialCondition : public VectorCoefficient
-{
-private:
-  int problem_;
-  double beta_;
-
-public:
-  InitialCondition(int problem);
-
-  void Eval(Vector &V, ElementTransformation &T,
-       const IntegrationPoint &ip);
-};
-*/
 void InitialCondition(int problem, Vector &y);
 
 class ExampleTDO : public TimeDependentOperator
@@ -404,73 +390,6 @@ int main(int argc, char *argv[])
    delete ode_step_rej;
    delete ode_step_lim;
 }
-
-/*
-InitialCondition::InitialCondition(int problem)
-  : VectorCoefficient(0),
-    problem_(problem),
-    beta_(0.0)
-{
-  switch(problem_)
-  {
-  case 1:
-  case 2:
-    vdim = 4;
-    break;
-  case 3:
-  case 6:
-    vdim = 3;
-    break;
-  case 4:
-  case 5:
-  case 7:
-    vdim = 2;
-    beta_ = 3.0;
-    break;
-  case 8:
-    vdim = 2;
-    beta_ = 8.533;
-    break;
-  default:
-    vdim = 0;
-    break;
-  }
-}
-
-void InitialCondition::Eval(Vector &v, ElementTransformation &T,
-             const IntegrationPoint &ip)
-{
-  v.SetSize(vdim);
-
-  switch(problem_)
-  {
-  case 1:
-    v(0) = v(2) = 1.0;
-    v(1) = v(3) = 0.0;
-    break;
-  case 2:
-    v = 1.0;
-    break;
-  case 3:
-    v(0) = 1.0; v(1) = v(2) = 0.0;
-    break;
-  case 4:
-  case 5:
-    v(0) = 2.0; v(1) = 0.0;
-    break;
-  case 6:
-    v(0) = v(1) = 1.0; v(2) = 0.0;
-    break;
-  case 7:
-  case 8:
-    v(0) = 1.3; v(1) = beta_;
-    break;
-  default:
-    v = 0.0;
-    break;
-  }
-}
-*/
 
 void InitialCondition(int problem, Vector &y)
 {
