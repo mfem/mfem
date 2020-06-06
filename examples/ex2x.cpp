@@ -3,11 +3,33 @@
 // Compile with: make ex2x
 //
 // Sample runs:  ex2x
-//               ex2x -p 1 -tf 2 -tol 1e-2 -dt 3e-3
-//               ex2x -gp -p 6 -tf 4 -tol 1e-2
-// Description:
+//               ex2x -p 1 -tf 2 -tol 1e-2 -dt 1e-3
+//               ex2x -p 2 -tf 2 -tol 1e-2 -dt 6e-3
+//               ex2x -p 3 -tf 0.3 -tol 1e-2 -dt 1e-4
+//               ex2x -p 4 -tf 10 -tol 1e-6 -dt 1e-2
+//               ex2x -p 5 -tf 10 -tol 1e-4 -dt 1e-4
+//               ex2x -p 6 -tf 5 -tol 1e-2 -dt 2e-2
+//               ex2x -p 7 -tf 20 -tol 1e-6 -dt 2e-2
+//               ex2x -p 8 -tf 30 -tol 1e-4 -dt 2e-2
 //
-
+// Description: This example demonstrates the use of a simple
+//              Proportional/Integral/Derivative (PID) Time-Step Controller.
+//              A PID controller is designed to adjust the time-step so that
+//              a given measure of the simulation error is maintained near a
+//              desired target value.
+//
+//              The target error is obtained by estimating the local truncation
+//              error of the ODE integrator by using a Runge-Kutta integrator
+//              with an embedded error estimate.
+//
+//              The algorithm implemented here is based on the paper
+//              "A PI STEPSIZE CONTROL FOR THE NUMERICAL SOLUTION OF
+//              ORDINARY DIFFERENTIAL EQUATIONS" by Kjell Gustafsson,
+//              Michael Lundh, and Gustaf Soderlind, BIT 28 (1988),
+//              270-287.  Most of the sample runs shown above mimic
+//              the numerical tests shown in figures 6 through 13 of
+//              this paper.
+//
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
