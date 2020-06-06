@@ -53,15 +53,17 @@ private:
 
 
    void Getijk(int ip, int & i, int & j, int & k ) const;
+   int GetPatchId(const Array<int> & ijk) const;
    SparseMatrix * GetPmlSystemMatrix(int ip);
   
-   // void GetCutOffSolution(const Vector & sol, Vector & cfsol,
-   //                        int ip, Array<int> directx, Array<int> directy, int nlayers, bool local=false) const;                          
-   // void GetChiRes(const Vector & res, Vector & cfres,
-   //                int ip, Array<int> directions, int nlayers) const;  
-   
-   // void TransferSources(int sweep, int ip, Vector & sol_ext) const;
-   // void SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
+   void GetCutOffSolution(const Vector & sol, Vector & cfsol,
+                          int ip, Array2D<int> direct, int nlayers, bool local=false) const;                          
+   void GetChiRes(const Vector & res, Vector & cfres,
+                  int ip, Array2D<int> direct, int nlayers) const;  
+   void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
+   void TransferSources(int sweep, int ip, Vector & sol_ext) const;
+   void SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
+   int GetSweepToTransfer(const int s, Array<int> directions) const;
    // void PlotSolution(Vector & sol, socketstream & sol_sock, int ip,bool localdomain) const;
    // int GetPatchId(const Array<int> & ijk) const;
   

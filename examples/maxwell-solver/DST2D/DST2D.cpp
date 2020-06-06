@@ -88,18 +88,29 @@ void DST2D::Mult(const Vector &r, Vector &z) const
       // make sure that f_ij is compactly supported in \Omega_ij (non overlapping)
       int i,j,k;
       Getijk(ip,i,j,k);
-      Array<int> directions(2); directions = 0;
       int nx = nxyz[0];
       int ny = nxyz[1];
-      if (i+1<nx) directions[0] = 1;
-      if (j+1<ny) directions[1] = 1;
-      Vector faux(f_orig[ip]->Size());
-      GetChiRes(*f_orig[ip],faux,ip,directions,ovlpnrlayers);
-      directions = 0.0;
-      if (i>0) directions[0] = -1;
-      if (j>0) directions[1] = -1;
+      // Array<int> directions(2); directions = 0;
+      // if (i+1<nx) directions[0] = 1;
+      // if (j+1<ny) directions[1] = 1;
+      // Vector faux(*f_orig[ip]);
+      // GetChiRes(*f_orig[ip],faux,ip,directions,ovlpnrlayers);
+      // directions = 0.0;
+      // if (i>0) directions[0] = -1;
+      // if (j>0) directions[1] = -1;
+      // *f_orig[ip] = 0.0;
+      // GetChiRes(faux,*f_orig[ip],ip,directions,ovlpnrlayers);
+
+      Array2D<int> direct(dim,2); direct = 0;
+      if (i>0) direct[0][0] = 1;
+      if (i+1<nx) direct[0][1] = 1;
+      if (j>0) direct[1][0] = 1;
+      if (j+1<ny) direct[1][1] = 1;
+
+      Vector faux(*f_orig[ip]);
       *f_orig[ip] = 0.0;
-      GetChiRes(faux,*f_orig[ip],ip,directions,ovlpnrlayers);
+      GetChiRes(faux,*f_orig[ip],ip,direct,ovlpnrlayers);
+
    }
 
    z = 0.0; 
@@ -144,20 +155,13 @@ void DST2D::Mult(const Vector &r, Vector &z) const
             if (res_local.Norml2() < 1e-12) continue;
             PmlMatInv[ip]->Mult(res_local, sol_local);
             TransferSources(l,ip, sol_local);
-            Array<int>directx(2); directx = 0; 
-            Array<int>directy(2); directy = 0; 
-            if (i+1<nx) directx[1] = 1;
-            if (j+1<ny) directy[1] = 1;
-            if (i>0) directx[0] = 1;
-            if (j>0) directy[0] = 1;
+            Array2D<int> direct(dim,2); direct = 0;
+            if (i>0) direct[0][0] = 1;
+            if (i+1<nx) direct[0][1] = 1;
+            if (j>0) direct[1][0] = 1;
+            if (j+1<ny) direct[1][1] = 1;
             Vector cfsol_local;
-            GetCutOffSolution(sol_local,cfsol_local,ip,directx, directy,ovlpnrlayers,true);
-            // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
-            // sol_local = cfsol_local;
-            // directions = 0.0;
-            // if (i>0) directions[0] = -1;
-            // if (j>0) directions[1] = -1;
-            // GetCutOffSolution(sol_local,cfsol_local,ip,directions,ovlpnrlayers,true);
+            GetCutOffSolution(sol_local,cfsol_local,ip,direct,ovlpnrlayers,true);
             
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
@@ -240,7 +244,7 @@ void DST2D::GetCutOffSolution(const Vector & sol, Vector & cfsol,
 }
 
 void DST2D::GetCutOffSolution(const Vector & sol, Vector & cfsol, 
-                  int ip, Array<int> directx, Array<int> directy, int nlayers, bool local) const
+                  int ip, Array2D<int> direct, int nlayers, bool local) const
 {
 
 
@@ -250,33 +254,22 @@ void DST2D::GetCutOffSolution(const Vector & sol, Vector & cfsol,
    mesh->GetBoundingBox(pmin, pmax);
    double h = GetUniformMeshElementSize(povlp->patch_mesh[ip]);
 
+
    int i, j, k;
    Getijk(ip,i,j,k);
-   // int nx = nxyz[0];
-   // int ny = nxyz[1];
-   if (directx[1]==1) pmax[0] -= h*nrlayers; 
-   if (directy[1]==1) pmax[1] -= h*nrlayers; 
-
-   if (directx[0]==1) pmin[0] += h*nrlayers; 
-   if (directy[0]==1) pmin[1] += h*nrlayers; 
 
    Array2D<double> pmlh(dim,2); pmlh = 0.0;
-   
-   if (directx[1]==1)
+   for (int i=0; i<dim; i++)
    {
-      pmlh[0][1] = h*(nlayers-nrlayers-1);
-   }
-   if (directx[0]==1)
-   {
-      pmlh[0][0] = h*(nlayers-nrlayers-1);
-   }
-   if (directy[1]==1)
-   {
-      pmlh[1][1] = h*(nlayers-nrlayers-1);
-   }
-   if (directy[0]==1)
-   {
-      pmlh[1][0] = h*(nlayers-nrlayers-1);
+      if (direct[i][0]==1) pmin[i] += h*nrlayers; 
+      if (direct[i][1]==1) pmax[i] -= h*nrlayers; 
+      for (int j=0; j<2; j++)
+      {
+         if (direct[i][j]==1)
+         {
+            pmlh[i][j] = h*(nlayers-nrlayers-1);
+         }
+      }  
    }
 
    CutOffFnCoefficient cf(CutOffFncn, pmin, pmax, pmlh);
@@ -368,20 +361,18 @@ void DST2D::TransferSources(int sweep, int ip0, Vector & sol0) const
                if (is == -il && js == -jl) continue;
             }
 
+            Array2D<int> direct(dim,2); direct = 0;
+            if (i==-1) direct[0][0] = 1;
+            if (i==1) direct[0][1] = 1;
+            if (j==-1) direct[1][0] = 1;
+            if (j==1) direct[1][1] = 1;
+            Vector cfsol0;
+            GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
+
+
             Array<int> directions(2);
             directions[0] = i;
             directions[1] = j;
-            // Vector cfsol0;
-            // GetCutOffSolution(sol0,cfsol0,ip0,directions,ovlpnrlayers,true);
-            Array<int> directx(2); directx = 0;
-            Array<int> directy(2); directy = 0;
-            if (i==-1) directx[0] = 1;
-            if (i==1) directx[1] = 1;
-            if (j==-1) directy[0] = 1;
-            if (j==1) directy[1] = 1;
-            Vector cfsol0;
-            GetCutOffSolution(sol0,cfsol0,ip0,directx,directy,ovlpnrlayers,true);
-
             Vector raux;
             // SourceTransfer(cfsol0,directions,ip0,raux);
             SourceTransfer1(cfsol0,directions,ip0,raux);
@@ -546,22 +537,20 @@ void DST2D::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, V
    PmlMat[ip1]->Mult(zloc,Psi);
    Psi *=-1.0;
 
-   Array<int> direct(2); direct = 0;
-   direct[0] = -direction[0];
-   direct[1] = -direction[1];
+   Array2D<int> direct(dim,2); direct = 0;
+   if (direction[0]==1) direct[0][0] = 1;
+   if (direction[0]==-1) direct[0][1] = 1;
+   if (direction[1]==1) direct[1][0] = 1;
+   if (direction[1]==-1) direct[1][1] = 1;
+
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+
 
 }
 
 void DST2D::GetChiRes(const Vector & res, Vector & cfres, 
                     int ip, Array<int> directions, int nlayers) const
 {
-   // int l,k;
-   // int d = directions.Size();
-   // int directx = directions[0]; // 1,0,-1
-   // int directy = directions[1]; // 1,0,-1
-   // int directz;
-   // if (d ==3) directz = directions[2];
 
    Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
    double h = GetUniformMeshElementSize(mesh);
@@ -618,6 +607,55 @@ void DST2D::GetChiRes(const Vector & res, Vector & cfres,
 }
 
 
+void DST2D::GetChiRes(const Vector & res, Vector & cfres, 
+                    int ip, Array2D<int> direct, int nlayers) const
+{
+
+   Mesh * mesh = ovlp_prob->fespaces[ip]->GetMesh();
+   Vector pmin, pmax;
+   mesh->GetBoundingBox(pmin, pmax);
+   double h = GetUniformMeshElementSize(mesh);
+   
+   Array2D<double> pmlh(dim,2); pmlh = 0.0;
+
+   for (int i=0; i<dim; i++)
+   {
+      if (direct[i][0]==1) pmin[i] += h*(nlayers-1); 
+      if (direct[i][1]==1) pmax[i] -= h*(nlayers-1); 
+      for (int j=0; j<2; j++)
+      {
+         if (direct[i][j]==1)
+         {
+            pmlh[i][j] = h;
+         }
+      }  
+   }
+
+   CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
+
+   double * data = res.GetData();
+
+   FiniteElementSpace * fespace;
+   fespace = ovlp_prob->fespaces[ip];
+   
+   int n = fespace->GetTrueVSize();
+
+   GridFunction solgf_re(fespace, data);
+   GridFunction solgf_im(fespace, &data[n]);
+
+   GridFunctionCoefficient coeff1_re(&solgf_re);
+   GridFunctionCoefficient coeff1_im(&solgf_im);
+
+   ProductCoefficient prod_re(coeff1_re, cf);
+   ProductCoefficient prod_im(coeff1_im, cf);
+
+   ComplexGridFunction gf(fespace);
+   gf.ProjectCoefficient(prod_re,prod_im);
+
+   cfres.SetSize(res.Size());
+   cfres = gf;
+}
+
 
 void DST2D::SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
 {
@@ -644,10 +682,18 @@ void DST2D::SourceTransfer1(const Vector & Psi0, Array<int> direction, int ip0, 
    Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
    r.GetSubVector(*Dof2GlobalDof1,Psi1);
 
-   Array<int> direct(2); direct = 0;
-   direct[0] = -direction[0];
-   direct[1] = -direction[1];
+   // Array<int> direct(2); direct = 0;
+   // direct[0] = -direction[0];
+   // direct[1] = -direction[1];
    Psi = Psi1;
+
+   Array2D<int> direct(dim,2); direct = 0;
+   if (direction[0]==1) direct[0][0] = 1;
+   if (direction[0]==-1) direct[0][1] = 1;
+   if (direction[1]==1) direct[1][0] = 1;
+   if (direction[1]==-1) direct[1][1] = 1;
+
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+
 }
 

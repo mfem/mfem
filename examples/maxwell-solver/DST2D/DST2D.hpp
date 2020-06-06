@@ -36,10 +36,11 @@ private:
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
                           int ip, Array<int> directions, int nlayers, bool local=false) const;
    void GetCutOffSolution(const Vector & sol, Vector & cfsol,
-                          int ip, Array<int> directx, Array<int> directy, int nlayers, bool local=false) const;                          
+                          int ip, Array2D<int> directions, int nlayers, bool local=false) const;                          
    void GetChiRes(const Vector & res, Vector & cfres,
                   int ip, Array<int> directions, int nlayers) const;  
-   
+   void GetChiRes(const Vector & res, Vector & cfres,
+                  int ip, Array2D<int> directions, int nlayers) const;  
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;
    int GetPatchId(const Array<int> & ijk) const;
    void Getijk(int ip, int & i, int & j, int & k ) const;
