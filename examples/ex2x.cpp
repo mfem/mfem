@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (dt <= 0.0) { dt = 0.1 * (t_final - t_init); }
+   if (dt <= 0.0) { dt = 1e-2 * (t_final - t_init); }
 
    // 4. Prepare GnuPlot output file if needed
    ofstream ofs;
