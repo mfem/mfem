@@ -735,6 +735,16 @@ public:
     */
    inline void GetElementValues(int idx, Vector &values) const;
 
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a reference to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values);
+
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a copy to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values) const;
+
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
        global values.
@@ -834,6 +844,25 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    values.SetSize(vdim*sl_size);
    const double *q = data + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
+   {
+      values(i) = *(q++);
+   }
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values)
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.NewDataAndSize(data + s_offset, vdim);
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values) const
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.SetSize(vdim);
+   const double *q = data + s_offset;
+   for (int i = 0; i < values.Size(); i++)
    {
       values(i) = *(q++);
    }
