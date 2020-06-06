@@ -94,10 +94,24 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 Operator&
 PANonlinearFormExtension::GetGradient(const Vector &x) const
 {
+   const bool serial = fes.GetProlongationMatrix() == NULL;
    GradOp.SetType(Operator::ANY_TYPE);
    const Array<int> &esstdofs = nlf->GetEssentialTrueDofs();
-   Operator *oper =  new PAGradOperator(x, nlf, fes, esstdofs, elem_restrict_lex);
-   GradOp.Reset(oper);
+   Operator *oper =
+      new PAGradOperator(x, serial, nlf, fes, esstdofs, elem_restrict_lex);
+
+   if (!serial)
+   {
+      dbg("RAP");
+      Operator *rap;
+      oper->FormSystemOperator(esstdofs, rap);
+      GradOp.Reset(rap);
+   }
+   else
+   {
+      dbg("Serial");
+      GradOp.Reset(oper);
+   }
    GradOp.SetOperatorOwner(false);
    MFEM_VERIFY(GradOp.Ptr(), "GetGradientPA error!");
    return *GradOp.Ptr();
@@ -106,11 +120,13 @@ PANonlinearFormExtension::GetGradient(const Vector &x) const
 
 /// PAGradOperator
 PAGradOperator::PAGradOperator(const Vector &g,
+                               const bool serial,
                                const NonlinearForm *nlf,
                                const FiniteElementSpace &fes,
                                const Array<int> &ess_tdof_list,
                                const Operator *elem_restrict_lex):
    Operator(fes.GetTrueVSize()),
+   serial(serial),
    nlf(nlf),
    fes(fes),
    ess_tdof_list(ess_tdof_list),
@@ -141,16 +157,15 @@ PAGradOperator::PAGradOperator(const Vector &g,
 
 void PAGradOperator::Mult(const Vector &x, Vector &y) const
 {
-   dbg("");
+   //dbg("");
    //ze.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
    ze = x;
    MFEM_VERIFY(y.Size() == x.Size(),"");
 
-   const bool Serial = true;//GetProlongation() != nullptr;
    const int csz = ess_tdof_list.Size();
    auto idx = ess_tdof_list.Read();
 
-   if (Serial)
+   if (serial)
    {
       auto d_z = ze.ReadWrite();
       MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
@@ -167,7 +182,7 @@ void PAGradOperator::Mult(const Vector &x, Vector &y) const
    }
    elem_restrict_lex->MultTranspose(ye, y);
 
-   if (Serial)
+   if (serial)
    {
       auto d_r = x.Read();
       auto d_c = y.ReadWrite();
