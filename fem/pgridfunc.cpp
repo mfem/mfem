@@ -539,6 +539,7 @@ void ParGridFunction::SaveAsOne(std::ostream &out)
    int *nfdofs = new int[NRanks];
    int *nrdofs = new int[NRanks];
 
+   HostReadWrite();
    values[0] = data;
    nv[0]     = pfes -> GetVSize();
    nvdofs[0] = pfes -> GetNVDofs();

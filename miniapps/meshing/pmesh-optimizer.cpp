@@ -82,6 +82,8 @@
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer.hpp"
+#define MFEM_DBG_COLOR 226
+#include "../../general/dbg.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -117,6 +119,8 @@ int main (int argc, char *argv[])
    int verbosity_level   = 0;
    bool fdscheme         = false;
    int adapt_eval        = 0;
+   const char *devopt    = "cpu";
+   bool pa               = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -197,6 +201,10 @@ int main (int argc, char *argv[])
                   "Set the verbosity level - 0, 1, or 2.");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
+   args.AddOption(&devopt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -204,6 +212,9 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   Device device(devopt);
+   if (myid == 0) { device.Print();}
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -289,6 +300,7 @@ int main (int argc, char *argv[])
    rdm.Randomize();
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
+   rdm.HostReadWrite();
    // Scale the random values to be of order of the local mesh size.
    for (int i = 0; i < pfespace->GetNDofs(); i++)
    {
@@ -318,7 +330,8 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      //x.HostRead();
+      //pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -328,6 +341,10 @@ int main (int argc, char *argv[])
    // 12. Form the integrator that uses the chosen metric and target.
    double tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
+   MFEM_VERIFY(!pa || (metric_id == 2 ||
+                       metric_id == 302 ||
+                       metric_id == 303 ||
+                       metric_id == 321), "");
    switch (metric_id)
    {
       case 1: metric = new TMOP_Metric_001; break;
@@ -363,7 +380,7 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    ParGridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
-
+   MFEM_VERIFY(!pa || target_id == 1, "");
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
@@ -600,6 +617,7 @@ int main (int argc, char *argv[])
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
+   MFEM_VERIFY(!pa || lim_const == 0.0, "");
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
@@ -638,11 +656,13 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
+   MFEM_VERIFY(!pa || combomet == 0,"");
    if (combomet > 0)
    {
       // First metric.
@@ -675,7 +695,10 @@ int main (int argc, char *argv[])
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
+   if (pa) { a.Setup(); }
+
    const double init_energy = a.GetParGridFunctionEnergy(x);
+   dbg("init_energy: %.15e", init_energy);
 
    // 16. Visualize the starting mesh and metric values.
    if (visualization)
@@ -816,6 +839,7 @@ int main (int argc, char *argv[])
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
+   dbg("x:%.15e",x*x);
    newton->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
    if (myid == 0 && newton->GetConverged() == false)
@@ -875,6 +899,7 @@ int main (int argc, char *argv[])
    // 23. Visualize the mesh displacement.
    if (visualization)
    {
+      dbg("visualization");
       x0 -= x;
       socketstream sock;
       if (myid == 0)

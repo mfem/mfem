@@ -14,6 +14,8 @@
 
 #include "nonlinearform.hpp"
 #include "../general/forall.hpp"
+#define MFEM_DBG_COLOR 199
+#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -108,7 +110,7 @@ PAGradOperator::PAGradOperator(const Vector &g,
                                const FiniteElementSpace &fes,
                                const Array<int> &ess_tdof_list,
                                const Operator *elem_restrict_lex):
-   Operator(fes.GetVSize()),
+   Operator(fes.GetTrueVSize()),
    nlf(nlf),
    fes(fes),
    ess_tdof_list(ess_tdof_list),
@@ -123,6 +125,10 @@ PAGradOperator::PAGradOperator(const Vector &g,
       xe.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
       ye.UseDevice(true);
       ye.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      we.UseDevice(true);
+      we.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      ze.UseDevice(true);
+      ze.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
    }
 
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
@@ -135,32 +141,38 @@ PAGradOperator::PAGradOperator(const Vector &g,
 
 void PAGradOperator::Mult(const Vector &x, Vector &y) const
 {
-   Vector z(x);
-   z.UseDevice(true);
-   y.SetSize(x.Size());
-   const int csz = ess_tdof_list.Size();
+   dbg("");
+   //ze.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+   ze = x;
+   MFEM_VERIFY(y.Size() == x.Size(),"");
 
+   const bool Serial = true;//GetProlongation() != nullptr;
+   const int csz = ess_tdof_list.Size();
    auto idx = ess_tdof_list.Read();
-   auto d_z = z.ReadWrite();
-   MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
+
+   if (Serial)
+   {
+      auto d_z = ze.ReadWrite();
+      MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
+   }
 
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int Ni = integrators.Size();
-   if (elem_restrict_lex)
-   {
-      ye = 0.0;
-      elem_restrict_lex->Mult(z, xe);
-      for (int i = 0; i < Ni; ++i)
-      {
-         integrators[i]->AddMultGradPA(ge, xe, ye);
-      }
-      elem_restrict_lex->MultTranspose(ye, y);
-   }
-   else { MFEM_ABORT("Not yet implemented!"); }
 
-   auto d_r = x.Read();
-   auto d_c = y.ReadWrite();
-   MFEM_FORALL(i, csz, d_c[idx[i]] = d_r[idx[i]];);
+   ye = 0.0;
+   elem_restrict_lex->Mult(ze, xe);
+   for (int i = 0; i < Ni; ++i)
+   {
+      integrators[i]->AddMultGradPA(ge, xe, ye);
+   }
+   elem_restrict_lex->MultTranspose(ye, y);
+
+   if (Serial)
+   {
+      auto d_r = x.Read();
+      auto d_c = y.ReadWrite();
+      MFEM_FORALL(i, csz, d_c[idx[i]] = d_r[idx[i]];);
+   }
 }
 
 } // namespace mfem

@@ -192,12 +192,12 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
+   args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
+                  "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
-                  "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.Parse();
    if (!args.Good())
    {
@@ -789,6 +789,7 @@ int main(int argc, char *argv[])
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
+   dbg("x:%.15e",x*x);
    newton->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
