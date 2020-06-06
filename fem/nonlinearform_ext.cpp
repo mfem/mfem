@@ -157,7 +157,7 @@ PAGradOperator::PAGradOperator(const Vector &g,
 
 void PAGradOperator::Mult(const Vector &x, Vector &y) const
 {
-   //dbg("");
+   dbg("x:%.15e",x*x);
    //ze.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
    ze = x;
    MFEM_VERIFY(y.Size() == x.Size(),"");
@@ -165,7 +165,7 @@ void PAGradOperator::Mult(const Vector &x, Vector &y) const
    const int csz = ess_tdof_list.Size();
    auto idx = ess_tdof_list.Read();
 
-   if (serial)
+   //if (serial)
    {
       auto d_z = ze.ReadWrite();
       MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
@@ -182,7 +182,7 @@ void PAGradOperator::Mult(const Vector &x, Vector &y) const
    }
    elem_restrict_lex->MultTranspose(ye, y);
 
-   if (serial)
+   //if (serial)
    {
       auto d_r = x.Read();
       auto d_c = y.ReadWrite();
