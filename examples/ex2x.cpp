@@ -153,6 +153,8 @@ int main(int argc, char *argv[])
                   "Tolerance.");
    args.AddOption(&rho, "-rho", "--rejection",
                   "Rejection tolerance.");
+   args.AddOption(&diff_eta, "-eta", "--error-scaling",
+                  "Error is |r/(|y|+eta)|.");
    args.AddOption(&epus, "-epus", "--error-per-unit-step",
                   "-eps", "--error-per-step",
                   "Select Error per step or error per unit step.");
