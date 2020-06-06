@@ -51,6 +51,7 @@ class PAGradOperator : public Operator
 {
 protected:
    Vector ge;
+   const bool serial;
    mutable Vector xe, ye, ze, we;
    const NonlinearForm *nlf;
    const FiniteElementSpace &fes;
@@ -58,12 +59,12 @@ protected:
    const Operator *elem_restrict_lex;
 public:
    PAGradOperator(const Vector &g,
+                  const bool serial,
                   const NonlinearForm *nlf,
                   const FiniteElementSpace &fes,
                   const Array<int> &ess_tdof_list,
                   const Operator *elem_restrict_lex);
    void Mult(const Vector &x, Vector &y) const;
-   //void EliminateRHS(const Vector &x, Vector &b) const;
 };
 
 }
