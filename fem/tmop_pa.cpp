@@ -23,6 +23,7 @@ namespace mfem
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   dbg("");
    MFEM_VERIFY(IntRule,"");
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -36,34 +37,29 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.maps = &fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
    PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
 
-   // Energy, One & X vectors
+   // Energy & One vectors
    PA.E.UseDevice(true);
    PA.E.SetSize(ne*nq, Device::GetDeviceMemoryType());
 
    PA.O.UseDevice(true);
    PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
 
-   PA.X.UseDevice(true);
-   PA.X.SetSize(dim*dim * nq*ne, Device::GetDeviceMemoryType());
-
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   PA.elem_restrict_lex = fes.GetElementRestriction(ordering);
-   if (PA.elem_restrict_lex)
-   {
-      PA.X.SetSize(PA.elem_restrict_lex->Height(), Device::GetMemoryType());
-   }
-   else
-   {
-      MFEM_ABORT("Not yet implemented!");
-   }
-
-   // P (AddMultPA) & A (AddMultGradPA) setup vectors
+   // P (AddMultPA) & A (AddMultGradPA) vectors
    PA.P.UseDevice(true);
    PA.P.SetSize(dim*dim * nq*ne, Device::GetDeviceMemoryType());
 
    PA.setup = false;
    PA.A.UseDevice(true);
    PA.A.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
+
+   // X gradient vector
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   PA.elem_restrict_lex = fes.GetElementRestriction(ordering);
+   if (PA.elem_restrict_lex)
+   {
+      PA.X.SetSize(PA.elem_restrict_lex->Height(), Device::GetMemoryType());
+      PA.X.UseDevice(true);
+   }
 }
 
 void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const

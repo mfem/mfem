@@ -17,6 +17,7 @@
 
 namespace mfem
 {
+
 class NonlinearForm;
 
 class NonlinearFormExtension : public Operator
@@ -50,7 +51,7 @@ class PAGradOperator : public Operator
 {
 protected:
    Vector ge;
-   mutable Vector xe, ye;
+   mutable Vector xe, ye, ze, we;
    const NonlinearForm *nlf;
    const FiniteElementSpace &fes;
    const Array<int> &ess_tdof_list;
@@ -62,6 +63,9 @@ public:
                   const Array<int> &ess_tdof_list,
                   const Operator *elem_restrict_lex);
    void Mult(const Vector &x, Vector &y) const;
+   //void EliminateRHS(const Vector &x, Vector &b) const;
 };
+
 }
+
 #endif // NONLINEARFORM_EXT_HPP
