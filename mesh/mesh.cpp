@@ -3359,10 +3359,6 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          }
       }
    }
-   else if (NURBSext)
-   {
-      Nodes->FESpace()->GenerateFaceDofsFromBdr();
-   }
 
    // If a parse tag was supplied, keep reading the stream until the tag is
    // encountered.
@@ -3833,7 +3829,6 @@ void Mesh::UpdateNURBS()
       GetElementToFaceTable();
       GenerateFaces();
    }
-   Nodes->FESpace()->GenerateFaceDofsFromBdr();
 }
 
 void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
@@ -4802,18 +4797,6 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
       default:
          mfem_error("Mesh::GetBdrElementFace(...) 2");
    }
-}
-
-bool Mesh::BdrInfoAvailable() const
-{
-   switch (Dim)
-   {
-      case 1: return (boundary != NULL);
-      case 2: return (be_to_edge != NULL);
-      case 3: return (be_to_face != NULL);
-      default: mfem_error("Mesh::GetBdrElementEdgeIndex: invalid dimension!");
-   }
-   return false;
 }
 
 int Mesh::GetBdrElementEdgeIndex(int i) const

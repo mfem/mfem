@@ -233,6 +233,54 @@ void FiniteElementSpace::BuildElementToDofTable() const
    elem_dof = el_dof;
 }
 
+void FiniteElementSpace::BuildBdrElementToDofTable() const
+{
+   if (bdrElem_dof) { return; }
+
+   Table *bel_dof = new Table;
+   Array<int> dofs;
+   bel_dof->MakeI(mesh->GetNBE());
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      GetBdrElementDofs(i, dofs);
+      bel_dof->AddColumnsInRow(i, dofs.Size());
+   }
+   bel_dof->MakeJ();
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      GetBdrElementDofs(i, dofs);
+      bel_dof->AddConnections(i, (int *)dofs, dofs.Size());
+   }
+   bel_dof->ShiftUpI();
+   bdrElem_dof = bel_dof;
+}
+
+void FiniteElementSpace::BuildFaceToDofTable() const
+{
+   // Here, "face" == (dim-1)-dimensional mesh entity.
+
+   if (face_dof) { return; }
+
+   if (NURBSext) { BuildNURBSFaceToDofTable(); return; }
+
+   Table *fc_dof = new Table;
+   Array<int> dofs;
+   fc_dof->MakeI(mesh->GetNumFaces());
+   for (int i = 0; i < fc_dof->Size(); i++)
+   {
+      GetFaceDofs(i, dofs);
+      fc_dof->AddColumnsInRow(i, dofs.Size());
+   }
+   fc_dof->MakeJ();
+   for (int i = 0; i < fc_dof->Size(); i++)
+   {
+      GetFaceDofs(i, dofs);
+      fc_dof->AddConnections(i, (int *)dofs, dofs.Size());
+   }
+   fc_dof->ShiftUpI();
+   face_dof = fc_dof;
+}
+
 void FiniteElementSpace::RebuildElementToDofTable()
 {
    delete elem_dof;
@@ -1481,7 +1529,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
          own_ext = 1;
       }
       UpdateNURBS();
-      GenerateFaceDofsFromBdr();
       cP = cR = NULL;
       cP_is_set = false;
    }
@@ -1516,21 +1563,22 @@ void FiniteElementSpace::UpdateNURBS()
    fdofs = NULL;
    bdofs = NULL;
 
+   delete face_dof;
+   face_dof = NULL;
+   face_to_be.DeleteAll();
+
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
-   delete face_dof;
-   face_dof = NULL;
 }
 
-void FiniteElementSpace::GenerateFaceDofsFromBdr()
+void FiniteElementSpace::BuildNURBSFaceToDofTable() const
 {
    if (face_dof) { return; }
-   if (!mesh->BdrInfoAvailable()) { return; }
 
-   // MFEM_VERIFY(bdrElem_dof, "NURBSExt not defined.");
+   const int dim = mesh->Dimension();
 
    // Find bdr to face mapping
    face_to_be.SetSize(GetNF());
@@ -1548,7 +1596,22 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
    for (int f = 0; f < GetNF(); f++)
    {
       int b = face_to_be[f];
-      if (b == -1) { continue;}
+      if (b == -1) { continue; }
+      // FIXME: this assumes the boundary element and the face element have the
+      //        same orientation.
+      if (dim > 1)
+      {
+         const Element *fe = mesh->GetFace(f);
+         const Element *be = mesh->GetBdrElement(b);
+         const int nv = be->GetNVertices();
+         const int *fv = fe->GetVertices();
+         const int *bv = be->GetVertices();
+         for (int i = 0; i < nv; i++)
+         {
+            MFEM_VERIFY(fv[i] == bv[i],
+                        "non-matching face and boundary elements detected!");
+         }
+      }
       GetBdrElementDofs(b, row);
       Connection conn(f,0);
       for (int i = 0; i < row.Size(); i++)
@@ -1558,7 +1621,6 @@ void FiniteElementSpace::GenerateFaceDofsFromBdr()
       }
    }
    face_dof = new Table(GetNF(), face_dof_list);
-
 }
 
 void FiniteElementSpace::Construct()
@@ -1831,7 +1893,9 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
-   if (face_dof)
+   // If face_dof is already built, use it.
+   // If it is not and we have a NURBS space, build the face_dof and use it.
+   if (face_dof || (NURBSext && (BuildNURBSFaceToDofTable(), true)))
    {
       face_dof->GetRow(i, dofs);
    }
@@ -2021,6 +2085,10 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 
    if (NURBSext)
    {
+      // Ensure 'face_to_be' is built:
+      if (!face_dof) { BuildNURBSFaceToDofTable(); }
+      MFEM_ASSERT(face_to_be[i] >= 0,
+                  "NURBS mesh: only boundary faces are supported!");
       NURBSext->LoadBE(face_to_be[i], fe);
    }
 
@@ -2077,6 +2145,7 @@ void FiniteElementSpace::Destroy()
    {
       if (own_ext) { delete NURBSext; }
       delete face_dof;
+      face_to_be.DeleteAll();
    }
    else
    {
