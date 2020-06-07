@@ -29,9 +29,9 @@ Meshing improvements
 
 - Added TMOP capability for approximate tangential mesh relaxation.
 
-- Added support for reading periodic meshes written in Gmsh's version 2.2 file
-  format.  Also, including two Gmsh input files and corresponding ".msh" output
-  files for validating this new functionality.
+- Added support for reading periodic meshes in Gmsh format (version 2.2). See
+  for example the periodic-annulus-sector and periodic-torus-sector files in
+  the data directory.
 
 Performance improvements
 ------------------------
