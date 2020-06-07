@@ -954,6 +954,17 @@ public:
 
 #endif
 
+class ConstantFactor : public ODEStepAdjustmentFactor
+{
+private:
+   double factor;
+
+public:
+   ConstantFactor(double _factor = 1.0) : factor(_factor) {}
+
+   double operator()(double) const { return factor; }
+};
+
 class StdAdjFactor : public ODEStepAdjustmentFactor
 {
 private:

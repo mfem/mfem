@@ -99,12 +99,14 @@ int main(int argc, char *argv[])
                   "\t   2 - Absolute/Relative Error with 2-Norm\n");
    args.AddOption(&ode_acc_type, "-acc", "-accept-factor",
                   "Adjustment factor after accepted steps:\n"
+                  "\t   0 - No adjustment\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
                   "\t   4 - Proportional, Integrated, and Derivative errors\n");
    args.AddOption(&ode_rej_type, "-rej", "-reject-factor",
                   "Adjustment factor after rejected steps:\n"
+                  "\t   0 - No adjustment\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
@@ -198,6 +200,9 @@ int main(int argc, char *argv[])
    }
    switch (ode_acc_type)
    {
+      case 0:
+         ode_step_acc = new ConstantFactor;
+         break;
       case 1:
          ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
          break;
@@ -216,6 +221,9 @@ int main(int argc, char *argv[])
    }
    switch (ode_rej_type)
    {
+      case 0:
+         ode_step_rej = new ConstantFactor;
+         break;
       case 1:
          ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
          break;
