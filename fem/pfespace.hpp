@@ -376,7 +376,7 @@ public:
 
    void PrintPartitionStats();
 
-   // Obsolete, kept for backward compatibility
+   /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 };
 
