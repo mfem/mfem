@@ -9,18 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//   -----------------------------------------------------------------------
-//   Trimmer Miniap: Trim away elements according to their attribute numbers
-//   -----------------------------------------------------------------------
+//   ------------------------------------------------------------------------
+//   Trimmer Miniapp: Trim away elements according to their attribute numbers
+//   ------------------------------------------------------------------------
 //
-// This miniapp creates a new mesh consisting of all the elements not
-// possessing a given set of attribute numbers.  The new boundary elements
-// are created with boundary attribute numbers related to the trimmed elements'
-// attribute numbers.
+// This miniapp creates a new mesh consisting of all the elements not possessing
+// a given set of attribute numbers. The new boundary elements are created with
+// boundary attribute numbers related to the trimmed elements' attribute
+// numbers.
 //
-// By default the new boundary elements will have new attribute
-// numbers so as not to interfere with existing boundaries.  For
-// example, consider a mesh with attriutes given by:
+// By default the new boundary elements will have new attribute numbers so as
+// not to interfere with existing boundaries. For example, consider a mesh with
+// attributes given by:
 //
 //   attributes = {a1, a2, a3, a4, a5, a6, ..., amax}
 //   bdr_attributes = {b1, b2, ..., bmax}
@@ -31,19 +31,18 @@
 //   attributes: {a1, a3, a5, a6, ..., amax}
 //   bdr_attributes = {b1, b2, ..., bmax, bmax + a2, bmax + a4}
 //
-// The user has the option of providing new attribute numbers for each group
-// of elements to be trimmed.  In this case the new boundary elements may have
-// the same attribute numbers as existing boundary elements.
+// The user has the option of providing new attribute numbers for each group of
+// elements to be trimmed. In this case the new boundary elements may have the
+// same attribute numbers as existing boundary elements.
 //
 // The resulting mesh is displayed with GLVis (unless explicitly disabled) and
 // is also written to the file "trimmer.mesh"
 //
 // Compile with: make trimmer
 //
-// Sample runs:
-//    trimmer -a '2' -b '2'
-//    trimmer -m ../../data/beam-hex.mesh -a '2'
-//    trimmer -m ../../data/beam-hex.mesh -a '2' -b '2'
+// Sample runs:  trimmer -a '2' -b '2'
+//               trimmer -m ../../data/beam-hex.mesh -a '2'
+//               trimmer -m ../../data/beam-hex.mesh -a '2' -b '2'
 
 #include "mfem.hpp"
 #include <fstream>
@@ -63,10 +62,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&attr, "-a", "-attr", "Set of attributes to remove from "
-                  "the mesh.");
-   args.AddOption(&bdr_attr, "-b", "-bdr-attr", "Set of boundary attributes "
-                  "to assign to the new boundary elements.");
+   args.AddOption(&attr, "-a", "--attr",
+                  "Set of attributes to remove from the mesh.");
+   args.AddOption(&bdr_attr, "-b", "--bdr-attr",
+                  "Set of attributes to assign to the new boundary elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -76,6 +75,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   args.PrintOptions(cout);
 
    Mesh mesh(mesh_file, 0, 0);
 
@@ -218,5 +218,4 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "mesh\n" << trimmed_mesh << flush;
    }
-
 }
