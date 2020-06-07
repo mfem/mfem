@@ -1020,7 +1020,7 @@ public:
 };
 
 /// Vector coefficient defined as a matrix vector product
-class MatVecCoefficient : public VectorCoefficient
+class MatrixVectorProductCoefficient : public VectorCoefficient
 {
 private:
    MatrixCoefficient * a;
@@ -1030,7 +1030,7 @@ private:
    mutable Vector vb;
 
 public:
-   MatVecCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
+   MatrixVectorProductCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
 
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    MatrixCoefficient * GetACoef() const { return a; }
@@ -1042,6 +1042,8 @@ public:
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
 };
+
+typedef MatrixVectorProductCoefficient MatVecCoefficient;
 
 /// Matrix coefficient defined as the identity of dimension d
 class IdentityMatrixCoefficient : public MatrixCoefficient

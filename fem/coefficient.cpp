@@ -522,17 +522,18 @@ void VectorCrossProductCoefficient::Eval(Vector &V, ElementTransformation &T,
    V[2] = va[0] * vb[1] - va[1] * vb[0];
 }
 
-MatVecCoefficient::MatVecCoefficient(MatrixCoefficient &A,
-                                     VectorCoefficient &B)
+MatrixVectorProductCoefficient::MatrixVectorProductCoefficient(
+   MatrixCoefficient &A, VectorCoefficient &B)
    : VectorCoefficient(A.GetHeight()), a(&A), b(&B),
      ma(A.GetHeight(), A.GetWidth()), vb(B.GetVDim())
 {
    MFEM_ASSERT(A.GetWidth() == B.GetVDim(),
-               "MatVecCoefficient:  Arguments have incompatible dimensions.");
+               "MatrixVectorProductCoefficient:  "
+               "Arguments have incompatible dimensions.");
 }
 
-void MatVecCoefficient::Eval(Vector &V, ElementTransformation &T,
-                             const IntegrationPoint &ip)
+void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                          const IntegrationPoint &ip)
 {
    a->Eval(ma, T, ip);
    b->Eval(vb, T, ip);
