@@ -22,4 +22,4 @@ Physical Volume(1) = {1};
 Mesh 3;
 
 Mesh.MshFileVersion = 2.2;
-Save "torus-pi-3.msh";
+Save "periodic-torus-sector.msh";
