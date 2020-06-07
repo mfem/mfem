@@ -598,8 +598,8 @@ public:
                      type = adios2stream::data_type::point_data) const;
 #endif
 
-   /** @brief Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
-       called first. The parameter ref > 0 must match the one used in
+   /** @brief Write the GridFunction in VTK format. Note that Mesh::PrintVTK
+       must be called first. The parameter ref > 0 must match the one used in
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
 

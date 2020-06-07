@@ -60,8 +60,9 @@ struct TMassKernel
    template <int qpts>
    struct p_asm_data { typedef TVector<qpts,complex_t> type; };
 
-   /** @brief Partially assembled data type for one element with the given number of
-       quadrature points. This type is used in full element matrix assembly. */
+   /** @brief Partially assembled data type for one element with the given
+       number of quadrature points. This type is used in full element matrix
+       assembly. */
    template <int qpts>
    struct f_asm_data { typedef TVector<qpts,complex_t> type; };
 

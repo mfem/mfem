@@ -510,10 +510,10 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
-   /** @brief Given a matrix coefficient and a transformation, compute an approximation
-       ("projection") in the local finite dimensional space in terms of the
-       degrees of freedom. For VectorFiniteElements, the rows of the coefficient
-       are projected in the vector space. */
+   /** @brief Given a matrix coefficient and a transformation, compute an
+       approximation ("projection") in the local finite dimensional space in
+       terms of the degrees of freedom. For VectorFiniteElements, the rows of
+       the coefficient are projected in the vector space. */
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
@@ -521,15 +521,15 @@ public:
        the local finite dimensional space represented by the @a dofs. */
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 
-   /** @brief Compute the embedding/projection matrix from the given FiniteElement
-       onto 'this' FiniteElement. The ElementTransformation is included to
-       support cases when the projection depends on it. */
+   /** @brief Compute the embedding/projection matrix from the given
+       FiniteElement onto 'this' FiniteElement. The ElementTransformation is
+       included to support cases when the projection depends on it. */
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
 
-   /** @brief Compute the discrete gradient matrix from the given FiniteElement onto
-       'this' FiniteElement. The ElementTransformation is included to support
-       cases when the matrix depends on it. */
+   /** @brief Compute the discrete gradient matrix from the given FiniteElement
+       onto 'this' FiniteElement. The ElementTransformation is included to
+       support cases when the matrix depends on it. */
    virtual void ProjectGrad(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const;
@@ -541,15 +541,15 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const;
 
-   /** @brief Compute the discrete divergence matrix from the given FiniteElement onto
-       'this' FiniteElement. The ElementTransformation is included to support
-       cases when the matrix depends on it. */
+   /** @brief Compute the discrete divergence matrix from the given
+       FiniteElement onto 'this' FiniteElement. The ElementTransformation is
+       included to support cases when the matrix depends on it. */
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
 
-   /** @brief Return a DofToQuad structure corresponding to the given IntegrationRule
-       using the given DofToQuad::Mode. */
+   /** @brief Return a DofToQuad structure corresponding to the given
+       IntegrationRule using the given DofToQuad::Mode. */
    /** See the documentation for DofToQuad for more details. */
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
@@ -638,8 +638,9 @@ public:
    { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
 #endif
 
-   /** @brief Set the FiniteElement::MapType of the element to either VALUE or INTEGRAL.
-       Also sets the FiniteElement::DerivType to GRAD if the FiniteElement::MapType is VALUE. */
+   /** @brief Set the FiniteElement::MapType of the element to either VALUE or
+       INTEGRAL. Also sets the FiniteElement::DerivType to GRAD if the
+       FiniteElement::MapType is VALUE. */
    void SetMapType(int M)
    {
       MFEM_VERIFY(M == VALUE || M == INTEGRAL, "unknown MapType");
@@ -1086,7 +1087,8 @@ public:
 };
 
 
-/// A 2D positive bi-quadratic element on a square utilizing the 2nd order Bernstein basis
+/// A 2D positive bi-quadratic element on a square utilizing the 2nd order
+/// Bernstein basis
 class BiQuadPos2DFiniteElement : public PositiveFiniteElement
 {
 public:
@@ -1163,7 +1165,8 @@ public:
                              DenseMatrix &h) const;
 };
 
-/// A 3D cubic element on a tetrahedron with 20 nodes at the thirds of the tetrahedron
+/// A 3D cubic element on a tetrahedron with 20 nodes at the thirds of the
+/// tetrahedron
 class Cubic3DFiniteElement : public NodalFiniteElement
 {
 public:
@@ -1819,7 +1822,8 @@ public:
 };
 
 
-/// Class for computing 1D special polynomials and their associated basis functions
+/// Class for computing 1D special polynomials and their associated basis
+/// functions
 class Poly_1D
 {
 public:
@@ -1972,7 +1976,8 @@ public:
 extern Poly_1D poly1d;
 
 
-/// An element defined as an ND tensor product of 1D elements on a segement, square, or cube
+/// An element defined as an ND tensor product of 1D elements on a segment,
+/// square, or cube
 class TensorBasisElement
 {
 protected:
@@ -2146,11 +2151,11 @@ class H1Pos_SegmentElement : public PositiveTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   // This is to share scratch space between invocations, which helps
-   // speed things up, but with OpenMP, we need one copy per thread.
-   // Right now, we solve this by allocating this space within each function
-   // call every time we call it.  Alternatively, we should do some sort
-   // thread private thing.  Brunner, Jan 2014
+   // This is to share scratch space between invocations, which helps speed
+   // things up, but with OpenMP, we need one copy per thread. Right now, we
+   // solve this by allocating this space within each function call every time
+   // we call it. Alternatively, we should do some sort thread private thing.
+   // Brunner, Jan 2014
    mutable Vector shape_x, dshape_x;
 #endif
 
@@ -2290,7 +2295,8 @@ public:
 };
 
 
-/// Arbitrary order H1 elements in 3D utilizing the Bernstein basis on a tetrahedron
+/// Arbitrary order H1 elements in 3D utilizing the Bernstein basis on a
+/// tetrahedron
 class H1Pos_TetrahedronElement : public PositiveFiniteElement
 {
 protected:
@@ -2562,7 +2568,8 @@ public:
 };
 
 
-/// Arbitrary order L2 elements in 3D utilizing the Bernstein basis on a tetrahedron
+/// Arbitrary order L2 elements in 3D utilizing the Bernstein basis on a
+/// tetrahedron
 class L2Pos_TetrahedronElement : public PositiveFiniteElement
 {
 private:
@@ -2645,8 +2652,8 @@ private:
    Array<int> dof2nk;
 
 public:
-   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and open
-       BasisType @a cb_type and @a ob_type */
+   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
    RT_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
                            const int ob_type = BasisType::GaussLegendre);
@@ -2702,8 +2709,8 @@ class RT_HexahedronElement : public VectorTensorFiniteElement
    Array<int> dof2nk;
 
 public:
-   /** @brief Construct the RT_HexahedronElement of order @a p and closed and open
-       BasisType @a cb_type and @a ob_type */
+   /** @brief Construct the RT_HexahedronElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
    RT_HexahedronElement(const int p,
                         const int cb_type = BasisType::GaussLobatto,
                         const int ob_type = BasisType::GaussLegendre);
@@ -2861,8 +2868,8 @@ class ND_HexahedronElement : public VectorTensorFiniteElement
    Array<int> dof2tk;
 
 public:
-   /** @brief Construct the ND_HexahedronElement of order @a p and closed and open
-    BasisType @a cb_type and @a ob_type */
+   /** @brief Construct the ND_HexahedronElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
    ND_HexahedronElement(const int p,
                         const int cb_type = BasisType::GaussLobatto,
                         const int ob_type = BasisType::GaussLegendre);
@@ -2929,8 +2936,8 @@ class ND_QuadrilateralElement : public VectorTensorFiniteElement
    Array<int> dof2tk;
 
 public:
-   /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and open
-       BasisType @a cb_type and @a ob_type */
+   /** @brief Construct the ND_QuadrilateralElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
    ND_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
                            const int ob_type = BasisType::GaussLegendre);
@@ -3236,7 +3243,8 @@ public:
         d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(dof,3)
    { orders[0] = orders[1] = orders[2] = p; }
 
-   /// Construct the NURBS3DFiniteElement with x-order @a px and y-order @a py and z-order @a pz
+   /// Construct the NURBS3DFiniteElement with x-order @a px and y-order @a py
+   /// and z-order @a pz
    NURBS3DFiniteElement(int px, int py, int pz)
       : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                            std::max(std::max(px,py),pz), FunctionSpace::Qk),

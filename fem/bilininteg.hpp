@@ -199,10 +199,8 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
-/** Wraps a given @a BilinearFormIntegrator and transposes the resulting
-    element matrices.
-
-    See for example ex9, ex9p. */
+/** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
+    matrices. See for example ex9, ex9p. */
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:

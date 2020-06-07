@@ -44,7 +44,7 @@ public:
    /// Return the value of the lowest element of the set.
    int PickElement() { return me[0]; }
 
-   /// Return the value of a random element of the sest.
+   /// Return the value of a random element of the set.
    int PickRandomElement();
 
    /// Return 1 if the sets are equal and 0 otherwise.
@@ -72,11 +72,13 @@ public:
    /// Return a random value from the ith set in the list.
    int PickRandomElementInSet(int i) { return TheList[i]->PickRandomElement(); }
 
-   /** @brief Check to see if set 's' is in the list.  If not append it to the end of the
-       list.  Returns the index of the list where set 's' can be found. */
+   /** @brief Check to see if set 's' is in the list. If not append it to the
+       end of the list. Returns the index of the list where set 's' can be
+       found. */
    int Insert(IntegerSet &s);
 
-   /// Return the index of the list where set 's' can be found.  Returns -1 if not found.
+   /** Return the index of the list where set 's' can be found. Returns -1 if
+       not found. */
    int Lookup(IntegerSet &s);
 
    /// Write the list of sets into table 't'.

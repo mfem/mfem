@@ -53,8 +53,8 @@ public:
       LoadElementIdxs = 8
    };
 
-   /// Determines at compile-time the operations needed for given coefficient and
-   /// kernel
+   /// Determines at compile-time the operations needed for given coefficient
+   /// and kernel
    template <typename coeff_t, typename kernel_t> struct Get
    {
       static const int EvalOps =
