@@ -121,6 +121,10 @@ New and updated examples and miniapps
 - Added a new test problem in example 24/24p, demonstrating a mixed bilinear
   form for H(div) and L_2, with partial assembly support.
 
+- Added a simple mesh editing miniapp, mesh-trimmer, which trims away portions
+  of a mesh based on element attributes.  Any newly exposed boundary elements
+  are assigned attribute numbers related to the trimmed element attributes.
+
 Improved testing
 ----------------
 - Added a GitLab pipeline that automates PR testing on supercomputing systems
