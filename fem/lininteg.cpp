@@ -63,6 +63,53 @@ void DomainLFIntegrator::AssembleDeltaElementVect(
    elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
+void DomainLFGradIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+   int spaceDim = Tr.GetSpaceDim();
+
+   dshape.SetSize(dof, spaceDim);
+
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      el.CalcPhysDShape(Tr, dshape);
+
+      Q.Eval(Qvec, Tr, ip);
+      Qvec *= ip.weight * Tr.Weight();
+
+      dshape.AddMult(Qvec, elvect);
+   }
+}
+
+void DomainLFGradIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(vec_delta != NULL,"coefficient must be VectorDeltaCoefficient");
+   int dof = fe.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
+
+   dshape.SetSize(dof, spaceDim);
+   fe.CalcPhysDShape(Trans, dshape);
+
+   vec_delta->EvalDelta(Qvec, Trans, Trans.GetIntPoint());
+
+   elvect.SetSize(dof);
+   dshape.Mult(Qvec, elvect);
+}
 
 void BoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
@@ -255,7 +302,6 @@ void VectorDomainLFIntegrator::AssembleDeltaElementVect(
    MultVWt(shape, Qvec, elvec_as_mat);
 }
 
-
 void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -332,7 +378,6 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    }
 }
 
-
 void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -362,7 +407,6 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
 
       QF.Eval (vec, Tr, ip);
       vec *= ip.weight * Tr.Weight();
-
       vshape.AddMult (vec, elvect);
    }
 }
@@ -381,6 +425,126 @@ void VectorFEDomainLFIntegrator::AssembleDeltaElementVect(
 
    elvect.SetSize(dof);
    vshape.Mult(vec, elvect);
+}
+
+void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+   int spaceDim = Tr.GetSpaceDim();
+   int n=(spaceDim == 3)? spaceDim : 1;
+   curlshape.SetSize(dof,n);
+   vec.SetSize(n);
+
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2*el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      el.CalcPhysCurlShape(Tr, curlshape);
+
+      switch (spaceDim)
+      {
+         case 3:
+            MFEM_VERIFY(QF, "VectorFunctionCoefficient not provided");
+            QF->Eval(vec, Tr, ip);
+            break;
+         case 2:
+            MFEM_VERIFY(Q, "FunctionCoefficient (Scalar) not provided");
+            vec[0] = Q->Eval(Tr, ip);
+            break;
+         default:
+            break; // This should be unreachable
+      }
+      vec *= ip.weight * Tr.Weight();
+      curlshape.AddMult (vec, elvect);
+   }
+}
+
+void VectorFEDomainLFCurlIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   int spaceDim = Trans.GetSpaceDim();
+   switch (spaceDim)
+   {
+      case 3:
+         MFEM_ASSERT(vec_delta != NULL,
+                     "coefficient must be VectorDeltaCoefficient");
+         break;
+      case 2:
+         MFEM_ASSERT(delta != NULL,
+                     "coefficient must be DeltaCoefficient");
+         break;
+      default:
+         break; // This should be unreachable
+   }
+   int dof = fe.GetDof();
+   int n=(spaceDim == 3)? spaceDim : 1;
+   curlshape.SetSize(dof, n);
+   elvect.SetSize(dof);
+   fe.CalcPhysCurlShape(Trans, curlshape);
+
+   switch (spaceDim)
+   {
+      case 3:
+         vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
+         curlshape.Mult(vec, elvect);
+         break;
+      case 2:
+         curlshape.GetColumn(0,elvect);
+         elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+         break;
+      default:
+         break; // This should be unreachable
+   }
+
+}
+
+void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   divshape.SetSize(dof);       // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      el.CalcPhysDivShape(Tr, divshape);
+
+      add(elvect, ip.weight * val, divshape, elvect);
+   }
+}
+
+void VectorFEDomainLFDivIntegrator::AssembleDeltaElementVect(
+   const FiniteElement &fe, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
+   elvect.SetSize(fe.GetDof());
+   fe.CalcPhysDivShape(Trans, elvect);
+   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
 }
 
 void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
@@ -448,7 +612,6 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    }
 }
 
-
 void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -482,7 +645,6 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
       vshape.AddMult(f_hat, elvect);
    }
 }
-
 
 void BoundaryFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
@@ -547,7 +709,6 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       elvect.Add(w, shape);
    }
 }
-
 
 void DGDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
@@ -636,7 +797,6 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       }
    }
 }
-
 
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
