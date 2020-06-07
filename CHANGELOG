@@ -23,6 +23,10 @@ Meshing improvements
   Hessian for r-adaptivity using discrete fields, and allows use of skewness
   and orientation based metrics.
 
+- Added support for reading periodic meshes written in Gmsh's version 2.2 file
+  format.  Also, including two Gmsh input files and corresponding ".msh" output
+  files for validating this new functionality.
+
 Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
