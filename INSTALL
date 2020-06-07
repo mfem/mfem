@@ -396,6 +396,12 @@ MFEM_USE_SIDRE = YES/NO
    blueprint specification. When enabled, this option requires installation of
    HDF5 (see also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
+MFEM_USE_SIMD = YES/NO
+   Enables the high performance templated classes to use architecture dependent
+   SIMD intrinsics instead of the generic implementation of class AutoSIMD in
+   linalg/simd/auto.hpp. This option should be combined with suitable
+   compiler options, such as -march=native, to enable optimal vectorization.
+
 MFEM_USE_CONDUIT = YES/NO
    Enables support for converting MFEM Mesh and Grid Function objects to and
    from Conduit Mesh Blueprint Descriptions (https://github.com/LLNL/conduit/)
@@ -426,6 +432,8 @@ MFEM_USE_PUMI = YES/NO
    data management system that is capable of handling general non-manifold
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
+   The develop branch of PUMI repository (https://github.com/SCOREC/core)
+   should be used for most updated features.
 
 MFEM_USE_UMPIRE = YES/NO
    Enables support for Umpire, a resource management library that allows the
@@ -609,8 +617,9 @@ The specific libraries and their options are:
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
+       https://github.com/SCOREC/core
   Options: PUMI_OPT, PUMI_LIB.
-  Versions: PUMI >= 2.2.0.
+  Versions: PUMI >= 2.2.3.
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
