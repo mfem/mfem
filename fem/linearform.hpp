@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-///Vector with associated FE space and LinearFormIntegrator.
+/// Vector with associated FE space and LinearFormIntegrators.
 class LinearForm : public Vector
 {
 protected:

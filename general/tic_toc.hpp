@@ -51,13 +51,16 @@ public:
    /// Return the time resolution available to the stopwatch.
    double Resolution();
 
-   /// Return the number of real seconds elapsed since the stopwatch was started.
+   /** Return the number of real seconds elapsed since the stopwatch was
+       started. */
    double RealTime();
 
-   /// Return the number of user seconds elapsed since the stopwatch was started.
+   /** Return the number of user seconds elapsed since the stopwatch was
+       started. */
    double UserTime();
 
-   /// Return the number of system seconds elapsed since the stopwatch was started.
+   /** Return the number of system seconds elapsed since the stopwatch was
+       started. */
    double SystTime();
    ~StopWatch();
 };
