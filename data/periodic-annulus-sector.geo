@@ -34,4 +34,4 @@ Physical Surface(1) = {1};
 Mesh 2;
 Mesh.MshFileVersion = 2.2;
 
-Save "annulus-pi-3.msh";
+Save "periodic-annulus-sector.msh";
