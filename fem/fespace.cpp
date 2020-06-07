@@ -1977,6 +1977,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 
 const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
 {
+   MFEM_ASSERT(mesh->Dimension() > 1, "No edges with a mesh dimension < 2");
    return fec->FiniteElementForGeometry(Geometry::SEGMENT);
 }
 
