@@ -759,10 +759,16 @@ private:
    Coefficient * b;
 
 public:
+   /** Initialize a coefficient which returns A / B where @a A is a
+       constant and @a B is a scalar coefficient */
    RatioCoefficient(double A, Coefficient &B)
       : aConst(A), bConst(1.0), a(NULL), b(&B) { }
+   /** Initialize a coefficient which returns A / B where @a A and @a B are both
+       scalar coefficients */
    RatioCoefficient(Coefficient &A, Coefficient &B)
       : aConst(0.0), bConst(1.0), a(&A), b(&B) { }
+   /** Initialize a coefficient which returns A / B where @a A is a
+       scalar coefficient and @a B is a constant */
    RatioCoefficient(Coefficient &A, double B)
       : aConst(0.0), bConst(B), a(&A), b(NULL) { }
 
@@ -782,8 +788,9 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
-      return ((a == NULL ) ? aConst : a->Eval(T, ip) ) /
-             ((b == NULL ) ? bConst : b->Eval(T, ip) );
+      double den = (b == NULL ) ? bConst : b->Eval(T, ip);
+      MFEM_ASSERT(den != 0.0, "Division by zero in RatioCoefficient");
+      return ((a == NULL ) ? aConst : a->Eval(T, ip) ) / den;
    }
 };
 
@@ -796,7 +803,7 @@ private:
    double p;
 
 public:
-   // Result is A^p
+   /// Result is A^p
    PowerCoefficient(Coefficient &A, double _p)
       : a(&A), p(_p) { }
 
@@ -972,6 +979,12 @@ private:
    double tol;
 
 public:
+   /** @brief Return a vector normalized to a length of one
+
+       This class evaluates the vector coefficient @a A and, if |A| > @a tol,
+       returns the normalized vector A / |A|.  If |A| <= @a tol, the zero
+       vector is returned.
+   */
    NormalizedVectorCoefficient(VectorCoefficient &A, double tol = 1e-6);
 
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1158,7 +1171,13 @@ public:
                      const IntegrationPoint &ip);
 };
 
-/// Matrix coefficient defined as -a k x k x, for a vector k and scalar a
+/** @brief Matrix coefficient defined as -a k x k x, for a vector k and scalar a
+
+    This coefficient returns a * (|k|^2 I - k \otimes k), where I is
+    the identity matrix and \otimes indicates the outer product.  This
+    can be evaluated for vectors of any dimension but in three
+    dimensions it corresponds to computing the cross product with k twice.
+*/
 class CrossCrossCoefficient : public MatrixCoefficient
 {
 private:
