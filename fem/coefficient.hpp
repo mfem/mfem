@@ -946,6 +946,54 @@ public:
                      const IntegrationPoint &ip);
 };
 
+class QuadratureFunction;
+
+/** @brief Vector quadrature function coefficient which requires that the
+   quadrature rules used for this vector coefficient be the same as those that
+   live within the supplied QuadratureFunction. */
+class VectorQuadratureFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const QuadratureFunction &QuadF; //do not own
+   int index;
+
+public:
+   /// Constructor with a quadrature function as input
+   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
+
+   /** Set the starting index within the QuadFunc that'll be used to
+      project outwards as well as the corresponding length. The projected length
+      should have the bounds of 1 <= length <= (length QuadFunc - index). */
+   void SetComponent(int _index, int _length);
+
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~VectorQuadratureFunctionCoefficient() { }
+};
+
+/** @brief Quadrature function coefficient which requires that the quadrature
+   rules used for this coefficient be the same as those that live within the
+   supplied QuadratureFunction. */
+class QuadratureFunctionCoefficient : public Coefficient
+{
+private:
+   const QuadratureFunction &QuadF;
+
+public:
+   /// Constructor with a quadrature function as input
+   QuadratureFunctionCoefficient(QuadratureFunction &qf);
+
+   const QuadratureFunction& GetQuadFunction() const { return QuadF; }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+   virtual ~QuadratureFunctionCoefficient() { }
+};
+
 /** Compute the Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
 double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
