@@ -19,7 +19,10 @@ namespace mfem
 {
 
 class NonlinearForm;
+class NonlinearFormIntegrator;
 
+/** @brief Class extending the NonlinearForm class to support the different
+    AssemblyLevel%s. */
 class NonlinearFormExtension : public Operator
 {
 protected:
@@ -32,41 +35,35 @@ public:
 };
 
 /// Data and methods for partially-assembled nonlinear forms
-class PANonlinearFormExtension : public NonlinearFormExtension
+class PANonlinearForm : public NonlinearFormExtension
 {
+private:
+   class Gradient : public Operator
+   {
+   protected:
+      const Operator *R;
+      mutable Vector ge, xe, ye, ze;
+      const Array<NonlinearFormIntegrator*> &dnfi;
+   public:
+      Gradient(const Vector &x, const PANonlinearForm &ext);
+      void Mult(const Vector &x, Vector &y) const;
+   };
+
 protected:
-   mutable OperatorPtr GradOp;
-   const FiniteElementSpace &fes; // Not owned
-   mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   mutable Vector xe, ye;
+   mutable OperatorHandle Grad;
+   const FiniteElementSpace &fes;
+   const Array<NonlinearFormIntegrator*> &dnfi;
+   const Operator *R;
+
 public:
-   PANonlinearFormExtension(NonlinearForm *nlf);
+   PANonlinearForm(NonlinearForm *nlf);
    void Assemble();
-   void Mult(const Vector &, Vector &) const;
-   Operator &GetGradient(const Vector&) const;
+   void Mult(const Vector &x, Vector &y) const;
+   Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;
 };
 
-class PAGradOperator : public Operator
-{
-protected:
-   Vector ge;
-   const bool serial;
-   mutable Vector xe, ye, ze, we;
-   const NonlinearForm *nlf;
-   const FiniteElementSpace &fes;
-   const Array<int> &ess_tdof_list;
-   const Operator *elem_restrict_lex;
-public:
-   PAGradOperator(const Vector &g,
-                  const bool serial,
-                  const NonlinearForm *nlf,
-                  const FiniteElementSpace &fes,
-                  const Array<int> &ess_tdof_list,
-                  const Operator *elem_restrict_lex);
-   void Mult(const Vector &x, Vector &y) const;
-   const Operator *GetProlongation() const {return fes.GetProlongationMatrix();}
-};
 
 }
 
