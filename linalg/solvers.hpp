@@ -430,7 +430,7 @@ public:
    LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
 #endif
 
-   void SetKDim(int dim) { m = dim; }
+   void SetHistorySize(int dim) { m = dim; }
 
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */

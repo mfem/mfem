@@ -192,8 +192,7 @@ void FindPointsGSLIB::Interpolate(Array<unsigned int> &codes,
    const int ncomp      = field_in.FESpace()->GetVDim(),
              points_fld = field_in.Size() / ncomp,
              points_cnt = codes.Size();
-   MFEM_ASSERT(field_out.Size() >= points_cnt*ncomp,
-               "Increase size of field_out in FindPointsGSLIB::Interpolate.");
+   field_out.SetSize(points_cnt*ncomp);
 
    for (int i = 0; i < ncomp; i++)
    {
