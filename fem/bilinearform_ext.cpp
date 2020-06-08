@@ -350,12 +350,14 @@ void EABilinearFormExtension::Assemble()
    if (simplify && int_face_restrict_lex)
    {
       auto restFint = dynamic_cast<const L2FaceRestriction&>(*int_face_restrict_lex);
-      restFint.FactorizeBlocks(ea_data_int, elemDofs, ne, ea_data);
+      restFint.AddFaceMatricesToElementMatrices(ea_data_int, elemDofs, ne,
+                                                ea_data);
    }
    if (simplify && bdr_face_restrict_lex)
    {
       auto restFbdr = dynamic_cast<const L2FaceRestriction&>(*bdr_face_restrict_lex);
-      restFbdr.FactorizeBlocks(ea_data_bdr, elemDofs, ne, ea_data);
+      restFbdr.AddFaceMatricesToElementMatrices(ea_data_bdr, elemDofs, ne,
+                                                ea_data);
    }
 }
 

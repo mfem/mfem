@@ -148,8 +148,8 @@ public:
    void FillJAndData(const Vector &ea_data,
                      SparseMatrix &mat) const;
    /// This methods adds the DG face matrices to the element matrices.
-   void FactorizeBlocks(Vector &fea_data, const int elemDofs,
-                        const int ne, Vector &ea_data) const;
+   void AddFaceMatricesToElementMatrices(Vector &fea_data, const int elemDofs,
+                                         const int ne, Vector &ea_data) const;
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.
