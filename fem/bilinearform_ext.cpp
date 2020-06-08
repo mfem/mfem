@@ -292,7 +292,8 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 
 // Data and methods for element-assembled bilinear forms
 EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
-   : PABilinearFormExtension(form), simplify(form->FESpace()->IsDGSpace())
+   : PABilinearFormExtension(form),
+     factorize_face_terms(form->FESpace()->IsDGSpace())
 {
 }
 
@@ -348,13 +349,13 @@ void EABilinearFormExtension::Assemble()
       bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr);
    }
 
-   if (simplify && int_face_restrict_lex)
+   if (factorize_face_terms && int_face_restrict_lex)
    {
       auto restFint = dynamic_cast<const L2FaceRestriction&>(*int_face_restrict_lex);
       restFint.AddFaceMatricesToElementMatrices(ea_data_int, elemDofs, ne,
                                                 ea_data);
    }
-   if (simplify && bdr_face_restrict_lex)
+   if (factorize_face_terms && bdr_face_restrict_lex)
    {
       auto restFbdr = dynamic_cast<const L2FaceRestriction&>(*bdr_face_restrict_lex);
       restFbdr.AddFaceMatricesToElementMatrices(ea_data_bdr, elemDofs, ne,
@@ -412,7 +413,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          const int NDOFS = faceDofs;
          auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
          auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
-         if (!simplify)
+         if (!factorize_face_terms)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
             MFEM_FORALL(glob_j, nf_int*NDOFS,
@@ -459,7 +460,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    // Treatment of boundary faces
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int bFISz = bdrFaceIntegrators.Size();
-   if (!simplify && bdr_face_restrict_lex && bFISz>0)
+   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);
@@ -538,7 +539,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          const int NDOFS = faceDofs;
          auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
          auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
-         if (!simplify)
+         if (!factorize_face_terms)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
             MFEM_FORALL(glob_j, nf_int*NDOFS,
@@ -585,7 +586,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    // Treatment of boundary faces
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int bFISz = bdrFaceIntegrators.Size();
-   if (!simplify && bdr_face_restrict_lex && bFISz>0)
+   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);

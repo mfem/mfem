@@ -103,7 +103,7 @@ protected:
    int nf_int, nf_bdr;
    int faceDofs;
    Vector ea_data_int, ea_data_ext, ea_data_bdr;
-   bool simplify;
+   bool factorize_face_terms;
 
 public:
    EABilinearFormExtension(BilinearForm *form);
