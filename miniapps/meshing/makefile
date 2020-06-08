@@ -18,30 +18,46 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
+# Include defaults.mk to get XLINKER
+DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
+include $(DEFAULTS_MK)
+
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid twist \
-	mesh-explorer shaper extruder mesh-optimizer
-PAR_MINIAPPS = pmesh-optimizer
+	mesh-explorer shaper extruder mesh-optimizer \
+	minimal-surface
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
+COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
+
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all lib-common clean clean-build clean-exec
 
 # Remove built-in rule
 %: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 all: $(MINIAPPS)
+
+# Rule for building lib-common
+lib-common:
+	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
@@ -69,6 +85,10 @@ mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+minimal-surface-test-seq: minimal-surface
+	@$(call mfem-test,$<,, Meshing miniapp)
+pminimal-surface-test-par: pminimal-surface
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
@@ -88,6 +108,7 @@ clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder
 	rm -f mesh-optimizer pmesh-optimizer
+	rm -f minimal-surface pminimal-surface
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

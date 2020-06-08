@@ -6,6 +6,7 @@
 //               ex24 -m ../data/square-disc.mesh -o 2
 //               ex24 -m ../data/beam-tet.mesh
 //               ex24 -m ../data/beam-hex.mesh -o 2 -pa
+//               ex24 -m ../data/beam-hex.mesh -o 2 -pa -p 1
 //               ex24 -m ../data/escher.mesh
 //               ex24 -m ../data/escher.mesh -o 2
 //               ex24 -m ../data/fichera.mesh
@@ -23,11 +24,15 @@
 //               ex24 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code illustrates usage of mixed finite element
-//               spaces. Using two different approaches, we project a gradient
-//               of a function in H^1 to H(curl). Other spaces and example
-//               computations are to be added in the future.
+//               spaces, with two variants:
 //
-//               We recommend viewing examples 1 and 3 before viewing this
+//               1) (grad p, u) for p in H^1 tested against u in H(curl)
+//               2) (div v, q) for v in H(div) tested against q in L_2
+//
+//               Using different approaches, we project the gradient or
+//               divergence to the appropriate space.
+//
+//               We recommend viewing examples 1, 3, and 5 before viewing this
 //               example.
 
 #include "mfem.hpp"
@@ -39,6 +44,7 @@ using namespace mfem;
 
 double p_exact(const Vector &x);
 void gradp_exact(const Vector &, Vector &);
+double div_gradp_exact(const Vector &x);
 
 int dim;
 
@@ -47,6 +53,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-hex.mesh";
    int order = 1;
+   int prob = 0;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -57,6 +64,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&prob, "-p", "--problem-type",
+                  "Choose between 0: H(Curl) or 1: H(Div)");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -100,72 +109,107 @@ int main(int argc, char *argv[])
    }
    mesh->ReorientTetMesh();
 
-   // 5. Define a parallel finite element space on the parallel mesh. Here we
-   //    use the Nedelec finite elements of the specified order.
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
-   FiniteElementCollection *H1fec = new H1_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
-   FiniteElementSpace *H1fespace = new FiniteElementSpace(mesh, H1fec);
+   // 5. Define a finite element space on the mesh. Here we use Nedelec or
+   //    Raviart-Thomas finite elements of the specified order.
+   FiniteElementCollection *trial_fec = NULL;
+   FiniteElementCollection *test_fec = NULL;
 
-   int size = fespace->GetTrueVSize();
-   int H1size = H1fespace->GetTrueVSize();
-   cout << "Number of Nedelec finite element unknowns: " << size << endl;
-   cout << "Number of H1 finite element unknowns: " << H1size << endl;
-
-   // 6. Define the solution vector x as a parallel finite element grid function
-   //    corresponding to fespace. Initialize x by projecting the exact
-   //    solution. Note that only values from the boundary edges will be used
-   //    when eliminating the non-homogeneous boundary condition to modify the
-   //    r.h.s. vector b.
-   GridFunction x(fespace);
-   FunctionCoefficient p_coef(p_exact);
-   GridFunction p(H1fespace);
-   p.ProjectCoefficient(p_coef);
-   p.SetTrueVector();
-   p.SetFromTrueVector();
-
-   VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
-
-   // 7. Set up the bilinear forms.
-   Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(1.0);
-   BilinearForm *a = new BilinearForm(fespace);
-   MixedBilinearForm *a_NDH1 = new MixedBilinearForm(H1fespace, fespace);
-   if (pa)
+   if (prob == 0)
    {
-      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a_NDH1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-
-   // First approach: L2 projection
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
-   a_NDH1->AddDomainIntegrator(new MixedVectorGradientIntegrator(*muinv));
-
-   // 8. Assemble the parallel bilinear form and the corresponding linear
-   //    system, applying any necessary transformations such as: parallel
-   //    assembly, eliminating boundary conditions, applying conforming
-   //    constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-
-   a->Assemble();
-   if (!pa) { a->Finalize(); }
-
-   a_NDH1->Assemble();
-   if (!pa) { a_NDH1->Finalize(); }
-
-   if (pa)
-   {
-      a_NDH1->Mult(p, x);
+      trial_fec = new H1_FECollection(order, dim);
+      test_fec = new ND_FECollection(order, dim);
    }
    else
    {
-      SparseMatrix& NDH1 = a_NDH1->SpMat();
-      NDH1.Mult(p, x);
+      trial_fec = new RT_FECollection(order - 1, dim);
+      test_fec = new L2_FECollection(order - 1, dim);
+   }
+
+   FiniteElementSpace trial_fes(mesh, trial_fec);
+   FiniteElementSpace test_fes(mesh, test_fec);
+
+   int trial_size = trial_fes.GetTrueVSize();
+   int test_size = test_fes.GetTrueVSize();
+
+   if (prob == 0)
+   {
+      cout << "Number of Nedelec finite element unknowns: " << test_size << endl;
+      cout << "Number of H1 finite element unknowns: " << trial_size << endl;
+   }
+   else
+   {
+      cout << "Number of Raviart-Thomas finite element unknowns: "
+           << trial_size << endl;
+      cout << "Number of L2 finite element unknowns: " << test_size << endl;
+   }
+
+   // 6. Define the solution vector as a finite element grid function
+   //    corresponding to the trial fespace.
+   GridFunction gftest(&test_fes);
+   GridFunction gftrial(&trial_fes);
+   GridFunction x(&test_fes);
+   FunctionCoefficient p_coef(p_exact);
+   VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
+   FunctionCoefficient divgradp_coef(div_gradp_exact);
+
+   if (prob == 0)
+   {
+      gftrial.ProjectCoefficient(p_coef);
+   }
+   else
+   {
+      gftrial.ProjectCoefficient(gradp_coef);
+   }
+
+   gftrial.SetTrueVector();
+   gftrial.SetFromTrueVector();
+
+   // 7. Set up the bilinear forms for L2 projection.
+   ConstantCoefficient one(1.0);
+   BilinearForm a(&test_fes);
+   MixedBilinearForm a_mixed(&trial_fes, &test_fes);
+   if (pa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a_mixed.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+
+   if (prob == 0)
+   {
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+      a_mixed.AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
+   }
+   else
+   {
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a_mixed.AddDomainIntegrator(new VectorFEDivergenceIntegrator(one));
+   }
+
+   // 8. Assemble the bilinear form and the corresponding linear system,
+   //    applying any necessary transformations such as: eliminating boundary
+   //    conditions, applying conforming constraints for non-conforming AMR,
+   //    static condensation, etc.
+   if (static_cond) { a.EnableStaticCondensation(); }
+
+   a.Assemble();
+   if (!pa) { a.Finalize(); }
+
+   a_mixed.Assemble();
+   if (!pa) { a_mixed.Finalize(); }
+
+   if (pa)
+   {
+      a_mixed.Mult(gftrial, x);
+   }
+   else
+   {
+      SparseMatrix& mixed = a_mixed.SpMat();
+      mixed.Mult(gftrial, x);
    }
 
    // 9. Define and apply a PCG solver for Ax = b with Jacobi preconditioner.
    {
-      GridFunction rhs(fespace);
+      GridFunction rhs(&test_fes);
       rhs = x;
       x = 0.0;
 
@@ -176,15 +220,15 @@ int main(int argc, char *argv[])
       if (pa)
       {
          Array<int> ess_tdof_list; // empty
-         OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
+         OperatorJacobiSmoother Jacobi(a, ess_tdof_list);
 
-         cg.SetOperator(*a);
+         cg.SetOperator(a);
          cg.SetPreconditioner(Jacobi);
          cg.Mult(rhs, x);
       }
       else
       {
-         SparseMatrix& Amat = a->SpMat();
+         SparseMatrix& Amat = a.SpMat();
          DSmoother Jacobi(Amat);
 
          cg.SetOperator(Amat);
@@ -193,33 +237,68 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Second approach: compute the same solution by applying
-   //     GradientInterpolator in H(curl).
-   DiscreteLinearOperator grad(H1fespace, fespace);
-   grad.AddDomainInterpolator(new GradientInterpolator());
-   grad.Assemble();
+   // 10. Compute the same field by applying a DiscreteInterpolator.
+   GridFunction discreteInterpolant(&test_fes);
+   DiscreteLinearOperator dlo(&trial_fes, &test_fes);
+   if (prob == 0)
+   {
+      dlo.AddDomainInterpolator(new GradientInterpolator());
+   }
+   else
+   {
+      dlo.AddDomainInterpolator(new DivergenceInterpolator());
+   }
 
-   GridFunction gradp(fespace);
-   grad.Mult(p, gradp);
+   dlo.Assemble();
+   dlo.Mult(gftrial, discreteInterpolant);
 
-   // 11. Compute the projection of the exact grad p.
-   GridFunction exact_gradp(fespace);
-   exact_gradp.ProjectCoefficient(gradp_coef);
-   exact_gradp.SetTrueVector();
-   exact_gradp.SetFromTrueVector();
+   // 11. Compute the projection of the exact field.
+   GridFunction exact_proj(&test_fes);
+   if (prob == 0)
+   {
+      exact_proj.ProjectCoefficient(gradp_coef);
+   }
+   else
+   {
+      exact_proj.ProjectCoefficient(divgradp_coef);
+   }
 
-   // 12. Compute and print the L^2 norm of the error.
+   exact_proj.SetTrueVector();
+   exact_proj.SetFromTrueVector();
+
+   // 12. Compute and print the L_2 norm of the error.
+   if (prob == 0)
    {
       double errSol = x.ComputeL2Error(gradp_coef);
-      double errInterp = gradp.ComputeL2Error(gradp_coef);
-      double errProj = exact_gradp.ComputeL2Error(gradp_coef);
+      double errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
+      double errProj = exact_proj.ComputeL2Error(gradp_coef);
 
       cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
-           "|| E_h - grad p ||_{L^2} = " << errSol << '\n' << endl;
+           "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
       cout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad p"
-           "||_{L^2} = " << errInterp << '\n' << endl;
+           "||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
-           "||_{L^2} = " << errProj << '\n' << endl;
+           "||_{L_2} = " << errProj << '\n' << endl;
+   }
+   else
+   {
+      int order_quad = max(2, 2*order+1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+
+      double errSol = x.ComputeL2Error(divgradp_coef, irs);
+      double errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
+      double errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
+
+      cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
+           "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
+      cout << " Divergence interpolant f_h = div v_h in L_2: || f_h - div v"
+           "||_{L_2} = " << errInterp << '\n' << endl;
+      cout << " Projection f_h of exact div v in L_2: || f_h - div v "
+           "||_{L_2} = " << errProj << '\n' << endl;
    }
 
    // 13. Save the refined mesh and the solution. This output can be viewed
@@ -242,14 +321,8 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
-   delete a;
-   delete a_NDH1;
-   delete sigma;
-   delete muinv;
-   delete fespace;
-   delete H1fespace;
-   delete fec;
-   delete H1fec;
+   delete trial_fec;
+   delete test_fec;
    delete mesh;
 
    return 0;
@@ -283,4 +356,18 @@ void gradp_exact(const Vector &x, Vector &f)
       f(1) = sin(x(0)) * cos(x(1));
       if (x.Size() == 3) { f(2) = 0.0; }
    }
+}
+
+double div_gradp_exact(const Vector &x)
+{
+   if (dim == 3)
+   {
+      return -3.0 * sin(x(0)) * sin(x(1)) * sin(x(2));
+   }
+   else if (dim == 2)
+   {
+      return -2.0 * sin(x(0)) * sin(x(1));
+   }
+
+   return 0.0;
 }
