@@ -283,7 +283,7 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
-   const int max = MaxNbNbr;
+   constexpr int max = MaxNbNbr;
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
@@ -361,7 +361,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
 void ElementRestriction::FillJAndData(const Vector &ea_data,
                                       SparseMatrix &mat) const
 {
-   const int max = MaxNbNbr;
+   constexpr int max = MaxNbNbr;
    const int all_dofs = ndofs;
    const int vd = vdim;
    // const bool t = byvdim; //TODO use vd
