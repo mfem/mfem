@@ -22,9 +22,12 @@ namespace mfem
 class BilinearForm;
 class MixedBilinearForm;
 
-
-/** @brief Class extending the BilinearForm class to support the different
-    AssemblyLevel%s. */
+/// Class extending the BilinearForm class to support different AssemblyLevels.
+/**  FA - Full Assembly
+     PA - Partial Assembly
+     EA - Element Assembly
+     MF - Matrix Free
+*/
 class BilinearFormExtension : public Operator
 {
 protected:
@@ -42,6 +45,7 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const;
 
+   /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
 
    virtual void AssembleDiagonal(Vector &diag) const
@@ -58,7 +62,8 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for fully-assembled bilinear forms
+/** @brief Data and methods for fully-assembled bilinear forms.
+    Not yet implemented!  Use the BilinearForm Class instead. */
 class FABilinearFormExtension : public BilinearFormExtension
 {
 public:
@@ -127,7 +132,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-/// Data and methods for matrix-free bilinear forms
+/// Data and methods for matrix-free bilinear forms NOT YET IMPLEMENTED.
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 public:
@@ -147,8 +152,12 @@ public:
    ~MFBilinearFormExtension() {}
 };
 
-/** @brief Class extending the MixedBilinearForm class to support the different
-    AssemblyLevel%s. */
+/// Class extending the MixedBilinearForm class to support different AssemblyLevels.
+/**  FA - Full Assembly
+     PA - Partial Assembly
+     EA - Element Assembly
+     MF - Matrix Free
+*/
 class MixedBilinearFormExtension : public Operator
 {
 protected:

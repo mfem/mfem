@@ -199,6 +199,8 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
+/** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
+    matrices. See for example ex9, ex9p. */
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -2001,6 +2003,7 @@ public:
    void SetupPA(const FiniteElementSpace &fes, const bool force = false);
 };
 
+/** Mass integrator (u, v) restricted to the boundary of a domain */
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
