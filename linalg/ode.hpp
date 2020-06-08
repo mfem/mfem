@@ -959,10 +959,32 @@ class ConstantFactor : public ODEStepAdjustmentFactor
 private:
    double factor;
 
-public:
+protected:
    ConstantFactor(double _factor = 1.0) : factor(_factor) {}
 
+public:
    double operator()(double) const { return factor; }
+};
+
+class ConstantAcceptFactor : public ConstantFactor
+{
+public:
+   ConstantAcceptFactor(double _factor = 1.0) : ConstantFactor(_factor)
+   {
+      MFEM_VERIFY(_factor > 0.0,
+                  "Adjustment factor for accepted steps must be positive"
+                  " (and should usually be >= 1.0).");
+   }
+};
+
+class ConstantRejectFactor : public ConstantFactor
+{
+public:
+   ConstantRejectFactor(double _factor = 0.9) : ConstantFactor(_factor)
+   {
+      MFEM_VERIFY(_factor < 1.0 && _factor > 0.0,
+                  "Rejected steps must decrease the time step.");
+   }
 };
 
 class StdAdjFactor : public ODEStepAdjustmentFactor

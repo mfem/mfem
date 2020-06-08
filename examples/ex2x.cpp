@@ -71,11 +71,13 @@ int main(int argc, char *argv[])
    double kI_acc = 1.0 / 15.0;
    double kP_acc = 0.13;
    double kD_acc = 0.2;
+   double c_acc = 1.05;
 
    double gamma_rej = 0.9;
    double kI_rej = 0.2;
    double kP_rej = 0.0;
    double kD_rej = 0.2;
+   double c_rej = 0.95;
 
    double lim_lo  = 1.0;
    double lim_hi  = 1.2;
@@ -88,7 +90,8 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&prob, "-p", "--problem-type",
-                  "Problem Type From Gustafsson 1988:  1 - 7");
+                  "Problem Type From Gustafsson 1988:  1 - 8 "
+		  "(options 7 and 8 refer to problems 7a and 7b)");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Heun-Euler, 2 - RKF12, "
                   "3 - BogackiShampine, 4 - RKF45, 5 - Cash-Karp, "
@@ -99,14 +102,14 @@ int main(int argc, char *argv[])
                   "\t   2 - Absolute/Relative Error with 2-Norm\n");
    args.AddOption(&ode_acc_type, "-acc", "-accept-factor",
                   "Adjustment factor after accepted steps:\n"
-                  "\t   0 - No adjustment\n"
+                  "\t   0 - Constant adjustment factor (default 1.05)\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
                   "\t   4 - Proportional, Integrated, and Derivative errors\n");
    args.AddOption(&ode_rej_type, "-rej", "-reject-factor",
                   "Adjustment factor after rejected steps:\n"
-                  "\t   0 - No adjustment\n"
+                  "\t   0 - Constant adjustment factor (default 0.95)\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
@@ -121,12 +124,18 @@ int main(int argc, char *argv[])
                   "Integral gain for accepted steps.");
    args.AddOption(&kD_acc, "-kDa", "--k-D-acc",
                   "Derivative gain for accepted steps.");
+   args.AddOption(&c_acc, "-cfa", "--const-factor-acc",
+                  "Constant adjustment factor, must be > 1 "
+                  "(only used with -acc 0).");
    args.AddOption(&kP_rej, "-kPr", "--k-P-rej",
                   "Proportional gain for rejected steps.");
    args.AddOption(&kI_rej, "-kIr", "--k-I-rej",
                   "Integral gain for rejected steps.");
    args.AddOption(&kD_rej, "-kDr", "--k-D-rej",
                   "Derivative gain for rejected steps.");
+   args.AddOption(&c_rej, "-cfr", "--const-factor-rej",
+                  "Constant adjustment factor, must be < 1 "
+                  "(only used with -rej 0).");
    args.AddOption(&lim_lo, "-lo", "--lower-limit",
                   "Lower limit of dead zone.");
    args.AddOption(&lim_hi, "-hi", "--upper-limit",
@@ -201,7 +210,7 @@ int main(int argc, char *argv[])
    switch (ode_acc_type)
    {
       case 0:
-         ode_step_acc = new ConstantFactor;
+         ode_step_acc = new ConstantAcceptFactor(c_acc);
          break;
       case 1:
          ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
@@ -222,7 +231,7 @@ int main(int argc, char *argv[])
    switch (ode_rej_type)
    {
       case 0:
-         ode_step_rej = new ConstantFactor;
+         ode_step_rej = new ConstantRejectFactor(c_rej);
          break;
       case 1:
          ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
