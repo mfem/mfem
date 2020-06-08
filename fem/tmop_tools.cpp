@@ -451,7 +451,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          {
             if (print_level >= 0)
             { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
-            scale *= 0.25; continue;
+            scale *= 0.5; continue;
          }
       } // endif(!untangling)
 
