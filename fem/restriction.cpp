@@ -211,7 +211,7 @@ void ElementRestriction::BooleanMask(Vector& y) const
    }
 }
 
-void ElementRestriction::FillSpMat(const Vector &mat_ea,
+void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
                                    SparseMatrix &mat) const
 {
    mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
@@ -250,6 +250,14 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
       }
    }
    return min;
+}
+
+/** Returns the index where a non-zero entry should be added and increment the
+    number of non-zeros for the row i_L. */
+static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
+{
+   int ind = mfemAtomicAdd(I[i_L],1);
+   return ind;
 }
 
 int ElementRestriction::FillI(SparseMatrix &mat) const
@@ -292,7 +300,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             const int j_nbElts = j_nextOffset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
             {
-               mfemAtomicAdd(I[i_L],1);
+               GetAndIncrementNnzIndex(i_L, I);
             }
             else // assembly required
             {
@@ -306,7 +314,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
                {
-                  mfemAtomicAdd(I[i_L],1);
+                  GetAndIncrementNnzIndex(i_L, I);
                }
             }
          }
@@ -325,13 +333,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    h_I[nTdofs] = sum;
    // We return the number of nnz
    return h_I[nTdofs];
-}
-
-/// Returns the index where a non-zero entry should be added.
-static MFEM_HOST_DEVICE int GetNnzIndex(const int i_L, int* I)
-{
-   int ind = mfemAtomicAdd(I[i_L],1);
-   return ind;
 }
 
 void ElementRestriction::FillJAndData(const Vector &ea_data,
@@ -378,7 +379,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             const int j_nbElts = j_nextOffset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
             {
-               const int nnz = GetNnzIndex(i_L, I);
+               const int nnz = GetAndIncrementNnzIndex(i_L, I);
                J[nnz] = j_L;
                Data[nnz] = mat_ea(j,i,e);
             }
@@ -411,7 +412,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                         }
                      }
                   }
-                  const int nnz = GetNnzIndex(i_L, I);
+                  const int nnz = GetAndIncrementNnzIndex(i_L, I);
                   J[nnz] = j_L;
                   Data[nnz] = val;
                }
@@ -1323,7 +1324,7 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-void L2FaceRestriction::FactorizeBlocks(Vector &fea_data, const int elemDofs,
+void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data, const int elemDofs,
                                         const int ne, Vector &ea_data) const
 {
    const int face_dofs = dof;
