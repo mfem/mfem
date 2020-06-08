@@ -314,8 +314,9 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data);
    }
 
-   faceDofs = trialFes->GetTraceElement(0,
-                                        trialFes->GetMesh()->GetFaceBaseGeometry(0))->GetDof();
+   faceDofs = trialFes ->
+              GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0)) ->
+              GetDof();
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
@@ -402,7 +403,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      //Apply the Interior Face Restriction
+      // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, faceIntX);
       if (faceIntX.Size()>0)
       {
@@ -460,7 +461,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (!simplify && bdr_face_restrict_lex && bFISz>0)
    {
-      //Apply the Boundary Face Restriction
+      // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);
       if (faceBdrX.Size()>0)
       {
@@ -528,7 +529,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      //Apply the Interior Face Restriction
+      // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, faceIntX);
       if (faceIntX.Size()>0)
       {
@@ -586,7 +587,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (!simplify && bdr_face_restrict_lex && bFISz>0)
    {
-      //Apply the Boundary Face Restriction
+      // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, faceBdrX);
       if (faceBdrX.Size()>0)
       {
@@ -880,6 +881,70 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
       tempY.SetSize(y.Size());
       elem_restrict_trial->MultTranspose(localTrial, tempY);
       y += tempY;
+   }
+}
+
+void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
+                                                         Vector &diag) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+
+   const int iSz = integrators.Size();
+
+   if (elem_restrict_trial)
+   {
+      const ElementRestriction* H1elem_restrict_trial =
+         dynamic_cast<const ElementRestriction*>(elem_restrict_trial);
+      if (H1elem_restrict_trial)
+      {
+         H1elem_restrict_trial->MultUnsigned(D, localTrial);
+      }
+      else
+      {
+         elem_restrict_trial->Mult(D, localTrial);
+      }
+   }
+
+   if (elem_restrict_test)
+   {
+      localTest = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         if (elem_restrict_trial)
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(localTrial, localTest);
+         }
+         else
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(D, localTest);
+         }
+      }
+      const ElementRestriction* H1elem_restrict_test =
+         dynamic_cast<const ElementRestriction*>(elem_restrict_test);
+      if (H1elem_restrict_test)
+      {
+         H1elem_restrict_test->MultTransposeUnsigned(localTest, diag);
+      }
+      else
+      {
+         elem_restrict_test->MultTranspose(localTest, diag);
+      }
+   }
+   else
+   {
+      diag.UseDevice(true); // typically this is a large vector, so store on device
+      diag = 0.0;
+      for (int i = 0; i < iSz; ++i)
+      {
+         if (elem_restrict_trial)
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(localTrial, diag);
+         }
+         else
+         {
+            integrators[i]->AssembleDiagonalPA_ADAt(D, diag);
+         }
+      }
    }
 }
 

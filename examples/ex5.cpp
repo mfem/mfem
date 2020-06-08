@@ -4,8 +4,10 @@
 //
 // Sample runs:  ex5 -m ../data/square-disc.mesh
 //               ex5 -m ../data/star.mesh
+//               ex5 -m ../data/star.mesh -pa
 //               ex5 -m ../data/beam-tet.mesh
 //               ex5 -m ../data/beam-hex.mesh
+//               ex5 -m ../data/beam-hex.mesh -pa
 //               ex5 -m ../data/escher.mesh
 //               ex5 -m ../data/fichera.mesh
 //
@@ -47,6 +49,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   bool pa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -54,6 +57,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -146,22 +151,39 @@ int main(int argc, char *argv[])
    BilinearForm *mVarf(new BilinearForm(R_space));
    MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
 
+   if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
    mVarf->Assemble();
-   mVarf->Finalize();
-   SparseMatrix &M(mVarf->SpMat());
+   if (!pa) { mVarf->Finalize(); }
 
+   if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    bVarf->Assemble();
-   bVarf->Finalize();
-   SparseMatrix & B(bVarf->SpMat());
-   B *= -1.;
-   SparseMatrix *BT = Transpose(B);
+   if (!pa) { bVarf->Finalize(); }
 
-   BlockMatrix darcyMatrix(block_offsets);
-   darcyMatrix.SetBlock(0,0, &M);
-   darcyMatrix.SetBlock(0,1, BT);
-   darcyMatrix.SetBlock(1,0, &B);
+   BlockOperator darcyOp(block_offsets);
+
+   TransposeOperator *Bt = NULL;
+
+   if (pa)
+   {
+      Bt = new TransposeOperator(bVarf);
+
+      darcyOp.SetBlock(0,0, mVarf);
+      darcyOp.SetBlock(0,1, Bt, -1.0);
+      darcyOp.SetBlock(1,0, bVarf, -1.0);
+   }
+   else
+   {
+      SparseMatrix &M(mVarf->SpMat());
+      SparseMatrix &B(bVarf->SpMat());
+      B *= -1.;
+      Bt = new TransposeOperator(&B);
+
+      darcyOp.SetBlock(0,0, &M);
+      darcyOp.SetBlock(0,1, Bt);
+      darcyOp.SetBlock(1,0, &B);
+   }
 
    // 9. Construct the operators for preconditioner
    //
@@ -170,27 +192,57 @@ int main(int argc, char *argv[])
    //
    //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
    //     pressure Schur Complement
-   SparseMatrix *MinvBt = Transpose(B);
-   Vector Md(M.Height());
-   M.GetDiag(Md);
-   for (int i = 0; i < Md.Size(); i++)
-   {
-      MinvBt->ScaleRow(i, 1./Md(i));
-   }
-   SparseMatrix *S = Mult(B, *MinvBt);
+   SparseMatrix *MinvBt = NULL;
+   Vector Md(mVarf->Height());
 
+   BlockDiagonalPreconditioner darcyPrec(block_offsets);
    Solver *invM, *invS;
-   invM = new DSmoother(M);
+   SparseMatrix *S = NULL;
+
+   if (pa)
+   {
+      mVarf->AssembleDiagonal(Md);
+      Vector invMd(mVarf->Height());
+      for (int i=0; i<mVarf->Height(); ++i)
+      {
+         invMd(i) = 1.0 / Md(i);
+      }
+
+      Vector BMBt_diag(bVarf->Height());
+      bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+      Array<int> ess_tdof_list;  // empty
+
+      invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
+      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+   }
+   else
+   {
+      SparseMatrix &M(mVarf->SpMat());
+      M.GetDiag(Md);
+
+      SparseMatrix &B(bVarf->SpMat());
+      MinvBt = Transpose(B);
+
+      for (int i = 0; i < Md.Size(); i++)
+      {
+         MinvBt->ScaleRow(i, 1./Md(i));
+      }
+
+      S = Mult(B, *MinvBt);
+
+      invM = new DSmoother(M);
+
 #ifndef MFEM_USE_SUITESPARSE
-   invS = new GSSmoother(*S);
+      invS = new GSSmoother(*S);
 #else
-   invS = new UMFPackSolver(*S);
+      invS = new UMFPackSolver(*S);
 #endif
+   }
 
    invM->iterative_mode = false;
    invS->iterative_mode = false;
 
-   BlockDiagonalPreconditioner darcyPrec(block_offsets);
    darcyPrec.SetDiagonalBlock(0, invM);
    darcyPrec.SetDiagonalBlock(1, invS);
 
@@ -206,7 +258,7 @@ int main(int argc, char *argv[])
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxIter);
-   solver.SetOperator(darcyMatrix);
+   solver.SetOperator(darcyOp);
    solver.SetPreconditioner(darcyPrec);
    solver.SetPrintLevel(1);
    x = 0.0;
@@ -295,8 +347,8 @@ int main(int argc, char *argv[])
    delete invM;
    delete invS;
    delete S;
+   delete Bt;
    delete MinvBt;
-   delete BT;
    delete mVarf;
    delete bVarf;
    delete W_space;

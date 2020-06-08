@@ -22,7 +22,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
    ea_data_tmp = 0.0;
    bfi->AssembleEA(fes, ea_data_tmp);
    const int ne = fes.GetNE();
-   if (ne==0) { return; }
+   if (ne == 0) { return; }
    const int dofs = fes.GetFE(0)->GetDof();
    auto A = Reshape(ea_data_tmp.Write(), dofs, dofs, ne);
    auto AT = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
@@ -44,7 +44,7 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
                                                   Vector &ea_data_ext)
 {
    const int nf = fes.GetNFbyType(FaceType::Interior);
-   if (nf==0) { return; }
+   if (nf == 0) { return; }
    Vector ea_data_int_tmp(ea_data_int.Size());
    Vector ea_data_ext_tmp(ea_data_ext.Size());
    ea_data_int_tmp = 0.0;
@@ -79,7 +79,7 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
                                                   Vector &ea_data_bdr)
 {
    const int nf = fes.GetNFbyType(FaceType::Boundary);
-   if (nf==0) { return; }
+   if (nf == 0) { return; }
    Vector ea_data_bdr_tmp(ea_data_bdr.Size());
    ea_data_bdr_tmp = 0.0;
    bfi->AssembleEABoundaryFaces(fes, ea_data_bdr_tmp);

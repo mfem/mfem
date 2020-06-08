@@ -22,9 +22,12 @@ namespace mfem
 class BilinearForm;
 class MixedBilinearForm;
 
-
-/** @brief Class extending the BilinearForm class to support the different
-    AssemblyLevel%s. */
+/// Class extending the BilinearForm class to support different AssemblyLevels.
+/**  FA - Full Assembly
+     PA - Partial Assembly
+     EA - Element Assembly
+     MF - Matrix Free
+*/
 class BilinearFormExtension : public Operator
 {
 protected:
@@ -42,6 +45,7 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const;
 
+   /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
 
    virtual void AssembleDiagonal(Vector &diag) const
@@ -123,7 +127,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 };
 
-/// Data and methods for matrix-free bilinear forms
+/// Data and methods for matrix-free bilinear forms NOT YET IMPLEMENTED.
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 public:
@@ -143,8 +147,12 @@ public:
    ~MFBilinearFormExtension() {}
 };
 
-/** @brief Class extending the MixedBilinearForm class to support the different
-    AssemblyLevel%s. */
+/// Class extending the MixedBilinearForm class to support different AssemblyLevels.
+/**  FA - Full Assembly
+     PA - Partial Assembly
+     EA - Element Assembly
+     MF - Matrix Free
+*/
 class MixedBilinearFormExtension : public Operator
 {
 protected:
@@ -180,6 +188,8 @@ public:
    virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double c=1.0) const = 0;
+
+   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
 
    virtual void Update() = 0;
 };
@@ -231,6 +241,9 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /// y += c*A^T*x
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   /// Assemble the diagonal of ADA^T for a diagonal vector D.
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+
    /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
 };

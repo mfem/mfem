@@ -528,7 +528,7 @@ TEST_CASE("3D Bilinear Mass Integrators",
 
          SECTION("Mapping H1 to L2")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
+            L2_FECollection    fec_l2(order, dim);
             FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             BilinearForm m_l2(&fespace_l2);
@@ -741,6 +741,7 @@ TEST_CASE("3D Bilinear Mass Integrators",
 }
 
 TEST_CASE("3D Bilinear Vector Mass Integrators",
+          "[VectorFEMassIntegrator]"
           "[MixedVectorMassIntegrator]"
           "[MixedVectorIntegrator]"
           "[BilinearFormIntegrator]"
@@ -790,7 +791,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_rt(fespace_rt.GetNDofs());
 
-               SECTION("Without Coefficient")
+               SECTION("Without Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_rt);
                   blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
@@ -826,6 +827,31 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete diffv;
                }
+               SECTION("Without Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rt.ComputeL2Error(F3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
             }
             {
                // Tests requiring a higher order RT space
@@ -843,7 +869,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_rt(fespace_rt.GetNDofs());
 
-               SECTION("With Scalar Coefficient")
+               SECTION("With Scalar Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_rt);
                   blf.AddDomainIntegrator(
@@ -870,7 +896,32 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Diagonal Matrix Coefficient")
+               SECTION("With Scalar Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rt.ComputeL2Error(qF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Diagonal Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_rt);
                   blf.AddDomainIntegrator(
@@ -897,7 +948,34 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Matrix Coefficient")
+               SECTION("With Diagonal Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+                  blf.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rt.ComputeL2Error(DF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_rt);
                   blf.AddDomainIntegrator(
@@ -913,6 +991,32 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
                   blfw.AddDomainIntegrator(
                      new MixedVectorMassIntegrator(MT3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_rt);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(M3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_rt); g_rt = 0.0;
+                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rt.ComputeL2Error(MF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rt, &fespace_nd);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(MT3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -943,7 +1047,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_nd(fespace_nd.GetNDofs());
 
-               SECTION("Without Coefficient")
+               SECTION("Without Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_nd);
                   blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
@@ -979,6 +1083,31 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete diffv;
                }
+               SECTION("Without Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_nd);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_nd); g_nd = 0.0;
+                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_nd.ComputeL2Error(F3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_nd, &fespace_nd);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
             }
             {
                // Tests requiring a higher order ND space
@@ -996,7 +1125,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_ndp(fespace_ndp.GetNDofs());
 
-               SECTION("With Scalar Coefficient")
+               SECTION("With Scalar Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
                   blf.AddDomainIntegrator(
@@ -1024,7 +1153,33 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Diagonal Matrix Coefficient")
+               SECTION("With Scalar Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
+                      cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_ndp.ComputeL2Error(qF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Diagonal Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
                   blf.AddDomainIntegrator(
@@ -1052,7 +1207,35 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Matrix Coefficient")
+               SECTION("With Diagonal Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
+                  blf.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
+                      cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_ndp.ComputeL2Error(DF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
                   blf.AddDomainIntegrator(
@@ -1069,6 +1252,33 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
                   blfw.AddDomainIntegrator(
                      new MixedVectorMassIntegrator(MT3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_nd, &fespace_ndp);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(M3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_nd,tmp_ndp); g_ndp = 0.0;
+                  PCG(m_ndp, s_ndp, tmp_ndp, g_ndp, 0, 200,
+                      cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_ndp.ComputeL2Error(MF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_ndp, &fespace_nd);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(MT3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -1109,7 +1319,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_nd(fespace_nd.GetNDofs());
 
-               SECTION("Without Coefficient")
+               SECTION("Without Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_nd);
                   blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
@@ -1145,6 +1355,31 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete diffv;
                }
+               SECTION("Without Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_nd.ComputeL2Error(F3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
             }
             {
                // Tests requiring a higher order ND space
@@ -1162,7 +1397,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_nd(fespace_nd.GetNDofs());
 
-               SECTION("With Scalar Coefficient")
+               SECTION("With Scalar Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_nd);
                   blf.AddDomainIntegrator(
@@ -1189,7 +1424,32 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Diagonal Matrix Coefficient")
+               SECTION("With Scalar Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_nd.ComputeL2Error(qF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Diagonal Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_nd);
                   blf.AddDomainIntegrator(
@@ -1216,7 +1476,34 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Matrix Coefficient")
+               SECTION("With Diagonal Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+                  blf.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_nd.ComputeL2Error(DF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_nd);
                   blf.AddDomainIntegrator(
@@ -1232,6 +1519,32 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
                   blfw.AddDomainIntegrator(
                      new MixedVectorMassIntegrator(MT3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(M3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_nd); g_nd = 0.0;
+                  PCG(m_nd, s_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_nd.ComputeL2Error(MF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(MT3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -1262,7 +1575,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_rt(fespace_rt.GetNDofs());
 
-               SECTION("Without Coefficient")
+               SECTION("Without Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_rt);
                   blf.AddDomainIntegrator(new MixedVectorMassIntegrator());
@@ -1298,6 +1611,31 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                   delete diffv;
                }
+               SECTION("Without Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_rt);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_rt); g_rt = 0.0;
+                  PCG(m_rt, s_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rt.ComputeL2Error(F3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rt, &fespace_rt);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator());
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
             }
             {
                // Tests requiring a higher order RT space
@@ -1315,7 +1653,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
 
                Vector tmp_rtp(fespace_rtp.GetNDofs());
 
-               SECTION("With Scalar Coefficient")
+               SECTION("With Scalar Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
                   blf.AddDomainIntegrator(
@@ -1343,7 +1681,33 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Diagonal Matrix Coefficient")
+               SECTION("With Scalar Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
+                      cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rtp.ComputeL2Error(qF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
+                  blfw.AddDomainIntegrator(new VectorFEMassIntegrator(q3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Diagonal Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
                   blf.AddDomainIntegrator(
@@ -1371,7 +1735,35 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   delete blfT;
                   delete diff;
                }
-               SECTION("With Matrix Coefficient")
+               SECTION("With Diagonal Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
+                  blf.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
+                      cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rtp.ComputeL2Error(DF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(D3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (MixedVector)")
                {
                   MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
                   blf.AddDomainIntegrator(
@@ -1388,6 +1780,33 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
                   MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
                   blfw.AddDomainIntegrator(
                      new MixedVectorMassIntegrator(MT3_coef));
+                  blfw.Assemble();
+                  blfw.Finalize();
+
+                  SparseMatrix * blfT = Transpose(blfw.SpMat());
+                  SparseMatrix * diff = Add(1.0,blf.SpMat(),-1.0,*blfT);
+
+                  REQUIRE( diff->MaxNorm() < tol );
+
+                  delete blfT;
+                  delete diff;
+               }
+               SECTION("With Matrix Coefficient (VectorFE)")
+               {
+                  MixedBilinearForm blf(&fespace_rt, &fespace_rtp);
+                  blf.AddDomainIntegrator(new VectorFEMassIntegrator(M3_coef));
+                  blf.Assemble();
+                  blf.Finalize();
+
+                  blf.Mult(f_rt,tmp_rtp); g_rtp = 0.0;
+                  PCG(m_rtp, s_rtp, tmp_rtp, g_rtp, 0, 200,
+                      cg_rtol * cg_rtol, 0.0);
+
+                  REQUIRE( g_rtp.ComputeL2Error(MF3_coef) < tol );
+
+                  MixedBilinearForm blfw(&fespace_rtp, &fespace_rt);
+                  blfw.AddDomainIntegrator(
+                     new VectorFEMassIntegrator(MT3_coef));
                   blfw.Assemble();
                   blfw.Finalize();
 
@@ -2588,7 +3007,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
          }
          SECTION("Mapping ND to L2")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
+            L2_FECollection    fec_l2(order, dim);
             FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             BilinearForm m_l2(&fespace_l2);
@@ -2652,7 +3071,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
          }
          SECTION("Mapping RT to L2")
          {
-            L2_FECollection    fec_l2(order - 1, dim);
+            L2_FECollection    fec_l2(order, dim);
             FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
             BilinearForm m_l2(&fespace_l2);
