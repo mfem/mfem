@@ -99,19 +99,7 @@ PANonlinearFormExtension::GetGradient(const Vector &x) const
    const Array<int> &esstdofs = nlf->GetEssentialTrueDofs();
    Operator *oper =
       new PAGradOperator(x, serial, nlf, fes, esstdofs, elem_restrict_lex);
-
-   if (!serial)
-   {
-      dbg("RAP");
-      Operator *rap;
-      oper->FormSystemOperator(esstdofs, rap);
-      GradOp.Reset(rap);
-   }
-   else
-   {
-      dbg("Serial");
-      GradOp.Reset(oper);
-   }
+   GradOp.Reset(oper);
    GradOp.SetOperatorOwner(false);
    MFEM_VERIFY(GradOp.Ptr(), "GetGradientPA error!");
    return *GradOp.Ptr();
@@ -125,7 +113,7 @@ PAGradOperator::PAGradOperator(const Vector &g,
                                const FiniteElementSpace &fes,
                                const Array<int> &ess_tdof_list,
                                const Operator *elem_restrict_lex):
-   Operator(fes.GetTrueVSize()),
+   Operator(fes.GetVSize()),
    serial(serial),
    nlf(nlf),
    fes(fes),
@@ -157,15 +145,13 @@ PAGradOperator::PAGradOperator(const Vector &g,
 
 void PAGradOperator::Mult(const Vector &x, Vector &y) const
 {
-   dbg("x:%.15e",x*x);
-   //ze.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
    ze = x;
    MFEM_VERIFY(y.Size() == x.Size(),"");
 
    const int csz = ess_tdof_list.Size();
    auto idx = ess_tdof_list.Read();
 
-   //if (serial)
+   if (serial)
    {
       auto d_z = ze.ReadWrite();
       MFEM_FORALL(i, csz, d_z[idx[i]] = 0.0;);
@@ -182,7 +168,7 @@ void PAGradOperator::Mult(const Vector &x, Vector &y) const
    }
    elem_restrict_lex->MultTranspose(ye, y);
 
-   //if (serial)
+   if (serial)
    {
       auto d_r = x.Read();
       auto d_c = y.ReadWrite();
