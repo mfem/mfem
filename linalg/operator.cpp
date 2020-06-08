@@ -12,6 +12,8 @@
 #include "vector.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
+#define MFEM_DBG_COLOR 49
+#include "../general/dbg.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -104,6 +106,7 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
 
 Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
 {
+   dbg("");
    Operator *rap;
    if (!IsIdentityProlongation(Pi))
    {
@@ -134,6 +137,7 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
 void Operator::FormConstrainedSystemOperator(
    const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
 {
+   dbg("");
    const Operator *P = this->GetProlongation();
    Operator *rap = SetupRAP(P, P);
 
@@ -164,6 +168,7 @@ void Operator::FormRectangularConstrainedSystemOperator(
 void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
                                   Operator* &Aout)
 {
+   dbg("");
    ConstrainedOperator *A;
    FormConstrainedSystemOperator(ess_tdof_list, A);
    Aout = A;
@@ -180,6 +185,7 @@ void Operator::FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
 
 void Operator::FormDiscreteOperator(Operator* &Aout)
 {
+   dbg("");
    const Operator *Pin  = this->GetProlongation();
    const Operator *Rout = this->GetOutputRestriction();
    Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
@@ -406,6 +412,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
+   dbg("");
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
@@ -418,6 +425,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   dbg("");
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -445,6 +453,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
+   dbg("");
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
