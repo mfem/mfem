@@ -1175,8 +1175,8 @@ public:
 
 /** @brief Matrix coefficient defined as -a k x k x, for a vector k and scalar a
 
-    This coefficient returns a * (|k|^2 I - k \otimes k), where I is
-    the identity matrix and \otimes indicates the outer product.  This
+    This coefficient returns \f$a * (|k|^2 I - k \otimes k)\f$, where I is
+    the identity matrix and \f$\otimes\f$ indicates the outer product.  This
     can be evaluated for vectors of any dimension but in three
     dimensions it corresponds to computing the cross product with k twice.
 */
