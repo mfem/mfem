@@ -49,7 +49,7 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
+   return GridF -> GetValue (T, ip, Component);
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
@@ -160,13 +160,13 @@ void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 VectorGridFunctionCoefficient::VectorGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
 {
    GridFunc = gf;
 }
 
-void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void VectorGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
 }
@@ -174,7 +174,7 @@ void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   GridFunc->GetVectorValue(T, ip, V);
 }
 
 void VectorGridFunctionCoefficient::Eval(
@@ -184,14 +184,14 @@ void VectorGridFunctionCoefficient::Eval(
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient((gf) ?
                        gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
 {
    GridFunc = gf;
 }
 
-void GradientGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void GradientGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ?
                          gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
@@ -210,14 +210,14 @@ void GradientGridFunctionCoefficient::Eval(
 }
 
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
-   GridFunction *gf)
+   const GridFunction *gf)
    : VectorCoefficient ((gf) ?
                         gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0)
 {
    GridFunc = gf;
 }
 
-void CurlGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
    GridFunc = gf; vdim = (gf) ?
                          gf -> FESpace() -> GetMesh() -> SpaceDimension() : 0;
@@ -230,7 +230,7 @@ void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
-   GridFunction *gf) : Coefficient()
+   const GridFunction *gf) : Coefficient()
 {
    GridFunc = gf;
 }
@@ -757,5 +757,62 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
    return glob_norm;
 }
 #endif
+
+VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
+   QuadratureFunction &qf)
+   : VectorCoefficient(qf.GetVDim()), QuadF(qf), index(0) { }
+
+void VectorQuadratureFunctionCoefficient::SetComponent(int _index, int _length)
+{
+   MFEM_VERIFY(_index >= 0, "Index must be >= 0");
+   MFEM_VERIFY(_index < QuadF.GetVDim(),
+               "Index must be < QuadratureFunction length");
+   index = _index;
+
+   MFEM_VERIFY(_length > 0, "Length must be > 0");
+   MFEM_VERIFY(_length <= QuadF.GetVDim() - index,
+               "Length must be <= (QuadratureFunction length - index)");
+
+   vdim = _length;
+}
+
+void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
+                                               ElementTransformation &T,
+                                               const IntegrationPoint &ip)
+{
+   QuadF.HostRead();
+
+   if (index == 0 && vdim == QuadF.GetVDim())
+   {
+      QuadF.GetElementValues(T.ElementNo, ip.index, V);
+   }
+   else
+   {
+      Vector temp;
+      QuadF.GetElementValues(T.ElementNo, ip.index, temp);
+      V.SetSize(vdim);
+      for (int i = 0; i < vdim; i++)
+      {
+         V(i) = temp(index + i);
+      }
+   }
+
+   return;
+}
+
+QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
+   QuadratureFunction &qf) : QuadF(qf)
+{
+   MFEM_VERIFY(qf.GetVDim() == 1, "QuadratureFunction's vdim must be 1");
+}
+
+double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
+                                           const IntegrationPoint &ip)
+{
+   QuadF.HostRead();
+   Vector temp(1);
+   QuadF.GetElementValues(T.ElementNo, ip.index, temp);
+   return temp[0];
+}
 
 }
