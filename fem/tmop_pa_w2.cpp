@@ -103,8 +103,8 @@ static double EnergyPA_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double xx = Xx[dy][dx];
@@ -126,8 +126,8 @@ static double EnergyPA_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dy = 0; dy < D1D; ++dy)
             {
                u[0] += XxG[dy][qx] * B1d[qy][dy];
@@ -249,7 +249,7 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
 
       default:
       {
-         constexpr int T_MAX = 4;
+         constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
          return EnergyPA_2D<0,0,0,T_MAX>(N,J,W,B,G,X,E,O,D1D,Q1D);
       }

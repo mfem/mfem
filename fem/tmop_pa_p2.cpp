@@ -75,8 +75,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
       MFEM_SHARED double sBG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
       double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
@@ -122,8 +122,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double cx = Xx[dy][dx];
@@ -144,8 +144,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dy = 0; dy < D1D; ++dy)
             {
                u[0] += DQxG[dy][qx] * B[qy][dy];
@@ -220,8 +220,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int qx = 0; qx < Q1D; ++qx)
             {
                u[0] += Gt[dx][qx] * QQx0[qy][qx];
@@ -242,8 +242,8 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int qy = 0; qy < Q1D; ++qy)
             {
                u[0] += DQxB[dx][qy] * Bt[dy][qy];
@@ -280,17 +280,6 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Geometry::Type geom_type = fe->GetGeomType();
    Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
 
-   /*
-      Array<int> vdofs;
-      DenseTensor Jtr(dim, dim, ir->GetNPoints());
-      for (int i = 0; i < fes->GetNE(); i++)
-      {
-         const FiniteElement *el = fes->GetFE(i);
-         fes->GetElementVDofs(i, vdofs);
-         T = fes->GetElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
-         targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
-     }*/
    const auto Jtr = Reshape(Wideal.Read(), dim, dim);
    auto J = Reshape(PA.P.Write(), Q1D, Q1D, dim, dim, N);
    MFEM_FORALL_2D(e, N, Q1D, Q1D, 1,
@@ -339,7 +328,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
 
       default:
       {
-         constexpr int T_MAX = 4;
+         constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
          return AddMultPA_Kernel_2D<0,0,0,T_MAX>(N,W,B,G,P,X,Y,D1D,Q1D);
       }

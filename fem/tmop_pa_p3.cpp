@@ -173,8 +173,8 @@ static void AddMultPA_Kernel_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] {};
-               double v[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
                for (int dx = 0; dx < D1D; ++dx)
                {
                   const double xx = Xx[dz][dy][dx];
@@ -207,9 +207,9 @@ static void AddMultPA_Kernel_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] {};
-               double v[3] {};
-               double w[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
+               double w[3] = {0.0, 0.0, 0.0};
                for (int dy = 0; dy < D1D; ++dy)
                {
                   const double By = B[qy][dy];
@@ -248,9 +248,9 @@ static void AddMultPA_Kernel_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] {};
-               double v[3] {};
-               double w[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
+               double w[3] = {0.0, 0.0, 0.0};
                for (int dz = 0; dz < D1D; ++dz)
                {
                   const double Bz = B[qz][dz];
@@ -375,9 +375,9 @@ static void AddMultPA_Kernel_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double u[3] {};
-               double v[3] {};
-               double w[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
+               double w[3] = {0.0, 0.0, 0.0};
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const double Btx = Bt[dx][qx];
@@ -416,9 +416,9 @@ static void AddMultPA_Kernel_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double u[3] {};
-               double v[3] {};
-               double w[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
+               double w[3] = {0.0, 0.0, 0.0};
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const double Bty = Bt[dy][qy];
@@ -458,9 +458,9 @@ static void AddMultPA_Kernel_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               double u[3] {};
-               double v[3] {};
-               double w[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
+               double w[3] = {0.0, 0.0, 0.0};
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   const double Btz = Bt[dz][qz];

@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
 static void AddMultGradPA_Kernel_2D(const int NE,
                                     const Array<double> &b1d_,
                                     const Array<double> &g1d_,
@@ -49,8 +49,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B1d)[MD1]  = (double (*)[MD1])(s_BG+0);
@@ -114,8 +114,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double rx = Xx[dy][dx];
@@ -136,8 +136,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dy = 0; dy < D1D; ++dy)
             {
                u[0] += RxG[dy][qx] * B1d[qy][dy];
@@ -214,8 +214,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int qx = 0; qx < Q1D; ++qx)
             {
                u[0] += G1dt[dx][qx] * Cx0[qy][qx];
@@ -234,8 +234,8 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int qy = 0; qy < Q1D; ++qy)
             {
                u[0] += CxB[dx][qy] * B1dt[dy][qy];
@@ -309,8 +309,9 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
 
       default:
       {
-         MFEM_VERIFY(D1D<=MAX_D1D && Q1D<=MAX_Q1D, "Max size error!");
-         return AddMultGradPA_Kernel_2D(N,B,G,Jtr,A,R,C,D1D,Q1D);
+         constexpr int T_MAX = 8;
+         MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
+         return AddMultGradPA_Kernel_2D<0,0,T_MAX>(N,B,G,Jtr,A,R,C,D1D,Q1D);
       }
    }
 }
