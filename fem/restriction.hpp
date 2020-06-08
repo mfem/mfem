@@ -68,9 +68,11 @@ public:
    /// Fill a Sparse Matrix with Element Matrices.
    void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
 
-   /// Fill the I array of a Sparse Matrix
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this ElementRestriction */
    int FillI(SparseMatrix &mat) const;
-   /// Fill the J and Data arrays of a Sparse Matrix
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this ElementRestriction, and the values given by ea_data */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
@@ -90,9 +92,11 @@ public:
    L2ElementRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   /// Fill the I array of a Sparse Matrix
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this ElementRestriction */
    void FillI(SparseMatrix &mat) const;
-   /// Fill the J and Data arrays of a Sparse Matrix
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this L2FaceRestriction, and the values given by ea_data */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
@@ -149,9 +153,11 @@ public:
                      const L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
-   /// Fill the I array of a Sparse Matrix
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this L2FaceRestriction */
    void FillI(SparseMatrix &mat) const;
-   /// Fill the J and Data arrays of a Sparse Matrix
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this L2FaceRestriction, and the values given by ea_data */
    void FillJAndData(const Vector &ea_data,
                      SparseMatrix &mat) const;
    /// This methods adds the DG face matrices to the element matrices.
