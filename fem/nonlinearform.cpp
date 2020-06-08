@@ -28,7 +28,7 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
          // This is the default behavior.
          break;
       case AssemblyLevel::PARTIAL:
-         ext = new PANonlinearFormExtension(this);
+         ext = new PANonlinearForm(this);
          break;
       default:
          mfem_error("Unknown assembly level for this form.");
@@ -281,7 +281,14 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 {
    if (ext)
    {
-      return ext->GetGradient(Prolongate(x));
+      Operator &grad = ext->GetGradient(Prolongate(x));
+      Operator *Grad = &grad;
+      if (Serial())
+      {
+         if (cP) { Grad = new RAPOperator(*cP, grad, *cP); }
+         Grad->Operator::FormSystemOperator(ess_tdof_list, Grad);
+      }
+      return *Grad;
    }
 
    const int skip_zeros = 0;

@@ -104,25 +104,9 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
-   if (NonlinearForm::ext)
-   {
-
-      ParFiniteElementSpace *pfes = ParFESpace();
-      Operator & grad = NonlinearForm::GetGradient(x);
-      pGrad.Clear();
-      OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
-      dA.Reset(&grad, false);
-      Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
-      pGrad.MakePtAP(dA, Ph);
-      // Impose b.c. on pGrad
-      OperatorHandle pGrad_e;
-      pGrad_e.EliminateRowsCols(pGrad, ess_tdof_list);
-      return *pGrad.Ptr();
-   }
-
    ParFiniteElementSpace *pfes = ParFESpace();
 
-   NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
+   Operator &grad = NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    pGrad.Clear();
 
@@ -130,8 +114,12 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 
    if (fnfi.Size() == 0)
    {
-      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
-                             pfes->GetDofOffsets(), Grad);
+      if (NonlinearForm::ext) { dA.Reset(&grad, false); }
+      else
+      {
+         dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                                pfes->GetDofOffsets(), Grad);
+      }
    }
    else
    {

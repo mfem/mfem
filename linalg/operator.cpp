@@ -453,7 +453,6 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
-   dbg("");
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
