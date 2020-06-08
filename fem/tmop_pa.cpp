@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 123
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 
@@ -23,7 +21,6 @@ namespace mfem
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   dbg("");
    MFEM_VERIFY(IntRule,"");
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");

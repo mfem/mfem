@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 211
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dtensor.hpp"
@@ -22,8 +20,7 @@
 namespace mfem
 {
 
-// *****************************************************************************
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static void AddMultGradPA_Kernel_3D(const int NE,
                                     const Array<double> &b_,
                                     const Array<double> &g_,
@@ -44,14 +41,15 @@ static void AddMultGradPA_Kernel_3D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    const auto dP = Reshape(dp_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       constexpr int DIM = 3;
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B)[MD1]  = (double (*)[MD1])(s_BG+0);
@@ -453,7 +451,6 @@ static void AddMultGradPA_Kernel_3D(const int NE,
    });
 }
 
-// *****************************************************************************
 void TMOP_Integrator::AddMultGradPA_3D(const Vector &X, const Vector &R,
                                        Vector &C) const
 {
@@ -511,10 +508,13 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &X, const Vector &R,
       case 0x55: return AddMultGradPA_Kernel_3D<5,5>(N,B,G,Jtr,A,R,C);
       case 0x56: return AddMultGradPA_Kernel_3D<5,6>(N,B,G,Jtr,A,R,C);
 
-      default:  break;
+      default:
+      {
+         constexpr int T_MAX = 4;
+         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+         return AddMultGradPA_Kernel_3D<0,0,T_MAX>(N,B,G,Jtr,A,R,C,D1D,Q1D);
+      }
    }
-   dbg("kernel id: %x", id);
-   MFEM_ABORT("Unknown kernel.");
 }
 
 } // namespace mfem

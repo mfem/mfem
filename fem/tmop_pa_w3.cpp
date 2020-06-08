@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 190
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dinvariants.hpp"
@@ -22,7 +20,6 @@
 namespace mfem
 {
 
-// *****************************************************************************
 // mu_302 = I1b * I2b / 9 - 1
 static MFEM_HOST_DEVICE inline
 double EvalW_302(const double *J)
@@ -32,7 +29,6 @@ double EvalW_302(const double *J)
    return ie.Get_I1b()*ie.Get_I2b()/9. - 1.;
 }
 
-// *****************************************************************************
 // mu_303 = I1b/3 - 1
 static MFEM_HOST_DEVICE inline
 double EvalW_303(const double *J)
@@ -42,7 +38,6 @@ double EvalW_303(const double *J)
    return ie.Get_I1b()/3. - 1.;
 }
 
-// *****************************************************************************
 // mu_321 = I1 + I2/I3 - 6
 static MFEM_HOST_DEVICE inline
 double EvalW_321(const double *J)
@@ -52,8 +47,7 @@ double EvalW_321(const double *J)
    return ie.Get_I1() + ie.Get_I2()/ie.Get_I3() - 6.0;
 }
 
-// *****************************************************************************
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static double EnergyPA_3D(const int mid,
                           const int NE,
                           const DenseMatrix &j_,
@@ -84,8 +78,8 @@ static double EnergyPA_3D(const int mid,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
@@ -316,7 +310,6 @@ static double EnergyPA_3D(const int mid,
    return e_ * o_; // Energy * One
 }
 
-// *****************************************************************************
 double
 TMOP_Integrator::GetGridFunctionEnergyPA_3D(const FiniteElementSpace &fes,
                                             const Vector &x) const
@@ -377,11 +370,13 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const FiniteElementSpace &fes,
       case 0x55: return EnergyPA_3D<5,5>(mid,N,J,W,B,G,X,E,O);
       case 0x56: return EnergyPA_3D<5,6>(mid,N,J,W,B,G,X,E,O);
 
-      default: break;
-         //return EnergyPA_3D(NE, m_n, J, W, B, G, Xpa, Epa, Opa, D1D, Q1D);
+      default:
+      {
+         constexpr int T_MAX = 4;
+         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+         return EnergyPA_3D<0,0,T_MAX>(mid,N,J,W,B,G,X,E,O,D1D,Q1D);
+      }
    }
-   dbg("kernel id: %x", id);
-   MFEM_ABORT("Unknown kernel.");
    return 0.0;
 }
 

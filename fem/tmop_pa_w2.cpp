@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 190
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/invariants.hpp"
@@ -22,8 +20,7 @@
 namespace mfem
 {
 
-// *****************************************************************************
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
 static double EnergyPA_2D(const int NE,
                           const DenseMatrix &j_,
                           const Array<double> &w_,
@@ -56,8 +53,8 @@ static double EnergyPA_2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B1d)[MD1]  = (double (*)[MD1])(s_BG[0]);
@@ -191,7 +188,6 @@ static double EnergyPA_2D(const int NE,
    return e_ * o_; // Energy * One
 }
 
-// *****************************************************************************
 double
 TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
                                             const Vector &x) const
@@ -251,11 +247,13 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
       case 0x55: return EnergyPA_2D<5,5,1>(N,J,W,B,G,X,E,O);
       case 0x56: return EnergyPA_2D<5,6,1>(N,J,W,B,G,X,E,O);
 
-      default: break;
-         //return EnergyPA_2D(NE, m_n, J, W, B, G, Xpa, Epa, Opa, D1D, Q1D);
+      default:
+      {
+         constexpr int T_MAX = 4;
+         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+         return EnergyPA_2D<0,0,0,T_MAX>(N,J,W,B,G,X,E,O,D1D,Q1D);
+      }
    }
-   dbg("kernel id: %x", id);
-   MFEM_ABORT("Unknown kernel.");
    return 0.0;
 }
 
