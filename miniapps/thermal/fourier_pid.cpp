@@ -407,11 +407,13 @@ int main(int argc, char *argv[])
    int irOrder = -1;
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
+
    int ode_solver_type = 1;
    int ode_msr_type = 1;
-   int ode_acc_type = 2;
-   int ode_rej_type = 1;
-   int ode_lim_type = 1;
+   int ode_acc_type = 3;
+   int ode_rej_type = 2;
+   int ode_lim_type = 2;
+
    int vis_steps = 1;
    double dt = -1.0;
    double t_init = 0.0;
@@ -431,19 +433,25 @@ int main(int argc, char *argv[])
    double etaScl = 1.0;
    Vector etaVec;
 
+   double diff_eta = 1.0;
+   
    double gamma_acc = 0.9;
    double kI_acc = 1.0 / 15.0;
    double kP_acc = 0.13;
    double kD_acc = 0.2;
-
+   double c_acc = 1.05;
+   
    double gamma_rej = 0.9;
    double kI_rej = 0.2;
    double kP_rej = 0.0;
    double kD_rej = 0.2;
-
+   double c_rej = 0.95;
+   
    double lim_lo  = 1.0;
    double lim_hi  = 1.2;
    double lim_max = 2.0;
+
+   bool epus = true;
 
    bool gnuplot = true;
 
@@ -484,24 +492,23 @@ int main(int argc, char *argv[])
    args.AddOption(&tol, "-tol", "--tolerance",
                   "Tolerance used to determine convergence to steady state.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE Implicit solver: L-stable methods\n\t"
-                  "            1 - Backward Euler,\n\t"
-                  "            2 - SDIRK23, 3 - SDIRK33,\n\t"
-                  "            A-stable methods (not L-stable)\n\t"
-                  "            22 - ImplicitMidPointSolver,\n\t"
-                  "            23 - SDIRK23, 34 - SDIRK34.");
+                  "ODE solver: 1 - Heun-Euler, 2 - RKF12, "
+                  "3 - BogackiShampine, 4 - RKF45, 5 - Cash-Karp, "
+                  "6 - Dormand-Prince.");
    args.AddOption(&ode_msr_type, "-err", "--error-measure",
                   "Error measure:\n"
                   "\t   1 - Absolute/Relative Error with Infinity-Norm\n"
                   "\t   2 - Absolute/Relative Error with 2-Norm\n");
    args.AddOption(&ode_acc_type, "-acc", "--accept-factor",
                   "Adjustment factor after accepted steps:\n"
+                  "\t   0 - Constant adjustment factor (default 1.05)\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
                   "\t   4 - Proportional, Integrated, and Derivative errors\n");
    args.AddOption(&ode_rej_type, "-rej", "--reject-factor",
                   "Adjustment factor after rejected steps:\n"
+                  "\t   0 - Constant adjustment factor (default 0.95)\n"
                   "\t   1 - Standard error (integrated and scaled)\n"
                   "\t   2 - Integrated error\n"
                   "\t   3 - Proportional and Integrated errors\n"
@@ -514,6 +521,37 @@ int main(int argc, char *argv[])
                   "Constant for denominator of relative error measure.");
    args.AddOption(&etaVec, "-eta-vec", "--eta-vector",
                   "Vector for denominator of relative error measure.");
+   args.AddOption(&kP_acc, "-kPa", "--k-P-acc",
+                  "Proportional gain for accepted steps.");
+   args.AddOption(&kI_acc, "-kIa", "--k-I-acc",
+                  "Integral gain for accepted steps.");
+   args.AddOption(&kD_acc, "-kDa", "--k-D-acc",
+                  "Derivative gain for accepted steps.");
+   args.AddOption(&c_acc, "-cfa", "--const-factor-acc",
+                  "Constant adjustment factor, must be > 1 "
+                  "(only used with -acc 0).");
+   args.AddOption(&kP_rej, "-kPr", "--k-P-rej",
+                  "Proportional gain for rejected steps.");
+   args.AddOption(&kI_rej, "-kIr", "--k-I-rej",
+                  "Integral gain for rejected steps.");
+   args.AddOption(&kD_rej, "-kDr", "--k-D-rej",
+                  "Derivative gain for rejected steps.");
+   args.AddOption(&c_rej, "-cfr", "--const-factor-rej",
+                  "Constant adjustment factor, must be < 1 "
+                  "(only used with -rej 0).");
+   args.AddOption(&lim_lo, "-lo", "--lower-limit",
+                  "Lower limit of dead zone.");
+   args.AddOption(&lim_hi, "-hi", "--upper-limit",
+                  "Upper limit of dead zone.");
+   args.AddOption(&lim_max, "-max", "--max-limit",
+                  "Limiter maximum.");
+   args.AddOption(&rho, "-rho", "--rejection",
+                  "Rejection tolerance.");
+   args.AddOption(&diff_eta, "-eta", "--error-scaling",
+                  "Error is |r/(|y|+eta)|.");
+   args.AddOption(&epus, "-epus", "--error-per-unit-step",
+                  "-eps", "--error-per-step",
+                  "Select Error per step or error per unit step.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&gfprint, "-print", "--print","-no-print","--no-print",
@@ -673,6 +711,9 @@ int main(int argc, char *argv[])
    }
    switch (ode_acc_type)
    {
+      case 0:
+	ode_step_acc = new ConstantAcceptFactor(c_acc);
+         break;
       case 1:
          ode_step_acc = new StdAdjFactor(gamma_acc, kI_acc);
          break;
@@ -691,6 +732,9 @@ int main(int argc, char *argv[])
    }
    switch (ode_rej_type)
    {
+      case 0:
+ 	 ode_step_rej = new ConstantRejectFactor(c_rej);
+         break;
       case 1:
          ode_step_rej = new StdAdjFactor(gamma_rej, kI_rej);
          break;
