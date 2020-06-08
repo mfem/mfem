@@ -242,11 +242,11 @@ void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
    FillJAndData(mat_ea, mat);
 }
 
+template <int MaxNbNbr>
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
    //building the intersection
-   constexpr int MaxNbNbr = 16;//TODO remove magic number
    int inter[MaxNbNbr];
    int cpt = 0;
    for (int i = 0; i < nbElts; i++)
@@ -283,6 +283,7 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
+   const int max = MaxNbNbr;
    const int all_dofs = ndofs;
    const int vd = vdim;
    const int elt_dofs = dof;
@@ -296,7 +297,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    });
    MFEM_FORALL(e, ne,
    {
-      constexpr int MaxNbNbr = 16;//TODO remove magic number
+      constexpr int MaxNbNbr = max;
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
       {
@@ -332,7 +333,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                   const int elt = j_E/elt_dofs;
                   j_elts[e_j] = elt;
                }
-               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+               int min_e = GetMinElt<MaxNbNbr>(i_elts, i_nbElts,
+                                               j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
                {
                   GetAndIncrementNnzIndex(i_L, I);
@@ -359,6 +361,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
 void ElementRestriction::FillJAndData(const Vector &ea_data,
                                       SparseMatrix &mat) const
 {
+   const int max = MaxNbNbr;
    const int all_dofs = ndofs;
    const int vd = vdim;
    // const bool t = byvdim; //TODO use vd
@@ -373,7 +376,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    //TODO parallelize on i_L?
    MFEM_FORALL(e, ne,
    {
-      constexpr int MaxNbNbr = 16;//TODO remove magic number
+      constexpr int MaxNbNbr = max;
       //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
       {
@@ -415,7 +418,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                   j_elts[e_j] = elt;
                   j_B[e_j]    = j_E%elt_dofs;
                }
-               int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+               int min_e = GetMinElt<MaxNbNbr>(i_elts, i_nbElts,
+                                               j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
                {
                   double val = 0.0;
