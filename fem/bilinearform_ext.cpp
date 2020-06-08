@@ -666,7 +666,7 @@ void FABilinearFormExtension::Assemble()
    {
       const ElementRestriction &rest =
          static_cast<const ElementRestriction&>(*elem_restrict);
-      rest.FillSpMat(ea_data, mat);
+      rest.FillSparseMatrix(ea_data, mat);
    }
 }
 

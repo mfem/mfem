@@ -59,7 +59,7 @@ public:
    void BooleanMask(Vector& y) const;
 
    /// Fill a Sparse Matrix with Element Matrices.
-   void FillSpMat(const Vector &mat_ea, SparseMatrix &mat) const;
+   void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
 
    /// Fill the I array of a Sparse Matrix
    int FillI(SparseMatrix &mat) const;
