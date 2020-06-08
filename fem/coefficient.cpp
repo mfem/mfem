@@ -215,11 +215,25 @@ CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
                         (2 * gf -> FESpace() -> GetMesh() -> SpaceDimension()
                          - 3) : 0)
 {
+   if (gf)
+   {
+      int sdim = gf -> FESpace() -> GetMesh() -> SpaceDimension();
+      MFEM_VERIFY(sdim == 2 || sdim == 3,
+                  "CurlGridFunctionCoefficient "
+                  "only defind for spaces of dimension 2 or 3.");
+   }
    GridFunc = gf;
 }
 
 void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 {
+   if (gf)
+   {
+      int sdim = gf -> FESpace() -> GetMesh() -> SpaceDimension();
+      MFEM_VERIFY(sdim == 2 || sdim == 3,
+                  "CurlGridFunctionCoefficient "
+                  "only defind for spaces of dimension 2 or 3.");
+   }
    GridFunc = gf;
    vdim = (gf) ? (2 * gf -> FESpace() -> GetMesh() -> SpaceDimension() - 3) : 0;
 }
