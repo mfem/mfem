@@ -64,7 +64,7 @@ public:
    /// Fill the I array of a Sparse Matrix
    int FillI(SparseMatrix &mat) const;
    /// Fill the J and Data arrays of a Sparse Matrix
-   void FillJandData(const Vector &ea_data, SparseMatrix &mat) const;
+   void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
@@ -86,7 +86,7 @@ public:
    /// Fill the I array of a Sparse Matrix
    void FillI(SparseMatrix &mat) const;
    /// Fill the J and Data arrays of a Sparse Matrix
-   void FillJandData(const Vector &ea_data, SparseMatrix &mat) const;
+   void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
 /// Operator that extracts Face degrees of freedom.
@@ -145,7 +145,7 @@ public:
    /// Fill the I array of a Sparse Matrix
    void FillI(SparseMatrix &mat) const;
    /// Fill the J and Data arrays of a Sparse Matrix
-   void FillJandData(const Vector &ea_data,
+   void FillJAndData(const Vector &ea_data,
                      SparseMatrix &mat) const;
    /// This methods adds the DG face matrices to the element matrices.
    void FactorizeBlocks(Vector &fea_data, const int elemDofs,

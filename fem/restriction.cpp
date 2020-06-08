@@ -218,13 +218,13 @@ void ElementRestriction::FillSpMat(const Vector &mat_ea,
    const int nnz = FillI(mat);
    mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
    mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
-   FillJandData(mat_ea, mat);
+   FillJAndData(mat_ea, mat);
 }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
-   //bulding the intersection
+   //building the intersection
    constexpr int MaxNbNbr = 16;//TODO remove magic number
    int inter[MaxNbNbr];
    int cpt = 0;
@@ -333,7 +333,7 @@ static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
    return ind;
 }
 
-void ElementRestriction::FillJandData(const Vector &ea_data,
+void ElementRestriction::FillJAndData(const Vector &ea_data,
                                       SparseMatrix &mat) const
 {
    const int all_dofs = ndofs;
@@ -494,7 +494,7 @@ static MFEM_HOST_DEVICE int AddNnz(const int iE, int *I, const int dofs)
    return val;
 }
 
-void L2ElementRestriction::FillJandData(const Vector &ea_data,
+void L2ElementRestriction::FillJAndData(const Vector &ea_data,
                                         SparseMatrix &mat) const
 {
    const int elem_dofs = ndof;
@@ -1291,7 +1291,7 @@ void L2FaceRestriction::FillI(SparseMatrix &mat) const
    });
 }
 
-void L2FaceRestriction::FillJandData(const Vector &ea_data,
+void L2FaceRestriction::FillJAndData(const Vector &ea_data,
                                      SparseMatrix &mat) const
 {
    const int face_dofs = dof;

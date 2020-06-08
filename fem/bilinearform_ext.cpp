@@ -651,9 +651,9 @@ void FABilinearFormExtension::Assemble()
       mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
       mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
       //  2.1 Fill J and Data with Elem ea_data
-      restE->FillJandData(ea_data, mat);
+      restE->FillJAndData(ea_data, mat);
       //  2.2 Fill J and Data with Face ea_data_ext
-      if (restF) { restF->FillJandData(ea_data_ext, mat); }
+      if (restF) { restF->FillJAndData(ea_data_ext, mat); }
       //  2.3 Shift indirections in I back to original
       auto I = mat.HostReadWriteI();
       for (int i = ndofs; i > 0; i--)
