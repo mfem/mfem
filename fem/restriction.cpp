@@ -298,7 +298,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    MFEM_FORALL(e, ne,
    {
       constexpr int MaxNbNbr = max;
-      //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
       {
          int i_elts[MaxNbNbr];
@@ -307,7 +306,6 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          const int i_offset = d_offsets[i_L];
          const int i_nextOffset = d_offsets[i_L+1];
          const int i_nbElts = i_nextOffset - i_offset;
-         //Could be optimized if i_nbElts == 1
          for (int e_i = 0; e_i < i_nbElts; ++e_i)
          {
             const int i_E = d_indices[i_offset+e_i];
@@ -364,7 +362,6 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    constexpr int max = MaxNbNbr;
    const int all_dofs = ndofs;
    const int vd = vdim;
-   // const bool t = byvdim; //TODO use vd
    const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
@@ -373,11 +370,9 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-   //TODO parallelize on i_L?
    MFEM_FORALL(e, ne,
    {
       constexpr int MaxNbNbr = max;
-      //TODO use threads here
       for (int i = 0; i < elt_dofs; i++)
       {
          int i_elts[MaxNbNbr];
@@ -387,7 +382,6 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          const int i_offset = d_offsets[i_L];
          const int i_nextOffset = d_offsets[i_L+1];
          const int i_nbElts = i_nextOffset - i_offset;
-         //Could be optimized if i_nbElts == 1
          for (int e_i = 0; e_i < i_nbElts; ++e_i)
          {
             const int i_E = d_indices[i_offset+e_i];
@@ -530,7 +524,6 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
    auto mat_ea = Reshape(ea_data.Read(), elem_dofs, elem_dofs, ne);
-   //TODO add vd
    MFEM_FORALL(iE, ne*elem_dofs*vd,
    {
       const int offset = AddNnz(iE,I,elem_dofs);
@@ -1337,7 +1330,6 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
       const int iE2 = d_indices2[f*face_dofs+iF];
       const int offset1 = AddNnz(iE1,I,face_dofs);
       const int offset2 = AddNnz(iE2,I,face_dofs);
-      //Could use threads to optimize this loop
       for (int jF = 0; jF < face_dofs; jF++)
       {
          const int jE1 = d_indices1[f*face_dofs+jF];
@@ -1368,8 +1360,6 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
       {
          const int e1 = d_indices1[f*face_dofs]/elem_dofs;
          const int e2 = d_indices2[f*face_dofs]/elem_dofs;
-         //TODO avoid recomputing iE1,iE2,jE1,jE2 by storing them?
-         //TODO parallelize the loop on j?
          for (int j = 0; j < face_dofs; j++)
          {
             const int jB1 = d_indices1[f*face_dofs+j]%elem_dofs;
@@ -1401,8 +1391,6 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
       MFEM_FORALL(f, nf,
       {
          const int e = d_indices[f*face_dofs]/elem_dofs;
-         //TODO avoid recomputing iE,jE
-         //TODO parallelize the loop on j?
          for (int j = 0; j < face_dofs; j++)
          {
             const int jE = d_indices[f*face_dofs+j]%elem_dofs;
