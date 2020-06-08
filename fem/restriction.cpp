@@ -233,7 +233,7 @@ void ElementRestriction::BooleanMask(Vector& y) const
 }
 
 void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
-                                   SparseMatrix &mat) const
+                                          SparseMatrix &mat) const
 {
    mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
    const int nnz = FillI(mat);
@@ -1350,8 +1350,10 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data, const int elemDofs,
-                                        const int ne, Vector &ea_data) const
+void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
+                                                         const int elemDofs,
+                                                         const int ne,
+                                                         Vector &ea_data) const
 {
    const int face_dofs = dof;
    const int elem_dofs = elemDofs;
