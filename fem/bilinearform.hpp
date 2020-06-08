@@ -30,9 +30,10 @@ namespace mfem
 enum class AssemblyLevel
 {
    /// Legacy fully assembled form, i.e. a global sparse matrix in MFEM,
-   /// Hypre or PETSC format.
+   /// Hypre or PETSC format, the assembly is ALWAYS done on the host.
    LEGACYFULL = 0,
    /// Fully assembled form, i.e. a global sparse matrix in MFEM format.
+   /// The assembly is compatible with device execution.
    FULL,
    /// Form assembled at element level, which computes and stores dense element
    /// matrices.
