@@ -759,6 +759,7 @@ public:
        where the "_i" subscripts denote all the nonessential (boundary) trial
        indices and the "_j" subscript denotes the essential test indices */
    virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
 
