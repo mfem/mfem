@@ -1377,8 +1377,10 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
       break;
       case ElementTransformation::BDR_ELEMENT:
       {
-         // In order to capture the derivative of the normal component of
-         // the field we must evaluate it in the neighboring element.
+         // In order to properly capture the derivative of the normal component
+         // of the field (as well as the transverse divergence of the
+         // tangential compoents) we must evaluate it in the neighboring
+         // element.
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
