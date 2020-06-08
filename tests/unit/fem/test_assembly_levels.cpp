@@ -117,17 +117,22 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel]")
             {
                for (int order : {2, 3, 4})
                {
-                  test_assembly_level(Mesh("../../data/periodic-square.mesh", 1, 1), order, dg, pb, assembly);
-                  test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1), order, dg, pb, assembly);
-                  test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1), order, dg, pb, assembly);
+                  test_assembly_level(Mesh("../../data/periodic-square.mesh", 1, 1),
+                                      order, dg, pb, assembly);
+                  test_assembly_level(Mesh("../../data/periodic-hexagon.mesh", 1, 1),
+                                      order, dg, pb, assembly);
+                  test_assembly_level(Mesh("../../data/star-q3.mesh", 1, 1),
+                                      order, dg, pb, assembly);
                }
             }
 
             SECTION("3D")
             {
                int order = 2;
-               test_assembly_level(Mesh("../../data/periodic-cube.mesh", 1, 1), order, dg, pb, assembly);
-               test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1), order, dg, pb, assembly);
+               test_assembly_level(Mesh("../../data/periodic-cube.mesh", 1, 1),
+                                   order, dg, pb, assembly);
+               test_assembly_level(Mesh("../../data/fichera-q3.mesh", 1, 1),
+                                   order, dg, pb, assembly);
             }
          }
 
@@ -136,13 +141,15 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel]")
          {
             for (int order : {2, 3, 4})
             {
-               test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1), order, false, 0, assembly);
+               test_assembly_level(Mesh("../../data/amr-quad.mesh", 1, 1),
+                                   order, false, 0, assembly);
             }
          }
          SECTION("AMR 3D")
          {
             int order = 2;
-            test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1), order, false, 0, assembly);
+            test_assembly_level(Mesh("../../data/fichera-amr.mesh", 1, 1),
+                                order, false, 0, assembly);
          }
       }
    }
