@@ -108,7 +108,7 @@ void test_assembly_level(Mesh &&mesh, int order, bool dg, const int pb,
 TEST_CASE("Assembly Levels", "[AssemblyLevel]")
 {
    for (AssemblyLevel assembly : {AssemblyLevel::PARTIAL,AssemblyLevel::ELEMENT,AssemblyLevel::FULL})
-   {   
+   {
       for (int pb : {0, 1, 2})
       {
          for (bool dg : {true, false})
