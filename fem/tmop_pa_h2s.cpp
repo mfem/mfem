@@ -71,7 +71,7 @@ void Invariant1_dMdM_2D(const double *m,
 
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
 static void SetupGradPA_2D(const Vector &xe_,
                            const int NE,
                            const Array<double> &w_,
@@ -101,8 +101,8 @@ static void SetupGradPA_2D(const Vector &xe_,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B)[MD1]  = (double (*)[MD1])(s_BG[0]);
@@ -150,8 +150,8 @@ static void SetupGradPA_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double xx = Xx[dy][dx];
@@ -172,8 +172,8 @@ static void SetupGradPA_2D(const Vector &xe_,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[2] {};
-            double v[2] {};
+            double u[2] = {0.0, 0.0};
+            double v[2] = {0.0, 0.0};
             for (int dy = 0; dy < D1D; ++dy)
             {
                u[0] += XxG[dy][qx] * B[qy][dy];
@@ -275,8 +275,9 @@ void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
 
       default:
       {
-         MFEM_VERIFY(D1D<=MAX_D1D && Q1D<=MAX_Q1D, "Max size error!");
-         return SetupGradPA_2D(X,N,W,B,G,Jtr,A,D1D,Q1D);
+         constexpr int T_MAX = 8;
+         MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
+         return SetupGradPA_2D<0,0,T_MAX>(X,N,W,B,G,Jtr,A,D1D,Q1D);
       }
    }
 }

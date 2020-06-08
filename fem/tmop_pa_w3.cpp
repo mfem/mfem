@@ -152,8 +152,8 @@ static double EnergyPA_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] {};
-               double v[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
                for (int dx = 0; dx < D1D; ++dx)
                {
                   const double xx = Xx[dz][dy][dx];
@@ -186,9 +186,9 @@ static double EnergyPA_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] {};
-               double v[3] {};
-               double w[3] {};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
+               double w[3] = {0.0, 0.0, 0.0};
                for (int dy = 0; dy < D1D; ++dy)
                {
                   const double By = B[qy][dy];
@@ -227,9 +227,9 @@ static double EnergyPA_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[3] = {0};
-               double v[3] = {0};
-               double w[3] = {0};
+               double u[3] = {0.0, 0.0, 0.0};
+               double v[3] = {0.0, 0.0, 0.0};
+               double w[3] = {0.0, 0.0, 0.0};
                for (int dz = 0; dz < D1D; ++dz)
                {
                   const double Bz = B[qz][dz];
