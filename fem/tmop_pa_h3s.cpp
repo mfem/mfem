@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 212
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dtensor.hpp"
@@ -23,7 +21,6 @@
 namespace mfem
 {
 
-// *****************************************************************************
 // dP_302 = (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
 static MFEM_HOST_DEVICE inline
 void EvalH_302(const int e, const int qx, const int qy, const int qz,
@@ -64,7 +61,6 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
    }
 }
 
-// *****************************************************************************
 // dP_303 = ddI1b/3
 static MFEM_HOST_DEVICE inline
 void EvalH_303(const int e, const int qx, const int qy, const int qz,
@@ -97,7 +93,6 @@ void EvalH_303(const int e, const int qx, const int qy, const int qz,
    }
 }
 
-// *****************************************************************************
 // dP_321 = ddI1 + (-2/I3b^3)*(dI2 x dI3b + dI3b x dI2)
 //               + (1/I3)*ddI2
 //               + (6*I2/I3b^4)*(dI3b x dI3b)
@@ -151,8 +146,7 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
    }
 }
 
-// *****************************************************************************
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static void SetupGradPA_3D(const int mid,
                            const Vector &xe_,
                            const int NE,
@@ -180,8 +174,8 @@ static void SetupGradPA_3D(const int mid,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1])(s_BG[0]);
@@ -423,7 +417,6 @@ static void SetupGradPA_3D(const int mid,
    });
 }
 
-// *****************************************************************************
 void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
                                         const Vector &X) const
 {
@@ -440,38 +433,39 @@ void TMOP_Integrator::AssembleGradPA_3D(const DenseMatrix &Jtr,
 
    switch (id)
    {
-      case 0x21: { SetupGradPA_3D<2,1>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x22: { SetupGradPA_3D<2,2>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x23: { SetupGradPA_3D<2,3>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x24: { SetupGradPA_3D<2,4>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x25: { SetupGradPA_3D<2,5>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x26: { SetupGradPA_3D<2,6>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x21: return SetupGradPA_3D<2,1>(mid,X,N,W,B,G,Jtr,A);
+      case 0x22: return SetupGradPA_3D<2,2>(mid,X,N,W,B,G,Jtr,A);
+      case 0x23: return SetupGradPA_3D<2,3>(mid,X,N,W,B,G,Jtr,A);
+      case 0x24: return SetupGradPA_3D<2,4>(mid,X,N,W,B,G,Jtr,A);
+      case 0x25: return SetupGradPA_3D<2,5>(mid,X,N,W,B,G,Jtr,A);
+      case 0x26: return SetupGradPA_3D<2,6>(mid,X,N,W,B,G,Jtr,A);
 
-      case 0x31: { SetupGradPA_3D<3,1>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x32: { SetupGradPA_3D<3,2>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x33: { SetupGradPA_3D<3,3>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x34: { SetupGradPA_3D<3,4>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x35: { SetupGradPA_3D<3,5>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x36: { SetupGradPA_3D<3,6>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x31: return SetupGradPA_3D<3,1>(mid,X,N,W,B,G,Jtr,A);
+      case 0x32: return SetupGradPA_3D<3,2>(mid,X,N,W,B,G,Jtr,A);
+      case 0x33: return SetupGradPA_3D<3,3>(mid,X,N,W,B,G,Jtr,A);
+      case 0x34: return SetupGradPA_3D<3,4>(mid,X,N,W,B,G,Jtr,A);
+      case 0x35: return SetupGradPA_3D<3,5>(mid,X,N,W,B,G,Jtr,A);
+      case 0x36: return SetupGradPA_3D<3,6>(mid,X,N,W,B,G,Jtr,A);
 
-      case 0x41: { SetupGradPA_3D<4,1>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x42: { SetupGradPA_3D<4,2>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x43: { SetupGradPA_3D<4,3>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x44: { SetupGradPA_3D<4,4>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x45: { SetupGradPA_3D<4,5>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x46: { SetupGradPA_3D<4,6>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x41: return SetupGradPA_3D<4,1>(mid,X,N,W,B,G,Jtr,A);
+      case 0x42: return SetupGradPA_3D<4,2>(mid,X,N,W,B,G,Jtr,A);
+      case 0x43: return SetupGradPA_3D<4,3>(mid,X,N,W,B,G,Jtr,A);
+      case 0x44: return SetupGradPA_3D<4,4>(mid,X,N,W,B,G,Jtr,A);
+      case 0x45: return SetupGradPA_3D<4,5>(mid,X,N,W,B,G,Jtr,A);
+      case 0x46: return SetupGradPA_3D<4,6>(mid,X,N,W,B,G,Jtr,A);
 
-      case 0x51: { SetupGradPA_3D<5,1>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x52: { SetupGradPA_3D<5,2>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x53: { SetupGradPA_3D<5,3>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x54: { SetupGradPA_3D<5,4>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x55: { SetupGradPA_3D<5,5>(mid,X,N,W,B,G,Jtr,A); break; }
-      case 0x56: { SetupGradPA_3D<5,6>(mid,X,N,W,B,G,Jtr,A); break; }
+      case 0x51: return SetupGradPA_3D<5,1>(mid,X,N,W,B,G,Jtr,A);
+      case 0x52: return SetupGradPA_3D<5,2>(mid,X,N,W,B,G,Jtr,A);
+      case 0x53: return SetupGradPA_3D<5,3>(mid,X,N,W,B,G,Jtr,A);
+      case 0x54: return SetupGradPA_3D<5,4>(mid,X,N,W,B,G,Jtr,A);
+      case 0x55: return SetupGradPA_3D<5,5>(mid,X,N,W,B,G,Jtr,A);
+      case 0x56: return SetupGradPA_3D<5,6>(mid,X,N,W,B,G,Jtr,A);
 
       default:
       {
-         dbg("kernel id: %x", id);
-         MFEM_ABORT("Unknown kernel.");
+         constexpr int T_MAX = 4;
+         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+         return SetupGradPA_3D<0,0,T_MAX>(mid,X,N,W,B,G,Jtr,A,D1D,Q1D);
       }
    }
 }

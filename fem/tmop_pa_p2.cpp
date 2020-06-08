@@ -44,7 +44,7 @@ void Eval_dI1b(const double w, const double *J, double *dI1b)
    dI1b[3] = w * c1 * (J[3] - c2*dI2b3);
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
 static void AddMultPA_Kernel_2D(const int NE,
                                 const Array<double> &w_,
                                 const Array<double> &b_,
@@ -59,8 +59,8 @@ static void AddMultPA_Kernel_2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+   constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
@@ -336,9 +336,14 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
       case 0x54: return AddMultPA_Kernel_2D<5,4,1>(N,W,B,G,P,X,Y);
       case 0x55: return AddMultPA_Kernel_2D<5,5,1>(N,W,B,G,P,X,Y);
       case 0x56: return AddMultPA_Kernel_2D<5,6,1>(N,W,B,G,P,X,Y);
-      default:  break;
+
+      default:
+      {
+         constexpr int T_MAX = 4;
+         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+         return AddMultPA_Kernel_2D<0,0,0,T_MAX>(N,W,B,G,P,X,Y,D1D,Q1D);
+      }
    }
-   MFEM_ABORT("Unknown kernel.");
 }
 
 } // namespace mfem

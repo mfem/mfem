@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 211
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dtensor.hpp"
@@ -309,10 +307,12 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
       case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(N,B,G,Jtr,A,R,C);
       case 0x56: return AddMultGradPA_Kernel_2D<5,6,1>(N,B,G,Jtr,A,R,C);
 
-      default:  break;
+      default:
+      {
+         MFEM_VERIFY(D1D<=MAX_D1D && Q1D<=MAX_Q1D, "Max size error!");
+         return AddMultGradPA_Kernel_2D(N,B,G,Jtr,A,R,C,D1D,Q1D);
+      }
    }
-   dbg("kernel id: %x", id);
-   MFEM_ABORT("Unknown kernel.");
 }
 
 } // namespace mfem

@@ -16,13 +16,10 @@
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dinvariants.hpp"
-#define MFEM_DBG_COLOR 82
-#include "../general/dbg.hpp"
 
 namespace mfem
 {
 
-// *****************************************************************************
 // P_302 = (I1b/9)*dI2b + (I2b/9)*dI1b
 static MFEM_HOST_DEVICE inline
 void EvalP_302(const double *J, double *P)
@@ -38,7 +35,6 @@ void EvalP_302(const double *J, double *P)
    kernels::Add(3,3, alpha, ie.Get_dI2b(), beta, ie.Get_dI1b(), P);
 }
 
-// *****************************************************************************
 // P_303 = dI1b/3
 static MFEM_HOST_DEVICE inline
 void EvalP_303(const double *J, double *P)
@@ -52,7 +48,6 @@ void EvalP_303(const double *J, double *P)
    kernels::Set(3,3, 1./3., ie.Get_dI1b(), P);
 }
 
-// *****************************************************************************
 // P_321 = dI1 + (1/I3)*dI2 - (2*I2/I3b^3)*dI3b
 static MFEM_HOST_DEVICE inline
 void EvalP_321(const double *J, double *P)
@@ -71,8 +66,7 @@ void EvalP_321(const double *J, double *P)
    kernels::Add(3,3, ie.Get_dI1(), P);
 }
 
-// *****************************************************************************
-template<int T_D1D = 0, int T_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static void AddMultPA_Kernel_3D(const int mid,
                                 const int NE,
                                 const Array<double> &w_,
@@ -100,8 +94,8 @@ static void AddMultPA_Kernel_3D(const int mid,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1])(s_BG[0]);
@@ -493,7 +487,6 @@ static void AddMultPA_Kernel_3D(const int mid,
    });
 }
 
-// *****************************************************************************
 void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
@@ -571,10 +564,14 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
       case 0x54: return AddMultPA_Kernel_3D<5,4>(mid,N,W,B,G,P,X,Y);
       case 0x55: return AddMultPA_Kernel_3D<5,5>(mid,N,W,B,G,P,X,Y);
       case 0x56: return AddMultPA_Kernel_3D<5,6>(mid,N,W,B,G,P,X,Y);
-      default:  break;
+
+      default:
+      {
+         constexpr int T_MAX = 4;
+         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+         return AddMultPA_Kernel_3D<0,0,T_MAX>(mid,N,W,B,G,P,X,Y,D1D,Q1D);
+      }
    }
-   dbg("id: %x",id);
-   MFEM_ABORT("Unknown kernel.");
 }
 
 } // namespace mfem

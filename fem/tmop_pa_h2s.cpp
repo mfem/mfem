@@ -13,8 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#define MFEM_DBG_COLOR 212
-#include "../general/dbg.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dtensor.hpp"
@@ -22,7 +20,6 @@
 namespace mfem
 {
 
-// *****************************************************************************
 MFEM_HOST_DEVICE inline
 void Invariant2_dM_2D(const double M[2][2], double dM[2][2])
 {
@@ -30,7 +27,6 @@ void Invariant2_dM_2D(const double M[2][2], double dM[2][2])
    dM[0][1] = -M[1][0]; dM[1][1] =  M[0][0];
 }
 
-// *****************************************************************************
 MFEM_HOST_DEVICE inline
 void Invariant2_dMdM_2D(int i, int j, double dMdM[2][2])
 {
@@ -38,7 +34,6 @@ void Invariant2_dMdM_2D(int i, int j, double dMdM[2][2])
    dMdM[1-j][1-i] = (i == j) ? 1.0 : -1.0;
 }
 
-// *****************************************************************************
 MFEM_HOST_DEVICE inline
 void Invariant1_dMdM_2D(const double *m,
                         const int i, const int j,
@@ -76,7 +71,6 @@ void Invariant1_dMdM_2D(const double *m,
 
 }
 
-// *****************************************************************************
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SetupGradPA_2D(const Vector &xe_,
                            const int NE,
@@ -251,38 +245,38 @@ void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
 
    switch (id)
    {
-      case 0x21: { SetupGradPA_2D<2,1,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x22: { SetupGradPA_2D<2,2,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x23: { SetupGradPA_2D<2,3,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x24: { SetupGradPA_2D<2,4,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x25: { SetupGradPA_2D<2,5,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x26: { SetupGradPA_2D<2,6,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x21: return SetupGradPA_2D<2,1,1>(X,N,W,B,G,Jtr,A);
+      case 0x22: return SetupGradPA_2D<2,2,1>(X,N,W,B,G,Jtr,A);
+      case 0x23: return SetupGradPA_2D<2,3,1>(X,N,W,B,G,Jtr,A);
+      case 0x24: return SetupGradPA_2D<2,4,1>(X,N,W,B,G,Jtr,A);
+      case 0x25: return SetupGradPA_2D<2,5,1>(X,N,W,B,G,Jtr,A);
+      case 0x26: return SetupGradPA_2D<2,6,1>(X,N,W,B,G,Jtr,A);
 
-      case 0x31: { SetupGradPA_2D<3,1,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x32: { SetupGradPA_2D<3,2,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x33: { SetupGradPA_2D<3,3,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x34: { SetupGradPA_2D<3,4,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x35: { SetupGradPA_2D<3,5,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x36: { SetupGradPA_2D<3,6,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x31: return SetupGradPA_2D<3,1,1>(X,N,W,B,G,Jtr,A);
+      case 0x32: return SetupGradPA_2D<3,2,1>(X,N,W,B,G,Jtr,A);
+      case 0x33: return SetupGradPA_2D<3,3,1>(X,N,W,B,G,Jtr,A);
+      case 0x34: return SetupGradPA_2D<3,4,1>(X,N,W,B,G,Jtr,A);
+      case 0x35: return SetupGradPA_2D<3,5,1>(X,N,W,B,G,Jtr,A);
+      case 0x36: return SetupGradPA_2D<3,6,1>(X,N,W,B,G,Jtr,A);
 
-      case 0x41: { SetupGradPA_2D<4,1,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x42: { SetupGradPA_2D<4,2,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x43: { SetupGradPA_2D<4,3,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x44: { SetupGradPA_2D<4,4,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x45: { SetupGradPA_2D<4,5,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x46: { SetupGradPA_2D<4,6,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x41: return SetupGradPA_2D<4,1,1>(X,N,W,B,G,Jtr,A);
+      case 0x42: return SetupGradPA_2D<4,2,1>(X,N,W,B,G,Jtr,A);
+      case 0x43: return SetupGradPA_2D<4,3,1>(X,N,W,B,G,Jtr,A);
+      case 0x44: return SetupGradPA_2D<4,4,1>(X,N,W,B,G,Jtr,A);
+      case 0x45: return SetupGradPA_2D<4,5,1>(X,N,W,B,G,Jtr,A);
+      case 0x46: return SetupGradPA_2D<4,6,1>(X,N,W,B,G,Jtr,A);
 
-      case 0x51: { SetupGradPA_2D<5,1,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x52: { SetupGradPA_2D<5,2,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x53: { SetupGradPA_2D<5,3,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x54: { SetupGradPA_2D<5,4,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x55: { SetupGradPA_2D<5,5,1>(X,N,W,B,G,Jtr,A); break; }
-      case 0x56: { SetupGradPA_2D<5,6,1>(X,N,W,B,G,Jtr,A); break; }
+      case 0x51: return SetupGradPA_2D<5,1,1>(X,N,W,B,G,Jtr,A);
+      case 0x52: return SetupGradPA_2D<5,2,1>(X,N,W,B,G,Jtr,A);
+      case 0x53: return SetupGradPA_2D<5,3,1>(X,N,W,B,G,Jtr,A);
+      case 0x54: return SetupGradPA_2D<5,4,1>(X,N,W,B,G,Jtr,A);
+      case 0x55: return SetupGradPA_2D<5,5,1>(X,N,W,B,G,Jtr,A);
+      case 0x56: return SetupGradPA_2D<5,6,1>(X,N,W,B,G,Jtr,A);
 
       default:
       {
-         dbg("kernel id: %x", id);
-         MFEM_ABORT("Unknown kernel.");
+         MFEM_VERIFY(D1D<=MAX_D1D && Q1D<=MAX_Q1D, "Max size error!");
+         return SetupGradPA_2D(X,N,W,B,G,Jtr,A,D1D,Q1D);
       }
    }
 }

@@ -18,8 +18,6 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
-#define MFEM_DBG_COLOR 87
-#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -590,7 +588,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(d, z);  // z = A d
-   dbg("[CG] oper->Mult, d:%.15e, z:%.15e",d*d,z*z);
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
    if (den <= 0.0)
@@ -679,7 +676,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          add(r, beta, d, d);
       }
       oper->Mult(d, z);       //  z = A d
-      dbg("[CG] oper->Mult, d:%.15e, z:%.15e",d*d,z*z);
       den = Dot(d, z);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
@@ -1565,7 +1561,6 @@ void NewtonSolver::SetOperator(const Operator &op)
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
-   dbg("b:%.15e, x:%.15e",b*b,x*x);
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
@@ -1574,7 +1569,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    const bool have_b = (b.Size() == Height());
 
    ProcessNewState(x);
-   dbg("ProcessNewState, x:%.15e",x*x);
 
    if (!iterative_mode)
    {
@@ -1582,7 +1576,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(x, r);
-   dbg("oper->Mult: x:%.15e, r:%.15e", x*x, r*r);
    if (have_b)
    {
       r -= b;
@@ -1624,8 +1617,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       prec->SetOperator(oper->GetGradient(x));
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      dbg("r:%.15e, c:%.15e",r*r,c*c);
-
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
@@ -1638,7 +1629,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       ProcessNewState(x);
 
       oper->Mult(x, r);
-      dbg("x:%.15e, r:%.15e",x*x, r*r);
       if (have_b)
       {
          r -= b;

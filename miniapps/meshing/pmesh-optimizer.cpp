@@ -82,8 +82,6 @@
 #include <iostream>
 #include <fstream>
 #include "mesh-optimizer.hpp"
-#define MFEM_DBG_COLOR 226
-#include "../../general/dbg.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -698,7 +696,6 @@ int main (int argc, char *argv[])
    if (pa) { a.Setup(); }
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
-   dbg("init_energy: %.15e", init_energy);
 
    // 16. Visualize the starting mesh and metric values.
    if (visualization)
@@ -839,7 +836,6 @@ int main (int argc, char *argv[])
    newton->SetAbsTol(0.0);
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(a);
-   dbg("x:%.15e",x*x);
    newton->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
    if (myid == 0 && newton->GetConverged() == false)
@@ -899,7 +895,6 @@ int main (int argc, char *argv[])
    // 23. Visualize the mesh displacement.
    if (visualization)
    {
-      dbg("visualization");
       x0 -= x;
       socketstream sock;
       if (myid == 0)
