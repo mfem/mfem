@@ -68,8 +68,6 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool ea = false;
-   bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
 
@@ -83,10 +81,6 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
-                  "--no-element-assembly", "Enable Element Assembly.");
-   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
-                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -124,8 +118,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   std::cout << "The number of elements is: " << mesh->GetNE() << std::endl;
-
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -133,7 +125,6 @@ int main(int argc, char *argv[])
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim);
-      // fec = new L2_FECollection(order, dim);
    }
    else if (mesh->GetNodes())
    {
@@ -179,10 +170,7 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
-   if (fa) { a->SetAssemblyLevel(AssemblyLevel::FULL); }
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   // a->AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -198,12 +186,12 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   if (!pa && !ea && !fa)
+   if (!pa)
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
@@ -217,11 +205,11 @@ int main(int argc, char *argv[])
       if (UsesTensorBasis(*fespace))
       {
          OperatorJacobiSmoother M(*a, ess_tdof_list);
-         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+         PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
       }
       else
       {
-         CG(*A, B, X, 1, 200, 1e-12, 0.0);
+         CG(*A, B, X, 1, 400, 1e-12, 0.0);
       }
    }
 
