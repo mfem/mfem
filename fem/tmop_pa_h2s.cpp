@@ -277,7 +277,7 @@ void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return SetupGradPA_2D<0,0,T_MAX>(X,N,W,B,G,Jtr,A,D1D,Q1D);
+         return SetupGradPA_2D<0,0,0,T_MAX>(X,N,W,B,G,Jtr,A,D1D,Q1D);
       }
    }
 }
