@@ -1643,7 +1643,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
 void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
 
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, skt, ykt, rho, alpha;
@@ -1722,10 +1722,10 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       int klim;
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
-      double gamma = Dot(sk, yk)/Dot(yk, yk);
+      const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
       //  Save last m vectors
-      if ( it < m)
+      if (it < m)
       {
          skM.SetCol(it, sk);
          ykM.SetCol(it, yk);
