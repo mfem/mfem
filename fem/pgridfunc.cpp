@@ -324,22 +324,20 @@ double ParGridFunction::GetValue(ElementTransformation &T,
    }
 
    Array<int> dofs;
-   Vector DofVal, LocVec;
-   int fes_vdim = pfes->GetVDim();
+   const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
    pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
-   if (fes_vdim > 1)
+
+   pfes->DofsToVDofs(comp-1, dofs);
+   Vector DofVal(dofs.Size()), LocVec;
+   if (fe->GetMapType() == FiniteElement::VALUE)
    {
-      int s = dofs.Size()/fes_vdim;
-      Array<int> _dofs(&dofs[(comp-1)*s], s);
-      face_nbr_data.GetSubVector(_dofs, LocVec);
-      DofVal.SetSize(s);
+      fe->CalcShape(ip, DofVal);
    }
    else
    {
-      face_nbr_data.GetSubVector(dofs, LocVec);
-      DofVal.SetSize(dofs.Size());
+      fe->CalcPhysShape(T, DofVal);
    }
-   pfes->GetFaceNbrFE(nbr_el_no)->CalcShape(ip, DofVal);
+   face_nbr_data.GetSubVector(dofs, LocVec);
 
    return (DofVal * LocVec);
 }
