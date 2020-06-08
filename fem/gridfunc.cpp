@@ -1545,8 +1545,9 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
       break;
       case ElementTransformation::BDR_ELEMENT:
       {
-         // In order to capture the normal component of the gradient we
-         // must evaluate it in the neighboring element.
+         // In order to properly capture the normal component of the gradient
+         // as well as its tangential components we must evaluate it in the
+         // neighboring element.
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
