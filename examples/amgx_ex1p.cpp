@@ -66,12 +66,16 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
-   int order = 1;
+   //const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/beam-hex.mesh";
+
+   int order = 3;
    bool static_cond = false;
    bool pa = false;
+   bool amgx = true;
    const char *device_config = "cpu";
    bool visualization = true;
+   const char *amgx_cfg = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -88,6 +92,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&amgx_cfg, "-c","--c","AMGX solver file");
+   args.AddOption(&amgx, "-amgx","--amgx","-no-amgx",
+                  "--no-amgx","Use AMGX");
    args.Parse();
    if (!args.Good())
    {
@@ -119,8 +126,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 3;
+      //(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -207,13 +214,15 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   OperatorPtr A;
+   HypreParMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
 
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
+#if 0
    Solver *prec = NULL;
    if (pa)
    {
@@ -226,14 +235,38 @@ int main(int argc, char *argv[])
    {
       prec = new HypreBoomerAMG;
    }
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   delete prec;
+#endif
+
+
+   if (amgx)
+   {
+
+#ifdef MFEM_USE_AMGX
+      //AMGX
+      std::string amgx_str;
+      amgx_str = amgx_cfg;
+      NvidiaAMGX amgx;
+      amgx.Init(MPI_COMM_WORLD, "dDDI", amgx_str);
+
+      amgx.SetA(A);
+
+      X = 0.0; //set to zero
+      amgx.Solve(X, B);
+#endif
+   }
+   else
+   {
+      HypreSolver *amg = new HypreBoomerAMG(A);
+
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetPreconditioner(*amg);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(200);
+      pcg->SetPrintLevel(2);
+      pcg->Mult(B, X);
+      delete pcg;
+   }
+
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
