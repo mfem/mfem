@@ -311,7 +311,7 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return AddMultGradPA_Kernel_2D<0,0,T_MAX>(N,B,G,Jtr,A,R,C,D1D,Q1D);
+         return AddMultGradPA_Kernel_2D<0,0,0,T_MAX>(N,B,G,Jtr,A,R,C,D1D,Q1D);
       }
    }
 }
