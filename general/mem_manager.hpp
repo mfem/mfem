@@ -450,7 +450,7 @@ private:
 
    template <std::size_t align_bytes, bool dummy = true> struct Alloc
    {
-      static inline T *New(std::size_t)
+      static inline T *New(std::size_t size)
       {
 #if __cplusplus < 201703L
          // Generate an error in debug mode
