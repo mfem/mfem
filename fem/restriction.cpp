@@ -327,7 +327,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    return h_I[nTdofs];
 }
 
-static MFEM_HOST_DEVICE int GetNnzInd(const int i_L, int* I)
+/// Returns the index where a non-zero entry should be added.
+static MFEM_HOST_DEVICE int GetNnzIndex(const int i_L, int* I)
 {
    int ind = mfemAtomicAdd(I[i_L],1);
    return ind;
@@ -377,7 +378,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             const int j_nbElts = j_nextOffset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
             {
-               const int nnz = GetNnzInd(i_L, I);
+               const int nnz = GetNnzIndex(i_L, I);
                J[nnz] = j_L;
                Data[nnz] = mat_ea(j,i,e);
             }
@@ -410,7 +411,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                         }
                      }
                   }
-                  const int nnz = GetNnzInd(i_L, I);
+                  const int nnz = GetNnzIndex(i_L, I);
                   J[nnz] = j_L;
                   Data[nnz] = val;
                }
