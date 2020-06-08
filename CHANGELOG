@@ -24,8 +24,14 @@ Meshing improvements
   and orientation based metrics.
 
 - Added support for r-adaptivity with more than one discrete field. This allows
-  the user to specify different discrete functions for controlling the 
-  size, aspect-ratio, orientation, and skew of elements in the mesh. 
+  the user to specify different discrete functions for controlling the
+  size, aspect-ratio, orientation, and skew of elements in the mesh.
+
+- Added TMOP capability for approximate tangential mesh relaxation.
+
+- Added support for reading periodic meshes in Gmsh format (version 2.2). See
+  for example the periodic-annulus-sector and periodic-torus-sector files in
+  the data directory.
 
 Performance improvements
 ------------------------
@@ -38,6 +44,8 @@ Performance improvements
   These are now enabled by default, and can be disabled with MFEM_USE_SIMD=NO.
   See the new file linalg/simd.hpp and the new directory linalg/simd.
 
+Improved GPU capabilities
+-------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
 Discretization improvements
@@ -61,6 +69,10 @@ Discretization improvements
   methods. Expanded the GetValue and GetVectorValue methods which accept an
   ElementTransformation argument to support evaluation on boundary elements
   and, in the continuous field case, arbitrary mesh edges and faces.
+
+- Added new coefficient and vector coefficient classes for QuadratureFunctions.
+  Additionaly, new LinearForm integrators were also added which make use of
+  these new QuadratureFunction coefficient classes.
 
 Linear and nonlinear solvers
 ----------------------------
