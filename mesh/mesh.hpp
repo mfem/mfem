@@ -1413,6 +1413,16 @@ public:
     Mesh. See Mesh::GetFaceGeometricFactors(). */
 class FaceGeometricFactors
 {
+
+protected:
+   /// Element restricted nodes
+   /// [TODO move to stack when pools are available]
+   /** This array uses a column-major layout with dimensions (ND x SDIM x NE) where
+        - ND   = number of degrees of freedom per element,
+        - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+        - NE   = number of elements in the mesh. */
+   Vector Enodes;
+
 public:
    const Mesh *mesh;
    const IntegrationRule *IntRule;

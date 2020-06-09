@@ -10434,22 +10434,14 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                                    int flags)
 {
-   this->mesh = mesh;
-   IntRule = &ir;
-   computed_factors = flags;
-
-   this->nodes = mesh->GetNodes();
-   Assemble(this->nodes, *IntRule, flags);
+   MFEM_VERIFY(mesh->GetNodes() != NULL, "Mesh nodes are null");
+   Assemble(mesh->GetNodes(), *IntRule, flags);
 }
 
 GeometricFactors::GeometricFactors(const GridFunction *nodes,
                                    const IntegrationRule &ir,
                                    int flags)
 {
-   this->nodes = nodes;
-   IntRule = &ir;
-   computed_factors = flags;
-
    Assemble(this->nodes, *IntRule, flags);
 }
 
@@ -10457,7 +10449,7 @@ void GeometricFactors::Assemble(const GridFunction *nodes,
                                 const IntegrationRule &ir,
                                 int flags)
 {
-   this->mesh = NULL;
+   this->mesh = nodes->FESpace()->GetMesh();
    this->nodes = nodes;
    IntRule = &ir;
    computed_factors = flags;
@@ -10505,7 +10497,6 @@ void GeometricFactors::Assemble(const GridFunction *nodes,
    {
       qi->Mult(*nodes, eval_flags, X, J, detJ);
    }
-
 }
 
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
