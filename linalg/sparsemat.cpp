@@ -2145,34 +2145,47 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
-   auto bp = b.HostRead();
-   auto xp = x.HostWrite();
+   const int nnz = J.Capacity();
+
+   const bool use_dev = b.UseDevice() || x.UseDevice();
+
+   auto bp = b.Read(use_dev);
+   auto xp = x.Write(use_dev);
+
+   auto Ap = Read(A, nnz);
+   auto Ip = Read(I, height+1);
+   auto Jp = Read(J, nnz);
 
    bool scale = (sc != 1.0);
-   for (int i = 0, j = 0; i < height; i++)
+   MFEM_FORALL(i, height,
    {
-      int end = I[i+1];
-      for ( ; true; j++)
+      int end = Ip[i+1];
+      for (int j = Ip[i]; true; j++)
       {
-         MFEM_VERIFY(j != end, "Couldn't find diagonal in row. i = " << i
-                     << ", j = " << j
-                     << ", I[i+1] = " << end );
-         if (J[j] == i)
+         if (j == end)
          {
-            MFEM_VERIFY(std::abs(A[j]) > 0.0, "Diagonal " << j << " must be nonzero");
+            printf("Couldn't find diagonal in row. i = %d, j = %d, I[i+1] = %d\n", i, j,
+            end);
+         }
+         if (Jp[j] == i)
+         {
+            if (!(std::abs(Ap[j]) > 0.0))
+            {
+               printf("Diagonal %d must be nonzero\n", j);
+            }
+
             if (scale)
             {
-               xp[i] = sc * bp[i] / A[j];
+               xp[i] = sc * bp[i] / Ap[j];
             }
             else
             {
-               xp[i] = bp[i] / A[j];
+               xp[i] = bp[i] / Ap[j];
             }
             break;
          }
       }
-      j = end;
-   }
+   });
    return;
 }
 

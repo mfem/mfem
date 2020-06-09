@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../general/forall.hpp"
 #include "bilininteg.hpp"
 
 namespace mfem
@@ -178,6 +179,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
+   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
    if (Q || VQ)
    {
       Vector D(VQ ? coeffDim : 0);
@@ -196,12 +198,12 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                VQ->Eval(D, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeff[i + (coeffDim * (p + (e * nq)))] = D[i];
+                  coeffh(i, p, e) = D[i];
                }
             }
             else
             {
-               coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
             }
          }
       }
