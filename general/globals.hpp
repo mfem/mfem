@@ -125,5 +125,17 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 #define MFEM_DEPRECATED
 #endif
 
+#if !defined(NDEBUG)
+#include <cassert>
+#define MFEM_ABORT_KERNEL assert(0);
+#endif
+
+#if defined(NDEBUG) && defined(__CUDA_ARCH__)
+#define MFEM_ABORT_KERNEL asm("trap;");
+#endif
+
+#if defined(NDEBUG) && !defined(__CUDA_ARCH__)
+#define MFEM_ABORT_KERNEL abort();
+#endif
 
 #endif
