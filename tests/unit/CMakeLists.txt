@@ -139,7 +139,7 @@ if (MFEM_USE_MPI)
 endif(MFEM_USE_MPI)
 
 # Function to add one test from the tests/unit/miniapp directory.
-function(add_miniapp_test name)
+function(add_parallel_miniapp_test name)
     string(TOUPPER name NAME)
 
     add_test(NAME ${name}_tests_cpu COMMAND ${name}_tests_cpu)
@@ -210,8 +210,8 @@ function(add_miniapp_test name)
           endforeach()
        endif()
     endif(MFEM_USE_MPI)
-endfunction(add_miniapp_test)
+endfunction(add_parallel_miniapp_test)
 
 # Additional MPI unit tests
-add_miniapp_test(sedov)
-add_miniapp_test(tmop)
+add_parallel_miniapp_test(sedov)
+add_parallel_miniapp_test(tmop)
