@@ -13,10 +13,10 @@ DST2D::DST2D(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    int partition_kind;
 
    partition_kind = 2; 
-   int nx=3;
-   int ny=3; 
+   int nx=2;
+   int ny=2; 
    int nz=1;
-   ovlpnrlayers = nrlayers+2;
+   ovlpnrlayers = nrlayers+1;
    povlp = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
 
    partition_kind = 1;
@@ -374,8 +374,8 @@ void DST2D::TransferSources(int sweep, int ip0, Vector & sol0) const
             directions[0] = i;
             directions[1] = j;
             Vector raux;
-            // SourceTransfer(cfsol0,directions,ip0,raux);
-            SourceTransfer1(cfsol0,directions,ip0,raux);
+            SourceTransfer(cfsol0,directions,ip0,raux);
+            // SourceTransfer1(cfsol0,directions,ip0,raux);
             *f_transf[ip1][l]+=raux;
             break;
          }

@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 2;
+   int nrlayers = 4;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -232,14 +232,14 @@ int main(int argc, char *argv[])
    gmres.SetPreconditioner(S);
 	gmres.SetOperator(*A);
 	gmres.SetRelTol(1e-6);
-	gmres.SetMaxIter(50);
+	gmres.SetMaxIter(10);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
 
-   // DST2D S2D(&a,lengths, omega, &ws, nrlayers);
-   // X = 0.0;
-	// gmres.SetPreconditioner(S2D);
-	// gmres.Mult(B, X);
+   DST2D S2D(&a,lengths, omega, &ws, nrlayers);
+   X = 0.0;
+	gmres.SetPreconditioner(S2D);
+	gmres.Mult(B, X);
 
    // chrono.Stop();
    // cout << "GMRES time: " << chrono.RealTime() << endl; 
