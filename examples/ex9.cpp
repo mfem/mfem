@@ -445,22 +445,10 @@ int main(int argc, char *argv[])
 FE_Evolution::FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height()), M(_M), K(_K), b(_b), z(_M.Height())
 {
-   // bool pa = M.GetAssemblyLevel() == AssemblyLevel::PARTIAL;
-   // bool ea = M.GetAssemblyLevel() == AssemblyLevel::ELEMENT;
-   // bool fa = M.GetAssemblyLevel() == AssemblyLevel::FULL;
    Array<int> ess_tdof_list;
-   // if (pa || ea || fa)
-   // {
-      M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-      M_solver.SetOperator(M);
-      dg_solver = NULL;
-   // }
-   // else
-   // {
-   //    M_prec = new DSmoother(M.SpMat());
-   //    dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
-   //    M_solver.SetOperator(M.SpMat());
-   // }
+   M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
+   M_solver.SetOperator(M);
+   dg_solver = NULL;
    M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
