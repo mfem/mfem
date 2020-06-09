@@ -52,10 +52,10 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    int partition_kind = 2;
 
-   nx=2;
-   ny=2; 
-   nz=2;
-   ovlpnrlayers = nrlayers+1;
+   nx=3;
+   ny=3; 
+   nz=3;
+   ovlpnrlayers = nrlayers+2;
    part = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
    nx = part->nxyz[0];
    ny = part->nxyz[1];
@@ -151,19 +151,15 @@ void DST::Mult(const Vector &r, Vector &z) const
 
    for (int l=0; l<nsweeps; l++)
    {
-      // cout << "sweep no: " << l << endl;
+      cout << " l = " << l << endl;
       for (int s = 0; s<nsteps; s++)
       {
-         cout << "step no :" << s << endl;
+         cout << " s = " << s << endl;
          Array2D<int> subdomains;
          GetStepSubdomains(l,s,subdomains);
 
          int nsubdomains = subdomains.NumRows();
 
-         // cout << "subdomains: " <<endl;
-         // subdomains.Print();
-
-         // cin.get();
          for (int sb=0; sb< nsubdomains; sb++)
          {
             Array<int> ijk(dim);
@@ -177,7 +173,7 @@ void DST::Mult(const Vector &r, Vector &z) const
             Vector res_local(ndofs); res_local = 0.0;
             if (l==0) res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
-            // if (res_local.Norml2() < 1e-12) continue;
+            if (res_local.Norml2() < 1e-12) continue;
             PmlMatInv[ip]->Mult(res_local, sol_local);
             if (dim == 3)
             {
@@ -199,13 +195,7 @@ void DST::Mult(const Vector &r, Vector &z) const
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
             z+=znew;
-
-            cout << "sb = " << sb << endl;
-
          }
-         socketstream sol_sock(vishost, visport);
-         PlotSolution(z,sol_sock,0,false);
-         cin.get();
       }
    }
 }
@@ -221,9 +211,7 @@ void DST::Getijk(int ip, int & i, int & j, int & k) const
 int DST::GetPatchId(const Array<int> & ijk) const
 {
    int d=ijk.Size();
-   // cout << " d = " << d << endl;
    int z = (d==2)? 0 : ijk[2];
-   // cout << " z = " << z << endl;
    return part->subdomains(ijk[0],ijk[1],z);
 }
 
@@ -313,7 +301,7 @@ void DST::TransferSources3D(int s, int ip0, Vector & sol0) const
             GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
 
             Vector raux;
-            SourceTransfer(cfsol0,directions,ip0,raux);
+            SourceTransfer3D(cfsol0,directions,ip0,raux);
             *f_transf[ip1][l]+=raux;
          }
       }  
@@ -379,6 +367,43 @@ SparseMatrix * DST::GetPmlSystemMatrix(int ip)
    return Mat;
 }
 
+void DST::SourceTransfer3D(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
+{
+   int i0,j0,k0;
+   Getijk(ip0,i0,j0,k0);
+
+   int i1 = i0+direction[0];   
+   int j1 = j0+direction[1];   
+   int k1 = k0+direction[2];   
+   Array<int> ijk(3); ijk[0]=i1; ijk[1]=j1; ijk[2]=k1;
+   int ip1 = GetPatchId(ijk);
+
+   MFEM_VERIFY(i1 < nx && i1>=0, "SourceTransfer: i1 out of bounds");
+   MFEM_VERIFY(j1 < ny && j1>=0, "SourceTransfer: j1 out of bounds");
+   MFEM_VERIFY(k1 < nz && k1>=0, "SourceTransfer: j1 out of bounds");
+
+   Array<int> * Dof2GlobalDof0 = &dmap->Dof2GlobalDof[ip0];
+   Array<int> * Dof2GlobalDof1 = &dmap->Dof2GlobalDof[ip1];
+   Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
+   Vector r(2*bf->FESpace()->GetTrueVSize());
+   r = 0.0;
+   r.SetSubVector(*Dof2GlobalDof0,Psi0);
+   Vector zloc(Psi1.Size()); zloc = 0.0;
+   r.GetSubVector(*Dof2GlobalDof1,zloc);
+   Vector Psi(Dof2GlobalDof1->Size()); Psi=0.0;
+   PmlMat[ip1]->Mult(zloc,Psi);
+   Psi *=-1.0;
+
+   Array2D<int> direct(dim,2); direct = 0;
+
+   for (int d = 0; d<dim; d++)
+   {
+      if (direction[d]==1) direct[d][0] = 1;
+      if (direction[d]==-1) direct[d][1] = 1;
+   }
+
+   GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
+}
 
 void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
 {
@@ -609,7 +634,9 @@ int DST::GetSweepToTransfer(const int s, Array<int> directions) const
          if (ddot <= 0) continue;
 
          // Rule 2: The horizontal or vertical transfer source cannot be used
-         if (directions[0]==0 || directions[1] == 0) // Case of horizontal or vertical transfer source
+         // Case of horizontal or vertical transfer source 
+         // (it can't be both 0 cause it's skipped)
+         if (directions[0]==0 || directions[1] == 0) 
          {
             if (sweep0[0] == -sweep1[0] && sweep0[1] == -sweep1[1]) continue;
          }
@@ -635,7 +662,21 @@ int DST::GetSweepToTransfer(const int s, Array<int> directions) const
 
          // Rule 2: (oposite directions) the transfer source direction has to be similar with 
          // the sweep direction
+         // 
+         // check any of the projections onto the planes
+         // (xy, xz, yz)
 
+         if ( (directions[0]==0 && directions[1] != 0) || 
+              (directions[0]!=0 && directions[1] == 0) ||
+              (directions[0]==0 && directions[2] != 0) || 
+              (directions[0]!=0 && directions[2] == 0) ||
+              (directions[2]==0 && directions[1] != 0) || 
+              (directions[2]!=0 && directions[1] == 0) ) 
+         {
+            if (sweep0[0] == -sweep1[0] && 
+                sweep0[1] == -sweep1[1] && 
+                sweep0[2] == -sweep1[2]) continue;
+         }
 
          l1 = l;
          break;
