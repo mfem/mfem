@@ -65,7 +65,6 @@ public:
    double GetGridFunctionEnergy(const Vector &x) const;
 };
 
-
 }
 
 #endif // NONLINEARFORM_EXT_HPP

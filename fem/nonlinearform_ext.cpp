@@ -64,7 +64,7 @@ void PANonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &PANonlinearForm::GetGradient(const Vector &x) const
 {
-   Grad.SetOperatorOwner(true);
+   Grad.SetOperatorOwner(false);
    Grad.SetType(Operator::ANY_TYPE);
    Grad.Reset(new PANonlinearForm::Gradient(x, *this));
    return *Grad.Ptr();
