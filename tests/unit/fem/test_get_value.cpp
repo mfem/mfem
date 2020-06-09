@@ -2117,7 +2117,7 @@ TEST_CASE("3D GetValue in Parallel",
                   pmesh.GetSharedFaceTransformations(sf);
                ElementTransformation *T = &FET->GetElement2Transformation();
                int e = FET->Elem2No;
-               const FiniteElement   *fe = dgv_fespace.GetFE(e);
+               const FiniteElement   *fe = dgv_fespace.GetFaceNbrFE(e);
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
