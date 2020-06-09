@@ -30,16 +30,12 @@ extern mfem::MPI_Session *GlobalMPISession;
 #else
 typedef int MPI_Session;
 #define ParMesh Mesh
-#define GetParMesh GetMesh
-#define GlobalTrueVSize GetVSize
-#define ParBilinearForm BilinearForm
+#define ParNonlinearForm NonlinearForm
 #define ParGridFunction GridFunction
+#define GetParGridFunctionEnergy GetGridFunctionEnergy
 #define ParFiniteElementSpace FiniteElementSpace
 #define PFesGetParMeshGetComm(...)
-#define PFesGetParMeshGetComm0(...) 0
-#define MPI_Finalize()
 #define MPI_Allreduce(src,dst,...) *dst = *src
-#define MPI_Reduce(src, dst, n, T,...) *dst = *src
 #endif
 
 using namespace std;
@@ -111,22 +107,28 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (myid == 0) { args.PrintUsage(cout); }
       return 1;
    }
    if (verbosity_level > 0) { args.PrintOptions(cout); }
 
    REQUIRE(mesh_file);
-   Mesh msh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { msh.UniformRefinement(); }
-   const int dim = msh.Dimension();
+   Mesh smsh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { smsh.UniformRefinement(); }
+   const int dim = smsh.Dimension();
+   ParMesh *pmsh = nullptr;
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+   pmsh = new ParMesh(MPI_COMM_WORLD, smsh);
+#else
+   pmsh = new Mesh(smsh);
+#endif
 
    REQUIRE(order > 0);
    H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(&msh, &fec, dim);
-   msh.SetNodalFESpace(&fes);
-   GridFunction x0(&fes), x(&fes);
-   msh.SetNodalGridFunction(&x);
+   ParFiniteElementSpace fes(pmsh, &fec, dim);
+   pmsh->SetNodalFESpace(&fes);
+   ParGridFunction x0(&fes), x(&fes);
+   pmsh->SetNodalGridFunction(&x);
    x.SetTrueVector();
    x.SetFromTrueVector();
    x0 = x;
@@ -134,14 +136,14 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    TMOP_QualityMetric *metric = nullptr;
    switch (metric_id)
    {
-      case 2: metric = new TMOP_Metric_002; break;
+      case   2: metric = new TMOP_Metric_002; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 321: metric = new TMOP_Metric_321; break;
       default:
       {
-         cout << "Unknown metric_id: " << metric_id << endl;
-         return 3;
+         if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
+         return 2;
       }
    }
 
@@ -173,24 +175,24 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
       {
-         cout << "Unknown quad_type: " << quad_type << endl;
-         return !0;
+         if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
+         return 3;
       }
    }
-   cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
+   if (myid == 0) { cout << "Q-points per cell: " << ir->GetNPoints() << endl; }
 
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, &target_c);
    he_nlf_integ->SetIntegrationRule(*ir);
 
-   NonlinearForm nlf(&fes);
+   ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::NONE);
    nlf.AddDomainIntegrator(he_nlf_integ);
    nlf.Setup();
 
-   const double init_energy = nlf.GetGridFunctionEnergy(x);
+   const double init_energy = nlf.GetParGridFunctionEnergy(x);
    REQUIRE(init_energy == Approx(res.init_energy));
 
-   Array<int> ess_bdr(msh.bdr_attributes.Max());
+   Array<int> ess_bdr(pmsh->bdr_attributes.Max());
    ess_bdr = 1;
    nlf.SetEssentialBC(ess_bdr);
 
@@ -202,7 +204,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    }
    else if (lin_solver == 1)
    {
-      CGSolver *cg = new CGSolver;
+      CGSolver *cg = new CGSolver(PFesGetParMeshGetComm(fes));
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
@@ -211,7 +213,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    }
    else
    {
-      MINRESSolver *minres = new MINRESSolver;
+      MINRESSolver *minres = new MINRESSolver(PFesGetParMeshGetComm(fes));
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
@@ -220,37 +222,51 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    }
 
    double tauval = infinity();
-   for (int i = 0; i < msh.GetNE(); i++)
+   for (int i = 0; i < pmsh->GetNE(); i++)
    {
-      ElementTransformation *transf = msh.GetElementTransformation(i);
+      ElementTransformation *transf = pmsh->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir->IntPoint(j));
          tauval = min(tauval, transf->Jacobian().Det());
       }
    }
-   cout << "Minimum det(J) of the original mesh is " << tauval << endl;
+   double minJ0;
+   MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   tauval = minJ0;
+   if (myid == 0) { cout << "Min det(J) of the mesh is " << tauval << endl; }
    REQUIRE(tauval > 0.0);
    REQUIRE(tauval == Approx(res.tauval));
 
-   Vector b(0);
+   Vector b(0), &x_t(x.GetTrueVector());
    b.UseDevice(true);
-   TMOPNewtonSolver newton(*ir);
-   newton.SetPreconditioner(*S);
-   newton.SetMaxIter(newton_iter);
-   newton.SetRelTol(newton_rtol);
-   newton.SetAbsTol(0.0);
-   newton.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   newton.SetOperator(nlf);
-   newton.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+   NewtonSolver *newton = new TMOPNewtonSolver(PFesGetParMeshGetComm(fes),*ir);
+#else
+   NewtonSolver *newton = new TMOPNewtonSolver(*ir);
+#endif
+   newton->SetPreconditioner(*S);
+   newton->SetMaxIter(newton_iter);
+   newton->SetRelTol(newton_rtol);
+   newton->SetAbsTol(0.0);
+   newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   newton->SetOperator(nlf);
+   newton->Mult(b, x_t);
+   REQUIRE(newton->GetConverged());
 
-   REQUIRE(newton.GetConverged());
-   REQUIRE(x*x == Approx(res.dot));
-   REQUIRE(nlf.GetGridFunctionEnergy(x) == Approx(res.final_energy));
+   double x_t_dot = x_t*x_t, dot;
+   MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmsh->GetComm());
+   REQUIRE(dot == Approx(res.dot));
+
+   x.SetFromTrueVector();
+   const double final_energy = nlf.GetParGridFunctionEnergy(x);
+   REQUIRE(final_energy == Approx(res.final_energy));
 
    delete S;
+   delete pmsh;
    delete metric;
+   delete newton;
+
    return 0;
 }
 
