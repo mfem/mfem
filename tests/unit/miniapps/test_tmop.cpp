@@ -179,7 +179,6 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
          return 3;
       }
    }
-   if (myid == 0) { cout << "Q-points per cell: " << ir->GetNPoints() << endl; }
 
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, &target_c);
    he_nlf_integ->SetIntegrationRule(*ir);
