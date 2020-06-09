@@ -74,6 +74,8 @@ Discretization improvements
   Additionaly, new LinearForm integrators were also added which make use of
   these new QuadratureFunction coefficient classes.
 
+- Added support face integrals on the boundaries of NURBS meshes.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -120,6 +122,8 @@ New and updated examples and miniapps
 
 - Added a new test problem in example 24/24p, demonstrating a mixed bilinear
   form for H(div) and L_2, with partial assembly support.
+
+- Added weak Dirichlet boundary conditions (Nitsche) to the NURBS miniapp.
 
 Improved testing
 ----------------

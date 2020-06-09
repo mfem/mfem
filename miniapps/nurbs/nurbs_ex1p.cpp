@@ -143,21 +143,32 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
+   int ref_levels = -1;
    Array<int> order(1);
    order[0] = 1;
    bool static_cond = false;
    bool visualization = 1;
    bool ibp = 1;
+   bool strongBC = 1;
+   double kappa = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
                   "--no-ibp",
                   "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
+   args.AddOption(&strongBC, "-sbc", "--strong-bc", "-wbc",
+                  "--weak-bc",
+                  "Selects strong or weak enforcement of Dirichlet BCs.");
+   args.AddOption(&kappa, "-k", "--kappa",
+                  "Sets the SIPG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -172,6 +183,10 @@ int main(int argc, char *argv[])
       }
       MPI_Finalize();
       return 1;
+   }
+   if (!strongBC & (kappa < 0))
+   {
+      kappa = 4*(order.Max()+1)*(order.Max()+1);
    }
    if (myid == 0)
    {
@@ -189,11 +204,19 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels < 0)
+      {
+         ref_levels =
+            (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+      }
+
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
+      }
+      if (myid == 0)
+      {
+         mesh->PrintInfo();
       }
    }
 
@@ -292,16 +315,29 @@ int main(int argc, char *argv[])
    if (pmesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      if (strongBC)
+      {
+         ess_bdr = 1;
+      }
+      else
+      {
+         ess_bdr = 0;
+      }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+
+   ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+
+   if (!strongBC)
+      b->AddBdrFaceIntegrator(
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
 
    // 9. Define the solution vector x as a parallel finite element grid function
@@ -321,6 +357,10 @@ int main(int argc, char *argv[])
    else
    {
       a->AddDomainIntegrator(new Diffusion2Integrator(one));
+   }
+   if (!strongBC)
+   {
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
    }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
