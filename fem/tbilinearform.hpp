@@ -78,12 +78,17 @@ protected:
    typedef IntegratorType integ_t;
    /// coeff_t might be TConstantCoefficient or TFunctionCoefficient, for example
    typedef typename integ_t::coefficient_type coeff_t;
+   /// kernel_t may be TDiffusionKernel or TMassKernel
    typedef typename integ_t::template kernel<sdim,dim,vcomplex_t>::type kernel_t;
+   /// p_assembled_t is something like a TTensor or TMatrix for partial assembly
    typedef typename kernel_t::template p_asm_data<qpts>::type p_assembled_t;
    /// f_assembled_t is something like a TTensor or TMatrix for full assembly
    typedef typename kernel_t::template f_asm_data<qpts>::type f_assembled_t;
+   ///@}
+
    typedef typename kernel_t::template
    CoefficientEval<IR,coeff_t,impl_traits_t>::Type coeff_eval_t;
+
 
    typedef TElementTransformation<meshType,IR,real_t> Trans_t;
    struct T_result
@@ -95,6 +100,9 @@ protected:
 
    typedef FieldEvaluator<solFESpace,solVecLayout_t,IR,
            complex_t,real_t> solFieldEval;
+
+   /** @brief Contains matrix sizes, type of kernel (ElementMatrix is templated
+       on a kernel, e.g. ElementMatrix::Compute may be AssembleGradGrad()). */
    struct S_spec
    {
       typedef typename solFieldEval::template Spec<kernel_t,impl_traits_t> Spec;
@@ -291,8 +299,8 @@ public:
       typedef TTensor3<meshFE_type::dofs,sdim,BE,vreal_t> lnodes_t;
 
       const int NE = mesh.GetNE();
-      // TODO: How do we make sure that this array is aligned properly, AND
-      //       the compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
+      // TODO: How do we make sure that this array is aligned properly, AND the
+      //       compiler knows that it is aligned? => ALIGN_32|ALIGN_64 when ready
       const int NVE = (NE+TE-1)/TE;
       vreal_t *vsNodes = new vreal_t[lnodes_t::size*NVE];
       sNodes.NewDataAndSize(vsNodes[0].vec, (lnodes_t::size*SS)*NVE);

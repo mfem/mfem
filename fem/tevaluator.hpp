@@ -1153,10 +1153,12 @@ public:
       Gradients = 2
    };
 
-   // Auxiliary templated struct AData, used by the Eval() and Assemble()
-   // methods. The template parameter IOData is "bitwise or" of constants from
-   // the enum InOutData. The type impl_traits_t specifies parameters and types
-   // to be used in the Eval() and Assemble() methods.
+   /** @brief  Auxiliary templated struct AData, used by the Eval() and Assemble()
+       methods.
+
+       The template parameter IOData is "bitwise or" of constants from
+       the enum InOutData. The parameter NE is the number of elements to be
+       processed in the Eval() and Assemble() methods. */
    template<int IOData, typename impl_traits_t> struct AData;
 
    template <typename it_t> struct AData<0,it_t> // 0 = None
@@ -1204,8 +1206,8 @@ public:
       TTensor4<qpts,dim,vdim,ne,vcomplex_t>      grad_qpts;
    };
 
-   // This struct is similar to struct AData, adding separate static data
-   // members for the input (InData) and output (OutData) data types.
+   /** @brief This struct is similar to struct AData, adding separate static data
+       members for the input (InData) and output (OutData) data types. */
    template <int IData, int OData, typename it_t>
    struct BData : public AData<IData|OData,it_t>
    {
@@ -1402,8 +1404,8 @@ public:
 #endif
    };
 
-   // This struct implements element matrix computation for some combinations
-   // of input (InOps) and output (OutOps) operations.
+   /** @brief This struct implements element matrix computation for some combinations
+       of input (InOps) and output (OutOps) operations. */
    template <int InOps, int OutOps, typename it_t> struct TElementMatrix;
 
    // Case 1,1 = Values,Values
@@ -1425,8 +1427,15 @@ public:
    // Case 2,2 = Gradients,Gradients
    template <typename it_t> struct TElementMatrix<2,2,it_t>
    {
-      // qpt_layout_t is (nip x dim x dim), M_layout_t is (dof x dof)
-      // it_t::batch_size = 1 is assumed
+      /** @brief Assemble element mass matrix
+          @param a the layout for the quadrature point data
+          @param A given quadrature point data for element (incl. coefficient,
+                 geometry)
+          @param m the layout for the resulting element mass matrix
+          @param M the resulting element mass matrix
+          @param ev the shape evaluator
+          qpt_layout_t is (nip), M_layout_t is (dof x dof)
+          NE = 1 is assumed */
       template <typename qpt_layout_t, typename qpt_data_t,
                 typename M_layout_t, typename M_data_t>
       static inline MFEM_ALWAYS_INLINE

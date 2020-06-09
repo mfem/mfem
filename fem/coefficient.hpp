@@ -27,10 +27,10 @@ class ParMesh;
 #endif
 
 
-/** @brief Base class Coefficients that optionally depend on space and
-    time.  These are used by the BilinearFormIntegrator,
-    LinearFormIntegrator, and NonlinearFormIntegrator classes to represent
-    the physical coeffiencients in the PDEs that are being discretized. */
+/** @brief Base class Coefficients that optionally depend on space and time.
+    These are used by the BilinearFormIntegrator, LinearFormIntegrator, and
+    NonlinearFormIntegrator classes to represent the physical coefficients in
+    the PDEs that are being discretized. */
 class Coefficient
 {
 protected:
@@ -289,7 +289,8 @@ public:
        integral of the projection is exactly equal to the Scale(). */
    void SetWeight(Coefficient *w) { weight = w; }
 
-   /// Return a pointer to a c-array representing the center of the delta function.
+   /// Return a pointer to a c-array representing the center of the delta
+   /// function.
    const double *Center() { return center; }
 
    /** @brief Return the scale factor times the optional time dependent
@@ -343,7 +344,7 @@ protected:
    double time;
 
 public:
-   /// Initilize the VectorCoefficient with vector dimension @a vd.
+   /// Initialize the VectorCoefficient with vector dimension @a vd.
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
    /// Set the time for time dependent coefficients
@@ -438,9 +439,9 @@ public:
 };
 
 /** @brief Vector coefficient defined by an array of scalar coefficients.
-    Coefficients that are not set will evaluate to zero in the vector.
-    This object takes ownership of the array of coefficients inside it and
-    deletes them at object destruction. */
+    Coefficients that are not set will evaluate to zero in the vector. This
+    object takes ownership of the array of coefficients inside it and deletes
+    them at object destruction. */
 class VectorArrayCoefficient : public VectorCoefficient
 {
 private:
@@ -461,12 +462,13 @@ public:
    /// Sets coefficient in the vector.
    void Set(int i, Coefficient *c, bool own=true);
 
-   /// Evaluates i'th component of the vector of coefficients and returns the value.
+   /// Evaluates i'th component of the vector of coefficients and returns the
+   /// value.
    double Eval(int i, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i] ? Coeff[i]->Eval(T, ip, GetTime()) : 0.0; }
 
    using VectorCoefficient::Eval;
-   /** @brief Evaluate the coefficient.  Each element of vector V comes from the
+   /** @brief Evaluate the coefficient. Each element of vector V comes from the
        associated array of scalar coefficients. */
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -490,7 +492,7 @@ public:
        grid function is not owned by the coefficient. */
    VectorGridFunctionCoefficient(const GridFunction *gf);
 
-   /** @brief Set the grid function for this coefficient.  Also sets the Vector
+   /** @brief Set the grid function for this coefficient. Also sets the Vector
        dimension to match that of the @a gf. */
    void SetGridFunction(const GridFunction *gf);
 
@@ -502,8 +504,8 @@ public:
                      const IntegrationPoint &ip);
 
    /** @brief Evaluate the vector coefficients at all of the locations in the
-       integration rule and write the vectors into the
-       columns of matrix @a M. */
+       integration rule and write the vectors into the columns of matrix @a
+       M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
@@ -518,8 +520,8 @@ protected:
 
 public:
 
-   /** @brief  Construct the coefficient with a scalar grid function
-       @a gf.  The grid function is not owned by the coefficient. */
+   /** @brief Construct the coefficient with a scalar grid function @a gf. The
+       grid function is not owned by the coefficient. */
    GradientGridFunctionCoefficient(const GridFunction *gf);
 
    ///Set the scalar grid function.
@@ -532,9 +534,9 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /** @brief Evaluate the gradient vector coefficient at all of the
-       locations in the  integration rule and write the vectors into
-       columns of matrix @a M. */
+   /** @brief Evaluate the gradient vector coefficient at all of the locations
+       in the integration rule and write the vectors into columns of matrix @a
+       M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
@@ -548,8 +550,8 @@ protected:
    const GridFunction *GridFunc;
 
 public:
-   /** @brief  Construct the coefficient with a vector grid function
-       @a gf.  The grid function is not owned by the coefficient. */
+   /** @brief Construct the coefficient with a vector grid function @a gf. The
+       grid function is not owned by the coefficient. */
    CurlGridFunctionCoefficient(const GridFunction *gf);
 
    /// Set the vector grid function.
@@ -573,8 +575,8 @@ protected:
    const GridFunction *GridFunc;
 
 public:
-   /** @brief  Construct the coefficient with a vector grid function
-       @a gf.  The grid function is not owned by the coefficient. */
+   /** @brief Construct the coefficient with a vector grid function @a gf. The
+       grid function is not owned by the coefficient. */
    DivergenceGridFunctionCoefficient(const GridFunction *gf);
 
    /// Set the vector grid function.
@@ -593,8 +595,8 @@ public:
 /** @brief Vector coefficient defined by a scalar DeltaCoefficient and a
     constant vector direction.
 
-    WARNING this cannot be used as a normal coefficient.  The usual Eval
-    method is disabled. */
+    WARNING this cannot be used as a normal coefficient. The usual Eval method
+    is disabled. */
 class VectorDeltaCoefficient : public VectorCoefficient
 {
 protected:
@@ -606,23 +608,23 @@ public:
    VectorDeltaCoefficient(int _vdim)
       : VectorCoefficient(_vdim), dir(_vdim), d() { }
 
-   /** @brief Construct with a Vector object representing the direction and
-       a unit delta function centered at (0.0,0.0,0.0) */
+   /** @brief Construct with a Vector object representing the direction and a
+       unit delta function centered at (0.0,0.0,0.0) */
    VectorDeltaCoefficient(const Vector& _dir)
       : VectorCoefficient(_dir.Size()), dir(_dir), d() { }
 
-   /** @brief Construct with a Vector object representing the direction and
-       a delta function scaled by @a s and centered at (x,0.0,0.0) */
+   /** @brief Construct with a Vector object representing the direction and a
+       delta function scaled by @a s and centered at (x,0.0,0.0) */
    VectorDeltaCoefficient(const Vector& _dir, double x, double s)
       : VectorCoefficient(_dir.Size()), dir(_dir), d(x,s) { }
 
-   /** @brief Construct with a Vector object representing the direction and
-       a delta function scaled by @a s and centered at (x,y,0.0) */
+   /** @brief Construct with a Vector object representing the direction and a
+       delta function scaled by @a s and centered at (x,y,0.0) */
    VectorDeltaCoefficient(const Vector& _dir, double x, double y, double s)
       : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,s) { }
 
-   /** @brief Construct with a Vector object representing the direction and
-       a delta function scaled by @a s and centered at (x,y,z) */
+   /** @brief Construct with a Vector object representing the direction and a
+       delta function scaled by @a s and centered at (x,y,z) */
    VectorDeltaCoefficient(const Vector& _dir, double x, double y, double z,
                           double s)
       : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,z,s) { }
@@ -665,8 +667,9 @@ private:
    Array<int> active_attr;
 
 public:
-   /** @brief Construct with a parent vector coefficient and an array of zeros and
-       ones representing the attributes for which this coefficient should be active. */
+   /** @brief Construct with a parent vector coefficient and an array of zeros
+       and ones representing the attributes for which this coefficient should be
+       active. */
    VectorRestrictedCoefficient(VectorCoefficient &vc, Array<int> &attr)
       : VectorCoefficient(vc.GetVDim())
    { c = &vc; attr.Copy(active_attr); }
@@ -675,9 +678,9 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   /** @brief Evaluate the  vector coefficient at all of the
-       locations in the integration rule and write the vectors into
-       the columns of matrix @a M. */
+   /** @brief Evaluate the vector coefficient at all of the locations in the
+       integration rule and write the vectors into the columns of matrix @a
+       M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 };
@@ -740,10 +743,9 @@ public:
 };
 
 
-/** @brief A matrix coefficient with an optional scalar coefficient
-    multiplier \a q.  The matrix function can either be represented by a
-    C-function or a constant matrix provided when constructiong this
-    object.  */
+/** @brief A matrix coefficient with an optional scalar coefficient multiplier
+    \a q.  The matrix function can either be represented by a C-function or a
+    constant matrix provided when constructing this object.  */
 class MatrixFunctionCoefficient : public MatrixCoefficient
 {
 private:
@@ -753,7 +755,8 @@ private:
    DenseMatrix mat;
 
 public:
-   /// Construct a square matrix coefficient from a C-function without time dependence.
+   /// Construct a square matrix coefficient from a C-function without time
+   /// dependence.
    MatrixFunctionCoefficient(int dim, void (*F)(const Vector &, DenseMatrix &),
                              Coefficient *q = NULL)
       : MatrixCoefficient(dim), Q(q)
@@ -772,7 +775,8 @@ public:
       mat = m;
    }
 
-   /// Construct a square matrix coefficient from a C-function with time-dependence.
+   /// Construct a square matrix coefficient from a C-function with
+   /// time-dependence.
    MatrixFunctionCoefficient(int dim,
                              void (*TDF)(const Vector &, double, DenseMatrix &),
                              Coefficient *q = NULL)
@@ -793,9 +797,8 @@ public:
 
 
 /** @brief Matrix coefficient defined by a matrix of scalar coefficients.
-    Coefficients that are not set will evaluate to zero in the vector.  The
-    coefficient is stored as a flat Array with indexing (i,j) -> i*width+j.
-    */
+    Coefficients that are not set will evaluate to zero in the vector. The
+    coefficient is stored as a flat Array with indexing (i,j) -> i*width+j. */
 class MatrixArrayCoefficient : public MatrixCoefficient
 {
 private:
@@ -803,19 +806,20 @@ private:
    Array<bool> ownCoeff;
 
 public:
-   /** @brief Construct a coefficient matrix of dimensions @a dim * @a dim.
-       The actual coefficients still need to be added with Set(). */
+   /** @brief Construct a coefficient matrix of dimensions @a dim * @a dim. The
+       actual coefficients still need to be added with Set(). */
    explicit MatrixArrayCoefficient (int dim);
 
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   /** @brief Set the coefficient located at (i,j) in the matrix.  By default
-       by default this will take ownership of the Coefficient passed in, but this
-       can be overrided with the @a own parameter. */
+   /** @brief Set the coefficient located at (i,j) in the matrix.  By default by
+       default this will take ownership of the Coefficient passed in, but this
+       can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
-   /// Evaluate coefficient located at (i,j) in the matrix using integration point @a ip.
+   /// Evaluate coefficient located at (i,j) in the matrix using integration
+   /// point @a ip.
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
 
@@ -827,8 +831,8 @@ public:
 };
 
 
-/** @brief Derived matrix coefficient that has the value of the parent
-    matrix coefficient where it is active and is zero otherwise. */
+/** @brief Derived matrix coefficient that has the value of the parent matrix
+    coefficient where it is active and is zero otherwise. */
 class MatrixRestrictedCoefficient : public MatrixCoefficient
 {
 private:
@@ -836,8 +840,9 @@ private:
    Array<int> active_attr;
 
 public:
-   /** @brief Construct with a parent matrix coefficient and an array of zeros and
-       ones representing the attributes for which this coefficient should be active. */
+   /** @brief Construct with a parent matrix coefficient and an array of zeros
+       and ones representing the attributes for which this coefficient should be
+       active. */
    MatrixRestrictedCoefficient(MatrixCoefficient &mc, Array<int> &attr)
       : MatrixCoefficient(mc.GetHeight(), mc.GetWidth())
    { c = &mc; attr.Copy(active_attr); }
@@ -860,7 +865,7 @@ private:
    double beta;
 
 public:
-   /// Construct with the two coefficeints.  Result is _alpha * A + _beta * B.
+   /// Construct with the two coefficients.  Result is _alpha * A + _beta * B.
    SumCoefficient(Coefficient &A, Coefficient &B,
                   double _alpha = 1.0, double _beta = 1.0)
       : a(&A), b(&B), alpha(_alpha), beta(_beta) { }
@@ -1023,7 +1028,7 @@ public:
    using VectorCoefficient::Eval;
 };
 
-/** @brief Vector coefficient defined as a product of a matrix coeffiecient and
+/** @brief Vector coefficient defined as a product of a matrix coefficient and
     a vector coefficient. */
 class MatVecCoefficient : public VectorCoefficient
 {
@@ -1082,8 +1087,8 @@ public:
                      const IntegrationPoint &ip);
 };
 
-/** @brief Matrix coefficient defined as a product of a scalar
-    coefficient and a matrix coefficient.*/
+/** @brief Matrix coefficient defined as a product of a scalar coefficient and a
+    matrix coefficient.*/
 class ScalarMatrixProductCoefficient : public MatrixCoefficient
 {
 private:
@@ -1148,11 +1153,12 @@ public:
                      const IntegrationPoint &ip);
 };
 
+
 class QuadratureFunction;
 
 /** @brief Vector quadrature function coefficient which requires that the
-   quadrature rules used for this vector coefficient be the same as those that
-   live within the supplied QuadratureFunction. */
+    quadrature rules used for this vector coefficient be the same as those that
+    live within the supplied QuadratureFunction. */
 class VectorQuadratureFunctionCoefficient : public VectorCoefficient
 {
 private:
@@ -1163,9 +1169,9 @@ public:
    /// Constructor with a quadrature function as input
    VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
 
-   /** Set the starting index within the QuadFunc that'll be used to
-      project outwards as well as the corresponding length. The projected length
-      should have the bounds of 1 <= length <= (length QuadFunc - index). */
+   /** Set the starting index within the QuadFunc that'll be used to project
+       outwards as well as the corresponding length. The projected length should
+       have the bounds of 1 <= length <= (length QuadFunc - index). */
    void SetComponent(int _index, int _length);
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
@@ -1178,8 +1184,8 @@ public:
 };
 
 /** @brief Quadrature function coefficient which requires that the quadrature
-   rules used for this coefficient be the same as those that live within the
-   supplied QuadratureFunction. */
+    rules used for this coefficient be the same as those that live within the
+    supplied QuadratureFunction. */
 class QuadratureFunctionCoefficient : public Coefficient
 {
 private:

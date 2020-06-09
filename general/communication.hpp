@@ -48,9 +48,9 @@ public:
 };
 
 
-/** The shared entities (e.g. vertices, faces and edges) are split into
-    groups, each group determined by the set of participating processors.
-    They are numbered locally in lproc. Assumptions:
+/** The shared entities (e.g. vertices, faces and edges) are split into groups,
+    each group determined by the set of participating processors. They are
+    numbered locally in lproc. Assumptions:
     - group 0 is the 'local' group
     - groupmaster_lproc[0] = 0
     - lproc_proc[0] = MyRank */
@@ -108,7 +108,7 @@ public:
    bool IAmMaster(int g) const { return (groupmaster_lproc[g] == 0); }
 
    /** @brief Return the neighbor index of the group master for a given group.
-    *  Neighbor 0 is the local processor. */
+       Neighbor 0 is the local processor. */
    int GetGroupMaster(int g) const { return groupmaster_lproc[g]; }
 
    /// Return the rank of the group master for group 'g'.
@@ -122,7 +122,7 @@ public:
    int GetGroupSize(int g) const { return group_lproc.RowSize(g); }
 
    /** @brief Return a pointer to a list of neighbors for a given group.
-     * Neighbor 0 is the local processor */
+       Neighbor 0 is the local processor */
    const int *GetGroup(int g) const { return group_lproc.GetRow(g); }
 
    /// Save the data in a stream.
@@ -208,9 +208,8 @@ public:
    void GetNeighborLDofTable(Table &nbr_ldof) const;
 
    /** @brief Data structure on which we define reduce operations.
-
-     The data is associated with (and the operation is performed on) one group
-     at a time. */
+       The data is associated with (and the operation is performed on) one
+       group at a time. */
    template <class T> struct OpData
    {
       int nldofs, nb;
@@ -344,9 +343,10 @@ struct VarMessage
    std::string data;
    MPI_Request send_request;
 
-   /** @brief Non-blocking send to processor 'rank'. Returns immediately. Completion
-       (as tested by MPI_Wait/Test) does not mean the message was received --
-       it may be on its way or just buffered locally. */
+   /** @brief Non-blocking send to processor 'rank'.
+       Returns immediately. Completion (as tested by MPI_Wait/Test) does not
+       mean the message was received -- it may be on its way or just buffered
+       locally. */
    void Isend(int rank, MPI_Comm comm)
    {
       Encode(rank);
@@ -354,8 +354,9 @@ struct VarMessage
                 &send_request);
    }
 
-   /** @brief Non-blocking synchronous send to processor 'rank'. Returns immediately.
-       Completion (MPI_Wait/Test) means that the message was received. */
+   /** @brief Non-blocking synchronous send to processor 'rank'.
+       Returns immediately. Completion (MPI_Wait/Test) means that the message
+       was received. */
    void Issend(int rank, MPI_Comm comm)
    {
       Encode(rank);
@@ -413,9 +414,9 @@ struct VarMessage
       MPI_Get_count(&status, MPI_BYTE, &size);
    }
 
-   /** @brief Non-blocking probe for incoming message of this type from any rank.
-       If there is an incoming message, returns true and sets 'rank' and 'size'.
-       Otherwise returns false. */
+   /** @brief Non-blocking probe for incoming message of this type from any
+       rank. If there is an incoming message, returns true and sets 'rank' and
+       'size'. Otherwise returns false. */
    static bool IProbe(int &rank, int &size, MPI_Comm comm)
    {
       int flag;
@@ -443,7 +444,7 @@ struct VarMessage
       Decode(rank);
    }
 
-   /// Like Recv(), but throw away the messsage.
+   /// Like Recv(), but throw away the message.
    void RecvDrop(int rank, int size, MPI_Comm comm)
    {
       data.resize(size);

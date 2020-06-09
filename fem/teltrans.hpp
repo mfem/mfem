@@ -53,8 +53,8 @@ public:
       LoadElementIdxs = 8
    };
 
-   /// Determines at compile-time the operations needed for given coefficient and
-   /// kernel
+   /// Determines at compile-time the operations needed for given coefficient
+   /// and kernel
    template <typename coeff_t, typename kernel_t> struct Get
    {
       static const int EvalOps =
@@ -65,11 +65,13 @@ public:
          (EvalJacobians   * kernel_t::uses_Jacobians);
    };
 
-   // Templated struct Result, used to specify the type result that is computed
-   // by the TElementTransformation::Eval() method and stored in this structure.
-   // The template parameter EvalOps is a sum (bitwise or) of constants from
-   // the enum EvalOperations. The type impl_traits_t specifies additional
-   // parameters and types to be used by the Eval() method.
+   /** @brief Templated struct Result, used to specify the type result that is
+       computed by the TElementTransformation::Eval() method and stored in this
+       structure.
+       @tparam EvalOps is a sum (bitwise or) of constants from the enum EvalOperations
+       @tparam NE is the number of elements to be processed in the Eval() method.
+       @tparam impl_traits_t specifies additional parameters and types to be used by the Eval() method
+   */
    template<int EvalOps, typename impl_traits_t> struct Result;
 
    static const int dim  = Mesh_t::dim;
@@ -113,7 +115,7 @@ public:
         elements(mesh.m_mesh.GetElementsArray())
    { }
 
-   // Evaluate coordinates and/or Jacobian matrices at quadrature points.
+   /// Evaluate coordinates and/or Jacobian matrices at quadrature points.
    template<int EvalOps, typename impl_traits_t>
    inline MFEM_ALWAYS_INLINE
    void Eval(int el, Result<EvalOps,impl_traits_t> &F)

@@ -23,7 +23,8 @@ namespace mfem
 {
 
 // Utilities for text parsing
-/// Check to see if the in the stream starts with @a comment_char.  If so skip it.
+
+/// Check if the stream starts with @a comment_char. If so skip it.
 inline void skip_comment_lines(std::istream &is, const char comment_char)
 {
    while (1)

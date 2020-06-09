@@ -25,8 +25,8 @@
 namespace mfem
 {
 
-/** @brief Enumeration defining the assembly level for bilinear and nonlinear form
-    classes derived from Operator. */
+/** @brief Enumeration defining the assembly level for bilinear and nonlinear
+    form classes derived from Operator. */
 enum class AssemblyLevel
 {
    /// Fully assembled form, i.e. a global sparse matrix in MFEM, Hypre or PETSC
@@ -44,8 +44,10 @@ enum class AssemblyLevel
 };
 
 
-/** @brief Used to form a matrix given the associated FE space and BLFIntegrators
-    The sum of all the BLFIntegrators will be used form the matrix M.  */
+/** @brief A "square matrix" operator for the associated FE space and
+    BLFIntegrators The sum of all the BLFIntegrators can be used form the matrix
+    M. This class also supports other assembly levels specified via the
+    SetAssemblyLevel() function. */
 class BilinearForm : public Matrix
 {
 protected:
@@ -68,8 +70,8 @@ protected:
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
 
-   /** @brief Indicates the Mesh::sequence corresponding to the current state of the
-       BilinearForm. */
+   /** @brief Indicates the Mesh::sequence corresponding to the current state of
+       the BilinearForm. */
    long sequence;
 
    /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
