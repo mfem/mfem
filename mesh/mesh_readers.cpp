@@ -887,7 +887,7 @@ void Mesh::ReadInlineMesh(std::istream &input, bool generate_edges)
    }
 }
 
-void Mesh::ReadGmshMesh(std::istream &input)
+void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 {
    string buff;
    double version;
@@ -1110,8 +1110,14 @@ void Mesh::ReadGmshMesh(std::istream &input)
                      }
                      case 4: // 4-node tetrahedron
                      {
+#ifdef MFEM_USE_MEMALLOC
+                        elements_3D.push_back(TetMemory.Alloc());
+                        elements_3D.back()->SetVertices(&vert_indices[0]);
+                        elements_3D.back()->SetAttribute(phys_domain);
+#else
                         elements_3D.push_back(
                            new Tetrahedron(&vert_indices[0], phys_domain));
+#endif
                         break;
                      }
                      case 5: // 8-node hexahedron
@@ -1195,8 +1201,14 @@ void Mesh::ReadGmshMesh(std::istream &input)
                   }
                   case 4: // 4-node tetrahedron
                   {
+#ifdef MFEM_USE_MEMALLOC
+                     elements_3D.push_back(TetMemory.Alloc());
+                     elements_3D.back()->SetVertices(&vert_indices[0]);
+                     elements_3D.back()->SetAttribute(phys_domain);
+#else
                      elements_3D.push_back(
                         new Tetrahedron(&vert_indices[0], phys_domain));
+#endif
                      break;
                   }
                   case 5: // 8-node hexahedron
@@ -1291,6 +1303,66 @@ void Mesh::ReadGmshMesh(std::istream &input)
          MFEM_CONTRACT_VAR(elem_domain);
 
       } // section '$Elements'
+      else if (buff == "$Periodic") // Reading master/slave node pairs
+      {
+         curved = 1;
+         read_gf = 0;
+         spaceDim = 3;
+
+         Array<int> v2v(NumOfVertices);
+         for (int i = 0; i < v2v.Size(); i++)
+         {
+            v2v[i] = i;
+         }
+         int num_per_ent;
+         int num_nodes;
+         int slave, master;
+         input >> num_per_ent;
+         getline(input, buff); // Read end-of-line
+         for (int i = 0; i < num_per_ent; i++)
+         {
+            getline(input, buff); // Read and ignore entity dimension and tags
+            getline(input, buff); // Read and ignore affine mapping
+            // Read master/slave vertex pairs
+            input >> num_nodes;
+            for (int j=0; j<num_nodes; j++)
+            {
+               input >> slave >> master;
+               v2v[slave - 1] = master - 1;
+            }
+            getline(input, buff); // Read end-of-line
+         }
+
+         // Convert nodes to discontinuous GridFunction
+         this->SetCurvature(1, true, Dim, Ordering::byVDIM);
+
+         // Replace "slave" vertex indices in the element connectivity
+         // with their corresponding "master" vertex indices.
+         for (int i = 0; i < this->GetNE(); i++)
+         {
+            Element *el = this->GetElement(i);
+            int *v = el->GetVertices();
+            int nv = el->GetNVertices();
+            for (int j = 0; j < nv; j++)
+            {
+               v[j] = v2v[v[j]];
+            }
+         }
+         // Replace "slave" vertex indices in the boundary element connectivity
+         // with their corresponding "master" vertex indices.
+         for (int i = 0; i < this->GetNBE(); i++)
+         {
+            Element *el = this->GetBdrElement(i);
+            int *v = el->GetVertices();
+            int nv = el->GetNVertices();
+            for (int j = 0; j < nv; j++)
+            {
+               v[j] = v2v[v[j]];
+            }
+         }
+         this->RemoveUnusedVertices();
+         this->RemoveInternalBoundaries();
+      }
    } // we reach the end of the file
 }
 
@@ -1878,7 +1950,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
             case (ELEMENT_TET4):
             case (ELEMENT_TET10):
             {
-               elements[elcount] = new Tetrahedron(renumberedVertID,ebprop[iblk]);
+#ifdef MFEM_USE_MEMALLOC
+               elements[elcount] = TetMemory.Alloc();
+               elements[elcount]->SetVertices(renumberedVertID);
+               elements[elcount]->SetAttribute(ebprop[iblk]);
+#else
+               elements[elcount] = new Tetrahedron(renumberedVertID,
+                                                   ebprop[iblk]);
+#endif
                break;
             }
             case (ELEMENT_HEX8):
