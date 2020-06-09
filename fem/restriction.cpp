@@ -297,10 +297,10 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    });
    MFEM_FORALL(e, ne,
    {
-      constexpr int MaxNbNbr = max;
+      constexpr int Max = max;
       for (int i = 0; i < elt_dofs; i++)
       {
-         int i_elts[MaxNbNbr];
+         int i_elts[Max];
          const int i_E = e*elt_dofs + i;
          const int i_L = d_gatherMap[i_E];
          const int i_offset = d_offsets[i_L];
@@ -324,15 +324,14 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             }
             else // assembly required
             {
-               int j_elts[MaxNbNbr];
+               int j_elts[Max];
                for (int e_j = 0; e_j < j_nbElts; ++e_j)
                {
                   const int j_E = d_indices[j_offset+e_j];
                   const int elt = j_E/elt_dofs;
                   j_elts[e_j] = elt;
                }
-               int min_e = GetMinElt<MaxNbNbr>(i_elts, i_nbElts,
-                                               j_elts, j_nbElts);
+               int min_e = GetMinElt<Max>(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
                {
                   GetAndIncrementNnzIndex(i_L, I);
@@ -372,11 +371,11 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
    MFEM_FORALL(e, ne,
    {
-      constexpr int MaxNbNbr = max;
+      constexpr int Max = max;
       for (int i = 0; i < elt_dofs; i++)
       {
-         int i_elts[MaxNbNbr];
-         int i_B[MaxNbNbr];
+         int i_elts[Max];
+         int i_B[Max];
          const int i_E = e*elt_dofs + i;
          const int i_L = d_gatherMap[i_E];
          const int i_offset = d_offsets[i_L];
@@ -403,8 +402,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             }
             else // assembly required
             {
-               int j_elts[MaxNbNbr];
-               int j_B[MaxNbNbr];
+               int j_elts[Max];
+               int j_B[Max];
                for (int e_j = 0; e_j < j_nbElts; ++e_j)
                {
                   const int j_E = d_indices[j_offset+e_j];
@@ -412,8 +411,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                   j_elts[e_j] = elt;
                   j_B[e_j]    = j_E%elt_dofs;
                }
-               int min_e = GetMinElt<MaxNbNbr>(i_elts, i_nbElts,
-                                               j_elts, j_nbElts);
+               int min_e = GetMinElt<Max>(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) //Rational to add the nnz only once
                {
                   double val = 0.0;
