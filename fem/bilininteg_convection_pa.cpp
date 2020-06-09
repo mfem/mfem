@@ -793,7 +793,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       const QuadratureFunction &qFun = cQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
-                  "Incompatible QuadratureFunction dimensions \n");
+                  "Incompatible QuadratureFunction dimension \n");
       qFun.Read();
       vel.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
    }

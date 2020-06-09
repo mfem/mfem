@@ -66,8 +66,8 @@ void MassIntegrator::SetupPA(const FiniteElementSpace &fes, const bool force)
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
       const QuadratureFunction &qFun = cQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == pa_data.Size(),
-                  "Incompatible QuadratureFunction dimensions \n");
+      MFEM_VERIFY(qFun.Size() == nq * ne,
+                  "Incompatible QuadratureFunction dimension \n");
       qFun.Read();
       coeff.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
    }
