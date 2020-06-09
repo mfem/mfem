@@ -1855,7 +1855,6 @@ TEST_CASE("1D GetValue in Parallel",
    {
       Mesh *mesh = new Mesh(n, 2.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      pmesh.ExchangeFaceNbrData();
       delete mesh;
 
       FunctionCoefficient linCoef(func_1D_lin);
@@ -1869,9 +1868,6 @@ TEST_CASE("1D GetValue in Parallel",
 
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec);
-
-         dgv_fespace.ExchangeFaceNbrData();
-         dgi_fespace.ExchangeFaceNbrData();
 
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
@@ -1959,7 +1955,7 @@ TEST_CASE("2D GetValue in Parallel",
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
    int log = 1;
-   int n = 2 * num_procs;
+   int n = num_procs;
    int dim = 2;
    int order = 1;
    int npts = 0;
@@ -1971,7 +1967,6 @@ TEST_CASE("2D GetValue in Parallel",
    {
       Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      pmesh.ExchangeFaceNbrData();
       delete mesh;
 
       FunctionCoefficient linCoef(func_2D_lin);
@@ -1985,9 +1980,6 @@ TEST_CASE("2D GetValue in Parallel",
 
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec);
-
-         dgv_fespace.ExchangeFaceNbrData();
-         dgi_fespace.ExchangeFaceNbrData();
 
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
@@ -2075,7 +2067,7 @@ TEST_CASE("3D GetValue in Parallel",
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
    int log = 1;
-   int n = 2 * num_procs;
+   int n = num_procs;
    int dim = 3;
    int order = 1;
    int npts = 0;
@@ -2087,7 +2079,6 @@ TEST_CASE("3D GetValue in Parallel",
    {
       Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      pmesh.ExchangeFaceNbrData();
       delete mesh;
 
       FunctionCoefficient linCoef(func_3D_lin);
@@ -2101,9 +2092,6 @@ TEST_CASE("3D GetValue in Parallel",
 
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec);
-
-         dgv_fespace.ExchangeFaceNbrData();
-         dgi_fespace.ExchangeFaceNbrData();
 
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
