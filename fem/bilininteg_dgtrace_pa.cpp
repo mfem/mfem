@@ -167,6 +167,16 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       r.SetSize(1);
       r(0) = c_rho->constant;
    }
+   else if (QuadratureFunctionCoefficient* c_rho =
+               dynamic_cast<QuadratureFunctionCoefficient*>(rho))
+   {
+      //Assumed to be in lexicographical ordering.
+      const QuadratureFunction &qFun = c_rho->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == nq * nf,
+                  "Incompatible QuadratureFunction dimensions \n");
+      qFun.Read();
+      r.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
+   }
    else
    {
       r.SetSize(nq * nf);
@@ -199,6 +209,15 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                                         (u))
    {
       vel = c_u->GetVec();
+   }
+   else if (VectorQuadratureFunctionCoefficient* c_u =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
+   {
+      const QuadratureFunction &qFun = c_u->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == dim * nq * nf,
+                  "Incompatible QuadratureFunction dimensions \n");
+      qFun.Read();
+      vel.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
    }
    else
    {

@@ -788,6 +788,15 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       vel = cQ->GetVec();
    }
+   else if (VectorQuadratureFunctionCoefficient* cQ =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
+   {
+      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      MFEM_VERIFY(qFun.Size() == dim * nq * ne,
+                  "Incompatible QuadratureFunction dimensions \n");
+      qFun.Read();
+      vel.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
+   }
    else
    {
       vel.SetSize(dim * nq * ne);
