@@ -277,7 +277,7 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
     number of non-zeros for the row i_L. */
 static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 {
-   int ind = mfemAtomicAdd(I[i_L],1);
+   int ind = AtomicAdd(I[i_L],1);
    return ind;
 }
 
@@ -509,7 +509,7 @@ void L2ElementRestriction::FillI(SparseMatrix &mat) const
 
 static MFEM_HOST_DEVICE int AddNnz(const int iE, int *I, const int dofs)
 {
-   int val = mfemAtomicAdd(I[iE],dofs);
+   int val = AtomicAdd(I[iE],dofs);
    return val;
 }
 
@@ -1364,7 +1364,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
             for (int i = 0; i < face_dofs; i++)
             {
                const int iB1 = d_indices1[f*face_dofs+i]%elem_dofs;
-               mfemAtomicAdd(mat_ea(iB1,jB1,e1), mat_fea(i,j,0,f));
+               AtomicAdd(mat_ea(iB1,jB1,e1), mat_fea(i,j,0,f));
             }
          }
          if (e2 < NE)
@@ -1375,7 +1375,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
                for (int i = 0; i < face_dofs; i++)
                {
                   const int iB2 = d_indices2[f*face_dofs+i]%elem_dofs;
-                  mfemAtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f));
+                  AtomicAdd(mat_ea(iB2,jB2,e2), mat_fea(i,j,1,f));
                }
             }
          }
@@ -1395,7 +1395,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
             for (int i = 0; i < face_dofs; i++)
             {
                const int iE = d_indices[f*face_dofs+i]%elem_dofs;
-               mfemAtomicAdd(mat_ea(iE,jE,e), mat_fea(i,j,f));
+               AtomicAdd(mat_ea(iE,jE,e), mat_fea(i,j,f));
             }
          }
       });
