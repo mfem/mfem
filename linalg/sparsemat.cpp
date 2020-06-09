@@ -494,24 +494,29 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   int j, end;
-   for (int i = 0; i < height; i++)
-   {
+   auto I = this->ReadI();
+   auto J = this->ReadJ();
+   auto A = this->ReadData();
+   auto dd = d.Write();
 
-      end = I[i+1];
-      for (j = I[i]; j < end; j++)
+   MFEM_FORALL(i, height,
+   {
+      const int begin = I[i];
+      const int end = I[i+1];
+      int j;
+      for (j = begin; j < end; j++)
       {
          if (J[j] == i)
          {
-            d[i] = A[j];
+            dd[i] = A[j];
             break;
          }
       }
       if (j == end)
       {
-         d[i] = 0.;
+         dd[i] = 0.;
       }
-   }
+   });
 }
 
 /// Produces a DenseMatrix from a SparseMatrix

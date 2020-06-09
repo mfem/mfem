@@ -642,6 +642,7 @@ void BilinearForm::AssembleDiagonal(Vector &diag) const
    {
       MFEM_ABORT("Not implemented. Maybe assemble your bilinear form into a "
                  "matrix and use SparseMatrix::GetDiag?");
+      mat->GetDiag(diag);
    }
 }
 
