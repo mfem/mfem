@@ -1,9 +1,9 @@
 ATTENTION
 
 DEBUG
+   -Test LooseBounds: bug - check low order version, and unlimited sequential stuff
 
 PAPER
-   \mathcal E_i set is problematic, due to i being local
 
 next steps
    -Pressure fix

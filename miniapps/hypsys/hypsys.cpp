@@ -227,7 +227,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   cout << "Difference in solution mass: "
+   cout << "Min of primary field:        " << uk.Min() << endl
+        << "Max of primary field:        " << uk.Max() << endl
+        << "Difference in solution mass: "
         << abs(InitialMass - LumpedMassMat * uk) / DomainSize << "\n\n";
 
    if (hyp->FileOutput)

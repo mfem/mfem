@@ -266,12 +266,19 @@ int main(int argc, char *argv[])
       }
    }
 
+   double ukMin, ukMax, ukLoc = uk.Min();
+   MPI_Allreduce(&ukLoc, &ukMin, 1, MPI_DOUBLE, MPI_MIN, comm);
+   ukLoc = uk.Max();
+   MPI_Allreduce(&ukLoc, &ukMax, 1, MPI_DOUBLE, MPI_MAX, comm);
+
    MassMPI = LumpedMassMat * uk;
    MPI_Allreduce(&MassMPI, &FinalMass, 1, MPI_DOUBLE, MPI_SUM, comm);
 
    if (myid == 0)
    {
-      cout << "Difference in solution mass: "
+      cout << "Min of primary field:        " << ukMin << endl
+           << "Max of primary field:        " << ukMax << endl
+           << "Difference in solution mass: "
            << abs(InitialMass - FinalMass) / DomainSize << "\n\n";
    }
 
