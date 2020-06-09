@@ -14,6 +14,9 @@
 #include <cmath>
 #endif
 
+#include <fstream>
+#include <iostream>
+
 #include "catch.hpp"
 
 #include "mfem.hpp"
@@ -45,27 +48,51 @@ using namespace mfem;
 namespace mfem
 {
 
-int tmop(int myid, int argc, char *argv[])
+struct Req
 {
-   const char *mesh_file = "icf.mesh";
+   const double init_energy;
+   const double tauval;
+   const double dot;
+   const double final_energy;
+   Req(double init_energy,
+       double tauval,
+       double dot,
+       double final_energy):
+      init_energy(init_energy),
+      tauval(tauval),
+      dot(dot),
+      final_energy(final_energy) {}
+};
+
+int tmop(int myid, const Req &res, int argc, char *argv[])
+{
+   bool pa               = false;
+   const char *mesh_file = nullptr;
    int order             = 1;
    int rs_levels         = 0;
-   constexpr double jitter = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-   constexpr double lim_const = 0.0;
-   constexpr double adapt_lim_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 2;
    int newton_iter       = 10;
    double newton_rtol    = 1e-8;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
+
+   constexpr double lim_const = 0.0;
+   constexpr double adapt_lim_const = 0.0;
    constexpr bool move_bnd = false;
    constexpr int combomet  = 0;
    constexpr bool normalization = false;
    constexpr int verbosity_level = 0;
    constexpr bool fdscheme = false;
+
+   REQUIRE_FALSE(normalization);
+   REQUIRE(lim_const==0.0);
+   REQUIRE(adapt_lim_const == 0.0);
+   REQUIRE_FALSE(fdscheme);
+   REQUIRE(combomet == 0);
+   REQUIRE_FALSE(move_bnd);
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -80,6 +107,7 @@ int tmop(int myid, int argc, char *argv[])
    args.AddOption(&newton_rtol, "-rtol", "--newton-rel-tolerance", "");
    args.AddOption(&lin_solver, "-ls", "--lin-solver", "");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter", "");
+   args.AddOption(&pa, "-pa", "--pa", "-no-pa", "--no-pa", "");
    args.Parse();
    if (!args.Good())
    {
@@ -89,68 +117,19 @@ int tmop(int myid, int argc, char *argv[])
    if (verbosity_level > 0) { args.PrintOptions(cout); }
 
    REQUIRE(mesh_file);
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   const int dim = mesh->Dimension();
+   Mesh msh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { msh.UniformRefinement(); }
+   const int dim = msh.Dimension();
 
    REQUIRE(order > 0);
-   FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec, dim);
-   mesh->SetNodalFESpace(fespace);
-
-   Vector b[2] = {Vector(0.0), Vector(0.0)};
-   b[0].UseDevice(true);
-   b[1].UseDevice(true);
-
-   GridFunction x[2] = {GridFunction(fespace), GridFunction(fespace)};
-   mesh->SetNodalGridFunction(&x[0]);
-   mesh->GetNodes()->UseDevice(true);
-   mesh->SetNodalGridFunction(&x[1]);
-
-   Vector h0(fespace->GetNDofs());
-   h0 = infinity();
-   Array<int> dofs;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      fespace->GetElementDofs(i, dofs);
-      const double hi = mesh->GetElementSize(i);
-      for (int j = 0; j < dofs.Size(); j++)
-      {
-         h0(dofs[j]) = min(h0(dofs[j]), hi);
-      }
-   }
-
-   GridFunction rdm(fespace);
-   rdm.Randomize();
-   rdm -= 0.25;
-   rdm *= 0.0;//jitter;
-   rdm.HostReadWrite();
-   for (int i = 0; i < fespace->GetNDofs(); i++)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         rdm(fespace->DofToVDof(i,d)) *= h0(i);
-      }
-   }
-   Array<int> vdofs;
-   for (int i = 0; i < fespace->GetNBE(); i++)
-   {
-      fespace->GetBdrElementVDofs(i, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   for (int k : {0,1})
-   {
-      //x[k] -= rdm;
-      x[k].SetTrueVector();
-      x[k].SetFromTrueVector();
-   }
-
-   GridFunction x0[2] = {GridFunction(fespace),GridFunction(fespace)};
-
-   for (int k : {0,1})
-   {
-      x0[k] = x[k];
-   }
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&msh, &fec, dim);
+   msh.SetNodalFESpace(&fes);
+   GridFunction x0(&fes), x(&fes);
+   msh.SetNodalGridFunction(&x);
+   x.SetTrueVector();
+   x.SetFromTrueVector();
+   x0 = x;
 
    TMOP_QualityMetric *metric = nullptr;
    switch (metric_id)
@@ -159,7 +138,11 @@ int tmop(int myid, int argc, char *argv[])
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 321: metric = new TMOP_Metric_321; break;
-      default: cout << "Unknown metric_id: " << metric_id << std::endl; return 3;
+      default:
+      {
+         cout << "Unknown metric_id: " << metric_id << endl;
+         return 3;
+      }
    }
 
    TargetConstructor::TargetType target_t;
@@ -175,14 +158,14 @@ int tmop(int myid, int argc, char *argv[])
          //case 7: // Discrete aspect ratio 3D
          //case 8: // shape/size + orientation 2D
    }
-   TargetConstructor *target_c = new TargetConstructor(target_t);
-   target_c->SetNodes(x0[0]);
+   TargetConstructor target_c(target_t);
+   target_c.SetNodes(x0);
 
    // Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = nullptr;
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
    IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
-   const int geom_type = fespace->GetFE(0)->GetGeomType();
+   const int geom_type = fes.GetFE(0)->GetGeomType();
    switch (quad_type)
    {
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
@@ -190,84 +173,56 @@ int tmop(int myid, int argc, char *argv[])
       case 3: ir = &IntRulesCU.Get(geom_type, quad_order); break;
       default:
       {
-         std::cout << "Unknown quad_type: " << quad_type << std::endl;
-         return 3;
+         cout << "Unknown quad_type: " << quad_type << endl;
+         return !0;
       }
    }
-   std::cout << "Quadrature points per cell: " << ir->GetNPoints() << std::endl;
+   cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
 
-   TMOP_Integrator *he_nlf_integ[2];
-   for (int k : {0,1})
-   {
-      he_nlf_integ[k] = new TMOP_Integrator(metric, target_c);
-      he_nlf_integ[k]->SetIntegrationRule(*ir);
-   }
+   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, &target_c);
+   he_nlf_integ->SetIntegrationRule(*ir);
 
-   REQUIRE_FALSE(normalization);
-   REQUIRE(lim_const==0.0);
-   REQUIRE(adapt_lim_const == 0.0);
-   REQUIRE_FALSE(fdscheme);
+   NonlinearForm nlf(&fes);
+   nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::NONE);
+   nlf.AddDomainIntegrator(he_nlf_integ);
+   nlf.Setup();
 
-   NonlinearForm nlf[2] = { NonlinearForm(fespace), NonlinearForm(fespace) };
-   nlf[0].SetAssemblyLevel(AssemblyLevel::NONE);
-   nlf[1].SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   const double init_energy = nlf.GetGridFunctionEnergy(x);
+   REQUIRE(init_energy == Approx(res.init_energy));
 
-   REQUIRE(combomet == 0);
-   for (int k : {0,1}) { nlf[k].AddDomainIntegrator(he_nlf_integ[k]); }
-   nlf[1].Setup();
-
-   const double init_energy[2] =
-   {
-      nlf[0].GetGridFunctionEnergy(x[0]),
-      nlf[1].GetGridFunctionEnergy(x[1])
-   };
-   REQUIRE(init_energy[0] == Approx(init_energy[1]));
-
-   REQUIRE_FALSE(move_bnd);
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
+   Array<int> ess_bdr(msh.bdr_attributes.Max());
    ess_bdr = 1;
-   for (int k : {0,1}) { nlf[k].SetEssentialBC(ess_bdr); }
+   nlf.SetEssentialBC(ess_bdr);
 
-   Solver *S[2] = { nullptr, nullptr };
+   Solver *S = nullptr;
    constexpr double linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
-      for (int k : {0,1})
-      {
-         S[k] = new DSmoother(1, 1.0, max_lin_iter);
-      }
+      S = new DSmoother(1, 1.0, max_lin_iter);
    }
    else if (lin_solver == 1)
    {
-      for (int k : {0,1})
-      {
-         CGSolver *cg = new CGSolver;
-         cg->SetMaxIter(max_lin_iter);
-         cg->SetRelTol(linsol_rtol);
-         cg->SetAbsTol(0.0);
-         cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-         S[k] = cg;
-      }
+      CGSolver *cg = new CGSolver;
+      cg->SetMaxIter(max_lin_iter);
+      cg->SetRelTol(linsol_rtol);
+      cg->SetAbsTol(0.0);
+      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      S = cg;
    }
    else
    {
-      for (int k : {0,1})
-      {
-         MINRESSolver *minres = new MINRESSolver;
-         minres->SetMaxIter(max_lin_iter);
-         minres->SetRelTol(linsol_rtol);
-         minres->SetAbsTol(0.0);
-         minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
-         S[k] = minres;
-      }
+      MINRESSolver *minres = new MINRESSolver;
+      minres->SetMaxIter(max_lin_iter);
+      minres->SetRelTol(linsol_rtol);
+      minres->SetAbsTol(0.0);
+      minres->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      S = minres;
    }
 
-   // 18. Compute the minimum det(J) of the starting mesh.
    double tauval = infinity();
-   const int NE = mesh->GetNE();
-   for (int i = 0; i < NE; i++)
+   for (int i = 0; i < msh.GetNE(); i++)
    {
-      ElementTransformation *transf = mesh->GetElementTransformation(i);
+      ElementTransformation *transf = msh.GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir->IntPoint(j));
@@ -275,39 +230,26 @@ int tmop(int myid, int argc, char *argv[])
       }
    }
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
-
-   // 19. Finally, perform the nonlinear optimization.
-   NewtonSolver *newton[2] = { nullptr, nullptr };
    REQUIRE(tauval > 0.0);
-   tauval = 0.0;
-   TMOPNewtonSolver *tns[2] =
-   {
-      new TMOPNewtonSolver(*ir),
-      new TMOPNewtonSolver(*ir)
-   };
-   for (int k : {0,1})
-   {
-      newton[k] = tns[k];
-      newton[k]->SetPreconditioner(*S[k]);
-      newton[k]->SetMaxIter(newton_iter);
-      newton[k]->SetRelTol(newton_rtol);
-      newton[k]->SetAbsTol(0.0);
-      newton[k]->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      newton[k]->SetOperator(nlf[k]);
-      newton[k]->Mult(b[k], x[k].GetTrueVector());
-      x[k].SetFromTrueVector();
-      REQUIRE(newton[k]->GetConverged());
-   }
-   REQUIRE(x[0]*x[0] == Approx(x[1]*x[1]));
-   REQUIRE(nlf[0].GetGridFunctionEnergy(x[0]) ==
-           Approx(nlf[1].GetGridFunctionEnergy(x[1])));
-   delete newton[0]; delete newton[1];
-   delete S[0]; delete S[1];
-   delete target_c;
+   REQUIRE(tauval == Approx(res.tauval));
+
+   Vector b(0);
+   TMOPNewtonSolver newton(*ir);
+   newton.SetPreconditioner(*S);
+   newton.SetMaxIter(newton_iter);
+   newton.SetRelTol(newton_rtol);
+   newton.SetAbsTol(0.0);
+   newton.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   newton.SetOperator(nlf);
+   newton.Mult(b, x.GetTrueVector());
+   x.SetFromTrueVector();
+
+   REQUIRE(newton.GetConverged());
+   REQUIRE(x*x == Approx(res.dot));
+   REQUIRE(nlf.GetGridFunctionEnergy(x) == Approx(res.final_energy));
+
+   delete S;
    delete metric;
-   delete fespace;
-   delete fec;
-   delete mesh;
    return 0;
 }
 
@@ -319,40 +261,81 @@ static int argn(const char *argv[], int argc =0)
    return argc;
 }
 
+static void req_tmop(int myid, const char *arg[], const Req &res)
+{ REQUIRE(tmop(myid, res, argn(arg), const_cast<char**>(arg))==0); }
+
+static void tmop_launch(int myid, const char *arg[], const Req &res)
+{
+   (arg[1] = "-pa", req_tmop(myid, arg, res));
+   (arg[1] = "-no-pa", req_tmop(myid, arg, res));
+}
+
 static void tmop_tests(int myid)
 {
-   const char *argv2D[]= { "tmop_tests",
-                           "-m", "../../miniapps/meshing/blade.mesh",
-                           "-mid", "2",
-                           nullptr
-                         };
-   REQUIRE(tmop(myid, argn(argv2D), const_cast<char**>(argv2D))==0);
+   constexpr int ORD = 5;
+   constexpr int MID = 9;
+   constexpr int QO  = 15;
+   constexpr int NI  = 17;
 
-   const char *argv2Drs1[]= { "tmop_tests",
-                              "-m", "../../miniapps/meshing/blade.mesh",
-                              "-mid", "2",
-                              "-rs", "1",
-                              "-ni", "20",
-                              nullptr
-                            };
-   REQUIRE(tmop(myid, argn(argv2Drs1), const_cast<char**>(argv2Drs1))==0);
+   const char *a2D[] = { "tmop_tests", "-pa",
+                         "-m", "../../miniapps/meshing/blade.mesh",
+                         "-o", "1",
+                         "-rs", "0",
+                         "-mid", "002",
+                         "-tid", "1",
+                         "-qt", "1",
+                         "-qo", "2",
+                         "-ni", "10",
+                         "-rtol", "1e-8",
+                         "-ls", "2",
+                         "-li", "100",
+                         nullptr
+                       };
+   Req r122 { 170.5301636144, 0.0000708422, 92.6143439914, 72.9039715692 };
+   tmop_launch(myid, a2D, r122);
 
-   const char *argv3D[]= { "tmop_tests",
-                           "-m", "../../data/toroid-hex.mesh",
-                           "-mid", "302",
-                           nullptr
-                         };
-   REQUIRE(tmop(myid, argn(argv3D), const_cast<char**>(argv3D))==0);
+   a2D[ORD] = "2";
+   a2D[NI] = "15";
+   Req r222 { 171.1323988131, 0.000064793, 325.1465122229, 69.7164293181 };
+   tmop_launch(myid, a2D, r222);
 
-   const char *argv3Drs1[]= { "tmop_tests",
-                              "-m", "../../data/toroid-hex.mesh",
-                              "-mid", "302",
-                              "-rs", "1",
-                              "-ni", "20",
-                              nullptr
-                            };
-   REQUIRE(tmop(myid, argn(argv3Drs1), const_cast<char**>(argv3Drs1))==0);
+   a2D[QO] = "8";
+   Req r228 { 170.2231639887, 0.0000663019, 325.1400405167, 69.432996753 };
+   tmop_launch(myid, a2D, r228);
 
+   const char *a3D[]= { "tmop_tests", "-pa",
+                        "-m", "../../data/toroid-hex.mesh",
+                        "-o", "1",
+                        "-rs", "0",
+                        "-mid", "302",
+                        "-tid", "1",
+                        "-qt", "1",
+                        "-qo", "2",
+                        "-ni", "10",
+                        "-rtol", "1e-8",
+                        "-ls", "2",
+                        "-li", "100",
+                        nullptr
+                      };
+   a3D[MID] = "302";
+   Req r1302 { 3.9932136939, 0.1419261902, 27.8400002696, 3.9932136939 };
+   tmop_launch(myid, a3D, r1302);
+
+   a3D[MID] = "303";
+   Req r1303 { 1.9844641874, 0.1419261902, 27.8400002696, 1.9844641874 };
+   tmop_launch(myid, a3D, r1303);
+
+   a3D[MID] = "321";
+   Req r1321 { 30.9569126183, 0.1419261902, 27.8400002696, 30.9569126183 };
+   tmop_launch(myid, a3D, r1321);
+
+   a3D[ORD] = "2";
+   Req r2321 { 19.0579987606, 0.2054996096, 119.4242345677, 19.0576995427 };
+   tmop_launch(myid, a3D, r2321);
+
+   a3D[QO] = "8";
+   Req r23218 { 19.1695955389, 0.2002639462, 119.4426521542, 19.1687878956 };
+   tmop_launch(myid, a3D, r23218);
 }
 
 #if defined(MFEM_TMOP_MPI)
