@@ -877,19 +877,29 @@ public:
                   double _alpha = 1.0, double _beta = 1.0)
       : aConst(0.0), a(&A), b(&B), alpha(_alpha), beta(_beta) { }
 
+   /// Reset the first term in the linear combination as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
+   /// Return the first term in the linear combination
    double GetAConst() const { return aConst; }
 
+   /// Reset the first term in the linear combination
    void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the first term in the linear combination
    Coefficient * GetACoef() const { return a; }
 
+   /// Reset the second term in the linear combination
    void SetBCoef(Coefficient &B) { b = &B; }
+   /// Return the second term in the linear combination
    Coefficient * GetBCoef() const { return b; }
 
+   /// Reset the factor in front of the first term in the linear combination
    void SetAlpha(double _alpha) { alpha = _alpha; }
+   /// Return the factor in front of the first term in the linear combination
    double GetAlpha() const { return alpha; }
 
+   /// Reset the factor in front of the second term in the linear combination
    void SetBeta(double _beta) { beta = _beta; }
+   /// Return the factor in front of the second term in the linear combination
    double GetBeta() const { return beta; }
 
    /// Evaluate the coefficient at @a ip.
@@ -919,13 +929,19 @@ public:
    ProductCoefficient(Coefficient &A, Coefficient &B)
       : aConst(0.0), a(&A), b(&B) { }
 
+   /// Reset the first term in the product as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
+   /// Return the first term in the product
    double GetAConst() const { return aConst; }
 
+   /// Reset the first term in the product
    void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the first term in the product
    Coefficient * GetACoef() const { return a; }
 
+   /// Reset the second term in the product
    void SetBCoef(Coefficient &B) { b = &B; }
+   /// Return the second term in the product
    Coefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
@@ -958,16 +974,24 @@ public:
    RatioCoefficient(Coefficient &A, double B)
       : aConst(0.0), bConst(B), a(&A), b(NULL) { }
 
+   /// Reset the numerator in the ratio as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
+   /// Return the numerator of the ratio
    double GetAConst() const { return aConst; }
 
+   /// Reset the denominator in the ratio as a constant
    void SetBConst(double B) { b = NULL; bConst = B; }
+   /// Return the denominator of the ratio
    double GetBConst() const { return bConst; }
 
+   /// Reset the numerator in the ratio
    void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the numerator of the ratio
    Coefficient * GetACoef() const { return a; }
 
+   /// Reset the denominator in the ratio
    void SetBCoef(Coefficient &B) { b = &B; }
+   /// Return the denominator of the ratio
    Coefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient
@@ -993,10 +1017,14 @@ public:
    PowerCoefficient(Coefficient &A, double _p)
       : a(&A), p(_p) { }
 
+   /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the base coefficient
    Coefficient * GetACoef() const { return a; }
 
+   /// Reset the exponent
    void SetExponent(double _p) { p = _p; }
+   /// Return the exponent
    double GetExponent() const { return p; }
 
    /// Evaluate the coefficient at @a ip.
@@ -1019,10 +1047,14 @@ public:
    /// Construct with the two vector coefficients.  Result is \f$ A \cdot B \f$.
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Reset the first vector in the inner product
    void SetACoef(VectorCoefficient &A) { a = &A; }
+   /// Return the first vector coefficient in the inner product
    VectorCoefficient * GetACoef() const { return a; }
 
+   /// Reset the second vector in the inner product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
+   /// Return the second vector coefficient in the inner product
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
@@ -1044,10 +1076,14 @@ public:
    /// Constructor with two vector coefficients.  Result is \f$ A_x B_y - A_y * B_x; \f$.
    VectorRotProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Reset the first vector in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
+   /// Return the first vector of the product
    VectorCoefficient * GetACoef() const { return a; }
 
+   /// Reset the second vector in the product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
+   /// Return the second vector of the product
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
@@ -1067,7 +1103,9 @@ public:
    /// Construct with the matrix.
    DeterminantCoefficient(MatrixCoefficient &A);
 
+   /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the determinant coefficient at @a ip.
@@ -1094,39 +1132,58 @@ private:
    mutable Vector va;
 
 public:
-   /// Constructor with no coefficients. To be used with the various "Set" methods
+   /** Constructor with no coefficients.
+       To be used with the various "Set" methods */
    VectorSumCoefficient(int dim);
 
-   /// Constructor with two vector coefficients.  Result is _alpha * A + _beta * B
+   /** Constructor with two vector coefficients.
+       Result is _alpha * A + _beta * B */
    VectorSumCoefficient(VectorCoefficient &A, VectorCoefficient &B,
                         double _alpha = 1.0, double _beta = 1.0);
 
-   /// Constructor with scalar coefficients. Result is _alpha * _A + _beta * _B
+   /** Constructor with scalar coefficients.
+       Result is _alpha * _A + _beta * _B */
    VectorSumCoefficient(VectorCoefficient &_A, VectorCoefficient &_B,
                         Coefficient &_alpha, Coefficient &_beta);
 
+   /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A) { ACoef = &A; }
+   /// Return the first vector coefficient
    VectorCoefficient * GetACoef() const { return ACoef; }
 
+   /// Reset the second vector coefficient
    void SetBCoef(VectorCoefficient &B) { BCoef = &B; }
+   /// Return the second vector coefficient
    VectorCoefficient * GetBCoef() const { return BCoef; }
 
+   /// Reset the factor in front of the first vector coefficient
    void SetAlphaCoef(Coefficient &A) { alphaCoef = &A; }
+   /// Return the factor in front of the first vector coefficient
    Coefficient * GetAlphaCoef() const { return alphaCoef; }
 
+   /// Reset the factor in front of the second vector coefficient
    void SetBetaCoef(Coefficient &B) { betaCoef = &B; }
+   /// Return the factor in front of the second vector coefficient
    Coefficient * GetBetaCoef() const { return betaCoef; }
 
+   /// Reset the first vector as a constant
    void SetA(const Vector &_A) { A = _A; ACoef = NULL; }
+   /// Return the first vector constant
    const Vector & GetA() const { return A; }
 
+   /// Reset the second vector as a constant
    void SetB(const Vector &_B) { B = _B; BCoef = NULL; }
+   /// Return the second vector constant
    const Vector & GetB() const { return B; }
 
+   /// Reset the factor in front of the first vector coefficient as a constant
    void SetAlpha(double _alpha) { alpha = _alpha; alphaCoef = NULL; }
+   /// Return the factor in front of the first vector coefficient
    double GetAlpha() const { return alpha; }
 
+   /// Reset the factor in front of the second vector coefficient as a constant
    void SetBeta(double _beta) { beta = _beta; betaCoef = NULL; }
+   /// Return the factor in front of the second vector coefficient
    double GetBeta() const { return beta; }
 
    /// Evaluate the coefficient at @a ip.
@@ -1150,16 +1207,22 @@ public:
    /// Constructor with two coefficients.  Result is A * B.
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
 
-
+   /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
+   /// Return the scalar factor
    double GetAConst() const { return aConst; }
 
+   /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the scalar factor
    Coefficient * GetACoef() const { return a; }
 
+   /// Reset the vector factor
    void SetBCoef(VectorCoefficient &B) { b = &B; }
+   /// Return the vector factor
    VectorCoefficient * GetBCoef() const { return b; }
 
+   /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
@@ -1182,7 +1245,9 @@ public:
    */
    NormalizedVectorCoefficient(VectorCoefficient &A, double tol = 1e-6);
 
+   /// Reset the vector coefficient
    void SetACoef(VectorCoefficient &A) { a = &A; }
+   /// Return the vector coefficient
    VectorCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the coefficient at @a ip.
@@ -1205,10 +1270,14 @@ public:
    /// Construct with the two coefficients.  Result is A x B.
    VectorCrossProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Reset the first term in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
+   /// Return the first term in the product
    VectorCoefficient * GetACoef() const { return a; }
 
+   /// Reset the second term in the product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
+   /// Return the second term in the product
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
@@ -1232,10 +1301,14 @@ public:
    /// Constructor with two coefficients.  Result is A*B.
    MatrixVectorProductCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
 
+   /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
    MatrixCoefficient * GetACoef() const { return a; }
 
+   /// Reset the vector coefficient
    void SetBCoef(VectorCoefficient &B) { b = &B; }
+   /// Return the vector coefficient
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the vector coefficient at @a ip.
@@ -1280,16 +1353,24 @@ public:
    MatrixSumCoefficient(MatrixCoefficient &A, MatrixCoefficient &B,
                         double _alpha = 1.0, double _beta = 1.0);
 
+   /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the first matrix coefficient
    MatrixCoefficient * GetACoef() const { return a; }
 
+   /// Reset the second matrix coefficient
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   /// Return the second matrix coefficient
    MatrixCoefficient * GetBCoef() const { return b; }
 
+   /// Reset the factor in front of the first matrix coefficient
    void SetAlpha(double _alpha) { alpha = _alpha; }
+   /// Return the factor in front of the first matrix coefficient
    double GetAlpha() const { return alpha; }
 
+   /// Reset the factor in front of the second matrix coefficient
    void SetBeta(double _beta) { beta = _beta; }
+   /// Return the factor in front of the second matrix coefficient
    double GetBeta() const { return beta; }
 
    /// Evaluate the matrix coefficient at @a ip.
@@ -1313,13 +1394,19 @@ public:
    /// Constructor with two coefficients.  Result is A*B.
    ScalarMatrixProductCoefficient(Coefficient &A, MatrixCoefficient &B);
 
+   /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
+   /// Return the scalar factor
    double GetAConst() const { return aConst; }
 
+   /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the scalar factor
    Coefficient * GetACoef() const { return a; }
 
+   /// Reset the matrix factor
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   /// Return the matrix factor
    MatrixCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
@@ -1337,7 +1424,9 @@ public:
    /// Construct with the matrix coefficient.  Result is \f$ A^T \f$.
    TransposeMatrixCoefficient(MatrixCoefficient &A);
 
+   /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the matrix coefficient at @a ip.
@@ -1355,7 +1444,9 @@ public:
    /// Construct with the matrix coefficient.  Result is \f$ A^{-1} \f$.
    InverseMatrixCoefficient(MatrixCoefficient &A);
 
+   /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the matrix coefficient
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the matrix coefficient at @a ip.
@@ -1377,10 +1468,14 @@ public:
    /// Construct with two vector coefficients.  Result is \f$ A B^T \f$.
    OuterProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Reset the first vector in the outer product
    void SetACoef(VectorCoefficient &A) { a = &A; }
+   /// Return the first vector coefficient in the outer product
    VectorCoefficient * GetACoef() const { return a; }
 
+   /// Reset the second vector in the outer product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
+   /// Return the second vector coefficient in the outer product
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
@@ -1408,13 +1503,19 @@ public:
    CrossCrossCoefficient(double A, VectorCoefficient &K);
    CrossCrossCoefficient(Coefficient &A, VectorCoefficient &K);
 
+   /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
+   /// Return the scalar factor
    double GetAConst() const { return aConst; }
 
+   /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
+   /// Return the scalar factor
    Coefficient * GetACoef() const { return a; }
 
+   /// Reset the vector factor
    void SetKCoef(VectorCoefficient &K) { k = &K; }
+   /// Return the vector factor
    VectorCoefficient * GetKCoef() const { return k; }
 
    /// Evaluate the matrix coefficient at @a ip.
