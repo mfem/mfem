@@ -852,8 +852,8 @@ public:
                      const IntegrationPoint &ip);
 };
 
-/// Coefficients based on sums and products of other coefficients
-
+/// Coefficients based on sums, products, or other functions of coefficients.
+///@{
 /** Scalar coefficient defined as the linear combination of two scalar
     coefficients or a scalar and a scalar coefficient */
 class SumCoefficient : public Coefficient
@@ -1421,7 +1421,7 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
-
+///@}
 
 class QuadratureFunction;
 
