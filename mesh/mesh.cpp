@@ -10431,6 +10431,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    return pts_found;
 }
 
+
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                                    int flags)
 {
