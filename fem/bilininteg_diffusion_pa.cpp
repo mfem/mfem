@@ -296,6 +296,15 @@ void DiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
+   else if (QuadratureFunctionCoefficient* cQ =
+            dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+     const QuadratureFunction &qFun = cQ->GetQuadFunction();
+     MFEM_VERIFY(qFun.Size() == ne*nq,
+                 "Incompatible QuadratureFunction dimensions \n");
+     qFun.Read();
+     coeff.MakeRef(dynamic_cast<Vector &>(const_cast<QuadratureFunction &>(qFun)),0);
+   }
    else
    {
       coeff.SetSize(nq * ne);
