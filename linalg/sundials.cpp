@@ -345,7 +345,7 @@ void CVODESolver::SetSVtolerances(double reltol, Vector abstol)
    MFEM_VERIFY(abstol.Size() == f->Height(),
                "abs tolerance is not the same size.");
 
-   N_Vector nv_abstol;
+   N_Vector nv_abstol = NULL;
    AllocateEmptyNVector(nv_abstol);
    abstol.ToNVector(nv_abstol);
 
