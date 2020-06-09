@@ -1955,7 +1955,7 @@ TEST_CASE("2D GetValue in Parallel",
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
    int log = 1;
-   int n = num_procs;
+   int n = (int)ceil(sqrt(2*num_procs));
    int dim = 2;
    int order = 1;
    int npts = 0;
@@ -2067,7 +2067,7 @@ TEST_CASE("3D GetValue in Parallel",
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
    int log = 1;
-   int n = num_procs;
+   int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
    int order = 1;
    int npts = 0;
