@@ -48,8 +48,8 @@ void PAHcurlSetup2D(const int Q1D,
          const double J12 = J(q,0,1,e);
          const double J22 = J(q,1,1,e);
          const double c_detJ1 = W[q] * coeff(0, q, e) / ((J11*J22)-(J21*J12));
-         const double c_detJ2 = W[q] * coeff(coeffDim == 2 ? 1 : 0, q,
-         e) / ((J11*J22)-(J21*J12));
+         const double c_detJ2 = coeffDim == 2 ? W[q] * coeff(1, q, e)
+         / ((J11*J22)-(J21*J12)) : c_detJ1;
          y(q,0,e) =  (c_detJ2*J12*J12 + c_detJ1*J22*J22); // 1,1
          y(q,1,e) = -(c_detJ2*J12*J11 + c_detJ1*J22*J21); // 1,2
          y(q,2,e) =  (c_detJ2*J11*J11 + c_detJ1*J21*J21); // 2,2
@@ -90,8 +90,8 @@ void PAHcurlSetup3D(const int Q1D,
          /* */               J31 * (J12 * J23 - J22 * J13);
          const double w_detJ = W[q] / detJ;
          const double D1 = coeff(0, q, e);
-         const double D2 = coeff(coeffDim == 3 ? 1 : 0, q, e);
-         const double D3 = coeff(coeffDim == 3 ? 2 : 0, q, e);
+         const double D2 = coeffDim == 3 ? coeff(1, q, e) : D1;
+         const double D3 = coeffDim == 3 ? coeff(2, q, e) : D1;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J32 * J13) - (J12 * J33);
@@ -616,8 +616,8 @@ static void PACurlCurlSetup3D(const int Q1D,
          /* */               J31 * (J12 * J23 - J22 * J13);
 
          const double D1 = coeff(0, q, e);
-         const double D2 = coeff(coeffDim == 3 ? 1 : 0, q, e);
-         const double D3 = coeff(coeffDim == 3 ? 2 : 0, q, e);
+         const double D2 = coeffDim == 3 ? coeff(1, q, e) : D1;
+         const double D3 = coeffDim == 3 ? coeff(2, q, e) : D1;
 
          // set y to the 6 entries of J^T D J / det^2
          const double c_detJ = W[q] / detJ;
@@ -2001,6 +2001,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
+   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
    if (Q || DQ)
    {
       Vector V(coeffDim);
@@ -2020,12 +2021,12 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                DQ->Eval(V, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeff[i + ((p + (e * nq)) * coeffDim)] = V[i];
+                  coeffh(i, p, e) = V[i];
                }
             }
             else
             {
-               coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
             }
          }
       }
@@ -2807,6 +2808,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
+   auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
    if (Q || DQ)
    {
       Vector V(coeffDim);
@@ -2826,12 +2828,12 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
                DQ->Eval(V, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeff[i + ((p + (e * nq)) * coeffDim)] = V[i];
+                  coeffh(i, p, e) = V[i];
                }
             }
             else
             {
-               coeff[p + (e * nq)] = Q->Eval(*tr, ir->IntPoint(p));
+               coeffh(0, p, e) = Q->Eval(*tr, ir->IntPoint(p));
             }
          }
       }
