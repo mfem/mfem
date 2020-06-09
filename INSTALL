@@ -432,6 +432,8 @@ MFEM_USE_PUMI = YES/NO
    data management system that is capable of handling general non-manifold
    models and effectively supports automated adaptive analysis. PUMI enables
    support for parallel unstructured mesh modifications in MFEM.
+   The develop branch of PUMI repository (https://github.com/SCOREC/core)
+   should be used for most updated features.
 
 MFEM_USE_UMPIRE = YES/NO
    Enables support for Umpire, a resource management library that allows the
@@ -615,8 +617,9 @@ The specific libraries and their options are:
 
 - PUMI (optional), used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
+       https://github.com/SCOREC/core
   Options: PUMI_OPT, PUMI_LIB.
-  Versions: PUMI >= 2.2.0.
+  Versions: PUMI >= 2.2.3.
 
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
