@@ -52,14 +52,21 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    int partition_kind = 2;
 
-   nx=3;
-   ny=3; 
-   nz=1;
-   ovlpnrlayers = nrlayers+2;
+   nx=2;
+   ny=2; 
+   nz=2;
+   ovlpnrlayers = nrlayers+1;
    part = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
    nx = part->nxyz[0];
    ny = part->nxyz[1];
    nz = part->nxyz[2];
+
+
+   // partition_kind = 1;
+   // MeshPartition * part1 = new MeshPartition(mesh, partition_kind,nx,ny,nz);
+
+   // SaveMeshPartition(part1->patch_mesh, "output/mesh3x3.", "output/sol3x3.");
+
 
    nrpatch = part->nrpatch;
 
@@ -73,8 +80,10 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    PmlMatInv.SetSize(nrpatch);
    f_orig.SetSize(nrpatch);
    f_transf.SetSize(nrpatch);
+   cout << "nrpatch = " << nrpatch << endl;
    for (int ip=0; ip<nrpatch; ip++)
    {
+      cout << "factorizing patch ip = " << ip << endl;
       PmlMat[ip] = GetPmlSystemMatrix(ip);
       PmlMatInv[ip] = new KLUSolver;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
@@ -93,6 +102,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
 void DST::Mult(const Vector &r, Vector &z) const
 {
+   char vishost[] = "localhost";
+   int  visport   = 19916;
    // Init
    cout << "DST: in mult " << endl;
    for (int ip=0; ip<nrpatch; ip++)
@@ -110,12 +121,16 @@ void DST::Mult(const Vector &r, Vector &z) const
 
       int i,j,k;
       Getijk(ip,i,j,k);
+      Array<int> ijk(dim);
+      ijk[0] = i;
+      ijk[1] = j;
+      if (dim == 3) ijk[2] = k;
       Array2D<int> direct(dim,2); direct = 0;
-      if (i>0) direct[0][0] = 1;
-      if (i+1<nx) direct[0][1] = 1;
-      if (j>0) direct[1][0] = 1;
-      if (j+1<ny) direct[1][1] = 1;
-
+      for (int d=0;d<dim; d++)
+      {
+         if (ijk[d] > 0) direct[d][0] = 1; 
+         if (ijk[d] < part->nxyz[d]-1) direct[d][1] = 1; 
+      }
       Vector faux(*f_orig[ip]);
       *f_orig[ip] = 0.0;
       GetChiRes(faux,*f_orig[ip],ip,direct,ovlpnrlayers);
@@ -136,20 +151,25 @@ void DST::Mult(const Vector &r, Vector &z) const
 
    for (int l=0; l<nsweeps; l++)
    {
+      // cout << "sweep no: " << l << endl;
       for (int s = 0; s<nsteps; s++)
       {
+         cout << "step no :" << s << endl;
          Array2D<int> subdomains;
          GetStepSubdomains(l,s,subdomains);
 
          int nsubdomains = subdomains.NumRows();
 
+         // cout << "subdomains: " <<endl;
+         // subdomains.Print();
+
+         // cin.get();
          for (int sb=0; sb< nsubdomains; sb++)
          {
             Array<int> ijk(dim);
             for (int d=0; d<dim; d++) ijk[d] = subdomains[sb][d]; 
             int ip = GetPatchId(ijk);
 
-            // cout << "ip = " << ip << endl;
             Array<int> * Dof2GlobalDof = &dmap->Dof2GlobalDof[ip];
             int ndofs = Dof2GlobalDof->Size();
 
@@ -157,9 +177,16 @@ void DST::Mult(const Vector &r, Vector &z) const
             Vector res_local(ndofs); res_local = 0.0;
             if (l==0) res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
-            if (res_local.Norml2() < 1e-12) continue;
+            // if (res_local.Norml2() < 1e-12) continue;
             PmlMatInv[ip]->Mult(res_local, sol_local);
-            TransferSources(l,ip, sol_local);
+            if (dim == 3)
+            {
+               TransferSources3D(l,ip, sol_local);
+            }
+            else
+            {
+               TransferSources(l,ip, sol_local);
+            }
             Array2D<int> direct(dim,2); direct = 0;
             for (int d=0;d<dim; d++)
             {
@@ -172,7 +199,13 @@ void DST::Mult(const Vector &r, Vector &z) const
             znew = 0.0;
             znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
             z+=znew;
+
+            cout << "sb = " << sb << endl;
+
          }
+         socketstream sol_sock(vishost, visport);
+         PlotSolution(z,sol_sock,0,false);
+         cin.get();
       }
    }
 }
@@ -188,7 +221,9 @@ void DST::Getijk(int ip, int & i, int & j, int & k) const
 int DST::GetPatchId(const Array<int> & ijk) const
 {
    int d=ijk.Size();
+   // cout << " d = " << d << endl;
    int z = (d==2)? 0 : ijk[2];
+   // cout << " z = " << z << endl;
    return part->subdomains(ijk[0],ijk[1],z);
 }
 
@@ -231,6 +266,56 @@ void DST::TransferSources(int s, int ip0, Vector & sol0) const
          Vector raux;
          SourceTransfer(cfsol0,directions,ip0,raux);
          *f_transf[ip1][l]+=raux;
+      }  
+   }
+}
+
+void DST::TransferSources3D(int s, int ip0, Vector & sol0) const
+{
+  // Find all neighbors of patch ip0
+   int i0, j0, k0;
+   Getijk(ip0, i0,j0,k0);
+   Array<int> directions(dim);   
+   for (int i=-1; i<2; i++)
+   {
+      int i1 = i0 + i;
+      if (i1 <0 || i1>=nx) continue;
+      directions[0] = i;
+      for (int j=-1; j<2; j++)
+      {
+         int j1 = j0 + j;
+         if (j1 <0 || j1>=ny) continue;
+         directions[1] = j;
+         for (int k=-1; k<2; k++)
+         {
+            int k1 = k0 + k;
+            if (k1 <0 || k1>=nz) continue;
+            directions[2] = k;
+
+            if (i==0 && j==0 && k==0) continue;
+
+            Array<int> ijk1(3); 
+            ijk1[0] = i1; ijk1[1]=j1; ijk1[2]=k1;
+            int ip1 = GetPatchId(ijk1);
+
+
+            int l = GetSweepToTransfer(s,directions);
+
+            if (l == -1) continue;
+            Array2D<int> direct(dim,2); direct = 0;
+            for (int d=0; d<dim; d++)
+            {
+               if (directions[d] == -1) direct[d][0] = 1;
+               if (directions[d] ==  1) direct[d][1] = 1;
+            }
+
+            Vector cfsol0;
+            GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
+
+            Vector raux;
+            SourceTransfer(cfsol0,directions,ip0,raux);
+            *f_transf[ip1][l]+=raux;
+         }
       }  
    }
 }
@@ -290,7 +375,7 @@ SparseMatrix * DST::GetPmlSystemMatrix(int ip)
    a.FormSystemMatrix(ess_tdof_list,Alocal);
    ComplexSparseMatrix * AZ_ext = Alocal.As<ComplexSparseMatrix>();
    SparseMatrix * Mat = AZ_ext->GetSystemMatrix();
-   Mat->Threshold(1e-13);
+   // Mat->Threshold(1e-13);
    return Mat;
 }
 
@@ -321,10 +406,13 @@ void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vec
    Psi *=-1.0;
 
    Array2D<int> direct(dim,2); direct = 0;
-   if (direction[0]==1) direct[0][0] = 1;
-   if (direction[0]==-1) direct[0][1] = 1;
-   if (direction[1]==1) direct[1][0] = 1;
-   if (direction[1]==-1) direct[1][1] = 1;
+
+   for (int d = 0; d<dim; d++)
+   {
+      if (direction[d]==1) direct[d][0] = 1;
+      if (direction[d]==-1) direct[d][1] = 1;
+   }
+
    GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
 }
 
@@ -442,7 +530,6 @@ void DST::GetChiRes(const Vector & res, Vector & cfres,
 
 void DST::GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const
 {
-
    Array<int> aux;
    switch(dim)
    {
@@ -461,8 +548,27 @@ void DST::GetStepSubdomains(const int sweep, const int step, Array2D<int> & subd
          aux.Append(i); aux.Append(j);
       }
       break; 
-      default: 
-      MFEM_ABORT("dimension not supported yet" );
+      default:
+      for (int i=nx-1;i>=0; i--)
+      {  
+         for (int j=ny-1;j>=0; j--)
+         {
+            int k;
+            switch (sweep)
+            {
+               case 0:  k = step-i-j;            break;
+               case 1:  k = step-nx+i+1-j;       break;
+               case 2:  k = step-ny+j+1-i;       break;
+               case 3:  k = step-nx-ny+i+j+2;    break;
+               case 4:  k = i+j+nz-1-step;       break;
+               case 5:  k = nx+nz-i+j-step-2;    break;
+               case 6:  k = ny+nz+i-j-step-2;    break;
+               default: k = nx+ny+nz-i-j-step-3; break;
+            }
+            if (k<0 || k>=nz) continue;   
+            aux.Append(i); aux.Append(j); aux.Append(k); 
+         }
+      }
       break;
    }
 
@@ -487,25 +593,56 @@ int DST::GetSweepToTransfer(const int s, Array<int> directions) const
    int nsweeps = swp->nsweeps;
    Array<int> sweep0;   
    swp->GetSweep(s,sweep0);
-   for (int l=s; l<nsweeps; l++)
-   {
-      // Conditions on sweeps
-      // Rule 1: the transfer source direction has to be similar with 
-      // the sweep direction
-      Array<int> sweep1;   
-      swp->GetSweep(l,sweep1);
-      int ddot = 0;
-      for (int d=0; d<dim; d++) ddot+= sweep1[d] * directions[d];
-      if (ddot <= 0) continue;
 
-      // Rule 2: The horizontal or vertical transfer source cannot be used
-      if (directions[0]==0 || directions[1] == 0) // Case of horizontal or vertical transfer source
+
+   switch (dim)
+   {
+      case 2:
+      for (int l=s; l<nsweeps; l++)
       {
-         if (sweep0[0] == -sweep1[0] && sweep0[1] == -sweep1[1]) continue;
+         // Rule 1: the transfer source direction has to be similar with 
+         // the sweep direction
+         Array<int> sweep1;   
+         swp->GetSweep(l,sweep1);
+         int ddot = 0;
+         for (int d=0; d<dim; d++) ddot+= sweep1[d] * directions[d];
+         if (ddot <= 0) continue;
+
+         // Rule 2: The horizontal or vertical transfer source cannot be used
+         if (directions[0]==0 || directions[1] == 0) // Case of horizontal or vertical transfer source
+         {
+            if (sweep0[0] == -sweep1[0] && sweep0[1] == -sweep1[1]) continue;
+         }
+         l1 = l;
+         break;
       }
-      l1 = l;
+      break;
+      default:
+      for (int l=s; l<nsweeps; l++)
+      {
+         // Rule 1: (similar directions) the transfer source direction has to be similar with 
+         // the sweep direction
+         Array<int> sweep1;   
+         swp->GetSweep(l,sweep1);
+         int ddot = 0;
+         bool similar = true;
+         for (int d=0; d<dim; d++) 
+         {
+            if (sweep1[d] * directions[d] < 0) similar = false;
+            ddot+= sweep1[d] * directions[d];
+         }
+         if (!similar || ddot<=0) continue; // not similar
+
+         // Rule 2: (oposite directions) the transfer source direction has to be similar with 
+         // the sweep direction
+
+
+         l1 = l;
+         break;
+      }
       break;
    }
+
    return l1;   
 }
 
@@ -526,26 +663,26 @@ DST::~DST()
    delete part; 
 }
 
-// void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip, 
-//                   bool localdomain) const
-// {
-//    FiniteElementSpace * fes;
-//    if (!localdomain)
-//    {
-//       fes = bf->FESpace();
-//    }
-//    else
-//    {
-//       fes = ovlp_prob->fespaces[ip];
-//    }
-//    Mesh * mesh = fes->GetMesh();
-//    GridFunction gf(fes);
-//    double * data = sol.GetData();
-//    gf.SetData(data);
+void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip, 
+                  bool localdomain) const
+{
+   FiniteElementSpace * fes;
+   if (!localdomain)
+   {
+      fes = bf->FESpace();
+   }
+   else
+   {
+      fes = dmap->fespaces[ip];
+   }
+   Mesh * mesh = fes->GetMesh();
+   GridFunction gf(fes);
+   double * data = sol.GetData();
+   gf.SetData(data);
    
-//    string keys;
-//    // if (ip == 0) 
-//    keys = "keys mrRljc\n";
-//    // sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.1 0.1 \n"  << flush;
-//    sol_sock << "solution\n" << *mesh << gf << keys << flush;
-// }
+   string keys;
+   // if (ip == 0) 
+   keys = "keys mrRljc\n";
+   sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.05 0.05 \n"  << flush;
+   // sol_sock << "solution\n" << *mesh << gf << keys << flush;
+}

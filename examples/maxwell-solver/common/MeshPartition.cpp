@@ -94,6 +94,12 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
       int nrvertices = mesh_orig->GetNV() + k;
       int nrelements = mesh_orig->GetNE() + pow(pow(k,1.0/(dim-1))-1.0,dim-1);
 
+
+
+      // cout << "nrvertices : " << mesh_orig->GetNV() << endl;
+      // cout << "nrvertices : " << nrvertices << endl;
+      // cout << "nrelements : " << nrelements << endl;
+
       mesh_ext = new Mesh(dim, nrvertices, nrelements);
 
       // Add existing vertices
@@ -143,7 +149,6 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
          }
       } 
       // Add new vertices
-      k = mesh_orig->GetNV();
       for (int i=0; i<mesh_orig->GetNV(); ++i)
       {
          double * vert = mesh_orig->GetVertex(i);
@@ -191,10 +196,10 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
             int ind[4];
             if (vmap[vertices[0]] && vmap[vertices[1]])
             {
-               ind[0] = vmap[vertices[0]];
-               ind[1] = vmap[vertices[1]];
-               ind[2] = vertices[1];
-               ind[3] = vertices[0];
+               ind[0] = vertices[1];
+               ind[1] = vertices[0];
+               ind[2] = vmap[vertices[0]];
+               ind[3] = vmap[vertices[1]];
                mesh_ext->AddQuad(ind);
             }
          }
@@ -203,14 +208,14 @@ Mesh * ExtendMesh(Mesh * mesh, const Array<int> & directions)
             int ind[8];
             if (vmap[vertices[0]] && vmap[vertices[1]] && vmap[vertices[2]] && vmap[vertices[3]])
             {
-               ind[0] = vmap[vertices[0]];
-               ind[1] = vmap[vertices[1]];
-               ind[2] = vmap[vertices[2]];
-               ind[3] = vmap[vertices[3]];
-               ind[4] = vertices[0];
-               ind[5] = vertices[1];
-               ind[6] = vertices[2];
-               ind[7] = vertices[3];
+               ind[0] = vertices[0];
+               ind[1] = vertices[1];
+               ind[2] = vertices[2];
+               ind[3] = vertices[3];
+               ind[4] = vmap[vertices[0]];
+               ind[5] = vmap[vertices[1]];
+               ind[6] = vmap[vertices[2]];
+               ind[7] = vmap[vertices[3]];
                mesh_ext->AddHex(ind);
             }
          }   

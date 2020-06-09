@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = new Mesh(4, 4, 4, Element::HEXAHEDRON, true, length, length, length,false);
+      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, true, length, length, length,false);
    }
 
    // 3. Executing uniform h-refinement
@@ -120,23 +120,30 @@ int main(int argc, char *argv[])
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 2;
+   int nrlayers = 1;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
    {
       for (int comp=0; comp<dim; ++comp)
       {
-         directions.Append(comp+1);
-         directions.Append(-comp-1);
+         // directions.Append(comp+1);
+         // directions.Append(-comp-1);
       }
    }
 
    // Find uniform h size of the original mesh
-   cout << "pml layers = " << nrlayers << endl;
-   cout << "pml length = " << hl*nrlayers << endl;
+   // cout << "pml layers = " << nrlayers << endl;
+   // cout << "pml length = " << hl*nrlayers << endl;
    Mesh *mesh_ext = ExtendMesh(mesh,directions);
 
+   // char vishost[] = "localhost";
+   // int  visport   = 19916;
+   // socketstream mesh_sock(vishost, visport);
+   // mesh_sock.precision(8);
+   // mesh_sock << "mesh\n" << *mesh_ext << flush;
+
+   // cin.get();
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
@@ -220,19 +227,19 @@ int main(int argc, char *argv[])
    // chrono.Clear();
    // chrono.Start();
    X = 0.0;
-	GMRESSolver gmres;
-	// gmres.iterative_mode = true;
-   gmres.SetPreconditioner(S);
-	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-10);
-	gmres.SetMaxIter(50);
-	gmres.SetPrintLevel(1);
-	gmres.Mult(B, X);
+	// GMRESSolver gmres;
+	// // gmres.iterative_mode = true;
+   // gmres.SetPreconditioner(S);
+	// gmres.SetOperator(*A);
+	// gmres.SetRelTol(1e-10);
+	// gmres.SetMaxIter(50);
+	// gmres.SetPrintLevel(1);
+	// gmres.Mult(B, X);
 
-   DST2D S2D(&a,lengths, omega, &ws, nrlayers);
-   X = 0.0;
-	gmres.SetPreconditioner(S2D);
-	gmres.Mult(B, X);
+   // DST2D S2D(&a,lengths, omega, &ws, nrlayers);
+   // X = 0.0;
+	// gmres.SetPreconditioner(S2D);
+	// gmres.Mult(B, X);
 
    // chrono.Stop();
    // cout << "GMRES time: " << chrono.RealTime() << endl; 
@@ -349,10 +356,11 @@ double f_exact_Re(const Vector &x)
    double x2 = length/2.0;
    // x0 = 0.59;
    // x0 = 0.19;
-   x0 = 0.5;
+   x0 = 0.25;
    // x1 = 0.768;
    // x1 = 0.168;
-   x1 = 0.5;
+   x1 = 0.25;
+   x2 = 0.25;
    double alpha,beta;
    // double n = 5.0*omega/M_PI;
    double n = 4.0*omega/M_PI;
@@ -366,11 +374,11 @@ double f_exact_Re(const Vector &x)
    alpha = -pow(n,2) * beta;
    f_re = coeff*exp(alpha);
 
-   x0 = 0.85;
-   x1 = 0.15;
-   beta = pow(x0-x(0),2) + pow(x1-x(1),2);
-   if (dim == 3) { beta += pow(x2-x(2),2); }
-   alpha = -pow(n,2) * beta;
+   // x0 = 0.85;
+   // x1 = 0.15;
+   // beta = pow(x0-x(0),2) + pow(x1-x(1),2);
+   // if (dim == 3) { beta += pow(x2-x(2),2); }
+   // alpha = -pow(n,2) * beta;
    // f_re += coeff*exp(alpha);
 
    x0 = 0.8;
