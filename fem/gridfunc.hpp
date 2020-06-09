@@ -651,16 +651,6 @@ public:
       : Vector(qf_data, vdim_*qspace_->GetSize()),
         qspace(qspace_), vdim(vdim_), own_qspace(false) { }
 
-   /** @brief Create a QuadratureFunction based on the given QuadratureSpace,
-       using the external data, @a qf_vec. */
-   /** The QuadratureFunction does not assume ownership of neither the
-       QuadratureSpace nor the external data. */
-   QuadratureFunction(QuadratureSpace *qspace_, Vector &qf_vec, int vdim_ = 1)
-      : qspace(qspace_), vdim(vdim_), own_qspace(false)
-   {
-      this->MakeRef(qf_vec, 0);
-   }
-
    /// Read a QuadratureFunction from the stream @a in.
    /** The QuadratureFunction assumes ownership of the read QuadratureSpace. */
    QuadratureFunction(Mesh *mesh, std::istream &in);

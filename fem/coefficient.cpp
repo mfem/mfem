@@ -12,7 +12,6 @@
 // Implementation of Coefficient class
 
 #include "fem.hpp"
-#include "../linalg/dtensor.hpp"
 
 #include <cmath>
 #include <limits>
