@@ -234,6 +234,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    REQUIRE(tauval == Approx(res.tauval));
 
    Vector b(0);
+   b.UseDevice(true);
    TMOPNewtonSolver newton(*ir);
    newton.SetPreconditioner(*S);
    newton.SetMaxIter(newton_iter);
