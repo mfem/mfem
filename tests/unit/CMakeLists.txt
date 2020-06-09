@@ -51,6 +51,7 @@ set(UNIT_TESTS_SRCS
   fem/test_quadf_coef.cpp
   fem/test_quadraturefunc.cpp
   miniapps/test_sedov.cpp
+  miniapps/test_tmop.cpp
 )
 
 if (MFEM_USE_CUDA)

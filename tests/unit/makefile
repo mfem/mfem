@@ -51,8 +51,27 @@ PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
 PAR_SEDOV_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda.o))
 PAR_SEDOV_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(SEDOV_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
 
-SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS)
-PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS)
+# TMOP numerical seq/par files and tests
+TMOP_FILES = $(SRC)miniapps/test_tmop.cpp
+
+SEQ_TMOP_TESTS = tmop_tests_cpu tmop_tests_debug
+SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda)
+SEQ_TMOP_TESTS += $(if $(USE_CUDA),tmop_tests_cuda_uvm)
+PAR_TMOP_TESTS = $(SEQ_TMOP_TESTS:%=p%)
+
+SEQ_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.cpu.o)
+SEQ_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.debug.o)
+SEQ_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda.o))
+SEQ_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.cuda_uvm.o))
+
+PAR_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pcpu.o)
+PAR_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pdebug.o)
+PAR_TMOP_CUDA_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda.o))
+PAR_TMOP_CUDA_UVM_OBJ_FILES = $(if $(USE_CUDA),$(TMOP_FILES:$(SRC)%.cpp=%.pcuda_uvm.o))
+
+# seq/par files and tests
+SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
+PAR_UNIT_TESTS = punit_tests $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
 
 ifeq ($(MFEM_USE_MPI),NO)
    UNIT_TESTS = $(SEQ_UNIT_TESTS)
@@ -79,7 +98,7 @@ $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ): %.o: $(SRC)%.cpp \
 	@mkdir -p $(@D)
 	$(CCC) -c $(abspath $(<)) $(MFEM_FLAGS) $(INCLUDES) -o $(@)
 
-# Template rule for devices
+# SEDOV Template rule for devices
 # 1: postfix of 'sedov_tests_', 2: prefix of '_OBJECT_FILES',
 # 3: configuration string for the MFEM device, separated with '$(comma)'
 comma=,
@@ -115,6 +134,42 @@ $(eval $(call psedov_tests,cpu,CPU,cpu))
 $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+# TMOP Template rule for devices
+# 1: postfix of 'tmop_tests_', 2: prefix of '_OBJECT_FILES',
+# 3: configuration string for the MFEM device, separated with '$(comma)'
+define tmop_tests
+tmop_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
+tmop_tests_$(1): unit_test_main.o $$(SEQ_TMOP_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(TMOP_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call tmop_tests,cpu,CPU,cpu))
+$(eval $(call tmop_tests,debug,DEBUG,debug))
+$(eval $(call tmop_tests,cuda,CUDA,cuda))
+$(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+define ptmop_tests
+ptmop_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_MPI
+ptmop_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_TESTS -DMFEM_TMOP_DEVICE='"$(3)"'
+ptmop_tests_$(1): punit_test_main.o $$(PAR_TMOP_$(2)_OBJ_FILES) \
+ $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$(<) $$(PAR_TMOP_$(2)_OBJ_FILES) \
+	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
+$$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	@mkdir -p $$(@D)
+	$$(CCC) -c $$(abspath $$(<)) $$(MFEM_FLAGS) $$(INCLUDES) \
+	   $$(TMOP_TESTS_FLAGS) -o $$(@)
+endef
+$(eval $(call ptmop_tests,cpu,CPU,cpu))
+$(eval $(call ptmop_tests,debug,DEBUG,debug))
+$(eval $(call ptmop_tests,cuda,CUDA,cuda))
+$(eval $(call ptmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
