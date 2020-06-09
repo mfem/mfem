@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 	// gmres.iterative_mode = true;
    gmres.SetPreconditioner(S);
 	gmres.SetOperator(*A);
-	gmres.SetRelTol(1e-10);
+	gmres.SetRelTol(1e-6);
 	gmres.SetMaxIter(50);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);

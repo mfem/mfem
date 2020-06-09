@@ -41,7 +41,6 @@ Sweep::Sweep(int dim_) : dim(dim_)
 }
 
 
-
 DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
          double omega_, Coefficient * ws_,  int nrlayers_)
    : Solver(2*bf_->FESpace()->GetTrueVSize(), 2*bf_->FESpace()->GetTrueVSize()), 
@@ -52,10 +51,10 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    int partition_kind = 2;
 
-   nx=3;
-   ny=3; 
-   nz=3;
-   ovlpnrlayers = nrlayers+2;
+   nx=2;
+   ny=2; 
+   nz=2;
+   ovlpnrlayers = nrlayers+1;
    part = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
    nx = part->nxyz[0];
    ny = part->nxyz[1];
@@ -81,10 +80,12 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    f_orig.SetSize(nrpatch);
    f_transf.SetSize(nrpatch);
    cout << "nrpatch = " << nrpatch << endl;
+
    for (int ip=0; ip<nrpatch; ip++)
    {
-      cout << "factorizing patch ip = " << ip << endl;
+      // cout << "factorizing patch ip = " << ip << endl;
       PmlMat[ip] = GetPmlSystemMatrix(ip);
+      // cout << "size = " << PmlMat[ip]->Height() << endl;
       PmlMatInv[ip] = new KLUSolver;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
 
@@ -151,10 +152,10 @@ void DST::Mult(const Vector &r, Vector &z) const
 
    for (int l=0; l<nsweeps; l++)
    {
-      cout << " l = " << l << endl;
+      // cout << " l = " << l << endl;
       for (int s = 0; s<nsteps; s++)
       {
-         cout << " s = " << s << endl;
+         // cout << " s = " << s << endl;
          Array2D<int> subdomains;
          GetStepSubdomains(l,s,subdomains);
 
@@ -173,16 +174,9 @@ void DST::Mult(const Vector &r, Vector &z) const
             Vector res_local(ndofs); res_local = 0.0;
             if (l==0) res_local += *f_orig[ip];
             res_local += *f_transf[ip][l];
-            if (res_local.Norml2() < 1e-12) continue;
+            if (res_local.Norml2() < 1e-8) continue;
             PmlMatInv[ip]->Mult(res_local, sol_local);
-            if (dim == 3)
-            {
-               TransferSources3D(l,ip, sol_local);
-            }
-            else
-            {
-               TransferSources(l,ip, sol_local);
-            }
+            TransferSources(l,ip, sol_local);
             Array2D<int> direct(dim,2); direct = 0;
             for (int d=0;d<dim; d++)
             {
@@ -225,48 +219,6 @@ void DST::TransferSources(int s, int ip0, Vector & sol0) const
    for (int i=-1; i<2; i++)
    {
       int i1 = i0 + i;
-      directions[0] = i;
-      if (i1 <0 || i1>=nx) continue;
-      for (int j=-1; j<2; j++)
-      {
-         if (i==0 && j==0) continue;
-
-         int j1 = j0 + j;
-         if (j1 <0 || j1>=ny) continue;
-         Array<int> ij1(2); ij1[0] = i1; ij1[1]=j1;
-         int ip1 = GetPatchId(ij1);
-
-         directions[1] = j;
-
-         int l = GetSweepToTransfer(s,directions);
-
-         if (l == -1) continue;
-         Array2D<int> direct(dim,2); direct = 0;
-         for (int d=0; d<dim; d++)
-         {
-            if (directions[d] == -1) direct[d][0] = 1;
-            if (directions[d] ==  1) direct[d][1] = 1;
-         }
-
-         Vector cfsol0;
-         GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
-
-         Vector raux;
-         SourceTransfer(cfsol0,directions,ip0,raux);
-         *f_transf[ip1][l]+=raux;
-      }  
-   }
-}
-
-void DST::TransferSources3D(int s, int ip0, Vector & sol0) const
-{
-  // Find all neighbors of patch ip0
-   int i0, j0, k0;
-   Getijk(ip0, i0,j0,k0);
-   Array<int> directions(dim);   
-   for (int i=-1; i<2; i++)
-   {
-      int i1 = i0 + i;
       if (i1 <0 || i1>=nx) continue;
       directions[0] = i;
       for (int j=-1; j<2; j++)
@@ -274,16 +226,19 @@ void DST::TransferSources3D(int s, int ip0, Vector & sol0) const
          int j1 = j0 + j;
          if (j1 <0 || j1>=ny) continue;
          directions[1] = j;
-         for (int k=-1; k<2; k++)
+         int kbeg = (dim == 2) ? 0 : -1;
+         int kend = (dim == 2) ? 1 :  2;
+         for (int k=kbeg; k<kend; k++)
          {
             int k1 = k0 + k;
             if (k1 <0 || k1>=nz) continue;
-            directions[2] = k;
+            if (dim == 3) directions[2] = k;
 
             if (i==0 && j==0 && k==0) continue;
 
-            Array<int> ijk1(3); 
-            ijk1[0] = i1; ijk1[1]=j1; ijk1[2]=k1;
+            Array<int> ijk1(dim); 
+            ijk1[0] = i1; ijk1[1]=j1; 
+            if (dim ==3 ) ijk1[2]=k1;
             int ip1 = GetPatchId(ijk1);
 
 
@@ -299,9 +254,8 @@ void DST::TransferSources3D(int s, int ip0, Vector & sol0) const
 
             Vector cfsol0;
             GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
-
             Vector raux;
-            SourceTransfer3D(cfsol0,directions,ip0,raux);
+            SourceTransfer(cfsol0,directions,ip0,raux);
             *f_transf[ip1][l]+=raux;
          }
       }  
@@ -367,44 +321,6 @@ SparseMatrix * DST::GetPmlSystemMatrix(int ip)
    return Mat;
 }
 
-void DST::SourceTransfer3D(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
-{
-   int i0,j0,k0;
-   Getijk(ip0,i0,j0,k0);
-
-   int i1 = i0+direction[0];   
-   int j1 = j0+direction[1];   
-   int k1 = k0+direction[2];   
-   Array<int> ijk(3); ijk[0]=i1; ijk[1]=j1; ijk[2]=k1;
-   int ip1 = GetPatchId(ijk);
-
-   MFEM_VERIFY(i1 < nx && i1>=0, "SourceTransfer: i1 out of bounds");
-   MFEM_VERIFY(j1 < ny && j1>=0, "SourceTransfer: j1 out of bounds");
-   MFEM_VERIFY(k1 < nz && k1>=0, "SourceTransfer: j1 out of bounds");
-
-   Array<int> * Dof2GlobalDof0 = &dmap->Dof2GlobalDof[ip0];
-   Array<int> * Dof2GlobalDof1 = &dmap->Dof2GlobalDof[ip1];
-   Psi1.SetSize(Dof2GlobalDof1->Size()); Psi1=0.0;
-   Vector r(2*bf->FESpace()->GetTrueVSize());
-   r = 0.0;
-   r.SetSubVector(*Dof2GlobalDof0,Psi0);
-   Vector zloc(Psi1.Size()); zloc = 0.0;
-   r.GetSubVector(*Dof2GlobalDof1,zloc);
-   Vector Psi(Dof2GlobalDof1->Size()); Psi=0.0;
-   PmlMat[ip1]->Mult(zloc,Psi);
-   Psi *=-1.0;
-
-   Array2D<int> direct(dim,2); direct = 0;
-
-   for (int d = 0; d<dim; d++)
-   {
-      if (direction[d]==1) direct[d][0] = 1;
-      if (direction[d]==-1) direct[d][1] = 1;
-   }
-
-   GetChiRes(Psi, Psi1,ip1,direct, ovlpnrlayers);
-}
-
 void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vector & Psi1) const
 {
    int i0,j0,k0;
@@ -412,11 +328,17 @@ void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vec
 
    int i1 = i0+direction[0];   
    int j1 = j0+direction[1];   
-   Array<int> ij(2); ij[0]=i1; ij[1]=j1;
-   int ip1 = GetPatchId(ij);
-
+   int k1 = k0+direction[2];   
+   Array<int> ijk(dim); ijk[0]=i1; ijk[1]=j1; 
+   if (dim == 3 ) ijk[2]=k1;
+   int ip1 = GetPatchId(ijk);
+   
    MFEM_VERIFY(i1 < nx && i1>=0, "SourceTransfer: i1 out of bounds");
    MFEM_VERIFY(j1 < ny && j1>=0, "SourceTransfer: j1 out of bounds");
+   if (dim==3)
+   {
+      MFEM_VERIFY(k1 < nz && k1>=0, "SourceTransfer: k1 out of bounds");
+   }
 
    Array<int> * Dof2GlobalDof0 = &dmap->Dof2GlobalDof[ip0];
    Array<int> * Dof2GlobalDof1 = &dmap->Dof2GlobalDof[ip1];

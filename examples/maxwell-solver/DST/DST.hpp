@@ -62,9 +62,7 @@ private:
                   int ip, Array2D<int> direct, int nlayers) const;  
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;
-   void TransferSources3D(int sweep, int ip, Vector & sol_ext) const;
    void SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
-   void SourceTransfer3D(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
    int GetSweepToTransfer(const int s, Array<int> directions) const;
    void PlotSolution(Vector & sol, socketstream & sol_sock, int ip,bool localdomain) const;
   
