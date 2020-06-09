@@ -279,7 +279,7 @@ static void tmop_tests(int myid)
    constexpr int NI  = 17;
 
    const char *a2D[] = { "tmop_tests", "-pa",
-                         "-m", "../../miniapps/meshing/blade.mesh",
+                         "-m", "blade.mesh",
                          "-o", "1",
                          "-rs", "0",
                          "-mid", "002",
@@ -305,7 +305,7 @@ static void tmop_tests(int myid)
    tmop_launch(myid, a2D, r228);
 
    const char *a3D[]= { "tmop_tests", "-pa",
-                        "-m", "../../data/toroid-hex.mesh",
+                        "-m", "toroid-hex.mesh",
                         "-o", "1",
                         "-rs", "0",
                         "-mid", "302",
