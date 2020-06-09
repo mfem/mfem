@@ -14,9 +14,9 @@ $EXEC $CONFIG -o 1 -r 7 -dt 0.00016
 # $EXEC $CONFIG -o 1 -r 8 -dt 0.00008
 
 # # p-refinement & h-coarsening
-$EXEC $CONFIG -r 5 -o 1 -dt 0.0005
-$EXEC $CONFIG -r 4 -o 3 -dt 0.0005
-$EXEC $CONFIG -r 3 -o 7 -dt 0.0005
+$EXEC $CONFIG -r 5 -o 1 -dt 0.0004
+$EXEC $CONFIG -r 4 -o 3 -dt 0.0004
+$EXEC $CONFIG -r 3 -o 7 -dt 0.0004
 
 
 # ## Woodward Colella

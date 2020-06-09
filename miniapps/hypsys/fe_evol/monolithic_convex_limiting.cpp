@@ -322,8 +322,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          MultABt(PrecGradOp(j), Adjugates(e), CTilde(j));
 
          // Nodal states should be included for bounds
-         uijMin(j,0) = x(vdofs[j]);
-         uijMax(j,0) = x(vdofs[j]);
+         // uijMin(j,0) = x(vdofs[j]);
+         // uijMax(j,0) = x(vdofs[j]);
 
          for (int n = 1; n < hyp->NumEq; n++)
          {
@@ -453,8 +453,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
       x.GetSubVector(vdofs, uElem);
       mat2 = mat3 = ElFlux = DGFluxTerms = 0.;
       AntiDiffBdr = 0.;
-      uijMin =  std::numeric_limits<double>::infinity();
-      uijMax = -std::numeric_limits<double>::infinity();
+      // uijMin =  std::numeric_limits<double>::infinity();
+      // uijMax = -std::numeric_limits<double>::infinity();
       diffusion = 0.;
 
       for (int k = 0; k < nqe; k++)
@@ -560,21 +560,16 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
          {
             double gif = BdrFlux(j,0);
 
-            if (abs(gif) >= 1.e-12 && dim==1)
+            if (dim==1 && abs(gif) >= 1.e-12)
                MFEM_ABORT("Low and high order boundary fluxes should be equal.");
 
 #if SCHEME == 1
             int J = dofs.BdrDofs(j,i);
-            if (gif > 0.)
-            {
-               gif = min( gif, min( sif(j) * bounds->xi_max(e*nd+J) - ufi(j,0),
-                                             ufi(j,0) - sif(j) * bounds->xi_min(e*nd+J) ) );
-            }
-            else
-            {
-               gif = max( gif, max( sif(j) * bounds->xi_min(e*nd+J) - ufi(j,0),
-                                             ufi(j,0) - sif(j) * bounds->xi_max(e*nd+J) ) );
-            }
+            double lower = min(ufi(j,0), sif(j) * bounds->xi_min(e*nd+J));
+            double upper = max(ufi(j,0), sif(j) * bounds->xi_max(e*nd+J));
+
+            gif = gif > 0. ? min( gif, min( upper - ufi(j,0), ufi(j,0) - lower ) ) :
+                             max( gif, max( lower - ufi(j,0), ufi(j,0) - upper ) ) ;
 #endif
 #if SCHEME != 0
             AntiDiffBdr(dofs.BdrDofs(j,i),0) += gif;
@@ -610,7 +605,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                double diff = ufi(j,n) - (ufi(j,0) + LimitedFluxState(j)) * QuotientAverage;
                double gij = gif + diff;
 
-               if (abs(gif) >= 1.e-12 && dim==1)
+               if (dim==1 && abs(gif) >= 1.e-12)
                   MFEM_ABORT("Low and high order boundary fluxes should be equal.");
 
 #if SCHEME == 1
@@ -699,8 +694,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                   uij(I,J,n) -= CTilde(I,l,J) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
                }
 
-               uijMin(I,n) = min(uijMin(I,n), uij(I,J,n));
-               uijMax(I,n) = max(uijMax(I,n), uij(I,J,n));
+               // uijMin(I,n) = min(uijMin(I,n), uij(I,J,n));
+               // uijMax(I,n) = max(uijMax(I,n), uij(I,J,n));
             }
          }
       }

@@ -149,6 +149,18 @@ Euler::Euler(FiniteElementSpace *fes_, BlockVector &u_block,
          u0.ProjectCoefficient(ic);
          break;
       }
+      case 8:
+      {
+         ProblemName = "Euler Equations of Gas dynamics - Gresho Vortex";
+         glvis_scale = "on";
+         SpHeatRatio = 1.4; // TODO, gamma
+         SolutionKnown = true;
+         SteadyState = true;
+         TimeDepBC = false;
+         ProjType = 0;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }
@@ -480,6 +492,45 @@ void AnalyticalSolutionEuler(const Vector &x, double t, Vector &u)
 
          break;
       }
+      case 8:
+      {
+         if (dim != 2)
+         {
+            MFEM_ABORT("Test case only implemented in 2D.");
+         }
+
+         // X(0) = 0.5*(X(0)+1.);
+         // X(1) = 0.5*(X(1)+1.);
+         X = x;
+
+         double pressure = 3. + 4.*log(2.);
+         double r = sqrt( (X(0) - 0.5)*(X(0) - 0.5) + (0.5 - X(1))*(0.5 - X(1)) );
+         // double r = X.Norml2();
+
+         u = 0.;
+         u(0) = 1.;
+
+         if (r <= 0.2)
+         {
+            u(1) = 5. * (0.5 - X(1));
+            u(2) = 5. * (X(0) - 0.5);
+            // u(1) = -5. * X(1);
+            // u(2) =  5. * X(0);
+            pressure = 5. + 12.5*r*r;
+         }
+         else if (r < 0.4)
+         {
+            u(1) = (2./r - 5.) * (0.5 - X(1));
+            u(2) = (2./r - 5.) * (X(0) - 0.5);
+            // u(1) = -(2./r - 5.) * X(1);
+            // u(2) =  (2./r - 5.) * X(0);
+            pressure = 9. + 4.*(log(r) - log(0.2)) + 12.5*r*r - 20.*r;
+         }
+
+         EvaluateEnergy(u, pressure);
+
+         break;
+      }
       default:
          MFEM_ABORT("Analytical solution not known.");
    }
@@ -504,6 +555,7 @@ void InitialConditionEuler(const Vector &x, Vector &u)
       case 3:
       case 5:
       case 6:
+      case 8:
       {
          AnalyticalSolutionEuler(x, 0.0, u);
          break;
@@ -576,6 +628,7 @@ void InflowFunctionEuler(const Vector &x, double t, Vector &u)
       case 3:
       case 5:
       case 6:
+      case 8:
       {
          AnalyticalSolutionEuler(x, t, u);
          break;
