@@ -1352,6 +1352,16 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
     Mesh. See Mesh::GetGeometricFactors(). */
 class GeometricFactors
 {
+
+protected:
+   /// Element restricted nodes
+   /// [TODO move to stack when pools are available]
+   /** This array uses a column-major layout with dimensions (ND x SDIM x NE) where
+        - ND   = number of degrees of freedom per element,
+        - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
+        - NE   = number of elements in the mesh. */
+   Vector Enodes;
+
 public:
    const Mesh *mesh {nullptr};
    const GridFunction *nodes{nullptr};
@@ -1398,13 +1408,6 @@ public:
        - NQ = number of quadrature points per element, and
        - NE = number of elements in the mesh. */
    Vector detJ;
-
-   /// Element restricted nodes
-   /** This array uses a column-major layout with dimensions (ND x SDIM x NE) where
-       - ND   = number of degrees of freedom per element,
-       - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
-       - NE   = number of elements in the mesh. */
-   Vector Enodes;
 };
 
 /** @brief Structure for storing face geometric factors: coordinates, Jacobians,
@@ -1413,16 +1416,6 @@ public:
     Mesh. See Mesh::GetFaceGeometricFactors(). */
 class FaceGeometricFactors
 {
-
-protected:
-   /// Element restricted nodes
-   /// [TODO move to stack when pools are available]
-   /** This array uses a column-major layout with dimensions (ND x SDIM x NE) where
-        - ND   = number of degrees of freedom per element,
-        - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
-        - NE   = number of elements in the mesh. */
-   Vector Enodes;
-
 public:
    const Mesh *mesh;
    const IntegrationRule *IntRule;
