@@ -744,42 +744,24 @@ int main(int argc, char *argv[])
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
    tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
 
-   // 19. Finally, perform the nonlinear optimization.
-   NewtonSolver *solver = NULL;
+   // Perform the nonlinear optimization.
+   TMOPNewtonSolver solver(*ir, solver_type);
    if (solver_type == 0)
    {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir);
-      solver = tns;
-      solver->SetPreconditioner(*S);
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
+      // Specify linear solver when we use a Newton-based solver.
+      solver.SetPreconditioner(*S);
    }
-   else
-   {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir, 1);
-      solver = tns;
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "LBFGSIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
-   }
+   solver.SetMaxIter(solver_iter);
+   solver.SetRelTol(solver_rtol);
+   solver.SetAbsTol(0.0);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetOperator(a);
+   solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
+   if (solver.GetConverged() == false)
+   {
+      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
+   }
 
    // 20. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
@@ -839,7 +821,6 @@ int main(int argc, char *argv[])
    }
 
    // 24. Free the used memory.
-   delete solver;
    delete S;
    delete target_c2;
    delete metric2;

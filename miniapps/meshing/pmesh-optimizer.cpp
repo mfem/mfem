@@ -792,46 +792,23 @@ int main (int argc, char *argv[])
    MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
-   // 20. Finally, perform the nonlinear optimization.
-   NewtonSolver *solver = NULL;
+   // Perform the nonlinear optimization.
+   TMOPNewtonSolver solver(pfespace->GetComm(), *ir, solver_type);
    if (solver_type == 0)
    {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
-      solver = tns;
-      solver->SetPreconditioner(*S);
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
+      // Specify linear solver when we use a Newton-based solver.
+      solver.SetPreconditioner(*S);
    }
-   else
-   {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir, 1);
-      solver = tns;
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "LBFGSIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
-   }
+   solver.SetMaxIter(solver_iter);
+   solver.SetRelTol(solver_rtol);
+   solver.SetAbsTol(0.0);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetOperator(a);
+   solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
-   if (myid == 0 && solver->GetConverged() == false)
+   if (myid == 0 && solver.GetConverged() == false)
    {
-      cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-           << endl;
+      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
    }
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
@@ -903,7 +880,6 @@ int main (int argc, char *argv[])
    }
 
    // 24. Free the used memory.
-   delete solver;
    delete S;
    delete target_c2;
    delete metric2;
