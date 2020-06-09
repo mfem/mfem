@@ -1655,6 +1655,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    yk.SetSize(width);    //r_{k+1}-r_{k}
    rho.SetSize(m);       //1/(dot(yk,sk)
    alpha.SetSize(m);    //rhok*sk'*c
+   int last_saved_id = -1;
 
    int it;
    double norm0, norm, norm_goal;
@@ -1717,32 +1718,17 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       //    LBFGS - construct descent direction
-      int klim;
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
       //  Save last m vectors
-      if (it < m)
-      {
-         skM.SetCol(it, sk);
-         ykM.SetCol(it, yk);
-         klim = it+1;
-      }
-      else
-      {
-         for (int i = 0; i < m-1; i++)
-         {
-            skM.SetCol(i, skM.GetColumn(i+1)); //shift columns
-            ykM.SetCol(i, ykM.GetColumn(i+1)); //shift columns
-         }
-         skM.SetCol(m-1, sk); // copy new column
-         ykM.SetCol(m-1, yk); // copy new colum
-         klim = m;
-      }
+      last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
+      skM.SetCol(last_saved_id, sk);
+      ykM.SetCol(last_saved_id, yk);
 
       c = r;
-      for (int i = klim-1; i > -1; i--)
+      for (int i = last_saved_id; i > -1; i--)
       {
          skM.GetColumn(i, sk);
          ykM.GetColumn(i, yk);
@@ -1750,9 +1736,30 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          alpha(i) = rho(i)*Dot(sk,c);
          add(c, -alpha(i), yk, c);
       }
+      if (it > m-1)
+      {
+         for (int i = m-1; i > last_saved_id; i--)
+         {
+            skM.GetColumn(i, sk);
+            ykM.GetColumn(i, yk);
+            rho(i) = 1./Dot(sk, yk);
+            alpha(i) = rho(i)*Dot(sk,c);
+            add(c, -alpha(i), yk, c);
+         }
+      }
 
       c *= gamma;   // scale search direction
-      for (int i = 0; i < klim ; i++)
+      if (it > m-1)
+      {
+         for (int i = last_saved_id+1; i < m ; i++)
+         {
+            skM.GetColumn(i,sk);
+            ykM.GetColumn(i,yk);
+            double betai = rho(i)*Dot(yk, c);
+            add(c, alpha(i)-betai, sk, c);
+         }
+      }
+      for (int i = 0; i < last_saved_id+1 ; i++)
       {
          skM.GetColumn(i,sk);
          ykM.GetColumn(i,yk);
