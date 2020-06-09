@@ -32,27 +32,29 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
-//   Adapted analytic Hessian:
+//   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted analytic Hessian with size+orientation:
+//   Adapted analytic size+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
-//   Adapted analytic Hessian with Shape+size+orientation
+//   Adapted analytic shape+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
-//
-//   Adapted size+aspect ratio to discrete material indicator
+//   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted discrete size+orientation (requires GSLIB)
+//   Adapted discrete size+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect-ratio+orientation (requires GSLIB)
+//   Adapted discrete aspect_ratio+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect ratio (3D)
+//   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
 //
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -ae 0
+//   Adaptive limiting through the L-BFGS solver:
+//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -ae 1 -st 1
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
