@@ -323,15 +323,20 @@ int main(int argc, char *argv[])
 
       done = (t >= t_final - 1e-8*dt);
 
-      if (done )
+      if (done && myid == 0)
       {
          cvodes->PrintInfo(); 
       }
    }
 
    u = *U;
-   cout << "Final Solution: " << t << endl;
+   if (myid == 0)
+     cout << "Final Solution: " << t << endl;
+
+   cout << "u (" << myid << "):" << endl;
    u.Print();
+   cout << flush;
+   MPI_Barrier(MPI_COMM_WORLD);
 
    // Calculate the quadrature int_x u dx at t = 5
    // Since it's only a spatial quadrature we evaluate it at t=5
@@ -354,9 +359,7 @@ int main(int argc, char *argv[])
 
    // Initialize quadrature sesntiviity values to zero
    Vector qBdot(p.Size());
-   qBdot = 0.;
-   
-   V->Vector::Print();
+   qBdot = 0.;   
 
    t = t_final;
    cvodes->InitB(adv);
@@ -367,12 +370,18 @@ int main(int argc, char *argv[])
    // Results at time TBout1
    double dt_real = max(dt, t);
    cvodes->StepB(*V, t, dt_real);
-   cout << "t: " << t << endl;
-   cout << "v:" << endl;
+   if (myid == 0)
+     cout << "t: " << t << endl;
+   
+   cout << "v (" << myid << "):" << endl;
    V->Vector::Print();
-
+   cout << flush;
+   MPI_Barrier(MPI_COMM_WORLD);
+   
    // Evaluate the Sensitivity
    cvodes->EvalQuadIntegrationB(t, qBdot);
+
+   MPI_Barrier(MPI_COMM_WORLD);
    if (myid == 0) {
      cout << "sensitivity:" << endl;
      qBdot.Print();
