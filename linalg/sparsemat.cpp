@@ -2677,6 +2677,8 @@ SparseMatrix &SparseMatrix::operator=(double a)
 {
    if (Rows == NULL)
    {
+      HostReadWriteI();
+      HostReadWriteJ();
       const int nnz = J.Capacity();
       double *h_A = HostWrite(A, nnz);
       for (int i = 0; i < nnz; i++)

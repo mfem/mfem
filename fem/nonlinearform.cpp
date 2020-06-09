@@ -308,7 +308,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    {
       *Grad = 0.0;
    }
-
    if (dnfi.Size())
    {
       for (int i = 0; i < fes->GetNE(); i++)
