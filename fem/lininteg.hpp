@@ -36,7 +36,7 @@ public:
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
 
-   void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
 
    virtual ~LinearFormIntegrator() { }
@@ -424,6 +424,69 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+};
+
+/** Class for domain integration of L(v) := (f, v), where
+    f=(f1,...,fn) and v=(v1,...,vn). that makes use of
+    VectorQuadratureFunctionCoefficient*/
+class VectorQuadratureLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorQuadratureFunctionCoefficient &vqfc;
+
+public:
+   VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
+                                const IntegrationRule *ir)
+      : LinearFormIntegrator(ir), vqfc(vqfc)
+   {
+      if (ir)
+      {
+         MFEM_WARNING("Integration rule not used in this class. "
+                      "The QuadratureFunction integration rules are used instead");
+      }
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(const FiniteElement &fe,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void SetIntRule(const IntegrationRule *ir)
+   {
+      MFEM_WARNING("Integration rule not used in this class. "
+                   "The QuadratureFunction integration rules are used instead");
+   }
+};
+
+/** Class for domain integration L(v) := (f, v) that makes use
+    of QuadratureFunctionCoefficient. */
+class QuadratureLFIntegrator : public LinearFormIntegrator
+{
+private:
+   QuadratureFunctionCoefficient &qfc;
+
+public:
+   QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc,
+                          const IntegrationRule *ir)
+      : LinearFormIntegrator(ir), qfc(qfc)
+   {
+      if (ir)
+      {
+         MFEM_WARNING("Integration rule not used in this class. "
+                      "The QuadratureFunction integration rules are used instead");
+      }
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(const FiniteElement &fe,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+   virtual void SetIntRule(const IntegrationRule *ir)
+   {
+      MFEM_WARNING("Integration rule not used in this class. "
+                   "The QuadratureFunction integration rules are used instead");
+   }
 };
 
 }
