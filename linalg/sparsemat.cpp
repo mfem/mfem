@@ -2754,6 +2754,10 @@ void SparseMatrix::Print(std::ostream & out, int _width) const
       return;
    }
 
+   // HostRead forces synchronization
+   HostReadI();
+   HostReadJ();
+   HostReadData();
    for (i = 0; i < height; i++)
    {
       out << "[row " << i << "]\n";
