@@ -29,6 +29,10 @@ Meshing improvements
 
 - Added TMOP capability for approximate tangential mesh relaxation.
 
+- Added support for reading periodic meshes in Gmsh format (version 2.2). See
+  for example the periodic-annulus-sector and periodic-torus-sector files in
+  the data directory.
+
 Performance improvements
 ------------------------
 - Added support for explicit vectorization in the high-performance templated
@@ -40,6 +44,8 @@ Performance improvements
   These are now enabled by default, and can be disabled with MFEM_USE_SIMD=NO.
   See the new file linalg/simd.hpp and the new directory linalg/simd.
 
+Improved GPU capabilities
+-------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
 
 Discretization improvements
