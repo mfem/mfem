@@ -287,7 +287,7 @@ TEST_CASE("2D GetValue",
 {
    int log = 1;
    int n = 1;
-   int dim = 2;
+   constexpr int dim = 2;
    int order = 1;
    int npts = 0;
 
@@ -560,7 +560,7 @@ TEST_CASE("3D GetValue",
 {
    int log = 1;
    int n = 1;
-   int dim = 3;
+   constexpr int dim = 3;
    int order = 1;
    int npts = 0;
 
@@ -872,7 +872,7 @@ TEST_CASE("2D GetVectorValue",
 {
    int log = 1;
    int n = 1;
-   int dim = 2;
+   constexpr int dim = 2;
    int order = 1;
    int npts = 0;
 
@@ -1312,7 +1312,7 @@ TEST_CASE("3D GetVectorValue",
 {
    int log = 1;
    int n = 1;
-   int dim = 3;
+   constexpr int dim = 3;
    int order = 1;
    int npts = 0;
 
