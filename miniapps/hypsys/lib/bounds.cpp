@@ -122,8 +122,8 @@ void TightBounds::ComputeElementBounds(int n, int e, const Vector &x)
    for (int i = 0; i < nd; i++)
    {
       const int I = eldofs[DofMapH1[i]];
-      x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
-      x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
+      // x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
+      // x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
 
       for (int j = 0; j < ClosestNbrs.Width(); j++)
       {
@@ -143,6 +143,15 @@ void TightBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
       const int I = eldofs[DofMapH1[i]];
       x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
       x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
+
+      // for (int j = 0; j < ClosestNbrs.Width(); j++)
+      // {
+      //    if (ClosestNbrs(i,j) == -1) { break; }
+
+      //    const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
+      //    x_min(I) = min(x_min(I), xi_min(J));
+      //    x_max(I) = max(x_max(I), xi_max(J));
+      // }
    }
 }
 
@@ -170,7 +179,12 @@ void LooseBounds::ComputeElementBounds(int n, int e, const Vector &x)
 
 void LooseBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
 {
-   // TODO
+   for (int i = 0; i < nd; i++)
+   {
+      const int I = eldofs[DofMapH1[i]];
+      x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
+      x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
+   }
 }
 
 

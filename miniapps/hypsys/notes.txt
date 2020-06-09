@@ -1,4 +1,6 @@
 ATTENTION
+   -serial/parallel disparity
+   -WIP on right bounds - serial first
 
 DEBUG
    -Test LooseBounds: bug - check low order version, and unlimited sequential stuff

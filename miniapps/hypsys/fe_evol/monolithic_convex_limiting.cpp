@@ -348,24 +348,24 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             for (int n = 0; n < hyp->NumEq; n++)
             {
                // TODO try to use uEval, uNbrEval instead of x
-               uij(I,J,n) = 0.5 * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
+               uij(I,J,n) = DTilde(I,J) * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
 
                for (int l = 0; l < dim; l++)
                {
-                  uij(I,J,n) -= CTilde(I,l,J) / (2.*DTilde(I,J)) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
+                  uij(I,J,n) -= CTilde(I,l,J) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
                }
 
-               if (n == 0)
-               {
-                  uijMin(I,0) = min(uijMin(I,0), uij(I,J,0));
-                  uijMax(I,0) = max(uijMax(I,0), uij(I,J,0));
-                  continue;
-               }
+               // if (n == 0)
+               // {
+               //    uijMin(I,0) = min(uijMin(I,0), uij(I,J,0));
+               //    uijMax(I,0) = max(uijMax(I,0), uij(I,J,0));
+               //    continue;
+               // }
             }
          }
       }
 
-      for (int n = 1; n < hyp->NumEq; n++)
+      for (int n = 1; n < hyp->NumEq; n++) // TODO possible to combine loops?
       {
          for (int I = 0; I < nd; I++)
          {
@@ -415,18 +415,18 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               ufi(j,n) = 0.5 * (uEval(n) + uNbrEval(n));
+               ufi(j,n) = 0.5 * sif(j) * (uEval(n) + uNbrEval(n));
                for (int l = 0; l < dim; l++)
                {
-                  ufi(j,n) -= 0.5 / sif(j) * (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
+                  ufi(j,n) -= 0.5 * (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
                }
 
-               if (n == 0)
-               {
-                  uijMin(dofs.BdrDofs(j,i),0) = min(uijMin(dofs.BdrDofs(j,i),0), ufi(j,0));
-                  uijMax(dofs.BdrDofs(j,i),0) = max(uijMax(dofs.BdrDofs(j,i),0), ufi(j,0));
-                  continue;
-               }
+               // if (n == 0)
+               // {
+               //    uijMin(dofs.BdrDofs(j,i),0) = min(uijMin(dofs.BdrDofs(j,i),0), ufi(j,0));
+               //    uijMax(dofs.BdrDofs(j,i),0) = max(uijMax(dofs.BdrDofs(j,i),0), ufi(j,0));
+               //    continue;
+               // }
 
                double AveragedBarState = ufi(j,n) / ufi(j,0);
                uijMin(dofs.BdrDofs(j,i),n) = min(uijMin(dofs.BdrDofs(j,i),n), AveragedBarState);
@@ -437,7 +437,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
       for (int I = 0; I < nd; I++) // TODO bdr terms first and combine this loop with volume bar states
       {
-         for (int n = 0; n < hyp->NumEq; n++)
+         for (int n = 1; n < hyp->NumEq; n++)
          {
             bounds->xi_min(n*ne*nd + e*nd + I) = uijMin(I,n);
             bounds->xi_max(n*ne*nd + e*nd + I) = uijMax(I,n);
@@ -534,10 +534,10 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
 
             for (int n = 0; n < hyp->NumEq; n++)
             {
-               ufi(j,n) = 0.5 * (uEval(n) + uNbrEval(n));
+               ufi(j,n) = 0.5 * sif(j) * (uEval(n) + uNbrEval(n));
                for (int l = 0; l < dim; l++)
                {
-                  ufi(j,n) -= 0.5 / sif(j) * (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
+                  ufi(j,n) -= 0.5 * (FluxNbr(n,l) - Flux(n,l)) * normal(l) * FaceMatLumped;
                }
             }
 
@@ -567,38 +567,38 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             int J = dofs.BdrDofs(j,i);
             if (gif > 0.)
             {
-               gif = min( gif, sif(j) * min( bounds->xi_max(e*nd+J) - ufi(j,0),
-                                             ufi(j,0) - bounds->xi_min(e*nd+J) ) );
+               gif = min( gif, min( sif(j) * bounds->xi_max(e*nd+J) - ufi(j,0),
+                                             ufi(j,0) - sif(j) * bounds->xi_min(e*nd+J) ) );
             }
             else
             {
-               gif = max( gif, sif(j) * max( bounds->xi_min(e*nd+J) - ufi(j,0),
-                                             ufi(j,0) - bounds->xi_max(e*nd+J) ) );
+               gif = max( gif, max( sif(j) * bounds->xi_min(e*nd+J) - ufi(j,0),
+                                             ufi(j,0) - sif(j) * bounds->xi_max(e*nd+J) ) );
             }
 #endif
 #if SCHEME != 0
             AntiDiffBdr(dofs.BdrDofs(j,i),0) += gif;
 #endif
-            LimitedFluxState(j) = ufi(j,0) + gif / sif(j);
+            LimitedFluxState(j) = gif;
          }
 
-// Vector a(hyp->NumEq), b(hyp->NumEq);
-// a =  std::numeric_limits<double>::infinity();
-// b = -std::numeric_limits<double>::infinity();
+// // Vector a(hyp->NumEq), b(hyp->NumEq);
+// // a =  std::numeric_limits<double>::infinity();
+// // b = -std::numeric_limits<double>::infinity();
 
-//          for (int j = 0; j < dofs.NumFaceDofs; j++)
-//          {
-//             uFace.GetColumn(j, uEval);
-//             uNbrFace.GetColumn(j, uNbrEval);
+// //          for (int j = 0; j < dofs.NumFaceDofs; j++)
+// //          {
+// //             uFace.GetColumn(j, uEval);
+// //             uNbrFace.GetColumn(j, uNbrEval);
 
-//             for (int n = 1; n < hyp->NumEq; n++)
-//             {
-//                double c = uEval(n) / uEval(0);
-//                double d = uNbrEval(n) / uNbrEval(0);
-//                a(n) = min( min(a(n), c), d);
-//                b(n) = min( min(b(n), c), d);
-//             }
-//          }
+// //             for (int n = 1; n < hyp->NumEq; n++)
+// //             {
+// //                double c = uEval(n) / uEval(0);
+// //                double d = uNbrEval(n) / uNbrEval(0);
+// //                a(n) = min( min(a(n), c), d);
+// //                b(n) = min( min(b(n), c), d);
+// //             }
+// //          }
 
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
@@ -606,7 +606,8 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             {
                double gif = BdrFlux(j,n);
                double QuotientAverage = ufi(j,n) / ufi(j,0);
-               double diff = sif(j) * (ufi(j,n) - LimitedFluxState(j) * QuotientAverage);
+               // double diff = sif(j) * (ufi(j,n) - LimitedFluxState(j) * QuotientAverage);
+               double diff = ufi(j,n) - (ufi(j,0) + LimitedFluxState(j)) * QuotientAverage;
                double gij = gif + diff;
 
                if (abs(gif) >= 1.e-12 && dim==1)
@@ -618,8 +619,10 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
                // // double b = max( max(uEval(n) / uEval(0), uNbrEval(n) / uNbrEval(0)), QuotientAverage );
                // double lower = sif(j) * LimitedFluxState(j) * (min(QuotientAverage, a(n)) - QuotientAverage);
                // double upper = sif(j) * LimitedFluxState(j) * (max(QuotientAverage, b(n)) - QuotientAverage);
-               double lower = sif(j) * LimitedFluxState(j) * (bounds->xi_min(n*ne*nd + e*nd+J) - QuotientAverage);
-               double upper = sif(j) * LimitedFluxState(j) * (bounds->xi_max(n*ne*nd + e*nd+J) - QuotientAverage);
+               double lower = sif(j) * min(bounds->xi_min(e*nd+J)*bounds->xi_min(n*ne*nd + e*nd+J),
+                                           bounds->xi_max(e*nd+J)*bounds->xi_min(n*ne*nd + e*nd+J)) - (ufi(j,0) + LimitedFluxState(j)) * QuotientAverage;
+               double upper = sif(j) * max(bounds->xi_max(e*nd+J)*bounds->xi_max(n*ne*nd + e*nd+J),
+                                           bounds->xi_min(e*nd+J)*bounds->xi_max(n*ne*nd + e*nd+J)) - (ufi(j,0) + LimitedFluxState(j)) * QuotientAverage;
 
                gij = gij > 0. ? min(upper, min(gij, -lower)) : max(lower, max(gij, -upper));
 
@@ -689,11 +692,11 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             {
                double rus = DTilde(I,J) * (x(vdofs[n*nd + J]) - x(vdofs[n*nd + I]));
                z(vdofs[n*nd + I]) += rus; // TODO try to use uEval, uNbrEval instead of x
-               uij(I,J,n) = 0.5 * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
+               uij(I,J,n) = DTilde(I,J) * (x(vdofs[n*nd + J]) + x(vdofs[n*nd + I]));
 
                for (int l = 0; l < dim; l++)
                {
-                  uij(I,J,n) -= CTilde(I,l,J) / (2.*DTilde(I,J)) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
+                  uij(I,J,n) -= CTilde(I,l,J) * (NodalFluxes(n,l,J) - NodalFluxes(n,l,I));
                }
 
                uijMin(I,n) = min(uijMin(I,n), uij(I,J,n));
@@ -717,25 +720,25 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             int J = Dof2LocNbr(I,j);
             if (J == -1) { break; }
 
-            double fij = DTilde(I,J) * (x(vdofs[0*nd+I]) - x(vdofs[0*nd+J])) + MassMatLOR(I,J) * (mat2(I,0) - mat2(J,0));
+            double fij = DTilde(I,J) * (x(vdofs[I]) - x(vdofs[J])) + MassMatLOR(I,J) * (mat2(I,0) - mat2(J,0));
 #if SCHEME == 1
             if (fij > 0.)
             {
-               double lower = min(uijMin(J,0), bounds->xi_min(e*nd+J));
-               double upper = max(uijMax(I,0), bounds->xi_max(e*nd+I));
-               fij = min( fij, 2.*DTilde(I,J) * min( upper - uij(I,J,0), uij(J,I,0) - lower ) );
+               double lower = min(uij(J,I,0), 2.*DTilde(I,J) * bounds->xi_min(e*nd+J));
+               double upper = max(uij(I,J,0), 2.*DTilde(I,J) * bounds->xi_max(e*nd+I));
+               fij = min( fij, min( upper - uij(I,J,0), uij(J,I,0) - lower ) );
             }
             else
             {
-               double lower = min(uijMin(I,0), bounds->xi_min(e*nd+I));
-               double upper = max(uijMax(J,0), bounds->xi_max(e*nd+J));
-               fij = max( fij, 2.*DTilde(I,J) * max( lower - uij(I,J,0), uij(J,I,0) - upper ) );
+               double lower = min(uij(I,J,0), 2.*DTilde(I,J) * bounds->xi_min(e*nd+I));
+               double upper = max(uij(J,I,0), 2.*DTilde(I,J) * bounds->xi_max(e*nd+J));
+               fij = max( fij, max( lower - uij(I,J,0), uij(J,I,0) - upper ) );
             }
 #endif
 #if SCHEME != 0
             ElFlux(I,0) += fij;
 #endif
-            LimitedBarState(I,J) = uij(I,J,0) + fij / (2.*DTilde(I,J));
+            LimitedBarState(I,J) = fij;
          }
       }
 
@@ -750,19 +753,24 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             {
                double QuotientAverage = (uij(I,J,n)+uij(J,I,n)) / (uij(I,J,0)+uij(J,I,0));
                double fij = DTilde(I,J) * (x(vdofs[n*nd+I]) - x(vdofs[n*nd+J])) + MassMatLOR(I,J) * (mat2(I,n) - mat2(J,n));
-               double diff = 2.*DTilde(I,J) * (uij(I,J,n) - LimitedBarState(I,J) * QuotientAverage);
+               // double diff = 2.*DTilde(I,J) * (uij(I,J,n) - LimitedBarState(I,J) * QuotientAverage);
+               double diff = uij(I,J,n) - (uij(I,J,0) + LimitedBarState(I,J)) * QuotientAverage;
                double gij = fij + diff;
 #if SCHEME == 1
                if (gij > 0.)
                {
-                  double lower = 2.*DTilde(I,J) * LimitedBarState(J,I) * (bounds->xi_min(n*ne*nd + e*nd + J) - QuotientAverage);
-                  double upper = 2.*DTilde(I,J) * LimitedBarState(I,J) * (bounds->xi_max(n*ne*nd + e*nd + I) - QuotientAverage);
+                  double lower = 2.*DTilde(I,J) * min(bounds->xi_min(e*nd + J)*bounds->xi_min(n*ne*nd + e*nd + J),
+                                                      bounds->xi_max(e*nd + J)*bounds->xi_min(n*ne*nd + e*nd + J)) - (uij(J,I,0)+LimitedBarState(J,I)) * QuotientAverage;
+                  double upper = 2.*DTilde(I,J) * max(bounds->xi_max(e*nd + I)*bounds->xi_max(n*ne*nd + e*nd + I),
+                                                      bounds->xi_min(e*nd + I)*bounds->xi_max(n*ne*nd + e*nd + I)) - (uij(I,J,0)+LimitedBarState(I,J)) * QuotientAverage;
                   gij = min(upper, min(gij, -lower));
                }
                else
                {
-                  double lower = 2.*DTilde(I,J) * LimitedBarState(I,J) * (bounds->xi_min(n*ne*nd + e*nd + I) - QuotientAverage);
-                  double upper = 2.*DTilde(I,J) * LimitedBarState(J,I) * (bounds->xi_max(n*ne*nd + e*nd + J) - QuotientAverage);
+                  double lower = 2.*DTilde(I,J) * min(bounds->xi_min(e*nd + I)*bounds->xi_min(n*ne*nd + e*nd + I),
+                                                      bounds->xi_max(e*nd + I)*bounds->xi_min(n*ne*nd + e*nd + I)) - (uij(I,J,0)+LimitedBarState(I,J)) * QuotientAverage;
+                  double upper = 2.*DTilde(I,J) * max(bounds->xi_max(e*nd + J)*bounds->xi_max(n*ne*nd + e*nd + J),
+                                                      bounds->xi_min(e*nd + J)*bounds->xi_max(n*ne*nd + e*nd + J)) - (uij(J,I,0)+LimitedBarState(J,I)) * QuotientAverage;
                   gij = max(lower, max(gij, -upper));
                }
 #endif
