@@ -23,6 +23,27 @@ Meshing improvements
   Hessian for r-adaptivity using discrete fields, and allows use of skewness
   and orientation based metrics.
 
+- Added support for r-adaptivity with more than one discrete field. This allows
+  the user to specify different discrete functions for controlling the
+  size, aspect-ratio, orientation, and skew of elements in the mesh.
+
+- Added TMOP capability for approximate tangential mesh relaxation.
+
+- Added support for reading periodic meshes in Gmsh format (version 2.2). See
+  for example the periodic-annulus-sector and periodic-torus-sector files in
+  the data directory.
+
+Performance improvements
+------------------------
+- Added support for explicit vectorization in the high-performance templated
+  code, which can now take advantage of specific intrinsics classes on the
+  following architectures:
+    - x86 (SSE/AVX/AVX2/AVX512),
+    - Power8 & Power9 (VSX),
+    - BG/Q (QPX).
+  These are now enabled by default, and can be disabled with MFEM_USE_SIMD=NO.
+  See the new file linalg/simd.hpp and the new directory linalg/simd.
+
 Improved GPU capabilities
 -------------------------
 - Added support for Chebyshev accelerated polynomial smoother on GPU.
@@ -49,6 +70,10 @@ Discretization improvements
   ElementTransformation argument to support evaluation on boundary elements
   and, in the continuous field case, arbitrary mesh edges and faces.
 
+- Added new coefficient and vector coefficient classes for QuadratureFunctions.
+  Additionaly, new LinearForm integrators were also added which make use of
+  these new QuadratureFunction coefficient classes.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added power method to iteratively estimate the largest eigenvalue and the
@@ -57,9 +82,16 @@ Linear and nonlinear solvers
 - Added initial support for h- and p-multigrid solvers and preconditioners for
   matrix-based and matrix-free discretizations with basic GPU capability.
 
+- Added a new IterativeSolverMonitor class that allows to monitor the residual
+  and solution during the solving process of an IterativeSolver after every
+  iteration.
+
 - Block arrays of parallel matrices can now be merged into a single parallel
   matrix with the function HypreParMatrixFromBlocks. This could be useful for
   solving block systems with parallel direct solvers such as STRUMPACK.
+
+- In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
+  solver can work with non-SPD preconditioner B.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -98,9 +130,6 @@ Improved testing
 
 Miscellaneous
 -------------
-- In SLISolver, changed the residual inner product from (Br,r) to (Br,Br) so the
-  solver can work with non-SPD preconditioner B.
-
 - Added support for ADIOS2 for parallel I/O with ParaView visualization. The
   classes adios2stream and ADIOS2DataCollection are introduced in mfem as the
   interfaces to generate ADIOS2 Binary Pack (BP4) directory datasets for the
@@ -110,9 +139,8 @@ Miscellaneous
 - The integration order used in the ComputeLpError and ComputeElementLpError
   methods of class GridFunction has been increased.
 
-- Added a new IterativeSolverMonitor class that allows to monitor the residual
-  and solution during the solving process of an IterativeSolver after every
-  iteration.
+- Various other simplifications, extensions, and bugfixes in the code.
+
 
 Version 4.1, released on March 10, 2020
 =======================================
