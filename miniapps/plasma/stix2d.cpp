@@ -118,7 +118,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 using namespace mfem::plasma;
 
 // Admittance for Absorbing Boundary Condition
@@ -711,7 +711,7 @@ int main(int argc, char *argv[])
       for (int i=0; i<v2v.Size(); i++) { v2v[i] = i; }
       for (int i=0; i<mesh->GetNV() / 4; i++) { v2v[4 * i + 3] = 4 * i; }
 
-      Mesh * per_mesh = miniapps::MakePeriodicMesh(mesh, v2v);
+      Mesh * per_mesh = MakePeriodicMesh(mesh, v2v);
       /*
       ofstream ofs("per_mesh.mesh");
       per_mesh->Print(ofs);

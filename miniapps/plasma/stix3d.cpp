@@ -93,7 +93,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::miniapps;
+using namespace mfem::common;
 using namespace mfem::plasma;
 
 // Admittance for Absorbing Boundary Condition
