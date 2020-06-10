@@ -9,7 +9,6 @@ struct Sweep
 {
 private:
    int dim;
-   Array<int> directions;
    std::vector<Array<int>> sweeps;
 public:   
    int nsweeps;

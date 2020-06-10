@@ -206,11 +206,13 @@ int main(int argc, char *argv[])
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // Solution grid function
-   ComplexGridFunction p_gf(fespace);
+   ComplexGridFunction p_gf(fespace); p_gf = 0.0;
    OperatorHandle Ah;
    Vector X, B;
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
+
+
 
    ComplexSparseMatrix * AZ = Ah.As<ComplexSparseMatrix>();
    SparseMatrix * A = AZ->GetSystemMatrix();
@@ -236,10 +238,11 @@ int main(int argc, char *argv[])
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
 
-   DST2D S2D(&a,lengths, omega, &ws, nrlayers);
-   X = 0.0;
-	gmres.SetPreconditioner(S2D);
-	gmres.Mult(B, X);
+
+   // DST2D S2D(&a,lengths, omega, &ws, nrlayers);
+   // X = 0.0;
+	// gmres.SetPreconditioner(S2D);
+	// gmres.Mult(B, X);
 
    // chrono.Stop();
    // cout << "GMRES time: " << chrono.RealTime() << endl; 

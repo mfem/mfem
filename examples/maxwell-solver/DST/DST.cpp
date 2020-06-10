@@ -5,9 +5,6 @@
 Sweep::Sweep(int dim_) : dim(dim_)
 {
    nsweeps = pow(2,dim);
-   directions.SetSize(2);
-   directions[0] = 1;
-   directions[1] = -1;
    sweeps.resize(nsweeps);
 
    for (int is = 0; is<nsweeps; is++)
@@ -328,7 +325,8 @@ void DST::SourceTransfer(const Vector & Psi0, Array<int> direction, int ip0, Vec
 
    int i1 = i0+direction[0];   
    int j1 = j0+direction[1];   
-   int k1 = k0+direction[2];   
+   int k1;
+   if (dim==3) k1 = k0+direction[2];   
    Array<int> ijk(dim); ijk[0]=i1; ijk[1]=j1; 
    if (dim == 3 ) ijk[2]=k1;
    int ip1 = GetPatchId(ijk);
