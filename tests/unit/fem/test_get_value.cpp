@@ -53,7 +53,7 @@ TEST_CASE("1D GetValue",
 {
    int log = 1;
    int n = 1;
-   int dim = 1;
+   const int dim = 1;
    int order = 1;
    int npts = 0;
 
@@ -104,17 +104,13 @@ TEST_CASE("1D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_1D_lin(tip);
-
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -166,16 +162,13 @@ TEST_CASE("1D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[1];
-               Vector tip(tip_data, 1);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_1D_lin(tip);
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -227,18 +220,14 @@ TEST_CASE("1D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[1];
-               Vector tip(tip_data, 1);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
 
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_1D_lin(tip);
-
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -338,17 +327,13 @@ TEST_CASE("2D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_2D_lin(tip);
-
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -400,16 +385,13 @@ TEST_CASE("2D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_2D_lin(tip);
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -461,18 +443,14 @@ TEST_CASE("2D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
 
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_2D_lin(tip);
-
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -522,16 +500,13 @@ TEST_CASE("2D GetValue",
 
                double h1_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
 
                   h1_err += fabs(f_val - h1_gf_val);
@@ -611,17 +586,13 @@ TEST_CASE("3D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
-
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -673,16 +644,13 @@ TEST_CASE("3D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -734,18 +702,14 @@ TEST_CASE("3D GetValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
 
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
-
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -795,16 +759,13 @@ TEST_CASE("3D GetValue",
 
                double h1_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
 
                   h1_err += fabs(f_val - h1_gf_val);
@@ -834,16 +795,13 @@ TEST_CASE("3D GetValue",
 
                double h1_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
+                  double f_val = linCoef.Eval(*T, ip);
                   double h1_gf_val = h1_xCoef.Eval(*T, ip);
 
                   h1_err += fabs(f_val - h1_gf_val);
@@ -950,17 +908,13 @@ TEST_CASE("2D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_2D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
                   nd_xCoef.Eval(nd_gf_val, *T, ip);
                   rt_xCoef.Eval(rt_gf_val, *T, ip);
@@ -1058,17 +1012,13 @@ TEST_CASE("2D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_2D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
                   nd_xCoef.Eval(nd_gf_val, *T, ip);
                   rt_xCoef.Eval(rt_gf_val, *T, ip);
@@ -1166,18 +1116,14 @@ TEST_CASE("2D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
 
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_2D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
                   nd_xCoef.Eval(nd_gf_val, *T, ip);
                   rt_xCoef.Eval(rt_gf_val, *T, ip);
@@ -1270,17 +1216,13 @@ TEST_CASE("2D GetVectorValue",
 
                double  h1_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_2D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
 
                   double  h1_dist = Distance(f_val,  h1_gf_val, 2);
@@ -1390,17 +1332,13 @@ TEST_CASE("3D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_3D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
                   nd_xCoef.Eval(nd_gf_val, *T, ip);
                   rt_xCoef.Eval(rt_gf_val, *T, ip);
@@ -1510,17 +1448,13 @@ TEST_CASE("3D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_3D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
                   nd_xCoef.Eval(nd_gf_val, *T, ip);
                   rt_xCoef.Eval(rt_gf_val, *T, ip);
@@ -1630,18 +1564,14 @@ TEST_CASE("3D GetVectorValue",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
 
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_3D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
                   nd_xCoef.Eval(nd_gf_val, *T, ip);
                   rt_xCoef.Eval(rt_gf_val, *T, ip);
@@ -1746,17 +1676,13 @@ TEST_CASE("3D GetVectorValue",
 
                double  h1_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_3D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
 
                   double  h1_dist = Distance(f_val,  h1_gf_val, dim);
@@ -1791,17 +1717,13 @@ TEST_CASE("3D GetVectorValue",
 
                double  h1_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_3D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gf_val, *T, ip);
 
                   double  h1_dist = Distance(f_val,  h1_gf_val, dim);
@@ -1844,7 +1766,7 @@ TEST_CASE("1D GetValue in Parallel",
 
    int log = 1;
    int n = 2 * num_procs;
-   int dim = 1;
+   const int dim = 1;
    int order = 1;
    int npts = 0;
 
@@ -1900,16 +1822,11 @@ TEST_CASE("1D GetValue in Parallel",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
-
-                  double f_val = func_1D_lin(tip);
 
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -1956,7 +1873,7 @@ TEST_CASE("2D GetValue in Parallel",
 
    int log = 1;
    int n = (int)ceil(sqrt(2*num_procs));
-   int dim = 2;
+   const int dim = 2;
    int order = 1;
    int npts = 0;
 
@@ -2012,16 +1929,11 @@ TEST_CASE("2D GetValue in Parallel",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
-
-                  double f_val = func_2D_lin(tip);
 
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
@@ -2125,17 +2037,13 @@ TEST_CASE("3D GetValue in Parallel",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  double f_val = func_3D_lin(tip);
-
+                  double f_val = linCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
@@ -2180,8 +2088,8 @@ TEST_CASE("2D GetVectorValue in Parallel",
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
    int log = 1;
-   int n = 2 * num_procs;
-   int dim = 2;
+   int n = (int)ceil(sqrt(2*num_procs));
+   const int dim = 2;
    int order = 1;
    int npts = 0;
 
@@ -2192,7 +2100,6 @@ TEST_CASE("2D GetVectorValue in Parallel",
    {
       Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      pmesh.ExchangeFaceNbrData();
       delete mesh;
 
       VectorFunctionCoefficient linCoef(dim, Func_2D_lin);
@@ -2246,16 +2153,11 @@ TEST_CASE("2D GetVectorValue in Parallel",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
-
-                  Func_2D_lin(tip, f_val);
 
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
@@ -2372,22 +2274,18 @@ TEST_CASE("3D GetVectorValue in Parallel",
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
-               double tip_data[dim];
-               Vector tip(tip_data, dim);
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
-                  T->Transform(ip, tip);
 
-                  Func_3D_lin(tip, f_val);
-
+                  linCoef.Eval(f_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
