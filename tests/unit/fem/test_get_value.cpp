@@ -53,7 +53,7 @@ TEST_CASE("1D GetValue",
 {
    int log = 1;
    int n = 1;
-   const int dim = 1;
+   int dim = 1;
    int order = 1;
    int npts = 0;
 
@@ -922,12 +922,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 2);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 2);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1026,12 +1026,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 2);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 2);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1131,12 +1131,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gf_val, 2);
-                  double  nd_dist = Distance(f_val,  nd_gf_val, 2);
-                  double  rt_dist = Distance(f_val,  rt_gf_val, 2);
-                  double  l2_dist = Distance(f_val,  l2_gf_val, 2);
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1766,7 +1766,7 @@ TEST_CASE("1D GetValue in Parallel",
 
    int log = 1;
    int n = 2 * num_procs;
-   const int dim = 1;
+   int dim = 1;
    int order = 1;
    int npts = 0;
 
@@ -1783,23 +1783,29 @@ TEST_CASE("1D GetValue in Parallel",
 
       SECTION("1D GetValue tests for element type " + std::to_string(type))
       {
+         H1_FECollection h1_fec(order, dim);
          DG_FECollection dgv_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::VALUE);
          DG_FECollection dgi_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::INTEGRAL);
 
+         ParFiniteElementSpace h1_fespace(&pmesh, &h1_fec);
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec);
 
+         ParGridFunction h1_x(&h1_fespace);
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
 
+         GridFunctionCoefficient h1_xCoef(&h1_x);
          GridFunctionCoefficient dgv_xCoef(&dgv_x);
          GridFunctionCoefficient dgi_xCoef(&dgi_x);
 
+         h1_x.ProjectCoefficient(linCoef);
          dgv_x.ProjectCoefficient(linCoef);
          dgi_x.ProjectCoefficient(linCoef);
 
+         h1_x.ExchangeFaceNbrData();
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
@@ -1819,6 +1825,7 @@ TEST_CASE("1D GetValue in Parallel",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
+               double  h1_err = 0.0;
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
@@ -1828,12 +1835,21 @@ TEST_CASE("1D GetValue in Parallel",
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
 
+                  double      f_val =   linCoef.Eval(*T, ip);
+                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
+                  h1_err  += fabs(f_val -  h1_gf_val);
                   dgv_err += fabs(f_val - dgv_gf_val);
                   dgi_err += fabs(f_val - dgi_gf_val);
 
+                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << std::endl;
+                  }
                   if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
                   {
                      std::cout << e << ":" << j << " dgv " << f_val << " "
@@ -1847,9 +1863,11 @@ TEST_CASE("1D GetValue in Parallel",
                                << std::endl;
                   }
                }
+               h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
+               REQUIRE(h1_err == Approx(0.0));
                REQUIRE(dgv_err == Approx(0.0));
                REQUIRE(dgi_err == Approx(0.0));
             }
@@ -1873,7 +1891,7 @@ TEST_CASE("2D GetValue in Parallel",
 
    int log = 1;
    int n = (int)ceil(sqrt(2*num_procs));
-   const int dim = 2;
+   int dim = 2;
    int order = 1;
    int npts = 0;
 
@@ -1890,23 +1908,29 @@ TEST_CASE("2D GetValue in Parallel",
 
       SECTION("2D GetValue tests for element type " + std::to_string(type))
       {
+         H1_FECollection h1_fec(order, dim);
          DG_FECollection dgv_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::VALUE);
          DG_FECollection dgi_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::INTEGRAL);
 
+         ParFiniteElementSpace h1_fespace(&pmesh, &h1_fec);
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec);
 
+         ParGridFunction h1_x(&h1_fespace);
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
 
+         GridFunctionCoefficient h1_xCoef(&h1_x);
          GridFunctionCoefficient dgv_xCoef(&dgv_x);
          GridFunctionCoefficient dgi_xCoef(&dgi_x);
 
+         h1_x.ProjectCoefficient(linCoef);
          dgv_x.ProjectCoefficient(linCoef);
          dgi_x.ProjectCoefficient(linCoef);
 
+         h1_x.ExchangeFaceNbrData();
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
@@ -1926,6 +1950,7 @@ TEST_CASE("2D GetValue in Parallel",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
+               double  h1_err = 0.0;
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
@@ -1935,12 +1960,21 @@ TEST_CASE("2D GetValue in Parallel",
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
 
+                  double      f_val =   linCoef.Eval(*T, ip);
+                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
+                  h1_err  += fabs(f_val -  h1_gf_val);
                   dgv_err += fabs(f_val - dgv_gf_val);
                   dgi_err += fabs(f_val - dgi_gf_val);
 
+                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << std::endl;
+                  }
                   if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
                   {
                      std::cout << e << ":" << j << " dgv " << f_val << " "
@@ -1954,9 +1988,11 @@ TEST_CASE("2D GetValue in Parallel",
                                << std::endl;
                   }
                }
+               h1_err /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
+               REQUIRE(h1_err == Approx(0.0));
                REQUIRE(dgv_err == Approx(0.0));
                REQUIRE(dgi_err == Approx(0.0));
             }
@@ -1997,23 +2033,35 @@ TEST_CASE("3D GetValue in Parallel",
 
       SECTION("3D GetValue tests for element type " + std::to_string(type))
       {
+         H1_FECollection  h1_fec(order, dim);
+         L2_FECollection  l2_fec(order, dim);
          DG_FECollection dgv_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::VALUE);
          DG_FECollection dgi_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::INTEGRAL);
 
+         ParFiniteElementSpace  h1_fespace(&pmesh, &h1_fec);
+         ParFiniteElementSpace  l2_fespace(&pmesh,  &l2_fec);
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec);
 
+         ParGridFunction  h1_x( &h1_fespace);
+         ParGridFunction  l2_x( &l2_fespace);
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
 
+         GridFunctionCoefficient  h1_xCoef( &h1_x);
+         GridFunctionCoefficient  l2_xCoef( &l2_x);
          GridFunctionCoefficient dgv_xCoef(&dgv_x);
          GridFunctionCoefficient dgi_xCoef(&dgi_x);
 
+         h1_x.ProjectCoefficient(linCoef);
+         l2_x.ProjectCoefficient(linCoef);
          dgv_x.ProjectCoefficient(linCoef);
          dgi_x.ProjectCoefficient(linCoef);
 
+         h1_x.ExchangeFaceNbrData();
+         l2_x.ExchangeFaceNbrData();
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
@@ -2021,7 +2069,7 @@ TEST_CASE("3D GetValue in Parallel",
          {
             if (my_rank == 0)
             {
-               std::cout << "Domain Evaluation 3D" << std::endl;
+               std::cout << "Shared Face Evaluation 3D" << std::endl;
             }
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
@@ -2033,7 +2081,8 @@ TEST_CASE("3D GetValue in Parallel",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
-               double h1_err = 0.0;
+               double  h1_err = 0.0;
+               double  l2_err = 0.0;
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
@@ -2043,13 +2092,29 @@ TEST_CASE("3D GetValue in Parallel",
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
 
-                  double f_val = linCoef.Eval(*T, ip);
+                  double      f_val =   linCoef.Eval(*T, ip);
+                  double  h1_gf_val =  h1_xCoef.Eval(*T, ip);
+                  double  l2_gf_val =  l2_xCoef.Eval(*T, ip);
                   double dgv_gf_val = dgv_xCoef.Eval(*T, ip);
                   double dgi_gf_val = dgi_xCoef.Eval(*T, ip);
 
+                  h1_err  += fabs(f_val -  h1_gf_val);
+                  l2_err  += fabs(f_val -  l2_gf_val);
                   dgv_err += fabs(f_val - dgv_gf_val);
                   dgi_err += fabs(f_val - dgi_gf_val);
 
+                  if (log > 0 && fabs(f_val - h1_gf_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  " << f_val << " "
+                               << h1_gf_val << " " << fabs(f_val - h1_gf_val)
+                               << std::endl;
+                  }
+                  if (log > 0 && fabs(f_val - l2_gf_val) > tol)
+                  {
+                     std::cout << e << ":" << j << " l2  " << f_val << " "
+                               << l2_gf_val << " " << fabs(f_val - l2_gf_val)
+                               << std::endl;
+                  }
                   if (log > 0 && fabs(f_val - dgv_gf_val) > tol)
                   {
                      std::cout << e << ":" << j << " dgv " << f_val << " "
@@ -2063,9 +2128,13 @@ TEST_CASE("3D GetValue in Parallel",
                                << std::endl;
                   }
                }
+               h1_err  /= ir.GetNPoints();
+               l2_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
+               REQUIRE( h1_err == Approx(0.0));
+               REQUIRE( l2_err == Approx(0.0));
                REQUIRE(dgv_err == Approx(0.0));
                REQUIRE(dgi_err == Approx(0.0));
             }
@@ -2089,7 +2158,7 @@ TEST_CASE("2D GetVectorValue in Parallel",
 
    int log = 1;
    int n = (int)ceil(sqrt(2*num_procs));
-   const int dim = 2;
+   int dim = 2;
    int order = 1;
    int npts = 0;
 
@@ -2107,30 +2176,55 @@ TEST_CASE("2D GetVectorValue in Parallel",
       SECTION("2D GetVectorValue tests for element type " +
               std::to_string(type))
       {
+         H1_FECollection  h1_fec(order, dim);
+         ND_FECollection  nd_fec(order+1, dim);
+         RT_FECollection  rt_fec(order+1, dim);
+         L2_FECollection  l2_fec(order, dim);
          DG_FECollection dgv_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::VALUE);
          DG_FECollection dgi_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::INTEGRAL);
 
+         ParFiniteElementSpace  h1_fespace(&pmesh,  &h1_fec, dim);
+         ParFiniteElementSpace  nd_fespace(&pmesh,  &nd_fec);
+         ParFiniteElementSpace  rt_fespace(&pmesh,  &rt_fec);
+         ParFiniteElementSpace  l2_fespace(&pmesh,  &l2_fec, dim);
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec, dim);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec, dim);
 
-         dgv_fespace.ExchangeFaceNbrData();
-         dgi_fespace.ExchangeFaceNbrData();
-
+         ParGridFunction  h1_x( &h1_fespace);
+         ParGridFunction  nd_x( &nd_fespace);
+         ParGridFunction  rt_x( &rt_fespace);
+         ParGridFunction  l2_x( &l2_fespace);
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
 
+         VectorGridFunctionCoefficient  h1_xCoef( &h1_x);
+         VectorGridFunctionCoefficient  nd_xCoef( &nd_x);
+         VectorGridFunctionCoefficient  rt_xCoef( &rt_x);
+         VectorGridFunctionCoefficient  l2_xCoef( &l2_x);
          VectorGridFunctionCoefficient dgv_xCoef(&dgv_x);
          VectorGridFunctionCoefficient dgi_xCoef(&dgi_x);
 
+         h1_x.ProjectCoefficient(linCoef);
+         nd_x.ProjectCoefficient(linCoef);
+         rt_x.ProjectCoefficient(linCoef);
+         l2_x.ProjectCoefficient(linCoef);
          dgv_x.ProjectCoefficient(linCoef);
          dgi_x.ProjectCoefficient(linCoef);
 
+         h1_x.ExchangeFaceNbrData();
+         nd_x.ExchangeFaceNbrData();
+         rt_x.ExchangeFaceNbrData();
+         l2_x.ExchangeFaceNbrData();
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
          Vector      f_val(dim);      f_val = 0.0;
+         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
+         Vector  nd_gf_val(dim);  nd_gf_val = 0.0;
+         Vector  rt_gf_val(dim);  rt_gf_val = 0.0;
+         Vector  l2_gf_val(dim);  l2_gf_val = 0.0;
          Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
          Vector dgi_gf_val(dim); dgi_gf_val = 0.0;
 
@@ -2150,6 +2244,10 @@ TEST_CASE("2D GetVectorValue in Parallel",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
+               double  h1_err = 0.0;
+               double  nd_err = 0.0;
+               double  rt_err = 0.0;
+               double  l2_err = 0.0;
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
@@ -2159,15 +2257,56 @@ TEST_CASE("2D GetVectorValue in Parallel",
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
 
+                  linCoef.Eval(f_val, *T, ip);
+                  h1_xCoef.Eval(h1_gf_val, *T, ip);
+                  nd_xCoef.Eval(nd_gf_val, *T, ip);
+                  rt_xCoef.Eval(rt_gf_val, *T, ip);
+                  l2_xCoef.Eval(l2_gf_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
-                  double dgv_dist = Distance(f_val, dgv_gf_val, 2);
-                  double dgi_dist = Distance(f_val, dgi_gf_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
+                  double dgv_dist = Distance(f_val, dgv_gf_val, dim);
+                  double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
+                  h1_err  +=  h1_dist;
+                  nd_err  +=  nd_dist;
+                  rt_err  +=  rt_dist;
+                  l2_err  +=  l2_dist;
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
 
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << h1_gf_val[0] << "," << h1_gf_val[1] << ") "
+                               << h1_dist << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << nd_gf_val[0] << "," << nd_gf_val[1] << ") "
+                               << nd_dist << std::endl;
+                  }
+                  if (log > 0 && rt_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " rt  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << rt_gf_val[0] << "," << rt_gf_val[1] << ") "
+                               << rt_dist << std::endl;
+                  }
+                  if (log > 0 && l2_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " l2  ("
+                               << f_val[0] << "," << f_val[1] << ") vs. ("
+                               << l2_gf_val[0] << "," << l2_gf_val[1] << ") "
+                               << l2_dist << std::endl;
+                  }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << e << ":" << j << " dgv ("
@@ -2183,9 +2322,17 @@ TEST_CASE("2D GetVectorValue in Parallel",
                                << dgi_dist << std::endl;
                   }
                }
+               h1_err  /= ir.GetNPoints();
+               nd_err  /= ir.GetNPoints();
+               rt_err  /= ir.GetNPoints();
+               l2_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
+               REQUIRE( h1_err == Approx(0.0));
+               REQUIRE( nd_err == Approx(0.0));
+               REQUIRE( rt_err == Approx(0.0));
+               REQUIRE( l2_err == Approx(0.0));
                REQUIRE(dgv_err == Approx(0.0));
                REQUIRE(dgi_err == Approx(0.0));
             }
@@ -2208,7 +2355,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
    int log = 1;
-   int n = 2 * num_procs;
+   int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
    int order = 1;
    int npts = 0;
@@ -2220,7 +2367,10 @@ TEST_CASE("3D GetVectorValue in Parallel",
    {
       Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      pmesh.ExchangeFaceNbrData();
+      if (type == Element::TETRAHEDRON)
+      {
+         pmesh.ReorientTetMesh();
+      }
       delete mesh;
 
       VectorFunctionCoefficient linCoef(dim, Func_3D_lin);
@@ -2228,30 +2378,55 @@ TEST_CASE("3D GetVectorValue in Parallel",
       SECTION("3D GetVectorValue tests for element type " +
               std::to_string(type))
       {
+         H1_FECollection  h1_fec(order, dim);
+         ND_FECollection  nd_fec(order+1, dim);
+         RT_FECollection  rt_fec(order+1, dim);
+         L2_FECollection  l2_fec(order, dim);
          DG_FECollection dgv_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::VALUE);
          DG_FECollection dgi_fec(order, dim, BasisType::GaussLegendre,
                                  FiniteElement::INTEGRAL);
 
+         ParFiniteElementSpace  h1_fespace(&pmesh,  &h1_fec, dim);
+         ParFiniteElementSpace  nd_fespace(&pmesh,  &nd_fec);
+         ParFiniteElementSpace  rt_fespace(&pmesh,  &rt_fec);
+         ParFiniteElementSpace  l2_fespace(&pmesh,  &l2_fec, dim);
          ParFiniteElementSpace dgv_fespace(&pmesh, &dgv_fec, dim);
          ParFiniteElementSpace dgi_fespace(&pmesh, &dgi_fec, dim);
 
-         dgv_fespace.ExchangeFaceNbrData();
-         dgi_fespace.ExchangeFaceNbrData();
-
+         ParGridFunction  h1_x( &h1_fespace);
+         ParGridFunction  nd_x( &nd_fespace);
+         ParGridFunction  rt_x( &rt_fespace);
+         ParGridFunction  l2_x( &l2_fespace);
          ParGridFunction dgv_x(&dgv_fespace);
          ParGridFunction dgi_x(&dgi_fespace);
 
+         VectorGridFunctionCoefficient  h1_xCoef( &h1_x);
+         VectorGridFunctionCoefficient  nd_xCoef( &nd_x);
+         VectorGridFunctionCoefficient  rt_xCoef( &rt_x);
+         VectorGridFunctionCoefficient  l2_xCoef( &l2_x);
          VectorGridFunctionCoefficient dgv_xCoef(&dgv_x);
          VectorGridFunctionCoefficient dgi_xCoef(&dgi_x);
 
+         h1_x.ProjectCoefficient(linCoef);
+         nd_x.ProjectCoefficient(linCoef);
+         rt_x.ProjectCoefficient(linCoef);
+         l2_x.ProjectCoefficient(linCoef);
          dgv_x.ProjectCoefficient(linCoef);
          dgi_x.ProjectCoefficient(linCoef);
 
+         h1_x.ExchangeFaceNbrData();
+         nd_x.ExchangeFaceNbrData();
+         rt_x.ExchangeFaceNbrData();
+         l2_x.ExchangeFaceNbrData();
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
          Vector      f_val(dim);      f_val = 0.0;
+         Vector  h1_gf_val(dim);  h1_gf_val = 0.0;
+         Vector  nd_gf_val(dim);  nd_gf_val = 0.0;
+         Vector  rt_gf_val(dim);  rt_gf_val = 0.0;
+         Vector  l2_gf_val(dim);  l2_gf_val = 0.0;
          Vector dgv_gf_val(dim); dgv_gf_val = 0.0;
          Vector dgi_gf_val(dim); dgi_gf_val = 0.0;
 
@@ -2271,6 +2446,10 @@ TEST_CASE("3D GetVectorValue in Parallel",
                const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
                                                         2*order + 2);
 
+               double  h1_err = 0.0;
+               double  nd_err = 0.0;
+               double  rt_err = 0.0;
+               double  l2_err = 0.0;
                double dgv_err = 0.0;
                double dgi_err = 0.0;
 
@@ -2281,15 +2460,63 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   T->SetIntPoint(&ip);
 
                   linCoef.Eval(f_val, *T, ip);
+                  h1_xCoef.Eval(h1_gf_val, *T, ip);
+                  nd_xCoef.Eval(nd_gf_val, *T, ip);
+                  rt_xCoef.Eval(rt_gf_val, *T, ip);
+                  l2_xCoef.Eval(l2_gf_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gf_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gf_val, *T, ip);
 
+                  double  h1_dist = Distance(f_val,  h1_gf_val, dim);
+                  double  nd_dist = Distance(f_val,  nd_gf_val, dim);
+                  double  rt_dist = Distance(f_val,  rt_gf_val, dim);
+                  double  l2_dist = Distance(f_val,  l2_gf_val, dim);
                   double dgv_dist = Distance(f_val, dgv_gf_val, dim);
                   double dgi_dist = Distance(f_val, dgi_gf_val, dim);
 
+                  h1_err  +=  h1_dist;
+                  nd_err  +=  nd_dist;
+                  rt_err  +=  rt_dist;
+                  l2_err  +=  l2_dist;
                   dgv_err += dgv_dist;
                   dgi_err += dgi_dist;
 
+                  if (log > 0 && h1_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " h1  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << h1_gf_val[0] << "," << h1_gf_val[1] << ","
+                               << h1_gf_val[2] << ") " << h1_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && nd_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " nd  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gf_val[0] << "," << nd_gf_val[1] << ","
+                               << nd_gf_val[2] << ") " << nd_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && rt_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " rt  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gf_val[0] << "," << rt_gf_val[1] << ","
+                               << rt_gf_val[2] << ") " << rt_dist
+                               << std::endl;
+                  }
+                  if (log > 0 && l2_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " l2  ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << l2_gf_val[0] << "," << l2_gf_val[1] << ","
+                               << l2_gf_val[2] << ") " << l2_dist
+                               << std::endl;
+                  }
                   if (log > 0 && dgv_dist > tol)
                   {
                      std::cout << e << ":" << j << " dgv ("
@@ -2309,9 +2536,17 @@ TEST_CASE("3D GetVectorValue in Parallel",
                                << std::endl;
                   }
                }
+               h1_err  /= ir.GetNPoints();
+               nd_err  /= ir.GetNPoints();
+               rt_err  /= ir.GetNPoints();
+               l2_err  /= ir.GetNPoints();
                dgv_err /= ir.GetNPoints();
                dgi_err /= ir.GetNPoints();
 
+               REQUIRE( h1_err == Approx(0.0));
+               REQUIRE( nd_err == Approx(0.0));
+               REQUIRE( rt_err == Approx(0.0));
+               REQUIRE( l2_err == Approx(0.0));
                REQUIRE(dgv_err == Approx(0.0));
                REQUIRE(dgi_err == Approx(0.0));
             }
