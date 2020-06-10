@@ -189,8 +189,7 @@ static double EnergyPA_2D(const int NE,
 }
 
 double
-TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
-                                            const Vector &x) const
+TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
 {
    MFEM_VERIFY(metric_normal == 1.0, "");
 
@@ -198,6 +197,7 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const DenseMatrix &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -206,16 +206,7 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
    Vector &E = PA.E;
    Vector &O = PA.O;
 
-   // Jtr setup:
-   //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
-   //  - Jtr(i) == Wideal
-   const FiniteElement *fe = fes.GetFE(0);
-   const Geometry::Type geom_type = fe->GetGeomType();
-   const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
-   const DenseMatrix J = Wideal;
-
-   if (PA.elem_restrict_lex) { PA.elem_restrict_lex->Mult(x, PA.X); }
-   else { MFEM_ABORT("Not yet implemented!"); }
+   PA.elem_restrict_lex->Mult(x, PA.X);
 
    switch (id)
    {

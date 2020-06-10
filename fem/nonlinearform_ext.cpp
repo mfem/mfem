@@ -39,7 +39,7 @@ double PANonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 
    for (int i = 0; i < dnfi.Size(); i++)
    {
-      energy += dnfi[i]->GetGridFunctionEnergyPA(fes, x);
+      energy += dnfi[i]->GetGridFunctionEnergyPA(x);
    }
    return energy;
 }

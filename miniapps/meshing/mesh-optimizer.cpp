@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    GridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
-   MFEM_VERIFY(!pa || target_id == 1, "");
+
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;

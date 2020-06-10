@@ -258,60 +258,52 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const DenseMatrix &J = PA.Jtr;
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &A = PA.A;
 
-   // Jtr setup:
-   //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
-   //  - Jtr(i) == Wideal
-   // Get Wideal into Jtr
-   DenseMatrix Jtr(dim);
-   const FiniteElement *fe = PA.fes->GetFE(0);
-   const Geometry::Type geom_type = fe->GetGeomType();
-   Jtr = Geometries.GetGeomToPerfGeomJac(geom_type);
-
    if (!PA.setup)
    {
       PA.setup = true;
-      AssembleGradPA_2D(Jtr,X);
+      AssembleGradPA_2D(X);
    }
 
    switch (id)
    {
-      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(N,B,G,Jtr,A,R,C);
-      case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(N,B,G,Jtr,A,R,C);
-      case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(N,B,G,Jtr,A,R,C);
-      case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(N,B,G,Jtr,A,R,C);
-      case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(N,B,G,Jtr,A,R,C);
-      case 0x26: return AddMultGradPA_Kernel_2D<2,6,1>(N,B,G,Jtr,A,R,C);
+      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(N,B,G,J,A,R,C);
+      case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(N,B,G,J,A,R,C);
+      case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(N,B,G,J,A,R,C);
+      case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(N,B,G,J,A,R,C);
+      case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(N,B,G,J,A,R,C);
+      case 0x26: return AddMultGradPA_Kernel_2D<2,6,1>(N,B,G,J,A,R,C);
 
-      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(N,B,G,Jtr,A,R,C);
-      case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(N,B,G,Jtr,A,R,C);
-      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(N,B,G,Jtr,A,R,C);
-      case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(N,B,G,Jtr,A,R,C);
-      case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(N,B,G,Jtr,A,R,C);
-      case 0x36: return AddMultGradPA_Kernel_2D<3,6,1>(N,B,G,Jtr,A,R,C);
+      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(N,B,G,J,A,R,C);
+      case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(N,B,G,J,A,R,C);
+      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(N,B,G,J,A,R,C);
+      case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(N,B,G,J,A,R,C);
+      case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(N,B,G,J,A,R,C);
+      case 0x36: return AddMultGradPA_Kernel_2D<3,6,1>(N,B,G,J,A,R,C);
 
-      case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(N,B,G,Jtr,A,R,C);
-      case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(N,B,G,Jtr,A,R,C);
-      case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(N,B,G,Jtr,A,R,C);
-      case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(N,B,G,Jtr,A,R,C);
-      case 0x45: return AddMultGradPA_Kernel_2D<4,5,1>(N,B,G,Jtr,A,R,C);
-      case 0x46: return AddMultGradPA_Kernel_2D<4,6,1>(N,B,G,Jtr,A,R,C);
+      case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(N,B,G,J,A,R,C);
+      case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(N,B,G,J,A,R,C);
+      case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(N,B,G,J,A,R,C);
+      case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(N,B,G,J,A,R,C);
+      case 0x45: return AddMultGradPA_Kernel_2D<4,5,1>(N,B,G,J,A,R,C);
+      case 0x46: return AddMultGradPA_Kernel_2D<4,6,1>(N,B,G,J,A,R,C);
 
-      case 0x51: return AddMultGradPA_Kernel_2D<5,1,1>(N,B,G,Jtr,A,R,C);
-      case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(N,B,G,Jtr,A,R,C);
-      case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(N,B,G,Jtr,A,R,C);
-      case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(N,B,G,Jtr,A,R,C);
-      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(N,B,G,Jtr,A,R,C);
-      case 0x56: return AddMultGradPA_Kernel_2D<5,6,1>(N,B,G,Jtr,A,R,C);
+      case 0x51: return AddMultGradPA_Kernel_2D<5,1,1>(N,B,G,J,A,R,C);
+      case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(N,B,G,J,A,R,C);
+      case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(N,B,G,J,A,R,C);
+      case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(N,B,G,J,A,R,C);
+      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(N,B,G,J,A,R,C);
+      case 0x56: return AddMultGradPA_Kernel_2D<5,6,1>(N,B,G,J,A,R,C);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return AddMultGradPA_Kernel_2D<0,0,0,T_MAX>(N,B,G,Jtr,A,R,C,D1D,Q1D);
+         return AddMultGradPA_Kernel_2D<0,0,0,T_MAX>(N,B,G,J,A,R,C,D1D,Q1D);
       }
    }
 }
