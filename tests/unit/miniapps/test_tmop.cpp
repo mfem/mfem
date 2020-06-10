@@ -9,31 +9,23 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
-
 #include <fstream>
 #include <iostream>
 
 #include "catch.hpp"
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
-#include "linalg/kernels.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
-#define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
 typedef int MPI_Session;
 #define ParMesh Mesh
-#define ParNonlinearForm NonlinearForm
 #define ParGridFunction GridFunction
-#define GetParGridFunctionEnergy GetGridFunctionEnergy
+#define ParNonlinearForm NonlinearForm
 #define ParFiniteElementSpace FiniteElementSpace
+#define GetParGridFunctionEnergy GetGridFunctionEnergy
 #define PFesGetParMeshGetComm(...)
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #endif
@@ -50,14 +42,8 @@ struct Req
    const double tauval;
    const double dot;
    const double final_energy;
-   Req(double init_energy,
-       double tauval,
-       double dot,
-       double final_energy):
-      init_energy(init_energy),
-      tauval(tauval),
-      dot(dot),
-      final_energy(final_energy) {}
+   Req(double ie, double t, double d, double fe):
+      init_energy(ie), tauval(t), dot(d), final_energy(fe) { }
 };
 
 int tmop(int myid, const Req &res, int argc, char *argv[])
@@ -110,25 +96,25 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
       if (myid == 0) { args.PrintUsage(cout); }
       return 1;
    }
-   if (verbosity_level > 0) { args.PrintOptions(cout); }
+   if (verbosity_level > 0) { if (myid == 0) {args.PrintOptions(cout); } }
 
    REQUIRE(mesh_file);
-   Mesh smsh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { smsh.UniformRefinement(); }
-   const int dim = smsh.Dimension();
-   ParMesh *pmsh = nullptr;
+   Mesh smesh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { smesh.UniformRefinement(); }
+   const int dim = smesh.Dimension();
+   ParMesh *pmesh = nullptr;
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-   pmsh = new ParMesh(MPI_COMM_WORLD, smsh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, smesh);
 #else
-   pmsh = new Mesh(smsh);
+   pmesh = new Mesh(smesh);
 #endif
 
    REQUIRE(order > 0);
    H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fes(pmsh, &fec, dim);
-   pmsh->SetNodalFESpace(&fes);
+   ParFiniteElementSpace fes(pmesh, &fec, dim);
+   pmesh->SetNodalFESpace(&fes);
    ParGridFunction x0(&fes), x(&fes);
-   pmsh->SetNodalGridFunction(&x);
+   pmesh->SetNodalGridFunction(&x);
    x.SetTrueVector();
    x.SetFromTrueVector();
    x0 = x;
@@ -191,7 +177,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    const double init_energy = nlf.GetParGridFunctionEnergy(x);
    REQUIRE(init_energy == Approx(res.init_energy));
 
-   Array<int> ess_bdr(pmsh->bdr_attributes.Max());
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 1;
    nlf.SetEssentialBC(ess_bdr);
 
@@ -221,9 +207,9 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    }
 
    double tauval = infinity();
-   for (int i = 0; i < pmsh->GetNE(); i++)
+   for (int i = 0; i < pmesh->GetNE(); i++)
    {
-      ElementTransformation *transf = pmsh->GetElementTransformation(i);
+      ElementTransformation *transf = pmesh->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir->IntPoint(j));
@@ -254,7 +240,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    REQUIRE(newton->GetConverged());
 
    double x_t_dot = x_t*x_t, dot;
-   MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmsh->GetComm());
+   MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
    REQUIRE(dot == Approx(res.dot));
 
    x.SetFromTrueVector();
@@ -262,7 +248,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    REQUIRE(final_energy == Approx(res.final_energy));
 
    delete S;
-   delete pmsh;
+   delete pmesh;
    delete metric;
    delete newton;
 

@@ -29,7 +29,7 @@ protected:
    const NonlinearForm *nlf;
 public:
    NonlinearFormExtension(const NonlinearForm*);
-   virtual void Assemble() = 0;
+   virtual void Setup() = 0;
    virtual Operator &GetGradient(const Vector&) const = 0;
    virtual double GetGridFunctionEnergy(const Vector &x) const = 0;
 };
@@ -58,7 +58,7 @@ protected:
 
 public:
    PANonlinearForm(NonlinearForm *nlf);
-   void Assemble();
+   void Setup();
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
    double GetGridFunctionEnergy(const Vector &x) const;

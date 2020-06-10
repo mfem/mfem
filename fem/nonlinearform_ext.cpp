@@ -44,7 +44,7 @@ double PANonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    return energy;
 }
 
-void PANonlinearForm::Assemble()
+void PANonlinearForm::Setup()
 {
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
 }
