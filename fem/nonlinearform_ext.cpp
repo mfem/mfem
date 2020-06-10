@@ -60,7 +60,6 @@ void PANonlinearForm::Mult(const Vector &x, Vector &y) const
 Operator &PANonlinearForm::GetGradient(const Vector &x) const
 {
    Grad.Reset(new PANonlinearForm::Gradient(x, *this));
-   if (Grad.Type() != Operator::ANY_TYPE) { MFEM_ABORT("error"); }
    return *Grad.Ptr();
 }
 
