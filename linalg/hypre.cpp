@@ -1858,9 +1858,9 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                MFEM_ASSERT(parcsr_op != NULL, "const_cast failed");
                csr_blocks(i, j) = hypre_MergeDiagAndOffd(parcsr_op);
 #if MFEM_HYPRE_VERSION >= 21600
-               MFEM_VERIFY(csr_blocks(i, j)->num_rows < INT_MAX,"Number of "
-                           "local rows is too large to store as an integer.");
-               hypre_CSRMatrixBigJtoJ(csr_blocks(i, j));
+               MFEM_VERIFY(csr_blocks(i, j)->big_j != NULL ||
+                           csr_blocks(i, j)->num_cols < INT_MAX,"Number of "
+                           "columns is too large to store as an integer.");
 #endif
             }
 
@@ -1894,6 +1894,8 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             const int nrows = csr_blocks(i, j)->num_rows;
             const double cij = blockCoeff ? (*blockCoeff)(i, j) : 1.0;
 
+            const bool usingBigJ = (csr_blocks(i, j)->big_j != NULL);
+
             for (int k = 0; k < nrows; ++k)
             {
                const int rowg = rowOffsets[i] + k; // process-local row
@@ -1903,7 +1905,8 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                for (int l = 0; l < nnz_k; ++l)
                {
                   // Find the column process offset for the block.
-                  const int bcol = csr_blocks(i, j)->j[osk + l];
+                  const int bcol = usingBigJ ? csr_blocks(i, j)->big_j[osk + l]
+                                   : csr_blocks(i, j)->j[osk + l];
                   int bcolproc = 0;
 
                   for (int p = 1; p < nprocs; ++p)
