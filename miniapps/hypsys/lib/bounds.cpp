@@ -122,8 +122,8 @@ void TightBounds::ComputeElementBounds(int n, int e, const Vector &x)
    for (int i = 0; i < nd; i++)
    {
       const int I = eldofs[DofMapH1[i]];
-      // x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
-      // x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
+      x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
+      x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
 
       for (int j = 0; j < ClosestNbrs.Width(); j++)
       {

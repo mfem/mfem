@@ -1,9 +1,11 @@
 ATTENTION
    -serial/parallel disparity
    -WIP on right bounds - serial first
+   -sequential correction factors set to zero
 
 DEBUG
    -Test LooseBounds: bug - check low order version, and unlimited sequential stuff
+   -Sequntial correction factors alpha_vol = 1, alpha_bdr = 0, does not converge!
 
 PAPER
 
