@@ -282,15 +282,15 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
    if (ext)
    {
       Operator &grad = ext->GetGradient(Prolongate(x));
+      extGrad.Reset(&grad, false);
       if (Serial())
       {
-         if (cP) { GradOp.Reset(new RAPOperator(*cP, grad, *cP)); }
+         if (cP) { extGrad.Reset(new RAPOperator(*cP, grad, *cP)); }
          Operator *G;
-         grad.Operator::FormSystemOperator(ess_tdof_list, G);
-         GradOp.Reset(G);
+         extGrad.Ptr()->Operator::FormSystemOperator(ess_tdof_list, G);
+         extGrad.Reset(G);
       }
-      else { GradOp.Reset(&grad,false); }
-      return *GradOp.Ptr();
+      return *extGrad.Ptr();
    }
 
    const int skip_zeros = 0;
