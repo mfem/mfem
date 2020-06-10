@@ -55,8 +55,8 @@ static double EnergyPA_3D(const int mid,
                           const Array<double> &b_,
                           const Array<double> &g_,
                           const Vector &x_,
-                          Vector &e_,
-                          Vector &o_,
+                          Vector &energy,
+                          Vector &ones,
                           const int d1d = 0,
                           const int q1d = 0)
 {
@@ -64,14 +64,14 @@ static double EnergyPA_3D(const int mid,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto Jid = Reshape(j_.Read(), dim, dim, dim);
+   const auto J = Reshape(j_.Read(), dim, dim, dim);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, dim, NE);
 
-   auto E = Reshape(e_.Write(), Q1D, Q1D, Q1D, NE);
-   auto O = Reshape(o_.Write(), Q1D, Q1D, Q1D, NE);
+   auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
+   auto O = Reshape(ones.Write(), Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -268,8 +268,7 @@ static double EnergyPA_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               // Jtr = targetC->ComputeElementTargets
-               const double *Jtr = Jid;
+               const double *Jtr = J;
                const double detJtr = kernels::Det<3>(Jtr);
                const double weight = W(qx,qy,qz) * detJtr;
 
@@ -294,12 +293,12 @@ static double EnergyPA_3D(const int mid,
                   JprxGBB, JpryGBB, JprzGBB
                };
 
-               // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-               double J[9];
-               kernels::Mult(3,3,3, Jpr, Jrt, J);
-               const double EvalW = mid == 302 ? EvalW_302(J) :
-                                    mid == 303 ? EvalW_303(J) :
-                                    mid == 321 ? EvalW_321(J) :
+               // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+               double Jpt[9];
+               kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
+               const double EvalW = mid == 302 ? EvalW_302(Jpt) :
+                                    mid == 303 ? EvalW_303(Jpt) :
+                                    mid == 321 ? EvalW_321(Jpt) :
                                     0.0;
                E(qx,qy,qz,e) = weight * EvalW;
                O(qx,qy,qz,e) = 1.0;
@@ -307,7 +306,7 @@ static double EnergyPA_3D(const int mid,
          }
       }
    });
-   return e_ * o_; // Energy * One
+   return energy * ones;
 }
 
 double
@@ -316,9 +315,9 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
    MFEM_VERIFY(metric_normal == 1.0, "");
 
    const int N = PA.ne;
+   const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
-   const int mid = metric->Id();
    const int id = (D1D << 4 ) | Q1D;
    const DenseMatrix &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
@@ -333,39 +332,39 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
 
    switch (id)
    {
-      case 0x21: return EnergyPA_3D<2,1>(mid,N,J,W,B,G,X,E,O);
-      case 0x22: return EnergyPA_3D<2,2>(mid,N,J,W,B,G,X,E,O);
-      case 0x23: return EnergyPA_3D<2,3>(mid,N,J,W,B,G,X,E,O);
-      case 0x24: return EnergyPA_3D<2,4>(mid,N,J,W,B,G,X,E,O);
-      case 0x25: return EnergyPA_3D<2,5>(mid,N,J,W,B,G,X,E,O);
-      case 0x26: return EnergyPA_3D<2,6>(mid,N,J,W,B,G,X,E,O);
+      case 0x21: return EnergyPA_3D<2,1>(M,N,J,W,B,G,X,E,O);
+      case 0x22: return EnergyPA_3D<2,2>(M,N,J,W,B,G,X,E,O);
+      case 0x23: return EnergyPA_3D<2,3>(M,N,J,W,B,G,X,E,O);
+      case 0x24: return EnergyPA_3D<2,4>(M,N,J,W,B,G,X,E,O);
+      case 0x25: return EnergyPA_3D<2,5>(M,N,J,W,B,G,X,E,O);
+      case 0x26: return EnergyPA_3D<2,6>(M,N,J,W,B,G,X,E,O);
 
-      case 0x31: return EnergyPA_3D<3,1>(mid,N,J,W,B,G,X,E,O);
-      case 0x32: return EnergyPA_3D<3,2>(mid,N,J,W,B,G,X,E,O);
-      case 0x33: return EnergyPA_3D<3,3>(mid,N,J,W,B,G,X,E,O);
-      case 0x34: return EnergyPA_3D<3,4>(mid,N,J,W,B,G,X,E,O);
-      case 0x35: return EnergyPA_3D<3,5>(mid,N,J,W,B,G,X,E,O);
-      case 0x36: return EnergyPA_3D<3,6>(mid,N,J,W,B,G,X,E,O);
+      case 0x31: return EnergyPA_3D<3,1>(M,N,J,W,B,G,X,E,O);
+      case 0x32: return EnergyPA_3D<3,2>(M,N,J,W,B,G,X,E,O);
+      case 0x33: return EnergyPA_3D<3,3>(M,N,J,W,B,G,X,E,O);
+      case 0x34: return EnergyPA_3D<3,4>(M,N,J,W,B,G,X,E,O);
+      case 0x35: return EnergyPA_3D<3,5>(M,N,J,W,B,G,X,E,O);
+      case 0x36: return EnergyPA_3D<3,6>(M,N,J,W,B,G,X,E,O);
 
-      case 0x41: return EnergyPA_3D<4,1>(mid,N,J,W,B,G,X,E,O);
-      case 0x42: return EnergyPA_3D<4,2>(mid,N,J,W,B,G,X,E,O);
-      case 0x43: return EnergyPA_3D<4,3>(mid,N,J,W,B,G,X,E,O);
-      case 0x44: return EnergyPA_3D<4,4>(mid,N,J,W,B,G,X,E,O);
-      case 0x45: return EnergyPA_3D<4,5>(mid,N,J,W,B,G,X,E,O);
-      case 0x46: return EnergyPA_3D<4,6>(mid,N,J,W,B,G,X,E,O);
+      case 0x41: return EnergyPA_3D<4,1>(M,N,J,W,B,G,X,E,O);
+      case 0x42: return EnergyPA_3D<4,2>(M,N,J,W,B,G,X,E,O);
+      case 0x43: return EnergyPA_3D<4,3>(M,N,J,W,B,G,X,E,O);
+      case 0x44: return EnergyPA_3D<4,4>(M,N,J,W,B,G,X,E,O);
+      case 0x45: return EnergyPA_3D<4,5>(M,N,J,W,B,G,X,E,O);
+      case 0x46: return EnergyPA_3D<4,6>(M,N,J,W,B,G,X,E,O);
 
-      case 0x51: return EnergyPA_3D<5,1>(mid,N,J,W,B,G,X,E,O);
-      case 0x52: return EnergyPA_3D<5,2>(mid,N,J,W,B,G,X,E,O);
-      case 0x53: return EnergyPA_3D<5,3>(mid,N,J,W,B,G,X,E,O);
-      case 0x54: return EnergyPA_3D<5,4>(mid,N,J,W,B,G,X,E,O);
-      case 0x55: return EnergyPA_3D<5,5>(mid,N,J,W,B,G,X,E,O);
-      case 0x56: return EnergyPA_3D<5,6>(mid,N,J,W,B,G,X,E,O);
+      case 0x51: return EnergyPA_3D<5,1>(M,N,J,W,B,G,X,E,O);
+      case 0x52: return EnergyPA_3D<5,2>(M,N,J,W,B,G,X,E,O);
+      case 0x53: return EnergyPA_3D<5,3>(M,N,J,W,B,G,X,E,O);
+      case 0x54: return EnergyPA_3D<5,4>(M,N,J,W,B,G,X,E,O);
+      case 0x55: return EnergyPA_3D<5,5>(M,N,J,W,B,G,X,E,O);
+      case 0x56: return EnergyPA_3D<5,6>(M,N,J,W,B,G,X,E,O);
 
       default:
       {
          constexpr int T_MAX = 4;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return EnergyPA_3D<0,0,T_MAX>(mid,N,J,W,B,G,X,E,O,D1D,Q1D);
+         return EnergyPA_3D<0,0,T_MAX>(M,N,J,W,B,G,X,E,O,D1D,Q1D);
       }
    }
    return 0.0;
