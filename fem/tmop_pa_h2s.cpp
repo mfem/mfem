@@ -230,13 +230,13 @@ static void SetupGradPA_2D(const Vector &xe_,
    });
 }
 
-void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
-                                        const Vector &X) const
+void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const DenseMatrix &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -245,39 +245,39 @@ void TMOP_Integrator::AssembleGradPA_2D(const DenseMatrix &Jtr,
 
    switch (id)
    {
-      case 0x21: return SetupGradPA_2D<2,1,1>(X,N,W,B,G,Jtr,A);
-      case 0x22: return SetupGradPA_2D<2,2,1>(X,N,W,B,G,Jtr,A);
-      case 0x23: return SetupGradPA_2D<2,3,1>(X,N,W,B,G,Jtr,A);
-      case 0x24: return SetupGradPA_2D<2,4,1>(X,N,W,B,G,Jtr,A);
-      case 0x25: return SetupGradPA_2D<2,5,1>(X,N,W,B,G,Jtr,A);
-      case 0x26: return SetupGradPA_2D<2,6,1>(X,N,W,B,G,Jtr,A);
+      case 0x21: return SetupGradPA_2D<2,1,1>(X,N,W,B,G,J,A);
+      case 0x22: return SetupGradPA_2D<2,2,1>(X,N,W,B,G,J,A);
+      case 0x23: return SetupGradPA_2D<2,3,1>(X,N,W,B,G,J,A);
+      case 0x24: return SetupGradPA_2D<2,4,1>(X,N,W,B,G,J,A);
+      case 0x25: return SetupGradPA_2D<2,5,1>(X,N,W,B,G,J,A);
+      case 0x26: return SetupGradPA_2D<2,6,1>(X,N,W,B,G,J,A);
 
-      case 0x31: return SetupGradPA_2D<3,1,1>(X,N,W,B,G,Jtr,A);
-      case 0x32: return SetupGradPA_2D<3,2,1>(X,N,W,B,G,Jtr,A);
-      case 0x33: return SetupGradPA_2D<3,3,1>(X,N,W,B,G,Jtr,A);
-      case 0x34: return SetupGradPA_2D<3,4,1>(X,N,W,B,G,Jtr,A);
-      case 0x35: return SetupGradPA_2D<3,5,1>(X,N,W,B,G,Jtr,A);
-      case 0x36: return SetupGradPA_2D<3,6,1>(X,N,W,B,G,Jtr,A);
+      case 0x31: return SetupGradPA_2D<3,1,1>(X,N,W,B,G,J,A);
+      case 0x32: return SetupGradPA_2D<3,2,1>(X,N,W,B,G,J,A);
+      case 0x33: return SetupGradPA_2D<3,3,1>(X,N,W,B,G,J,A);
+      case 0x34: return SetupGradPA_2D<3,4,1>(X,N,W,B,G,J,A);
+      case 0x35: return SetupGradPA_2D<3,5,1>(X,N,W,B,G,J,A);
+      case 0x36: return SetupGradPA_2D<3,6,1>(X,N,W,B,G,J,A);
 
-      case 0x41: return SetupGradPA_2D<4,1,1>(X,N,W,B,G,Jtr,A);
-      case 0x42: return SetupGradPA_2D<4,2,1>(X,N,W,B,G,Jtr,A);
-      case 0x43: return SetupGradPA_2D<4,3,1>(X,N,W,B,G,Jtr,A);
-      case 0x44: return SetupGradPA_2D<4,4,1>(X,N,W,B,G,Jtr,A);
-      case 0x45: return SetupGradPA_2D<4,5,1>(X,N,W,B,G,Jtr,A);
-      case 0x46: return SetupGradPA_2D<4,6,1>(X,N,W,B,G,Jtr,A);
+      case 0x41: return SetupGradPA_2D<4,1,1>(X,N,W,B,G,J,A);
+      case 0x42: return SetupGradPA_2D<4,2,1>(X,N,W,B,G,J,A);
+      case 0x43: return SetupGradPA_2D<4,3,1>(X,N,W,B,G,J,A);
+      case 0x44: return SetupGradPA_2D<4,4,1>(X,N,W,B,G,J,A);
+      case 0x45: return SetupGradPA_2D<4,5,1>(X,N,W,B,G,J,A);
+      case 0x46: return SetupGradPA_2D<4,6,1>(X,N,W,B,G,J,A);
 
-      case 0x51: return SetupGradPA_2D<5,1,1>(X,N,W,B,G,Jtr,A);
-      case 0x52: return SetupGradPA_2D<5,2,1>(X,N,W,B,G,Jtr,A);
-      case 0x53: return SetupGradPA_2D<5,3,1>(X,N,W,B,G,Jtr,A);
-      case 0x54: return SetupGradPA_2D<5,4,1>(X,N,W,B,G,Jtr,A);
-      case 0x55: return SetupGradPA_2D<5,5,1>(X,N,W,B,G,Jtr,A);
-      case 0x56: return SetupGradPA_2D<5,6,1>(X,N,W,B,G,Jtr,A);
+      case 0x51: return SetupGradPA_2D<5,1,1>(X,N,W,B,G,J,A);
+      case 0x52: return SetupGradPA_2D<5,2,1>(X,N,W,B,G,J,A);
+      case 0x53: return SetupGradPA_2D<5,3,1>(X,N,W,B,G,J,A);
+      case 0x54: return SetupGradPA_2D<5,4,1>(X,N,W,B,G,J,A);
+      case 0x55: return SetupGradPA_2D<5,5,1>(X,N,W,B,G,J,A);
+      case 0x56: return SetupGradPA_2D<5,6,1>(X,N,W,B,G,J,A);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return SetupGradPA_2D<0,0,0,T_MAX>(X,N,W,B,G,Jtr,A,D1D,Q1D);
+         return SetupGradPA_2D<0,0,0,T_MAX>(X,N,W,B,G,J,A,D1D,Q1D);
       }
    }
 }

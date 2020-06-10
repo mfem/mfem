@@ -678,6 +678,8 @@ public:
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
 
+   const TargetType &Type() const { return target_type; }
+
    /// Checks if the target matrices contain non-trivial size specification.
    virtual bool ContainsVolumeInfo() const;
 
@@ -926,6 +928,7 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *elem_restrict_lex = nullptr;
+      DenseMatrix Jtr;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -1072,12 +1075,9 @@ public:
                                     const Vector &elfun, DenseMatrix &elmat);
    /// PA extension
    using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
-   double GetGridFunctionEnergyPA_2D(const FiniteElementSpace &fes,
-                                     const Vector &x) const;
-   double GetGridFunctionEnergyPA_3D(const FiniteElementSpace &fes,
-                                     const Vector &x) const;
-   virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                          const Vector &x) const;
+   double GetGridFunctionEnergyPA_2D(const Vector&) const;
+   double GetGridFunctionEnergyPA_3D(const Vector&) const;
+   virtual double GetGridFunctionEnergyPA(const Vector&) const;
 
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
@@ -1092,9 +1092,9 @@ public:
    void AddMultGradPA_3D(const Vector&, const Vector&, Vector&) const;
    virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
 
-   void AssembleGradPA_2D(const DenseMatrix&, const Vector&) const;
-   void AssembleGradPA_3D(const DenseMatrix&, const Vector&) const;
-   void AssembleGradPA(const DenseMatrix&, const Vector&) const;
+   void AssembleGradPA_2D(const Vector&) const;
+   void AssembleGradPA_3D(const Vector&) const;
+   void AssembleGradPA(const Vector&) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 

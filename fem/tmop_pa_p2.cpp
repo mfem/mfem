@@ -266,32 +266,25 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const DenseMatrix &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &P = PA.P;
 
-   // Jtr setup:
-   //  - TargetConstructor::target_type == IDEAL_SHAPE_UNIT_SIZE
-   //  - Jtr(i) == Wideal
-   DenseMatrix Wideal(dim);
-   const FiniteElement *fe = PA.fes->GetFE(0);
-   const Geometry::Type geom_type = fe->GetGeomType();
-   Wideal = Geometries.GetGeomToPerfGeomJac(geom_type);
-
-   const auto Jtr = Reshape(Wideal.Read(), dim, dim);
-   auto J = Reshape(PA.P.Write(), Q1D, Q1D, dim, dim, N);
+   const auto d_J = Reshape(J.Read(), dim, dim);
+   auto d_P = Reshape(PA.P.Write(), Q1D, Q1D, dim, dim, N);
    MFEM_FORALL_2D(e, N, Q1D, Q1D, 1,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            J(qx,qy,0,0,e) = Jtr(0,0);
-            J(qx,qy,0,1,e) = Jtr(0,1);
-            J(qx,qy,1,0,e) = Jtr(1,0);
-            J(qx,qy,1,1,e) = Jtr(1,1);
+            d_P(qx,qy,0,0,e) = d_J(0,0);
+            d_P(qx,qy,0,1,e) = d_J(0,1);
+            d_P(qx,qy,1,0,e) = d_J(1,0);
+            d_P(qx,qy,1,1,e) = d_J(1,1);
          }
       }
    });

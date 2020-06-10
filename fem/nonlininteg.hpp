@@ -69,8 +69,7 @@ public:
                                    const Vector &elfun);
 
    /// Compute the local energy with partial assembly.
-   virtual double GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                          const Vector &x) const;
+   virtual double GetGridFunctionEnergyPA(const Vector &x) const;
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be

@@ -52,10 +52,21 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    // X gradient vector
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    PA.elem_restrict_lex = fes.GetElementRestriction(ordering);
-   if (PA.elem_restrict_lex)
+   MFEM_VERIFY(PA.elem_restrict_lex, "Not yet implemented!");
+   PA.X.SetSize(PA.elem_restrict_lex->Height(), Device::GetMemoryType());
+   PA.X.UseDevice(true);
+
+   const TargetConstructor::TargetType &target_type = targetC->Type();
+   MFEM_VERIFY(target_type == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE ||
+               target_type == TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, "");
    {
-      PA.X.SetSize(PA.elem_restrict_lex->Height(), Device::GetMemoryType());
-      PA.X.UseDevice(true);
+      const int i = 0;
+      const FiniteElement *fe = fes.GetFE(i);
+      Vector x_vals(1024);
+      DenseTensor Jtr(dim, dim, ir.GetNPoints());
+      targetC->ComputeElementTargets(0, *fe, ir, x_vals, Jtr);
+      PA.Jtr.SetSize(dim);
+      PA.Jtr = Jtr(0);
    }
 }
 
@@ -66,11 +77,10 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
    MFEM_ABORT("Not yet implemented!");
 }
 
-void TMOP_Integrator::AssembleGradPA(const DenseMatrix &Jtr,
-                                     const Vector &x) const
+void TMOP_Integrator::AssembleGradPA(const Vector &x) const
 {
-   if (PA.dim == 2) { return AssembleGradPA_2D(Jtr,x); }
-   if (PA.dim == 3) { return AssembleGradPA_3D(Jtr,x); }
+   if (PA.dim == 2) { return AssembleGradPA_2D(x); }
+   if (PA.dim == 3) { return AssembleGradPA_3D(x); }
    MFEM_ABORT("Not yet implemented!");
 }
 
@@ -82,11 +92,10 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x, const Vector &r,
    MFEM_ABORT("Not yet implemented!");
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA(const FiniteElementSpace &fes,
-                                                const Vector &x) const
+double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
 {
-   if (PA.dim == 2) { return GetGridFunctionEnergyPA_2D(fes,x); }
-   if (PA.dim == 3) { return GetGridFunctionEnergyPA_3D(fes,x); }
+   if (PA.dim == 2) { return GetGridFunctionEnergyPA_2D(x); }
+   if (PA.dim == 3) { return GetGridFunctionEnergyPA_3D(x); }
    MFEM_ABORT("Not yet implemented!");
    return 0.0;
 }
