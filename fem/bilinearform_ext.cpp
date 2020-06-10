@@ -621,8 +621,8 @@ FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
      face_mat(form->FESpace()->GetVSize())
 {
 #ifdef MFEM_USE_MPI
-   if( ParFiniteElementSpace* pfes=
-       dynamic_cast<ParFiniteElementSpace*>(form->FESpace()) )
+   if ( ParFiniteElementSpace* pfes =
+           dynamic_cast<ParFiniteElementSpace*>(form->FESpace()) )
    {
       pfes->ExchangeFaceNbrData();
       face_mat.SetWidth(pfes->GetFaceNbrVSize());
@@ -643,7 +643,8 @@ void FABilinearFormExtension::Assemble()
       //1. Fill I
       mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
 #ifdef MFEM_USE_MPI
-      if (restF) {
+      if (restF)
+      {
          face_mat.GetMemoryI().New(face_mat.Height()+1,
                                    face_mat.GetMemoryI().GetMemoryType());
       }
@@ -668,7 +669,8 @@ void FABilinearFormExtension::Assemble()
       mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
       mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
 #ifdef MFEM_USE_MPI
-      if (restF) {
+      if (restF)
+      {
          auto h_I_face = face_mat.HostReadWriteI();
          int cpt = 0;
          for (int i = 0; i < ndofs; i++)
@@ -679,8 +681,10 @@ void FABilinearFormExtension::Assemble()
          }
          const int nnz_face = cpt;
          h_I_face[ndofs] = nnz_face;
-         face_mat.GetMemoryJ().New(nnz_face, face_mat.GetMemoryJ().GetMemoryType());
-         face_mat.GetMemoryData().New(nnz_face, face_mat.GetMemoryData().GetMemoryType());
+         face_mat.GetMemoryJ().New(nnz_face,
+                                   face_mat.GetMemoryJ().GetMemoryType());
+         face_mat.GetMemoryData().New(nnz_face,
+                                      face_mat.GetMemoryData().GetMemoryType());
       }
 #endif
       // 2. Fill J and Data
@@ -705,11 +709,6 @@ void FABilinearFormExtension::Assemble()
          }
          I_face[0] = 0;
       }
-
-      // std::cout << "mat:" << std::endl;
-      // std::cout << mat << std::endl;
-      // std::cout << "face_mat:" << std::endl;
-      // std::cout << face_mat << std::endl;
 #endif
    }
    else // CG case
@@ -725,14 +724,14 @@ void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    mat.Mult(x, y);
 #ifdef MFEM_USE_MPI
    if (const ParFiniteElementSpace *pfes =
-       dynamic_cast<const ParFiniteElementSpace*>(testFes))
+          dynamic_cast<const ParFiniteElementSpace*>(testFes))
    {
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
                    const_cast<Vector&>(x), 0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
-      if(shared_x.Size()) { face_mat.AddMult(shared_x, y); }
+      if (shared_x.Size()) { face_mat.AddMult(shared_x, y); }
    }
 #endif
 }
@@ -742,14 +741,14 @@ void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    mat.MultTranspose(x, y);
 #ifdef MFEM_USE_MPI
    if (const ParFiniteElementSpace *pfes =
-       dynamic_cast<const ParFiniteElementSpace*>(testFes))
+          dynamic_cast<const ParFiniteElementSpace*>(testFes))
    {
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
                    const_cast<Vector&>(x), 0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
-      if(shared_x.Size()) { face_mat.AddMultTranspose(shared_x, y); }
+      if (shared_x.Size()) { face_mat.AddMultTranspose(shared_x, y); }
    }
 #endif
 }

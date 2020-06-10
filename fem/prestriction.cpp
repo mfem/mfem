@@ -380,7 +380,7 @@ void ParL2FaceRestriction::FillI(SparseMatrix &mat,
             else
             {
                AddNnz(iE2,I_face,1);
-            }            
+            }
          }
       }
    });
@@ -421,7 +421,7 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
             {
                const int offset = AddNnz(iE1,I_face,1);
                J_face[offset] = jE2-Ndofs;
-               Data_face[offset] = mat_fea(jF,iF,1,f);            
+               Data_face[offset] = mat_fea(jF,iF,1,f);
             }
          }
       }
@@ -441,8 +441,8 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
             {
                const int offset = AddNnz(iE2,I_face,1);
                J_face[offset] = jE1-Ndofs;
-               Data_face[offset] = mat_fea(jF,iF,0,f);               
-            }            
+               Data_face[offset] = mat_fea(jF,iF,0,f);
+            }
          }
       }
    });
