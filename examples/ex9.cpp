@@ -20,8 +20,11 @@
 // Device sample runs:
 //    ex9 -pa
 //    ex9 -ea
+//    ex9 -fa
 //    ex9 -pa -m ../data/periodic-cube.mesh
 //    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
+//    ex9 -ea -m ../data/periodic-cube.mesh -d cuda
+//    ex9 -fa -m ../data/periodic-cube.mesh -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
