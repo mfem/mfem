@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
    Vector charges;
    Vector masses;
    Vector temps;
-   
+
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
    Vector dpp;
@@ -270,8 +270,8 @@ int main(int argc, char *argv[])
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient, "
-		  "   ELLIPTIC_COS: value at -1, value at 1, "
-		  "radius in x, radius in y, location of center.");
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -282,8 +282,8 @@ int main(int argc, char *argv[])
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient, "
-		  "   ELLIPTIC_COS: value at -1, value at 1, "
-		  "radius in x, radius in y, location of center.");
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
@@ -830,7 +830,7 @@ int main(int argc, char *argv[])
          cout << "Global L2 Error " << glb_error << endl;
       }
       */
-      
+
       // Determine the current size of the linear system
       int prob_size = CPD.GetProblemSize();
 

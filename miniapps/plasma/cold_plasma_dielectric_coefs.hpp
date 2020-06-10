@@ -191,7 +191,7 @@ private:
 class PlasmaProfile : public Coefficient
 {
 public:
-  enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS};
+   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS};
 
 private:
    Type type_;
