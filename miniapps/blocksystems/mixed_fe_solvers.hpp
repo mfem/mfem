@@ -32,10 +32,9 @@ struct DFSData
     Array<OperatorPtr> P_hdiv;
     Array<OperatorPtr> P_l2;
     Array<OperatorPtr> P_hcurl;
-    Array<OperatorPtr> Q_l2;            // Q_l2[l] = W_l P_l2[l] (W_{l+1})^{-1}
+    Array<OperatorPtr> Q_l2;           // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
     Array<int> coarsest_ess_hdivdofs;
-//    OperatorPtr C;                      // discrete curl: ND -> RT
-    Array<OperatorPtr> C;
+    Array<OperatorPtr> C;              // discrete curl: ND -> RT
     DFSParameters param;
 };
 
@@ -60,15 +59,12 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
-class LocalSolver : public Solver // TODO: make it a template?
+class LocalSolver : public Solver
 {
-    DenseMatrix M_;
-    DenseMatrix BT_;
     DenseMatrix local_system_;
     DenseMatrixInverse local_solver_;
     const int offset_;
 public:
-    LocalSolver(const DenseMatrix &B);
     LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
     virtual void Mult(const Vector &x, Vector &y) const;
     virtual void SetOperator(const Operator &op) { }
@@ -190,25 +186,16 @@ public:
 class DivFreeSolver : public DarcySolver
 {
     const DFSData& data_;
-    const HypreParMatrix& M_;
-    const HypreParMatrix& B_;
-
-    OperatorPtr particular_solver_;
-    BBTSolver BBT_solver_;
-
-    OperatorPtr CTMC_;
-    OperatorPtr CTMC_prec_;
-    CGSolver CTMC_solver_;
 
     OperatorPtr BT_;
+    BBTSolver BBT_solver_;
+    OperatorPtr CTMC_;
     Array<Array<int>> ops_offsets_;
     Array<OperatorPtr> ops_;
     Array<OperatorPtr> blk_Ps_;
     Array<OperatorPtr> smoothers_;
-
-//    CGSolver block_solver_;
-//    MINRESSolver block_solver_;
-    GMRESSolver block_solver_;
+    OperatorPtr prec_;
+    OperatorPtr solver_;
 
     // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
@@ -219,7 +206,10 @@ public:
                   ParFiniteElementSpace* hcurl_fes, const DFSData& data);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
-    virtual int GetNumIterations() const { return block_solver_.GetNumIterations(); }
+    virtual int GetNumIterations() const
+    {
+        return solver_.As<GMRESSolver>()->GetNumIterations();
+    }
 };
 
 class AbstractMultigrid : public Solver
@@ -265,5 +255,3 @@ public:
     const BlockOperator& GetOperator() const { return op_; }
     virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
-
-
