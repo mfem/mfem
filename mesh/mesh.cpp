@@ -10436,14 +10436,14 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                                    int flags)
 {
    MFEM_VERIFY(mesh->GetNodes() != NULL, "Mesh nodes are null");
-   Assemble(mesh->GetNodes(), *IntRule, flags);
+   Assemble(mesh->GetNodes(), ir, flags);
 }
 
 GeometricFactors::GeometricFactors(const GridFunction *nodes,
                                    const IntegrationRule &ir,
                                    int flags)
 {
-   Assemble(this->nodes, *IntRule, flags);
+   Assemble(this->nodes, ir, flags);
 }
 
 void GeometricFactors::Assemble(const GridFunction *nodes,
