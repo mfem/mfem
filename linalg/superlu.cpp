@@ -135,8 +135,8 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
-   MFEM_VERIFY(csr_op->num_rows < INT_MAX,"SuperLU: number of local rows "
-               "is too large to store as an integer.");
+   MFEM_VERIFY(csr_blocks(i, j)->big_j != NULL || csr_op->num_cols < INT_MAX,
+               "SuperLU: number of columns is too large to store as an integer.");
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
 
