@@ -38,6 +38,42 @@
 using namespace std;
 using namespace mfem;
 
+class GeneralResidualMonitor : public IterativeSolverMonitor
+{
+public:
+   GeneralResidualMonitor(const std::string& prefix_, int print_lvl)
+      : prefix(prefix_)
+   {
+      print_level = print_lvl;
+   }
+
+   virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
+
+private:
+   const std::string prefix;
+   int print_level;
+   mutable double norm0;
+};
+
+void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+                                             const Vector &r, bool final)
+{
+   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   {
+      mfem::out << prefix << " iteration " << setw(2) << it
+                << " : ||r|| = " << norm;
+      if (it > 0)
+      {
+         mfem::out << ",  ||r||/||r_0|| = " << norm/norm0;
+      }
+      else
+      {
+         norm0 = norm;
+      }
+      mfem::out << '\n';
+   }
+}
+
 // Custom block preconditioner for the Jacobian of the incompressible nonlinear
 // elasticity operator. It has the form
 //
@@ -103,9 +139,11 @@ protected:
 
    // Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
+   GeneralResidualMonitor newton_monitor;
 
    // Solver for the Jacobian solve in the Newton method
    Solver *j_solver;
+   GeneralResidualMonitor j_monitor;
 
    // Preconditioner for the Jacobian
    Solver *j_prec;
@@ -410,7 +448,8 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->GetVSize() + fes[1]->GetVSize()),
-     newton_solver(), mu(c_mu), block_offsets(offsets)
+     newton_solver(), newton_monitor("Newton", 1),
+     j_monitor("  GMRES", 3), mu(c_mu), block_offsets(offsets)
 {
    Array<Vector *> rhs(2);
    rhs = NULL; // Set all entries in the array
@@ -446,7 +485,8 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    j_gmres->SetRelTol(1e-12);
    j_gmres->SetAbsTol(1e-12);
    j_gmres->SetMaxIter(300);
-   j_gmres->SetPrintLevel(0);
+   j_gmres->SetPrintLevel(-1);
+   j_gmres->SetMonitor(j_monitor);
    j_gmres->SetPreconditioner(*j_prec);
    j_solver = j_gmres;
 
@@ -454,7 +494,8 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    newton_solver.iterative_mode = true;
    newton_solver.SetSolver(*j_solver);
    newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(1);
+   newton_solver.SetPrintLevel(-1);
+   newton_solver.SetMonitor(newton_monitor);
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);
