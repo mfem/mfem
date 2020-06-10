@@ -630,7 +630,7 @@ FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
          use_face_mat = true;
          pfes->ExchangeFaceNbrData();
          face_mat.SetWidth(pfes->GetFaceNbrVSize());
-      }      
+      }
    }
 #endif
 }
