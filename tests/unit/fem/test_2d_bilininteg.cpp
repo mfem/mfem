@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 #include "catch.hpp"
@@ -183,7 +183,7 @@ TEST_CASE("2D Bilinear Mass Integrators",
 
       SECTION("Mapping H1 to L2")
       {
-         L2_FECollection    fec_l2(order - 1, dim);
+         L2_FECollection    fec_l2(order, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
          BilinearForm m_l2(&fespace_l2);
@@ -558,7 +558,6 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
          {
             // Tests requiring an ND test space with same order of
             // convergence as the ND trial space
-
             BilinearForm m_nd(&fespace_nd);
             m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
             m_nd.Assemble();
@@ -858,7 +857,6 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
          {
             // Tests requiring an RT test space with same order of
             // convergence as the RT trial space
-
             BilinearForm m_rt(&fespace_rt);
             m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
             m_rt.Assemble();
@@ -2770,7 +2768,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
       }
       SECTION("Mapping ND to L2")
       {
-         L2_FECollection    fec_l2(order - 1, dim);
+         L2_FECollection    fec_l2(order, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
          BilinearForm m_l2(&fespace_l2);
@@ -2834,7 +2832,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
       }
       SECTION("Mapping RT to L2")
       {
-         L2_FECollection    fec_l2(order - 1, dim);
+         L2_FECollection    fec_l2(order, dim);
          FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
          BilinearForm m_l2(&fespace_l2);

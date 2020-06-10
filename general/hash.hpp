@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_HASH
 #define MFEM_HASH
@@ -77,7 +77,7 @@ public:
    HashTable(const HashTable& other); // deep copy
    ~HashTable();
 
-   /// Get item whose parents are p1, p2... Create it if it doesn't exist.
+   /// Get item whose parents are 'p1', 'p2'... Create it if it doesn't exist.
    T* Get(int p1, int p2);
    T* Get(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
 
@@ -123,6 +123,7 @@ public:
    /// Return total size of allocated memory (tables plus items), in bytes.
    long MemoryUsage() const;
 
+   /// Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
 
    class iterator : public Base::iterator

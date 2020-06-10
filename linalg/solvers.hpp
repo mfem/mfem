@@ -1,19 +1,19 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_SOLVERS
 #define MFEM_SOLVERS
 
 #include "../config/config.hpp"
-#include "operator.hpp"
+#include "densemat.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -30,6 +30,27 @@ namespace mfem
 
 class BilinearForm;
 
+/// Abstract base class for an iterative solver monitor
+class IterativeSolverMonitor
+{
+public:
+   IterativeSolverMonitor() {}
+
+   virtual ~IterativeSolverMonitor() {}
+
+   /// Monitor the residual vector r
+   virtual void MonitorResidual(int it, double norm, const Vector &r,
+                                bool final)
+   {
+   }
+
+   /// Monitor the solution vector x
+   virtual void MonitorSolution(int it, double norm, const Vector &x,
+                                bool final)
+   {
+   }
+};
+
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
@@ -42,6 +63,7 @@ private:
 protected:
    const Operator *oper;
    Solver *prec;
+   IterativeSolverMonitor *monitor = nullptr;
 
    int max_iter, print_level;
    double rel_tol, abs_tol;
@@ -52,6 +74,8 @@ protected:
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   void Monitor(int it, double norm, const Vector& r, const Vector& x,
+                bool final=false) const;
 
 public:
    IterativeSolver();
@@ -74,6 +98,9 @@ public:
 
    /// Also calls SetOperator for the preconditioner if there is one
    virtual void SetOperator(const Operator &op);
+
+   /// Set the iterative solver monitor
+   void SetMonitor(IterativeSolverMonitor &m) { monitor = &m; }
 };
 
 
@@ -113,6 +140,65 @@ private:
    mutable Vector residual;
 
    const Operator *oper;
+};
+
+/// Chebyshev accelerated smoothing with given vector, no matrix necessary
+/** Potentially useful with tensorized operators, for example. This is just a
+    very basic Chebyshev iteration, if you want tolerances, iteration control,
+    etc. wrap this with SLISolver. */
+class OperatorChebyshevSmoother : public Solver
+{
+public:
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The estimated largest eigenvalue of the
+       diagonally preconditoned operator must be provided via
+       max_eig_estimate. */
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, double max_eig_estimate);
+
+   /** Application is by *inverse* of the given vector. It is assumed the
+       underlying operator acts as the identity on entries in ess_tdof_list,
+       corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
+       the matrix-free setting. The largest eigenvalue of the diagonally
+       preconditoned operator is estimated internally via a power method. The
+       accuracy of the estimated eigenvalue may be controlled via
+       power_iterations and power_tolerance. */
+#ifdef MFEM_USE_MPI
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, MPI_Comm comm = MPI_COMM_NULL, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
+#else
+   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, int power_iterations = 10, double power_tolerance = 1e-8);
+#endif
+
+   ~OperatorChebyshevSmoother() {}
+
+   void Mult(const Vector&x, Vector &y) const;
+
+   void SetOperator(const Operator &op_)
+   {
+      oper = &op_;
+   }
+
+   void Setup();
+
+private:
+   const int order;
+   double max_eig_estimate;
+   const int N;
+   Vector dinv;
+   const Vector &diag;
+   Array<double> coeffs;
+   const Array<int>& ess_tdof_list;
+   mutable Vector residual;
+   mutable Vector helperVector;
+   const Operator* oper;
 };
 
 
@@ -473,6 +559,106 @@ public:
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 
+/** Block ILU solver:
+ *  Performs a block ILU(k) approximate factorization with specified block
+ *  size. Currently only k=0 is supported. This is useful as a preconditioner
+ *  for DG-type discretizations, where the system matrix has a natural
+ *  (elemental) block structure.
+ *
+ *  In the case of DG discretizations, the block size should usually be set to
+ *  either ndofs_per_element or vdim*ndofs_per_element (if the finite element
+ *  space has Ordering::byVDIM). The block size must evenly divide the size of
+ *  the matrix.
+ *
+ *  Renumbering the blocks is also supported by specifying a reordering method.
+ *  Currently greedy minimum discarded fill ordering and no reordering are
+ *  supported. Renumbering the blocks can lead to a much better approximate
+ *  factorization.
+ */
+class BlockILU : public Solver
+{
+public:
+
+   /// The reordering method used by the BlockILU factorization.
+   enum class Reordering
+   {
+      MINIMUM_DISCARDED_FILL,
+      NONE
+   };
+
+   /** Create an "empty" BlockILU solver. SetOperator must be called later to
+    *  actually form the factorization
+    */
+   BlockILU(int block_size_,
+            Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
+            int k_fill_ = 0);
+
+   /** Create a block ILU approximate factorization for the matrix @a op.
+    *  @a op should be of type either SparseMatrix or HypreParMatrix. In the
+    *  case that @a op is a HypreParMatrix, the ILU factorization is performed
+    *  on the diagonal blocks of the parallel decomposition.
+    */
+   BlockILU(Operator &op, int block_size_ = 1,
+            Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
+            int k_fill_ = 0);
+
+   /** Perform the block ILU factorization for the matrix @a op.
+    *  As in the constructor, @a op must either be a SparseMatrix or
+    *  HypreParMatrix
+    */
+   void SetOperator(const Operator &op);
+
+   /// Solve the system `LUx = b`, where `L` and `U` are the block ILU factors.
+   void Mult(const Vector &b, Vector &x) const;
+
+   /** Get the I array for the block CSR representation of the factorization.
+    *  Similar to SparseMatrix::GetI(). Mostly used for testing.
+    */
+   int *GetBlockI() { return IB.GetData(); }
+
+   /** Get the J array for the block CSR representation of the factorization.
+    *  Similar to SparseMatrix::GetJ(). Mostly used for testing.
+    */
+   int *GetBlockJ() { return JB.GetData(); }
+
+   /** Get the data array for the block CSR representation of the factorization.
+    *  Similar to SparseMatrix::GetData(). Mostly used for testing.
+    */
+   double *GetBlockData() { return AB.Data(); }
+
+private:
+   /// Set up the block CSR structure corresponding to a sparse matrix @a A
+   void CreateBlockPattern(const class SparseMatrix &A);
+
+   /// Perform the block ILU factorization
+   void Factorize();
+
+   int block_size;
+
+   /// Fill level for block ILU(k) factorizations. Only k=0 is supported.
+   int k_fill;
+
+   Reordering reordering;
+
+   /// Temporary vector used in the Mult() function.
+   mutable Vector y;
+
+   /// Permutation and inverse permutation vectors for the block reordering.
+   Array<int> P, Pinv;
+
+   /** Block CSR storage of the factorization. The block upper triangular part
+    *  stores the U factor. The L factor implicitly has identity on the diagonal
+    *  blocks, and the rest of L is given by the strictly block lower triangular
+    *  part.
+    */
+   Array<int> IB, ID, JB;
+   DenseTensor AB;
+
+   /// DB(i) stores the LU factorization of the i'th diagonal block
+   mutable DenseTensor DB;
+   /// Pivot arrays for the LU factorizations given by #DB
+   mutable Array<int> ipiv;
+};
 
 #ifdef MFEM_USE_SUITESPARSE
 

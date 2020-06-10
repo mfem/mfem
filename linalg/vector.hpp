@@ -1,18 +1,21 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_VECTOR
 #define MFEM_VECTOR
 
 #include "../general/array.hpp"
+#ifdef MFEM_USE_ADIOS2
+#include "../general/adios2stream.hpp"
+#endif
 #include "../general/globals.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
@@ -225,7 +228,7 @@ public:
 
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    Vector &operator=(const Vector &v);
 
    /// Redefine '=' for vector = constant.
@@ -278,25 +281,59 @@ public:
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
 
+   /// Extract entries listed in @a dofs to the output Vector @a elemvect.
+   /** Negative dof values cause the -dof-1 position in @a elemvect to receive
+       the -val in from this Vector. */
    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
+
+   /// Extract entries listed in @a dofs to the output array @a elem_data.
+   /** Negative dof values cause the -dof-1 position in @a elem_data to receive
+       the -val in from this Vector. */
    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 
-   /// Set the entries listed in `dofs` to the given `value`.
+   /// Set the entries listed in @a dofs to the given @a value.
+   /** Negative dof values cause the -dof-1 position in this Vector to receive
+       the -value. */
    void SetSubVector(const Array<int> &dofs, const double value);
+
+   /** @brief Set the entries listed in @a dofs to the values given in the @a
+       elemvect Vector. Negative dof values cause the -dof-1 position in this
+       Vector to receive the -val from @a elemvect. */
    void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
+
+   /** @brief Set the entries listed in @a dofs to the values given the @a ,
+       elem_data array. Negative dof values cause the -dof-1 position in this
+       Vector to receive the -val from @a elem_data. */
    void SetSubVector(const Array<int> &dofs, double *elem_data);
 
-   /// Add (element) subvector to the vector.
+   /** @brief Add elements of the @a elemvect Vector to the entries listed in @a
+       dofs. Negative dof values cause the -dof-1 position in this Vector to add
+       the -val from @a elemvect. */
    void AddElementVector(const Array<int> & dofs, const Vector & elemvect);
+
+   /** @brief Add elements of the @a elem_data array to the entries listed in @a
+       dofs. Negative dof values cause the -dof-1 position in this Vector to add
+       the -val from @a elem_data. */
    void AddElementVector(const Array<int> & dofs, double *elem_data);
+
+   /** @brief Add @a times the elements of the @a elemvect Vector to the entries
+       listed in @a dofs. Negative dof values cause the -dof-1 position in this
+       Vector to add the -a*val from @a elemvect. */
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
 
-   /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
+   /// Set all vector entries NOT in the @a dofs Array to the given @a val.
    void SetSubVectorComplement(const Array<int> &dofs, const double val);
 
    /// Prints vector to stream out.
    void Print(std::ostream &out = mfem::out, int width = 8) const;
+
+#ifdef MFEM_USE_ADIOS2
+   /// Prints vector to stream out.
+   /// @param out adios2stream output
+   /// @param variable_name variable name associated with current Vector
+   void Print(adios2stream & out, const std::string& variable_name) const;
+#endif
 
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
