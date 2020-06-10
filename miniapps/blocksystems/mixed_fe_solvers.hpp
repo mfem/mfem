@@ -133,19 +133,6 @@ public:
     unique_ptr<ParFiniteElementSpace> hcurl_fes_;
 };
 
-class MLDivSolver : public Solver
-{
-    const DFSData& data_;
-    Array<Array<OperatorPtr> > agg_solvers_;
-    OperatorPtr coarsest_solver_;
-public:
-    MLDivSolver(const HypreParMatrix& M, const HypreParMatrix &B, const DFSData& data);
-
-    virtual void Mult(const Vector & x, Vector & y) const;
-    void Mult(int level, const Vector & x, Vector & y) const;
-    virtual void SetOperator(const Operator &op) { }
-};
-
 class SchwarzSmoother : public Solver
 {
     const SparseMatrix& agg_hdivdof_;
@@ -158,7 +145,8 @@ class SchwarzSmoother : public Solver
     mutable Array<int> l2dofs_loc_;
     Array<OperatorPtr> solvers_loc_;
 public:
-    SchwarzSmoother(const BlockOperator& op,
+    SchwarzSmoother(const HypreParMatrix& M,
+                    const HypreParMatrix& B,
                     const SparseMatrix& agg_hdivdof,
                     const SparseMatrix& agg_l2dof,
                     const HypreParMatrix& P_l2,
@@ -267,11 +255,13 @@ class BDPMinresSolver : public DarcySolver
     OperatorPtr BT_;
     OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
     MINRESSolver solver_;
+    Array<int> ess_zero_dofs_;
 public:
     BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
                     bool own_input, IterSolveParameters param);
     virtual void Mult(const Vector & x, Vector & y) const;
     virtual void SetOperator(const Operator &op) { }
+    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
     const BlockOperator& GetOperator() const { return op_; }
     virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
