@@ -45,7 +45,7 @@ protected:
    Array<Array<int>*>              bfnfi_marker; // not owned
 
    mutable SparseMatrix *Grad, *cGrad; // owned
-   mutable OperatorHandle GradOp, cGradOp;
+   mutable OperatorHandle extGrad;
 
    /// A list of all essential true dofs
    Array<int> ess_tdof_list;
