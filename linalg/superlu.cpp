@@ -24,6 +24,18 @@
 #error "SuperLUDist has been built with 64bit integers. This is not supported"
 #endif
 
+#if SUPERLU_DIST_MAJOR_VERSION > 6 ||                                   \
+  (SUPERLU_DIST_MAJOR_VERSION == 6 && SUPERLU_DIST_MINOR_VERSION > 2)
+#define ScalePermstruct_t dScalePermstruct_t
+#define LUstruct_t dLUstruct_t
+#define SOLVEstruct_t dSOLVEstruct_t
+#define ScalePermstructFree dScalePermstructFree
+#define Destroy_LU dDestroy_LU
+#define LUstructFree dLUstructFree
+#define LUstructInit dLUstructInit
+#endif
+
+
 using namespace std;
 
 namespace mfem
