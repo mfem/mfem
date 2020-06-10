@@ -132,10 +132,12 @@ class L2FaceRestriction : public Operator
 protected:
    const FiniteElementSpace &fes;
    const int nf;
+   const int ne;
    const int vdim;
    const bool byvdim;
    const int ndofs;
    const int dof;
+   const int elemDofs;
    const L2FaceValues m;
    const int nfdofs;
    Array<int> scatter_indices1;
@@ -151,18 +153,19 @@ public:
    L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
-   void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction */
-   void FillI(SparseMatrix &mat) const;
+   virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values given by ea_data */
-   void FillJAndData(const Vector &ea_data,
-                     SparseMatrix &mat) const;
+   virtual void FillJAndData(const Vector &ea_data,
+                             SparseMatrix &mat,
+                             SparseMatrix &face_mat) const;
    /// This methods adds the DG face matrices to the element matrices.
-   void AddFaceMatricesToElementMatrices(Vector &fea_data, const int elemDofs,
-                                         const int ne, Vector &ea_data) const;
+   void AddFaceMatricesToElementMatrices(Vector &fea_data,
+                                         Vector &ea_data) const;
 };
 
 // Return the face degrees of freedom returned in Lexicographic order.

@@ -978,12 +978,14 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
                                      const L2FaceValues m)
    : fes(fes),
      nf(fes.GetNFbyType(type)),
+     ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
      ndofs(fes.GetNDofs()),
      dof(nf > 0 ?
          fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
          : 0),
+     elemDofs(fes.GetFE(0)->GetDof()),
      m(m),
      nfdofs(nf*dof),
      scatter_indices1(nf*dof),
@@ -1295,7 +1297,8 @@ void L2FaceRestriction::MultTranspose(const Vector& x, Vector& y) const
    }
 }
 
-void L2FaceRestriction::FillI(SparseMatrix &mat) const
+void L2FaceRestriction::FillI(SparseMatrix &mat,
+                              SparseMatrix &face_mat) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
@@ -1311,7 +1314,8 @@ void L2FaceRestriction::FillI(SparseMatrix &mat) const
 }
 
 void L2FaceRestriction::FillJAndData(const Vector &ea_data,
-                                     SparseMatrix &mat) const
+                                     SparseMatrix &mat,
+                                     SparseMatrix &face_mat) const
 {
    const int face_dofs = dof;
    auto d_indices1 = scatter_indices1.Read();
@@ -1341,8 +1345,6 @@ void L2FaceRestriction::FillJAndData(const Vector &ea_data,
 }
 
 void L2FaceRestriction::AddFaceMatricesToElementMatrices(Vector &fea_data,
-                                                         const int elemDofs,
-                                                         const int ne,
                                                          Vector &ea_data) const
 {
    const int face_dofs = dof;
