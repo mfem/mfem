@@ -455,7 +455,6 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &X, const Vector &R,
                                        Vector &C) const
 {
    const int N = PA.ne;
-   const int dim = PA.dim;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;

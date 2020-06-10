@@ -15,37 +15,54 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../linalg/invariants.hpp"
+#include "../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
+static MFEM_HOST_DEVICE inline
+double EvalW_001(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Jpt);
+   return ie.Get_I1();
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_002(const double *Jpt)
+{
+   kernels::InvariantsEvaluator2D ie(Jpt);
+   return 0.5 * ie.Get_I1b() - 1.0;
+}
+
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
-static double EnergyPA_2D(const int NE,
+static double EnergyPA_2D(const int mid,
+                          const int NE,
                           const DenseMatrix &j_,
                           const Array<double> &w_,
                           const Array<double> &b_,
                           const Array<double> &g_,
                           const Vector &x_,
-                          Vector &e_,
-                          Vector &o_,
+                          Vector &energy,
+                          Vector &ones,
                           const int d1d = 0,
                           const int q1d = 0)
 {
+   MFEM_VERIFY(mid == 2, "2D metric not yet implemented!");
+
    constexpr int dim = 2;
    constexpr double metric_normal =  1.0;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   const auto Jtr = Reshape(j_.Read(), dim, dim);
+   const auto J = Reshape(j_.Read(), dim, dim);
    const auto b1d = Reshape(b_.Read(), Q1D, D1D);
    const auto g1d = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto X = Reshape(x_.Read(), D1D, D1D, dim, NE);
 
-   auto E = Reshape(e_.Write(), Q1D, Q1D, NE);
-   auto O = Reshape(o_.Write(), Q1D, Q1D, NE);
+   auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
+   auto O = Reshape(ones.Write(), Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -147,13 +164,9 @@ static double EnergyPA_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            // Jtr = targetC->ComputeElementTargets
-            const double Jtrx0 = Jtr(0,0);
-            const double Jtrx1 = Jtr(0,1);
-            const double Jtry0 = Jtr(1,0);
-            const double Jtry1 = Jtr(1,1);
-            const double Jtr[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
-            const double detJtr = (Jtr[0]*Jtr[3])-(Jtr[1]*Jtr[2]);
+            const double *Jtr = J;
+            const double detJtr = kernels::Det<2>(Jtr);
+            const double weight = W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
@@ -164,28 +177,20 @@ static double EnergyPA_2D(const int NE,
             const double Jprx1 = Xx1[qy][qx];
             const double Jpry0 = Xy0[qy][qx];
             const double Jpry1 = Xy1[qy][qx];
-            const double Jpr[4] = {Jprx0, Jpry0, Jprx1, Jpry1};
+            const double Jpr[4] = { Jprx0, Jpry0, Jprx1, Jpry1 };
 
-            // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-            double J[4];
-            kernels::Mult(2,2,2, Jpr, Jrt, J);
-
-            // TMOP_Metric_002::EvalW: 0.5 * ie.Get_I1b() - 1.0;
-            const double weight = W(qx,qy) * detJtr;
-            const double I1 = J[0]*J[0] + J[1]*J[1] +
-                              J[2]*J[2] + J[3]*J[3];
-            const double detJpt = J[0]*J[3] - J[1]*J[2];
-            const double sign_detJpt = ScalarOps<double>::sign(detJpt);
-            const double I2b = sign_detJpt*detJpt;
-            const double I1b = I1 / I2b;
-            const double metric_EvalW = 0.5 * I1b - 1.0;
-            const double EvalW = metric_normal * metric_EvalW;
+            // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+            double Jpt[4];
+            kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
+            const double EvalW = mid == 1 ? EvalW_001(Jpt) :
+                                 mid == 2 ? EvalW_002(Jpt) :
+                                 0.0;
             E(qx,qy,e) = weight * EvalW;
             O(qx,qy,e) = 1.0;
          }
       }
    });
-   return e_ * o_; // Energy * One
+   return energy * ones;
 }
 
 double
@@ -194,6 +199,7 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
    MFEM_VERIFY(metric_normal == 1.0, "");
 
    const int N = PA.ne;
+   const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
@@ -210,39 +216,39 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
 
    switch (id)
    {
-      case 0x21: return EnergyPA_2D<2,1,1>(N,J,W,B,G,X,E,O);
-      case 0x22: return EnergyPA_2D<2,2,1>(N,J,W,B,G,X,E,O);
-      case 0x23: return EnergyPA_2D<2,3,1>(N,J,W,B,G,X,E,O);
-      case 0x24: return EnergyPA_2D<2,4,1>(N,J,W,B,G,X,E,O);
-      case 0x25: return EnergyPA_2D<2,5,1>(N,J,W,B,G,X,E,O);
-      case 0x26: return EnergyPA_2D<2,6,1>(N,J,W,B,G,X,E,O);
+      case 0x21: return EnergyPA_2D<2,1,1>(M,N,J,W,B,G,X,E,O);
+      case 0x22: return EnergyPA_2D<2,2,1>(M,N,J,W,B,G,X,E,O);
+      case 0x23: return EnergyPA_2D<2,3,1>(M,N,J,W,B,G,X,E,O);
+      case 0x24: return EnergyPA_2D<2,4,1>(M,N,J,W,B,G,X,E,O);
+      case 0x25: return EnergyPA_2D<2,5,1>(M,N,J,W,B,G,X,E,O);
+      case 0x26: return EnergyPA_2D<2,6,1>(M,N,J,W,B,G,X,E,O);
 
-      case 0x31: return EnergyPA_2D<3,1,1>(N,J,W,B,G,X,E,O);
-      case 0x32: return EnergyPA_2D<3,2,1>(N,J,W,B,G,X,E,O);
-      case 0x33: return EnergyPA_2D<3,3,1>(N,J,W,B,G,X,E,O);
-      case 0x34: return EnergyPA_2D<3,4,1>(N,J,W,B,G,X,E,O);
-      case 0x35: return EnergyPA_2D<3,5,1>(N,J,W,B,G,X,E,O);
-      case 0x36: return EnergyPA_2D<3,6,1>(N,J,W,B,G,X,E,O);
+      case 0x31: return EnergyPA_2D<3,1,1>(M,N,J,W,B,G,X,E,O);
+      case 0x32: return EnergyPA_2D<3,2,1>(M,N,J,W,B,G,X,E,O);
+      case 0x33: return EnergyPA_2D<3,3,1>(M,N,J,W,B,G,X,E,O);
+      case 0x34: return EnergyPA_2D<3,4,1>(M,N,J,W,B,G,X,E,O);
+      case 0x35: return EnergyPA_2D<3,5,1>(M,N,J,W,B,G,X,E,O);
+      case 0x36: return EnergyPA_2D<3,6,1>(M,N,J,W,B,G,X,E,O);
 
-      case 0x41: return EnergyPA_2D<4,1,1>(N,J,W,B,G,X,E,O);
-      case 0x42: return EnergyPA_2D<4,2,1>(N,J,W,B,G,X,E,O);
-      case 0x43: return EnergyPA_2D<4,3,1>(N,J,W,B,G,X,E,O);
-      case 0x44: return EnergyPA_2D<4,4,1>(N,J,W,B,G,X,E,O);
-      case 0x45: return EnergyPA_2D<4,5,1>(N,J,W,B,G,X,E,O);
-      case 0x46: return EnergyPA_2D<4,6,1>(N,J,W,B,G,X,E,O);
+      case 0x41: return EnergyPA_2D<4,1,1>(M,N,J,W,B,G,X,E,O);
+      case 0x42: return EnergyPA_2D<4,2,1>(M,N,J,W,B,G,X,E,O);
+      case 0x43: return EnergyPA_2D<4,3,1>(M,N,J,W,B,G,X,E,O);
+      case 0x44: return EnergyPA_2D<4,4,1>(M,N,J,W,B,G,X,E,O);
+      case 0x45: return EnergyPA_2D<4,5,1>(M,N,J,W,B,G,X,E,O);
+      case 0x46: return EnergyPA_2D<4,6,1>(M,N,J,W,B,G,X,E,O);
 
-      case 0x51: return EnergyPA_2D<5,1,1>(N,J,W,B,G,X,E,O);
-      case 0x52: return EnergyPA_2D<5,2,1>(N,J,W,B,G,X,E,O);
-      case 0x53: return EnergyPA_2D<5,3,1>(N,J,W,B,G,X,E,O);
-      case 0x54: return EnergyPA_2D<5,4,1>(N,J,W,B,G,X,E,O);
-      case 0x55: return EnergyPA_2D<5,5,1>(N,J,W,B,G,X,E,O);
-      case 0x56: return EnergyPA_2D<5,6,1>(N,J,W,B,G,X,E,O);
+      case 0x51: return EnergyPA_2D<5,1,1>(M,N,J,W,B,G,X,E,O);
+      case 0x52: return EnergyPA_2D<5,2,1>(M,N,J,W,B,G,X,E,O);
+      case 0x53: return EnergyPA_2D<5,3,1>(M,N,J,W,B,G,X,E,O);
+      case 0x54: return EnergyPA_2D<5,4,1>(M,N,J,W,B,G,X,E,O);
+      case 0x55: return EnergyPA_2D<5,5,1>(M,N,J,W,B,G,X,E,O);
+      case 0x56: return EnergyPA_2D<5,6,1>(M,N,J,W,B,G,X,E,O);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return EnergyPA_2D<0,0,0,T_MAX>(N,J,W,B,G,X,E,O,D1D,Q1D);
+         return EnergyPA_2D<0,0,0,T_MAX>(M,N,J,W,B,G,X,E,O,D1D,Q1D);
       }
    }
    return 0.0;
