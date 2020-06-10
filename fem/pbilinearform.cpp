@@ -240,7 +240,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
 
    BilinearForm::Assemble(skip_zeros);
 
-   if (fbfi.Size() > 0)
+   if (!ext && fbfi.Size() > 0)
    {
       AssembleSharedFaces(skip_zeros);
    }

@@ -33,6 +33,14 @@ public:
                         FaceType type,
                         L2FaceValues m = L2FaceValues::DoubleValued);
    void Mult(const Vector &x, Vector &y) const;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this ParL2FaceRestriction */
+   void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this ParL2FaceRestriction, and the values given by ea_data */
+   void FillJAndData(const Vector &ea_data,
+                     SparseMatrix &mat,
+                     SparseMatrix &face_mat) const;
 };
 
 }
