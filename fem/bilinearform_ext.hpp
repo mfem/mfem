@@ -120,6 +120,7 @@ private:
    SparseMatrix mat;
    /// face_mat handles parallelism for DG face terms.
    SparseMatrix face_mat;
+   bool use_face_mat;
 
 public:
    FABilinearFormExtension(BilinearForm *form);
