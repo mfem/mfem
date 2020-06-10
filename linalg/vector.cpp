@@ -1017,6 +1017,7 @@ static double hipVectorDot(const int N, const double *X, const double *Y)
 double Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
+   if (size == 0) { return 0.0; }
 
    const bool use_dev = UseDevice() || v.UseDevice();
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP) || defined(MFEM_USE_OPENMP)
