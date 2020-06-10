@@ -451,12 +451,6 @@ public:
                                        Vector &elvect);
 };
 
-<<<<<<< HEAD
-
-
-
-
-=======
 /** Class for domain integration of L(v) := (f, v), where
     f=(f1,...,fn) and v=(v1,...,vn). that makes use of
     VectorQuadratureFunctionCoefficient*/
@@ -519,7 +513,6 @@ public:
                    "The QuadratureFunction integration rules are used instead");
    }
 };
->>>>>>> master
 
 }
 
