@@ -1893,8 +1893,9 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
          {
             const int nrows = csr_blocks(i, j)->num_rows;
             const double cij = blockCoeff ? (*blockCoeff)(i, j) : 1.0;
-
+#if MFEM_HYPRE_VERSION >= 21600
             const bool usingBigJ = (csr_blocks(i, j)->big_j != NULL);
+#endif
 
             for (int k = 0; k < nrows; ++k)
             {
@@ -1905,8 +1906,12 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
                for (int l = 0; l < nnz_k; ++l)
                {
                   // Find the column process offset for the block.
+#if MFEM_HYPRE_VERSION >= 21600
                   const int bcol = usingBigJ ? csr_blocks(i, j)->big_j[osk + l]
                                    : csr_blocks(i, j)->j[osk + l];
+#else
+                  const int bcol = csr_blocks(i, j)->j[osk + l];
+#endif
                   int bcolproc = 0;
 
                   for (int p = 1; p < nprocs; ++p)
