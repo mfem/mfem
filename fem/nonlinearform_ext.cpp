@@ -33,11 +33,6 @@ PANonlinearForm::PANonlinearForm(NonlinearForm *nlf):
    ye.UseDevice(true);
 }
 
-PANonlinearForm::~PANonlinearForm()
-{
-   Grad.Clear();
-}
-
 double PANonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    double energy = 0.0;
@@ -64,9 +59,8 @@ void PANonlinearForm::Mult(const Vector &x, Vector &y) const
 
 Operator &PANonlinearForm::GetGradient(const Vector &x) const
 {
-   Grad.SetOperatorOwner(false);
-   Grad.SetType(Operator::ANY_TYPE);
    Grad.Reset(new PANonlinearForm::Gradient(x, *this));
+   if (Grad.Type() != Operator::ANY_TYPE) { MFEM_ABORT("error"); }
    return *Grad.Ptr();
 }
 

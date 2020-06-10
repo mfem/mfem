@@ -58,7 +58,6 @@ protected:
 
 public:
    PANonlinearForm(NonlinearForm *nlf);
-   ~PANonlinearForm();
    void Assemble();
    void Mult(const Vector &x, Vector &y) const;
    Operator &GetGradient(const Vector &x) const;
