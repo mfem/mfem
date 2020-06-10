@@ -618,14 +618,19 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
    : EABilinearFormExtension(form),
      mat(form->FESpace()->GetVSize()),
-     face_mat(form->FESpace()->GetVSize())
+     face_mat(form->FESpace()->GetVSize()),
+     use_face_mat(false)
 {
 #ifdef MFEM_USE_MPI
    if ( ParFiniteElementSpace* pfes =
            dynamic_cast<ParFiniteElementSpace*>(form->FESpace()) )
    {
-      pfes->ExchangeFaceNbrData();
-      face_mat.SetWidth(pfes->GetFaceNbrVSize());
+      if (pfes->IsDGSpace())
+      {
+         use_face_mat = true;
+         pfes->ExchangeFaceNbrData();
+         face_mat.SetWidth(pfes->GetFaceNbrVSize());
+      }      
    }
 #endif
 }
@@ -642,13 +647,11 @@ void FABilinearFormExtension::Assemble()
          static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
       //1. Fill I
       mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
-#ifdef MFEM_USE_MPI
-      if (restF)
+      if (use_face_mat)
       {
          face_mat.GetMemoryI().New(face_mat.Height()+1,
                                    face_mat.GetMemoryI().GetMemoryType());
       }
-#endif
       //  1.1 Increment with restE
       restE->FillI(mat);
       //  1.2 Increment with restF
@@ -668,8 +671,7 @@ void FABilinearFormExtension::Assemble()
       h_I[ndofs] = nnz;
       mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
       mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
-#ifdef MFEM_USE_MPI
-      if (restF)
+      if (use_face_mat)
       {
          auto h_I_face = face_mat.HostReadWriteI();
          int cpt = 0;
@@ -686,7 +688,6 @@ void FABilinearFormExtension::Assemble()
          face_mat.GetMemoryData().New(nnz_face,
                                       face_mat.GetMemoryData().GetMemoryType());
       }
-#endif
       // 2. Fill J and Data
       //  2.1 Fill J and Data with Elem ea_data
       restE->FillJAndData(ea_data, mat);
@@ -699,8 +700,7 @@ void FABilinearFormExtension::Assemble()
          I[i] = I[i-1];
       }
       I[0] = 0;
-#ifdef MFEM_USE_MPI
-      if (restF)
+      if (use_face_mat)
       {
          auto I_face = face_mat.HostReadWriteI();
          for (int i = ndofs; i > 0; i--)
@@ -709,7 +709,6 @@ void FABilinearFormExtension::Assemble()
          }
          I_face[0] = 0;
       }
-#endif
    }
    else // CG case
    {
