@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-BLOCK_COMMON_SRC = mixed_fe_solvers.cpp
+BLOCK_COMMON_SRC = div_free_solver.cpp
 BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = mixed_solver_comparison
