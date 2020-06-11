@@ -2085,12 +2085,12 @@ private:
       Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
       Array<BilinearFormIntegrator*> fbfi_;  // Interior Face Integrators
       Array<BilinearFormIntegrator*> bfbfi_; // Boundary Face Integrators
-      Array<Array<int>*>             bfbfi_marker_; ///< Entries are not owned.
+      Array<Array<int>*>             bfbfi_marker_; ///< Entries are owned.
 
       // Domain integrators for source terms
       Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
-      Array<LinearFormIntegrator*> flfi_;
-      Array<Array<int>*>           flfi_marker_; ///< Entries are owned.
+      Array<LinearFormIntegrator*> bflfi_; // Boundary Face Integrators
+      Array<Array<int>*>           bflfi_marker_; ///< Entries are owned.
 
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
 

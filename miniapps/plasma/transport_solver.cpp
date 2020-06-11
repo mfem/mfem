@@ -1286,18 +1286,17 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete bfbfi_marker_[i];
    }
-
    for (int i=0; i<dlfi_.Size(); i++)
    {
       delete dlfi_[i];
    }
-   for (int i=0; i<flfi_.Size(); i++)
+   for (int i=0; i<bflfi_.Size(); i++)
    {
-      delete flfi_[i];
+      delete bflfi_[i];
    }
-   for (int i=0; i<flfi_marker_.Size(); i++)
+   for (int i=0; i<bflfi_marker_.Size(); i++)
    {
-      delete flfi_marker_[i];
+      delete bflfi_marker_[i];
    }
 }
 
@@ -1507,7 +1506,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfbfi_marker_[k];
+         const Array<int> &bdr_marker = *bfbfi_marker_[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -1581,7 +1580,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       }
    }
 
-   if (flfi_.Size())
+   if (bflfi_.Size())
    {
       FaceElementTransformations *tr;
       Mesh *mesh = fes_.GetMesh();
@@ -1590,14 +1589,14 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < flfi_.Size(); k++)
+      for (int k = 0; k < bflfi_.Size(); k++)
       {
-         if (flfi_marker_[k] == NULL)
+         if (bflfi_marker_[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *flfi_marker_[k];
+         const Array<int> &bdr_marker = *bflfi_marker_[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -1620,13 +1619,13 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
             int ndof = vdofs_.Size();
             elvec_.SetSize(ndof);
 
-            for (int k = 0; k < flfi_.Size(); k++)
+            for (int k = 0; k < bflfi_.Size(); k++)
             {
-               if (flfi_marker_[k] &&
-                   (*flfi_marker_[k])[bdr_attr-1] == 0) { continue; }
+               if (bflfi_marker_[k] &&
+                   (*bflfi_marker_[k])[bdr_attr-1] == 0) { continue; }
 
-               flfi_[k] -> AssembleRHSElementVect (*fes_.GetFE(tr -> Elem1No),
-                                                   *tr, elvec_);
+               bflfi_[k] -> AssembleRHSElementVect (*fes_.GetFE(tr -> Elem1No),
+						    *tr, elvec_);
                elvec_ *= -1.0;
                y.AddElementVector (vdofs_, elvec_);
             }
