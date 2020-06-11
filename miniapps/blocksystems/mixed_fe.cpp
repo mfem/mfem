@@ -145,17 +145,6 @@ void DarcyProblem::ShowError(const Vector &sol, bool verbose)
     u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
     p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
 
-//    socketstream vis_v;
-
-//    const char vishost[] = "localhost";
-//    const int  visport   = 19916;
-
-//    vis_v.open(vishost, visport);
-//    vis_v.precision(8);
-
-//    vis_v << "parallel " << 1 << " " << 0 << "\n";
-//    vis_v << "solution\n" << mesh_ << u_;
-
     double err_u  = u_.ComputeL2Error(ucoeff_, irs_);
     double norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
     double err_p  = p_.ComputeL2Error(pcoeff_, irs_);
@@ -216,9 +205,7 @@ int main(int argc, char *argv[])
     DFSParameters param;
     param.MG_type = order > 0 && use_tet_mesh ? AlgebraicMG : GeometricMG;
     param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
-    if (order > 0 && use_tet_mesh) param.ml_particular = false;
     param.coupled_solve = coupled_solve;
-    param.print_level = 1;
 
     string line = "\n*******************************************************\n";
     {
@@ -261,16 +248,6 @@ int main(int argc, char *argv[])
             ResetTimer();
             solver->Mult(rhs, sol);
             chrono.Stop();
-
-            Vector resid = darcy.GetRHS();
-            Vector rhs_tmp(resid);
-            bdp.GetOperator().Mult(sol, rhs_tmp);
-            resid -= rhs_tmp;
-            Vector blk0(resid.GetData(), M.NumRows());
-            Vector blk1(resid.GetData()+M.NumRows(), B.NumRows());
-            std::cout<<" resid0 = "<<blk0.Norml2()<<"\n";
-            std::cout<<" resid1 = "<<blk1.Norml2()<<"\n";
-
 
             if (verbose) cout << "  Solve time: " << chrono.RealTime() << "s.\n";
             if (verbose) cout << "  Total time: " <<
