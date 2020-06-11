@@ -38,12 +38,10 @@ namespace mfem
 
 struct Req
 {
-   const double init_energy;
-   const double tauval;
-   const double dot;
-   const double final_energy;
-   Req(double ie, double t, double d, double fe):
-      init_energy(ie), tauval(t), dot(d), final_energy(fe) { }
+   double init_energy;
+   double tauval;
+   double dot;
+   double final_energy;
 };
 
 int tmop(int myid, Req &res, int argc, char *argv[])
@@ -76,7 +74,6 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    REQUIRE(combomet == 0);
    REQUIRE_FALSE(move_bnd);
 
-   // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "");
    args.AddOption(&order, "-o", "--order", "");
@@ -152,7 +149,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
       }
    }
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-   TargetConstructor target_c(target_t,MPI_COMM_WORLD);
+   TargetConstructor target_c(target_t, MPI_COMM_WORLD);
 #else
    TargetConstructor target_c(target_t);
 #endif
@@ -227,9 +224,9 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    double minJ0;
    MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    tauval = minJ0;
-   if (myid == 0) { cout << "Min det(J) of the mesh is " << tauval << endl; }
+   //if (myid == 0) { cout << "Min det(J) of the mesh is " << tauval << endl; }
    REQUIRE(tauval > 0.0);
-   REQUIRE(tauval == Approx(res.tauval));
+   res.tauval = tauval;
 
    Vector b(0), &x_t(x.GetTrueVector());
    b.UseDevice(true);
@@ -246,16 +243,16 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    newton->SetOperator(nlf);
    newton->Mult(b, x_t);
 
-   REQUIRE(init_energy == Approx(res.init_energy));
+   res.init_energy = init_energy;
 
    REQUIRE(newton->GetConverged());
    double x_t_dot = x_t*x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
-   REQUIRE(dot == Approx(res.dot));
+   res.dot = dot;
 
    x.SetFromTrueVector();
    const double final_energy = nlf.GetParGridFunctionEnergy(x);
-   REQUIRE(final_energy == Approx(res.final_energy));
+   res.final_energy = final_energy;
 
    delete S;
    delete pmesh;
@@ -273,120 +270,164 @@ static int argn(const char *argv[], int argc =0)
    return argc;
 }
 
-static void req_tmop(int myid, const char *arg[], const Req &res)
-{ REQUIRE(tmop(myid, res, argn(arg), const_cast<char**>(arg))==0); }
+static void req_tmop(int myid, const char *args[], Req &res)
+{ REQUIRE(tmop(myid, res, argn(args), const_cast<char**>(args))==0); }
 
-static void tmop_launch(int myid, const char *arg[], const Req &res)
+#define DEFAULT_ARGS const char *args[] = { \
+    "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
+    "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
+    "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", nullptr }
+constexpr int ALV = 1;
+constexpr int MSH = 3;
+constexpr int POR = 5;
+constexpr int RFS = 7;
+constexpr int MID = 9;
+constexpr int TID = 11;
+//constexpr int QTY = 13;
+constexpr int QOR = 15;
+constexpr int NI  = 17;
+constexpr int LS  = 21;
+constexpr int LI  = 23;
+
+static void dump_args(const char *args[])
 {
-   Req res[2] {};
-   (arg[1] = "-no-pa", req_tmop(myid, arg, res));
-   (arg[1] = "-pa", req_tmop(myid, arg, res));
+   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s %s\n",
+          args[MSH], args[POR], args[QOR],
+          args[MID], args[TID], args[LS], args[ALV]);
+   fflush(0);
+}
+
+static void tmop_require(int myid, const char *args[])
+{
+   Req res[2];
+   (args[ALV] = "-pa", dump_args(args), req_tmop(myid, args, res[0]));
+   (args[ALV] = "-no-pa", dump_args(args), req_tmop(myid, args, res[1]));
+   REQUIRE(res[0].dot == Approx(res[1].dot));
+   REQUIRE(res[0].tauval == Approx(res[1].tauval));
+   REQUIRE(res[0].init_energy == Approx(res[1].init_energy));
+   REQUIRE(res[0].final_energy == Approx(res[1].final_energy));
+}
+
+static inline const char *itoa(int i, char *buf)
+{
+   std::sprintf(buf, "%d", i);
+   return buf;
 }
 
 static void tmop_tests(int myid)
 {
-   constexpr int MSH = 3;
-   constexpr int ORD = 5;
-   constexpr int MID = 9;
-   constexpr int TID = 11;
-   constexpr int QO  = 15;
-   constexpr int NI  = 17;
-   constexpr int LI  = 23;
+   static bool all = getenv("ALL");
 
-   const char *a2D[] = { "tmop_tests", "-pa",
-                         "-m", "star.mesh",
-                         "-o", "1",
-                         "-rs", "0",
-                         "-mid", "001",
-                         "-tid", "1",
-                         "-qt", "1",
-                         "-qo", "2",
-                         "-ni", "10",
-                         "-rtol", "1e-8",
-                         "-ls", "2",
-                         "-li", "100",
-                         nullptr
-                       };
-   Req r112 { 9.999991262, 0.2377610897, 39.1647887817, 9.7969547569 };
-   tmop_launch(myid, a2D, r112);
+   // STAR
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "star.mesh";
+      for (int p : {1, 2, 3, 4})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int t : {1, 2, 3})
+         {
+            char tid[2] {};
+            args[TID] = itoa(t, tid);
+            for (int m : {1, 2})
+            {
+               char mid[2] {};
+               args[MID] = itoa(m, mid);
+               for (int q : {2, 4, 8})
+               {
+                  if (q < p) { continue; }
+                  char qor[2] {};
+                  args[QOR] = itoa(q, qor);
+                  for (int ls : {2, 3})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // STAR
 
-   a2D[ORD] = "2";
-   Req r212 { 9.999991262, 0.2377610897, 108.6173503755, 9.7244865423 };
-   tmop_launch(myid, a2D, r212);
+   // BLADE
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[MID] = "2";
+      args[NI] = "100";
+      args[LI] = "100";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int t : {1, 2, 3})
+            {
+               char tid[2] {};
+               args[TID] = itoa(t, tid);
+               for (int ls : {2, 3})
+               {
+                  char lsb[2] {};
+                  args[LS] = itoa(ls, lsb);
+                  tmop_require(myid, args);
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
 
-   a2D[QO] = "8";
-   Req r218 { 9.999991262, 0.2377610897, 108.6534469132, 9.7167152788 };
-   tmop_launch(myid, a2D, r218);
+   } // BLADE
 
-   a2D[ORD] = "1";
-   a2D[MSH] = "blade.mesh";
-   a2D[MID] = "002";
-   a2D[QO]  = "2";
-   a2D[LI]  = "100";
-   Req r122 { 170.5301636144, 0.0000708422, 92.6143439914, 72.9039715692 };
-   tmop_launch(myid, a2D, r122);
-
-   a2D[ORD] = "2";
-   a2D[NI]  = "20";
-   Req r222 { 171.1323988131, 0.000064793, 325.1465122229, 69.7164293181 };
-   tmop_launch(myid, a2D, r222);
-
-   a2D[QO] = "8";
-   Req r228 { 170.2231639887, 0.0000663019, 325.1400405167, 69.432996753 };
-   tmop_launch(myid, a2D, r228);
-
-   a2D[ORD] = "1";
-   a2D[TID] = "2";
-   a2D[NI]  = "20";
-   a2D[LI]  = "400";
-   Req r1228 { 1.9240173328, 0.0000663019, 92.642204486, 0.8201983284 };
-   tmop_launch(myid, a2D, r1228);
-
-   a2D[TID] = "3";
-   Req r1328 { 1.0141986391, 0.0000708422, 94.9910671635, 0.5392898375 };
-   tmop_launch(myid, a2D, r1328);
-
-   const char *a3D[]= { "tmop_tests", "-pa",
-                        "-m", "toroid-hex.mesh",
-                        "-o", "1",
-                        "-rs", "1",
-                        "-mid", "302",
-                        "-tid", "1",
-                        "-qt", "1",
-                        "-qo", "2",
-                        "-ni", "10",
-                        "-rtol", "1e-8",
-                        "-ls", "2",
-                        "-li", "100",
-                        nullptr
-                      };
-   a3D[MID] = "302";
-   Req r1_302 {23.7771704247, 0.0230794426, 118.5803592995, 23.0610659099};
-   tmop_launch(myid, a3D, r1_302);
-
-   a3D[MID] = "303";
-   Req r1_303 {12.2180210422, 0.0230794426, 118.2536942233, 11.765513442};
-   tmop_launch(myid, a3D, r1_303);
-
-   a3D[MID] = "321";
-   Req r1_321 {1234.3897639272, 0.0230794426, 119.518581363, 1234.2552718299};
-   tmop_launch(myid, a3D, r1_321);
-
-   a3D[ORD] = "2";
-   Req r2_321 {1144.8574374136, 0.0250315411, 649.0553569081, 1144.4861740306};
-   tmop_launch(myid, a3D, r2_321);
-
-   a3D[QO] = "8";
-   Req r2_321_8 {1145.1635275919, 0.0250315411, 649.1136786233, 1144.7572817515};
-   tmop_launch(myid, a3D, r2_321_8);
-
-   a3D[TID] = "2";
-   Req r_2_321_2_8 {2.5600626823, 0.0250315411, 644.267383563, 2.5385985405};
-   tmop_launch(myid, a3D, r_2_321_2_8);
-
-   a3D[TID] = "3";
-   Req r_2_321_3_8 {2.6264613333, 0.0250315411, 639.6722100713, 2.5209961176};
-   tmop_launch(myid, a3D, r_2_321_3_8);
+   // TOROID-HEX
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "toroid-hex.mesh";
+      args[RFS] = "0";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4, 8})
+         {
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int m : {302, 303, 321})
+            {
+               char mid[4] {};
+               args[MID] = itoa(m, mid);
+               for (int t : {1, 2, 3})
+               {
+                  char tid[2] {};
+                  args[TID] = itoa(t, tid);
+                  for (int ls : {1, 2, 3})
+                  {
+                     char lsb[2] {};
+                     args[LS] = itoa(ls, lsb);
+                     tmop_require(myid, args);
+                     if (!all) { break; }
+                  }
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // TOROID-HEX
 }
 
 #if defined(MFEM_TMOP_MPI)
