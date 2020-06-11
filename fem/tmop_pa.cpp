@@ -58,7 +58,8 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    const TargetConstructor::TargetType &target_type = targetC->Type();
    MFEM_VERIFY(target_type == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE ||
-               target_type == TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, "");
+               target_type == TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE ||
+               target_type == TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE, "");
 
    const int NE = mesh->GetNE();
    const int NQ = ir.GetNPoints();

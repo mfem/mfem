@@ -256,7 +256,6 @@ static void AddMultPA_Kernel_2D(const int mid,
 void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
-   const int dim = PA.dim;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;

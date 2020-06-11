@@ -24,7 +24,7 @@ template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static void AddMultGradPA_Kernel_3D(const int NE,
                                     const Array<double> &b_,
                                     const Array<double> &g_,
-                                    const DenseTensor &Jtr_,
+                                    const DenseTensor &j_,
                                     const Vector &dp_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -37,7 +37,7 @@ static void AddMultGradPA_Kernel_3D(const int NE,
 
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto J = Reshape(Jtr_.Read(), DIM, DIM);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    const auto dP = Reshape(dp_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
@@ -243,22 +243,7 @@ static void AddMultGradPA_Kernel_3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-
-               const double Jtrx0 = J(0,0);
-               const double Jtrx1 = J(0,1);
-               const double Jtrx2 = J(0,2);
-               const double Jtry0 = J(1,0);
-               const double Jtry1 = J(1,1);
-               const double Jtry2 = J(1,2);
-               const double Jtrz0 = J(2,0);
-               const double Jtrz1 = J(2,1);
-               const double Jtrz2 = J(2,2);
-               const double Jtr[9] =
-               {
-                  Jtrx0, Jtry0, Jtrz0,
-                  Jtrx1, Jtry1, Jtrz1,
-                  Jtrx2, Jtry2, Jtrz2
-               };
+               const double *Jtr = &J(0,0,qx,qy,qz,e);
 
                // Jrt = Jtr^{-1}
                double Jrt[9];
