@@ -2148,6 +2148,9 @@ private:
       Array<ProductCoefficient*>             negdtSCoefs_;
       Array<ScalarVectorProductCoefficient*> dtVCoefs_;
       Array<ScalarMatrixProductCoefficient*> dtMCoefs_;
+      // Array<Coefficient*>       sCoefs_;
+      // Array<VectorCoefficient*> vCoefs_;
+      // Array<MatrixCoefficient*> mCoefs_;
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
 

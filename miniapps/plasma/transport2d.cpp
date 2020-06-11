@@ -877,6 +877,7 @@ int main(int argc, char *argv[])
 
    Array<int> term_flags;
    Array<int> vis_flags;
+   const char *device_config = "cpu";
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -1101,6 +1102,11 @@ int main(int argc, char *argv[])
    }
    if (mpi.Root()) { args.PrintOptions(cout); }
 
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (mpi.Root()) { device.Print(); }
+
    // 3. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -1109,6 +1115,11 @@ int main(int argc, char *argv[])
 
    MFEM_ASSERT(dim == 2, "This miniapp is specialized to 2D geometries.");
 
+   if (mpi.Root())
+     {
+       cout << "Number of elements in initial mesh: " << mesh->GetNE() << endl;
+     }
+   
    // 4. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
    //    sure that the mesh is non-conforming.
@@ -1118,6 +1129,12 @@ int main(int argc, char *argv[])
       mesh->SetCurvature(2);
    }
    mesh->EnsureNCMesh();
+
+   if (mpi.Root())
+     {
+       cout << "Number of elements after serial refinement: "
+	    << mesh->GetNE() << endl;
+     }
 
    // num_species_   = ion_charges.Size();
    // num_equations_ = (num_species_ + 1) * (dim + 2);
@@ -1135,10 +1152,13 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   cout << mpi.WorldRank() << ": Number of elements in parallel mesh: " << pmesh.GetNE() << endl;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh.UniformRefinement();
    }
+   cout << mpi.WorldRank() << ": Number of elements after parallel refinement: "
+	<< pmesh.GetNE() << endl;
 
    // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
@@ -1554,6 +1574,30 @@ int main(int argc, char *argv[])
    elec_energy.ProjectCoefficient(Te0Coef);
 
    TransportBCs bcs(pmesh.bdr_attributes, 5);
+   Array<Coefficient*> coefs;
+   if (prob_ == 1)
+   {
+     Array<int> dbc_max(1);
+     Array<int> dbc_min(1);
+
+     dbc_max = 1;
+     dbc_min = 2;
+
+     Coefficient * Ti_max = new ConstantCoefficient(Ti_max_);
+     Coefficient * Ti_min = new ConstantCoefficient(Ti_min_);
+     bcs[ION_TEMPERATURE].AddDirichletBC(dbc_max, *Ti_max);
+     bcs[ION_TEMPERATURE].AddDirichletBC(dbc_min, *Ti_min);
+
+     Coefficient * Te_max = new ConstantCoefficient(Te_max_);
+     Coefficient * Te_min = new ConstantCoefficient(Te_min_);
+     bcs[ELECTRON_TEMPERATURE].AddDirichletBC(dbc_max, *Te_max);
+     bcs[ELECTRON_TEMPERATURE].AddDirichletBC(dbc_min, *Te_min);
+
+     coefs.Append(Ti_max);
+     coefs.Append(Ti_min);
+     coefs.Append(Te_max);
+     coefs.Append(Te_min);
+   }
    /*
    vector<CoefficientByAttr>  Ti_dbc;
    if (prob_ == 1)
@@ -2141,6 +2185,10 @@ int main(int argc, char *argv[])
    // Free the used memory.
    delete ode_solver;
    // delete ode_imp_solver;
+   for (int i=0; i<coefs.Size(); i++)
+     {
+       delete coefs[i];
+     }
    delete dc;
 
    return 0;

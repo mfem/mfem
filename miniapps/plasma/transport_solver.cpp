@@ -1708,9 +1708,14 @@ DGTransportTDO::TransportOp::~TransportOp()
    {
       delete coefs_[i];
    }
+
    for (int i=0; i<dtSCoefs_.Size(); i++)
    {
       delete dtSCoefs_[i];
+   }
+   for (int i=0; i<negdtSCoefs_.Size(); i++)
+   {
+      delete negdtSCoefs_[i];
    }
    for (int i=0; i<dtVCoefs_.Size(); i++)
    {
@@ -1720,7 +1725,20 @@ DGTransportTDO::TransportOp::~TransportOp()
    {
       delete dtMCoefs_[i];
    }
-
+   /*
+   for (int i=0; i<sCoefs_.Size(); i++)
+   {
+      delete sCoefs_[i];
+   }
+   for (int i=0; i<vCoefs_.Size(); i++)
+   {
+      delete vCoefs_[i];
+   }
+   for (int i=0; i<mCoefs_.Size(); i++)
+   {
+      delete mCoefs_[i];
+   }
+   */
    for (int i=0; i<yGF_.Size(); i++)
    {
       delete yCoefPtrs_[i];
