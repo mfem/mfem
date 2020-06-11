@@ -69,10 +69,10 @@ void EvalP_321(const double *J, double *P)
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static void AddMultPA_Kernel_3D(const int mid,
                                 const int NE,
+                                const DenseTensor &j_,
                                 const Array<double> &w_,
                                 const Array<double> &b_,
                                 const Array<double> &g_,
-                                const Vector &d_,
                                 const Vector &x_,
                                 Vector &y_,
                                 const int d1d = 0,
@@ -82,10 +82,10 @@ static void AddMultPA_Kernel_3D(const int mid,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const auto J = Reshape(j_.Read(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
-   const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, VDIM, VDIM, NE);
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
@@ -289,24 +289,9 @@ static void AddMultPA_Kernel_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double weight = W(qx,qy,qz);
-               const double Jtrx0 = D(qx,qy,qz,0,0,e);
-               const double Jtrx1 = D(qx,qy,qz,0,1,e);
-               const double Jtrx2 = D(qx,qy,qz,0,2,e);
-               const double Jtry0 = D(qx,qy,qz,1,0,e);
-               const double Jtry1 = D(qx,qy,qz,1,1,e);
-               const double Jtry2 = D(qx,qy,qz,1,2,e);
-               const double Jtrz0 = D(qx,qy,qz,2,0,e);
-               const double Jtrz1 = D(qx,qy,qz,2,1,e);
-               const double Jtrz2 = D(qx,qy,qz,2,2,e);
-               const double Jtr[9] =
-               {
-                  Jtrx0, Jtry0, Jtrz0,
-                  Jtrx1, Jtry1, Jtrz1,
-                  Jtrx2, Jtry2, Jtrz2
-               };
+               const double *Jtr = &J(0,0,qx,qy,qz,e);
                const double detJtr = kernels::Det<3>(Jtr);
-               const double weight_detJtr = weight * detJtr;
+               const double weight = W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                double Jrt[9];
@@ -328,18 +313,19 @@ static void AddMultPA_Kernel_3D(const int mid,
                   JprxBGB, JpryBGB, JprzBGB,
                   JprxGBB, JpryGBB, JprzGBB
                };
-               // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-               double J[9];
-               kernels::Mult(3,3,3, Jpr, Jrt, J);
+
+               // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+               double Jpt[9];
+               kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
                // metric->EvalP(Jpt, P);
                double P[9];
-               if (mid == 302) { EvalP_302(J,P); }
-               if (mid == 303) { EvalP_303(J,P); }
-               if (mid == 321) { EvalP_321(J,P); }
-               for (int i = 0; i < 9; i++) { P[i] *= weight_detJtr; }
+               if (mid == 302) { EvalP_302(Jpt,P); }
+               if (mid == 303) { EvalP_303(Jpt,P); }
+               if (mid == 321) { EvalP_321(Jpt,P); }
+               for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
-               // Y +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)
+               // Y +=  DS . P^t += DSh . (Jrt . P^t)
                double A[9];
                kernels::MultABt(3,3,3, Jrt, P, A);
                XxBBG[qz][qy][qx] = A[0];
@@ -491,78 +477,52 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
    const int dim = PA.dim;
-   const int mid = metric->Id();
+   const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const DenseMatrix &J = PA.Jtr;
+   const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &P = PA.P;
 
-   const auto Jtr = Reshape(J.Read(), dim, dim);
-   auto d_P = Reshape(PA.P.Write(), Q1D, Q1D, Q1D, dim, dim, N);
-   MFEM_FORALL_3D(e, N, Q1D, Q1D, Q1D,
-   {
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               d_P(qx,qy,qz,0,0,e) = Jtr(0,0);
-               d_P(qx,qy,qz,0,1,e) = Jtr(0,1);
-               d_P(qx,qy,qz,0,2,e) = Jtr(0,2);
-
-               d_P(qx,qy,qz,1,0,e) = Jtr(1,0);
-               d_P(qx,qy,qz,1,1,e) = Jtr(1,1);
-               d_P(qx,qy,qz,1,2,e) = Jtr(1,2);
-
-               d_P(qx,qy,qz,2,0,e) = Jtr(2,0);
-               d_P(qx,qy,qz,2,1,e) = Jtr(2,1);
-               d_P(qx,qy,qz,2,2,e) = Jtr(2,2);
-            }
-         }
-      }
-   });
-
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_3D<2,1>(mid,N,W,B,G,P,X,Y);
-      case 0x22: return AddMultPA_Kernel_3D<2,2>(mid,N,W,B,G,P,X,Y);
-      case 0x23: return AddMultPA_Kernel_3D<2,3>(mid,N,W,B,G,P,X,Y);
-      case 0x24: return AddMultPA_Kernel_3D<2,4>(mid,N,W,B,G,P,X,Y);
-      case 0x25: return AddMultPA_Kernel_3D<2,5>(mid,N,W,B,G,P,X,Y);
-      case 0x26: return AddMultPA_Kernel_3D<2,6>(mid,N,W,B,G,P,X,Y);
+      case 0x21: return AddMultPA_Kernel_3D<2,1>(M,N,J,W,B,G,X,Y);
+      case 0x22: return AddMultPA_Kernel_3D<2,2>(M,N,J,W,B,G,X,Y);
+      case 0x23: return AddMultPA_Kernel_3D<2,3>(M,N,J,W,B,G,X,Y);
+      case 0x24: return AddMultPA_Kernel_3D<2,4>(M,N,J,W,B,G,X,Y);
+      case 0x25: return AddMultPA_Kernel_3D<2,5>(M,N,J,W,B,G,X,Y);
+      case 0x26: return AddMultPA_Kernel_3D<2,6>(M,N,J,W,B,G,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_3D<3,1>(mid,N,W,B,G,P,X,Y);
-      case 0x32: return AddMultPA_Kernel_3D<3,2>(mid,N,W,B,G,P,X,Y);
-      case 0x33: return AddMultPA_Kernel_3D<3,3>(mid,N,W,B,G,P,X,Y);
-      case 0x34: return AddMultPA_Kernel_3D<3,4>(mid,N,W,B,G,P,X,Y);
-      case 0x35: return AddMultPA_Kernel_3D<3,5>(mid,N,W,B,G,P,X,Y);
-      case 0x36: return AddMultPA_Kernel_3D<3,6>(mid,N,W,B,G,P,X,Y);
+      case 0x31: return AddMultPA_Kernel_3D<3,1>(M,N,J,W,B,G,X,Y);
+      case 0x32: return AddMultPA_Kernel_3D<3,2>(M,N,J,W,B,G,X,Y);
+      case 0x33: return AddMultPA_Kernel_3D<3,3>(M,N,J,W,B,G,X,Y);
+      case 0x34: return AddMultPA_Kernel_3D<3,4>(M,N,J,W,B,G,X,Y);
+      case 0x35: return AddMultPA_Kernel_3D<3,5>(M,N,J,W,B,G,X,Y);
+      case 0x36: return AddMultPA_Kernel_3D<3,6>(M,N,J,W,B,G,X,Y);
 
-      case 0x41: return AddMultPA_Kernel_3D<4,1>(mid,N,W,B,G,P,X,Y);
-      case 0x42: return AddMultPA_Kernel_3D<4,2>(mid,N,W,B,G,P,X,Y);
-      case 0x43: return AddMultPA_Kernel_3D<4,3>(mid,N,W,B,G,P,X,Y);
-      case 0x44: return AddMultPA_Kernel_3D<4,4>(mid,N,W,B,G,P,X,Y);
-      case 0x45: return AddMultPA_Kernel_3D<4,5>(mid,N,W,B,G,P,X,Y);
-      case 0x46: return AddMultPA_Kernel_3D<4,6>(mid,N,W,B,G,P,X,Y);
+      case 0x41: return AddMultPA_Kernel_3D<4,1>(M,N,J,W,B,G,X,Y);
+      case 0x42: return AddMultPA_Kernel_3D<4,2>(M,N,J,W,B,G,X,Y);
+      case 0x43: return AddMultPA_Kernel_3D<4,3>(M,N,J,W,B,G,X,Y);
+      case 0x44: return AddMultPA_Kernel_3D<4,4>(M,N,J,W,B,G,X,Y);
+      case 0x45: return AddMultPA_Kernel_3D<4,5>(M,N,J,W,B,G,X,Y);
+      case 0x46: return AddMultPA_Kernel_3D<4,6>(M,N,J,W,B,G,X,Y);
 
-      case 0x51: return AddMultPA_Kernel_3D<5,1>(mid,N,W,B,G,P,X,Y);
-      case 0x52: return AddMultPA_Kernel_3D<5,2>(mid,N,W,B,G,P,X,Y);
-      case 0x53: return AddMultPA_Kernel_3D<5,3>(mid,N,W,B,G,P,X,Y);
-      case 0x54: return AddMultPA_Kernel_3D<5,4>(mid,N,W,B,G,P,X,Y);
-      case 0x55: return AddMultPA_Kernel_3D<5,5>(mid,N,W,B,G,P,X,Y);
-      case 0x56: return AddMultPA_Kernel_3D<5,6>(mid,N,W,B,G,P,X,Y);
+      case 0x51: return AddMultPA_Kernel_3D<5,1>(M,N,J,W,B,G,X,Y);
+      case 0x52: return AddMultPA_Kernel_3D<5,2>(M,N,J,W,B,G,X,Y);
+      case 0x53: return AddMultPA_Kernel_3D<5,3>(M,N,J,W,B,G,X,Y);
+      case 0x54: return AddMultPA_Kernel_3D<5,4>(M,N,J,W,B,G,X,Y);
+      case 0x55: return AddMultPA_Kernel_3D<5,5>(M,N,J,W,B,G,X,Y);
+      case 0x56: return AddMultPA_Kernel_3D<5,6>(M,N,J,W,B,G,X,Y);
 
       default:
       {
          constexpr int T_MAX = 4;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return AddMultPA_Kernel_3D<0,0,T_MAX>(mid,N,W,B,G,P,X,Y,D1D,Q1D);
+         return AddMultPA_Kernel_3D<0,0,T_MAX>(M,N,J,W,B,G,X,Y,D1D,Q1D);
       }
    }
 }

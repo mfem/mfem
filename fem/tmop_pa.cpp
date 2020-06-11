@@ -59,14 +59,17 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const TargetConstructor::TargetType &target_type = targetC->Type();
    MFEM_VERIFY(target_type == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE ||
                target_type == TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, "");
+
+   const int NE = mesh->GetNE();
+   const int NQ = ir.GetNPoints();
+   PA.Jtr.SetSize(dim, dim, NE*NQ);
+   for (int e = 0; e < NE; e++)
    {
-      const int i = 0;
-      const FiniteElement *fe = fes.GetFE(i);
-      Vector x_vals(1024);
-      DenseTensor Jtr(dim, dim, ir.GetNPoints());
-      targetC->ComputeElementTargets(0, *fe, ir, x_vals, Jtr);
-      PA.Jtr.SetSize(dim);
-      PA.Jtr = Jtr(0);
+      const Vector elfun;
+      const FiniteElement *fe = fes.GetFE(e);
+      DenseTensor Jtr(dim, dim, NQ);
+      targetC->ComputeElementTargets(e, *fe, ir, elfun, Jtr);
+      for (int q = 0; q < NQ; q++) { PA.Jtr(e*NQ+q) = Jtr(q); }
    }
 }
 

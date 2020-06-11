@@ -24,7 +24,7 @@ template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
 static void AddMultGradPA_Kernel_2D(const int NE,
                                     const Array<double> &b1d_,
                                     const Array<double> &g1d_,
-                                    const DenseMatrix &Jtr,
+                                    const DenseTensor &Jtr,
                                     const Vector &p_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -257,7 +257,7 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const DenseMatrix &J = PA.Jtr;
+   const DenseTensor &J = PA.Jtr;
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &A = PA.A;
