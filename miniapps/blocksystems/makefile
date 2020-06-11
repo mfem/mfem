@@ -21,12 +21,15 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS =
-PAR_MINIAPPS = mixed_fe
+BLOCK_COMMON_SRC = mixed_fe_solvers.cpp
+BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
+
+PAR_MINIAPPS = mixed_solver_comparison
+
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
+   MINIAPPS =
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -34,34 +37,28 @@ endif
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/pfem_extras.o
+#COMMON_O=../common/pfem_extras.o
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
+%: %.cpp $(BLOCK_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(BLOCK_COMMON_OBJ) $(MFEM_LIBS)
+
+%.o: %.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
 all: $(MINIAPPS)
 
-# Rules for building the miniapps
-%: $(SRC)%.cpp %_solvers.o $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solvers.o $(COMMON_O) $(MFEM_LIBS)
-
-# Rules for compiling miniapp dependencies
-$(COMMON_O) $(addsuffix _solvers.o,$(MINIAPPS)): \
-%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
-
-MFEM_TESTS = MINIAPPS
+PAR_TEST_EXECS = block_solvers_comparison
+MFEM_TESTS = TEST_EXECS
 include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-mixed-fe-test-par: mixed_fe
-	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-r 3 -GMG)
-
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
+mixed-solver-test-par: block_solvers_comparison
+	@$(call mfem-test,$<, $(RUN_MPI), -r 3 -GMG)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -70,8 +67,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
+	rm -f *.o *~ $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf mixed_fe*
+	@rm -rf block_solvers_comparison*

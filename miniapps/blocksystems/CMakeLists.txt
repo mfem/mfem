@@ -10,17 +10,9 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(mixed_fe
-    MAIN mixed_fe.cpp
+  add_mfem_miniapp(block_solvers_comparison
+    MAIN block_solvers_comparison.cpp
     EXTRA_SOURCES mixed_fe_solvers.cpp
-    EXTRA_HEADERS mixed_fe_solvers.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
-
-  # Add the corresponding tests to the "test" target
-  add_test(NAME tesla_np=4
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:mixed_fe> -no-vis 
-    ${MPIEXEC_POSTFLAGS})
-
+    EXTRA_HEADERS mixed_fe_solvers.hpp
+    LIBRARIES mfem)
 endif()
