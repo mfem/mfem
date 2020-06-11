@@ -34,6 +34,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sedge(pmesh.group_sedge),
      group_stria(pmesh.group_stria),
      group_squad(pmesh.group_squad),
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
      gtopo(pmesh.gtopo)
 {
    MyComm = pmesh.MyComm;
@@ -92,7 +94,9 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : gtopo(comm)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    int *partitioning = NULL;
    Array<bool> activeBdrElem;
@@ -833,12 +837,26 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
    , MyRank(pncmesh.MyRank)
+   , glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
    , gtopo(MyComm)
    , pncmesh(NULL)
 {
    Mesh::InitFromNCMesh(pncmesh);
    ReduceMeshGen();
    have_face_nbr_data = false;
+}
+
+void ParMesh::ComputeGlobalElementOffset() const
+{
+   if (glob_offset_sequence != sequence) // mesh has changed
+   {
+      long local_elems = NumOfElements;
+      MPI_Scan(&local_elems, &glob_elem_offset, 1, MPI_LONG, MPI_SUM, MyComm);
+      glob_elem_offset -= local_elems;
+
+      glob_offset_sequence = sequence; // don't recalculate until refinement etc.
+   }
 }
 
 void ParMesh::ReduceMeshGen()
@@ -885,7 +903,9 @@ void ParMesh::FinalizeParTopo()
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
-   : gtopo(comm)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -1062,6 +1082,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      MyComm(orig_mesh->GetComm()),
      NRanks(orig_mesh->GetNRanks()),
      MyRank(orig_mesh->GetMyRank()),
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
      gtopo(orig_mesh->gtopo),
      have_face_nbr_data(false),
      pncmesh(NULL)
@@ -1297,6 +1319,20 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
 
    // Setup secondary parallel mesh data: sedge_ledge, sface_lface
    FinalizeParTopo();
+}
+
+int ParMesh::GetLocalElementNum(long global_element_num) const
+{
+   ComputeGlobalElementOffset();
+   long local = global_element_num - glob_elem_offset;
+   if (local < 0 || local >= NumOfElements) { return -1; }
+   return local;
+}
+
+long ParMesh::GetGlobalElementNum(int local_element_num) const
+{
+   ComputeGlobalElementOffset();
+   return glob_elem_offset + local_element_num;
 }
 
 void ParMesh::DistributeAttributes(Array<int> &attr)
