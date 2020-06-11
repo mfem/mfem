@@ -892,6 +892,7 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
          W.Set(std::pow(volume_scale * el_volume / Wideal.Det(),
                         1./W.Height()), Wideal);
+         //W.Print();
          for (int i = 0; i < ir.GetNPoints(); i++) { Jtr(i) = W; }
          break;
       }

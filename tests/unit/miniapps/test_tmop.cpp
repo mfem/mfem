@@ -151,7 +151,11 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
          return 3;
       }
    }
+#if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
+   TargetConstructor target_c(target_t,MPI_COMM_WORLD);
+#else
    TargetConstructor target_c(target_t);
+#endif
    target_c.SetNodes(x0);
 
    // Setup the quadrature rule for the non-linear form integrator.
@@ -180,7 +184,6 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    nlf.Setup();
 
    const double init_energy = nlf.GetParGridFunctionEnergy(x);
-   REQUIRE(init_energy == Approx(res.init_energy));
 
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
    ess_bdr = 1;
@@ -242,8 +245,10 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    newton->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    newton->SetOperator(nlf);
    newton->Mult(b, x_t);
-   REQUIRE(newton->GetConverged());
 
+   REQUIRE(init_energy == Approx(res.init_energy));
+
+   REQUIRE(newton->GetConverged());
    double x_t_dot = x_t*x_t, dot;
    MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
    REQUIRE(dot == Approx(res.dot));
@@ -273,8 +278,8 @@ static void req_tmop(int myid, const char *arg[], const Req &res)
 
 static void tmop_launch(int myid, const char *arg[], const Req &res)
 {
-   (arg[1] = "-pa", req_tmop(myid, arg, res));
    (arg[1] = "-no-pa", req_tmop(myid, arg, res));
+   (arg[1] = "-pa", req_tmop(myid, arg, res));
 }
 
 static void tmop_tests(int myid)
@@ -285,6 +290,7 @@ static void tmop_tests(int myid)
    constexpr int TID = 11;
    constexpr int QO  = 15;
    constexpr int NI  = 17;
+   constexpr int LI  = 23;
 
    const char *a2D[] = { "tmop_tests", "-pa",
                          "-m", "star.mesh",
@@ -315,11 +321,12 @@ static void tmop_tests(int myid)
    a2D[MSH] = "blade.mesh";
    a2D[MID] = "002";
    a2D[QO]  = "2";
+   a2D[LI]  = "100";
    Req r122 { 170.5301636144, 0.0000708422, 92.6143439914, 72.9039715692 };
    tmop_launch(myid, a2D, r122);
 
    a2D[ORD] = "2";
-   a2D[NI]  = "15";
+   a2D[NI]  = "20";
    Req r222 { 171.1323988131, 0.000064793, 325.1465122229, 69.7164293181 };
    tmop_launch(myid, a2D, r222);
 
@@ -327,14 +334,16 @@ static void tmop_tests(int myid)
    Req r228 { 170.2231639887, 0.0000663019, 325.1400405167, 69.432996753 };
    tmop_launch(myid, a2D, r228);
 
+   a2D[ORD] = "1";
    a2D[TID] = "2";
-   Req r2228 { 1.9215635294, 0.0000663019, 325.1400406096, 0.7837941158 };
-   tmop_launch(myid, a2D, r2228);
+   a2D[NI]  = "20";
+   a2D[LI]  = "400";
+   Req r1228 { 1.9240173328, 0.0000663019, 92.642204486, 0.8201983284 };
+   tmop_launch(myid, a2D, r1228);
 
    a2D[TID] = "3";
-   a2D[NI]  = "20";
-   Req r2328 { 1.0155114941, 0.0000663019, 334.510356611, 0.4727368102 };
-   tmop_launch(myid, a2D, r2328);
+   Req r1328 { 1.0141986391, 0.0000708422, 94.9910671635, 0.5392898375 };
+   tmop_launch(myid, a2D, r1328);
 
    const char *a3D[]= { "tmop_tests", "-pa",
                         "-m", "toroid-hex.mesh",
