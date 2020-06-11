@@ -121,6 +121,10 @@ add_custom_command(TARGET unit_tests POST_BUILD
 configure_file("${PROJECT_SOURCE_DIR}/miniapps/meshing/blade.mesh"
                "${PROJECT_BINARY_DIR}/tests/unit/blade.mesh")
 
+# Copy star.mesh to the tests/unit build directory.
+configure_file("${PROJECT_SOURCE_DIR}/data/star.mesh"
+               "${PROJECT_BINARY_DIR}/tests/unit/star.mesh")
+               
 # Copy toroid-hex.mesh to the tests/unit build directory.
 configure_file("${PROJECT_SOURCE_DIR}/data/toroid-hex.mesh"
                "${PROJECT_BINARY_DIR}/tests/unit/toroid-hex.mesh")

@@ -122,6 +122,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    TMOP_QualityMetric *metric = nullptr;
    switch (metric_id)
    {
+      case   1: metric = new TMOP_Metric_001; break;
       case   2: metric = new TMOP_Metric_002; break;
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
@@ -134,17 +135,21 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
    }
 
    TargetConstructor::TargetType target_t;
-   REQUIRE(target_id == 1);
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
-         //case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
-         //case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-         //case 4: // Analytic
-         //case 5: // Discrete size 2D
-         //case 6: // Discrete size + aspect ratio - 2D
-         //case 7: // Discrete aspect ratio 3D
-         //case 8: // shape/size + orientation 2D
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      //case 4: // Analytic
+      //case 5: // Discrete size 2D
+      //case 6: // Discrete size + aspect ratio - 2D
+      //case 7: // Discrete aspect ratio 3D
+      //case 8: // shape/size + orientation 2D
+      default:
+      {
+         if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
+         return 3;
+      }
    }
    TargetConstructor target_c(target_t);
    target_c.SetNodes(x0);
@@ -162,7 +167,7 @@ int tmop(int myid, const Req &res, int argc, char *argv[])
       default:
       {
          if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
-         return 3;
+         return 4;
       }
    }
 
@@ -274,16 +279,18 @@ static void tmop_launch(int myid, const char *arg[], const Req &res)
 
 static void tmop_tests(int myid)
 {
+   constexpr int MSH = 3;
    constexpr int ORD = 5;
    constexpr int MID = 9;
+   constexpr int TID = 11;
    constexpr int QO  = 15;
    constexpr int NI  = 17;
 
    const char *a2D[] = { "tmop_tests", "-pa",
-                         "-m", "blade.mesh",
+                         "-m", "star.mesh",
                          "-o", "1",
                          "-rs", "0",
-                         "-mid", "002",
+                         "-mid", "001",
                          "-tid", "1",
                          "-qt", "1",
                          "-qo", "2",
@@ -293,17 +300,41 @@ static void tmop_tests(int myid)
                          "-li", "100",
                          nullptr
                        };
+   Req r112 { 9.999991262, 0.2377610897, 39.1647887817, 9.7969547569 };
+   tmop_launch(myid, a2D, r112);
+
+   a2D[ORD] = "2";
+   Req r212 { 9.999991262, 0.2377610897, 108.6173503755, 9.7244865423 };
+   tmop_launch(myid, a2D, r212);
+
+   a2D[QO] = "8";
+   Req r218 { 9.999991262, 0.2377610897, 108.6534469132, 9.7167152788 };
+   tmop_launch(myid, a2D, r218);
+
+   a2D[ORD] = "1";
+   a2D[MSH] = "blade.mesh";
+   a2D[MID] = "002";
+   a2D[QO]  = "2";
    Req r122 { 170.5301636144, 0.0000708422, 92.6143439914, 72.9039715692 };
    tmop_launch(myid, a2D, r122);
 
    a2D[ORD] = "2";
-   a2D[NI] = "15";
+   a2D[NI]  = "15";
    Req r222 { 171.1323988131, 0.000064793, 325.1465122229, 69.7164293181 };
    tmop_launch(myid, a2D, r222);
 
    a2D[QO] = "8";
    Req r228 { 170.2231639887, 0.0000663019, 325.1400405167, 69.432996753 };
    tmop_launch(myid, a2D, r228);
+
+   a2D[TID] = "2";
+   Req r2228 { 1.9215635294, 0.0000663019, 325.1400406096, 0.7837941158 };
+   tmop_launch(myid, a2D, r2228);
+
+   a2D[TID] = "3";
+   a2D[NI]  = "20";
+   Req r2328 { 1.0155114941, 0.0000663019, 334.510356611, 0.4727368102 };
+   tmop_launch(myid, a2D, r2328);
 
    const char *a3D[]= { "tmop_tests", "-pa",
                         "-m", "toroid-hex.mesh",
@@ -320,24 +351,32 @@ static void tmop_tests(int myid)
                         nullptr
                       };
    a3D[MID] = "302";
-   Req r1302 {23.7771704247, 0.0230794426, 118.5803592995, 23.0610659099};
-   tmop_launch(myid, a3D, r1302);
+   Req r1_302 {23.7771704247, 0.0230794426, 118.5803592995, 23.0610659099};
+   tmop_launch(myid, a3D, r1_302);
 
    a3D[MID] = "303";
-   Req r1303 {12.2180210422, 0.0230794426, 118.2536942233, 11.765513442};
-   tmop_launch(myid, a3D, r1303);
+   Req r1_303 {12.2180210422, 0.0230794426, 118.2536942233, 11.765513442};
+   tmop_launch(myid, a3D, r1_303);
 
    a3D[MID] = "321";
-   Req r1321 {1234.3897639272, 0.0230794426, 119.518581363, 1234.2552718299};
-   tmop_launch(myid, a3D, r1321);
+   Req r1_321 {1234.3897639272, 0.0230794426, 119.518581363, 1234.2552718299};
+   tmop_launch(myid, a3D, r1_321);
 
    a3D[ORD] = "2";
-   Req r2321 {1144.8574374136, 0.0250315411, 649.0553569081, 1144.4861740306};
-   tmop_launch(myid, a3D, r2321);
+   Req r2_321 {1144.8574374136, 0.0250315411, 649.0553569081, 1144.4861740306};
+   tmop_launch(myid, a3D, r2_321);
 
    a3D[QO] = "8";
-   Req r23218 {1145.1635275919, 0.0250315411, 649.1136786233, 1144.7572817515};
-   tmop_launch(myid, a3D, r23218);
+   Req r2_321_8 {1145.1635275919, 0.0250315411, 649.1136786233, 1144.7572817515};
+   tmop_launch(myid, a3D, r2_321_8);
+
+   a3D[TID] = "2";
+   Req r_2_321_2_8 {2.5600626823, 0.0250315411, 644.267383563, 2.5385985405};
+   tmop_launch(myid, a3D, r_2_321_2_8);
+
+   a3D[TID] = "3";
+   Req r_2_321_3_8 {2.6264613333, 0.0250315411, 639.6722100713, 2.5209961176};
+   tmop_launch(myid, a3D, r_2_321_3_8);
 }
 
 #if defined(MFEM_TMOP_MPI)
