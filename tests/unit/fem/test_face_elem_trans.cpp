@@ -22,7 +22,6 @@ TEST_CASE("3D FaceElementTransformations",
 {
    int log = 0;
    int n = 1;
-   int dim = 3;
    int order = 1;
 
    Mesh mesh(n, n, n, Element::TETRAHEDRON, 1, 2.0, 3.0, 5.0);

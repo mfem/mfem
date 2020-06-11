@@ -138,7 +138,7 @@ $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 # TMOP rules to copy the mesh files
 # Needed for running the sample runs when building out-of-source
 DATA_MESH_FILES = star.mesh toroid-hex.mesh
-MINIAPPS_MESHING_MESH_FILES = blade.mesh
+MINIAPPS_MESHING_MESH_FILES = square01.mesh blade.mesh
 $(DATA_MESH_FILES): %: $(MFEM_DIR)/data/%
 	ln -sf $(<) .
 $(MINIAPPS_MESHING_MESH_FILES): %: $(MFEM_DIR)/miniapps/meshing/%
