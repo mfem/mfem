@@ -604,10 +604,13 @@ public:
       Destroy();
 #ifdef MFEM_USE_CUDA
       if (handle) { cusparseDestroy(handle);}
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
-      cudaFree(dBuffer);
+      if (isInit)
+      {
+         cusparseDestroySpMat(matA_descr);
+         cusparseDestroyDnVec(vecX_descr);
+         cusparseDestroyDnVec(vecY_descr);
+         cudaFree(dBuffer);
+      }
 #endif
    }
 
