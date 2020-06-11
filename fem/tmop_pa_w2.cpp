@@ -210,11 +210,11 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   const Vector &X = PA.X;
+   Vector &X = PA.X;
    Vector &E = PA.E;
    Vector &O = PA.O;
 
-   PA.elem_restrict_lex->Mult(x, PA.X);
+   PA.elem_restrict_lex->Mult(x, X);
 
    switch (id)
    {

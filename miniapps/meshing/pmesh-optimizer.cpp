@@ -378,7 +378,7 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
    ParGridFunction aspr3d(&ind_fesv), size3d(&ind_fesv);
-   MFEM_VERIFY(!pa || target_id == 1, "");
+   MFEM_VERIFY(!pa || target_id == 1 || target_id == 2 || target_id == 3, "");
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;

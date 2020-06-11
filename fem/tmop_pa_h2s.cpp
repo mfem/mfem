@@ -27,8 +27,7 @@ void EvalH_001(const int e, const int qx, const int qy,
                DeviceTensor<7,double> H)
 {
    constexpr int DIM = 2;
-   double dI1[0], dI1b[0], ddI1[4], ddI1b[0];
-   double dI2[0], dI2b[0], ddI2[0], ddI2b[0];
+   double ddI1[4];
    kernels::InvariantsEvaluator2D ie(Jpt,
                                      nullptr, nullptr, ddI1, nullptr,
                                      nullptr, nullptr, nullptr, nullptr);
@@ -56,8 +55,7 @@ void EvalH_002(const int e, const int qx, const int qy,
                DeviceTensor<7,double> H)
 {
    constexpr int DIM = 2;
-   double dI1[0], dI1b[0], ddI1[4], ddI1b[4];
-   double dI2[0], dI2b[4], ddI2[0], ddI2b[0];
+   double ddI1[4], ddI1b[4], dI2b[4];
    kernels::InvariantsEvaluator2D ie(Jpt,
                                      nullptr, nullptr, ddI1, ddI1b,
                                      nullptr, dI2b, nullptr, nullptr);
