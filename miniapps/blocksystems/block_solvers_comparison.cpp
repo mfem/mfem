@@ -26,7 +26,7 @@
 //               We recommend viewing example 5 before viewing this miniapp.
 
 #include "mfem.hpp"
-#include "mixed_fe_solvers.hpp"
+#include "div_free_solver.hpp"
 #include <fstream>
 #include <iostream>
 #include <assert.h>
