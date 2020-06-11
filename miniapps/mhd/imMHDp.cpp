@@ -51,6 +51,12 @@ bool yregion(const Vector &x, const double y0)
    return std::max(-x(1)-y0, x(1) - y0)<1e-8;
 }
 
+bool xyregion(const Vector &x, const double x0, const double y0)
+{
+   return std::max(-x(1)-y0, x(1) - y0)<1e-8 && 
+         (std::max(-x(0)-x0, x(0) - x0)<1e-8 || (1.-x0-x(0))<1e-8 || (-1+x0-x(0))>1e-8) ;
+}
+
 int main(int argc, char *argv[])
 {
    int num_procs, myid;
@@ -220,6 +226,7 @@ int main(int argc, char *argv[])
    {
       for(int lev=0; lev<local_refine_levels; lev++)
       {
+
         Vector pt;
         Array<int> marked_elements;
         for (int i = 0; i < mesh->GetNE(); i++)
@@ -232,22 +239,32 @@ int main(int argc, char *argv[])
               T.GetPointMat().GetColumnReference(j, pt);
               if (true)
               {
-                double y0;
+                double x0, y0;
                 switch (lev)
                 {
-                    case 0: y0=0.9; break;
-                    case 1: y0=0.5; break;
+                    case 0: y0=0.7; break;
+                    case 1: y0=0.4; break;
                     case 2: y0=0.2; break;
+                    case 3: y0=0.12; x0=.08; break;
                     default:
                         if (myid == 0) cout << "Unknown level: " << lev << '\n';
                         delete mesh;
                         MPI_Finalize();
                         return 3;
                 }
-                if (yregion(pt, y0))
-                {
-                   marked_elements.Append(i);
-                   break;
+                if (lev<3){
+                    if (yregion(pt, y0))
+                    {
+                       marked_elements.Append(i);
+                       break;
+                    }
+                }
+                else{
+                    if (xyregion(pt,x0,y0))
+                    {
+                       marked_elements.Append(i);
+                       break;
+                    }
                 }
               }
               else

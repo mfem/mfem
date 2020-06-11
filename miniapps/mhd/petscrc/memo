@@ -33,6 +33,105 @@ glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 36 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
+glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 400 -wh 400
+
+6/8
+1. it is getting better if we improved stiffness matrix inversion
+
+without stabilization (not necessary for res=1e-4, even 1e-5; and if turned on, the preconditioner may struggle)
+2. o=3 and res=1e-4 (local refine levels=2)
+   ***  r4rl2o3 works (dx_min=.0078; see test-res1e-4/r4lr2o3)
+        pics: one grids points in the layers
+   ***  r5rl2o3 not working, why? it got stuck with rtol=1e-3 or so (dx_min=.0039)
+                increase mffd? 
+                decrease small matrix rtol? 
+                decrease rtol_0 in inexact-Newton (It works. run to the end; see test-res1e-5/r5rl2o3)
+        pics: two grids points in the layers
+        Question: what's a better rtol0? Luis used rtol_0=0.8?? For this case, 0.1 is better than 0.3
+
+   ***  o=3 works for a stretched mesh: minimal grid spacing: 0.25/2^5=.0078; it runs really well
+
+3. o=4 seems working for res=1e-4 
+   o=4 with stretched grids okay (after changing mffd to 5e-2)
+
+4. stabilization term seem could be another issue
+
+5. o=3 and res=1e-5 without stabilization
+    *** r5rl2o3 (with stabilization terms is bad: adjust rc_debug?)
+    *** r5rl2o3 (without stabilization; it runs to t=4.2)
+    *** r5rl3o3 (without stabilization; it runs to t=4.5)
+
+
+6. next: try to do local refine to get 1e-5 
+
+7. supg preconditioner? 2016 paper; 2003 JCP
+supg may be better than hyperdiffusion
+
+8. next: amr (probably better; 1e-4 was okay)
+
+this was working (same dx_min):
+mpirun -n 42 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -vs 2 -tf 8 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine -resi 1e-4 -visc 1e-4 -refs 10
+
+
+6/4
+* BDF may be possible
+* res 1e-4 okay
+* res 1e-5 has some trouble to run to the end but it may be fixable (sensitive to all the parameters we have in the system--paramters in the preconditioner; mesh; mffd; order; hyperdiffusion)
+* will do amr later
+
+>>> possible comparison: 1e-3 adaptive vs uniform
+
+only supg is not good (probably need to add it into the preconditioner)
+supg+fd is okay
+no-supg and no fd fails later at t=5.* for 1e-5
+
+try increase the stiffness tightness case3adaptiveR5lr1Res1e-5-no-stab/log-tf-stiff.out
+
+maybe I need to add supg into the preconditioner?
+
+6/2
+*BDF possibility?
+bdf is available through petsc integrator but it means I need to add one more level of TS solve, which is probably the easiest though
+bdf is also available through sundial but it may not be a good idea to have a mixed petsc and sundial interface. So we need to use kinsol 
+native implementation of bdf may not be easy
+
+res 1e-4
+this seems okay:
+srun -n 72 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -no-vis -vs 1 -tf 5. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd
+
+
+srun -n 72 ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -local -lr 1
+
+o3 is okay after adjust the rc_debug
+
+this fails:
+srun -n 72 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 4 -i 3 -no-vis -vs 1 -tf 5. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd > log-no-stab.out
+
+
+res 1e-5
+case3StretchedR5o4res1e-5 stuck at t=4.6 (probably underresolved)
+
+this is okay (40 linear solve)
+srun -n 72 ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -supg -fd -local -lr 1
+
+as a comparison (a nonconforming grid is better than stretched grid; so amr may be okay):
+srun -n 72 ../imMHDp -m ../Meshes/xperiodic-stretched.mesh -rs 5 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 5. -dt .1 -usepetsc --petscopts rc_debug -s 3 -shell -resi 1e-5 -visc 1e-5 -supg -fd
+
+the best it runs to t=4 (it was much longer). too many parameters to adjust...
+
+see case3adaptiveR5lr1Res1e-5-new for instance
+
+
+a bug in the current? fixed
+
+
+5/28
+run more tests
+
+this is working (tfinal=4 with dt=.1):
+
+(it is better than one level of meshes without a coarse mesh layer)
+
 3/22
 Try supg on res=1e-3 to see if it is working?? Maybe supg preconditioner is needed there!!
 
