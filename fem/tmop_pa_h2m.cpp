@@ -21,10 +21,11 @@ namespace mfem
 {
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
-static void AddMultGradPA_Kernel_2D(const int NE,
-                                    const Array<double> &b1d_,
-                                    const Array<double> &g1d_,
-                                    const DenseTensor &Jtr,
+static void AddMultGradPA_Kernel_2D(const int mid,
+                                    const int NE,
+                                    const Array<double> &b_,
+                                    const Array<double> &g_,
+                                    const DenseTensor &j_,
                                     const Vector &p_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -37,9 +38,9 @@ static void AddMultGradPA_Kernel_2D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   const auto b = Reshape(b1d_.Read(), Q1D, D1D);
-   const auto g = Reshape(g1d_.Read(), Q1D, D1D);
-   const auto J = Reshape(Jtr.Read(), DIM, DIM);
+   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto g = Reshape(g_.Read(), Q1D, D1D);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
    const auto dP = Reshape(p_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
@@ -157,11 +158,11 @@ static void AddMultGradPA_Kernel_2D(const int NE,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double A[4], B[4], C[4];
+            const double *Jtr = &J(0,0,qx,qy,e);
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
-            const double Jtr_p[4] = { J(0,0), J(1,0), J(0,1), J(1,1) };
-            kernels::CalcInverse<2>(Jtr_p, Jrt);
+            kernels::CalcInverse<2>(Jtr, Jrt);
 
             const double GRx0h = Rx0[qy][qx];
             const double GRx1h = Rx1[qy][qx];
@@ -254,6 +255,7 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
                                        Vector &C) const
 {
    const int N = PA.ne;
+   const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
@@ -270,39 +272,39 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
 
    switch (id)
    {
-      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(N,B,G,J,A,R,C);
-      case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(N,B,G,J,A,R,C);
-      case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(N,B,G,J,A,R,C);
-      case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(N,B,G,J,A,R,C);
-      case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(N,B,G,J,A,R,C);
-      case 0x26: return AddMultGradPA_Kernel_2D<2,6,1>(N,B,G,J,A,R,C);
+      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(M,N,B,G,J,A,R,C);
+      case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(M,N,B,G,J,A,R,C);
+      case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(M,N,B,G,J,A,R,C);
+      case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(M,N,B,G,J,A,R,C);
+      case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(M,N,B,G,J,A,R,C);
+      case 0x26: return AddMultGradPA_Kernel_2D<2,6,1>(M,N,B,G,J,A,R,C);
 
-      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(N,B,G,J,A,R,C);
-      case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(N,B,G,J,A,R,C);
-      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(N,B,G,J,A,R,C);
-      case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(N,B,G,J,A,R,C);
-      case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(N,B,G,J,A,R,C);
-      case 0x36: return AddMultGradPA_Kernel_2D<3,6,1>(N,B,G,J,A,R,C);
+      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(M,N,B,G,J,A,R,C);
+      case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(M,N,B,G,J,A,R,C);
+      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(M,N,B,G,J,A,R,C);
+      case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(M,N,B,G,J,A,R,C);
+      case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(M,N,B,G,J,A,R,C);
+      case 0x36: return AddMultGradPA_Kernel_2D<3,6,1>(M,N,B,G,J,A,R,C);
 
-      case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(N,B,G,J,A,R,C);
-      case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(N,B,G,J,A,R,C);
-      case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(N,B,G,J,A,R,C);
-      case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(N,B,G,J,A,R,C);
-      case 0x45: return AddMultGradPA_Kernel_2D<4,5,1>(N,B,G,J,A,R,C);
-      case 0x46: return AddMultGradPA_Kernel_2D<4,6,1>(N,B,G,J,A,R,C);
+      case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(M,N,B,G,J,A,R,C);
+      case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(M,N,B,G,J,A,R,C);
+      case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(M,N,B,G,J,A,R,C);
+      case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(M,N,B,G,J,A,R,C);
+      case 0x45: return AddMultGradPA_Kernel_2D<4,5,1>(M,N,B,G,J,A,R,C);
+      case 0x46: return AddMultGradPA_Kernel_2D<4,6,1>(M,N,B,G,J,A,R,C);
 
-      case 0x51: return AddMultGradPA_Kernel_2D<5,1,1>(N,B,G,J,A,R,C);
-      case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(N,B,G,J,A,R,C);
-      case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(N,B,G,J,A,R,C);
-      case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(N,B,G,J,A,R,C);
-      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(N,B,G,J,A,R,C);
-      case 0x56: return AddMultGradPA_Kernel_2D<5,6,1>(N,B,G,J,A,R,C);
+      case 0x51: return AddMultGradPA_Kernel_2D<5,1,1>(M,N,B,G,J,A,R,C);
+      case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(M,N,B,G,J,A,R,C);
+      case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(M,N,B,G,J,A,R,C);
+      case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(M,N,B,G,J,A,R,C);
+      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(M,N,B,G,J,A,R,C);
+      case 0x56: return AddMultGradPA_Kernel_2D<5,6,1>(M,N,B,G,J,A,R,C);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return AddMultGradPA_Kernel_2D<0,0,0,T_MAX>(N,B,G,J,A,R,C,D1D,Q1D);
+         return AddMultGradPA_Kernel_2D<0,0,0,T_MAX>(M,N,B,G,J,A,R,C,D1D,Q1D);
       }
    }
 }

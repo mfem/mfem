@@ -165,7 +165,7 @@ static void SetupGradPA_3D(const int mid,
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
-   const auto Jtr = Reshape(j_.Read(), DIM, DIM);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto X = Reshape(xe_.Read(), D1D, D1D, D1D, DIM, NE);
    auto dP = Reshape(dp_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
@@ -362,25 +362,9 @@ static void SetupGradPA_3D(const int mid,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double ip_weight = W(qx,qy,qz);
-
-               const double Jtrx0 = Jtr(0,0);
-               const double Jtrx1 = Jtr(0,1);
-               const double Jtrx2 = Jtr(0,2);
-               const double Jtry0 = Jtr(1,0);
-               const double Jtry1 = Jtr(1,1);
-               const double Jtry2 = Jtr(1,2);
-               const double Jtrz0 = Jtr(2,0);
-               const double Jtrz1 = Jtr(2,1);
-               const double Jtrz2 = Jtr(2,2);
-               const double Jtr[9] =
-               {
-                  Jtrx0, Jtry0, Jtrz0,
-                  Jtrx1, Jtry1, Jtrz1,
-                  Jtrx2, Jtry2, Jtrz2
-               };
+               const double *Jtr = &J(0,0,qx,qy,qz,e);
                const double detJtr = kernels::Det<3>(Jtr);
-               const double weight = ip_weight * detJtr;
+               const double weight = W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                double Jrt[9];
@@ -403,7 +387,7 @@ static void SetupGradPA_3D(const int mid,
                   JprxGBB, JpryGBB, JprzGBB
                };
 
-               // J = Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+               // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
                double Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
