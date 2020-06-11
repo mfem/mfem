@@ -54,11 +54,10 @@ public:
 
    MFEM_HOST_DEVICE inline double Get_I2b() // det(J)
    {
-      const double I2b = J[0]*J[3] - J[1]*J[2];
-      return I2b;
+      return J[0]*J[3] - J[1]*J[2];
    }
 
-   MFEM_HOST_DEVICE inline double Get_I3() // det(J)^{2}
+   MFEM_HOST_DEVICE inline double Get_I2() // det(J)^{2}
    {
       const double I2b = Get_I2b();
       return I2b * I2b;
@@ -66,14 +65,12 @@ public:
 
    MFEM_HOST_DEVICE inline double Get_I1() // I1 = ||J||_F^2
    {
-      const double I1 = J[0]*J[0] + J[1]*J[1] + J[2]*J[2] + J[3]*J[3];
-      return I1;
+      return J[0]*J[0] + J[1]*J[1] + J[2]*J[2] + J[3]*J[3];
    }
 
    MFEM_HOST_DEVICE inline double Get_I1b() // I1b = I1/det(J)
    {
-      const double I1b = Get_I1() / Get_I2b();
-      return I1b;
+      return Get_I1() / Get_I2b();
    }
 
    MFEM_HOST_DEVICE inline double *Get_dI1()
@@ -132,38 +129,105 @@ public:
       {
          for (int l=0; l<2; l++)
          {
-            const double I_ijkl = (i==k && j==l) ? 1.0 : 0.0;
-            ddi1(k,l) = 2.0 * I_ijkl;
+            ddi1(k,l) = (i==k && j==l) ? 2.0 : 0.0;
          }
       }
       return ddI1;
    }
 
    // ddI1b = X1 + X2 + X3, where
-   // X1_ijkl = (I1b/I2) [ (δ_ks δ_it + δ_kt δ_si) dI2b_tj dI2b_sl ]
-   //         = (I1b/I2) [ dI2b_ij dI2b_kl + dI2b_kj dI2b_il ]
-   // X2_ijkl = (2/I2b) δ_ik δ_jl = (1/I2b) ddI1_ijkl
-   // X3_ijkl = -(2/I2) (δ_ks δ_it) (J_tj dI2b_sl + dI2b_tj J_sl)
-   //         = -(2/I2) (J_ij dI2b_kl + dI2b_ij J_kl)
+   // X1_ijkl = (I1b/I2) [ dI2b_ij dI2b_kl + dI2b_kj dI2b_il ]
+   // X2_ijkl = (1/I2b) ddI1_ijkl
+   // X3_ijkl = -(2/I2) (J_ij dI2b_kl + dI2b_ij J_kl)
    MFEM_HOST_DEVICE inline double *Get_ddI1b(int i, int j)
    {
-      return nullptr;
+      double X1_p[4], X2_p[4], X3_p[4];
+
+      // X1_ijkl = (I1b/I2) [ dI2b_ij dI2b_kl + dI2b_kj dI2b_il ]
+      const double I2 = Get_I2();
+      const double I1b = Get_I1b();
+      ConstDeviceMatrix di2b(Get_dI2b(),2,2);
+      const double alpha = I1b / I2;
+      DeviceMatrix X1(X1_p,2,2);
+      for (int k=0; k<2; k++)
+      {
+         for (int l=0; l<2; l++)
+         {
+            X1(k,l) = alpha * (di2b(i,j)*di2b(k,l) + di2b(k,j)*di2b(i,l));
+         }
+      }
+      // X2_ijkl = (1/I2b) ddI1_ijkl
+      DeviceMatrix X2(X2_p,2,2);
+      const double beta = 1.0 / Get_I2b();
+      ConstDeviceMatrix ddi1(Get_ddI1(i,j),2,2);
+      for (int k=0; k<2; k++)
+      {
+         for (int l=0; l<2; l++)
+         {
+            X2(k,l) = beta * ddi1(k,l);
+         }
+      }
+      // X3_ijkl = -(2/I2) (J_ij dI2b_kl + dI2b_ij J_kl)
+      DeviceMatrix X3(X3_p,2,2);
+      const double gamma = -2.0/Get_I2();
+      ConstDeviceMatrix Jpt(J,2,2);
+      for (int k=0; k<2; k++)
+      {
+         for (int l=0; l<2; l++)
+         {
+            X3(k,l) = gamma * (Jpt(i,j)*di2b(k,l) + di2b(i,j)*Jpt(k,l));
+         }
+      }
+      DeviceMatrix ddi1b(ddI1b,2,2);
+      for (int k=0; k<2; k++)
+      {
+         for (int l=0; l<2; l++)
+         {
+            ddi1b(k,l) = X1(k,l) + X2(k,l) + X3(k,l);
+         }
+      }
+      return ddI1b;
    }
 
-   // ddI2_ijkl = 2 (2 δ_ks δ_it - δ_kt δ_si) dI2b_tj dI2b_sl
-   //           = 4 dI2b_ij dI2b_kl - 2 dI2b_kj dI2b_il
-   //           = 2 dI2b_ij dI2b_kl + 2 (dI2b_ij dI2b_kl - dI2b_kj dI2b_il)
+   // ddI2_ijkl = 2 dI2b_ij dI2b_kl + 2 (dI2b_ij dI2b_kl - dI2b_kj dI2b_il)
    MFEM_HOST_DEVICE inline double *Get_ddI2(int i, int j)
    {
-      return nullptr;
+      DeviceMatrix ddi2(ddI2,2,2);
+      ConstDeviceMatrix di2b(Get_dI2b(),2,2);
+      for (int k=0; k<2; k++)
+      {
+         for (int l=0; l<2; l++)
+         {
+            ddi2(k,l) = 2*di2b(i,j)*di2b(k,l)
+                        + 2*(di2b(i,j)*di2b(k,l) - di2b(k,j)*di2b(i,l));
+         }
+      }
+      return ddI2;
    }
 
    // ddI2b_ijkl = (1/I2b) (δ_ks δ_it - δ_kt δ_si) dI2b_tj dI2b_sl
-   //    [j -> u], [l -> v], [i -> j], [k -> l]
-   // ddI2b_julv = (1/I2b) (δ_ls δ_jt - δ_lt δ_sj) dI2b_tu dI2b_sv
    MFEM_HOST_DEVICE inline double *Get_ddI2b(int i, int j)
    {
-      return nullptr;
+      DeviceMatrix ddi2b(ddI2b,2,2);
+      const double alpha = 1.0/Get_I2b();
+      ConstDeviceMatrix di2b(Get_dI2b(),2,2);
+      for (int k=0; k<2; k++)
+      {
+         for (int l=0; l<2; l++)
+         {
+            ddi2b(k,l) = 0.0;
+            for (int s=0; s<2; s++)
+            {
+               for (int t=0; t<2; t++)
+               {
+                  const double ks_it = k==s && i==t ? 1.0 : 0.0;
+                  const double kt_si = k==t && s==i ? 1.0 : 0.0;
+                  ddi2b(k,l) += alpha * (ks_it - kt_si) * di2b(t,j) * di2b(s,l);
+               }
+            }
+         }
+      }
+      return ddI2b;
    }
 };
 

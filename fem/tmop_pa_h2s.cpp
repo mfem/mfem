@@ -15,89 +15,79 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../linalg/dtensor.hpp"
+#include "../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-MFEM_HOST_DEVICE inline
-void Invariant2_dM_2D(const double M[2][2], double dM[2][2])
-{
-   dM[0][0] =  M[1][1]; dM[1][0] = -M[0][1];
-   dM[0][1] = -M[1][0]; dM[1][1] =  M[0][0];
-}
-
-MFEM_HOST_DEVICE inline
-void Invariant2_dMdM_2D(int i, int j, double dMdM[2][2])
-{
-   dMdM[0][0] = dMdM[0][1] = dMdM[1][0] = dMdM[1][1] = 0.0;
-   dMdM[1-j][1-i] = (i == j) ? 1.0 : -1.0;
-}
-
-MFEM_HOST_DEVICE inline
-void Invariant1_dMdM_2D(const double *Jpt,
-                        const int i, const int j,
-                        const int qx, const int qy, const int e,
-                        const double w, DeviceTensor<7,double> P)
-{
-   const double (*M)[2] = (const double (*)[2])(Jpt);
-
-   double dI[2][2];
-   Invariant2_dM_2D(M, dI);
-   const double ddet = dI[j][i];
-   const double dfnorm2 = 2.0 * M[j][i];
-
-   const double det = M[0][0]*M[1][1] - M[0][1]*M[1][0];
-   const double det2 = det * det;
-   const double fnorm2 = kernels::FNorm2<2,2>(Jpt);
-
-   double dM[2][2] {{}}; dM[j][i] = 1.0;
-   double ddI[2][2];
-   Invariant2_dMdM_2D(i, j, ddI);
-
-   for (int r = 0; r < 2; r++)
-   {
-      for (int c = 0; c < 2; c++)
-      {
-         P(r,c,i,j,qx,qy,e) =
-            (det2 *
-             (2.0 * ddet * M[c][r] + 2.0 * det * dM[c][r]
-              - dfnorm2 * dI[c][r] - fnorm2 * ddI[c][r])
-             - 2.0 * det * ddet *
-             (2.0 * det * M[c][r] - fnorm2 * dI[c][r]) ) / (det2 * det2);
-         P(r,c,i,j,qx,qy,e) *= w;
-      }
-   }
-}
-
+// weight * ddI1
 static MFEM_HOST_DEVICE inline
-void EvalH_002(const int e, const int qx, const int qy,
+void EvalH_001(const int e, const int qx, const int qy,
                const double weight, const double *Jpt,
-               DeviceTensor<7,double> dP)
+               DeviceTensor<7,double> H)
 {
    constexpr int DIM = 2;
-   const double detJpt = Jpt[0]*Jpt[3] - Jpt[1]*Jpt[2];
-   const double sign = detJpt >= 0.0 ? 1.0 : -1.0;
-
+   double dI1[0], dI1b[0], ddI1[4], ddI1b[0];
+   double dI2[0], dI2b[0], ddI2[0], ddI2b[0];
+   kernels::InvariantsEvaluator2D ie(Jpt,
+                                     nullptr, nullptr, ddI1, nullptr,
+                                     nullptr, nullptr, nullptr, nullptr);
    for (int i = 0; i < DIM; i++)
    {
       for (int j = 0; j < DIM; j++)
       {
-         const double w = sign * 0.5 * weight;
-         Invariant1_dMdM_2D(Jpt, i,j, qx,qy,e, w, dP);
+         ConstDeviceMatrix ddi1(ie.Get_ddI1(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double h = ddi1(r,c);
+               H(r,c,i,j,qx,qy,e) = weight * h;
+            }
+         }
+      }
+   }
+}
+
+// 0.5 * weight * dI1b
+static MFEM_HOST_DEVICE inline
+void EvalH_002(const int e, const int qx, const int qy,
+               const double weight, const double *Jpt,
+               DeviceTensor<7,double> H)
+{
+   constexpr int DIM = 2;
+   double dI1[0], dI1b[0], ddI1[4], ddI1b[4];
+   double dI2[0], dI2b[4], ddI2[0], ddI2b[0];
+   kernels::InvariantsEvaluator2D ie(Jpt,
+                                     nullptr, nullptr, ddI1, ddI1b,
+                                     nullptr, dI2b, nullptr, nullptr);
+   const double w = 0.5 * weight;
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               const double h = ddi1b(r,c);
+               H(r,c,i,j,qx,qy,e) = w * h;
+            }
+         }
       }
    }
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
-static void SetupGradPA_2D(const Vector &xe_,
+static void SetupGradPA_2D(const Vector &x_,
                            const int mid,
                            const int NE,
                            const Array<double> &w_,
                            const Array<double> &b_,
                            const Array<double> &g_,
                            const DenseTensor &j_,
-                           Vector &dp_,
+                           Vector &h_,
                            const int d1d = 0,
                            const int q1d = 0)
 {
@@ -110,8 +100,8 @@ static void SetupGradPA_2D(const Vector &xe_,
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
-   const auto X = Reshape(xe_.Read(), D1D, D1D, DIM, NE);
-   auto dP = Reshape(dp_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
+   auto H = Reshape(h_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -230,7 +220,8 @@ static void SetupGradPA_2D(const Vector &xe_,
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
             // metric->AssembleH
-            if (mid == 2) { EvalH_002(e,qx,qy,weight,Jpt,dP); }
+            if (mid == 1) { EvalH_001(e,qx,qy,weight,Jpt,H); }
+            if (mid == 2) { EvalH_002(e,qx,qy,weight,Jpt,H); }
          } // qx
       } // qy
    });
@@ -248,43 +239,43 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   Vector &A = PA.A;
+   Vector &H = PA.A;
 
    switch (id)
    {
-      case 0x21: return SetupGradPA_2D<2,1,1>(X,M,N,W,B,G,J,A);
-      case 0x22: return SetupGradPA_2D<2,2,1>(X,M,N,W,B,G,J,A);
-      case 0x23: return SetupGradPA_2D<2,3,1>(X,M,N,W,B,G,J,A);
-      case 0x24: return SetupGradPA_2D<2,4,1>(X,M,N,W,B,G,J,A);
-      case 0x25: return SetupGradPA_2D<2,5,1>(X,M,N,W,B,G,J,A);
-      case 0x26: return SetupGradPA_2D<2,6,1>(X,M,N,W,B,G,J,A);
+      case 0x21: return SetupGradPA_2D<2,1,1>(X,M,N,W,B,G,J,H);
+      case 0x22: return SetupGradPA_2D<2,2,1>(X,M,N,W,B,G,J,H);
+      case 0x23: return SetupGradPA_2D<2,3,1>(X,M,N,W,B,G,J,H);
+      case 0x24: return SetupGradPA_2D<2,4,1>(X,M,N,W,B,G,J,H);
+      case 0x25: return SetupGradPA_2D<2,5,1>(X,M,N,W,B,G,J,H);
+      case 0x26: return SetupGradPA_2D<2,6,1>(X,M,N,W,B,G,J,H);
 
-      case 0x31: return SetupGradPA_2D<3,1,1>(X,M,N,W,B,G,J,A);
-      case 0x32: return SetupGradPA_2D<3,2,1>(X,M,N,W,B,G,J,A);
-      case 0x33: return SetupGradPA_2D<3,3,1>(X,M,N,W,B,G,J,A);
-      case 0x34: return SetupGradPA_2D<3,4,1>(X,M,N,W,B,G,J,A);
-      case 0x35: return SetupGradPA_2D<3,5,1>(X,M,N,W,B,G,J,A);
-      case 0x36: return SetupGradPA_2D<3,6,1>(X,M,N,W,B,G,J,A);
+      case 0x31: return SetupGradPA_2D<3,1,1>(X,M,N,W,B,G,J,H);
+      case 0x32: return SetupGradPA_2D<3,2,1>(X,M,N,W,B,G,J,H);
+      case 0x33: return SetupGradPA_2D<3,3,1>(X,M,N,W,B,G,J,H);
+      case 0x34: return SetupGradPA_2D<3,4,1>(X,M,N,W,B,G,J,H);
+      case 0x35: return SetupGradPA_2D<3,5,1>(X,M,N,W,B,G,J,H);
+      case 0x36: return SetupGradPA_2D<3,6,1>(X,M,N,W,B,G,J,H);
 
-      case 0x41: return SetupGradPA_2D<4,1,1>(X,M,N,W,B,G,J,A);
-      case 0x42: return SetupGradPA_2D<4,2,1>(X,M,N,W,B,G,J,A);
-      case 0x43: return SetupGradPA_2D<4,3,1>(X,M,N,W,B,G,J,A);
-      case 0x44: return SetupGradPA_2D<4,4,1>(X,M,N,W,B,G,J,A);
-      case 0x45: return SetupGradPA_2D<4,5,1>(X,M,N,W,B,G,J,A);
-      case 0x46: return SetupGradPA_2D<4,6,1>(X,M,N,W,B,G,J,A);
+      case 0x41: return SetupGradPA_2D<4,1,1>(X,M,N,W,B,G,J,H);
+      case 0x42: return SetupGradPA_2D<4,2,1>(X,M,N,W,B,G,J,H);
+      case 0x43: return SetupGradPA_2D<4,3,1>(X,M,N,W,B,G,J,H);
+      case 0x44: return SetupGradPA_2D<4,4,1>(X,M,N,W,B,G,J,H);
+      case 0x45: return SetupGradPA_2D<4,5,1>(X,M,N,W,B,G,J,H);
+      case 0x46: return SetupGradPA_2D<4,6,1>(X,M,N,W,B,G,J,H);
 
-      case 0x51: return SetupGradPA_2D<5,1,1>(X,M,N,W,B,G,J,A);
-      case 0x52: return SetupGradPA_2D<5,2,1>(X,M,N,W,B,G,J,A);
-      case 0x53: return SetupGradPA_2D<5,3,1>(X,M,N,W,B,G,J,A);
-      case 0x54: return SetupGradPA_2D<5,4,1>(X,M,N,W,B,G,J,A);
-      case 0x55: return SetupGradPA_2D<5,5,1>(X,M,N,W,B,G,J,A);
-      case 0x56: return SetupGradPA_2D<5,6,1>(X,M,N,W,B,G,J,A);
+      case 0x51: return SetupGradPA_2D<5,1,1>(X,M,N,W,B,G,J,H);
+      case 0x52: return SetupGradPA_2D<5,2,1>(X,M,N,W,B,G,J,H);
+      case 0x53: return SetupGradPA_2D<5,3,1>(X,M,N,W,B,G,J,H);
+      case 0x54: return SetupGradPA_2D<5,4,1>(X,M,N,W,B,G,J,H);
+      case 0x55: return SetupGradPA_2D<5,5,1>(X,M,N,W,B,G,J,H);
+      case 0x56: return SetupGradPA_2D<5,6,1>(X,M,N,W,B,G,J,H);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return SetupGradPA_2D<0,0,0,T_MAX>(X,M,N,W,B,G,J,A,D1D,Q1D);
+         return SetupGradPA_2D<0,0,0,T_MAX>(X,M,N,W,B,G,J,H,D1D,Q1D);
       }
    }
 }
