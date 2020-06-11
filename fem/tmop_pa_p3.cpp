@@ -476,7 +476,6 @@ static void AddMultPA_Kernel_3D(const int mid,
 void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
-   const int dim = PA.dim;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
@@ -486,7 +485,6 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   const Vector &P = PA.P;
 
    switch (id)
    {

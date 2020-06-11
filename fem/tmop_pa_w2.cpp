@@ -50,7 +50,7 @@ static double EnergyPA_2D(const int mid,
    MFEM_VERIFY(mid == 1 || mid == 2, "2D metric not yet implemented!");
 
    constexpr int dim = 2;
-   constexpr double metric_normal =  1.0;
+   //constexpr double metric_normal =  1.0;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
