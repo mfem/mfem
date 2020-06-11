@@ -299,6 +299,42 @@ const
    return (DofVal * LocVec);
 }
 
+double ParGridFunction::GetValue(ElementTransformation &T,
+				 const IntegrationPoint &ip,
+				 int comp, Vector *tr) const
+{
+  if (T.ElementType != ElementTransformation::ELEMENT)
+  {
+    return GridFunction::GetValue(T, ip, comp, tr);
+  }
+  
+  int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+  if (nbr_el_no < 0)
+  {
+    return GridFunction::GetValue(T, ip, comp, tr);
+  }
+
+   Array<int> dofs;
+   Vector DofVal, LocVec;
+   int fes_vdim = pfes->GetVDim();
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+   if (fes_vdim > 1)
+   {
+    int s = dofs.Size()/fes_vdim;
+    Array<int> _dofs(&dofs[(comp-1)*s], s);
+    face_nbr_data.GetSubVector(_dofs, LocVec);
+    DofVal.SetSize(s);
+  }
+  else
+  {
+    face_nbr_data.GetSubVector(dofs, LocVec);
+    DofVal.SetSize(dofs.Size());
+  }
+  pfes->GetFaceNbrFE(nbr_el_no)->CalcShape(ip, DofVal);
+
+  return (DofVal * LocVec);
+}
+     
 void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);

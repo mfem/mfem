@@ -208,13 +208,14 @@ public:
    ///@{
    /** Return a scalar value from within the element indicated by the
        ElementTransformation Object. */
-   double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
-                   int comp = 0, Vector *tr = NULL) const;
+   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+			   int comp = 0, Vector *tr = NULL) const;
 
    /** Return a vector value from within the element indicated by the
        ElementTransformation Object. */
-   void GetVectorValue(ElementTransformation &T, const IntegrationPoint &ip,
-                       Vector &val, Vector *tr = NULL) const;
+   virtual void GetVectorValue(ElementTransformation &T,
+			       const IntegrationPoint &ip,
+			       Vector &val, Vector *tr = NULL) const;
    ///@}
 
    /** @name ElementTransformation Get Values Methods
