@@ -20,8 +20,9 @@ namespace qf_coeff
 TEST_CASE("Quadrature Function Coefficients",
           "[Quadrature Function Coefficients]")
 {
-   int order_h1 = 2, n = 4, dim = 3;
+   int order_h1 = 2, n = 1, dim = 3;
    double tol = 1e-14;
+   int precision = 32;
 
    Mesh mesh(n, n, n, Element::HEXAHEDRON, false, 1.0, 1.0, 1.0);
    mesh.SetCurvature(order_h1);
@@ -156,6 +157,73 @@ TEST_CASE("Quadrature Function Coefficients",
       REQUIRE(output.Norml2() < tol);
    }
 
+   SECTION("Write and Read Scalar Quadraturefunction")
+   {
+      std::cout << "Testing Writing/Reading Scalar Quadraturefunction: " << std::endl;
+      // Write
+      {
+         VisItDataCollection wdc("quadfun", &mesh);
+
+         wdc.SetPrefixPath("test_visit"); 
+         wdc.SetPrecision(precision);
+#ifdef MFEM_USE_ZLIB
+         wdc.SetCompression(true);
+#endif
+         wdc.RegisterQField("qfc",&quadf_coeff);
+         wdc.SetCycle(0);
+         wdc.Save();
+      }
+      // Read
+      {
+         VisItDataCollection rdc("quadfun", &mesh);
+
+         rdc.SetPrefixPath("test_visit");
+         rdc.SetPrecision(precision);
+#ifdef MFEM_USE_ZLIB
+         rdc.SetCompression(true);
+#endif
+         rdc.Load(0);
+         QuadratureFunction *quadf_read = rdc.GetQField("qfc"); 
+         *quadf_read -= quadf_coeff;
+
+         // Check quadf_read vs quadf_coeff 
+         REQUIRE(quadf_read->Size() == quadf_coeff.Size());
+         REQUIRE(quadf_read->Norml2() < tol);
+      }
+   }
+
+
+   SECTION("Write and Read Vector Quadraturefunction")
+   {
+      std::cout << "Testing Writing/Reading Vector Quadraturefunction: " << std::endl;
+      // Write
+      {
+         VisItDataCollection wdc("vquadfun", &mesh);
+         wdc.SetPrefixPath("test_visit"); 
+         wdc.SetPrecision(precision);
+#ifdef MFEM_USE_ZLIB
+         wdc.SetCompression(true);
+#endif
+         wdc.RegisterQField("qfc",&quadf_vcoeff);
+         wdc.SetCycle(0);
+         wdc.Save();
+      }
+      // Read
+      {
+         VisItDataCollection rdc("vquadfun", &mesh);
+         rdc.SetPrefixPath("test_visit");
+#ifdef MFEM_USE_ZLIB
+         rdc.SetCompression(true);
+#endif
+         rdc.Load(0);
+         QuadratureFunction *quadf_read = rdc.GetQField("qfc"); 
+         *quadf_read -= quadf_vcoeff;
+
+         // Check quadf_read vs quadf_vcoeff 
+         REQUIRE(quadf_read->Size() == quadf_vcoeff.Size());
+         REQUIRE(quadf_read->Norml2() < tol);
+      }
+   }
 }
 
 } // namespace qf_coeff
