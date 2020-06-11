@@ -180,7 +180,8 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
-/// Divergence free solver, cf.
+/// Divergence free solver, for more details see Appendix F.3 in
+/// Vassilevski, Multilevel Block Factorization Preconditioners, 2008
 class DivFreeSolver : public DarcySolver
 {
     const DFSData& data_;
