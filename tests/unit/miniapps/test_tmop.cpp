@@ -46,7 +46,7 @@ struct Req
       init_energy(ie), tauval(t), dot(d), final_energy(fe) { }
 };
 
-int tmop(int myid, const Req &res, int argc, char *argv[])
+int tmop(int myid, Req &res, int argc, char *argv[])
 {
    bool pa               = false;
    const char *mesh_file = nullptr;
@@ -278,6 +278,7 @@ static void req_tmop(int myid, const char *arg[], const Req &res)
 
 static void tmop_launch(int myid, const char *arg[], const Req &res)
 {
+   Req res[2] {};
    (arg[1] = "-no-pa", req_tmop(myid, arg, res));
    (arg[1] = "-pa", req_tmop(myid, arg, res));
 }
