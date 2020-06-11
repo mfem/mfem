@@ -12,7 +12,7 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(block_solvers_comparison
     MAIN block_solvers_comparison.cpp
-    EXTRA_SOURCES mixed_fe_solvers.cpp
-    EXTRA_HEADERS mixed_fe_solvers.hpp
+    EXTRA_SOURCES div_free_solver.cpp
+    EXTRA_HEADERS div_free_solver.hpp
     LIBRARIES mfem)
 endif()
