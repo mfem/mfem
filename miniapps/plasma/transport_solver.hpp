@@ -225,7 +225,7 @@ struct CoefficientsByAttr
    Array<Coefficient*> coefs;
 };
 
-class TransportBC
+class AdvectionDiffusionBC
 {
 private:
    std::vector<CoefficientByAttr>  dbc; // Dirichlet BC data
@@ -237,7 +237,7 @@ private:
    const Array<int> & bdr_attr;
 
 public:
-   TransportBC(const Array<int> & bdr)
+   AdvectionDiffusionBC(const Array<int> & bdr)
       : bdr_attr(bdr) {}
 
    // Enforce u = val on boundaries with attributes in bdr
@@ -259,17 +259,17 @@ class TransportBCs
 {
 private:
    int neqn_;
-   TransportBC ** bcs_;
+   AdvectionDiffusionBC ** bcs_;
 
 public:
    TransportBCs(const Array<int> & bdr_attr, int neqn)
       : neqn_(neqn),
         bcs_(NULL)
    {
-      bcs_ = new TransportBC*[neqn];
+      bcs_ = new AdvectionDiffusionBC*[neqn];
       for (int i=0; i<neqn_; i++)
       {
-         bcs_[i] = new TransportBC(bdr_attr);
+         bcs_[i] = new AdvectionDiffusionBC(bdr_attr);
       }
    }
 
@@ -282,11 +282,11 @@ public:
       delete [] bcs_;
    }
 
-   TransportBC & operator()(int i) { return *bcs_[i]; }
-   const TransportBC & operator()(int i) const { return *bcs_[i]; }
+   AdvectionDiffusionBC & operator()(int i) { return *bcs_[i]; }
+   const AdvectionDiffusionBC & operator()(int i) const { return *bcs_[i]; }
 
-   TransportBC & operator[](int i) { return *bcs_[i]; }
-   const TransportBC & operator[](int i) const { return *bcs_[i]; }
+   AdvectionDiffusionBC & operator[](int i) { return *bcs_[i]; }
+   const AdvectionDiffusionBC & operator[](int i) const { return *bcs_[i]; }
 };
 
 class ParGridFunctionArray : public Array<ParGridFunction*>
@@ -2168,14 +2168,14 @@ private:
 
       ProductCoefficient      ne0Coef_;
 
-      const TransportBC & bcs_;
+      const AdvectionDiffusionBC & bcs_;
 
       TransportOp(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma, int index,
                   const std::string &field_name,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
-                  const TransportBC & bcs,
+                  const AdvectionDiffusionBC & bcs,
                   int term_flag, int vis_flag,
                   int logging = 0,
                   const std::string & log_prefix = "")
@@ -2291,7 +2291,7 @@ private:
                        const PlasmaParams & plasma,
                        ParGridFunctionArray & yGF,
                        ParGridFunctionArray & kGF,
-                       const TransportBC & bcs,
+                       const AdvectionDiffusionBC & bcs,
                        int term_flag = 3,
                        int vis_flag = 0, int logging = 0,
                        const std::string & log_prefix = "");
@@ -2384,7 +2384,7 @@ private:
                    ParFiniteElementSpace & vfes,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
-                   const TransportBC & bcs,
+                   const AdvectionDiffusionBC & bcs,
                    double DPerp,
                    VectorCoefficient & B3Coef,
                    int term_flag = 7, int vis_flag = 0, int logging = 0,
@@ -2476,7 +2476,7 @@ private:
                     const PlasmaParams & plasma,
                     ParFiniteElementSpace & vfes,
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
-                    const TransportBC & bcs,
+                    const AdvectionDiffusionBC & bcs,
                     // int ion_charge, double ion_mass,
                     double DPerp,
                     VectorCoefficient & B3Coef,
@@ -2552,7 +2552,7 @@ private:
                           const PlasmaParams & plasma,
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
-                          const TransportBC & bcs,
+                          const AdvectionDiffusionBC & bcs,
                           double ChiPerp,
                           VectorCoefficient & B3Coef,
                           int term_flag = 0, int vis_flag = 0, int logging = 0,
@@ -2625,7 +2625,7 @@ private:
                                const PlasmaParams & plasma,
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
-                               const TransportBC & bcs,
+                               const AdvectionDiffusionBC & bcs,
                                double ChiPerp,
                                VectorCoefficient & B3Coef,
                                int term_flag = 0, int vis_flag = 0,
@@ -2650,7 +2650,7 @@ private:
               const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
-              const TransportBC & bcs, int index,
+              const AdvectionDiffusionBC & bcs, int index,
               const std::string &field_name,
               int term_flag = 0, int vis_flag = 0,
               int logging = 0, const std::string & log_prefix = "");

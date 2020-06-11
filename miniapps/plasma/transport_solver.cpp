@@ -64,7 +64,7 @@ std::string FieldSymbol(FieldType t)
    }
 }
 
-void TransportBC::AddDirichletBC(const Array<int> & bdr, Coefficient &val)
+void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr, Coefficient &val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -84,7 +84,7 @@ void TransportBC::AddDirichletBC(const Array<int> & bdr, Coefficient &val)
    dbc.push_back(*c);
 }
 
-void TransportBC::AddNeumannBC(const Array<int> & bdr, Coefficient &val)
+void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr, Coefficient &val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -104,7 +104,7 @@ void TransportBC::AddNeumannBC(const Array<int> & bdr, Coefficient &val)
    nbc.push_back(*c);
 }
 
-void TransportBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
+void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
                              Coefficient &b)
 {
    for (int i=0; i<bdr.Size(); i++)
@@ -127,7 +127,7 @@ void TransportBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
    rbc.push_back(*c);
 }
 
-const Array<int> & TransportBC::GetHomogeneousNeumannBCs() const
+const Array<int> & AdvectionDiffusionBC::GetHomogeneousNeumannBCs() const
 {
    if (hbc.Size() != bdr_attr.Size() - bc_attr.size())
    {
@@ -2319,7 +2319,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    const PlasmaParams & plasma,
                                                    ParGridFunctionArray & yGF,
                                                    ParGridFunctionArray & kGF,
-                                                   const TransportBC & bcs,
+                                                   const AdvectionDiffusionBC & bcs,
                                                    int term_flag,
                                                    int vis_flag,
                                                    int logging,
@@ -2476,7 +2476,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            ParFiniteElementSpace & vfes,
                                            ParGridFunctionArray & yGF,
                                            ParGridFunctionArray & kGF,
-                                           const TransportBC & bcs,
+                                           const AdvectionDiffusionBC & bcs,
                                            double DPerp,
                                            VectorCoefficient & B3Coef,
                                            int term_flag, int vis_flag,
@@ -2678,7 +2678,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              ParFiniteElementSpace & vfes,
                                              ParGridFunctionArray & yGF,
                                              ParGridFunctionArray & kGF,
-                                             const TransportBC & bcs,
+                                             const AdvectionDiffusionBC & bcs,
                                              double DPerp,
                                              VectorCoefficient & B3Coef,
                                              int term_flag, int vis_flag,
@@ -2922,7 +2922,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
                     const PlasmaParams & plasma,
                     ParGridFunctionArray & yGF,
                     ParGridFunctionArray & kGF,
-                    const TransportBC & bcs,
+                    const AdvectionDiffusionBC & bcs,
                     double ChiPerp,
                     VectorCoefficient & B3Coef,
                     int term_flag, int vis_flag,
@@ -3077,7 +3077,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                          const PlasmaParams & plasma,
                          ParGridFunctionArray & yGF,
                          ParGridFunctionArray & kGF,
-                         const TransportBC & bcs,
+                         const AdvectionDiffusionBC & bcs,
                          double ChiPerp,
                          VectorCoefficient & B3Coef,
                          int term_flag, int vis_flag,
@@ -3236,7 +3236,7 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
                                  const PlasmaParams & plasma,
                                  ParGridFunctionArray & yGF,
                                  ParGridFunctionArray & kGF,
-                                 const TransportBC & bcs,
+                                 const AdvectionDiffusionBC & bcs,
                                  int index, const string & field_name,
                                  int term_flag, int vis_flag, int logging,
                                  const string & log_prefix)
