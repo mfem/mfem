@@ -129,11 +129,11 @@ int main(int argc, char *argv[])
    Vector cent(dim);
    for (int i=0; i<pmesh->GetNE(); i++)
    {
-	   pmesh->GetElementCenter(i, cent);
-	   if (fabs(cent[0]-0.5)<0.25 && fabs(cent[1]-0.5)<0.125)
-	   {
-		   pmesh->GetElement(i)->SetAttribute(2);
-	   }
+      pmesh->GetElementCenter(i, cent);
+      if (fabs(cent[0]-0.5)<0.25 && fabs(cent[1]-0.5)<0.125)
+      {
+         pmesh->GetElement(i)->SetAttribute(2);
+      }
    }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
