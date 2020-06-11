@@ -205,7 +205,7 @@ public:
    { return GetValue(T.ElementNo, T.GetIntPoint()); }
 
    virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
-			   int comp = 0, Vector *tr = NULL) const;
+                           int comp = 0, Vector *tr = NULL) const;
 
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);

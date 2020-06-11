@@ -64,7 +64,8 @@ std::string FieldSymbol(FieldType t)
    }
 }
 
-void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr, Coefficient &val)
+void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr,
+                                          Coefficient &val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -84,7 +85,8 @@ void AdvectionDiffusionBC::AddDirichletBC(const Array<int> & bdr, Coefficient &v
    dbc.push_back(*c);
 }
 
-void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr, Coefficient &val)
+void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr,
+                                        Coefficient &val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -105,7 +107,7 @@ void AdvectionDiffusionBC::AddNeumannBC(const Array<int> & bdr, Coefficient &val
 }
 
 void AdvectionDiffusionBC::AddRobinBC(const Array<int> & bdr, Coefficient &a,
-                             Coefficient &b)
+                                      Coefficient &b)
 {
    for (int i=0; i<bdr.Size(); i++)
    {
@@ -1625,7 +1627,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &k, Vector &y) const
                    (*bflfi_marker_[k])[bdr_attr-1] == 0) { continue; }
 
                bflfi_[k] -> AssembleRHSElementVect (*fes_.GetFE(tr -> Elem1No),
-						    *tr, elvec_);
+                                                    *tr, elvec_);
                elvec_ *= -1.0;
                y.AddElementVector (vdofs_, elvec_);
             }
@@ -1838,22 +1840,22 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
    {
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
-		   *bfbfi_marker_.Last());
+                   *bfbfi_marker_.Last());
       bfbfi_.Append(new DGDiffusionIntegrator(*dtDCoef,
                                               dg_.sigma,
                                               dg_.kappa));
 
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
-		   *bflfi_marker_.Last());
+                   *bflfi_marker_.Last());
       bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, *dtDCoef,
-						dg_.sigma,
-						dg_.kappa));
+                                                dg_.sigma,
+                                                dg_.kappa));
 
       blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
                                                                    dg_.sigma,
                                                                    dg_.kappa),
-					 *bfbfi_marker_.Last());
+                                         *bfbfi_marker_.Last());
    }
 
    const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
@@ -1861,7 +1863,7 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
    {
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
-		   *bflfi_marker_.Last());
+                   *bflfi_marker_.Last());
       bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
    }
 
@@ -1870,20 +1872,20 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
    {
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
-		   *bfbfi_marker_.Last());
+                   *bfbfi_marker_.Last());
       bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
 
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
-		   *bflfi_marker_.Last());
+                   *bflfi_marker_.Last());
       bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
 
       ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
-							    *rbc[i].coefs[0]);
+                                                            *rbc[i].coefs[0]);
       dtSCoefs_.Append(dtaCoef);
 
       blf_[index_]->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
-					 *bfbfi_marker_.Last());
+                                         *bfbfi_marker_.Last());
    }
 }
 
@@ -1913,28 +1915,28 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
       new DGDiffusionIntegrator(*dtDCoef,
                                 dg_.sigma,
                                 dg_.kappa));
-   
+
    const vector<CoefficientByAttr> & dbc = bcs_.GetDirichletBCs();
    for (unsigned int i=0; i<dbc.size(); i++)
    {
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
-		   *bfbfi_marker_.Last());
+                   *bfbfi_marker_.Last());
       bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                               dg_.sigma,
                                               dg_.kappa));
 
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
-		   *bflfi_marker_.Last());
+                   *bflfi_marker_.Last());
       bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, DCoef,
-						dg_.sigma,
-						dg_.kappa));
+                                                dg_.sigma,
+                                                dg_.kappa));
 
       blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
                                                                    dg_.sigma,
                                                                    dg_.kappa),
-					 *bfbfi_marker_.Last());
+                                         *bfbfi_marker_.Last());
    }
 
    const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
@@ -1942,7 +1944,7 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
    {
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
-		   *bflfi_marker_.Last());
+                   *bflfi_marker_.Last());
       bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
    }
 
@@ -1951,20 +1953,20 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
    {
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
-		   *bfbfi_marker_.Last());
+                   *bfbfi_marker_.Last());
       bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
 
       bflfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
-		   *bflfi_marker_.Last());
+                   *bflfi_marker_.Last());
       bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
 
       ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
-							    *rbc[i].coefs[0]);
+                                                            *rbc[i].coefs[0]);
       dtSCoefs_.Append(dtaCoef);
 
       blf_[index_]->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
-					 *bfbfi_marker_.Last());
+                                         *bfbfi_marker_.Last());
    }
 }
 
