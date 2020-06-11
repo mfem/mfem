@@ -84,7 +84,7 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
     for (int l = 0; l < num_refines; l++)
     {
         mesh_.UniformRefinement();
-        collector_.CollectData(&mesh_);
+        collector_.CollectData();
     }
 
     // 8. Define the coefficients, analytical solution, and rhs of the PDE.
@@ -203,7 +203,6 @@ int main(int argc, char *argv[])
     ess_bdr[1] = 1;
 
     DFSParameters param;
-    param.MG_type = order > 0 && use_tet_mesh ? AlgebraicMG : GeometricMG;
     param.B_has_nullity_one = (ess_bdr.Sum() == ess_bdr.Size());
     param.coupled_solve = coupled_solve;
 

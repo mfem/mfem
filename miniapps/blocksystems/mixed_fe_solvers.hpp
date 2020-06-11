@@ -4,8 +4,6 @@
 using namespace std;
 using namespace mfem;
 
-enum MG_Type { AlgebraicMG, GeometricMG };
-
 /// Parameters for iterative solver
 struct IterSolveParameters
 {
@@ -18,7 +16,6 @@ struct IterSolveParameters
 /// Parameters for the divergence free solver
 struct DFSParameters : IterSolveParameters
 {
-    MG_Type MG_type = GeometricMG;
     bool verbose = false;
     bool B_has_nullity_one = false;
     bool coupled_solve = false;
@@ -61,12 +58,12 @@ class DFSDataCollector
     DFSData data_;
 
     void MakeDofRelationTables(int level);
-    void DataFinalize(ParMesh* mesh);
+    void DataFinalize();
 public:
     DFSDataCollector(int order, int num_refine, ParMesh *mesh,
                      const Array<int>& ess_attr, const DFSParameters& param);
 
-    void CollectData(ParMesh *mesh);
+    void CollectData();
 
     const DFSData& GetData() const { return data_; }
 

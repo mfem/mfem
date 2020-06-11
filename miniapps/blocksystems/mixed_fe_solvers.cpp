@@ -51,6 +51,11 @@ DFSDataCollector(int order, int num_refine, ParMesh *mesh,
       hcurl_fec_(order+1, mesh->Dimension()), l2_0_fec_(0, mesh->Dimension()),
       ess_bdr_attr_(ess_attr), level_(num_refine), order_(order)
 {
+    if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
+    {
+        mfem_error("DFSDataCollector: High order spaces on tetrahedra are not supported");
+    }
+
     data_.param = param;
 
     all_bdr_attr_.SetSize(ess_attr.Size(), 1);
@@ -71,22 +76,9 @@ DFSDataCollector(int order, int num_refine, ParMesh *mesh,
     hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
     data_.C.SetSize(num_refine+1);
 
-    if (data_.param.MG_type == GeometricMG)
-    {
-        if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
-            mesh->ReorientTetMesh();
-        hcurl_fes_.reset(new ParFiniteElementSpace(mesh, &hcurl_fec_));
-        coarse_hcurl_fes_.reset(new ParFiniteElementSpace(*hcurl_fes_));
-        data_.P_hcurl.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
-    }
-
-    Vector trash1(hcurl_fes_->GetVSize()), trash2(hdiv_fes_->GetVSize());
-    ParDiscreteLinearOperator curl(hcurl_fes_.get(), hdiv_fes_.get());
-    curl.AddDomainInterpolator(new CurlInterpolator);
-    curl.Assemble();
-    curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
-    curl.Finalize();
-    data_.C[level_].Reset(curl.ParallelAssemble());
+    hcurl_fes_.reset(new ParFiniteElementSpace(mesh, &hcurl_fec_));
+    coarse_hcurl_fes_.reset(new ParFiniteElementSpace(*hcurl_fes_));
+    data_.P_hcurl.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
 }
 
 SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
@@ -142,15 +134,38 @@ void DFSDataCollector::MakeDofRelationTables(int level)
     data_.agg_hdivdof[level].Reset(tmp);
 }
 
-void DFSDataCollector::DataFinalize(ParMesh* mesh)
+void DFSDataCollector::CollectData()
 {
-    if (data_.param.MG_type == AlgebraicMG)
-    {
-        if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order_)
-            mesh->ReorientTetMesh();
-        hcurl_fes_.reset(new ParFiniteElementSpace(mesh, &hcurl_fec_));
-    }
+    --level_;
 
+    auto GetP = [this](OperatorPtr& P, unique_ptr<ParFiniteElementSpace>& cfes,
+                       ParFiniteElementSpace& fes, bool remove_zero)
+    {
+        fes.Update();
+        fes.GetTrueTransferOperator(*cfes, P);
+        if (remove_zero) P.As<HypreParMatrix>()->Threshold(1e-16);
+        this->level_ ? cfes->Update() : cfes.reset();
+    };
+
+    GetP(data_.P_hdiv[level_], coarse_hdiv_fes_, *hdiv_fes_, true);
+    GetP(data_.P_l2[level_], coarse_l2_fes_, *l2_fes_, false);
+    MakeDofRelationTables(level_);
+
+    GetP(data_.P_hcurl[level_], coarse_hcurl_fes_, *hcurl_fes_, true);
+
+    Vector trash1(hcurl_fes_->GetVSize()), trash2(hdiv_fes_->GetVSize());
+    ParDiscreteLinearOperator curl(hcurl_fes_.get(), hdiv_fes_.get());
+    curl.AddDomainInterpolator(new CurlInterpolator);
+    curl.Assemble();
+    curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
+    curl.Finalize();
+    data_.C[level_].Reset(curl.ParallelAssemble());
+
+    if (level_ == 0) DataFinalize();
+}
+
+void DFSDataCollector::DataFinalize()
+{
     ParBilinearForm mass(l2_fes_.get());
     mass.AddDomainIntegrator(new MassIntegrator());
     mass.Assemble();
@@ -169,37 +184,6 @@ void DFSDataCollector::DataFinalize(ParMesh* mesh)
 
     el_l2dof_.DeleteAll();
     l2_0_fes_.reset();
-}
-
-void DFSDataCollector::CollectData(ParMesh* mesh)
-{
-    --level_;
-
-    auto GetP = [this](OperatorPtr& P, unique_ptr<ParFiniteElementSpace>& cfes,
-                       ParFiniteElementSpace& fes, bool remove_zero)
-    {
-        fes.Update();
-        fes.GetTrueTransferOperator(*cfes, P);
-        if (remove_zero) P.As<HypreParMatrix>()->Threshold(1e-16);
-        this->level_ ? cfes->Update() : cfes.reset();
-    };
-
-    GetP(data_.P_hdiv[level_], coarse_hdiv_fes_, *hdiv_fes_, true);
-    GetP(data_.P_l2[level_], coarse_l2_fes_, *l2_fes_, false);
-    MakeDofRelationTables(level_);
-
-    if (data_.param.MG_type == GeometricMG)
-        GetP(data_.P_hcurl[level_], coarse_hcurl_fes_, *hcurl_fes_, true);
-
-    Vector trash1(hcurl_fes_->GetVSize()), trash2(hdiv_fes_->GetVSize());
-    ParDiscreteLinearOperator curl(hcurl_fes_.get(), hdiv_fes_.get());
-    curl.AddDomainInterpolator(new CurlInterpolator);
-    curl.Assemble();
-    curl.EliminateTrialDofs(ess_bdr_attr_, trash1, trash2);
-    curl.Finalize();
-    data_.C[level_].Reset(curl.ParallelAssemble());
-
-    if (level_ == 0) DataFinalize(mesh);
 }
 
 
@@ -491,16 +475,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
         CTMC_.As<HypreParMatrix>()->EliminateZeroRows();
         CTMC_.As<HypreParMatrix>()->Threshold(1e-14);
         solver_.As<CGSolver>()->SetOperator(*CTMC_);
-
-        if (data_.param.MG_type == AlgebraicMG)
-        {
-            prec_.Reset(new HypreAMS(*CTMC_.As<HypreParMatrix>(), hcurl_fes));
-            prec_.As<HypreAMS>()->SetSingularProblem();
-        }
-        else
-        {
-            prec_.Reset(new AbstractMultigrid(*CTMC_.As<HypreParMatrix>(), data_.P_hcurl));
-        }
+        prec_.Reset(new AbstractMultigrid(*CTMC_.As<HypreParMatrix>(), data_.P_hcurl));
     }
 
     solver_.As<IterativeSolver>()->SetPreconditioner(*prec_.As<Solver>());
