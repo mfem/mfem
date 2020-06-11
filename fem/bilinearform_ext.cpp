@@ -727,7 +727,7 @@ void FABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                   x.GetData());
+                   const_cast<Vector&>(x),0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       if (shared_x.Size()) { face_mat.AddMult(shared_x, y); }
@@ -744,7 +744,7 @@ void FABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    {
       ParGridFunction x_gf;
       x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                   x.GetData());
+                   const_cast<Vector&>(x),0);
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       if (shared_x.Size()) { face_mat.AddMultTranspose(shared_x, y); }
