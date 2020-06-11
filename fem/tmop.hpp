@@ -928,7 +928,7 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *elem_restrict_lex = nullptr;
-      DenseMatrix Jtr;
+      DenseTensor Jtr;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,

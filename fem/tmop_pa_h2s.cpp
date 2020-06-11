@@ -77,7 +77,7 @@ static void SetupGradPA_2D(const Vector &xe_,
                            const Array<double> &w_,
                            const Array<double> &b_,
                            const Array<double> &g_,
-                           const DenseMatrix &j_,
+                           const DenseTensor &j_,
                            Vector &dp_,
                            const int d1d = 0,
                            const int q1d = 0)
@@ -236,7 +236,7 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const DenseMatrix &J = PA.Jtr;
+   const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;

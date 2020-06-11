@@ -15,41 +15,38 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
+#include "../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-// dI1b = 2*I3b^{-2/3}*(J - (1/3)*I1/I3b*dI3b)
-MFEM_HOST_DEVICE inline
-void Eval_dI1b(const double w, const double *J, double *dI1b)
+static MFEM_HOST_DEVICE inline
+void EvalP_001(const double *Jpt, double *P)
 {
-   const double det = J[0]*J[3] - J[1]*J[2];
-   const double sign_detJ = det >= 0.0 ? 1.0 : -1.0;
-   const double I2b = sign_detJ * det;
+   double dI1[4];
+   kernels::InvariantsEvaluator2D ie(Jpt,
+                                     dI1, nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr, nullptr);
+   kernels::Set(2,2, 1.0, ie.Get_dI1(), P);
+}
 
-   const double I1 = J[0]*J[0] + J[1]*J[1] + J[2]*J[2] + J[3]*J[3];
-   const double I1b = I1/I2b;
-
-   const double c1 = 2.0/I2b;
-   const double c2 = I1b/2.0;
-
-   const double dI2b0 =  sign_detJ*J[3];
-   const double dI2b1 = -sign_detJ*J[2];
-   const double dI2b2 = -sign_detJ*J[1];
-   const double dI2b3 =  sign_detJ*J[0];
-
-   dI1b[0] = w * c1 * (J[0] - c2*dI2b0);
-   dI1b[1] = w * c1 * (J[1] - c2*dI2b1);
-   dI1b[2] = w * c1 * (J[2] - c2*dI2b2);
-   dI1b[3] = w * c1 * (J[3] - c2*dI2b3);
+static MFEM_HOST_DEVICE inline
+void EvalP_002(const double *Jpt, double *P)
+{
+   double dI1b[4], dI2b[4];
+   kernels::InvariantsEvaluator2D ie(Jpt,
+                                     nullptr, dI1b, nullptr, nullptr,
+                                     nullptr, dI2b, nullptr, nullptr);
+   kernels::Set(2,2, 1./2., ie.Get_dI1b(), P);
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
-static void AddMultPA_Kernel_2D(const int NE,
+static void AddMultPA_Kernel_2D(const int mid,
+                                const int NE,
+                                const DenseTensor &j_,
                                 const Array<double> &w_,
                                 const Array<double> &b_,
                                 const Array<double> &g_,
-                                const Vector &d_,
                                 const Vector &x_,
                                 Vector &y_,
                                 const int d1d = 0,
@@ -63,12 +60,14 @@ static void AddMultPA_Kernel_2D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
+
+   const auto J = Reshape(j_.Read(), VDIM, VDIM, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto D = Reshape(d_.Read(), Q1D, Q1D, VDIM, VDIM, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -164,39 +163,34 @@ static void AddMultPA_Kernel_2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double weight = W(qx,qy);
-
-            //  Jtr = targetC->ComputeElementTargets
-            const double Jtrx0 = D(qx,qy,0,0,e);
-            const double Jtrx1 = D(qx,qy,0,1,e);
-            const double Jtry0 = D(qx,qy,1,0,e);
-            const double Jtry1 = D(qx,qy,1,1,e);
-            const double Jtr_p[4] = {Jtrx0, Jtry0, Jtrx1, Jtry1};
-            const double detJtr = Jtrx0*Jtry1 - Jtrx1*Jtry0;
-            const double weight_detJtr = weight * detJtr;
+            const double *Jtr = &J(0,0,qx,qy,e);
+            const double detJtr = kernels::Det<2>(Jtr);
+            const double weight = W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
-            double Jrt_p[4];
-            kernels::CalcInverse<2>(Jtr_p, Jrt_p);
+            double Jrt[4];
+            kernels::CalcInverse<2>(Jtr, Jrt);
 
             // G = X{^T}.DSh
             const double Gx0 = QQx0[qy][qx];
             const double Gx1 = QQx1[qy][qx];
             const double Gy0 = QQy0[qy][qx];
             const double Gy1 = QQy1[qy][qx];
-            double G_p[4] = {Gx0, Gy0, Gx1, Gy1};
+            double Jpr[4] = {Gx0, Gy0, Gx1, Gy1};
 
             // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = G.Jrt
-            double Jpt_p[4];
-            kernels::Mult(2,2,2, G_p, Jrt_p, Jpt_p);
+            double Jpt[4];
+            kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
             // metric->EvalP(Jpt, P);
             double P[4];
-            Eval_dI1b(0.5*weight_detJtr, Jpt_p, P);
+            if (mid == 1) { EvalP_001(Jpt, P); }
+            if (mid == 2) { EvalP_002(Jpt, P); }
+            for (int i = 0; i < 4; i++) { P[i] *= weight; }
 
-            // PMatO +=  DS . P^t += DSh . (Jrt . (P==Jpt)^t)
+            // PMatO +=  DS . P^t += DSh . (Jrt . P^t)
             double A[4];
-            kernels::MultABt(2,2,2, Jrt_p, P, A);
+            kernels::MultABt(2,2,2, Jrt, P, A);
             QQx0[qy][qx] = A[0];
             QQy0[qy][qx] = A[2];
             QQx1[qy][qx] = A[1];
@@ -263,67 +257,51 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
    const int dim = PA.dim;
+   const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const DenseMatrix &J = PA.Jtr;
+   const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   const Vector &P = PA.P;
-
-   const auto d_J = Reshape(J.Read(), dim, dim);
-   auto d_P = Reshape(PA.P.Write(), Q1D, Q1D, dim, dim, N);
-   MFEM_FORALL_2D(e, N, Q1D, Q1D, 1,
-   {
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            d_P(qx,qy,0,0,e) = d_J(0,0);
-            d_P(qx,qy,0,1,e) = d_J(0,1);
-            d_P(qx,qy,1,0,e) = d_J(1,0);
-            d_P(qx,qy,1,1,e) = d_J(1,1);
-         }
-      }
-   });
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(N,W,B,G,P,X,Y);
-      case 0x22: return AddMultPA_Kernel_2D<2,2,1>(N,W,B,G,P,X,Y);
-      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(N,W,B,G,P,X,Y);
-      case 0x24: return AddMultPA_Kernel_2D<2,4,1>(N,W,B,G,P,X,Y);
-      case 0x25: return AddMultPA_Kernel_2D<2,5,1>(N,W,B,G,P,X,Y);
-      case 0x26: return AddMultPA_Kernel_2D<2,6,1>(N,W,B,G,P,X,Y);
+      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(M,N,J,W,B,G,X,Y);
+      case 0x22: return AddMultPA_Kernel_2D<2,2,1>(M,N,J,W,B,G,X,Y);
+      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(M,N,J,W,B,G,X,Y);
+      case 0x24: return AddMultPA_Kernel_2D<2,4,1>(M,N,J,W,B,G,X,Y);
+      case 0x25: return AddMultPA_Kernel_2D<2,5,1>(M,N,J,W,B,G,X,Y);
+      case 0x26: return AddMultPA_Kernel_2D<2,6,1>(M,N,J,W,B,G,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(N,W,B,G,P,X,Y);
-      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(N,W,B,G,P,X,Y);
-      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(N,W,B,G,P,X,Y);
-      case 0x34: return AddMultPA_Kernel_2D<3,4,1>(N,W,B,G,P,X,Y);
-      case 0x35: return AddMultPA_Kernel_2D<3,5,1>(N,W,B,G,P,X,Y);
-      case 0x36: return AddMultPA_Kernel_2D<3,6,1>(N,W,B,G,P,X,Y);
+      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(M,N,J,W,B,G,X,Y);
+      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(M,N,J,W,B,G,X,Y);
+      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(M,N,J,W,B,G,X,Y);
+      case 0x34: return AddMultPA_Kernel_2D<3,4,1>(M,N,J,W,B,G,X,Y);
+      case 0x35: return AddMultPA_Kernel_2D<3,5,1>(M,N,J,W,B,G,X,Y);
+      case 0x36: return AddMultPA_Kernel_2D<3,6,1>(M,N,J,W,B,G,X,Y);
 
-      case 0x41: return AddMultPA_Kernel_2D<4,1,1>(N,W,B,G,P,X,Y);
-      case 0x42: return AddMultPA_Kernel_2D<4,2,1>(N,W,B,G,P,X,Y);
-      case 0x43: return AddMultPA_Kernel_2D<4,3,1>(N,W,B,G,P,X,Y);
-      case 0x44: return AddMultPA_Kernel_2D<4,4,1>(N,W,B,G,P,X,Y);
-      case 0x45: return AddMultPA_Kernel_2D<4,5,1>(N,W,B,G,P,X,Y);
-      case 0x46: return AddMultPA_Kernel_2D<4,6,1>(N,W,B,G,P,X,Y);
+      case 0x41: return AddMultPA_Kernel_2D<4,1,1>(M,N,J,W,B,G,X,Y);
+      case 0x42: return AddMultPA_Kernel_2D<4,2,1>(M,N,J,W,B,G,X,Y);
+      case 0x43: return AddMultPA_Kernel_2D<4,3,1>(M,N,J,W,B,G,X,Y);
+      case 0x44: return AddMultPA_Kernel_2D<4,4,1>(M,N,J,W,B,G,X,Y);
+      case 0x45: return AddMultPA_Kernel_2D<4,5,1>(M,N,J,W,B,G,X,Y);
+      case 0x46: return AddMultPA_Kernel_2D<4,6,1>(M,N,J,W,B,G,X,Y);
 
-      case 0x51: return AddMultPA_Kernel_2D<5,1,1>(N,W,B,G,P,X,Y);
-      case 0x52: return AddMultPA_Kernel_2D<5,2,1>(N,W,B,G,P,X,Y);
-      case 0x53: return AddMultPA_Kernel_2D<5,3,1>(N,W,B,G,P,X,Y);
-      case 0x54: return AddMultPA_Kernel_2D<5,4,1>(N,W,B,G,P,X,Y);
-      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(N,W,B,G,P,X,Y);
-      case 0x56: return AddMultPA_Kernel_2D<5,6,1>(N,W,B,G,P,X,Y);
+      case 0x51: return AddMultPA_Kernel_2D<5,1,1>(M,N,J,W,B,G,X,Y);
+      case 0x52: return AddMultPA_Kernel_2D<5,2,1>(M,N,J,W,B,G,X,Y);
+      case 0x53: return AddMultPA_Kernel_2D<5,3,1>(M,N,J,W,B,G,X,Y);
+      case 0x54: return AddMultPA_Kernel_2D<5,4,1>(M,N,J,W,B,G,X,Y);
+      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(M,N,J,W,B,G,X,Y);
+      case 0x56: return AddMultPA_Kernel_2D<5,6,1>(M,N,J,W,B,G,X,Y);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return AddMultPA_Kernel_2D<0,0,0,T_MAX>(N,W,B,G,P,X,Y,D1D,Q1D);
+         return AddMultPA_Kernel_2D<0,0,0,T_MAX>(M,N,J,W,B,G,X,Y,D1D,Q1D);
       }
    }
 }
