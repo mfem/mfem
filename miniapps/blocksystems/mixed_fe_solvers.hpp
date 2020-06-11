@@ -6,18 +6,18 @@ using namespace mfem;
 
 enum MG_Type { AlgebraicMG, GeometricMG };
 
+/// Parameters for iterative solver
 struct IterSolveParameters
 {
     int print_level = 0;
     int max_iter = 500;
     double abs_tol = 1e-12;
     double rel_tol = 1e-9;
-    bool iter_mode = false;
 };
 
+/// Parameters for the divergence free solver
 struct DFSParameters : IterSolveParameters
 {
-    bool ml_particular = true;
     MG_Type MG_type = GeometricMG;
     bool verbose = false;
     bool B_has_nullity_one = false;
@@ -25,6 +25,7 @@ struct DFSParameters : IterSolveParameters
     IterSolveParameters BBT_solve_param;
 };
 
+/// Data for the divergence free solver
 struct DFSData
 {
     Array<OperatorPtr> agg_hdivdof;
@@ -38,62 +39,7 @@ struct DFSData
     DFSParameters param;
 };
 
-void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
-                double atol, double rtol, bool iter_mode=true);
-
-void PrintConvergence(const IterativeSolver& solver, bool verbose);
-
-class BBTSolver : public Solver // TODO: make it a template?
-{
-    OperatorPtr BBT_;
-    OperatorPtr BBT_prec_;
-    CGSolver BBT_solver_;
-    bool B_has_nullity_one_;
-    int verbose_;
-public:
-    BBTSolver(const HypreParMatrix &B, bool B_has_nullity_one=false,
-              IterSolveParameters param=IterSolveParameters());
-
-    virtual void Mult(const Vector &x, Vector &y) const;
-
-    virtual void SetOperator(const Operator &op) { }
-};
-
-class LocalSolver : public Solver
-{
-    DenseMatrix local_system_;
-    DenseMatrixInverse local_solver_;
-    const int offset_;
-public:
-    LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
-    virtual void Mult(const Vector &x, Vector &y) const;
-    virtual void SetOperator(const Operator &op) { }
-};
-
-class BlockDiagSolver : public Solver
-{
-    mutable SparseMatrix block_dof_;
-    mutable Array<int> local_dofs_;
-    mutable Vector sub_rhs_;
-    mutable Vector sub_sol_;
-    Array<DenseMatrixInverse> block_solver_;
-public:
-    BlockDiagSolver(const OperatorPtr& A, SparseMatrix block_dof);
-    virtual void Mult(const Vector &x, Vector &y) const;
-    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-    virtual void SetOperator(const Operator &op) { }
-};
-
-class DarcySolver : public Solver
-{
-protected:
-    Array<int> offsets_;
-public:
-    DarcySolver(int size0, int size1) : Solver(size0 + size1), offsets_(3)
-    { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
-    virtual int GetNumIterations() const = 0;
-};
-
+/// For collecting data needed for the divergence free solver
 class DFSDataCollector
 {
     RT_FECollection hdiv_fec_;
@@ -129,6 +75,59 @@ public:
     unique_ptr<ParFiniteElementSpace> hcurl_fes_;
 };
 
+/// Abstract solver class for Darcy's flow
+class DarcySolver : public Solver
+{
+protected:
+    Array<int> offsets_;
+public:
+    DarcySolver(int size0, int size1) : Solver(size0 + size1), offsets_(3)
+    { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
+    virtual int GetNumIterations() const = 0;
+};
+
+/// Solver for B * B^T
+class BBTSolver : public Solver
+{
+    OperatorPtr BBT_;
+    OperatorPtr BBT_prec_;
+    CGSolver BBT_solver_;
+    bool B_has_nullity_one_;
+public:
+    BBTSolver(const HypreParMatrix &B, bool B_has_nullity_one=false,
+              IterSolveParameters param=IterSolveParameters());
+    virtual void Mult(const Vector &x, Vector &y) const;
+    virtual void SetOperator(const Operator &op) { }
+};
+
+/// Block diagonal solver for A, each block is inverted by direct solver
+class BlockDiagSolver : public Solver
+{
+    mutable SparseMatrix block_dof_;
+    mutable Array<int> local_dofs_;
+    mutable Vector sub_rhs_;
+    mutable Vector sub_sol_;
+    Array<DenseMatrixInverse> block_solver_;
+public:
+    BlockDiagSolver(const OperatorPtr& A, SparseMatrix block_dof);
+    virtual void Mult(const Vector &x, Vector &y) const;
+    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+    virtual void SetOperator(const Operator &op) { }
+};
+
+/// Solver for local problems in SchwarzSmoother
+class LocalSolver : public Solver
+{
+    DenseMatrix local_system_;
+    DenseMatrixInverse local_solver_;
+    const int offset_;
+public:
+    LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
+    virtual void Mult(const Vector &x, Vector &y) const;
+    virtual void SetOperator(const Operator &op) { }
+};
+
+/// non-overlapping additive Schwarz for saddle point problems
 class SchwarzSmoother : public Solver
 {
     const SparseMatrix& agg_hdivdof_;
@@ -151,6 +150,7 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
+/// Relaxation on the kernel of divergence
 class KernelSmoother : public Solver
 {
     Array<int> offsets_;
@@ -183,10 +183,10 @@ public:
     virtual void SetOperator(const Operator &op) { }
 };
 
+/// Divergence free solver, cf.
 class DivFreeSolver : public DarcySolver
 {
     const DFSData& data_;
-
     OperatorPtr BT_;
     BBTSolver BBT_solver_;
     OperatorPtr CTMC_;
@@ -197,7 +197,6 @@ class DivFreeSolver : public DarcySolver
     OperatorPtr prec_;
     OperatorPtr solver_;
 
-    // Find a particular solution for div sigma_p = f
     void SolveParticular(const Vector& rhs, Vector& sol) const;
     void SolveDivFree(const Vector& rhs, Vector& sol) const;
     void SolvePotential(const Vector &rhs, Vector& sol) const;
@@ -208,21 +207,19 @@ public:
     virtual void SetOperator(const Operator &op) { }
     virtual int GetNumIterations() const
     {
-        return solver_.As<GMRESSolver>()->GetNumIterations();
+        return solver_.As<IterativeSolver>()->GetNumIterations();
     }
 };
 
+/// Multigrid class that uses HypreSmoother if smoothers are not given
 class AbstractMultigrid : public Solver
 {
     const Array<OperatorPtr>& Ps_;
-
     Array<OperatorPtr> ops_;
     Array<OperatorPtr> smoothers_;
-
     mutable Array<Vector> correct_;
     mutable Array<Vector> resid_;
     mutable Vector cor_cor_;
-
     bool smoothers_are_symmetric_;
 
     void MG_Cycle(int level) const;

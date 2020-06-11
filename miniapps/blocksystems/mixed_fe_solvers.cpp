@@ -4,53 +4,20 @@
 using namespace std;
 using namespace mfem;
 
-void SetOptions(IterativeSolver& solver, int print_lvl, int max_it,
-                double atol, double rtol, bool iter_mode)
-{
-    solver.SetPrintLevel(print_lvl);
-    solver.SetMaxIter(max_it);
-    solver.SetAbsTol(atol);
-    solver.SetRelTol(rtol);
-    solver.iterative_mode = iter_mode;
-}
-
 void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
 {
-    SetOptions(solver, param.print_level, param.max_iter, param.abs_tol,
-               param.rel_tol, param.iter_mode);
+    solver.SetPrintLevel(param.print_level);
+    solver.SetMaxIter(param.max_iter);
+    solver.SetAbsTol(param.abs_tol);
+    solver.SetRelTol(param.rel_tol);
 }
-
-void PrintConvergence(const IterativeSolver& solver, bool verbose)
-{
-    if (!verbose) return;
-    auto name = dynamic_cast<const CGSolver*>(&solver) ? "CG " : "MINRES ";
-    auto msg = solver.GetConverged() ? "converged in " : "did not converge in ";
-    cout << name << msg << solver.GetNumIterations() << " iterations. "
-         << "Final residual norm is " << solver.GetFinalNorm() << ".\n";
-}
-
-HypreParMatrix* Mult(const HypreParMatrix& A, const HypreParMatrix& B, const HypreParMatrix& C)
-{
-    OperatorPtr AB(ParMult(&A, &B));
-    auto* ABC = ParMult(AB.As<HypreParMatrix>(), &C);
-    ABC->CopyRowStarts();
-    ABC->CopyColStarts();
-    return ABC;
-}
-
-HypreParMatrix* Mult(const SparseMatrix& A, const SparseMatrix& B,
-                     const HypreParMatrix& C, Array<int>& row_starts)
-{
-    OperatorPtr AB(Mult(A, B));
-    return C.LeftDiagMult(*AB.As<SparseMatrix>(), row_starts);
-}
-
 
 HypreParMatrix* TwoStepsRAP(const HypreParMatrix& Rt, const HypreParMatrix& A,
                             const HypreParMatrix& P)
 {
     OperatorPtr R(Rt.Transpose());
-    return Mult(*(R.As<HypreParMatrix>()), A, P);
+    OperatorPtr RA(ParMult(R.As<HypreParMatrix>(), &A));
+    return ParMult(RA.As<HypreParMatrix>(), &P, true);
 }
 
 void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
@@ -63,159 +30,6 @@ void GetSubMatrix(const SparseMatrix& A, const Array<int>& rows,
 {
     sub_A.SetSize(rows.Size(), cols.Size());
     A.GetSubMatrix(rows, cols, sub_A);
-}
-
-SparseMatrix GetSubMatrix(const SparseMatrix& A, const Array<int>& rows,
-                          const Array<int>& cols, Array<int>& col_marker)
-{
-    if (rows.Size() == 0 || cols.Size() == 0)
-    {
-        SparseMatrix out(rows.Size(), cols.Size());
-        out.Finalize();
-        return out;
-    }
-
-    const int* i_A = A.GetI();
-    const int* j_A = A.GetJ();
-    const double* a_A = A.GetData();
-
-    MFEM_ASSERT(rows.Size() && rows.Max() < A.NumRows(), "incompatible rows");
-    MFEM_ASSERT(cols.Size() && cols.Max() < A.NumCols(), "incompatible rows");
-    MFEM_ASSERT(col_marker.Size() >= A.NumCols(), "incompatible col_marker");
-
-    for (int jcol = 0; jcol < cols.Size(); ++jcol)
-        col_marker[cols[jcol]] = jcol;
-
-    const int nrow_sub = rows.Size();
-    const int ncol_sub = cols.Size();
-
-    int* i_sub = new int[nrow_sub+1]();
-
-    // Find the number of nnz.
-    int nnz = 0;
-    for (int i = 0; i < nrow_sub; ++i)
-    {
-        const int r = rows[i];
-
-        for (int j = i_A[r]; j < i_A[r+1]; ++j)
-            if (col_marker[j_A[j]] >= 0) ++nnz;
-
-        i_sub[i+1] = nnz;
-    }
-
-    // Allocate memory
-    int* j_sub = new int[nnz];
-    double* a_sub = new double[nnz];
-
-    // Fill in the matrix
-    int count = 0;
-    for (int i = 0; i < nrow_sub; ++i)
-    {
-        const int current_row = rows[i];
-        for (int j = i_A[current_row]; j < i_A[current_row + 1]; ++j)
-        {
-            if (col_marker[j_A[j]] >= 0)
-            {
-                j_sub[count] = col_marker[j_A[j]];
-                a_sub[count++] = a_A[j];
-            }
-        }
-    }
-
-    // Restore colMapper so it can be reused other times!
-    for (int jcol = 0; jcol < cols.Size(); ++jcol)
-        col_marker[cols[jcol]] = -1;
-
-    return SparseMatrix(i_sub, j_sub, a_sub, nrow_sub, ncol_sub);
-}
-
-BBTSolver::BBTSolver(const HypreParMatrix& B, bool B_has_nullity_one,
-                     IterSolveParameters param)
-    : Solver(B.NumRows()), BBT_solver_(B.GetComm())
-{
-    OperatorPtr BT(B.Transpose());
-    BBT_.Reset(ParMult(&B, BT.As<HypreParMatrix>()));
-    BBT_.As<HypreParMatrix>()->CopyColStarts();
-
-    MPI_Comm_rank(B.GetComm(), &verbose_);
-    B_has_nullity_one_ = B_has_nullity_one && !verbose_; // verbose_ = MPI rank
-
-    Array<int> ess_dofs(B_has_nullity_one_ ? 1 : 0);
-    ess_dofs = 0;
-    OperatorPtr BBT_elim;
-    BBT_elim.EliminateRowsCols(BBT_, ess_dofs);
-
-    BBT_prec_.Reset(new HypreBoomerAMG(*BBT_.As<HypreParMatrix>()));
-    BBT_prec_.As<HypreBoomerAMG>()->SetPrintLevel(0);
-
-    SetOptions(BBT_solver_, param);
-    BBT_solver_.SetOperator(*BBT_);
-    BBT_solver_.SetPreconditioner(*BBT_prec_.As<HypreBoomerAMG>());
-
-    verbose_ = (param.print_level) >= 0 && (verbose_ == 0);
-}
-
-void BBTSolver::Mult(const Vector &x, Vector &y) const
-{
-    double x_0 = x[0];
-    if (B_has_nullity_one_) const_cast<Vector&>(x)[0] = 0.0;
-    BBT_solver_.Mult(x, y);
-    if (B_has_nullity_one_) const_cast<Vector&>(x)[0] = x_0;
-    PrintConvergence(BBT_solver_, false);
-}
-
-LocalSolver::LocalSolver(const DenseMatrix& M, const DenseMatrix& B)
-    : Solver(M.NumRows()+B.NumRows()), local_system_(height), offset_(M.NumRows())
-{
-    local_system_.CopyMN(M, 0, 0);
-    local_system_.CopyMN(B, offset_, 0);
-    local_system_.CopyMNt(B, 0, offset_);
-
-    local_system_.SetRow(offset_, 0.0);
-    local_system_.SetCol(offset_, 0.0);
-    local_system_(offset_, offset_) = -1.0;
-    local_solver_.SetOperator(local_system_);
-}
-
-void LocalSolver::Mult(const Vector &x, Vector &y) const
-{
-    const double x0 = x[offset_];
-    const_cast<Vector&>(x)[offset_] = 0.0;
-
-    y.SetSize(local_system_.NumRows());
-    local_solver_.Mult(x, y);
-
-    const_cast<Vector&>(x)[offset_] = x0;
-}
-
-BlockDiagSolver::BlockDiagSolver(const OperatorPtr &A, SparseMatrix block_dof)
-    : Solver(A->NumRows()), block_dof_(std::move(block_dof)),
-      block_solver_(block_dof.NumRows())
-{
-    SparseMatrix A_diag;
-    A.As<HypreParMatrix>()->GetDiag(A_diag);
-    DenseMatrix sub_A;
-    for(int block = 0; block < block_dof.NumRows(); block++)
-    {
-        GetRowColumnsRef(block_dof_, block, local_dofs_);
-        GetSubMatrix(A_diag, local_dofs_, local_dofs_, sub_A);
-        block_solver_[block].SetOperator(sub_A);
-    }
-}
-
-void BlockDiagSolver::Mult(const Vector &x, Vector &y) const
-{
-    y.SetSize(x.Size());
-    y = 0.0;
-
-    for(int block = 0; block < block_dof_.NumRows(); block++)
-    {
-        GetRowColumnsRef(block_dof_, block, local_dofs_);
-        x.GetSubVector(local_dofs_, sub_rhs_);
-        sub_sol_.SetSize(local_dofs_.Size());
-        block_solver_[block].Mult(sub_rhs_, sub_sol_);
-        y.AddElementVector(local_dofs_, sub_sol_);
-    }
 }
 
 SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
@@ -238,26 +52,24 @@ DFSDataCollector(int order, int num_refine, ParMesh *mesh,
       ess_bdr_attr_(ess_attr), level_(num_refine), order_(order)
 {
     data_.param = param;
-    if (data_.param.ml_particular)
-    {
-        all_bdr_attr_.SetSize(ess_attr.Size(), 1);
-        hdiv_fes_.reset(new ParFiniteElementSpace(mesh, &hdiv_fec_));
-        l2_fes_.reset(new ParFiniteElementSpace(mesh, &l2_fec_));
-        coarse_hdiv_fes_.reset(new ParFiniteElementSpace(*hdiv_fes_));
-        coarse_l2_fes_.reset(new ParFiniteElementSpace(*l2_fes_));
-        l2_0_fes_.reset(new ParFiniteElementSpace(mesh, &l2_0_fec_));
-        l2_0_fes_->SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
-        el_l2dof_.SetSize(num_refine+1);
-        el_l2dof_[level_] = ElemToDof(*coarse_l2_fes_);
 
-        data_.agg_hdivdof.SetSize(num_refine);
-        data_.agg_l2dof.SetSize(num_refine);
-        data_.P_hdiv.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
-        data_.P_l2.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
-        data_.Q_l2.SetSize(num_refine);
-        hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
-        data_.C.SetSize(num_refine+1);
-    }
+    all_bdr_attr_.SetSize(ess_attr.Size(), 1);
+    hdiv_fes_.reset(new ParFiniteElementSpace(mesh, &hdiv_fec_));
+    l2_fes_.reset(new ParFiniteElementSpace(mesh, &l2_fec_));
+    coarse_hdiv_fes_.reset(new ParFiniteElementSpace(*hdiv_fes_));
+    coarse_l2_fes_.reset(new ParFiniteElementSpace(*l2_fes_));
+    l2_0_fes_.reset(new ParFiniteElementSpace(mesh, &l2_0_fec_));
+    l2_0_fes_->SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+    el_l2dof_.SetSize(num_refine+1);
+    el_l2dof_[level_] = ElemToDof(*coarse_l2_fes_);
+
+    data_.agg_hdivdof.SetSize(num_refine);
+    data_.agg_l2dof.SetSize(num_refine);
+    data_.P_hdiv.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+    data_.P_l2.SetSize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+    data_.Q_l2.SetSize(num_refine);
+    hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
+    data_.C.SetSize(num_refine+1);
 
     if (data_.param.MG_type == GeometricMG)
     {
@@ -283,7 +95,8 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
                                const HypreParMatrix& dof_truedof,
                                Array<int>& agg_starts)
 {
-    OperatorPtr agg_tdof(Mult(agg_elem, elem_dof, dof_truedof, agg_starts));
+    OperatorPtr agg_dof(Mult(agg_elem, elem_dof));
+    OperatorPtr agg_tdof(dof_truedof.LeftDiagMult(*agg_dof.As<SparseMatrix>(), agg_starts));
     OperatorPtr agg_tdof_T(agg_tdof.As<HypreParMatrix>()->Transpose());
     SparseMatrix tdof_agg, is_shared;
     HYPRE_Int* trash;
@@ -338,12 +151,6 @@ void DFSDataCollector::DataFinalize(ParMesh* mesh)
         hcurl_fes_.reset(new ParFiniteElementSpace(mesh, &hcurl_fec_));
     }
 
-    if (data_.param.ml_particular == false)
-    {
-        hdiv_fes_.reset(new ParFiniteElementSpace(mesh, &hdiv_fec_));
-        l2_fes_.reset(new ParFiniteElementSpace(mesh, &l2_fec_));
-    }
-
     ParBilinearForm mass(l2_fes_.get());
     mass.AddDomainIntegrator(new MassIntegrator());
     mass.Assemble();
@@ -377,12 +184,9 @@ void DFSDataCollector::CollectData(ParMesh* mesh)
         this->level_ ? cfes->Update() : cfes.reset();
     };
 
-    if (data_.param.ml_particular)
-    {
-        GetP(data_.P_hdiv[level_], coarse_hdiv_fes_, *hdiv_fes_, true);
-        GetP(data_.P_l2[level_], coarse_l2_fes_, *l2_fes_, false);
-        MakeDofRelationTables(level_);
-    }
+    GetP(data_.P_hdiv[level_], coarse_hdiv_fes_, *hdiv_fes_, true);
+    GetP(data_.P_l2[level_], coarse_l2_fes_, *l2_fes_, false);
+    MakeDofRelationTables(level_);
 
     if (data_.param.MG_type == GeometricMG)
         GetP(data_.P_hcurl[level_], coarse_hcurl_fes_, *hcurl_fes_, true);
@@ -396,6 +200,94 @@ void DFSDataCollector::CollectData(ParMesh* mesh)
     data_.C[level_].Reset(curl.ParallelAssemble());
 
     if (level_ == 0) DataFinalize(mesh);
+}
+
+
+BBTSolver::BBTSolver(const HypreParMatrix& B, bool B_has_nullity_one,
+                     IterSolveParameters param)
+    : Solver(B.NumRows()), BBT_solver_(B.GetComm())
+{
+    OperatorPtr BT(B.Transpose());
+    BBT_.Reset(ParMult(&B, BT.As<HypreParMatrix>()));
+    BBT_.As<HypreParMatrix>()->CopyColStarts();
+
+    int myid;
+    MPI_Comm_rank(B.GetComm(), &myid);
+    B_has_nullity_one_ = B_has_nullity_one && (myid == 0);
+
+    Array<int> ess_dofs(B_has_nullity_one_ ? 1 : 0);
+    ess_dofs = 0;
+    OperatorPtr BBT_elim;
+    BBT_elim.EliminateRowsCols(BBT_, ess_dofs);
+
+    BBT_prec_.Reset(new HypreBoomerAMG(*BBT_.As<HypreParMatrix>()));
+    BBT_prec_.As<HypreBoomerAMG>()->SetPrintLevel(0);
+
+    SetOptions(BBT_solver_, param);
+    BBT_solver_.SetOperator(*BBT_);
+    BBT_solver_.SetPreconditioner(*BBT_prec_.As<HypreBoomerAMG>());
+}
+
+void BBTSolver::Mult(const Vector &x, Vector &y) const
+{
+    double x_0 = x[0];
+    if (B_has_nullity_one_) const_cast<Vector&>(x)[0] = 0.0;
+    BBT_solver_.Mult(x, y);
+    if (B_has_nullity_one_) const_cast<Vector&>(x)[0] = x_0;
+}
+
+BlockDiagSolver::BlockDiagSolver(const OperatorPtr &A, SparseMatrix block_dof)
+    : Solver(A->NumRows()), block_dof_(std::move(block_dof)),
+      block_solver_(block_dof.NumRows())
+{
+    SparseMatrix A_diag;
+    A.As<HypreParMatrix>()->GetDiag(A_diag);
+    DenseMatrix sub_A;
+    for(int block = 0; block < block_dof.NumRows(); block++)
+    {
+        GetRowColumnsRef(block_dof_, block, local_dofs_);
+        GetSubMatrix(A_diag, local_dofs_, local_dofs_, sub_A);
+        block_solver_[block].SetOperator(sub_A);
+    }
+}
+
+void BlockDiagSolver::Mult(const Vector &x, Vector &y) const
+{
+    y.SetSize(x.Size());
+    y = 0.0;
+
+    for(int block = 0; block < block_dof_.NumRows(); block++)
+    {
+        GetRowColumnsRef(block_dof_, block, local_dofs_);
+        x.GetSubVector(local_dofs_, sub_rhs_);
+        sub_sol_.SetSize(local_dofs_.Size());
+        block_solver_[block].Mult(sub_rhs_, sub_sol_);
+        y.AddElementVector(local_dofs_, sub_sol_);
+    }
+}
+
+LocalSolver::LocalSolver(const DenseMatrix& M, const DenseMatrix& B)
+    : Solver(M.NumRows()+B.NumRows()), local_system_(height), offset_(M.NumRows())
+{
+    local_system_.CopyMN(M, 0, 0);
+    local_system_.CopyMN(B, offset_, 0);
+    local_system_.CopyMNt(B, 0, offset_);
+
+    local_system_.SetRow(offset_, 0.0);
+    local_system_.SetCol(offset_, 0.0);
+    local_system_(offset_, offset_) = -1.0;
+    local_solver_.SetOperator(local_system_);
+}
+
+void LocalSolver::Mult(const Vector &x, Vector &y) const
+{
+    const double x0 = x[offset_];
+    const_cast<Vector&>(x)[offset_] = 0.0;
+
+    y.SetSize(local_system_.NumRows());
+    local_solver_.Mult(x, y);
+
+    const_cast<Vector&>(x)[offset_] = x0;
 }
 
 SchwarzSmoother::SchwarzSmoother(const HypreParMatrix& M,
@@ -650,7 +542,6 @@ void DivFreeSolver::SolveDivFree(const Vector &rhs, Vector& sol) const
 
     Vector potential_divfree(CTMC_->NumRows());
     solver_->Mult(rhs_divfree, potential_divfree);
-    PrintConvergence(*solver_.As<CGSolver>(), data_.param.verbose);
 
     data_.C[0]->Mult(potential_divfree, sol);
 }
@@ -826,6 +717,4 @@ void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
 {
     solver_.Mult(x, y);
     for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
-    PrintConvergence(solver_, false);
 }
-
