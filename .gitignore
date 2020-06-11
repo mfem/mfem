@@ -249,8 +249,10 @@ tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
 tests/unit/tmop_tests_*
 tests/unit/ptmop_tests_*
+tests/unit/star.mesh
 tests/unit/blade.mesh
 tests/unit/toroid-hex.mesh
+
 
 # Test script output
 tests/scripts/*.err
