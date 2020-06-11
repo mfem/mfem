@@ -38,9 +38,12 @@ protected:
    };
    Geometry::Type geom;
 
-   // Evaluate the Jacobian of the transformation at the IntPoint and store it
-   // in dFdx.
+   /** @brief Evaluate the Jacobian of the transformation at the IntPoint and
+       store it in dFdx. */
    virtual const DenseMatrix &EvalJacobian() = 0;
+
+   /** @brief Evaluate the Hessian of the transformation at the IntPoint and
+       store it in d2Fdx2. */
    virtual const DenseMatrix &EvalHessian() = 0;
 
    double EvalWeight();
@@ -74,14 +77,27 @@ public:
 
    ElementTransformation();
 
+   /** @brief Set the integration point @a ip that weights and Jacobians will
+       be evaluated at. */
    void SetIntPoint(const IntegrationPoint *ip)
    { IntPoint = ip; EvalState = 0; }
+
+   /** @brief Get a const reference to the currently set integration point.  This
+       will return NULL if no integration point is set. */
    const IntegrationPoint &GetIntPoint() { return *IntPoint; }
 
+   /** @brief Transform integration point from reference coordinates to
+       physical coordinates and store them in the vector. */
    virtual void Transform(const IntegrationPoint &, Vector &) = 0;
+
+   /** @brief Transform all the integration points from the integration rule
+       from reference coordinates to physical
+       coordinates and store them as column vectors in the matrix. */
    virtual void Transform(const IntegrationRule &, DenseMatrix &) = 0;
 
-   /// Transform columns of 'matrix', store result in 'result'.
+   /** @brief Transform all the integration points from the column vectors
+       of @a matrix from reference coordinates to physical
+       coordinates and store them as column vectors in @a result. */
    virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result) = 0;
 
    /** @brief Return the Jacobian matrix of the transformation at the currently
@@ -92,27 +108,44 @@ public:
    const DenseMatrix &Jacobian()
    { return (EvalState & JACOBIAN_MASK) ? dFdx : EvalJacobian(); }
 
+
+   /** @brief Return the Hessian matrix of the transformation at the currently
+       set IntegrationPoint, using the method SetIntPoint(). */
    const DenseMatrix &Hessian()
    { return (EvalState & HESSIAN_MASK) ? d2Fdx2 : EvalHessian(); }
 
+   /** @brief Return the weight of the Jacobian matrix of the transformation
+       at the currently set IntegrationPoint.
+       The Weight evaluates to \f$ \sqrt{\lvert J^T J \rvert} \f$. */
    double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
+   /** @brief Return the adjugate of the Jacobian matrix of the transformation
+        at the currently set IntegrationPoint. */
    const DenseMatrix &AdjugateJacobian()
    { return (EvalState & ADJUGATE_MASK) ? adjJ : EvalAdjugateJ(); }
 
+   /** @brief Return the inverse of the Jacobian matrix of the transformation
+        at the currently set IntegrationPoint. */
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
+   /// Return the order of the current element we are using for the transformation.
    virtual int Order() const = 0;
+
+   /// Return the order of the elements of the Jacobian of the transformation.
    virtual int OrderJ() const = 0;
+
+   /** @brief Return the order of the determinant of the Jacobian (weight)
+       of the transformation. */
    virtual int OrderW() const = 0;
-   /// Order of adj(J)^t.grad(fi)
+
+   /// Return the order of \f$ adj(J)^T \nabla fi \f$
    virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
    Geometry::Type GetGeometryType() const { return geom; }
 
-   /// Return the dimension of the reference element.
+   /// Return the topological dimension of the reference element.
    int GetDimension() const { return Geometry::Dimension[geom]; }
 
    /// Get the dimension of the target (physical) space.
@@ -308,7 +341,7 @@ public:
    virtual int Transform(const Vector &pt, IntegrationPoint &ip);
 };
 
-
+/// A standard isoparametric element transformation
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
@@ -318,26 +351,29 @@ private:
    const FiniteElement *FElem;
    DenseMatrix PointMat; // dim x dof
 
-   // Evaluate the Jacobian of the transformation at the IntPoint and store it
-   // in dFdx.
+   /** @brief Evaluate the Jacobian of the transformation at the IntPoint and
+       store it in dFdx. */
    virtual const DenseMatrix &EvalJacobian();
    // Evaluate the Hessian of the transformation at the IntPoint and store it
    // in d2Fdx2.
    virtual const DenseMatrix &EvalHessian();
 public:
+   /// Set the element that will be used to compute the transformations
    void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
+
+   /// Get the current element used to compute the transformations
    const FiniteElement* GetFE() const { return FElem; }
 
    /// @brief Set the underlying point matrix describing the transformation.
    /** The dimensions of the matrix are space-dim x dof. The transformation is
        defined as
+           \f$ x = F( \hat x ) = P \phi( \hat x ) \f$
 
-           x = F(xh) = P . phi(xh),
-
-       where xh (x hat) is the reference point, x is the corresponding physical
-       point, P is the point matrix, and phi(xh) is the column-vector of all
-       basis functions evaluated at xh. The columns of P represent the control
-       points in physical space defining the transformation. */
+       where \f$ \hat x \f$  is the reference point, @a x is the corresponding
+       physical point, @a P is the point matrix, and \f$ \phi( \hat x ) \f$ is
+       the column-vector of all basis functions evaluated at \f$ \hat x \f$ .
+       The columns of @a P represent the control points in physical space
+       defining the transformation. */
    void SetPointMat(const DenseMatrix &pm) { PointMat = pm; }
 
    /// Return the stored point matrix.
@@ -346,19 +382,44 @@ public:
    /// Write access to the stored point matrix. Use with caution.
    DenseMatrix &GetPointMat() { return PointMat; }
 
+   /// Set the FiniteElement Geometry for the reference elements being used.
    void SetIdentityTransformation(Geometry::Type GeomType);
 
+   /** @brief Transform integration point from reference coordinates to
+       physical coordinates and store them in the vector. */
    virtual void Transform(const IntegrationPoint &, Vector &);
+
+   /** @brief Transform all the integration points from the integration rule
+       from reference coordinates to physical
+      coordinates and store them as column vectors in the matrix. */
    virtual void Transform(const IntegrationRule &, DenseMatrix &);
+
+   /** @brief Transform all the integration points from the column vectors
+       of @a matrix from reference coordinates to physical
+       coordinates and store them as column vectors in @a result. */
    virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
 
+   /// Return the order of the current element we are using for the transformation.
    virtual int Order() const { return FElem->GetOrder(); }
+
+   /// Return the order of the elements of the Jacobian of the transformation.
    virtual int OrderJ() const;
+
+   /** @brief Return the order of the determinant of the Jacobian (weight)
+       of the transformation. */
    virtual int OrderW() const;
+
+   /// Return the order of \f$ adj(J)^T \nabla fi \f$
    virtual int OrderGrad(const FiniteElement *fe) const;
 
    virtual int GetSpaceDim() const { return PointMat.Height(); }
 
+   /** @brief Transform a point @a pt from physical space to a point @a ip in
+       reference space. */
+   /** Attempt to find the IntegrationPoint that is transformed into the given
+       point in physical space. If the inversion fails a non-zero value is
+       returned. This method is not 100 percent reliable for non-linear
+       transformations. */
    virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
    {
       InverseElementTransformation inv_tr(this);
@@ -377,6 +438,7 @@ public:
    void Transform (const IntegrationPoint &, IntegrationPoint &);
    void Transform (const IntegrationRule  &, IntegrationRule  &);
 };
+
 
 class FaceElementTransformations : public IsoparametricTransformation
 {
@@ -432,7 +494,7 @@ public:
    IntegrationPointTransformation & GetIntPoint2Transformation();
 };
 
-/*                 Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))
+/**                Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))
 
 
                                 Physical Space
