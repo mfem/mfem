@@ -56,6 +56,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.X.SetSize(PA.elem_restrict_lex->Height(), Device::GetMemoryType());
    PA.X.UseDevice(true);
 
+   // TargetConstructor TargetType setup
    const TargetConstructor::TargetType &target_type = targetC->Type();
    MFEM_VERIFY(target_type == TargetConstructor::IDEAL_SHAPE_UNIT_SIZE ||
                target_type == TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE ||
