@@ -1789,8 +1789,7 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
    }
 }
 
-void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef,
-                                                   bool bc)
+void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -1804,13 +1803,6 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef,
    fbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                           dg_.sigma,
                                           dg_.kappa));
-   if (bc)
-   {
-      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
-                                              dg_.sigma,
-                                              dg_.kappa));
-      bfbfi_marker_.Append(NULL);
-   }
 
    if (blf_[index_] == NULL)
    {
@@ -1822,16 +1814,62 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef,
       new DGDiffusionIntegrator(*dtDCoef,
                                 dg_.sigma,
                                 dg_.kappa));
-   if (bc)
+
+   const vector<CoefficientByAttr> & dbc = bcs_.GetDirichletBCs();
+   for (unsigned int i=0; i<dbc.size(); i++)
    {
+      bfbfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+		   *bfbfi_marker_.Last());
+      bfbfi_.Append(new DGDiffusionIntegrator(*dtDCoef,
+                                              dg_.sigma,
+                                              dg_.kappa));
+
+      bflfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+		   *bflfi_marker_.Last());
+      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, *dtDCoef,
+						dg_.sigma,
+						dg_.kappa));
+
       blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
                                                                    dg_.sigma,
-                                                                   dg_.kappa));
+                                                                   dg_.kappa),
+					 *bfbfi_marker_.Last());
+   }
+
+   const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
+   for (unsigned int i=0; i<nbc.size(); i++)
+   {
+      bflfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
+		   *bflfi_marker_.Last());
+      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
+   }
+
+   const vector<CoefficientsByAttr> & rbc = bcs_.GetRobinBCs();
+   for (unsigned int i=0; i<rbc.size(); i++)
+   {
+      bfbfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+		   *bfbfi_marker_.Last());
+      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
+
+      bflfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+		   *bflfi_marker_.Last());
+      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
+
+      ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
+							    *rbc[i].coefs[0]);
+      dtSCoefs_.Append(dtaCoef);
+
+      blf_[index_]->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
+					 *bfbfi_marker_.Last());
    }
 }
 
-void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef,
-                                                   bool bc)
+void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -1846,13 +1884,6 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef,
    fbfi_.Append(new DGDiffusionIntegrator(DCoef,
                                           dg_.sigma,
                                           dg_.kappa));
-   if (bc)
-   {
-      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
-                                              dg_.sigma,
-                                              dg_.kappa));
-      bfbfi_marker_.Append(NULL);
-   }
 
    if (blf_[index_] == NULL)
    {
@@ -1864,11 +1895,58 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef,
       new DGDiffusionIntegrator(*dtDCoef,
                                 dg_.sigma,
                                 dg_.kappa));
-   if (bc)
+   
+   const vector<CoefficientByAttr> & dbc = bcs_.GetDirichletBCs();
+   for (unsigned int i=0; i<dbc.size(); i++)
    {
+      bfbfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+		   *bfbfi_marker_.Last());
+      bfbfi_.Append(new DGDiffusionIntegrator(DCoef,
+                                              dg_.sigma,
+                                              dg_.kappa));
+
+      bflfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i].attr,
+		   *bflfi_marker_.Last());
+      bflfi_.Append(new DGDirichletLFIntegrator(*dbc[i].coef, DCoef,
+						dg_.sigma,
+						dg_.kappa));
+
       blf_[index_]->AddBdrFaceIntegrator(new DGDiffusionIntegrator(*dtDCoef,
                                                                    dg_.sigma,
-                                                                   dg_.kappa));
+                                                                   dg_.kappa),
+					 *bfbfi_marker_.Last());
+   }
+
+   const vector<CoefficientByAttr> & nbc = bcs_.GetNeumannBCs();
+   for (unsigned int i=0; i<nbc.size(); i++)
+   {
+      bflfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), nbc[i].attr,
+		   *bflfi_marker_.Last());
+      bflfi_.Append(new BoundaryLFIntegrator(*nbc[i].coef));
+   }
+
+   const vector<CoefficientsByAttr> & rbc = bcs_.GetRobinBCs();
+   for (unsigned int i=0; i<rbc.size(); i++)
+   {
+      bfbfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+		   *bfbfi_marker_.Last());
+      bfbfi_.Append(new BoundaryMassIntegrator(*rbc[i].coefs[0]));
+
+      bflfi_marker_.Append(new Array<int>);
+      AttrToMarker(pmesh_.bdr_attributes.Max(), rbc[i].attr,
+		   *bflfi_marker_.Last());
+      bflfi_.Append(new BoundaryLFIntegrator(*rbc[i].coefs[1]));
+
+      ProductCoefficient * dtaCoef = new ProductCoefficient(dt_,
+							    *rbc[i].coefs[0]);
+      dtSCoefs_.Append(dtaCoef);
+
+      blf_[index_]->AddBdrFaceIntegrator(new BoundaryMassIntegrator(*dtaCoef),
+					 *bfbfi_marker_.Last());
    }
 }
 
@@ -2732,7 +2810,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    if (this->CheckTermFlag(DIFFUSION_TERM))
    {
       // Diffusion term: -Div(eta Grad v_i)
-      SetDiffusionTerm(EtaCoef_, true);
+      SetDiffusionTerm(EtaCoef_);
    }
    /*
    dbfi_.Append(new DiffusionIntegrator(EtaCoef_));
@@ -2967,7 +3045,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
    if (this->CheckTermFlag(DIFFUSION_TERM))
    {
       // Diffusion term: -Div(chi Grad T_i)
-      SetDiffusionTerm(ChiCoef_, true);
+      SetDiffusionTerm(ChiCoef_);
    }
    /*
    dbfi_.Append(new DiffusionIntegrator(ChiCoef_));
@@ -3122,7 +3200,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    if (this->CheckTermFlag(DIFFUSION_TERM))
    {
       // Diffusion term: -Div(chi Grad T_e)
-      SetDiffusionTerm(ChiCoef_, true);
+      SetDiffusionTerm(ChiCoef_);
    }
    /*
    dbfi_.Append(new DiffusionIntegrator(ChiCoef_));

@@ -2211,8 +2211,8 @@ private:
              Div(DCoef Grad y[index])
           where index is the index of the equation.
        */
-      void SetDiffusionTerm(StateVariableCoef &DCoef, bool bc = false);
-      void SetDiffusionTerm(StateVariableMatCoef &DCoef, bool bc = false);
+      void SetDiffusionTerm(StateVariableCoef &DCoef);
+      void SetDiffusionTerm(StateVariableMatCoef &DCoef);
 
       /** Sets the advection term on the right hand side of the
       equation to be:
