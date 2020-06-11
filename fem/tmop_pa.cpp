@@ -64,12 +64,12 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const int NE = mesh->GetNE();
    const int NQ = ir.GetNPoints();
    PA.Jtr.SetSize(dim, dim, NE*NQ);
+   PA.Jtr.HostWrite();
    for (int e = 0; e < NE; e++)
    {
-      const Vector elfun;
       const FiniteElement *fe = fes.GetFE(e);
       DenseTensor Jtr(dim, dim, NQ);
-      targetC->ComputeElementTargets(e, *fe, ir, elfun, Jtr);
+      targetC->ComputeElementTargets(e, *fe, ir, Vector(), Jtr);
       for (int q = 0; q < NQ; q++) { PA.Jtr(e*NQ+q) = Jtr(q); }
    }
 }

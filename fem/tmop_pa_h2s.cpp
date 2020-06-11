@@ -35,12 +35,12 @@ void Invariant2_dMdM_2D(int i, int j, double dMdM[2][2])
 }
 
 MFEM_HOST_DEVICE inline
-void Invariant1_dMdM_2D(const double *m,
+void Invariant1_dMdM_2D(const double *Jpt,
                         const int i, const int j,
                         const int qx, const int qy, const int e,
-                        const double weight, DeviceTensor<7,double> P)
+                        const double w, DeviceTensor<7,double> P)
 {
-   const double (*M)[2] = (const double (*)[2])(m);
+   const double (*M)[2] = (const double (*)[2])(Jpt);
 
    double dI[2][2];
    Invariant2_dM_2D(M, dI);
@@ -49,7 +49,7 @@ void Invariant1_dMdM_2D(const double *m,
 
    const double det = M[0][0]*M[1][1] - M[0][1]*M[1][0];
    const double det2 = det * det;
-   const double fnorm2 = kernels::FNorm2<2,2>(m);
+   const double fnorm2 = kernels::FNorm2<2,2>(Jpt);
 
    double dM[2][2] {{}}; dM[j][i] = 1.0;
    double ddI[2][2];
@@ -65,10 +65,9 @@ void Invariant1_dMdM_2D(const double *m,
               - dfnorm2 * dI[c][r] - fnorm2 * ddI[c][r])
              - 2.0 * det * ddet *
              (2.0 * det * M[c][r] - fnorm2 * dI[c][r]) ) / (det2 * det2);
-         P(r,c,i,j,qx,qy,e) *= weight;
+         P(r,c,i,j,qx,qy,e) *= w;
       }
    }
-
 }
 
 static MFEM_HOST_DEVICE inline
@@ -116,7 +115,6 @@ static void SetupGradPA_2D(const Vector &xe_,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      constexpr int DIM = 2;
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
