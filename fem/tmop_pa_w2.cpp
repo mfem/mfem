@@ -74,15 +74,16 @@ static double EnergyPA_2D(const int mid,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double s_BG[2][MQ1*MD1];
-      MFEM_SHARED double s_X[2][NBZ][MD1*MD1];
-      MFEM_SHARED double s_DQ[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double s_QQ[4][NBZ][MQ1*MQ1];
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
+      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e, D1D, s_X, X);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,s_BG,b,g);
-      kernels::GradX<MD1,MQ1,NBZ>(D1D, Q1D, s_BG, s_X, s_DQ);
-      kernels::GradY<MD1,MQ1,NBZ>(D1D, Q1D, s_BG, s_DQ, s_QQ);
+      kernels::LoadX<MD1,NBZ>(e,D1D,X,XY);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+
+      kernels::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+      kernels::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -98,11 +99,11 @@ static double EnergyPA_2D(const int mid,
 
             // Jpr = X^T.DSh
             double Jpr[4];
-            kernels::PullGradXY<MQ1,NBZ>(qx,qy,s_QQ,Jpr);
+            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
             // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
             double Jpt[4];
-            kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
+            kernels::Mult(2,2,2,Jpr,Jrt,Jpt);
 
             // metric->EvalW(Jpt);
             const double EvalW =

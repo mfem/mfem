@@ -35,9 +35,9 @@ namespace kernels
 /// Load B1d & G1d matrices into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
-                                    double s_BG[2][MQ1*MD1],
                                     const DeviceTensor<2, const double> b,
-                                    const DeviceTensor<2, const double> g)
+                                    const DeviceTensor<2, const double> g,
+                                    double s_BG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
@@ -59,9 +59,9 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
 /// Load Bt1d & Gt1d matrices into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
-                                     double sBG[2][MQ1*MD1],
                                      const DeviceTensor<2, const double> b,
-                                     const DeviceTensor<2, const double> g)
+                                     const DeviceTensor<2, const double> g,
+                                     double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
@@ -84,8 +84,8 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e,
                                    const int D1D,
-                                   double s_X[2][NBZ][MD1*MD1],
-                                   const DeviceTensor<4, const double> X)
+                                   const DeviceTensor<4, const double> X,
+                                   double s_X[2][NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*Xx)[MD1] = (double (*)[MD1])(s_X[0] + tidz);
@@ -105,8 +105,8 @@ MFEM_HOST_DEVICE inline void LoadX(const int e,
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e,
                                    const int D1D,
-                                   double sm[3][MD1*MD1*MD1],
-                                   const DeviceTensor<5, const double> X)
+                                   const DeviceTensor<5, const double> X,
+                                   double sm[3][MD1*MD1*MD1])
 {
    double (*Xx)[MD1][MD1] = (double (*)[MD1][MD1])(sm+0);
    double (*Xy)[MD1][MD1] = (double (*)[MD1][MD1])(sm+1);
@@ -233,8 +233,8 @@ const double *PullGradXY(const int qx, const int qy,
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline
 void PushGradXY(const int qx, const int qy,
-                double s_QQ[4][NBZ][MQ1*MQ1],
-                const double *A)
+                const double *A,
+                double s_QQ[4][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*Xx0)[MQ1] = (double (*)[MQ1])(s_QQ[0] + tidz);
