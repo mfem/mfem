@@ -1,16 +1,17 @@
-//                       MFEM Example 5 - Parallel Version
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-// Compile with: make ex5p
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-// Sample runs:  mpirun -np 4 ex5p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex5p -m ../data/star.mesh
-//               mpirun -np 4 ex5p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex5p -m ../data/beam-hex.mesh
-//               mpirun -np 4 ex5p -m ../data/escher.mesh
-//               mpirun -np 4 ex5p -m ../data/fichera.mesh
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
-// Description:  This example code solves a simple 2D/3D mixed Darcy problem
-//               corresponding to the saddle point system
+// Description:  This miniapp compares various linear solvers for the saddle
+//               point system obtained from mixed finite element discretization
+//               of the simple mixed Darcy problem
 //                                 k*u + grad p = f
 //                                 - div u      = g
 //               with natural boundary condition -p = <given pressure>.
@@ -18,10 +19,6 @@
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
-//
-//               The example demonstrates the use of the BlockMatrix class, as
-//               well as the collective saving of several grid functions in a
-//               VisIt (visit.llnl.gov) visualization format.
 //
 //               We recommend viewing example 5 before viewing this miniapp.
 
