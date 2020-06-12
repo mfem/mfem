@@ -23,12 +23,16 @@ namespace mfem
 // Templated classes for transitioning between degrees of freedom and quadrature
 // points values.
 
-// Shape evaluators -- values of basis functions on the reference element
-
+/** @brief Shape evaluators -- values of basis functions on the reference element
+    @tparam FE some form of TFiniteElement, probably got from TMesh::FE_type
+    @tparam IR some form of TIntegrationRule
+    @tparam TP tensor product or not
+    @tparam real_t data type for mesh nodes, solution basis, mesh basis
+*/
 template <class FE, class IR, bool TP, typename real_t>
 class ShapeEvaluator_base;
 
-// ShapeEvaluator without tensor-product structure
+/// ShapeEvaluator without tensor-product structure
 template <class FE, class IR, typename real_t>
 class ShapeEvaluator_base<FE, IR, false, real_t>
 {
@@ -54,11 +58,11 @@ public:
 
    // default copy constructor
 
-   // Multi-component shape evaluation from DOFs to quadrature points.
-   // dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp).
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
+       dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -76,12 +80,12 @@ public:
                      qpt_layout, qpt_data);
    }
 
-   // Multi-component shape evaluation transpose from quadrature points to DOFs.
-   // qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp).
+   /** @brief Multi-component shape evaluation transpose from quadrature points to
+       DOFs.  qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -99,11 +103,11 @@ public:
                    dof_layout, dof_data);
    }
 
-   // Multi-component gradient evaluation from DOFs to quadrature points.
-   // dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp).
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
+      dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -124,12 +128,12 @@ public:
                      grad_layout.merge_12(), grad_data);
    }
 
-   // Multi-component gradient evaluation transpose from quadrature points to
-   // DOFs. grad_layout is (NIP x DIM x NumComp), dof_layout is (DOF x NumComp).
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
+      DOFs. grad_layout is (NIP x DIM x NumComp), dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -150,11 +154,12 @@ public:
                    dof_layout, dof_data);
    }
 
-   // Multi-component assemble.
-   // qpt_layout is (NIP x NumComp), M_layout is (DOF x DOF x NumComp)
+   /** @brief Multi-component assemble.
+       qpt_layout is (NIP x NumComp),
+       M_layout is (DOF x DOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
@@ -173,19 +178,20 @@ public:
 #endif
    }
 
-   // Multi-component assemble of grad-grad element matrices.
-   // qpt_layout is (NIP x DIM x DIM x NumComp), and
-   // D_layout is (DOF x DOF x NumComp).
+   /** @brief Multi-component assemble of grad-grad element matrices.
+       qpt_layout is (NIP x DIM x DIM x NumComp), and
+       D_layout is (DOF x DOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
                          D_data_t           &D_data) const
    {
       const int NC = qpt_layout_t::dim_4;
-      TTensor4<NIP,DIM,DOF,NC> F;
+      typedef typename qpt_data_t::data_type entry_type;
+      TTensor4<NIP,DIM,DOF,NC,entry_type> F;
       for (int k = 0; k < NC; k++)
       {
          // Next loop performs a batch of matrix-matrix products of size
@@ -207,7 +213,7 @@ public:
 template <int Dim, int DOF, int NIP, typename real_t>
 class TProductShapeEvaluator;
 
-// ShapeEvaluator with 1D tensor-product structure
+/// ShapeEvaluator with 1D tensor-product structure
 template <int DOF, int NIP, typename real_t>
 class TProductShapeEvaluator<1, DOF, NIP, real_t>
 {
@@ -220,11 +226,11 @@ protected:
 public:
    TProductShapeEvaluator() { }
 
-   // Multi-component shape evaluation from DOFs to quadrature points.
-   // dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp).
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
+       dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -233,12 +239,12 @@ public:
                      qpt_layout, qpt_data);
    }
 
-   // Multi-component shape evaluation transpose from quadrature points to DOFs.
-   // qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp).
+   /** @brief Multi-component shape evaluation transpose from quadrature points
+       to DOFs.  qpt_layout is (NIP x NumComp) and dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -247,11 +253,11 @@ public:
                    dof_layout, dof_data);
    }
 
-   // Multi-component gradient evaluation from DOFs to quadrature points.
-   // dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp).
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
+       dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -263,12 +269,12 @@ public:
                      grad_layout.merge_12(), grad_data);
    }
 
-   // Multi-component gradient evaluation transpose from quadrature points to
-   // DOFs. grad_layout is (NIP x DIM x NumComp), dof_layout is (DOF x NumComp).
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
+       DOFs. grad_layout is (NIP x DIM x NumComp), dof_layout is (DOF x NumComp). */
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -281,11 +287,11 @@ public:
                    dof_layout, dof_data);
    }
 
-   // Multi-component assemble.
-   // qpt_layout is (NIP x NumComp), M_layout is (DOF x DOF x NumComp)
+   /** @brief Multi-component assemble.
+       qpt_layout is (NIP x NumComp), M_layout is (DOF x DOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
@@ -304,12 +310,12 @@ public:
 #endif
    }
 
-   // Multi-component assemble of grad-grad element matrices.
-   // qpt_layout is (NIP x DIM x DIM x NumComp), and
-   // D_layout is (DOF x DOF x NumComp).
+   /** @brief Multi-component assemble of grad-grad element matrices.
+       qpt_layout is (NIP x DIM x DIM x NumComp), and
+       D_layout is (DOF x DOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
@@ -331,7 +337,7 @@ public:
    }
 };
 
-// ShapeEvaluator with 2D tensor-product structure
+/// ShapeEvaluator with 2D tensor-product structure
 template <int DOF, int NIP, typename real_t>
 class TProductShapeEvaluator<2, DOF, NIP, real_t>
 {
@@ -348,13 +354,14 @@ public:
    template <bool Dx, bool Dy,
              typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
       const int NC = dof_layout_t::dim_2;
+      typedef typename qpt_data_t::data_type entry_type;
       // DOF x DOF x NC --> NIP x DOF x NC --> NIP x NIP x NC
-      TTensor3<NIP,DOF,NC> A;
+      TTensor3<NIP,DOF,NC,entry_type> A;
 
       // (1) A_{i,j,k} = \sum_s B_1d_{i,s} dof_data_{s,j,k}
       Mult_2_1<false>(B_1d.layout, Dx ? G_1d : B_1d,
@@ -366,11 +373,11 @@ public:
                       qpt_layout.template split_1<NIP,NIP>(), qpt_data);
    }
 
-   // Multi-component shape evaluation from DOFs to quadrature points.
-   // dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
+       dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -380,13 +387,14 @@ public:
    template <bool Dx, bool Dy, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
       const int NC = dof_layout_t::dim_2;
+      typedef typename qpt_data_t::data_type entry_type;
       // NIP x NIP X NC --> NIP x DOF x NC --> DOF x DOF x NC
-      TTensor3<NIP,DOF,NC> A;
+      TTensor3<NIP,DOF,NC,entry_type> A;
 
       // (1) A_{i,j,k} = \sum_s B_1d_{s,j} qpt_data_{i,s,k}
       Mult_1_2<false>(B_1d.layout, Dy ? G_1d : B_1d,
@@ -398,23 +406,23 @@ public:
                     dof_layout.template split_1<DOF,DOF>(), dof_data);
    }
 
-   // Multi-component shape evaluation transpose from quadrature points to DOFs.
-   // qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp).
+   /** @brief Multi-component shape evaluation transpose from quadrature points to DOFs.
+       qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
       CalcT<false,false,Add>(qpt_layout, qpt_data, dof_layout, dof_data);
    }
 
-   // Multi-component gradient evaluation from DOFs to quadrature points.
-   // dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
+       dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -426,13 +434,13 @@ public:
                        grad_layout.ind2(1), grad_data);
    }
 
-   // Multi-component gradient evaluation transpose from quadrature points to
-   // DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
-   // (TDOF x NumComp).
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
+       DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
+       (TDOF x NumComp). */
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -444,15 +452,16 @@ public:
                              dof_layout, dof_data);
    }
 
-   // Multi-component assemble.
-   // qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
+   /** @brief Multi-component assemble.
+       qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
       const int NC = qpt_layout_t::dim_2;
+      typedef typename qpt_data_t::data_type entry_type;
 
       // Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
 
@@ -469,7 +478,7 @@ public:
          TTensor3<DOF,NIP,DOF*NC>::layout, A,
          M_layout.merge_23().template split_12<DOF,DOF,DOF,DOF*NC>(), M_data);
 #elif 1
-      TTensor4<DOF,NIP,DOF,NC> A;
+      TTensor4<DOF,NIP,DOF,NC,entry_type> A;
       // qpt_data<NIP1,NIP2,NC> --> A<DOF2,NIP1,DOF2,NC>
       TensorAssemble<false>(
          Bt_1d.layout, Bt_1d, B_1d.layout, B_1d,
@@ -510,14 +519,15 @@ public:
    template <int D1, int D2, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout,
                  const qpt_data_t   &qpt_data,
                  const D_layout_t   &D_layout,
                  D_data_t           &D_data) const
    {
       const int NC = qpt_layout_t::dim_2;
-      TTensor4<DOF,NIP,DOF,NC> A;
+      typedef typename qpt_data_t::data_type entry_type;
+      TTensor4<DOF,NIP,DOF,NC,entry_type> A;
 
       // Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
 
@@ -531,16 +541,16 @@ public:
       TensorAssemble<Add>(
          Bt_1d.layout, D1 == 1 ? Bt_1d : Gt_1d,
          B_1d.layout, D2 == 1 ? B_1d : G_1d,
-         TTensor3<DOF,NIP,DOF*NC>::layout, A,
+         A.layout.merge_34(), A,
          D_layout.merge_23().template split_12<DOF,DOF,DOF,DOF*NC>(), D_data);
    }
 
-   // Multi-component assemble of grad-grad element matrices.
-   // qpt_layout is (TNIP x DIM x DIM x NumComp), and
-   // D_layout is (TDOF x TDOF x NumComp).
+   /** @brief Multi-component assemble of grad-grad element matrices.
+      qpt_layout is (TNIP x DIM x DIM x NumComp), and
+      D_layout is (TDOF x TDOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
@@ -607,7 +617,7 @@ public:
    }
 };
 
-// ShapeEvaluator with 3D tensor-product structure
+/// ShapeEvaluator with 3D tensor-product structure
 template <int DOF, int NIP, typename real_t>
 class TProductShapeEvaluator<3, DOF, NIP, real_t>
 {
@@ -624,13 +634,14 @@ public:
    template <bool Dx, bool Dy, bool Dz,
              typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
       const int NC = dof_layout_t::dim_2;
-      TVector<NIP*DOF*DOF*NC> QDD;
-      TVector<NIP*NIP*DOF*NC> QQD;
+      typedef typename qpt_data_t::data_type entry_type;
+      TVector<NIP*DOF*DOF*NC,entry_type> QDD;
+      TVector<NIP*NIP*DOF*NC,entry_type> QQD;
 
       // QDD_{i,jj,k} = \sum_s B_1d_{i,s} dof_data_{s,jj,k}
       Mult_2_1<false>(B_1d.layout, Dx ? G_1d : B_1d,
@@ -646,11 +657,11 @@ public:
                       qpt_layout.template split_1<NIP*NIP,NIP>(), qpt_data);
    }
 
-   // Multi-component shape evaluation from DOFs to quadrature points.
-   // dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
+   /** @brief Multi-component shape evaluation from DOFs to quadrature points.
+       dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -660,13 +671,14 @@ public:
    template <bool Dx, bool Dy, bool Dz, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
       const int NC = dof_layout_t::dim_2;
-      TVector<NIP*DOF*DOF*NC> QDD;
-      TVector<NIP*NIP*DOF*NC> QQD;
+      typedef typename qpt_data_t::data_type entry_type;
+      TVector<NIP*DOF*DOF*NC,entry_type> QDD;
+      TVector<NIP*NIP*DOF*NC,entry_type> QQD;
 
       // QQD_{ii,j,k} = \sum_s B_1d_{s,j} qpt_data_{ii,s,k}
       Mult_1_2<false>(B_1d.layout, Dz ? G_1d : B_1d,
@@ -682,23 +694,23 @@ public:
                     dof_layout.template split_1<DOF,DOF*DOF>(), dof_data);
    }
 
-   // Multi-component shape evaluation transpose from quadrature points to DOFs.
-   // qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp).
+   /** @brief Multi-component shape evaluation transpose from quadrature points to DOFs.
+       qpt_layout is (TNIP x NumComp) and dof_layout is (TDOF x NumComp). */
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
       CalcT<false,false,false,Add>(qpt_layout, qpt_data, dof_layout, dof_data);
    }
 
-   // Multi-component gradient evaluation from DOFs to quadrature points.
-   // dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
+   /** @brief Multi-component gradient evaluation from DOFs to quadrature points.
+       dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp). */
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -714,13 +726,13 @@ public:
       // y-derivatives and second time for the z-derivatives.
    }
 
-   // Multi-component gradient evaluation transpose from quadrature points to
-   // DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
-   // (TDOF x NumComp).
+   /** @brief Multi-component gradient evaluation transpose from quadrature points to
+       DOFs. grad_layout is (TNIP x DIM x NumComp), dof_layout is
+       (TDOF x NumComp). */
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -734,17 +746,18 @@ public:
                                    dof_layout, dof_data);
    }
 
-   // Multi-component assemble.
-   // qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
+   /** @brief Multi-component assemble.
+       qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp) */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
       const int NC = qpt_layout_t::dim_2;
-      TTensor4<DOF,NIP*NIP,DOF,NC> A1;
-      TTensor4<DOF,DOF*NIP,DOF,DOF*NC> A2;
+      typedef typename qpt_data_t::data_type entry_type;
+      TTensor4<DOF,NIP*NIP,DOF,NC,entry_type> A1;
+      TTensor4<DOF,DOF*NIP,DOF,DOF*NC,entry_type> A2;
 
       // Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
 
@@ -788,15 +801,16 @@ public:
    template <int D1, int D2, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout,
                  const qpt_data_t   &qpt_data,
                  const D_layout_t   &D_layout,
                  D_data_t           &D_data) const
    {
       const int NC = qpt_layout_t::dim_2;
-      TTensor4<DOF,NIP*NIP,DOF,NC> A1;
-      TTensor4<DOF,DOF*NIP,DOF,DOF*NC> A2;
+      typedef typename qpt_data_t::data_type entry_type;
+      TTensor4<DOF,NIP*NIP,DOF,NC,entry_type> A1;
+      TTensor4<DOF,DOF*NIP,DOF,DOF*NC,entry_type> A2;
 
       // Using TensorAssemble: <I,NIP,J> --> <DOF,I,DOF,J>
 
@@ -824,7 +838,7 @@ public:
 #if 0
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(int D1, int D2,
                  const qpt_layout_t &qpt_layout,
                  const qpt_data_t   &qpt_data,
@@ -859,12 +873,12 @@ public:
    }
 #endif
 
-   // Multi-component assemble of grad-grad element matrices.
-   // qpt_layout is (TNIP x DIM x DIM x NumComp), and
-   // D_layout is (TDOF x TDOF x NumComp).
+   /** @brief Multi-component assemble of grad-grad element matrices.
+       qpt_layout is (TNIP x DIM x DIM x NumComp), and
+       D_layout is (TDOF x TDOF x NumComp). */
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
@@ -895,7 +909,7 @@ public:
    }
 };
 
-// ShapeEvaluator with tensor-product structure in any dimension
+/// ShapeEvaluator with tensor-product structure in any dimension
 template <class FE, class IR, typename real_t>
 class ShapeEvaluator_base<FE, IR, true, real_t>
    : public TProductShapeEvaluator<FE::dim, FE::dofs_1d, IR::qpts_1d, real_t>
@@ -921,7 +935,7 @@ public:
    // default copy constructor
 };
 
-// General ShapeEvaluator for any scalar FE type (L2 or H1)
+/// General ShapeEvaluator for any scalar FE type (L2 or H1)
 template <class FE, class IR, typename real_t>
 class ShapeEvaluator
    : public ShapeEvaluator_base<FE,IR,FE::tensor_prod && IR::tensor_prod,real_t>
@@ -946,8 +960,9 @@ public:
 };
 
 
-// Field evaluators -- values of a given global FE grid function
-
+/** @brief Field evaluators -- values of a given global FE grid function
+    This is roughly speaking a templated version of GridFunction
+*/
 template <typename FESpace_t, typename VecLayout_t, typename IR,
           typename complex_t, typename real_t>
 class FieldEvaluator_base
@@ -960,7 +975,7 @@ protected:
    ShapeEval_type  shapeEval;
    VecLayout_t     vec_layout;
 
-   // With this constructor, fespace is a shallow copy.
+   /// With this constructor, fespace is a shallow copy.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator_base(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
                        const VecLayout_t &vec_layout)
@@ -969,14 +984,14 @@ protected:
         vec_layout(vec_layout)
    { }
 
-   // This constructor creates new fespace, not a shallow copy.
+   /// This constructor creates new fespace, not a shallow copy.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator_base(const FE_type &fe, const FiniteElementSpace &fes)
       : fespace(fe, fes), shapeEval(fe), vec_layout(fes)
    { }
 };
 
-// complex_t - dof/qpt data type, real_t - ShapeEvaluator (FE basis) data type
+/// complex_t - dof/qpt data type, real_t - ShapeEvaluator (FE basis) data type
 template <typename FESpace_t, typename VecLayout_t, typename IR,
           typename complex_t = double, typename real_t = double>
 class FieldEvaluator
@@ -1009,7 +1024,7 @@ protected:
    complex_t       *data_out;
 
 public:
-   // With this constructor, fespace is a shallow copy of tfes.
+   /// With this constructor, fespace is a shallow copy of tfes.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FESpace_t &tfes, const ShapeEval_type &shape_eval,
                   const VecLayout_type &vec_layout,
@@ -1019,7 +1034,7 @@ public:
         data_out(global_data_out)
    { }
 
-   // With this constructor, fespace is a shallow copy of f.fespace.
+   /// With this constructor, fespace is a shallow copy of f.fespace.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FieldEvaluator &f,
                   const complex_t *global_data_in, complex_t *global_data_out)
@@ -1028,7 +1043,7 @@ public:
         data_out(global_data_out)
    { }
 
-   // This constructor creates a new fespace, not a shallow copy.
+   /// This constructor creates a new fespace, not a shallow copy.
    inline MFEM_ALWAYS_INLINE
    FieldEvaluator(const FiniteElementSpace &fes,
                   const complex_t *global_data_in, complex_t *global_data_out)
@@ -1049,25 +1064,25 @@ public:
       fespace.SetElement(el);
    }
 
-   // val_layout_t is (qpts x vdim x NE)
+   /// val_layout_t is (qpts x vdim x NE)
    template <typename val_layout_t, typename val_data_t>
    inline MFEM_ALWAYS_INLINE
    void GetValues(int el, const val_layout_t &l, val_data_t &vals)
    {
       const int ne = val_layout_t::dim_3;
-      TTensor3<dofs,vdim,ne,complex_type> val_dofs;
+      TTensor3<dofs,vdim,ne,typename val_data_t::data_type> val_dofs;
       SetElement(el);
       fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
       shapeEval.Calc(val_dofs.layout.merge_23(), val_dofs, l.merge_23(), vals);
    }
 
-   // grad_layout_t is (qpts x dim x vdim x NE)
+   /// grad_layout_t is (qpts x dim x vdim x NE)
    template <typename grad_layout_t, typename grad_data_t>
    inline MFEM_ALWAYS_INLINE
    void GetGradients(int el, const grad_layout_t &l, grad_data_t &grad)
    {
       const int ne = grad_layout_t::dim_4;
-      TTensor3<dofs,vdim,ne,complex_type> val_dofs;
+      TTensor3<dofs,vdim,ne,typename grad_data_t::data_type> val_dofs;
       SetElement(el);
       fespace.VectorExtract(vec_layout, data_in, val_dofs.layout, val_dofs);
       shapeEval.CalcGrad(val_dofs.layout.merge_23(), val_dofs,
@@ -1112,23 +1127,25 @@ public:
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
    template <typename DataType>
    inline MFEM_ALWAYS_INLINE
-   void EvalSerialized(const complex_t *loc_dofs, DataType &F)
+   void EvalSerialized(const typename DataType::vcomplex_t *loc_dofs,
+                       DataType &F)
    {
       Action<DataType::InData,true>::EvalSerialized(*this, loc_dofs, F);
    }
 
    template <bool Add, typename DataType>
    inline MFEM_ALWAYS_INLINE
-   void AssembleSerialized(const DataType &F, complex_t *loc_dofs)
+   void AssembleSerialized(const DataType &F,
+                           typename DataType::vcomplex_t *loc_dofs)
    {
       Action<DataType::OutData,true>::
       template AssembleSerialized<Add>(*this, F, loc_dofs);
    }
 #endif
 
-   // Enumeration for the data type used by the Eval() and Assemble() methods.
-   // The types can obtained by summing constants from this enumeration and used
-   // as a template parameter in struct Data.
+   /** @brief Enumeration for the data type used by the Eval() and Assemble() methods.
+       The types can be obtained by summing constants from this enumeration and used
+       as a template parameter in struct Data. */
    enum InOutData
    {
       None      = 0,
@@ -1136,65 +1153,72 @@ public:
       Gradients = 2
    };
 
-   // Auxiliary templated struct AData, used by the Eval() and Assemble()
-   // methods. The template parameter IOData is "bitwise or" of constants from
-   // the enum InOutData. The parameter NE is the number of elements to be
-   // processed in the Eval() and Assemble() methods.
-   template<int IOData, int NE> struct AData;
+   /** @brief  Auxiliary templated struct AData, used by the Eval() and Assemble()
+       methods.
 
-   template <int NE> struct AData<0,NE> // 0 = None
+       The template parameter IOData is "bitwise or" of constants from
+       the enum InOutData. The parameter NE is the number of elements to be
+       processed in the Eval() and Assemble() methods. */
+   template<int IOData, typename impl_traits_t> struct AData;
+
+   template <typename it_t> struct AData<0,it_t> // 0 = None
    {
       // Do we need this?
    };
 
-   template <int NE> struct AData<1,NE> // 1 = Values
+   template <typename it_t> struct AData<1,it_t> // 1 = Values
    {
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vcomplex_t vcomplex_t;
 #ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
-      typedef TTensor3<dofs,vdim,NE,complex_t,true> val_dofs_t;
+      typedef TTensor3<dofs,vdim,ne,vcomplex_t,true> val_dofs_t;
       val_dofs_t val_dofs;
 #else
-      typedef TTensor3<dofs,vdim,NE,complex_t> val_dofs_t;
+      typedef TTensor3<dofs,vdim,ne,vcomplex_t> val_dofs_t;
 #endif
-      TTensor3<qpts,vdim,NE,complex_t>      val_qpts;
+      TTensor3<qpts,vdim,ne,vcomplex_t>      val_qpts;
    };
 
-   template <int NE> struct AData<2,NE> // 2 = Gradients
+   template <typename it_t> struct AData<2,it_t> // 2 = Gradients
    {
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vcomplex_t vcomplex_t;
 #ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
-      typedef TTensor3<dofs,vdim,NE,complex_t,true> val_dofs_t;
+      typedef TTensor3<dofs,vdim,ne,vcomplex_t,true> val_dofs_t;
       val_dofs_t val_dofs;
 #else
-      typedef TTensor3<dofs,vdim,NE,complex_t> val_dofs_t;
+      typedef TTensor3<dofs,vdim,ne,vcomplex_t> val_dofs_t;
 #endif
-      TTensor4<qpts,dim,vdim,NE,complex_t>      grad_qpts;
+      TTensor4<qpts,dim,vdim,ne,vcomplex_t>      grad_qpts;
    };
 
-   template <int NE> struct AData<3,NE> // 3 = Values+Gradients
+   template <typename it_t> struct AData<3,it_t> // 3 = Values+Gradients
    {
+      static const int ne = it_t::batch_size;
+      typedef typename it_t::vcomplex_t vcomplex_t;
 #ifdef MFEM_TEMPLATE_FIELD_EVAL_DATA_HAS_DOFS
-      typedef TTensor3<dofs,vdim,NE,complex_t,true> val_dofs_t;
+      typedef TTensor3<dofs,vdim,ne,vcomplex_t,true> val_dofs_t;
       val_dofs_t val_dofs;
 #else
-      typedef TTensor3<dofs,vdim,NE,complex_t> val_dofs_t;
+      typedef TTensor3<dofs,vdim,ne,vcomplex_t> val_dofs_t;
 #endif
-      TTensor3<qpts,    vdim,NE,complex_t,true>  val_qpts;
-      TTensor4<qpts,dim,vdim,NE,complex_t>      grad_qpts;
+      TTensor3<qpts,    vdim,ne,vcomplex_t,true>  val_qpts;
+      TTensor4<qpts,dim,vdim,ne,vcomplex_t>      grad_qpts;
    };
 
-   // This struct is similar to struct AData, adding separate static data
-   // members for the input (InData) and output (OutData) data types.
-   template <int IData, int OData, int NE>
-   struct BData : public AData<IData|OData,NE>
+   /** @brief This struct is similar to struct AData, adding separate static data
+       members for the input (InData) and output (OutData) data types. */
+   template <int IData, int OData, typename it_t>
+   struct BData : public AData<IData|OData,it_t>
    {
       typedef T_type eval_type;
-      static const int ne = NE;
       static const int InData = IData;
       static const int OutData = OData;
    };
 
-   // This struct implements the input (Eval, EvalSerialized) and output
-   // (Assemble, AssembleSerialized) operations for the given Ops.
-   // Ops is "bitwise or" of constants from the enum InOutData.
+   /** @brief This struct implements the input (Eval, EvalSerialized) and output
+       (Assemble, AssembleSerialized) operations for the given Ops.
+       Ops is "bitwise or" of constants from the enum InOutData. */
    template <int Ops, bool dummy> struct Action;
 
    template <bool dummy> struct Action<0,dummy> // 0 = None
@@ -1238,7 +1262,9 @@ public:
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       template <typename AData_t>
       static inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+      void EvalSerialized(T_type &T,
+                          const typename AData_t::vcomplex_t *loc_dofs,
+                          AData_t &D)
       {
          T.shapeEval.Calc(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
                           D.val_qpts.layout.merge_23(), D.val_qpts);
@@ -1246,7 +1272,8 @@ public:
 
       template <bool Add, typename AData_t>
       static inline MFEM_ALWAYS_INLINE
-      void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+      void AssembleSerialized(T_type &T, const AData_t &D,
+                              typename AData_t::vcomplex_t *loc_dofs)
       {
          T.shapeEval.template CalcT<Add>(
             D.val_qpts.layout.merge_23(), D.val_qpts,
@@ -1291,7 +1318,9 @@ public:
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       template <typename AData_t>
       static inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+      void EvalSerialized(T_type &T,
+                          const typename AData_t::vcomplex_t *loc_dofs,
+                          AData_t &D)
       {
          T.shapeEval.CalcGrad(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
                               D.grad_qpts.layout.merge_34(), D.grad_qpts);
@@ -1299,7 +1328,8 @@ public:
 
       template <bool Add, typename AData_t>
       static inline MFEM_ALWAYS_INLINE
-      void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+      void AssembleSerialized(T_type &T, const AData_t &D,
+                              typename AData_t::vcomplex_t *loc_dofs)
       {
          T.shapeEval.template CalcGradT<Add>(
             D.grad_qpts.layout.merge_34(), D.grad_qpts,
@@ -1349,7 +1379,9 @@ public:
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
       template <typename AData_t>
       static inline MFEM_ALWAYS_INLINE
-      void EvalSerialized(T_type &T, const complex_t *loc_dofs, AData_t &D)
+      void EvalSerialized(T_type &T,
+                          const typename AData_t::vcomplex_t *loc_dofs,
+                          AData_t &D)
       {
          T.shapeEval.Calc(AData_t::val_dofs_t::layout.merge_23(), loc_dofs,
                           D.val_qpts.layout.merge_23(), D.val_qpts);
@@ -1359,7 +1391,8 @@ public:
 
       template <bool Add, typename AData_t>
       static inline MFEM_ALWAYS_INLINE
-      void AssembleSerialized(T_type &T, const AData_t &D, complex_t *loc_dofs)
+      void AssembleSerialized(T_type &T, const AData_t &D,
+                              typename AData_t::vcomplex_t *loc_dofs)
       {
          T.shapeEval.template CalcT<Add>(
             D.val_qpts.layout.merge_23(), D.val_qpts,
@@ -1371,14 +1404,15 @@ public:
 #endif
    };
 
-   // This struct implements element matrix computation for some combinations
-   // of input (InOps) and output (OutOps) operations.
-   template <int InOps, int OutOps, int NE> struct TElementMatrix;
+   /** @brief This struct implements element matrix computation for some combinations
+       of input (InOps) and output (OutOps) operations. */
+   template <int InOps, int OutOps, typename it_t> struct TElementMatrix;
 
-   template <int NE> struct TElementMatrix<1,1,NE> // 1,1 = Values,Values
+   // Case 1,1 = Values,Values
+   template <typename it_t> struct TElementMatrix<1,1,it_t>
    {
       // qpt_layout_t is (nip), M_layout_t is (dof x dof)
-      // NE = 1 is assumed
+      // it_t::batch_size = 1 is assumed
       template <typename qpt_layout_t, typename qpt_data_t,
                 typename M_layout_t, typename M_data_t>
       static inline MFEM_ALWAYS_INLINE
@@ -1390,10 +1424,18 @@ public:
       }
    };
 
-   template <int NE> struct TElementMatrix<2,2,NE> // 2,2 = Gradients,Gradients
+   // Case 2,2 = Gradients,Gradients
+   template <typename it_t> struct TElementMatrix<2,2,it_t>
    {
-      // qpt_layout_t is (nip x dim x dim), M_layout_t is (dof x dof)
-      // NE = 1 is assumed
+      /** @brief Assemble element mass matrix
+          @param a the layout for the quadrature point data
+          @param A given quadrature point data for element (incl. coefficient,
+                 geometry)
+          @param m the layout for the resulting element mass matrix
+          @param M the resulting element mass matrix
+          @param ev the shape evaluator
+          qpt_layout_t is (nip), M_layout_t is (dof x dof)
+          NE = 1 is assumed */
       template <typename qpt_layout_t, typename qpt_data_t,
                 typename M_layout_t, typename M_data_t>
       static inline MFEM_ALWAYS_INLINE
@@ -1405,15 +1447,15 @@ public:
       }
    };
 
-   template <typename kernel_t, int NE> struct Spec
+   template <typename kernel_t, typename impl_traits_t> struct Spec
    {
       static const int InData =
          Values*kernel_t::in_values + Gradients*kernel_t::in_gradients;
       static const int OutData =
          Values*kernel_t::out_values + Gradients*kernel_t::out_gradients;
 
-      typedef BData<InData,OutData,NE>          DataType;
-      typedef TElementMatrix<InData,OutData,NE> ElementMatrix;
+      typedef BData<InData,OutData,impl_traits_t>          DataType;
+      typedef TElementMatrix<InData,OutData,impl_traits_t> ElementMatrix;
    };
 };
 

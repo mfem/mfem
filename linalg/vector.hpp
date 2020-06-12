@@ -281,21 +281,48 @@ public:
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
 
+   /// Extract entries listed in @a dofs to the output Vector @a elemvect.
+   /** Negative dof values cause the -dof-1 position in @a elemvect to receive
+       the -val in from this Vector. */
    void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
+
+   /// Extract entries listed in @a dofs to the output array @a elem_data.
+   /** Negative dof values cause the -dof-1 position in @a elem_data to receive
+       the -val in from this Vector. */
    void GetSubVector(const Array<int> &dofs, double *elem_data) const;
 
-   /// Set the entries listed in `dofs` to the given `value`.
+   /// Set the entries listed in @a dofs to the given @a value.
+   /** Negative dof values cause the -dof-1 position in this Vector to receive
+       the -value. */
    void SetSubVector(const Array<int> &dofs, const double value);
+
+   /** @brief Set the entries listed in @a dofs to the values given in the @a
+       elemvect Vector. Negative dof values cause the -dof-1 position in this
+       Vector to receive the -val from @a elemvect. */
    void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
+
+   /** @brief Set the entries listed in @a dofs to the values given the @a ,
+       elem_data array. Negative dof values cause the -dof-1 position in this
+       Vector to receive the -val from @a elem_data. */
    void SetSubVector(const Array<int> &dofs, double *elem_data);
 
-   /// Add (element) subvector to the vector.
+   /** @brief Add elements of the @a elemvect Vector to the entries listed in @a
+       dofs. Negative dof values cause the -dof-1 position in this Vector to add
+       the -val from @a elemvect. */
    void AddElementVector(const Array<int> & dofs, const Vector & elemvect);
+
+   /** @brief Add elements of the @a elem_data array to the entries listed in @a
+       dofs. Negative dof values cause the -dof-1 position in this Vector to add
+       the -val from @a elem_data. */
    void AddElementVector(const Array<int> & dofs, double *elem_data);
+
+   /** @brief Add @a times the elements of the @a elemvect Vector to the entries
+       listed in @a dofs. Negative dof values cause the -dof-1 position in this
+       Vector to add the -a*val from @a elemvect. */
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
 
-   /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
+   /// Set all vector entries NOT in the @a dofs Array to the given @a val.
    void SetSubVectorComplement(const Array<int> &dofs, const double val);
 
    /// Prints vector to stream out.
