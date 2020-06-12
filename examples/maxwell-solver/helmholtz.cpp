@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 1;
+   int nrlayers = 2;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
@@ -212,8 +212,6 @@ int main(int argc, char *argv[])
 
    a.FormLinearSystem(ess_tdof_list, p_gf, b, Ah, X, B);
 
-
-
    ComplexSparseMatrix * AZ = Ah.As<ComplexSparseMatrix>();
    SparseMatrix * A = AZ->GetSystemMatrix();
 
@@ -226,8 +224,8 @@ int main(int argc, char *argv[])
 
    StopWatch chrono;
 
-   // chrono.Clear();
-   // chrono.Start();
+   chrono.Clear();
+   chrono.Start();
    X = 0.0;
 	GMRESSolver gmres;
 	// gmres.iterative_mode = true;
@@ -244,8 +242,8 @@ int main(int argc, char *argv[])
 	// gmres.SetPreconditioner(S2D);
 	// gmres.Mult(B, X);
 
-   // chrono.Stop();
-   // cout << "GMRES time: " << chrono.RealTime() << endl; 
+   chrono.Stop();
+   cout << "GMRES time: " << chrono.RealTime() << endl; 
 
    // X = 0.0;
    // SLISolver sli;
@@ -316,6 +314,8 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X1,B,error_gf);
 
+
+   cout << "error l2 norm = " << error_gf.Norml2() << endl;
 
    if (visualization)
    {

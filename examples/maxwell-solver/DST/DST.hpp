@@ -41,7 +41,10 @@ private:
 
    MeshPartition * part=nullptr;
    DofMap * dmap = nullptr;
+   std::vector<std::vector<Array<int>>> NovlpElems;
    std::vector<Array2D<int>> ovlpelems;
+   std::vector<std::vector<Array<int>>> NovlpDofs;
+   std::vector<std::vector<Array<int>>> NovlpDofs1;
    // Pml local problems
    Array<SparseMatrix *> PmlMat;
    Array<UMFPackSolver *> PmlMatInv;
@@ -51,7 +54,8 @@ private:
 
 
 
-   void GetOverlapElements();
+   void MarkOverlapElements();
+   void MarkOverlapDofs();
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int GetPatchId(const Array<int> & ijk) const;
    SparseMatrix * GetPmlSystemMatrix(int ip);

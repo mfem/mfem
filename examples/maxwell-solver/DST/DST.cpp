@@ -48,9 +48,9 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    int partition_kind = 2;
 
-   nx=3;
-   ny=3; 
-   nz=3;
+   nx=4;
+   ny=4; 
+   nz=4;
    ovlpnrlayers = nrlayers+1;
    part = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
    nx = part->nxyz[0];
@@ -72,7 +72,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    swp = new Sweep(dim);
 
    dmap  = new DofMap(bf->FESpace(),part); 
-   GetOverlapElements();
+   MarkOverlapElements();
+   MarkOverlapDofs();
 
    // Set up the local patch problems
    PmlMat.SetSize(nrpatch);
@@ -107,7 +108,7 @@ void DST::Mult(const Vector &r, Vector &z) const
    char vishost[] = "localhost";
    int  visport   = 19916;
    // Init
-   cout << "DST: in mult " << endl;
+   // cout << "DST: in mult " << endl;
    for (int ip=0; ip<nrpatch; ip++)
    {
       *f_orig[ip] = 0.0;
@@ -185,10 +186,11 @@ void DST::Mult(const Vector &r, Vector &z) const
                if (ijk[d] < part->nxyz[d]-1) direct[d][1] = 1; 
             }
 
-            Vector cfsol_local;
-            GetCutOffSolution(sol_local,cfsol_local,ip,direct,ovlpnrlayers,true);
+            // Vector cfsol_local;
+            // GetCutOffSolution(sol_local,cfsol_local,ip,direct,ovlpnrlayers,true);
             znew = 0.0;
-            znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
+            // znew.SetSubVector(*Dof2GlobalDof, cfsol_local);
+            znew.SetSubVector(*Dof2GlobalDof, sol_local);
             z+=znew;
          }
       }
@@ -253,10 +255,11 @@ void DST::TransferSources(int s, int ip0, Vector & sol0) const
                if (directions[d] ==  1) direct[d][1] = 1;
             }
 
-            Vector cfsol0;
-            GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
+            // Vector cfsol0;
+            // GetCutOffSolution(sol0,cfsol0,ip0,direct,ovlpnrlayers,true);
             Vector raux;
-            SourceTransfer(cfsol0,directions,ip0,raux);
+            SourceTransfer(sol0,directions,ip0,raux);
+            // SourceTransfer(cfsol0,directions,ip0,raux);
             *f_transf[ip1][l]+=raux;
          }
       }  
@@ -432,48 +435,83 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
 void DST::GetChiRes(const Vector & res, Vector & cfres, 
                     int ip, Array2D<int> direct, int nlayers) const
 {
-
-   FiniteElementSpace * fes = dmap->fespaces[ip];
-   Mesh * mesh = fes->GetMesh();
-   Vector pmin, pmax;
-   mesh->GetBoundingBox(pmin, pmax);
-   double h = GetUniformMeshElementSize(mesh);
+   // FiniteElementSpace * fes = dmap->fespaces[ip];
+   // Mesh * mesh = fes->GetMesh();
+   // Vector pmin, pmax;
+   // mesh->GetBoundingBox(pmin, pmax);
+   // double h = GetUniformMeshElementSize(mesh);
    
-   Array2D<double> pmlh(dim,2); pmlh = 0.0;
+   // Array2D<double> pmlh(dim,2); pmlh = 0.0;
 
-   for (int i=0; i<dim; i++)
+   // for (int i=0; i<dim; i++)
+   // {
+   //    if (direct[i][0]==1) pmin[i] += h*(nlayers-1); 
+   //    if (direct[i][1]==1) pmax[i] -= h*(nlayers-1); 
+   //    for (int j=0; j<2; j++)
+   //    {
+   //       if (direct[i][j]==1)
+   //       {
+   //          pmlh[i][j] = h;
+   //       }
+   //    }  
+   // }
+
+   // CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
+
+   // double * data = res.GetData();
+   
+   // int n = fes->GetTrueVSize();
+
+   // GridFunction solgf_re(fes, data);
+   // GridFunction solgf_im(fes, &data[n]);
+
+   // GridFunctionCoefficient coeff1_re(&solgf_re);
+   // GridFunctionCoefficient coeff1_im(&solgf_im);
+
+   // ProductCoefficient prod_re(coeff1_re, cf);
+   // ProductCoefficient prod_im(coeff1_im, cf);
+
+   // ComplexGridFunction gf(fes);
+   // gf.ProjectCoefficient(prod_re,prod_im);
+
+   // cfres.SetSize(res.Size());
+   // cfres = gf;
+   int n = res.Size();
+   // zero out dofs in the ovlp according to the directions
+   cfres.SetSize(res.Size()); cfres=res;
+   for (int d=0; d<dim; d++)
    {
-      if (direct[i][0]==1) pmin[i] += h*(nlayers-1); 
-      if (direct[i][1]==1) pmax[i] -= h*(nlayers-1); 
-      for (int j=0; j<2; j++)
+      // negative direction
+      if (direct[d][0]==1)
       {
-         if (direct[i][j]==1)
-         {
-            pmlh[i][j] = h;
-         }
-      }  
+         // for (int i=0;i<n;i++)
+         // {
+         //    cfres(i) *= NovlpDofs[ip][d][i];
+         // }
+         // cfres.SetSubVectorComplement(NovlpDofs1[ip][d],0.0);
+         cfres.SetSubVector(NovlpDofs1[ip][d],0.0);
+         // for (int i=0;i<NovlpDofs1[ip][d].Size();i++)
+         // {
+         //    int j = NovlpDofs1[ip][d][i];
+         //    cfres(j) = 0.0;
+         // }
+      } 
+      // possitive direction
+      if (direct[d][1]==1)
+      {
+         // for (int i=0;i<n;i++)
+         // {
+         //    cfres(i) *= NovlpDofs[ip][d+dim][i];
+         // }
+         // cfres.SetSubVectorComplement(NovlpDofs1[ip][d+dim],0.0);
+         cfres.SetSubVector(NovlpDofs1[ip][d+dim],0.0);
+         // for (int i=0;i<NovlpDofs1[ip][d+dim].Size();i++)
+         // {
+         //    int j = NovlpDofs1[ip][d+dim][i];
+         //    cfres(j) = 0.0;
+         // }
+      } 
    }
-
-   CutOffFnCoefficient cf(ChiFncn, pmin, pmax, pmlh);
-
-   double * data = res.GetData();
-   
-   int n = fes->GetTrueVSize();
-
-   GridFunction solgf_re(fes, data);
-   GridFunction solgf_im(fes, &data[n]);
-
-   GridFunctionCoefficient coeff1_re(&solgf_re);
-   GridFunctionCoefficient coeff1_im(&solgf_im);
-
-   ProductCoefficient prod_re(coeff1_re, cf);
-   ProductCoefficient prod_im(coeff1_im, cf);
-
-   ComplexGridFunction gf(fes);
-   gf.ProjectCoefficient(prod_re,prod_im);
-
-   cfres.SetSize(res.Size());
-   cfres = gf;
 }
 
 
@@ -653,7 +691,7 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
 }
 
 
-   void DST::GetOverlapElements()
+   void DST::MarkOverlapElements()
    {
       cout<< "Compute Overlap Elements (in each possible direction) " << endl;
       
@@ -662,6 +700,7 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
       // x,y,z = +/- 1 ovlp 
 
       ovlpelems.resize(nrpatch);
+      NovlpElems.resize(nrpatch);
 
       for (int ip = 0; ip<nrpatch; ip++)
       {
@@ -675,6 +714,8 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
          Mesh * mesh = fes->GetMesh();
          int nrelems = mesh->GetNE();
          ovlpelems[ip].SetSize(2*dim,nrelems); ovlpelems[ip] = 1;
+         NovlpElems[ip].resize(2*dim);
+
          Vector pmin, pmax;
          mesh->GetBoundingBox(pmin,pmax);
          double h = GetUniformMeshElementSize(mesh);
@@ -696,49 +737,122 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
                   {
                      ovlpelems[ip][d][iel] = 0;
                   }
+                  else
+                  {
+                     NovlpElems[ip][d].Append(iel);
+                  }
                }
+               else
+               {
+                  NovlpElems[ip][d].Append(iel);
+               }
+               
                if (ijk[d]<nxyz[d]-1)
                {
                   if (center[d] > pmax[d]-h*ovlpnrlayers) 
                   {
                      ovlpelems[ip][dim+d][iel] = 0;
                   } 
+                  else
+                  {
+                     NovlpElems[ip][dim+d].Append(iel);
+                  }
                }
+               else
+               {
+                  NovlpElems[ip][dim+d].Append(iel);
+               }
+               
             }
          }
-         // cout << "Subdomain (" << i << "," <<j<<")" << endl;
-         // for (int d=0;d<dim; d++)
-         // {
-            // cout << "d = " << d << endl;
+         /*
+         cout << "Subdomain (" << i << "," <<j<<")" << endl;
+         for (int d=0;d<dim; d++)
+         {
+            cout << "d = " << d << endl;
 
-            // if (d==0) cout << "-x: " ;
-            // if (d==1) cout << "-y: " ;
-            // if (d==2) cout << "-z: " ;
-            // cout << "int elems = " ;
-            // for (int l=0; l<nrelems; l++)
-            // {
-               // if (ovlpelems[ip][d][l] == 1)
-               // {
+            if (d==0) cout << "-x: " ;
+            if (d==1) cout << "-y: " ;
+            if (d==2) cout << "-z: " ;
+            cout << "1:int elems = " ;
+            for (int l=0; l<nrelems; l++)
+            {
+               if (ovlpelems[ip][d][l] == 1)
+               {
                   // cout << part->element_map[ip][l] << " ";
-               // }
-            // }
-            // cout << endl;
+                  cout << l << " ";
+               }
+            }
+            cout << endl;
+            cout << "    2:int elems = " ;
+            NovlpElems[ip][d].Print(cout, NovlpElems[ip][d].Size());
+            // NovlpElems[ip][d].Print();
 
-            // if (d==0) cout << "+x: " ;
-            // if (d==1) cout << "+y: " ;
-            // if (d==2) cout << "+z: " ;
-            // cout << "int elems = " ;
-            // for (int l=0; l<nrelems; l++)
-            // {
-            //    if (ovlpelems[ip][d+dim][l] == 1)
-            //    {
-            //       cout << part->element_map[ip][l] << " ";
-            //    }
-            // }
-            // cout << endl;
+            if (d==0) cout << "+x: " ;
+            if (d==1) cout << "+y: " ;
+            if (d==2) cout << "+z: " ;
+            cout << "1:int elems = " ;
+            for (int l=0; l<nrelems; l++)
+            {
+               if (ovlpelems[ip][d+dim][l] == 1)
+               {
+                  // cout << part->element_map[ip][l] << " ";
+                  cout << l << " ";
+               }
+            }
+            cout<< endl;
+            cout << "    2:int elems = " ;
+            NovlpElems[ip][d+dim].Print(cout, NovlpElems[ip][d+dim].Size());
+
+            cout << endl;
             // cout << "    all elems = " ;
             // part->element_map[ip].Print(cout, nrelems);
-            // cin.get();
-         // }
+            cin.get();
+         }
+         */
       }   
    }
+
+
+
+void DST::MarkOverlapDofs()
+{
+   cout<< "Compute Overlap dofs (in each possible direction) " << endl;
+   NovlpDofs.resize(nrpatch);
+   NovlpDofs1.resize(nrpatch);
+   for (int ip = 0; ip<nrpatch; ip++)
+   {
+      FiniteElementSpace * fes = dmap->fespaces[ip];
+      // Loop through the marked elements
+      NovlpDofs[ip].resize(2*dim);
+      NovlpDofs1[ip].resize(2*dim);
+
+      for (int d=0;d<2*dim; d++)
+      {
+         NovlpDofs[ip][d].SetSize(2*fes->GetTrueVSize());
+         NovlpDofs[ip][d]=0;
+         int melems = NovlpElems[ip][d].Size(); 
+         Array<int> temp;
+         for (int iel=0; iel<melems; iel++)
+         {
+            Array<int> ElemDofs;
+            int el =  NovlpElems[ip][d][iel];
+            fes->GetElementDofs(el,ElemDofs);
+            int ndof = ElemDofs.Size();
+            for (int i = 0; i<ndof; ++i)
+            {
+               int eldof = ElemDofs[i];
+               int tdof = (eldof >= 0) ? eldof : abs(eldof) - 1; 
+               NovlpDofs[ip][d][tdof] = 1;
+               NovlpDofs[ip][d][tdof+fes->GetTrueVSize()] = 1;
+               // NovlpDofs1[ip][d].Append(tdof);
+               // NovlpDofs1[ip][d].Append(tdof+fes->GetTrueVSize());
+            }
+         }
+         for (int i = 0; i<2*fes->GetTrueVSize(); i++)
+         {
+            if (NovlpDofs[ip][d][i]==0) NovlpDofs1[ip][d].Append(i);
+         }
+      }
+   }
+}
