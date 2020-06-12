@@ -29,6 +29,8 @@ config/sample-runs-build.log
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
+doc/undoc.log
+doc/warnings.log
 
 # Temporary files created by the tests.
 *.stderr

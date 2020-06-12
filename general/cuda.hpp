@@ -77,19 +77,19 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);
 #endif
 
-/// Allocates device memory
+/// Allocates device memory and returns destination ptr.
 void* CuMemAlloc(void **d_ptr, size_t bytes);
 
 /// Allocates managed device memory
 void* CuMallocManaged(void **d_ptr, size_t bytes);
 
-/// Frees device memory
+/// Frees device memory and returns destination ptr.
 void* CuMemFree(void *d_ptr);
 
-/// Copies memory from Host to Device
+/// Copies memory from Host to Device and returns destination ptr.
 void* CuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
-/// Copies memory from Host to Device
+/// Copies memory from Host to Device and returns destination ptr.
 void* CuMemcpyHtoDAsync(void *d_dst, const void *h_src, size_t bytes);
 
 /// Copies memory from Device to Device
