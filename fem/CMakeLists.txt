@@ -105,6 +105,7 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  tmop_pa.hpp
   tmop_tools.hpp
   gslib.hpp
   transfer.hpp
