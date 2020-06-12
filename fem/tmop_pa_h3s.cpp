@@ -148,7 +148,8 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static void SetupGradPA_3D(const int mid,
+static void SetupGradPA_3D(const double metric_normal,
+                           const int mid,
                            const Vector &x_,
                            const int NE,
                            const Array<double> &w_,
@@ -172,7 +173,6 @@ static void SetupGradPA_3D(const int mid,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
@@ -199,7 +199,7 @@ static void SetupGradPA_3D(const int mid,
             {
                const double *Jtr = &J(0,0,qx,qy,qz,e);
                const double detJtr = kernels::Det<3>(Jtr);
-               const double weight = W(qx,qy,qz) * detJtr;
+               const double weight = metric_normal * W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                double Jrt[9];
@@ -228,7 +228,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
-   const int mid = metric->Id();
+   const int M = metric->Id();
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
@@ -236,42 +236,43 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    Vector &H = PA.A;
+   const double mn = metric_normal;
 
    switch (id)
    {
-      case 0x21: return SetupGradPA_3D<2,1>(mid,X,N,W,B,G,J,H);
-      case 0x22: return SetupGradPA_3D<2,2>(mid,X,N,W,B,G,J,H);
-      case 0x23: return SetupGradPA_3D<2,3>(mid,X,N,W,B,G,J,H);
-      case 0x24: return SetupGradPA_3D<2,4>(mid,X,N,W,B,G,J,H);
-      case 0x25: return SetupGradPA_3D<2,5>(mid,X,N,W,B,G,J,H);
-      case 0x26: return SetupGradPA_3D<2,6>(mid,X,N,W,B,G,J,H);
+      case 0x21: return SetupGradPA_3D<2,1>(mn,M,X,N,W,B,G,J,H);
+      case 0x22: return SetupGradPA_3D<2,2>(mn,M,X,N,W,B,G,J,H);
+      case 0x23: return SetupGradPA_3D<2,3>(mn,M,X,N,W,B,G,J,H);
+      case 0x24: return SetupGradPA_3D<2,4>(mn,M,X,N,W,B,G,J,H);
+      case 0x25: return SetupGradPA_3D<2,5>(mn,M,X,N,W,B,G,J,H);
+      case 0x26: return SetupGradPA_3D<2,6>(mn,M,X,N,W,B,G,J,H);
 
-      case 0x31: return SetupGradPA_3D<3,1>(mid,X,N,W,B,G,J,H);
-      case 0x32: return SetupGradPA_3D<3,2>(mid,X,N,W,B,G,J,H);
-      case 0x33: return SetupGradPA_3D<3,3>(mid,X,N,W,B,G,J,H);
-      case 0x34: return SetupGradPA_3D<3,4>(mid,X,N,W,B,G,J,H);
-      case 0x35: return SetupGradPA_3D<3,5>(mid,X,N,W,B,G,J,H);
-      case 0x36: return SetupGradPA_3D<3,6>(mid,X,N,W,B,G,J,H);
+      case 0x31: return SetupGradPA_3D<3,1>(mn,M,X,N,W,B,G,J,H);
+      case 0x32: return SetupGradPA_3D<3,2>(mn,M,X,N,W,B,G,J,H);
+      case 0x33: return SetupGradPA_3D<3,3>(mn,M,X,N,W,B,G,J,H);
+      case 0x34: return SetupGradPA_3D<3,4>(mn,M,X,N,W,B,G,J,H);
+      case 0x35: return SetupGradPA_3D<3,5>(mn,M,X,N,W,B,G,J,H);
+      case 0x36: return SetupGradPA_3D<3,6>(mn,M,X,N,W,B,G,J,H);
 
-      case 0x41: return SetupGradPA_3D<4,1>(mid,X,N,W,B,G,J,H);
-      case 0x42: return SetupGradPA_3D<4,2>(mid,X,N,W,B,G,J,H);
-      case 0x43: return SetupGradPA_3D<4,3>(mid,X,N,W,B,G,J,H);
-      case 0x44: return SetupGradPA_3D<4,4>(mid,X,N,W,B,G,J,H);
-      case 0x45: return SetupGradPA_3D<4,5>(mid,X,N,W,B,G,J,H);
-      case 0x46: return SetupGradPA_3D<4,6>(mid,X,N,W,B,G,J,H);
+      case 0x41: return SetupGradPA_3D<4,1>(mn,M,X,N,W,B,G,J,H);
+      case 0x42: return SetupGradPA_3D<4,2>(mn,M,X,N,W,B,G,J,H);
+      case 0x43: return SetupGradPA_3D<4,3>(mn,M,X,N,W,B,G,J,H);
+      case 0x44: return SetupGradPA_3D<4,4>(mn,M,X,N,W,B,G,J,H);
+      case 0x45: return SetupGradPA_3D<4,5>(mn,M,X,N,W,B,G,J,H);
+      case 0x46: return SetupGradPA_3D<4,6>(mn,M,X,N,W,B,G,J,H);
 
-      case 0x51: return SetupGradPA_3D<5,1>(mid,X,N,W,B,G,J,H);
-      case 0x52: return SetupGradPA_3D<5,2>(mid,X,N,W,B,G,J,H);
-      case 0x53: return SetupGradPA_3D<5,3>(mid,X,N,W,B,G,J,H);
-      case 0x54: return SetupGradPA_3D<5,4>(mid,X,N,W,B,G,J,H);
-      case 0x55: return SetupGradPA_3D<5,5>(mid,X,N,W,B,G,J,H);
-      case 0x56: return SetupGradPA_3D<5,6>(mid,X,N,W,B,G,J,H);
+      case 0x51: return SetupGradPA_3D<5,1>(mn,M,X,N,W,B,G,J,H);
+      case 0x52: return SetupGradPA_3D<5,2>(mn,M,X,N,W,B,G,J,H);
+      case 0x53: return SetupGradPA_3D<5,3>(mn,M,X,N,W,B,G,J,H);
+      case 0x54: return SetupGradPA_3D<5,4>(mn,M,X,N,W,B,G,J,H);
+      case 0x55: return SetupGradPA_3D<5,5>(mn,M,X,N,W,B,G,J,H);
+      case 0x56: return SetupGradPA_3D<5,6>(mn,M,X,N,W,B,G,J,H);
 
       default:
       {
          constexpr int T_MAX = 4;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return SetupGradPA_3D<0,0,T_MAX>(mid,X,N,W,B,G,J,H,D1D,Q1D);
+         return SetupGradPA_3D<0,0,T_MAX>(mn,M,X,N,W,B,G,J,H,D1D,Q1D);
       }
    }
 }

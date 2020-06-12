@@ -42,7 +42,8 @@ void EvalP_002(const double *Jpt, double *P)
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
-static void AddMultPA_Kernel_2D(const int mid,
+static void AddMultPA_Kernel_2D(const double metric_normal,
+                                const int mid,
                                 const int NE,
                                 const DenseTensor &j_,
                                 const Array<double> &w_,
@@ -96,7 +97,7 @@ static void AddMultPA_Kernel_2D(const int mid,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = W(qx,qy) * detJtr;
+            const double weight = metric_normal * W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
@@ -141,42 +142,43 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
+   const double mn = metric_normal;
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(M,N,J,W,B,G,X,Y);
-      case 0x22: return AddMultPA_Kernel_2D<2,2,1>(M,N,J,W,B,G,X,Y);
-      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(M,N,J,W,B,G,X,Y);
-      case 0x24: return AddMultPA_Kernel_2D<2,4,1>(M,N,J,W,B,G,X,Y);
-      case 0x25: return AddMultPA_Kernel_2D<2,5,1>(M,N,J,W,B,G,X,Y);
-      case 0x26: return AddMultPA_Kernel_2D<2,6,1>(M,N,J,W,B,G,X,Y);
+      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x22: return AddMultPA_Kernel_2D<2,2,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x24: return AddMultPA_Kernel_2D<2,4,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x25: return AddMultPA_Kernel_2D<2,5,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x26: return AddMultPA_Kernel_2D<2,6,1>(mn,M,N,J,W,B,G,X,Y);
 
-      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(M,N,J,W,B,G,X,Y);
-      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(M,N,J,W,B,G,X,Y);
-      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(M,N,J,W,B,G,X,Y);
-      case 0x34: return AddMultPA_Kernel_2D<3,4,1>(M,N,J,W,B,G,X,Y);
-      case 0x35: return AddMultPA_Kernel_2D<3,5,1>(M,N,J,W,B,G,X,Y);
-      case 0x36: return AddMultPA_Kernel_2D<3,6,1>(M,N,J,W,B,G,X,Y);
+      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x34: return AddMultPA_Kernel_2D<3,4,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x35: return AddMultPA_Kernel_2D<3,5,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x36: return AddMultPA_Kernel_2D<3,6,1>(mn,M,N,J,W,B,G,X,Y);
 
-      case 0x41: return AddMultPA_Kernel_2D<4,1,1>(M,N,J,W,B,G,X,Y);
-      case 0x42: return AddMultPA_Kernel_2D<4,2,1>(M,N,J,W,B,G,X,Y);
-      case 0x43: return AddMultPA_Kernel_2D<4,3,1>(M,N,J,W,B,G,X,Y);
-      case 0x44: return AddMultPA_Kernel_2D<4,4,1>(M,N,J,W,B,G,X,Y);
-      case 0x45: return AddMultPA_Kernel_2D<4,5,1>(M,N,J,W,B,G,X,Y);
-      case 0x46: return AddMultPA_Kernel_2D<4,6,1>(M,N,J,W,B,G,X,Y);
+      case 0x41: return AddMultPA_Kernel_2D<4,1,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x42: return AddMultPA_Kernel_2D<4,2,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x43: return AddMultPA_Kernel_2D<4,3,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x44: return AddMultPA_Kernel_2D<4,4,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x45: return AddMultPA_Kernel_2D<4,5,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x46: return AddMultPA_Kernel_2D<4,6,1>(mn,M,N,J,W,B,G,X,Y);
 
-      case 0x51: return AddMultPA_Kernel_2D<5,1,1>(M,N,J,W,B,G,X,Y);
-      case 0x52: return AddMultPA_Kernel_2D<5,2,1>(M,N,J,W,B,G,X,Y);
-      case 0x53: return AddMultPA_Kernel_2D<5,3,1>(M,N,J,W,B,G,X,Y);
-      case 0x54: return AddMultPA_Kernel_2D<5,4,1>(M,N,J,W,B,G,X,Y);
-      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(M,N,J,W,B,G,X,Y);
-      case 0x56: return AddMultPA_Kernel_2D<5,6,1>(M,N,J,W,B,G,X,Y);
+      case 0x51: return AddMultPA_Kernel_2D<5,1,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x52: return AddMultPA_Kernel_2D<5,2,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x53: return AddMultPA_Kernel_2D<5,3,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x54: return AddMultPA_Kernel_2D<5,4,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(mn,M,N,J,W,B,G,X,Y);
+      case 0x56: return AddMultPA_Kernel_2D<5,6,1>(mn,M,N,J,W,B,G,X,Y);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return AddMultPA_Kernel_2D<0,0,0,T_MAX>(M,N,J,W,B,G,X,Y,D1D,Q1D);
+         return AddMultPA_Kernel_2D<0,0,0,T_MAX>(mn,M,N,J,W,B,G,X,Y,D1D,Q1D);
       }
    }
 }

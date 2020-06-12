@@ -921,6 +921,7 @@ protected:
    // PA extension
    struct
    {
+      bool enabled = false;
       int dim, ne, nq;
       mutable Vector E, O, X, P, A;
       mutable bool setup;
@@ -933,7 +934,6 @@ protected:
 
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      double &metric_energy, double &lim_energy);
-
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
