@@ -316,7 +316,7 @@ static inline const char *itoa(int i, char *buf)
 
 static void tmop_tests(int myid)
 {
-   static bool all = getenv("ALL");
+   static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
 
    // STAR
    {
