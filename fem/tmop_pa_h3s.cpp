@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "tmop.hpp"
+#include "tmop_pa.hpp"
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
@@ -178,184 +179,18 @@ static void SetupGradPA_3D(const int mid,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1])(s_BG[0]);
-      double (*G)[MD1] = (double (*)[MD1])(s_BG[1]);
-
       MFEM_SHARED double s_DDD[3][MD1*MD1*MD1];
-      double (*Xx)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD[0]);
-      double (*Xy)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD[1]);
-      double (*Xz)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD[2]);
-
       MFEM_SHARED double s_DDQ[9][MD1*MD1*MQ1];
-      double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[0]);
-      double (*XxG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[1]);
-      double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[2]);
-      double (*XyG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[3]);
-      double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[4]);
-      double (*XzG)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ[5]);
-
       MFEM_SHARED double s_DQQ[9][MD1*MQ1*MQ1];
-      double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[0]);
-      double (*XxBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[1]);
-      double (*XxGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[2]);
-      double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[3]);
-      double (*XyBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[4]);
-      double (*XyGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[5]);
-      double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[6]);
-      double (*XzBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[7]);
-      double (*XzGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ[8]);
-
       MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
-      double (*XxBBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+0);
-      double (*XxBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+1);
-      double (*XxGBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+2);
-      double (*XyBBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+3);
-      double (*XyBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+4);
-      double (*XyGBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+5);
-      double (*XzBBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+6);
-      double (*XzBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+7);
-      double (*XzGBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+8);
 
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               Xx[dz][dy][dx] = X(dx,dy,dz,0,e);
-               Xy[dz][dy][dx] = X(dx,dy,dz,1,e);
-               Xz[dz][dy][dx] = X(dx,dy,dz,2,e);
-            }
-         }
-      }
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u[3] = {0.0, 0.0, 0.0};
-               double v[3] = {0.0, 0.0, 0.0};
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double xx = Xx[dz][dy][dx];
-                  const double xy = Xy[dz][dy][dx];
-                  const double xz = Xz[dz][dy][dx];
-                  const double Bx = B[qx][dx];
-                  const double Gx = G[qx][dx];
-                  u[0] += Bx * xx;
-                  u[1] += Bx * xy;
-                  u[2] += Bx * xz;
+      kernels::LoadX<MD1>(e,D1D,X,s_DDD);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
 
-                  v[0] += Gx * xx;
-                  v[1] += Gx * xy;
-                  v[2] += Gx * xz;
-               }
-               XxB[dz][dy][qx] = u[0];
-               XyB[dz][dy][qx] = u[1];
-               XzB[dz][dy][qx] = u[2];
+      kernels::GradX<MD1,MQ1>(D1D,Q1D,s_BG,s_DDD,s_DDQ);
+      kernels::GradY<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,s_DQQ);
+      kernels::GradZ<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_QQQ);
 
-               XxG[dz][dy][qx] = v[0];
-               XyG[dz][dy][qx] = v[1];
-               XzG[dz][dy][qx] = v[2];
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u[3] = {0.0, 0.0, 0.0};
-               double v[3] = {0.0, 0.0, 0.0};
-               double w[3] = {0.0, 0.0, 0.0};
-               for (int dy = 0; dy < D1D; ++dy)
-               {
-                  const double By = B[qy][dy];
-                  const double Gy = G[qy][dy];
-
-                  u[0] += XxB[dz][dy][qx] * By;
-                  u[1] += XyB[dz][dy][qx] * By;
-                  u[2] += XzB[dz][dy][qx] * By;
-
-                  v[0] += XxG[dz][dy][qx] * By;
-                  v[1] += XyG[dz][dy][qx] * By;
-                  v[2] += XzG[dz][dy][qx] * By;
-
-                  w[0] += XxB[dz][dy][qx] * Gy;
-                  w[1] += XyB[dz][dy][qx] * Gy;
-                  w[2] += XzB[dz][dy][qx] * Gy;
-               }
-               XxBB[dz][qy][qx] = u[0];
-               XyBB[dz][qy][qx] = u[1];
-               XzBB[dz][qy][qx] = u[2];
-
-               XxBG[dz][qy][qx] = v[0];
-               XyBG[dz][qy][qx] = v[1];
-               XzBG[dz][qy][qx] = v[2];
-
-               XxGB[dz][qy][qx] = w[0];
-               XyGB[dz][qy][qx] = w[1];
-               XzGB[dz][qy][qx] = w[2];
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               double u[3] = {0.0, 0.0, 0.0};
-               double v[3] = {0.0, 0.0, 0.0};
-               double w[3] = {0.0, 0.0, 0.0};
-               for (int dz = 0; dz < D1D; ++dz)
-               {
-                  const double Bz = B[qz][dz];
-                  const double Gz = G[qz][dz];
-
-                  u[0] += XxBG[dz][qy][qx] * Bz;
-                  u[1] += XyBG[dz][qy][qx] * Bz;
-                  u[2] += XzBG[dz][qy][qx] * Bz;
-
-                  v[0] += XxGB[dz][qy][qx] * Bz;
-                  v[1] += XyGB[dz][qy][qx] * Bz;
-                  v[2] += XzGB[dz][qy][qx] * Bz;
-
-                  w[0] += XxBB[dz][qy][qx] * Gz;
-                  w[1] += XyBB[dz][qy][qx] * Gz;
-                  w[2] += XzBB[dz][qy][qx] * Gz;
-               }
-               XxBBG[qz][qy][qx] = u[0];
-               XyBBG[qz][qy][qx] = u[1];
-               XzBBG[qz][qy][qx] = u[2];
-
-               XxBGB[qz][qy][qx] = v[0];
-               XyBGB[qz][qy][qx] = v[1];
-               XzBGB[qz][qy][qx] = v[2];
-
-               XxGBB[qz][qy][qx] = w[0];
-               XyGBB[qz][qy][qx] = w[1];
-               XzGBB[qz][qy][qx] = w[2];
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -371,21 +206,8 @@ static void SetupGradPA_3D(const int mid,
                kernels::CalcInverse<3>(Jtr, Jrt);
 
                // Jpr = X^T.DSh
-               const double JprxBBG = XxBBG[qz][qy][qx];
-               const double JprxBGB = XxBGB[qz][qy][qx];
-               const double JprxGBB = XxGBB[qz][qy][qx];
-               const double JpryBBG = XyBBG[qz][qy][qx];
-               const double JpryBGB = XyBGB[qz][qy][qx];
-               const double JpryGBB = XyGBB[qz][qy][qx];
-               const double JprzBBG = XzBBG[qz][qy][qx];
-               const double JprzBGB = XzBGB[qz][qy][qx];
-               const double JprzGBB = XzGBB[qz][qy][qx];
-               const double Jpr[9] =
-               {
-                  JprxBBG, JpryBBG, JprzBBG,
-                  JprxBGB, JpryBGB, JprzBGB,
-                  JprxGBB, JpryGBB, JprzGBB
-               };
+               double Jpr[9];
+               kernels::PullGradXYZ<MQ1>(qx,qy,qz, s_QQQ, Jpr);
 
                // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
                double Jpt[9];
