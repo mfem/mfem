@@ -75,15 +75,15 @@ double ChiFncn(const Vector &x, const Vector & pmin, const Vector & pmax, const 
       else if (x(i) < pmax(i) && x(i) >= x1(i))
       {
          if(h1(i) != 0.0)
-            // val = (x(i)-pmax(i))/(x1(i)-pmax(i)); 
+            val = (x(i)-pmax(i))/(x1(i)-pmax(i)); 
             // This function has to be changed to smth more reasonable
-            val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),100.0); 
+            // val = pow((x(i)-pmax(i))/(x1(i)-pmax(i)),100.0); 
       }
       else if (x(i) > pmin(i) && x(i) <= x0(i))
       {
          if (h0(i) != 0.0)
-            // val = (x(i)-pmin(i))/(x0(i)-pmin(i)); 
-            val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),100.0); 
+            val = (x(i)-pmin(i))/(x0(i)-pmin(i)); 
+            // val = pow((x(i)-pmin(i))/(x0(i)-pmin(i)),100.0); 
       }
 
       if (h0(i) == 0 && x(i) <= x1(i))

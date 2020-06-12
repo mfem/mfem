@@ -38,7 +38,6 @@ private:
    int dim;
    int nx, ny, nz;
    int ovlpnrlayers;
-
    MeshPartition * part=nullptr;
    DofMap * dmap = nullptr;
    std::vector<std::vector<Array<int>>> NovlpElems;

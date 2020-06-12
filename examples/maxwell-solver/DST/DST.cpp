@@ -269,7 +269,9 @@ void DST::TransferSources(int s, int ip0, Vector & sol0) const
 SparseMatrix * DST::GetPmlSystemMatrix(int ip)
 {
    Mesh * mesh = part->patch_mesh[ip];
-   double h = GetUniformMeshElementSize(mesh);
+   // double h = GetUniformMeshElementSize(mesh);
+   double h = part->MeshSize;
+   // cout << "h = " << h << endl;
    Array2D<double> length(dim,2);
    length = h*(nrlayers);
 
@@ -377,7 +379,8 @@ void DST::GetCutOffSolution(const Vector & sol, Vector & cfsol,
    
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
-   double h = GetUniformMeshElementSize(mesh);
+   // double h = GetUniformMeshElementSize(mesh);
+   double h = part->MeshSize;
 
 
    int i, j, k;
@@ -439,7 +442,8 @@ void DST::GetChiRes(const Vector & res, Vector & cfres,
    // Mesh * mesh = fes->GetMesh();
    // Vector pmin, pmax;
    // mesh->GetBoundingBox(pmin, pmax);
-   // double h = GetUniformMeshElementSize(mesh);
+   // // double h = GetUniformMeshElementSize(mesh);
+   // double h = part->MeshSize;
    
    // Array2D<double> pmlh(dim,2); pmlh = 0.0;
 
@@ -718,7 +722,8 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
 
          Vector pmin, pmax;
          mesh->GetBoundingBox(pmin,pmax);
-         double h = GetUniformMeshElementSize(mesh);
+         // double h = GetUniformMeshElementSize(mesh);
+         double h = part->MeshSize;
          // Loop through elements
          for (int iel=0; iel<mesh->GetNE(); iel++)
          {

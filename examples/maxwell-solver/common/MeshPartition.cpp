@@ -260,6 +260,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
    double h = GetUniformMeshElementSize(mesh);
+   MeshSize = h;
 
    element_map.resize(nrpatch);
 
@@ -353,6 +354,7 @@ OverlappingCartesianMeshPartition::OverlappingCartesianMeshPartition(Mesh *mesh_
    Vector pmin, pmax;
    mesh->GetBoundingBox(pmin, pmax);
    double h = GetUniformMeshElementSize(mesh);
+   MeshSize = h;
    cout << "h = " << h << endl;
 
    // Check that ovlp_size does not exit subdomain size
@@ -567,6 +569,7 @@ MeshPartition::MeshPartition(Mesh* mesh_, int part,int nx, int ny, int nz, int n
       nxyz[0] = partition.nxyz[0];
       nxyz[1] = partition.nxyz[1];
       nxyz[2] = partition.nxyz[2];
+      MeshSize = partition.MeshSize;
    }
    else if (part == 3 || part == 4)
    // else if (part == 2)

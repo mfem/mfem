@@ -15,6 +15,7 @@ private:
 public:
    int nrpatch;
    int nxyz[3];
+   double MeshSize;
    std::vector<Array<int>> element_map;
    Array3D<int>subdomains;
    // constructor
@@ -28,6 +29,7 @@ private:
    Mesh *mesh=nullptr;
 public:
    int nrpatch;
+   double MeshSize;
    int nxyz[3];
    std::vector<Array<int>> element_map;
    Array3D<int> subdomains;
@@ -59,6 +61,7 @@ private:
    void PrintElementMap();
 public:
    int nrpatch;
+   double MeshSize;
    std::vector<Array<int>> element_map;
    Array3D<int> subdomains;
    Array<Mesh *> patch_mesh;
