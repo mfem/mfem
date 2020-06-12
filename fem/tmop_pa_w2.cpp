@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "tmop.hpp"
+#include "tmop_pa.hpp"
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
@@ -50,10 +51,11 @@ static double EnergyPA_2D(const int mid,
    MFEM_VERIFY(mid == 1 || mid == 2, "2D metric not yet implemented!");
 
    constexpr int dim = 2;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    //constexpr double metric_normal =  1.0;
+
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
    const auto J = Reshape(j_.Read(), dim, dim, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -66,7 +68,6 @@ static double EnergyPA_2D(const int mid,
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -74,91 +75,14 @@ static double EnergyPA_2D(const int mid,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double s_BG[2][MQ1*MD1];
-      double (*B)[MD1]  = (double (*)[MD1])(s_BG[0]);
-      double (*G)[MD1]  = (double (*)[MD1])(s_BG[1]);
-
       MFEM_SHARED double s_X[2][NBZ][MD1*MD1];
-      double (*Xx)[MD1]  = (double (*)[MD1])(s_X[0] + tidz);
-      double (*Xy)[MD1]  = (double (*)[MD1])(s_X[1] + tidz);
-
       MFEM_SHARED double s_DQ[4][NBZ][MD1*MQ1];
-      double (*XxB)[MQ1] = (double (*)[MQ1])(s_DQ[0] + tidz);
-      double (*XxG)[MQ1] = (double (*)[MQ1])(s_DQ[1] + tidz);
-      double (*XyB)[MQ1] = (double (*)[MQ1])(s_DQ[2] + tidz);
-      double (*XyG)[MQ1] = (double (*)[MQ1])(s_DQ[3] + tidz);
-
       MFEM_SHARED double s_QQ[4][NBZ][MQ1*MQ1];
-      double (*Xx0)[MQ1] = (double (*)[MQ1])(s_QQ[0] + tidz);
-      double (*Xx1)[MQ1] = (double (*)[MQ1])(s_QQ[1] + tidz);
-      double (*Xy0)[MQ1] = (double (*)[MQ1])(s_QQ[2] + tidz);
-      double (*Xy1)[MQ1] = (double (*)[MQ1])(s_QQ[3] + tidz);
 
-      // Load X(x,y)
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            Xx[dy][dx] = X(dx,dy,0,e);
-            Xy[dy][dx] = X(dx,dy,1,e);
-         }
-      }
-      // Load B1d and G1d matrices
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double u[2] = {0.0, 0.0};
-            double v[2] = {0.0, 0.0};
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               const double xx = Xx[dy][dx];
-               const double xy = Xy[dy][dx];
-               u[0] += B[qx][dx] * xx;
-               v[0] += G[qx][dx] * xx;
-               u[1] += B[qx][dx] * xy;
-               v[1] += G[qx][dx] * xy;
-            }
-            XxB[dy][qx] = u[0];
-            XxG[dy][qx] = v[0];
-            XyB[dy][qx] = u[1];
-            XyG[dy][qx] = v[1];
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            double u[2] = {0.0, 0.0};
-            double v[2] = {0.0, 0.0};
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               u[0] += XxG[dy][qx] * B[qy][dy];
-               v[0] += XxB[dy][qx] * G[qy][dy];
-               u[1] += XyG[dy][qx] * B[qy][dy];
-               v[1] += XyB[dy][qx] * G[qy][dy];
-            }
-            Xx0[qy][qx] = u[0];
-            Xx1[qy][qx] = v[0];
-            Xy0[qy][qx] = u[1];
-            Xy1[qy][qx] = v[1];
-         }
-      }
-      MFEM_SYNC_THREAD;
+      kernels::LoadX<MD1,NBZ>(e, D1D, s_X, X);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,s_BG,b,g);
+      kernels::GradX<MD1,MQ1,NBZ>(D1D, Q1D, s_BG, s_X, s_DQ);
+      kernels::GradY<MD1,MQ1,NBZ>(D1D, Q1D, s_BG, s_DQ, s_QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -173,20 +97,18 @@ static double EnergyPA_2D(const int mid,
             kernels::CalcInverse<2>(Jtr, Jrt);
 
             // Jpr = X^T.DSh
-            const double Jprx0 = Xx0[qy][qx];
-            const double Jprx1 = Xx1[qy][qx];
-            const double Jpry0 = Xy0[qy][qx];
-            const double Jpry1 = Xy1[qy][qx];
-            const double Jpr[4] = { Jprx0, Jpry0, Jprx1, Jpry1 };
+            double Jpr[4];
+            kernels::PullGradXY<MQ1,NBZ>(qx,qy,s_QQ,Jpr);
 
             // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
             double Jpt[4];
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
             // metric->EvalW(Jpt);
-            const double EvalW = mid == 1 ? EvalW_001(Jpt) :
-                                 mid == 2 ? EvalW_002(Jpt) :
-                                 0.0;
+            const double EvalW =
+            mid == 1 ? EvalW_001(Jpt) :
+            mid == 2 ? EvalW_002(Jpt) : 0.0;
+
             E(qx,qy,e) = weight * EvalW;
             O(qx,qy,e) = 1.0;
          }
