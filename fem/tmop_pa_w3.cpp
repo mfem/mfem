@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "tmop.hpp"
+#include "tmop_pa.hpp"
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
@@ -78,7 +79,6 @@ static double EnergyPA_3D(const int mid,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
@@ -123,32 +123,9 @@ static double EnergyPA_3D(const int mid,
       double (*XzBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+7);
       double (*XzGBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+8);
 
-      // Load X(x,y,z)
-      MFEM_FOREACH_THREAD(dz,z,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               Xx[dz][dy][dx] = X(dx,dy,dz,0,e);
-               Xy[dz][dy][dx] = X(dx,dy,dz,1,e);
-               Xz[dz][dy][dx] = X(dx,dy,dz,2,e);
-            }
-         }
-      }
-      // Load B1d and G1d matrices
-      if (tidz == 0)
-      {
-         MFEM_FOREACH_THREAD(d,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-               G[q][d] = g(q,d);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
+      kernels::LoadX<MD1>(e, D1D, s_DDD, X);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,s_BG,b,g);
+
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -337,7 +314,7 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
 
    switch (id)
    {
-      case 0x21: return EnergyPA_3D<2,1>(M,N,J,W,B,G,X,E,O);
+      case 0x21: return EnergyPA_3D<2,1>(M,N,J,W,B,G,X,E,O);/*
       case 0x22: return EnergyPA_3D<2,2>(M,N,J,W,B,G,X,E,O);
       case 0x23: return EnergyPA_3D<2,3>(M,N,J,W,B,G,X,E,O);
       case 0x24: return EnergyPA_3D<2,4>(M,N,J,W,B,G,X,E,O);
@@ -364,7 +341,7 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
       case 0x54: return EnergyPA_3D<5,4>(M,N,J,W,B,G,X,E,O);
       case 0x55: return EnergyPA_3D<5,5>(M,N,J,W,B,G,X,E,O);
       case 0x56: return EnergyPA_3D<5,6>(M,N,J,W,B,G,X,E,O);
-
+*/
       default:
       {
          constexpr int T_MAX = 4;
