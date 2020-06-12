@@ -54,11 +54,13 @@ static void AddMultPA_Kernel_2D(const int mid,
                                 const int q1d = 0)
 {
    constexpr int VDIM = 2;
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
    constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
 
@@ -77,15 +79,16 @@ static void AddMultPA_Kernel_2D(const int mid,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double sBG[2][MQ1*MD1];
-      MFEM_SHARED double Xz[2][NBZ][MD1*MD1];
-      MFEM_SHARED double GD[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double GQ[4][NBZ][MQ1*MQ1];
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
+      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e, D1D, Xz, X);
-      kernels::LoadBG<MD1,MQ1>(D1D, Q1D, sBG, b, g);
-      kernels::GradX<MD1,MQ1,NBZ>(D1D, Q1D, sBG, Xz, GD);
-      kernels::GradY<MD1,MQ1,NBZ>(D1D, Q1D, sBG, GD, GQ);
+      kernels::LoadX<MD1,NBZ>(e,D1D,X,XY);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+
+      kernels::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+      kernels::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -101,7 +104,7 @@ static void AddMultPA_Kernel_2D(const int mid,
 
             // G = X{^T}.DSh
             double Jpr[4];
-            kernels::PullGradXY<MQ1,NBZ>(qx,qy,GQ,Jpr);
+            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
             // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = G.Jrt
             double Jpt[4];
@@ -116,13 +119,13 @@ static void AddMultPA_Kernel_2D(const int mid,
             // PMatO +=  DS . P^t += DSh . (Jrt . P^t)
             double A[4];
             kernels::MultABt(2,2,2, Jrt, P, A);
-            kernels::PushGradXY<MQ1,NBZ>(qx,qy,GQ,A);
+            kernels::PushGradXY<MQ1,NBZ>(qx,qy,A,QQ);
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, sBG, b, g);
-      kernels::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,sBG,GQ,GD);
-      kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,sBG,GD,Y,e);
+      kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, BG);
+      kernels::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
+      kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });
 }
 
@@ -141,7 +144,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
 
    switch (id)
    {
-      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(M,N,J,W,B,G,X,Y);/*
+      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(M,N,J,W,B,G,X,Y);
       case 0x22: return AddMultPA_Kernel_2D<2,2,1>(M,N,J,W,B,G,X,Y);
       case 0x23: return AddMultPA_Kernel_2D<2,3,1>(M,N,J,W,B,G,X,Y);
       case 0x24: return AddMultPA_Kernel_2D<2,4,1>(M,N,J,W,B,G,X,Y);
@@ -168,7 +171,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
       case 0x54: return AddMultPA_Kernel_2D<5,4,1>(M,N,J,W,B,G,X,Y);
       case 0x55: return AddMultPA_Kernel_2D<5,5,1>(M,N,J,W,B,G,X,Y);
       case 0x56: return AddMultPA_Kernel_2D<5,6,1>(M,N,J,W,B,G,X,Y);
-*/
+
       default:
       {
          constexpr int T_MAX = 8;
