@@ -17,21 +17,21 @@ struct IterSolveParameters
 struct DFSParameters : IterSolveParameters
 {
    bool verbose = false;
-   bool B_has_nullity_one = false;
-   bool coupled_solve = false;
+   bool B_has_nullity_one = false;   // whether B has a 1D nullspace
+   bool coupled_solve = false;       // whether to solve all unknowns together
    IterSolveParameters BBT_solve_param;
 };
 
 /// Data for the divergence free solver
 struct DFSData
 {
-   Array<OperatorPtr> agg_hdivdof;
-   Array<OperatorPtr> agg_l2dof;
-   Array<OperatorPtr> P_hdiv;
-   Array<OperatorPtr> P_l2;
-   Array<OperatorPtr> P_hcurl;
+   Array<OperatorPtr> agg_hdivdof;    // agglomerates to H(div) dofs table
+   Array<OperatorPtr> agg_l2dof;      // agglomerates to L2 dofs table
+   Array<OperatorPtr> P_hdiv;         // Interpolation matrix for H(div) space
+   Array<OperatorPtr> P_l2;           // Interpolation matrix for L2 space
+   Array<OperatorPtr> P_hcurl;        // Interpolation for kernel space of div
    Array<OperatorPtr> Q_l2;           // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
-   Array<int> coarsest_ess_hdivdofs;
+   Array<int> coarsest_ess_hdivdofs;  // coarsest level essential H(div) dofs
    Array<OperatorPtr> C;              // discrete curl: ND -> RT
    DFSParameters param;
 };
@@ -200,7 +200,7 @@ class DivFreeSolver : public DarcySolver
    void SolvePotential(const Vector &rhs, Vector& sol) const;
 public:
    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
-                 ParFiniteElementSpace* hcurl_fes, const DFSData& data);
+                 const DFSData& data);
    virtual void Mult(const Vector & x, Vector & y) const;
    virtual void SetOperator(const Operator &op) { }
    virtual int GetNumIterations() const
