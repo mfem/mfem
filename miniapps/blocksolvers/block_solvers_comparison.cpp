@@ -11,7 +11,7 @@
 //
 // Description:  This miniapp compares various linear solvers for the saddle
 //               point system obtained from mixed finite element discretization
-//               of the simple mixed Darcy problem
+//               of the simple mixed Darcy problem in ex5p
 //                                 k*u + grad p = f
 //                                 - div u      = g
 //               with natural boundary condition -p = <given pressure>.
@@ -39,14 +39,16 @@ void fFun(const Vector & x, Vector & f);
 double gFun(const Vector & x);
 double f_natural(const Vector & x);
 
-//     Assemble the finite element matrices for the Darcy problem
-//
-//                            D = [ M  B^T ]
-//                                [ B   0  ]
-//     where:
-//
-//     M = \int_\Omega u_h \cdot v_h d\Omega   u_h, v_h \in R_h
-//     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
+/// Wrapper for assembling the discrete Darcy problem (ex5p)
+/**
+ *     Assemble the finite element matrices for the Darcy problem
+ *                            D = [ M  B^T ]
+ *                                [ B   0  ]
+ *     where:
+ *
+ *     M = \int_\Omega u_h \cdot v_h d\Omega   u_h, v_h \in R_h
+ *     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
+ */
 class DarcyProblem
 {
    OperatorPtr M_;
@@ -84,7 +86,6 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
       collector_.CollectData();
    }
 
-   // 8. Define the coefficients, analytical solution, and rhs of the PDE.
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), fFun);
    FunctionCoefficient fnatcoeff(f_natural);
    FunctionCoefficient gcoeff(gFun);
@@ -191,6 +192,7 @@ int main(int argc, char *argv[])
    }
    if (verbose) { args.PrintOptions(cout); }
 
+   // Initialize the mesh, boundary attributes, and solver parameters
    auto elem_type = use_tet_mesh ? Element::TETRAHEDRON : Element::HEXAHEDRON;
    Mesh mesh(2, 2, 2, elem_type, true);
    for (int i = 0; i < (int)(log(num_procs)/log(8)); ++i)
@@ -209,6 +211,8 @@ int main(int argc, char *argv[])
    string line = "\n*******************************************************\n";
    {
       ResetTimer();
+
+      // Generate components of the saddle point problem
       DarcyProblem darcy(mesh, num_refines, order, ess_bdr, param);
       HypreParMatrix& M = darcy.GetM();
       HypreParMatrix& B = darcy.GetB();
@@ -221,9 +225,10 @@ int main(int argc, char *argv[])
          cout << "System assembled in " << chrono.RealTime() << "s.\n";
       }
 
+      // Setup various solvers for the discrete problem
       std::map<const DarcySolver*, double> setup_time;
       ResetTimer();
-      DivFreeSolver dfs(M, B, collector.hcurl_fes_.get(), collector.GetData());
+      DivFreeSolver dfs(M, B, collector.GetData());
       setup_time[&dfs] = chrono.RealTime();
 
       ResetTimer();
@@ -234,13 +239,11 @@ int main(int argc, char *argv[])
       solver_to_name[&dfs] = "Divergence free";
       solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
 
+      // Solve the problem using all solvers
       for (const auto& solver_pair : solver_to_name)
       {
          auto& solver = solver_pair.first;
          auto& name = solver_pair.second;
-
-         if (verbose) { cout << line << name << " solver:\n"; }
-         if (verbose) { cout << "  Setup time: " << setup_time[solver] << "s.\n"; }
 
          const Vector& rhs = darcy.GetRHS();
          Vector sol = darcy.GetBC();
@@ -248,11 +251,14 @@ int main(int argc, char *argv[])
          solver->Mult(rhs, sol);
          chrono.Stop();
 
-         if (verbose) { cout << "  Solve time: " << chrono.RealTime() << "s.\n"; }
-         if (verbose) cout << "  Total time: " <<
-                              setup_time[solver] + chrono.RealTime() << "s.\n";
-         if (verbose) cout << "  Iteration count: "
-                              << solver->GetNumIterations() <<"\n";
+         if (verbose)
+         {
+            cout << line << name << " solver:\n  Setup time: "
+                 << setup_time[solver] << "s.\n  Solve time: "
+                 << chrono.RealTime() << "s.\n  Total time: "
+                 << setup_time[solver] + chrono.RealTime() << "s.\n"
+                 << "  Iteration count: " << solver->GetNumIterations() <<"\n";
+         }
          if (show_error) { darcy.ShowError(sol, verbose); }
       }
    }

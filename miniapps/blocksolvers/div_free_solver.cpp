@@ -394,7 +394,7 @@ void ProductSolver::Mult(int i, int j, const Vector & x, Vector & y) const
 }
 
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
-                             ParFiniteElementSpace* hcurl_fes, const DFSData& data)
+                             const DFSData& data)
    : DarcySolver(M.NumRows(), B.NumRows()), data_(data), BT_(B.Transpose()),
      BBT_solver_(B, data.param.B_has_nullity_one, data.param.BBT_solve_param),
      ops_offsets_(data.P_l2.Size()+1), ops_(ops_offsets_.Size()),
