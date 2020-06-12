@@ -15,6 +15,7 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -26,6 +27,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
                "PA Only supports Ordering::byNODES!");
 
    PA.fes = &fes;
+   PA.enabled = true;
    Mesh *mesh = fes.GetMesh();
    const int dim = PA.dim = mesh->Dimension();
    const int nq = PA.nq = IntRule->GetNPoints();
