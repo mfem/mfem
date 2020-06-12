@@ -618,6 +618,8 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
 
+   //Skip if matrix is all zero
+   if (nnz == 0) {return;}
 #ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK))
    {
