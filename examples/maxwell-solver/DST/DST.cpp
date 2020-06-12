@@ -48,28 +48,31 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
 
    int partition_kind = 2;
 
-   nx=2;
-   ny=2; 
-   nz=2;
+   nx=3;
+   ny=3; 
+   nz=3;
    ovlpnrlayers = nrlayers+1;
    part = new MeshPartition(mesh, partition_kind,nx,ny,nz, ovlpnrlayers);
    nx = part->nxyz[0];
    ny = part->nxyz[1];
    nz = part->nxyz[2];
 
+   nrpatch = part->nrpatch;
 
    // partition_kind = 1;
    // MeshPartition * part1 = new MeshPartition(mesh, partition_kind,nx,ny,nz);
-
    // SaveMeshPartition(part1->patch_mesh, "output/mesh3x3.", "output/sol3x3.");
 
 
-   nrpatch = part->nrpatch;
+
+   // SaveMeshPartition(part->patch_mesh, "output/mesh3x3.", "output/sol3x3.");
+
 
    // Sweeps info
    swp = new Sweep(dim);
 
    dmap  = new DofMap(bf->FESpace(),part); 
+   GetOverlapElements();
 
    // Set up the local patch problems
    PmlMat.SetSize(nrpatch);
@@ -83,7 +86,8 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
       // cout << "factorizing patch ip = " << ip << endl;
       PmlMat[ip] = GetPmlSystemMatrix(ip);
       // cout << "size = " << PmlMat[ip]->Height() << endl;
-      PmlMatInv[ip] = new KLUSolver;
+      PmlMatInv[ip] = new UMFPackSolver;
+      PmlMatInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       PmlMatInv[ip]->SetOperator(*PmlMat[ip]);
 
       int ndofs = PmlMat[ip]->Height();
@@ -647,3 +651,94 @@ void DST::PlotSolution(Vector & sol, socketstream & sol_sock, int ip,
    sol_sock << "solution\n" << *mesh << gf << keys << "valuerange -0.05 0.05 \n"  << flush;
    // sol_sock << "solution\n" << *mesh << gf << keys << flush;
 }
+
+
+   void DST::GetOverlapElements()
+   {
+      cout<< "Compute Overlap Elements (in each possible direction) " << endl;
+      
+      
+      // Lists of elements
+      // x,y,z = +/- 1 ovlp 
+
+      ovlpelems.resize(nrpatch);
+
+      for (int ip = 0; ip<nrpatch; ip++)
+      {
+         int i,j,k;
+         Getijk(ip,i,j,k);
+         int ijk[dim]; ijk[0] = i; ijk[1]=j;
+         if (dim==3) ijk[2] = k;
+         int nxyz[dim]; nxyz[0] = nx; nxyz[1]=ny; nxyz[2]=nz;
+
+         FiniteElementSpace * fes = dmap->fespaces[ip];
+         Mesh * mesh = fes->GetMesh();
+         int nrelems = mesh->GetNE();
+         ovlpelems[ip].SetSize(2*dim,nrelems); ovlpelems[ip] = 1;
+         Vector pmin, pmax;
+         mesh->GetBoundingBox(pmin,pmax);
+         double h = GetUniformMeshElementSize(mesh);
+         // Loop through elements
+         for (int iel=0; iel<mesh->GetNE(); iel++)
+         {
+            // Get element center
+            Vector center(dim);
+            int geom = mesh->GetElementBaseGeometry(iel);
+            ElementTransformation * tr = mesh->GetElementTransformation(iel);
+            tr->Transform(Geometries.GetCenter(geom),center);
+
+            // Assign elements to the appropriate lists
+            for (int d=0;d<dim; d++)
+            {
+               if (ijk[d]>0)
+               {
+                  if (center[d] < pmin[d]+h*ovlpnrlayers) 
+                  {
+                     ovlpelems[ip][d][iel] = 0;
+                  }
+               }
+               if (ijk[d]<nxyz[d]-1)
+               {
+                  if (center[d] > pmax[d]-h*ovlpnrlayers) 
+                  {
+                     ovlpelems[ip][dim+d][iel] = 0;
+                  } 
+               }
+            }
+         }
+         // cout << "Subdomain (" << i << "," <<j<<")" << endl;
+         // for (int d=0;d<dim; d++)
+         // {
+            // cout << "d = " << d << endl;
+
+            // if (d==0) cout << "-x: " ;
+            // if (d==1) cout << "-y: " ;
+            // if (d==2) cout << "-z: " ;
+            // cout << "int elems = " ;
+            // for (int l=0; l<nrelems; l++)
+            // {
+               // if (ovlpelems[ip][d][l] == 1)
+               // {
+                  // cout << part->element_map[ip][l] << " ";
+               // }
+            // }
+            // cout << endl;
+
+            // if (d==0) cout << "+x: " ;
+            // if (d==1) cout << "+y: " ;
+            // if (d==2) cout << "+z: " ;
+            // cout << "int elems = " ;
+            // for (int l=0; l<nrelems; l++)
+            // {
+            //    if (ovlpelems[ip][d+dim][l] == 1)
+            //    {
+            //       cout << part->element_map[ip][l] << " ";
+            //    }
+            // }
+            // cout << endl;
+            // cout << "    all elems = " ;
+            // part->element_map[ip].Print(cout, nrelems);
+            // cin.get();
+         // }
+      }   
+   }

@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    // double domain_length = pmax[0] - pmin[0];
    // double pml_thickness = 0.125/domain_length;
    // int nrlayers = pml_thickness/hl;
-   int nrlayers = 4;
+   int nrlayers = 1;
    Array<int> directions;
    
    for (int i = 0; i<nrlayers; i++)
