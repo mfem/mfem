@@ -61,7 +61,7 @@ FiniteElementSpace::FiniteElementSpace()
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0), bdofs(NULL),
      elem_dof(NULL), bdr_elem_dof(NULL),
      NURBSext(NULL), own_ext(false),
-     cP(NULL), cR(NULL), cP_is_set(false),
+     cP(NULL), cR(NULL), cQ(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
      sequence(0), orders_changed(false), relaxed_hp(false)
 { }
@@ -824,8 +824,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             }
          }
 
-         // Find dependencies for restriction matrix
-         // If edge/face has more sets of dofs, the lowest order set (master dofs) interpolate the highest order set
+         // find dependencies for the cQ matrix; if edge/face has more sets of
+         // DOFs, the lowest order (true) set interpolate the highest order set
          if (IsVariableOrder())
          {
             int variant = 0;
@@ -907,13 +907,31 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // if all dofs are true dofs leave cP and cR NULL
    if (n_true_dofs == ndofs)
    {
-      cP = cR = NULL; // will be treated as identities
+      cP = cR = cQ = NULL; // will be treated as identities
       return;
    }
 
-   // create the conforming prolongation matrix cP, and restriction matrix cR
+   // create the conforming prolongation matrix cP
    cP = new SparseMatrix(ndofs, n_true_dofs);
-   cR = new SparseMatrix(n_true_dofs, ndofs);
+
+   // create the conforming restriction matrix cR
+   int *cR_J;
+   {
+      int *cR_I = Memory<int>(n_true_dofs+1);
+      double *cR_A = Memory<double>(n_true_dofs);
+      cR_J = Memory<int>(n_true_dofs);
+      for (int i = 0; i < n_true_dofs; i++)
+      {
+         cR_I[i] = i;
+         cR_A[i] = 1.0;
+      }
+      cR_I[n_true_dofs] = n_true_dofs;
+      cR = new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs);
+   }
+
+   // in var. order spaces, create the restriction matrix cQ which is similar to
+   // cR, but has interpolation in the extra master edge/face DOFs
+   cQ = IsVariableOrder() ? new SparseMatrix(n_true_dofs, ndofs) : NULL;
 
    Array<bool> finalized(ndofs);
    finalized = false;
@@ -921,24 +939,27 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    Array<int> cols;
    Vector srow;
 
-   // put identity in the prolongation matrix for true DOFs, initialize cR
+   // put identity in the prolongation matrix for true DOFs, initialize cQ
    for (int i = 0, true_dof = 0; i < ndofs; i++)
    {
-      // true dof
       if (!deps.RowSize(i))
       {
+         // true dof
          cP->Add(i, true_dof, 1.0);
+         cR_J[true_dof] = i;
          finalized[i] = true;
 
-         if (sped.RowSize(i))
+         if (cQ)
          {
-            // variable order space, edge/face lowest order true dof
-            sped.GetRow(i, cols, srow);
-            cR->AddRow(true_dof, cols, srow);
-         }
-         else
-         {
-            cR->Add(true_dof, i, 1.0);
+            if (sped.RowSize(i))
+            {
+               sped.GetRow(i, cols, srow);
+               cQ->AddRow(true_dof, cols, srow);
+            }
+            else
+            {
+               cQ->Add(true_dof, i, 1.0);
+            }
          }
 
          true_dof++;
@@ -993,12 +1014,13 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    DebugDumpDOFs(out, deps, finalized);*/
 
    cP->Finalize();
-   cR->Finalize();
+   if (cQ) { cQ->Finalize(); }
 
    if (vdim > 1)
    {
       MakeVDimMatrix(*cP);
       MakeVDimMatrix(*cR);
+      MakeVDimMatrix(*cQ);
    }
 
    if (Device::IsEnabled()) { cP->BuildTranspose(); }
@@ -1044,6 +1066,14 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
    return cR;
+}
+
+const SparseMatrix* FiniteElementSpace::GetConformingRestrictionInterpolation() const
+{
+   if (Conforming()) { return NULL; }
+   if (!IsVariableOrder()) { return NULL; }
+   if (!cP_is_set) { BuildConformingInterpolation(); }
+   return cQ;
 }
 
 int FiniteElementSpace::GetNConformingDofs() const
@@ -1691,7 +1721,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
          own_ext = 1;
       }
       UpdateNURBS();
-      cP = cR = NULL;
+      cP = cR = cQ = NULL;
       cP_is_set = false;
    }
    else
@@ -1902,6 +1932,7 @@ void FiniteElementSpace::Construct()
 
    cP = NULL;
    cR = NULL;
+   cQ = NULL;
    cP_is_set = false;
    // 'Th' is initialized/destroyed before this method is called.
 
@@ -2597,6 +2628,7 @@ FiniteElementSpace::~FiniteElementSpace()
 void FiniteElementSpace::Destroy()
 {
    delete cR;
+   delete cQ;
    delete cP;
    Th.Clear();
    L2E_nat.Clear();

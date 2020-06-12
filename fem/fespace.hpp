@@ -131,6 +131,8 @@ protected:
    mutable SparseMatrix *cP; // owned
    /// Conforming restriction matrix such that cR.cP=I.
    mutable SparseMatrix *cR; // owned
+   /// Conforming restriction interpolation matrix such that cQ.cP=I.
+   mutable SparseMatrix *cQ; // owned
    mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
@@ -374,6 +376,9 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestriction() const;
 
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
+   const SparseMatrix *GetConformingRestrictionInterpolation() const;
+
    /// The returned Operator is owned by the FiniteElementSpace.
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
@@ -381,6 +386,10 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
+
+   /// The returned SparseMatrix is owned by the FiniteElementSpace.
+   virtual const SparseMatrix *GetRestrictionInterpolationMatrix() const
+   { return GetConformingRestrictionInterpolation(); }
 
    /// Return an Operator that converts L-vectors to E-vectors.
    /** An L-vector is a vector of size GetVSize() which is the same size as a
