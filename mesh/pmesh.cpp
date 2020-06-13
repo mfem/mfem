@@ -2486,6 +2486,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    if (is_ghost)
    {
       GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
+      mask += 16;
    }
 
    FaceElemTr.SetConfigurationMask(mask);
