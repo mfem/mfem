@@ -59,6 +59,8 @@ endif()
 
 # All serial non-device unit tests are built into a single executable 'unit_tests'.
 add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
+# Unit tests need the ../../data directory.
+add_dependencies(unit_tests copy_data)
 target_link_libraries(unit_tests mfem)
 
 # All device unit tests are built into another executable, in order to be able
