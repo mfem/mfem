@@ -817,6 +817,7 @@ int main(int argc, char *argv[])
 
    density_offsets[0] = 0;
    temperature_offsets[0] = 0;
+   temperature_offsets[1] = size_h1;
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
