@@ -511,7 +511,7 @@ PlasmaProfile::PlasmaProfile(Type type, const Vector & params)
    : type_(type), p_(params), x_(3)
 {
    MFEM_ASSERT(params.Size() == np_[type],
-               "Insufficient number of parameters, " << params.Size()
+               "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
 }
 
