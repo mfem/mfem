@@ -923,13 +923,14 @@ protected:
    {
       bool enabled = false;
       int dim, ne, nq;
-      mutable Vector E, O, X, P, A;
+      mutable Vector E, O, X0, X, P, A;
       mutable bool setup;
       const DofToQuad *maps;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const Operator *elem_restrict_lex = nullptr;
       DenseTensor Jtr;
+      Vector C0, LD;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -1076,6 +1077,7 @@ public:
    /// PA extension
    using NonlinearFormIntegrator::GetGridFunctionEnergyPA;
    double GetGridFunctionEnergyPA_2D(const Vector&) const;
+   double GetGridFunctionEnergyPA_C0_2D(const Vector&) const;
    double GetGridFunctionEnergyPA_3D(const Vector&) const;
    virtual double GetGridFunctionEnergyPA(const Vector&) const;
 

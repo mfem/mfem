@@ -62,6 +62,7 @@ set(SRCS
   tmop_pa_p2.cpp
   tmop_pa_p3.cpp
   tmop_pa_w2.cpp
+  tmop_pa_w2_c0.cpp
   tmop_pa_w3.cpp
   tmop_tools.cpp
   gslib.cpp
