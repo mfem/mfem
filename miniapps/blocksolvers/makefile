@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 BLOCK_COMMON_SRC = div_free_solver.cpp
 BLOCK_COMMON_OBJ = $(BLOCK_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = mixed_solver_comparison
+PAR_MINIAPPS = block_solvers_comparison
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
@@ -35,9 +35,6 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
-.PRECIOUS: %.o
-
-#COMMON_O=../common/pfem_extras.o
 
 # Remove built-in rules
 %: %.cpp
@@ -58,7 +55,7 @@ include $(MFEM_TEST_MK)
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 mixed-solver-test-par: block_solvers_comparison
-	@$(call mfem-test,$<, $(RUN_MPI), -r 3 -GMG)
+	@$(call mfem-test,$<, $(RUN_MPI), -r 3)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
