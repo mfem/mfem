@@ -286,6 +286,7 @@ private:
    // H1_ParFESpace * H1FESpace_;
    ND_ParFESpace * HCurlFESpace_;
    RT_ParFESpace * HDivFESpace_;
+   RT_ParFESpace * HDivFESpace2p_;
 
    Array<HYPRE_Int> blockTrueOffsets_;
 
@@ -293,12 +294,18 @@ private:
    ParSesquilinearForm * a1_;
    ParBilinearForm * b1_;
 
+   ParBilinearForm * m2_;
+   ParMixedBilinearForm * m12EpsRe_;
+   ParMixedBilinearForm * m12EpsIm_;
+
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
+   ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
+   ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * j_v_; // Complex current density (L2^d)
    ParGridFunction        * u_;   // Energy density (L2)
    ParGridFunction        * uE_;  // Electric Energy density (L2)
