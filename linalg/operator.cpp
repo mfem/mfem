@@ -1,16 +1,15 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "vector.hpp"
-#include "dtensor.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
 
@@ -21,6 +20,7 @@ namespace mfem
 {
 
 void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
+                            const Operator *Pi,
                             Vector &x, Vector &b,
                             Vector &X, Vector &B) const
 {
@@ -35,7 +35,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
       // B points to same data as b
       B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
    }
-   if (!IsIdentityProlongation(Ri))
+   if (!IsIdentityProlongation(Pi))
    {
       // Variational restriction with Ri
       X.SetSize(Ri->Height(), x);
@@ -55,7 +55,7 @@ void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    const Operator *P = this->GetProlongation();
    const Operator *R = this->GetRestriction();
-   InitTVectors(P, R, x, b, X, B);
+   InitTVectors(P, R, P, x, b, X, B);
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
@@ -70,9 +70,10 @@ void Operator::FormRectangularLinearSystem(
    const Array<int> &test_tdof_list, Vector &x, Vector &b,
    Operator* &Aout, Vector &X, Vector &B)
 {
+   const Operator *Pi = this->GetProlongation();
    const Operator *Po = this->GetOutputProlongation();
    const Operator *Ri = this->GetRestriction();
-   InitTVectors(Po, Ri, x, b, X, B);
+   InitTVectors(Po, Ri, Pi, x, b, X, B);
 
    RectangularConstrainedOperator *constrainedA;
    FormRectangularConstrainedSystemOperator(trial_tdof_list, test_tdof_list,
@@ -280,6 +281,23 @@ int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
 }
 
 
+void SecondOrderTimeDependentOperator::Mult(const Vector &x,
+                                            const Vector &dxdt,
+                                            Vector &y) const
+{
+   mfem_error("SecondOrderTimeDependentOperator::Mult() is not overridden!");
+}
+
+void SecondOrderTimeDependentOperator::ImplicitSolve(const double dt0,
+                                                     const double dt1,
+                                                     const Vector &x,
+                                                     const Vector &dxdt,
+                                                     Vector &k)
+{
+   mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
+}
+
+
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
    : Operator(A->Height(), B->Width()),
@@ -389,7 +407,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
-   mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
+   mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
    MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
@@ -523,6 +541,90 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
       auto d_y = y.ReadWrite();
       MFEM_FORALL(i, test_csz, d_y[idx[i]] = 0.0;);
    }
+}
+
+void RectangularConstrainedOperator::MultTranspose(const Vector &x,
+                                                   Vector &y) const
+{
+   const int trial_csz = trial_constraints.Size();
+   const int test_csz = test_constraints.Size();
+   if (test_csz == 0)
+   {
+      A->MultTranspose(x, y);
+   }
+   else
+   {
+      z = x;
+
+      auto idx = test_constraints.Read();
+      // Use read+write access - we are modifying sub-vector of z
+      auto d_z = z.ReadWrite();
+      MFEM_FORALL(i, test_csz, d_z[idx[i]] = 0.0;);
+
+      A->MultTranspose(z, y);
+   }
+
+   if (trial_csz != 0)
+   {
+      auto idx = trial_constraints.Read();
+      auto d_y = y.ReadWrite();
+      MFEM_FORALL(i, trial_csz, d_y[idx[i]] = 0.0;);
+   }
+}
+
+double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                              int numSteps, double tolerance, int seed)
+{
+   v1.SetSize(v0.Size());
+   v0.Randomize(seed);
+
+   double eigenvalue = 1.0;
+
+   for (int iter = 0; iter < numSteps; ++iter)
+   {
+      double normV0;
+
+#ifdef MFEM_USE_MPI
+      if (comm != MPI_COMM_NULL)
+      {
+         normV0 = InnerProduct(comm, v0, v0);
+      }
+      else
+      {
+         normV0 = InnerProduct(v0, v0);
+      }
+#else
+      normV0 = InnerProduct(v0, v0);
+#endif
+
+      v0 /= sqrt(normV0);
+      opr.Mult(v0, v1);
+
+      double eigenvalueNew;
+#ifdef MFEM_USE_MPI
+      if (comm != MPI_COMM_NULL)
+      {
+         eigenvalueNew = InnerProduct(comm, v0, v1);
+      }
+      else
+      {
+         eigenvalueNew = InnerProduct(v0, v1);
+      }
+#else
+      eigenvalueNew = InnerProduct(v0, v1);
+#endif
+      double diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalue);
+
+      eigenvalue = eigenvalueNew;
+      std::swap(v0, v1);
+
+      if (diff < tolerance)
+      {
+         break;
+      }
+   }
+
+   return eigenvalue;
 }
 
 }

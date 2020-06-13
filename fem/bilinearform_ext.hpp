@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_BILINEARFORM_EXT
 #define MFEM_BILINEARFORM_EXT
@@ -22,9 +22,12 @@ namespace mfem
 class BilinearForm;
 class MixedBilinearForm;
 
-
-/** @brief Class extending the BilinearForm class to support the different
-    AssemblyLevel%s. */
+/// Class extending the BilinearForm class to support different AssemblyLevels.
+/**  FA - Full Assembly
+     PA - Partial Assembly
+     EA - Element Assembly
+     MF - Matrix Free
+*/
 class BilinearFormExtension : public Operator
 {
 protected:
@@ -34,7 +37,7 @@ public:
    BilinearFormExtension(BilinearForm *form);
 
    virtual MemoryClass GetMemoryClass() const
-   { return Device::GetMemoryClass(); }
+   { return Device::GetDeviceMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const;
@@ -42,11 +45,14 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const;
 
+   /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
+
    virtual void AssembleDiagonal(Vector &diag) const
    {
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
+
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -56,7 +62,8 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for fully-assembled bilinear forms
+/** @brief Data and methods for fully-assembled bilinear forms.
+    Not yet implemented!  Use the BilinearForm Class instead. */
 class FABilinearFormExtension : public BilinearFormExtension
 {
 public:
@@ -76,33 +83,17 @@ public:
    ~FABilinearFormExtension() {}
 };
 
-/// Data and methods for element-assembled bilinear forms
-class EABilinearFormExtension : public BilinearFormExtension
-{
-public:
-   EABilinearFormExtension(BilinearForm *form)
-      : BilinearFormExtension(form) { }
-
-   /// TODO
-   void Assemble() {}
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A) {}
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) {}
-   void Mult(const Vector &x, Vector &y) const {}
-   void MultTranspose(const Vector &x, Vector &y) const {}
-   void Update() {}
-   ~EABilinearFormExtension() {}
-};
-
 /// Data and methods for partially-assembled bilinear forms
 class PABilinearFormExtension : public BilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trialFes, *testFes; // Not owned
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   mutable Vector faceIntX, faceIntY;
+   mutable Vector faceBdrX, faceBdrY;
+   const Operator *elem_restrict; // Not owned
+   const Operator *int_face_restrict_lex; // Not owned
+   const Operator *bdr_face_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -114,14 +105,34 @@ public:
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
-
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
    void Update();
+
+protected:
+   void SetupRestrictionOperators(const L2FaceValues m);
 };
 
+/// Data and methods for element-assembled bilinear forms
+class EABilinearFormExtension : public PABilinearFormExtension
+{
+protected:
+   int ne;
+   int elemDofs;
+   Vector ea_data;
+   int nf_int, nf_bdr;
+   int faceDofs;
+   Vector ea_data_int, ea_data_ext, ea_data_bdr;
 
-/// Data and methods for matrix-free bilinear forms
+public:
+   EABilinearFormExtension(BilinearForm *form);
+
+   void Assemble();
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+/// Data and methods for matrix-free bilinear forms NOT YET IMPLEMENTED.
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 public:
@@ -141,9 +152,12 @@ public:
    ~MFBilinearFormExtension() {}
 };
 
-
-/** @brief Class extending the MixedBilinearForm class to support the different
-    AssemblyLevel%s. */
+/// Class extending the MixedBilinearForm class to support different AssemblyLevels.
+/**  FA - Full Assembly
+     PA - Partial Assembly
+     EA - Element Assembly
+     MF - Matrix Free
+*/
 class MixedBilinearFormExtension : public Operator
 {
 protected:
@@ -179,6 +193,9 @@ public:
    virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double c=1.0) const = 0;
+
+   virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
+
    virtual void Update() = 0;
 };
 
@@ -229,6 +246,9 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
    /// y += c*A^T*x
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
+   /// Assemble the diagonal of ADA^T for a diagonal vector D.
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
+
    /// Update internals for when a new MixedBilinearForm is given to this class
    void Update();
 };

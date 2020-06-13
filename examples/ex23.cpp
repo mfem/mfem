@@ -1,323 +1,233 @@
-//                                MFEM Example 1
+//                                MFEM Example 23
 //
-// Compile with: make ex1
+// Compile with: make ex23
 //
-// Sample runs:  ex1 -m ../data/square-disc.mesh
-//               ex1 -m ../data/star.mesh
-//               ex1 -m ../data/star-mixed.mesh
-//               ex1 -m ../data/escher.mesh
-//               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/fichera-mixed.mesh
-//               ex1 -m ../data/toroid-wedge.mesh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/star-mixed-p2.mesh -o 2
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
-//               ex1 -m ../data/star-surf.mesh
-//               ex1 -m ../data/square-disc-surf.mesh
-//               ex1 -m ../data/inline-segment.mesh
-//               ex1 -m ../data/amr-quad.mesh
-//               ex1 -m ../data/amr-hex.mesh
-//               ex1 -m ../data/fichera-amr.mesh
-//               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  ex23
+//               ex23 -o 4 -tf 5
+//               ex23 -m ../data/square-disc.mesh -o 2 -tf 2 --neumann
+//               ex23 -m ../data/disc-nurbs.mesh -r 3 -o 4 -tf 2
+//               ex23 -m ../data/inline-hex.mesh -o 1 -tf 2 --neumann
+//               ex23 -m ../data/inline-tet.mesh -o 1 -tf 2 --neumann
 //
-// Device sample runs:
-//               ex1 -pa -d cuda
-//               ex1 -pa -d raja-cuda
-//               ex1 -pa -d occa-cuda
-//               ex1 -pa -d raja-omp
-//               ex1 -pa -d occa-omp
-//               ex1 -pa -d ceed-cpu
-//               ex1 -pa -d ceed-cuda
-//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
+// Description:  This example solves the wave equation problem of the form:
 //
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//                               d^2u/dt^2 = c^2 \Delta u.
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+//               The example demonstrates the use of time dependent operators,
+//               implicit solvers and second order time integration.
+//
+//               We recommend viewing examples 9 and 10 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 
-
-#include "../fem/adnonlininteg.hpp"
-
-
 using namespace std;
+using namespace mfem;
 
-namespace mfem{
-    
-class VolNonlinearForm: public NonlinearFormIntegrator
+/** After spatial discretization, the conduction model can be written as:
+ *
+ *     d^2u/dt^2 = M^{-1}(-Ku)
+ *
+ *  where u is the vector representing the temperature, M is the mass matrix,
+ *  and K is the diffusion operator with diffusivity depending on u:
+ *  (\kappa + \alpha u).
+ *
+ *  Class WaveOperator represents the right-hand side of the above ODE.
+ */
+class WaveOperator : public SecondOrderTimeDependentOperator
 {
 protected:
-    double eta;
-    double beta;
+   FiniteElementSpace &fespace;
+   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
+
+   BilinearForm *M;
+   BilinearForm *K;
+
+   SparseMatrix Mmat, Kmat, Kmat0;
+   SparseMatrix *T; // T = M + dt K
+   double current_dt;
+
+   CGSolver M_solver; // Krylov solver for inverting the mass matrix M
+   DSmoother M_prec;  // Preconditioner for the mass matrix M
+
+   CGSolver T_solver; // Implicit solver for T = M + fac0*K
+   DSmoother T_prec;  // Preconditioner for the implicit solver
+
+   Coefficient *c2;
+   mutable Vector z; // auxiliary vector
+
 public:
-    VolNonlinearForm(double eta_, double beta_){
-        eta=eta_;
-        beta=beta_;}
-    virtual ~VolNonlinearForm(){ }
-    
-    double Project(double inp)
-    {
-        // tanh projection - Wang&Lazarov&Sigmund2011 
-        double a=std::tanh(eta*beta);
-        double b=std::tanh(beta*(1.0-eta));
-        double c=std::tanh(beta*(inp-eta));
-        double rez=(a+c)/(a+b);
-        return rez;
-    }
+   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
 
-    double ProjGrad(double inp)
-    {
-        double c=std::tanh(beta*(inp-eta));
-        double a=std::tanh(eta*beta);
-        double b=std::tanh(beta*(1.0-eta));
-        double rez=beta*(1.0-c*c)/(a+b);
-        return rez;
-    }
+   using SecondOrderTimeDependentOperator::Mult;
+   virtual void Mult(const Vector &u, const Vector &du_dt,
+                     Vector &d2udt2) const;
 
-    
-    double ProjSec(double inp)
-    {
-        double c=std::tanh(beta*(inp-eta));
-        double a=std::tanh(eta*beta);
-        double b=std::tanh(beta*(1.0-eta));
-        double rez=-2.0*beta*beta*c*(1.0-c*c)/(a+b);
-        return rez;
-    }
-    
-    
-    virtual double GetElementEnergy(const mfem::FiniteElement & el,
-                                           mfem::ElementTransformation & trans,
-                                           const mfem::Vector & elfun) override
-    {
-        double energy=0.0;
-        int ndof = el.GetDof();
-        int ndim = el.GetDim();
-        
-        const mfem::IntegrationRule *ir = NULL;
-        int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
-        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
-        
-        mfem::Vector shapef(ndof);
-        
-        double w;
-        for (int i = 0; i < ir -> GetNPoints(); i++)
-        {
-            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
-            trans.SetIntPoint(&ip);
-            el.CalcShape(ip,shapef);
-            w= Project(shapef*elfun);
-            w= ip.weight * trans.Weight() * w;
-            energy = energy + w;
-        }
-        return energy;
-    }
-    
-    virtual void AssembleElementVector(const mfem::FiniteElement & el,
-                                       mfem::ElementTransformation & trans,
-                                       const mfem::Vector & elfun,
-                                       mfem::Vector & elvect) override
-    {
-        
-        
-        int ndof = el.GetDof();
-    
-        const mfem::IntegrationRule *ir = NULL;
-        int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
-        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
-        
-        elvect.SetSize(ndof);
-        elvect=0.0;
-        
-        mfem::Vector shapef(ndof);
-        double w;
-        for (int i = 0; i < ir -> GetNPoints(); i++)
-        {
-            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
-            trans.SetIntPoint(&ip);
-            el.CalcShape(ip,shapef);
-            w= ProjGrad(shapef*elfun);
-            w= ip.weight * trans.Weight() * w;
-            elvect.Add(w,shapef);
-        }
-        
-    }
-    
-    
-    virtual void AssembleElementGrad(const mfem::FiniteElement & el,
-                                     mfem::ElementTransformation & trans,
-                                     const mfem::Vector & elfun,
-                                     mfem::DenseMatrix & elmat) override
-    {
-        int ndof = el.GetDof();
-    
-        const mfem::IntegrationRule *ir = NULL;
-        int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
-        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
-        
-        elmat.SetSize(ndof);
-        elmat=0.0;
-        
-        mfem::Vector shapef(ndof);
-        double w;
-        for (int i = 0; i < ir -> GetNPoints(); i++)
-        {
-            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
-            trans.SetIntPoint(&ip);
-            el.CalcShape(ip,shapef);
-            w= ProjSec(shapef*elfun);
-            w= ip.weight * trans.Weight() * w;
-            AddMult_a_VVt(w, shapef, elmat);
-        }
-        
-   }
-    
+   /** Solve the Backward-Euler equation:
+       d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t),
+       for the unknown d2udt2. */
+   using SecondOrderTimeDependentOperator::ImplicitSolve;
+   virtual void ImplicitSolve(const double fac0, const double fac1,
+                              const Vector &u, const Vector &dudt, Vector &d2udt2);
+
+   ///
+   void SetParameters(const Vector &u);
+
+   virtual ~WaveOperator();
 };
 
 
-class VolNonlinearFormFADH:public FADNonlinearFormIntegratorH
+WaveOperator::WaveOperator(FiniteElementSpace &f,
+                           Array<int> &ess_bdr, double speed)
+   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
+     K(NULL),
+     T(NULL), current_dt(0.0), z(height)
 {
-private:
-    double eta;
-    double beta;
-    
-    template<typename DType>
-    DType Project(DType inp)
-    {
-        // tanh projection - Wang&Lazarov&Sigmund2011 
-        double a=std::tanh(eta*beta);
-        double b=std::tanh(beta*(1.0-eta));
-        DType c=tanh(beta*(inp-eta));
-        DType rez=(a+c)/(a+b);
-        return rez;
-    }
-    
-public:
-    
-    VolNonlinearFormFADH(double eta_, double beta_){
-        eta=eta_;
-        beta=beta_;
-    }
-    
-    
-    virtual FADType ElementEnergy(const mfem::FiniteElement & el,
-                                       mfem::ElementTransformation & trans,
-                                       const FADVector & elfun) override
-    {
-        FADType rez=MyElementEnergy<FADType,FADVector>(el,trans,elfun);
-        return rez;
-    }
-    
-    virtual SADType ElementEnergy(const mfem::FiniteElement & el,
-                                       mfem::ElementTransformation & trans,
-                                       const SADVector & elfun) override
-    {
-        return MyElementEnergy<SADType,SADVector>(el,trans,elfun);
-    }
-    
-    template<typename MDType, typename MVType>
-    MDType MyElementEnergy(const mfem::FiniteElement & el,
-                            mfem::ElementTransformation & trans,
-                            const MVType & elfun)
-    {
-        MDType energy=MDType();
-        int ndof = el.GetDof();
-        
-        const mfem::IntegrationRule *ir = NULL;
-        int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
-        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
-        
-        mfem::Vector shapef(ndof);
-        
-        MDType w;
-        for (int i = 0; i < ir -> GetNPoints(); i++)
-        {
-            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
-            trans.SetIntPoint(&ip);
-            el.CalcShape(ip,shapef);
-            w= Project(elfun*shapef);
-            w= ip.weight * trans.Weight() * w;
-            energy = energy + w;
-        }
-        return energy;
-    }
-    
-    
-    virtual double ElementEnergy(const mfem::FiniteElement & el, 
-                                 mfem::ElementTransformation & Tr, 
-                                 const mfem::Vector & elfun) override
-    {
-        return GetElementEnergy(el,Tr,elfun);
-    }
-    
-    virtual double GetElementEnergy(const mfem::FiniteElement & el,
-                                           mfem::ElementTransformation & trans,
-                                           const mfem::Vector & elfun) override
-    {
-        double rez;
-        rez=MyElementEnergy<double,mfem::Vector>(el,trans,elfun);
-        return rez;
-    
-    }
-};
+   const double rel_tol = 1e-8;
 
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
+   c2 = new ConstantCoefficient(speed*speed);
 
+   K = new BilinearForm(&fespace);
+   K->AddDomainIntegrator(new DiffusionIntegrator(*c2));
+   K->Assemble();
 
+   Array<int> dummy;
+   K->FormSystemMatrix(dummy, Kmat0);
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
+
+   M = new BilinearForm(&fespace);
+   M->AddDomainIntegrator(new MassIntegrator());
+   M->Assemble();
+   M->FormSystemMatrix(ess_tdof_list, Mmat);
+
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(rel_tol);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(30);
+   M_solver.SetPrintLevel(0);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(Mmat);
+
+   T_solver.iterative_mode = false;
+   T_solver.SetRelTol(rel_tol);
+   T_solver.SetAbsTol(0.0);
+   T_solver.SetMaxIter(100);
+   T_solver.SetPrintLevel(0);
+   T_solver.SetPreconditioner(T_prec);
+
+   T = NULL;
 }
 
+void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
+                        Vector &d2udt2)  const
+{
+   // Compute:
+   //    d2udt2 = M^{-1}*-K(u)
+   // for d2udt2
+   Kmat.Mult(u, z);
+   z.Neg(); // z = -z
+   M_solver.Mult(z, d2udt2);
+}
 
+void WaveOperator::ImplicitSolve(const double fac0, const double fac1,
+                                 const Vector &u, const Vector &dudt, Vector &d2udt2)
+{
+   // Solve the equation:
+   //    d2udt2 = M^{-1}*[-K(u + fac0*d2udt2)]
+   // for d2udt2
+   if (!T)
+   {
+      T = Add(1.0, Mmat, fac0, Kmat);
+      T_solver.SetOperator(*T);
+   }
+   Kmat0.Mult(u, z);
+   z.Neg();
 
-double TFunc(const mfem::Vector& a){
-    double sca=4.0;
-    double rez=(std::sin(sca*a[0])*std::sin(sca*a[1])*std::sin(sca*a[2]))*0.5+0.5;
-    return rez;
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      z[ess_tdof_list[i]] = 0.0;
+   }
+   T_solver.Mult(z, d2udt2);
+}
+
+void WaveOperator::SetParameters(const Vector &u)
+{
+   delete T;
+   T = NULL; // re-compute T on the next ImplicitSolve
+}
+
+WaveOperator::~WaveOperator()
+{
+   delete T;
+   delete M;
+   delete K;
+   delete c2;
+}
+
+double InitialSolution(const Vector &x)
+{
+   return exp(-x.Norml2()*x.Norml2()*30);
+}
+
+double InitialRate(const Vector &x)
+{
+   return 0.0;
 }
 
 
 int main(int argc, char *argv[])
 {
-   
-    // 1. Parse command-line options.
+   // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int order = 1;
-   bool static_cond = false;
-   bool pa = false;
-   const char *device_config = "cpu";
+   const char *ref_dir  = "";
+   int ref_levels = 2;
+   int order = 2;
+   int ode_solver_type = 10;
+   double t_final = 0.5;
+   double dt = 1.0e-2;
+   double speed = 1.0;
    bool visualization = true;
+   bool visit = true;
+   bool dirichlet = true;
+   int vis_steps = 5;
 
-   mfem::OptionsParser args(argc, argv);
+   int precision = 8;
+   cout.precision(precision);
+
+   OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                  "ODE solver: [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
+                  "\t   11 - Average Acceleration, 12 - Linear Acceleration\n"
+                  "\t   13 - CentralDifference, 14 - FoxGoodwin");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&dt, "-dt", "--time-step",
+                  "Time step.");
+   args.AddOption(&speed, "-c", "--speed",
+                  "Wave speed.");
+   args.AddOption(&dirichlet, "-dir", "--dirichlet", "-neu",
+                  "--neumann",
+                  "BC switch.");
+   args.AddOption(&ref_dir, "-r", "--ref",
+                  "Reference directory for checking final solution.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
    args.Parse();
    if (!args.Good())
    {
@@ -326,127 +236,182 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   mfem::Device device(device_config);
-   device.Print();
-
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
-   mfem::Mesh *mesh = new mfem::Mesh(mesh_file, 1, 1);
+   // 2. Read the mesh from the given mesh file. We can handle triangular,
+   //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   
-   
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
-   
+
+   // 3. Define the ODE solver used for time integration. Several second order
+   //    time integrators are available.
+   SecondOrderODESolver *ode_solver;
+   switch (ode_solver_type)
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-      ref_levels=1;
-      for (int l = 0; l < ref_levels; l++)
+      // Implicit methods
+      case 0: ode_solver = new GeneralizedAlpha2Solver(0.0); break;
+      case 1: ode_solver = new GeneralizedAlpha2Solver(0.1); break;
+      case 2: ode_solver = new GeneralizedAlpha2Solver(0.2); break;
+      case 3: ode_solver = new GeneralizedAlpha2Solver(0.3); break;
+      case 4: ode_solver = new GeneralizedAlpha2Solver(0.4); break;
+      case 5: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
+      case 6: ode_solver = new GeneralizedAlpha2Solver(0.6); break;
+      case 7: ode_solver = new GeneralizedAlpha2Solver(0.7); break;
+      case 8: ode_solver = new GeneralizedAlpha2Solver(0.8); break;
+      case 9: ode_solver = new GeneralizedAlpha2Solver(0.9); break;
+      case 10: ode_solver = new GeneralizedAlpha2Solver(1.0); break;
+
+      case 11: ode_solver = new AverageAccelerationSolver(); break;
+      case 12: ode_solver = new LinearAccelerationSolver(); break;
+      case 13: ode_solver = new CentralDifferenceSolver(); break;
+      case 14: ode_solver = new FoxGoodwinSolver(); break;
+
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         delete mesh;
+         return 3;
+   }
+
+   // 4. Refine the mesh to increase the resolution. In this example we do
+   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
+   //    command-line parameter.
+   for (int lev = 0; lev < ref_levels; lev++)
+   {
+      mesh->UniformRefinement();
+   }
+
+   // 5. Define the vector finite element space representing the current and the
+   //    initial temperature, u_ref.
+   H1_FECollection fe_coll(order, dim);
+   FiniteElementSpace fespace(mesh, &fe_coll);
+
+   int fe_size = fespace.GetTrueVSize();
+   cout << "Number of temperature unknowns: " << fe_size << endl;
+
+   GridFunction u_gf(&fespace);
+   GridFunction dudt_gf(&fespace);
+   // 6. Set the initial conditions for u. All boundaries are considered
+   //    natural.
+   FunctionCoefficient u_0(InitialSolution);
+   u_gf.ProjectCoefficient(u_0);
+   Vector u;
+   u_gf.GetTrueDofs(u);
+
+   FunctionCoefficient dudt_0(InitialRate);
+   dudt_gf.ProjectCoefficient(dudt_0);
+   Vector dudt;
+   dudt_gf.GetTrueDofs(dudt);
+
+   // 7. Initialize the conduction operator and the visualization.
+   Array<int> ess_bdr;
+   if (mesh->bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(mesh->bdr_attributes.Max());
+
+      if (dirichlet)
       {
-         mesh->UniformRefinement();
+         ess_bdr = 1;
+      }
+      else
+      {
+         ess_bdr = 0;
       }
    }
-   
 
-   // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   mfem::FiniteElementCollection *fec;
-   if (order > 0)
-   {
-      fec = new mfem::H1_FECollection(order, dim);
-   }
-   else if (mesh->GetNodes())
-   {
-      fec = mesh->GetNodes()->OwnFEC();
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      fec = new mfem::H1_FECollection(order = 1, dim);
-   }
-   mfem::FiniteElementSpace *fespace = new mfem::FiniteElementSpace(mesh, fec);
-   cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
-   
-   mfem::NonlinearForm* nf0=new mfem::NonlinearForm(fespace);
-   mfem::NonlinearForm* nf1=new mfem::NonlinearForm(fespace);
+   WaveOperator oper(fespace, ess_bdr, speed);
 
-   mfem::FunctionCoefficient ifun(TFunc);
-   //create an input for the NonlinearForm
-   mfem::GridFunction* igf = new mfem::GridFunction(fespace);
-   igf->ProjectCoefficient(ifun);
-   
-   std::cout << "Size of the grid function igf:"<<igf->Size()<<std::endl;
-   
-   
-   mfem::Vector* resv0=new mfem::Vector(fespace->GetTrueVSize());
-   mfem::Vector* resv1=new mfem::Vector(fespace->GetTrueVSize());
-   mfem::Vector* stat=new mfem::Vector(fespace->GetTrueVSize());
-   
-   igf->GetTrueDofs(*stat);
-   
-   
-   //compute the energy - the total volume above 0.5
-   nf0->AddDomainIntegrator(new mfem::VolNonlinearForm(0.5,8.0));
-   nf1->AddDomainIntegrator(new mfem::VolNonlinearFormFADH(0.5,8.0));
-   
-   double vol0=nf0->GetEnergy(*stat);
-   double vol1=nf1->GetEnergy(*stat);
-   std::cout<<"The total volume is:("<<vol0<<","<<vol1<<")"<<std::endl;
-   nf0->Mult(*stat,*resv0);
-   nf1->Mult(*stat,*resv1);
-   //project back the gradients to a grid function
-   mfem::GridFunction* ggf0=new mfem::GridFunction(fespace);
-   ggf0->SetFromTrueDofs(*resv0);
-   mfem::GridFunction* ggf1=new mfem::GridFunction(fespace);
-   ggf1->SetFromTrueDofs(*resv1);
-   
-   
-   resv0->Add(-1.0,*resv1);
-   std::cout<<"Norm|v_1-v_0|="<<resv0->Norml2()<<std::endl;
-   
-   mfem::Operator& grad0(nf0->GetGradient(*stat));
-   mfem::SparseMatrix* spmat0=dynamic_cast<mfem::SparseMatrix*>(&grad0);
-   mfem::Operator& grad1(nf1->GetGradient(*stat));
-   mfem::SparseMatrix* spmat1=dynamic_cast<mfem::SparseMatrix*>(&grad1);
-   std::cout<<"Norm mat1="<<spmat0->MaxNorm()<<" mat2="<<spmat1->MaxNorm()<<std::endl;
-   spmat0->Add(-1.0,*spmat1);
-   std::cout<<"Norm diff"<<spmat0->MaxNorm()<<std::endl;
+   u_gf.SetFromTrueDofs(u);
    {
-       std::fstream mstr; 
-       mstr.open("mat.dat",std::ios::out);
-       spmat0->PrintMatlab(mstr);
-       mstr.close();
+      ofstream omesh("ex23.mesh");
+      omesh.precision(precision);
+      mesh->Print(omesh);
+      ofstream osol("ex23-init.gf");
+      osol.precision(precision);
+      u_gf.Save(osol);
+      dudt_gf.Save(osol);
    }
-   
-   mfem::ParaViewDataCollection *dacol=new mfem::ParaViewDataCollection("IGF_OUT",mesh);
-   dacol->SetLevelsOfDetail(2);
-   dacol->SetCycle(1);
-   dacol->SetTime(0.0); // set the time
-   dacol->RegisterField("density",igf);
-   dacol->RegisterField("grads0",ggf0);
-   dacol->RegisterField("grads1",ggf1);
-   dacol->Save();
-   delete dacol;
-   
-   delete ggf0;
-   delete ggf1;
-   delete stat; 
-   delete resv0;
-   delete resv1;
-   delete igf;     
-   delete nf0;
-   delete nf1;
-   delete fespace;
-   delete fec;
+
+   VisItDataCollection visit_dc("Example23", mesh);
+   visit_dc.RegisterField("solution", &u_gf);
+   visit_dc.RegisterField("rate", &dudt_gf);
+   if (visit)
+   {
+      visit_dc.SetCycle(0);
+      visit_dc.SetTime(0.0);
+      visit_dc.Save();
+   }
+
+   socketstream sout;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      sout.open(vishost, visport);
+      if (!sout)
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+         visualization = false;
+         cout << "GLVis visualization disabled.\n";
+      }
+      else
+      {
+         sout.precision(precision);
+         sout << "solution\n" << *mesh << dudt_gf;
+         sout << "pause\n";
+         sout << flush;
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
+      }
+   }
+
+   // 8. Perform time-integration (looping over the time iterations, ti, with a
+   //    time-step dt).
+   ode_solver->Init(oper);
+   double t = 0.0;
+
+   bool last_step = false;
+   for (int ti = 1; !last_step; ti++)
+   {
+
+      if (t + dt >= t_final - dt/2)
+      {
+         last_step = true;
+      }
+
+      ode_solver->Step(u, dudt, t, dt);
+
+      if (last_step || (ti % vis_steps) == 0)
+      {
+         cout << "step " << ti << ", t = " << t << endl;
+
+         u_gf.SetFromTrueDofs(u);
+         dudt_gf.SetFromTrueDofs(dudt);
+         if (visualization)
+         {
+            sout << "solution\n" << *mesh << u_gf << flush;
+         }
+
+         if (visit)
+         {
+            visit_dc.SetCycle(ti);
+            visit_dc.SetTime(t);
+            visit_dc.Save();
+         }
+      }
+      oper.SetParameters(u);
+   }
+
+   // 9. Save the final solution. This output can be viewed later using GLVis:
+   //    "glvis -m ex23.mesh -g ex23-final.gf".
+   {
+      ofstream osol("ex23-final.gf");
+      osol.precision(precision);
+      u_gf.Save(osol);
+      dudt_gf.Save(osol);
+   }
+
+   // 10. Free the used memory.
+   delete ode_solver;
    delete mesh;
-   
+
    return 0;
 }

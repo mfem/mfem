@@ -9,6 +9,8 @@
 //               mpirun -np 4 ex1p -m ../data/fichera.mesh
 //               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
+//               mpirun -np 4 ex1p -m ../data/periodic-annulus-sector.msh
+//               mpirun -np 4 ex1p -m ../data/periodic-torus-sector.msh
 //               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
@@ -31,6 +33,7 @@
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
 //               mpirun -np 4 ex1p -pa -d ceed-cuda
+//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -214,7 +217,10 @@ int main(int argc, char *argv[])
    Solver *prec = NULL;
    if (pa)
    {
-      prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
+      if (UsesTensorBasis(*fespace))
+      {
+         prec = new OperatorJacobiSmoother(*a, ess_tdof_list);
+      }
    }
    else
    {

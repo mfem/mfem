@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_NCMESH
 #define MFEM_NCMESH
@@ -152,10 +152,12 @@ public:
    {
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
-      char local;  ///< local number within 'element'
-      char geom;   ///< Geometry::Type (faces only) (char storage to save RAM)
+      signed char local; ///< local number within 'element'
+      signed char geom;  /**< Geometry::Type (faces only) (char storage to save
+                              RAM) */
 
-      MeshId(int index = -1, int element = -1, char local = -1, char geom = -1)
+      MeshId(int index = -1, int element = -1, signed char local = -1,
+             signed char geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
@@ -179,7 +181,7 @@ public:
       int edge_flags; ///< edge orientation flags
       DenseMatrix point_matrix; ///< position within the master edge/face
 
-      Slave(int index, int element, char local, char geom)
+      Slave(int index, int element, signed char local, signed char geom)
          : MeshId(index, element, local, geom)
          , master(-1), edge_flags(0) {}
 
@@ -367,10 +369,8 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
 
    friend class Mesh;
 
-   /// Return the basic Mesh arrays for the current finest level.
-   void GetMeshComponents(Array<mfem::Vertex> &mvertices,
-                          Array<mfem::Element*> &melements,
-                          Array<mfem::Element*> &mboundary) const;
+   /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
+   void GetMeshComponents(Mesh &mesh) const;
 
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
