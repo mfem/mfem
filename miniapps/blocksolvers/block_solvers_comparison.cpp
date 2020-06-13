@@ -71,8 +71,8 @@ public:
    const Vector& GetRHS() { return rhs_; }
    const Vector& GetBC() { return ess_data_; }
    const DFSDataCollector& GetDFSDataCollector() const { return collector_; }
-
    void ShowError(const Vector& sol, bool verbose);
+   void VisualizeSolution(const Vector& sol, string tag);
 };
 
 DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
@@ -138,7 +138,7 @@ DarcyProblem::DarcyProblem(Mesh& mesh, int num_refines, int order,
    }
 }
 
-void DarcyProblem::ShowError(const Vector &sol, bool verbose)
+void DarcyProblem::ShowError(const Vector& sol, bool verbose)
 {
    u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
    p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
@@ -151,6 +151,30 @@ void DarcyProblem::ShowError(const Vector &sol, bool verbose)
    if (!verbose) { return; }
    cout << "\n|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
    cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+}
+
+void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
+{
+   int num_procs, myid;
+   MPI_Comm_size(mesh_.GetComm(), &num_procs);
+   MPI_Comm_rank(mesh_.GetComm(), &myid);
+
+   u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
+   p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
+
+   const char vishost[] = "localhost";
+   const int  visport   = 19916;
+   socketstream u_sock(vishost, visport);
+   u_sock << "parallel " << num_procs << " " << myid << "\n";
+   u_sock.precision(8);
+   u_sock << "solution\n" << mesh_ << u_ << "window_title 'Velocity ("
+          << tag << " solver)'" << endl;
+   MPI_Barrier(mesh_.GetComm());
+   socketstream p_sock(vishost, visport);
+   p_sock << "parallel " << num_procs << " " << myid << "\n";
+   p_sock.precision(8);
+   p_sock << "solution\n" << mesh_ << p_ << "window_title 'Pressure ("
+          << tag << " solver)'" << endl;
 }
 
 int main(int argc, char *argv[])
@@ -171,6 +195,7 @@ int main(int argc, char *argv[])
    bool use_tet_mesh = false;
    bool coupled_solve = true;
    bool show_error = false;
+   bool visualization = false;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
@@ -180,9 +205,13 @@ int main(int argc, char *argv[])
                   "Use a tetrahedral or hexahedral mesh (on unit cube).");
    args.AddOption(&coupled_solve, "-cs", "--coupled-solve", "-ss",
                   "--separate-solve",
-                  "Whether to solve all unknowns together in divergence free solver.");
-   args.AddOption(&show_error, "-se", "--show-error", "-no-se", "--no-show-error",
+                  "Whether to solve all unknowns together in div free solver.");
+   args.AddOption(&show_error, "-se", "--show-error", "-no-se",
+                  "--no-show-error",
                   "Show or not show approximation error.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -260,6 +289,7 @@ int main(int argc, char *argv[])
                  << "  Iteration count: " << solver->GetNumIterations() <<"\n";
          }
          if (show_error) { darcy.ShowError(sol, verbose); }
+         if (visualization) { darcy.VisualizeSolution(sol, name); }
       }
    }
 
