@@ -54,8 +54,8 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-mixed-solver-test-par: block_solvers_comparison
-	@$(call mfem-test,$<, $(RUN_MPI), -r 3)
+block_solvers_comparison-test-par: block_solvers_comparison
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
