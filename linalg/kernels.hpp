@@ -1383,7 +1383,7 @@ have_aa:
 // @param [in] data LU factorization of A
 // @param [in] m square matrix height
 // @param [in] ipiv array storing pivot information
-// @param [in, out] x vector storing right handside and then solution
+// @param [in, out] x vector storing right-hand side and then solution
 MFEM_HOST_DEVICE
 inline void LUSolve(const double *data, const int m, const int *ipiv,
                     double *x)
@@ -1414,7 +1414,6 @@ inline void LUSolve(const double *data, const int m, const int *ipiv,
       }
    }
 }
-
 
 } // namespace kernels
 

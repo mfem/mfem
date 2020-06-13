@@ -3540,7 +3540,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
                   mfem::kernels::internal::Swap<double>(data_all(i,j,e), data_all(piv,j,e));
                }
             }
-         }//pivot end
+         } // pivot end
 
          if (abs(data_all(i,i,e)) <= TOL)
          {
@@ -3562,7 +3562,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
             }
          }
 
-      }//m loop
+      } // m loop
 
    });
 
@@ -3586,4 +3586,4 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 
 }
 
-} //namespace
+} // namespace mfem
