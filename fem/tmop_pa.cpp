@@ -75,6 +75,44 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
       targetC->ComputeElementTargets(e, *fe, ir, Vector(), Jtr);
       for (int q = 0; q < NQ; q++) { PA.Jtr(e*NQ+q) = Jtr(q); }
    }
+
+   // Coeff0
+   if (coeff0 == nullptr)
+   {
+      PA.C0.SetSize(1);
+      PA.C0(0) = 0.0;
+   }
+   else if (ConstantCoefficient* cQ =
+               dynamic_cast<ConstantCoefficient*>(coeff0))
+   {
+      PA.C0.SetSize(1);
+      PA.C0(0) = cQ->constant;
+   }
+   else
+   {
+      PA.C0.SetSize(NQ * NE);
+      auto C0 = Reshape(PA.C0.HostWrite(), NQ, NE);
+      for (int e = 0; e < ne; ++e)
+      {
+         ElementTransformation& T = *fes.GetElementTransformation(e);
+         for (int q = 0; q < nq; ++q)
+         {
+            C0(q,e) = coeff0->Eval(T, ir.IntPoint(q));
+         }
+      }
+   }
+
+   if (coeff0)
+   {
+      // Nodes0
+      MFEM_VERIFY(nodes0, "No nodes0!")
+      PA.X0.SetSize(PA.elem_restrict_lex->Height(), Device::GetMemoryType());
+      PA.X0.UseDevice(true);
+      PA.elem_restrict_lex->Mult(*nodes0, PA.X0);
+
+      // lim_dist
+      MFEM_VERIFY(lim_dist, "No lim_dist!")
+   }
 }
 
 void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
@@ -101,7 +139,14 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x, const Vector &r,
 
 double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
 {
-   if (PA.dim == 2) { return GetGridFunctionEnergyPA_2D(x); }
+   dbg("");
+   if (PA.dim == 2)
+   {
+      double energy = 0.0;
+      energy = GetGridFunctionEnergyPA_2D(x);
+      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(x); }
+      return energy;
+   }
    if (PA.dim == 3) { return GetGridFunctionEnergyPA_3D(x); }
    MFEM_ABORT("Not yet implemented!");
    return 0.0;

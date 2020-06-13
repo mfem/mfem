@@ -1,170 +1,95 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
-//
-// This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
-//
-// MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
+#ifndef DBG_HPP
+#define DBG_HPP
 
-#ifndef MFEM_DEBUG_HPP
-#define MFEM_DEBUG_HPP
+#if !(defined (_WIN32) || defined(NDEBUG))
 
-#include <string>
+// *****************************************************************************
+#include <cstdarg>
 #include <cstring>
-#include <iomanip>
-#include <iostream>
+#include <cassert>
+#include <cstdint>
+#include <cstdlib>
+#include <cstdio>
 
-#include "../config/config.hpp"
-
+//#include "../config/config.hpp"
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
 
-#define DBG(...) { printf("\033[33m");  \
-                   printf(__VA_ARGS__); \
-                   printf(" \n\033[m"); \
-                   fflush(0); }
-
-namespace mfem
+//*****************************************************************************
+inline uint8_t chk8(const char *bfr)
 {
+   unsigned int chk = 0;
+   size_t len = strlen(bfr);
+   for (; len; len--,bfr++)
+   {
+      chk += static_cast<unsigned int>(*bfr);
+   }
+   return (uint8_t) chk;
+}
 
-class Debug
+// *****************************************************************************
+inline const char *strrnchr(const char *s, const unsigned char c, int n)
 {
-   const bool debug = false;
-public:
-   inline Debug() {}
-
-   inline Debug(const int mpi_rank,
-                const char *FILE, const int LINE,
-                const char *FUNC, int COLOR): debug(true)
+   size_t len = strlen(s);
+   char *p = const_cast<char*>(s)+len-1;
+   for (; n; n--,p--,len--)
    {
-      if (!debug) { return; }
-      const char *base = Strrnchr(FILE,'/', 2);
-      const char *file = base ? base + 1 : FILE;
-      const uint8_t color = COLOR ? COLOR : 20 + Checksum8(FILE) % 210;
-      std::cout << "\033[38;5;" << std::to_string(color) << "m";
-      std::cout << mpi_rank << std::setw(30) << file << ":";
-      std::cout << "\033[2m" << std::setw(4) << LINE << "\033[22m: ";
-      if (FUNC) { std::cout << "[" << FUNC << "] "; }
-      std::cout << "\033[1m";
+      for (; len; p--,len--)
+         if (*p==c) { break; }
+      if (!len) { return NULL; }
+      if (n==1) { return p; }
    }
+   return NULL;
+}
 
-   ~Debug()
+// *****************************************************************************
+#define MFEM_XA(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
+#define MFEM_NA(...) MFEM_XA(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define MFEM_FILENAME ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
+#define MFEM_FLF MFEM_FILENAME,__LINE__,__FUNCTION__
+
+// *****************************************************************************
+inline void dbg_F_L_F_N_A(const char *file, const int line,
+                          const char *func, const int nargs, ...)
+{
+   static int mpi_rank = 0;
+   static int mpi_dbg = 0;
+   static bool mpi = false;
+   static bool env_ini = false;
+   static bool env_dbg = false;
+   if (!env_ini)
    {
-      if (!debug) { return; }
-      std::cout << "\033[m";
-      std::cout << std::endl;
-   }
-
-   template <typename T>
-   inline void operator<<(const T &arg) const noexcept { std::cout << arg; }
-
-   template<typename T, typename... Args>
-   inline void operator()(const char *fmt, const T &arg,
-                          Args... args) const noexcept
-   {
-      if (!debug) { return; }
-      for (; *fmt != '\0'; fmt++ )
-      {
-         if ( *fmt == '%' )
-         {
-            fmt++;
-            const char c = *fmt;
-            if (c == 'p') { operator<<(arg); }
-            if (c == 's' || c == 'd' || c == 'f') { operator<<(arg); }
-            if (c == '.')
-            {
-               fmt++;
-               char num[8] = { 0 };
-               for (int k = 0; *fmt != '\0'; fmt++, k++)
-               {
-                  if (*fmt == 'e' || *fmt == 'f') { break; }
-                  if (*fmt < 0x30 || *fmt > 0x39) { break; }
-                  num[k] = *fmt;
-               }
-               const int fx = std::atoi(num);
-               if (*fmt=='e') { std::cout << std::scientific; }
-               if (*fmt=='f') { std::cout << std::fixed; }
-               std::cout << std::setprecision(fx);
-               operator<<(arg);
-               std::cout << std::setprecision(6);
-            }
-            return operator()(fmt + 1, args...);
-         }
-         operator<<(*fmt);
-      }
-   }
-
-   template<typename T>
-   inline void operator()(const T &arg) const noexcept
-   {
-      if (!debug) { return; }
-      operator<<(arg);
-   }
-
-   inline void operator()() const noexcept { }
-
-public:
-   static const Debug Set(const char *FILE, const int LINE, const char *FUNC,
-                          int COLOR = 0)
-   {
-      static int mpi_dbg = 0, mpi_rank = 0;
-      static bool env_mpi = false, env_dbg = false;
-      static bool ini_dbg = false;
-      if (!ini_dbg)
-      {
-         const char *DBG = getenv("DBG");
-         const char *MPI = getenv("MPI");
-         env_dbg = DBG != nullptr;
-         env_mpi = MPI != nullptr;
+      mpi = getenv("DBG_MPI");
 #ifdef MFEM_USE_MPI
-         int mpi_ini = false;
-         MPI_Initialized(&mpi_ini);
-         if (mpi_ini) { MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank); }
-         mpi_dbg = atoi(env_mpi ? MPI : "0");
+      if (mpi) { MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank); }
 #endif
-         ini_dbg = true;
-      }
-      const bool debug = (env_dbg && (!env_mpi || mpi_rank == mpi_dbg));
-      return debug ? Debug(mpi_rank, FILE, LINE, FUNC, COLOR) : Debug();
+      env_dbg = getenv("DBG");
+      mpi_dbg = atoi(mpi?getenv("DBG_MPI"):"0");
+      env_ini = true;
    }
+   if (!env_dbg) { return; }
+   if (mpi_rank!=mpi_dbg) { return; }
+   const uint8_t color = 17 + chk8(file)%216;
+   fflush(stdout);
+   fprintf(stdout,"\033[38;5;%dm",color);
+   fprintf(stdout,"%d%30s:\033[2m%4d\033[22m: %s: \033[1m",
+           mpi_rank, file, line, func);
+   if (nargs==0) { return; }
+   va_list args;
+   va_start(args,nargs);
+   const char *format = va_arg(args, const char*);
+   assert(format);
+   vfprintf(stdout, format, args);
+   va_end(args);
+   fprintf(stdout,"\033[m\n");
+   fflush(stdout);
+   fflush(0);
+}
+// *****************************************************************************
+#define dbg(...) dbg_F_L_F_N_A(MFEM_FLF, MFEM_NA(__VA_ARGS__),__VA_ARGS__)
+#else
+#define dbg(...)
+#endif // _WIN32
 
-private:
-   inline uint8_t Checksum8(const char *bfr)
-   {
-      unsigned int chk = 0;
-      size_t len = strlen(bfr);
-      for (; len; len--,bfr++) { chk += static_cast<unsigned int>(*bfr); }
-      return (uint8_t) chk;
-   }
-
-   inline const char *Strrnchr(const char *s, const unsigned char c, int n)
-   {
-      size_t len = strlen(s);
-      char *p = const_cast<char*>(s) + len - 1;
-      for (; n; n--,p--,len--)
-      {
-         for (; len; p--,len--)
-            if (*p == c) { break; }
-         if (!len) { return nullptr; }
-         if (n == 1) { return p; }
-      }
-      return nullptr;
-   }
-
-};
-
-#ifndef MFEM_DEBUG_COLOR
-#define MFEM_DEBUG_COLOR 0
-#endif
-
-#define dbg(...) \
-    mfem::Debug::Set(__FILE__,__LINE__,__FUNCTION__,MFEM_DEBUG_COLOR).\
-    operator()(__VA_ARGS__)
-
-} // mfem namespace
-
-#endif // MFEM_DEBUG_HPP
+#endif // DBG_HPP

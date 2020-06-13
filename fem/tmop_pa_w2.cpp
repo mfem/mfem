@@ -122,6 +122,7 @@ static double EnergyPA_2D(const double metric_normal,
 double
 TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
 {
+   dbg("");
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
@@ -135,45 +136,46 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
    Vector &X = PA.X;
    Vector &E = PA.E;
    Vector &O = PA.O;
-   const double mn = metric_normal;
+
+   const double m = metric_normal;
 
    PA.elem_restrict_lex->Mult(x, X);
 
    switch (id)
    {
-      case 0x21: return EnergyPA_2D<2,1,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x22: return EnergyPA_2D<2,2,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x23: return EnergyPA_2D<2,3,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x24: return EnergyPA_2D<2,4,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x25: return EnergyPA_2D<2,5,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x26: return EnergyPA_2D<2,6,1>(mn,M,N,J,W,B,G,X,E,O);
+      case 0x21: return EnergyPA_2D<2,1,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x22: return EnergyPA_2D<2,2,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x23: return EnergyPA_2D<2,3,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x24: return EnergyPA_2D<2,4,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x25: return EnergyPA_2D<2,5,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x26: return EnergyPA_2D<2,6,1>(m,M,N,J,W,B,G,X,E,O);
 
-      case 0x31: return EnergyPA_2D<3,1,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x32: return EnergyPA_2D<3,2,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x33: return EnergyPA_2D<3,3,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x34: return EnergyPA_2D<3,4,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x35: return EnergyPA_2D<3,5,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x36: return EnergyPA_2D<3,6,1>(mn,M,N,J,W,B,G,X,E,O);
+      case 0x31: return EnergyPA_2D<3,1,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x32: return EnergyPA_2D<3,2,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x33: return EnergyPA_2D<3,3,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x34: return EnergyPA_2D<3,4,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x35: return EnergyPA_2D<3,5,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x36: return EnergyPA_2D<3,6,1>(m,M,N,J,W,B,G,X,E,O);
 
-      case 0x41: return EnergyPA_2D<4,1,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x42: return EnergyPA_2D<4,2,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x43: return EnergyPA_2D<4,3,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x44: return EnergyPA_2D<4,4,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x45: return EnergyPA_2D<4,5,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x46: return EnergyPA_2D<4,6,1>(mn,M,N,J,W,B,G,X,E,O);
+      case 0x41: return EnergyPA_2D<4,1,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x42: return EnergyPA_2D<4,2,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x43: return EnergyPA_2D<4,3,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x44: return EnergyPA_2D<4,4,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x45: return EnergyPA_2D<4,5,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x46: return EnergyPA_2D<4,6,1>(m,M,N,J,W,B,G,X,E,O);
 
-      case 0x51: return EnergyPA_2D<5,1,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x52: return EnergyPA_2D<5,2,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x53: return EnergyPA_2D<5,3,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x54: return EnergyPA_2D<5,4,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x55: return EnergyPA_2D<5,5,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x56: return EnergyPA_2D<5,6,1>(mn,M,N,J,W,B,G,X,E,O);
+      case 0x51: return EnergyPA_2D<5,1,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x52: return EnergyPA_2D<5,2,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x53: return EnergyPA_2D<5,3,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x54: return EnergyPA_2D<5,4,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x55: return EnergyPA_2D<5,5,1>(m,M,N,J,W,B,G,X,E,O);
+      case 0x56: return EnergyPA_2D<5,6,1>(m,M,N,J,W,B,G,X,E,O);
 
       default:
       {
          constexpr int T_MAX = 8;
          MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return EnergyPA_2D<0,0,0,T_MAX>(mn,M,N,J,W,B,G,X,E,O,D1D,Q1D);
+         return EnergyPA_2D<0,0,0,T_MAX>(m,M,N,J,W,B,G,X,E,O,D1D,Q1D);
       }
    }
    return 0.0;

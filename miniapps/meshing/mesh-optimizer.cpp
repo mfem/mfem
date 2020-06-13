@@ -83,6 +83,7 @@
 #include <fstream>
 #include <iostream>
 #include "mesh-optimizer.hpp"
+#include "../../general/debug.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -573,7 +574,9 @@ int main(int argc, char *argv[])
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
+   dbg("dist: %f", small_phys_size);
    ConstantCoefficient lim_coeff(lim_const);
+   dbg("lim_coeff: %f", lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
@@ -655,6 +658,8 @@ int main(int argc, char *argv[])
    if (pa) { a.Setup(); }
 
    const double init_energy = a.GetGridFunctionEnergy(x);
+   dbg("init_energy: %.15e", init_energy);
+   return 0;
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)

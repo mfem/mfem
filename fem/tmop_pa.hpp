@@ -21,6 +21,17 @@ namespace mfem
 namespace kernels
 {
 
+template<int DIM>
+MFEM_HOST_DEVICE double DistanceSquared(const double *x, const double *y)
+{
+   double d = 0.0;
+   for (int i = 0; i < DIM; i++)
+   {
+      d += (x[i]-y[i])*(x[i]-y[i]);
+   }
+   return d;
+}
+
 /// Load B1d & G1d matrices into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
@@ -88,6 +99,85 @@ MFEM_HOST_DEVICE inline void LoadX(const int e,
       }
    }
    MFEM_SYNC_THREAD;
+}
+
+/// 2D Eval, stage 1/2
+template<int MD1, int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
+                                   const double s_BG[2][MQ1*MD1],
+                                   const double s_X[2][NBZ][MD1*MD1],
+                                   double s_DQ[2][NBZ][MD1*MQ1])
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
+   double (*Xx)[MD1]  = (double (*)[MD1])(s_X[0] + tidz);
+   double (*Xy)[MD1]  = (double (*)[MD1])(s_X[1] + tidz);
+   double (*XxB)[MQ1] = (double (*)[MQ1])(s_DQ[0] + tidz);
+   double (*XyB)[MQ1] = (double (*)[MQ1])(s_DQ[1] + tidz);
+
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[2] = {0.0, 0.0};
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double xx = Xx[dy][dx];
+            const double xy = Xy[dy][dx];
+            u[0] += B[qx][dx] * xx;
+            u[1] += B[qx][dx] * xy;
+         }
+         XxB[dy][qx] = u[0];
+         XyB[dy][qx] = u[1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Eval, stage 2/2
+template<int MD1, int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
+                                   const double s_BG[2][MQ1*MD1],
+                                   const double s_DQ[2][NBZ][MD1*MQ1],
+                                   double s_QQ[2][NBZ][MQ1*MQ1])
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
+   double (*XxB)[MQ1] = (double (*)[MQ1])(s_DQ[0] + tidz);
+   double (*XyB)[MQ1] = (double (*)[MQ1])(s_DQ[1] + tidz);
+   double (*Xx0)[MQ1] = (double (*)[MQ1])(s_QQ[0] + tidz);
+   double (*Xy0)[MQ1] = (double (*)[MQ1])(s_QQ[1] + tidz);
+
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[2] = {0.0, 0.0};
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            u[0] += XxB[dy][qx] * B[qy][dy];
+            u[1] += XyB[dy][qx] * B[qy][dy];
+         }
+         Xx0[qy][qx] = u[0];
+         Xy0[qy][qx] = u[1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Load 2D EvalXY(X) to P
+template<int MQ1, int NBZ>
+MFEM_HOST_DEVICE inline
+const double *PullEvalXY(const int qx, const int qy,
+                         const double s_QQ[2][NBZ][MQ1*MQ1],
+                         double *P)
+{
+   const int tidz = MFEM_THREAD_ID(z);
+   double (*Xx0)[MQ1] = (double (*)[MQ1])(s_QQ[0] + tidz);
+   double (*Xy0)[MQ1] = (double (*)[MQ1])(s_QQ[1] + tidz);
+   P[0] = Xx0[qy][qx];
+   P[1] = Xy0[qy][qx];
+   return P;
 }
 
 /// 2D Grad, stage 1/2

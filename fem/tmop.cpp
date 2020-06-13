@@ -1650,6 +1650,11 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          pos0.MultTranspose(shape, p0);
          val += lim_normal *
                 lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
+         /*dbg("ln:%.8e, d_vals(i):%.8e, lf:%.8e, c0:%.8e",
+             lim_normal,
+             d_vals(i),
+             lim_func->Eval(p, p0, d_vals(i)),
+             coeff0->Eval(*Tpr, ip));*/
       }
 
       if (adaptive_limiting)
