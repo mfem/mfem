@@ -689,7 +689,7 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
    if ( mpi.Root() && logging > 0 )
    {
-     cout << "Building Extruded 2D Mesh ..." << endl;
+      cout << "Building Extruded 2D Mesh ..." << endl;
    }
 
    tic_toc.Clear();
