@@ -19,6 +19,7 @@
 #include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
+#include "../general/cuda.hpp"
 #include "densemat.hpp"
 
 #ifdef MFEM_USE_CUDA
@@ -609,7 +610,7 @@ public:
          cusparseDestroySpMat(matA_descr);
          cusparseDestroyDnVec(vecX_descr);
          cusparseDestroyDnVec(vecY_descr);
-         cudaFree(dBuffer);
+         CuMemFree(dBuffer);
       }
 #endif
    }
