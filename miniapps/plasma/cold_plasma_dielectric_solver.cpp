@@ -929,9 +929,13 @@ CPDSolver::Solve()
          {
             attr_marker[(*dbcs_)[i].attr[j] - 1] = 1;
          }
+	 /*
          e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
                                           *(*dbcs_)[i].imag,
                                           attr_marker);
+	 */
+         e_->ProjectCoefficient(*(*dbcs_)[i].real,
+				*(*dbcs_)[i].imag);
       }
    }
 
