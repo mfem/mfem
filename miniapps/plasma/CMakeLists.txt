@@ -22,4 +22,10 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
 
+  add_mfem_miniapp(stix3d
+    MAIN stix3d.cpp
+    EXTRA_SOURCES cold_plasma_dielectric_solver.cpp cold_plasma_dielectric_coefs.cpp
+    EXTRA_HEADERS cold_plasma_dielectric_solver.hpp cold_plasma_dielectric_coefs.hpp plasma.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem_miniapps_common)
+
 endif()

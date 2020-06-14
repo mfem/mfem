@@ -192,6 +192,10 @@ miniapps/performance/refined.mesh
 miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
+miniaps/plasma/stix1d
+miniaps/plasma/stix2d
+miniaps/plasma/stix3d
+
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
