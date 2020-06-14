@@ -68,4 +68,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf block_solvers_comparison*
+	@rm -rf block_solvers_comparison
