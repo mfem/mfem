@@ -146,6 +146,7 @@ int main (int argc, char *argv[])
    H1_FECollection fech(mesh_poly_deg, dim);
    L2_FECollection fecl(mesh_poly_deg, dim);
    ND_FECollection fechdiv(mesh_poly_deg, dim);
+   RT_FECollection feccurl(mesh_poly_deg, dim);
    ParFiniteElementSpace *sc_fes = NULL;
    if (fieldtype == 0)
    {
@@ -162,6 +163,12 @@ int main (int argc, char *argv[])
       sc_fes = new ParFiniteElementSpace(&pmesh, &fechdiv);
       ncfinal = 2;
       if (myid == 0) { std::cout << "H(div)-GridFunction\n"; }
+   }
+   else if (fieldtype == 3)
+   {
+      sc_fes = new ParFiniteElementSpace(&pmesh, &feccurl);
+      ncfinal = 2;
+      if (myid == 0) { std::cout << "H(curl)-GridFunction\n"; }
    }
    field_vals.SetSpace(sc_fes);
 
