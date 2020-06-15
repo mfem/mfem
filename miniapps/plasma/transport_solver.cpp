@@ -968,10 +968,12 @@ void TransportPrec::SetOperator(const Operator &op)
          {
             delete diag_prec_[i];
 
-            Operator & diag_op = blk_op->GetBlock(i,i);
-            HypreParMatrix & M = dynamic_cast<HypreParMatrix&>(diag_op);
+            const Operator & diag_op = blk_op->GetBlock(i,i);
+            const HypreParMatrix & M =
+               dynamic_cast<const HypreParMatrix&>(diag_op);
 
-            HypreBoomerAMG * amg = new HypreBoomerAMG(M);
+            HypreBoomerAMG * amg =
+               new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
             amg->SetPrintLevel(0);
             diag_prec_[i] = amg;
             /*

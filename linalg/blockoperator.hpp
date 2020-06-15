@@ -74,7 +74,7 @@ public:
    //! Check if block (i,j) is a zero block
    int IsZeroBlock(int i, int j) const { return (op(i,j)==NULL) ? 1 : 0; }
    //! Return a reference to block i,j
-   Operator & GetBlock(int i, int j) const
+   Operator & GetBlock(int i, int j)
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return a reference to block i,j (const version)
    const Operator & GetBlock(int i, int j) const
@@ -166,7 +166,6 @@ public:
 
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
-   const Array<int> & Offsets() const { return offsets; }
 
    //! Read only access to the offsets for block starts
    const Array<int> & Offsets() const { return offsets; }
