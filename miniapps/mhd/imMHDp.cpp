@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    int order = 2;
    int ode_solver_type = 2;
    double t_final = 5.0;
+   double t_change = 0.;
    double dt = 0.0001;
    double visc = 1e-3;
    double resi = 1e-3;
@@ -103,6 +104,8 @@ int main(int argc, char *argv[])
                   "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&t_change, "-tchange", "--t-change",
+                  "dt change time; reduce to half.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
@@ -242,8 +245,8 @@ int main(int argc, char *argv[])
                 double x0, y0;
                 switch (lev)
                 {
-                    case 0: y0=0.7; break;
-                    case 1: y0=0.4; break;
+                    case 0: y0=0.5; break;
+                    case 1: y0=0.3; break;
                     case 2: y0=0.2; break;
                     case 3: y0=0.12; x0=.08; break;
                     default:
@@ -552,6 +555,12 @@ int main(int argc, char *argv[])
    if(!useStab) isupg=0;
    for (int ti = 1; !last_step; ti++)
    {
+      if (t_change>0. && t>=t_change)
+      {
+        dt=dt/2.;
+        if (myid==0) cout << "change time step to "<<dt<<endl;
+        t_change=0.;
+      }
       double dt_real = min(dt, t_final - t);
 
       if (explicitSolve)
