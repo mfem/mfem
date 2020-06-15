@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "mesh_extras.hpp"
+#include <set>
+#include <map>
 
 using namespace std;
 

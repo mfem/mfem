@@ -687,7 +687,10 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   if ( mpi.Root() && logging > 0 ) { cout << "Building Mesh ..." << endl; }
+   if ( mpi.Root() && logging > 0 )
+   {
+      cout << "Building Extruded 2D Mesh ..." << endl;
+   }
 
    tic_toc.Clear();
    tic_toc.Start();
@@ -744,10 +747,6 @@ int main(int argc, char *argv[])
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
-   if (mpi.Root())
-   {
-      cout << "Starting initialization." << endl;
-   }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
    mesh->EnsureNCMesh();
@@ -755,6 +754,8 @@ int main(int argc, char *argv[])
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
    // parallel mesh is defined, the serial mesh can be deleted.
+   if ( mpi.Root() && logging > 0 )
+   { cout << "Building Parallel Mesh ..." << endl; }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    /*
@@ -766,6 +767,11 @@ int main(int argc, char *argv[])
        }
    }
    */
+   if (mpi.Root())
+   {
+      cout << "Starting initialization." << endl;
+   }
+
    // If values for Voltage BCs were not set issue a warning and exit
    /*
    if ( ( vbcs.Size() > 0 && kbcs.Size() == 0 ) ||
@@ -811,6 +817,7 @@ int main(int argc, char *argv[])
 
    density_offsets[0] = 0;
    temperature_offsets[0] = 0;
+   temperature_offsets[1] = size_h1;
    for (int i=1; i<=numbers.Size(); i++)
    {
       density_offsets[i]     = density_offsets[i - 1] + size_l2;
@@ -820,6 +827,10 @@ int main(int argc, char *argv[])
    BlockVector density(density_offsets);
    BlockVector temperature(temperature_offsets);
 
+   if (mpi.Root())
+   {
+      cout << "Creating plasma profile." << endl;
+   }
    PlasmaProfile tempCoef(tpt, tpp);
    PlasmaProfile rhoCoef(dpt, dpp);
 
@@ -851,6 +862,11 @@ int main(int argc, char *argv[])
    density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
    density_gf.ProjectCoefficient(rhoCoef3);
    */
+
+   if (mpi.Root())
+   {
+      cout << "Creating coefficients for Maxwell equations." << endl;
+   }
 
    // Create a coefficient describing the magnetic permeability
    ConstantCoefficient muInvCoef(1.0 / mu0_);
@@ -897,6 +913,10 @@ int main(int argc, char *argv[])
    */
    if (visualization)
    {
+      if (mpi.Root())
+      {
+         cout << "Visualize input fields." << endl;
+      }
       // ParComplexGridFunction EField(&HCurlFESpace);
       // EField.ProjectCoefficient(EReCoef, EImCoef);
 
@@ -943,6 +963,11 @@ int main(int argc, char *argv[])
                         density_gf, oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
       }
+   }
+
+   if (mpi.Root())
+   {
+      cout << "Setup boundary conditions." << endl;
    }
 
    // Setup coefficients for Dirichlet BC
@@ -1030,9 +1055,12 @@ int main(int argc, char *argv[])
 
    Array<ComplexVectorCoefficientByAttr> nbcs(0);
 
-   cout << "boundary attr: " << pmesh.bdr_attributes.Size() << endl;
+   if (mpi.Root())
+   {
+      cout << "Creating Cold Plasma Dielectric solver." << endl;
+   }
 
-   // Create the Magnetostatic solver
+   // Create the cold plasma EM solver
    CPDSolver CPD(pmesh, order, omega,
                  (CPDSolver::SolverType)sol, solOpts,
                  (CPDSolver::PrecondType)prec,

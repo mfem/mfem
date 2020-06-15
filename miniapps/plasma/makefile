@@ -58,6 +58,12 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+stix1d-test-par:
+	@true
+stix2d-test-par:
+	@true
+stix3d-test-par:
+	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

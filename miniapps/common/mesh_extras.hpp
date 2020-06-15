@@ -14,6 +14,7 @@
 
 #include "mfem.hpp"
 #include <sstream>
+#include <vector>
 
 namespace mfem
 {
