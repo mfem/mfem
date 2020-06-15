@@ -494,6 +494,9 @@ public:
    virtual void Project (VectorCoefficient &vc,
                          ElementTransformation &Trans, Vector &dofs) const;
 
+   virtual void ProjectV (Vector &vc,
+                          ElementTransformation &Trans, Vector &dofs) const;
+
    /** Given a matrix coefficient and a transformation, compute an approximation
        ("projection") in the local finite dimensional space in terms of the
        degrees of freedom. For VectorFiniteElements, the rows of the coefficient
@@ -730,6 +733,9 @@ protected:
    void Project_RT(const double *nk, const Array<int> &d2n,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
+
+   void Project_RT(const double *nk, const Array<int> &d2n,
+                   Vector &vc, ElementTransformation &Trans, Vector &dofs) const;
 
    // project the rows of the matrix coefficient in an RT space
    void ProjectMatrixCoefficient_RT(
@@ -2468,6 +2474,10 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   using FiniteElement::ProjectV;
+   virtual void ProjectV(Vector &vc,
+                         ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2523,6 +2533,10 @@ public:
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   using FiniteElement::ProjectV;
+   virtual void ProjectV(Vector &vc,
+                         ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
@@ -2571,6 +2585,10 @@ public:
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   using FiniteElement::ProjectV;
+   virtual void ProjectV(Vector &vc,
+                         ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
