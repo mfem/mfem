@@ -41,7 +41,7 @@ void EvalP_002(const double *Jpt, double *P)
    kernels::Set(2,2, 1./2., ie.Get_dI1b(), P);
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static void AddMultPA_Kernel_2D(const double metric_normal,
                                 const int mid,
                                 const int NE,
@@ -55,7 +55,7 @@ static void AddMultPA_Kernel_2D(const double metric_normal,
                                 const int q1d = 0)
 {
    constexpr int VDIM = 2;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int NBZ = 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
    constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -76,7 +76,7 @@ static void AddMultPA_Kernel_2D(const double metric_normal,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -130,6 +130,19 @@ static void AddMultPA_Kernel_2D(const double metric_normal,
    });
 }
 
+MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
+                           const double metric_normal,
+                           const int mid,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d,
+                           const int q1d);
+
 void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
 {
    const int N = PA.ne;
@@ -144,42 +157,15 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   switch (id)
+   if (KAddMultPA_Kernel_2D.Find(id))
    {
-      case 0x21: return AddMultPA_Kernel_2D<2,1,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x22: return AddMultPA_Kernel_2D<2,2,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x23: return AddMultPA_Kernel_2D<2,3,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x24: return AddMultPA_Kernel_2D<2,4,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x25: return AddMultPA_Kernel_2D<2,5,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x26: return AddMultPA_Kernel_2D<2,6,1>(mn,M,N,J,W,B,G,X,Y);
-
-      case 0x31: return AddMultPA_Kernel_2D<3,1,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x32: return AddMultPA_Kernel_2D<3,2,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x33: return AddMultPA_Kernel_2D<3,3,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x34: return AddMultPA_Kernel_2D<3,4,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x35: return AddMultPA_Kernel_2D<3,5,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x36: return AddMultPA_Kernel_2D<3,6,1>(mn,M,N,J,W,B,G,X,Y);
-
-      case 0x41: return AddMultPA_Kernel_2D<4,1,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x42: return AddMultPA_Kernel_2D<4,2,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x43: return AddMultPA_Kernel_2D<4,3,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x44: return AddMultPA_Kernel_2D<4,4,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x45: return AddMultPA_Kernel_2D<4,5,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x46: return AddMultPA_Kernel_2D<4,6,1>(mn,M,N,J,W,B,G,X,Y);
-
-      case 0x51: return AddMultPA_Kernel_2D<5,1,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x52: return AddMultPA_Kernel_2D<5,2,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x53: return AddMultPA_Kernel_2D<5,3,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x54: return AddMultPA_Kernel_2D<5,4,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x55: return AddMultPA_Kernel_2D<5,5,1>(mn,M,N,J,W,B,G,X,Y);
-      case 0x56: return AddMultPA_Kernel_2D<5,6,1>(mn,M,N,J,W,B,G,X,Y);
-
-      default:
-      {
-         constexpr int T_MAX = 8;
-         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return AddMultPA_Kernel_2D<0,0,0,T_MAX>(mn,M,N,J,W,B,G,X,Y,D1D,Q1D);
-      }
+      return KAddMultPA_Kernel_2D.At(id)(mn,M,N,J,W,B,G,X,Y,0,0);
+   }
+   else
+   {
+      constexpr int T_MAX = 8;
+      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+      return AddMultPA_Kernel_2D<0,0,T_MAX>(mn,M,N,J,W,B,G,X,Y,D1D,Q1D);
    }
 }
 

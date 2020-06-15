@@ -134,6 +134,20 @@ static double EnergyPA_3D(const double metric_normal,
    return energy * ones;
 }
 
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
+                           const double metric_normal,
+                           const int mid,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x_,
+                           Vector &energy,
+                           Vector &ones,
+                           const int d1d,
+                           const int q1d);
+
 double
 TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
 {
@@ -154,42 +168,16 @@ TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
 
    PA.elem_restrict_lex->Mult(x, PA.X);
 
-   switch (id)
+   if (KEnergyPA_3D.Find(id))
    {
-      case 0x21: return EnergyPA_3D<2,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x22: return EnergyPA_3D<2,2>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x23: return EnergyPA_3D<2,3>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x24: return EnergyPA_3D<2,4>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x25: return EnergyPA_3D<2,5>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x26: return EnergyPA_3D<2,6>(mn,M,N,J,W,B,G,X,E,O);
+      return KEnergyPA_3D.At(id)(mn,M,N,J,W,B,G,X,E,O,0,0);
+   }
+   else
+   {
+      constexpr int T_MAX = 4;
+      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+      return EnergyPA_3D<0,0,T_MAX>(mn,M,N,J,W,B,G,X,E,O,D1D,Q1D);
 
-      case 0x31: return EnergyPA_3D<3,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x32: return EnergyPA_3D<3,2>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x33: return EnergyPA_3D<3,3>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x34: return EnergyPA_3D<3,4>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x35: return EnergyPA_3D<3,5>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x36: return EnergyPA_3D<3,6>(mn,M,N,J,W,B,G,X,E,O);
-
-      case 0x41: return EnergyPA_3D<4,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x42: return EnergyPA_3D<4,2>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x43: return EnergyPA_3D<4,3>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x44: return EnergyPA_3D<4,4>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x45: return EnergyPA_3D<4,5>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x46: return EnergyPA_3D<4,6>(mn,M,N,J,W,B,G,X,E,O);
-
-      case 0x51: return EnergyPA_3D<5,1>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x52: return EnergyPA_3D<5,2>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x53: return EnergyPA_3D<5,3>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x54: return EnergyPA_3D<5,4>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x55: return EnergyPA_3D<5,5>(mn,M,N,J,W,B,G,X,E,O);
-      case 0x56: return EnergyPA_3D<5,6>(mn,M,N,J,W,B,G,X,E,O);
-
-      default:
-      {
-         constexpr int T_MAX = 4;
-         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return EnergyPA_3D<0,0,T_MAX>(mn,M,N,J,W,B,G,X,E,O,D1D,Q1D);
-      }
    }
    return 0.0;
 }

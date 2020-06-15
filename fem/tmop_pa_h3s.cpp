@@ -223,6 +223,19 @@ static void SetupGradPA_3D(const double metric_normal,
    });
 }
 
+MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
+                           const double metric_normal,
+                           const int mid,
+                           const Vector &x_,
+                           const int NE,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const DenseTensor &j_,
+                           Vector &h_,
+                           const int d1d,
+                           const int q1d);
+
 void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
 {
    const int N = PA.ne;
@@ -238,42 +251,15 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    Vector &H = PA.A;
    const double mn = metric_normal;
 
-   switch (id)
+   if (KSetupGradPA_3D.Find(id))
    {
-      case 0x21: return SetupGradPA_3D<2,1>(mn,M,X,N,W,B,G,J,H);
-      case 0x22: return SetupGradPA_3D<2,2>(mn,M,X,N,W,B,G,J,H);
-      case 0x23: return SetupGradPA_3D<2,3>(mn,M,X,N,W,B,G,J,H);
-      case 0x24: return SetupGradPA_3D<2,4>(mn,M,X,N,W,B,G,J,H);
-      case 0x25: return SetupGradPA_3D<2,5>(mn,M,X,N,W,B,G,J,H);
-      case 0x26: return SetupGradPA_3D<2,6>(mn,M,X,N,W,B,G,J,H);
-
-      case 0x31: return SetupGradPA_3D<3,1>(mn,M,X,N,W,B,G,J,H);
-      case 0x32: return SetupGradPA_3D<3,2>(mn,M,X,N,W,B,G,J,H);
-      case 0x33: return SetupGradPA_3D<3,3>(mn,M,X,N,W,B,G,J,H);
-      case 0x34: return SetupGradPA_3D<3,4>(mn,M,X,N,W,B,G,J,H);
-      case 0x35: return SetupGradPA_3D<3,5>(mn,M,X,N,W,B,G,J,H);
-      case 0x36: return SetupGradPA_3D<3,6>(mn,M,X,N,W,B,G,J,H);
-
-      case 0x41: return SetupGradPA_3D<4,1>(mn,M,X,N,W,B,G,J,H);
-      case 0x42: return SetupGradPA_3D<4,2>(mn,M,X,N,W,B,G,J,H);
-      case 0x43: return SetupGradPA_3D<4,3>(mn,M,X,N,W,B,G,J,H);
-      case 0x44: return SetupGradPA_3D<4,4>(mn,M,X,N,W,B,G,J,H);
-      case 0x45: return SetupGradPA_3D<4,5>(mn,M,X,N,W,B,G,J,H);
-      case 0x46: return SetupGradPA_3D<4,6>(mn,M,X,N,W,B,G,J,H);
-
-      case 0x51: return SetupGradPA_3D<5,1>(mn,M,X,N,W,B,G,J,H);
-      case 0x52: return SetupGradPA_3D<5,2>(mn,M,X,N,W,B,G,J,H);
-      case 0x53: return SetupGradPA_3D<5,3>(mn,M,X,N,W,B,G,J,H);
-      case 0x54: return SetupGradPA_3D<5,4>(mn,M,X,N,W,B,G,J,H);
-      case 0x55: return SetupGradPA_3D<5,5>(mn,M,X,N,W,B,G,J,H);
-      case 0x56: return SetupGradPA_3D<5,6>(mn,M,X,N,W,B,G,J,H);
-
-      default:
-      {
-         constexpr int T_MAX = 4;
-         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return SetupGradPA_3D<0,0,T_MAX>(mn,M,X,N,W,B,G,J,H,D1D,Q1D);
-      }
+      return KSetupGradPA_3D.At(id)(mn,M,X,N,W,B,G,J,H,0,0);
+   }
+   else
+   {
+      constexpr int T_MAX = 4;
+      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+      return SetupGradPA_3D<0,0,T_MAX>(mn,M,X,N,W,B,G,J,H,D1D,Q1D);
    }
 }
 

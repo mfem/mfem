@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 #include "../linalg/dtensor.hpp"
 
+#include <unordered_map>
+
 namespace mfem
 {
 
@@ -873,6 +875,119 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
       }
    }
 }
+
+/// Generic emplace
+template<typename K, const int N,
+         typename Key_t = typename K::Key_t,
+         typename Kernel_t = typename K::Kernel_t>
+void emplace(std::unordered_map<Key_t, Kernel_t> &map)
+{
+   constexpr Key_t key = K::template GetKey<N>();
+   constexpr Kernel_t value = K::template GetValue<key>();
+   map.emplace(key, value);
+}
+
+/// Instances
+template<class K, typename T, T... idx>
+struct instances
+{
+   static void Fill(std::unordered_map<typename K::Key_t,
+                    typename K::Kernel_t> &map)
+   {
+      using unused = int[];
+      (void) unused {0, (emplace<K,idx>(map), 0)... };
+   }
+};
+
+/// cat instances
+template<class K, typename Offset, typename Lhs, typename Rhs> struct cat;
+template<class K, typename T, T Offset, T... Lhs, T... Rhs>
+struct cat<K, std::integral_constant<T, Offset>,
+          instances<K, T, Lhs...>,
+          instances<K, T, Rhs...> >
+{ using type = instances<K, T, Lhs..., (Offset + Rhs)...>; };
+
+/// sequence, empty and one element terminal cases
+template<class K, typename T, typename N>
+struct sequence
+{
+   using Lhs = std::integral_constant<T, N::value/2>;
+   using Rhs = std::integral_constant<T, N::value-Lhs::value>;
+   using type = typename cat<K, Lhs,
+         typename sequence<K, T, Lhs>::type,
+         typename sequence<K, T, Rhs>::type>::type;
+};
+template<class K, typename T>
+struct sequence<K, T, std::integral_constant<T,0> >
+{ using type = instances<K,T>; };
+
+template<class K, typename T>
+struct sequence<K, T, std::integral_constant<T,1> >
+{ using type = instances<K,T,0>; };
+
+/// make_sequence
+template<class Instance, typename T = typename Instance::Key_t>
+using make_sequence =
+   typename sequence<Instance, T, std::integral_constant<T,Instance::N> >::type;
+
+/// Instantiator class
+template<class Instance,
+         typename Key_t = typename Instance::Key_t,
+         typename Return_t = typename Instance::Return_t,
+         typename Kernel_t = typename Instance::Kernel_t>
+class Instantiator
+{
+private:
+   using map_t = std::unordered_map<Key_t, Kernel_t>;
+   map_t map;
+
+public:
+   Instantiator() { make_sequence<Instance>().Fill(map); }
+
+   bool Find(const Key_t id)
+   {
+      return (map.find(id) != map.end()) ? true : false;
+   }
+
+   Kernel_t At(const Key_t id) { return map.at(id); }
+};
+
+#ifdef MFEM_DEBUG
+#define MFEM_REGISTER_TMOP_KERNELS(return_t, name, ...) \
+typedef return_t (*name##_p)(__VA_ARGS__);\
+struct K##name##_T {\
+   static const int N = 1;\
+   using Key_t = std::size_t;\
+   using Kernel_t = name##_p;\
+   using Return_t = return_t;\
+   template<Key_t I> static constexpr Key_t GetKey() noexcept {\
+      return I==0 ? 0x21 : 0; }\
+   template<Key_t ID> static constexpr Kernel_t GetValue() noexcept\
+   { return &name<(ID>>4)&0xF, ID&0xF>; }\
+};\
+static kernels::Instantiator<K##name##_T> K##name
+#else
+#define MFEM_REGISTER_TMOP_KERNELS(return_t, name, ...) \
+typedef return_t (*name##_p)(__VA_ARGS__);\
+struct K##name##_T {\
+   static const int N = 24;\
+   using Key_t = std::size_t;\
+   using Kernel_t = name##_p;\
+   using Return_t = return_t;\
+   template<Key_t I> static constexpr Key_t GetKey() noexcept {\
+      return I==0 ? 0x21 : I==1 ? 0x22 : I==2 ? 0x23 :\
+             I==3 ? 0x24 : I==4 ? 0x25 : I==5 ? 0x26 :\
+             I==6 ? 0x31 : I==7 ? 0x32 : I==8 ? 0x33 :\
+             I==9 ? 0x34 : I==10 ? 0x35 : I==11 ? 0x36  :\
+             I==12 ? 0x41 : I==13 ? 0x42 : I==14 ? 0x43 :\
+             I==15 ? 0x44 : I==16 ? 0x45 : I==17 ? 0x46 :\
+             I==18 ? 0x51 : I==19 ? 0x52 : I==20 ? 0x53 :\
+             I==21 ? 0x54 : I==22 ? 0x55 : I==23 ? 0x56 : 0; }\
+   template<Key_t ID> static constexpr Kernel_t GetValue() noexcept\
+   { return &name<(ID>>4)&0xF, ID&0xF>; }\
+};\
+static kernels::Instantiator<K##name##_T> K##name
+#endif
 
 } // namespace kernels
 

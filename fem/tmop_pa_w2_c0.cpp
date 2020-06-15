@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static double EnergyPA_C0_2D(const double lim_normal,
                              const double dist,
                              const Vector &c0_,
@@ -37,7 +37,7 @@ static double EnergyPA_C0_2D(const double lim_normal,
    const bool const_c0 = c0_.Size() == 1;
 
    constexpr int dim = 2;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -57,7 +57,7 @@ static double EnergyPA_C0_2D(const double lim_normal,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -100,6 +100,20 @@ static double EnergyPA_C0_2D(const double lim_normal,
    return energy * ones;
 }
 
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
+                           const double lim_normal,
+                           const double dist,
+                           const Vector &c0_,
+                           const int NE,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x0_,
+                           const Vector &x1_,
+                           Vector &energy,
+                           Vector &ones,
+                           const int d1d,
+                           const int q1d);
+
 double
 TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
 {
@@ -123,42 +137,15 @@ TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
 
    PA.elem_restrict_lex->Mult(x, X);
 
-   switch (id)
+   if (KEnergyPA_C0_2D.Find(id))
    {
-      case 0x21: return EnergyPA_C0_2D<2,1,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x22: return EnergyPA_C0_2D<2,2,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x23: return EnergyPA_C0_2D<2,3,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x24: return EnergyPA_C0_2D<2,4,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x25: return EnergyPA_C0_2D<2,5,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x26: return EnergyPA_C0_2D<2,6,1>(l,d,C0,N,B,G,X0,X,E,O);
-
-      case 0x31: return EnergyPA_C0_2D<3,1,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x32: return EnergyPA_C0_2D<3,2,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x33: return EnergyPA_C0_2D<3,3,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x34: return EnergyPA_C0_2D<3,4,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x35: return EnergyPA_C0_2D<3,5,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x36: return EnergyPA_C0_2D<3,6,1>(l,d,C0,N,B,G,X0,X,E,O);
-
-      case 0x41: return EnergyPA_C0_2D<4,1,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x42: return EnergyPA_C0_2D<4,2,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x43: return EnergyPA_C0_2D<4,3,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x44: return EnergyPA_C0_2D<4,4,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x45: return EnergyPA_C0_2D<4,5,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x46: return EnergyPA_C0_2D<4,6,1>(l,d,C0,N,B,G,X0,X,E,O);
-
-      case 0x51: return EnergyPA_C0_2D<5,1,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x52: return EnergyPA_C0_2D<5,2,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x53: return EnergyPA_C0_2D<5,3,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x54: return EnergyPA_C0_2D<5,4,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x55: return EnergyPA_C0_2D<5,5,1>(l,d,C0,N,B,G,X0,X,E,O);
-      case 0x56: return EnergyPA_C0_2D<5,6,1>(l,d,C0,N,B,G,X0,X,E,O);
-
-      default:
-      {
-         constexpr int T_MAX = 8;
-         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return EnergyPA_C0_2D<0,0,0,T_MAX>(l,d,C0,N,B,G,X0,X,E,O,D1D,Q1D);
-      }
+      return KEnergyPA_C0_2D.At(id)(l,d,C0,N,B,G,X0,X,E,O,0,0);
+   }
+   else
+   {
+      constexpr int T_MAX = 8;
+      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+      return EnergyPA_C0_2D<0,0,T_MAX>(l,d,C0,N,B,G,X0,X,E,O,D1D,Q1D);
    }
    return 0.0;
 }
