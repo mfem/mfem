@@ -11,4 +11,4 @@ make -j 3 && cd .. &&
 ln -s metis-4.0.3 metis-4.0 &&
 git clone --recursive git@github.com:NVIDIA/AMGX.git && cd AMGX &&
 mkdir build && cd build && cmake -DCMAKE_INSTALL_PREFIX=$(pwd)/../ ../ && make -j all && make install && cd ../../ &&
-cd mfem && make pcuda CUDA_ARCH=sm_70 MFEM_USE_AMGX=YES -j
+cd mfem && make pcuda CUDA_ARCH=sm_70 MFEM_USE_AMGX=YES MFEM_USE_SIMD=NO -j
