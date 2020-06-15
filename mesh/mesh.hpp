@@ -1428,7 +1428,7 @@ protected:
    Vector Fnodes;
 
 public:
-   const Mesh *mesh{nullptr};
+   const Mesh *mesh {nullptr};
    const IntegrationRule *IntRule{nullptr};
    int computed_factors;
    bool recompute_factors{false};
