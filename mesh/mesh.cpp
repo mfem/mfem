@@ -761,6 +761,10 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
       GeometricFactors *gf = geom_factors[i];
       if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags)
       {
+         if (gf->RecomputeStatus())
+         {
+            gf->Recompute();
+         }
          return gf;
       }
    }
@@ -782,6 +786,10 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
       if (gf->IntRule == &ir && (gf->computed_factors & flags) == flags &&
           gf->type==type)
       {
+         if (gf->RecomputeStatus())
+         {
+            gf->Recompute();
+         }
          return gf;
       }
    }
@@ -793,18 +801,33 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    return gf;
 }
 
-void Mesh::DeleteGeometricFactors()
+void Mesh::DeleteGeometricFactors(bool recompute)
 {
    for (int i = 0; i < geom_factors.Size(); i++)
    {
-      delete geom_factors[i];
+      if (recompute)
+      {
+         geom_factors[i]->SetForRecompute();
+      }
+      else
+      {
+         delete geom_factors[i];
+      }
    }
-   geom_factors.SetSize(0);
+   if (!recompute) {geom_factors.SetSize(0);}
+
    for (int i = 0; i < face_geom_factors.Size(); i++)
    {
-      delete face_geom_factors[i];
+      if (recompute)
+      {
+         face_geom_factors[i]->Recompute();
+      }
+      else
+      {
+         delete face_geom_factors[i];
+      }
    }
-   face_geom_factors.SetSize(0);
+   if (!recompute) {face_geom_factors.SetSize(0);}
 }
 
 void Mesh::GetLocalFaceTransformation(
@@ -10436,19 +10459,19 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
                                    int flags)
 {
    MFEM_VERIFY(mesh->GetNodes() != NULL, "Mesh nodes are null");
-   Assemble(mesh->GetNodes(), ir, flags);
+   AssembleWithNodes(mesh->GetNodes(), ir, flags);
 }
 
 GeometricFactors::GeometricFactors(const GridFunction *nodes,
                                    const IntegrationRule &ir,
                                    int flags)
 {
-   Assemble(this->nodes, ir, flags);
+   AssembleWithNodes(this->nodes, ir, flags);
 }
 
-void GeometricFactors::Assemble(const GridFunction *nodes,
-                                const IntegrationRule &ir,
-                                int flags)
+void GeometricFactors::AssembleWithNodes(const GridFunction *nodes,
+                                         const IntegrationRule &ir,
+                                         int flags)
 {
    this->mesh = nodes->FESpace()->GetMesh();
    this->nodes = nodes;
@@ -10500,6 +10523,54 @@ void GeometricFactors::Assemble(const GridFunction *nodes,
    }
 }
 
+void GeometricFactors::Recompute()
+{
+
+   const FiniteElementSpace *fespace = nodes->FESpace();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int dim  = fe->GetDim();
+   const int vdim = fespace->GetVDim();
+   const int NE   = fespace->GetNE();
+   const int ND   = fe->GetDof();
+   const int NQ   = IntRule->GetNPoints();
+
+   // For now, we are not using tensor product evaluation
+   const Operator *elem_restr = fespace->GetElementRestriction(
+                                   ElementDofOrdering::NATIVE);
+
+   unsigned eval_flags = 0;
+   if (computed_factors & GeometricFactors::COORDINATES)
+   {
+      X.SetSize(vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::VALUES;
+   }
+   if (computed_factors & GeometricFactors::JACOBIANS)
+   {
+      J.SetSize(dim*vdim*NQ*NE);
+      eval_flags |= QuadratureInterpolator::DERIVATIVES;
+   }
+   if (computed_factors & GeometricFactors::DETERMINANTS)
+   {
+      detJ.SetSize(NQ*NE);
+      eval_flags |= QuadratureInterpolator::DETERMINANTS;
+   }
+
+   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(*IntRule);
+   // For now, we are not using tensor product evaluation (not implemented)
+   qi->DisableTensorProducts();
+   qi->SetOutputLayout(QVectorLayout::byNODES);
+   if (elem_restr)
+   {
+      Enodes.SetSize(vdim*ND*NE);
+      elem_restr->Mult(*nodes, Enodes);
+      qi->Mult(Enodes, eval_flags, X, J, detJ);
+   }
+   else
+   {
+      qi->Mult(*nodes, eval_flags, X, J, detJ);
+   }
+}
+
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                            const IntegrationRule &ir,
                                            int flags, FaceType type)
@@ -10509,43 +10580,49 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    IntRule = &ir;
    computed_factors = flags;
 
-   const GridFunction *nodes = mesh->GetNodes();
+   Recompute();
+
+}
+
+void FaceGeometricFactors::Recompute()
+{
+   const GridFunction *nodes = this->mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const int vdim = fespace->GetVDim();
    const int NF   = fespace->GetNFbyType(type);
-   const int NQ   = ir.GetNPoints();
+   const int NQ   = IntRule->GetNPoints();
 
    const Operator *face_restr = fespace->GetFaceRestriction(
                                    ElementDofOrdering::LEXICOGRAPHIC,
                                    type,
                                    L2FaceValues::SingleValued );
-   Vector Fnodes(face_restr->Height());
+   Fnodes.SetSize(face_restr->Height());
    face_restr->Mult(*nodes, Fnodes);
 
    unsigned eval_flags = 0;
-   if (flags & FaceGeometricFactors::COORDINATES)
+   if (computed_factors & FaceGeometricFactors::COORDINATES)
    {
       X.SetSize(vdim*NQ*NF);
       eval_flags |= FaceQuadratureInterpolator::VALUES;
    }
-   if (flags & FaceGeometricFactors::JACOBIANS)
+   if (computed_factors & FaceGeometricFactors::JACOBIANS)
    {
       J.SetSize(vdim*vdim*NQ*NF);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
-   if (flags & FaceGeometricFactors::DETERMINANTS)
+   if (computed_factors & FaceGeometricFactors::DETERMINANTS)
    {
       detJ.SetSize(NQ*NF);
       eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
    }
-   if (flags & FaceGeometricFactors::NORMALS)
+   if (computed_factors & FaceGeometricFactors::NORMALS)
    {
       normal.SetSize(vdim*NQ*NF);
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
    const FaceQuadratureInterpolator *qi = fespace->GetFaceQuadratureInterpolator(
-                                             ir, type);
+                                             *IntRule, type);
    qi->Mult(Fnodes, eval_flags, X, J, detJ, normal);
 }
 
