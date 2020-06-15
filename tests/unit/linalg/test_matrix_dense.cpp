@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "catch.hpp"
+#include "linalg/dtensor.hpp"
 
 using namespace mfem;
 
@@ -244,4 +245,51 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    C -= B;
 
    REQUIRE(C.MaxMaxNorm() < tol);
+}
+
+TEST_CASE("DenseTensor LinearSolve methods",
+          "[DenseMatrix]")
+{
+
+   int N = 3;
+   DenseMatrix A(N);
+   A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
+   A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
+   A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
+
+   double X[3] = { -14, 42, 28 };
+
+   int NE = 10;
+   Vector X_batch(N*NE);
+   DenseTensor A_batch(N,N,NE);
+
+   auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
+   auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
+   // Column major
+   for (int e=0; e<NE; ++e)
+   {
+
+      for (int r=0; r<N; ++r)
+      {
+         for (int c=0; c<N; ++c)
+         {
+            a_batch(c, r, e) = A.GetData()[c+r*N];
+         }
+         x_batch(r,e) = X[r];
+      }
+   }
+
+   Array<int> P;
+   BatchLUFactor(A_batch, P);
+   BatchLUSolve(A_batch, P, X_batch);
+
+   auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
+   REQUIRE(LinearSolve(A,X));
+   for (int e=0; e<NE; ++e)
+   {
+      for (int r=0; r<N; ++r)
+      {
+         REQUIRE(xans_batch(r,e) == X[r]);
+      }
+   }
 }
