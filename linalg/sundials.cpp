@@ -351,6 +351,7 @@ void CVODESolver::SetSVtolerances(double reltol, Vector abstol)
 
    flag = CVodeSVtolerances(sundials_mem, reltol, nv_abstol);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSVtolerances()");
+   N_VDestroy(nv_abstol);
 }
 
 void CVODESolver::SetMaxStep(double dt_max)
@@ -679,12 +680,13 @@ void CVODESSolver::SetSVtolerancesB(double reltol, Vector abstol)
    MFEM_VERIFY(abstol.Size() == f->Height(),
                "abs tolerance is not the same size.");
 
-   N_Vector nv_abstol;
+   N_Vector nv_abstol = NULL;
    AllocateEmptyNVector(nv_abstol);
    abstol.ToNVector(nv_abstol);
 
    flag = CVodeSVtolerancesB(sundials_mem, indexB, reltol, nv_abstol);
    MFEM_VERIFY(flag == CV_SUCCESS, "error in CVodeSVtolerancesB()");
+   N_VDestroy(nv_abstol);
 }
 
 
