@@ -24,6 +24,8 @@
 
 #include "navier_solver.hpp"
 #include <fstream>
+#include <iostream>
+#include <typeinfo>
 
 using namespace mfem;
 using namespace navier;
@@ -200,6 +202,17 @@ int main(int argc, char *argv[])
    u_gf = naviersolver.GetCurrentVelocity();
    p_gf = naviersolver.GetCurrentPressure();
 
+   ParaViewDataCollection pvdc("ldc_output", pmesh);
+   pvdc.SetDataFormat(VTKFormat::BINARY32);
+   pvdc.SetHighOrderOutput(true);
+   pvdc.SetLevelsOfDetail(ctx.order);
+   pvdc.SetCycle(0);
+   pvdc.SetTime(t);
+   pvdc.RegisterField("velocity", u_gf);
+   pvdc.RegisterField("pressure", p_gf);
+   //pvdc.RegisterField("vorticity", &w_gf);
+   pvdc.Save();
+
    for (int step = 0; !last_step; ++step)
    {
       if (t + dt >= t_final - dt / 2)
@@ -209,6 +222,14 @@ int main(int argc, char *argv[])
 
       naviersolver.Step(t, dt, step);
 
+      if (step % 10 == 0)
+
+      {
+         pvdc.SetCycle(step);
+         pvdc.SetTime(t);
+         pvdc.Save();    
+
+      }
       // Compare against exact solution of velocity and pressure.
       // u_excoeff.SetTime(t);
       // p_excoeff.SetTime(t);
