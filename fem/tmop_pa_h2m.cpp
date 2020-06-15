@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static void AddMultGradPA_Kernel_2D(const int NE,
                                     const Array<double> &b_,
                                     const Array<double> &g_,
@@ -33,7 +33,7 @@ static void AddMultGradPA_Kernel_2D(const int NE,
                                     const int q1d = 0)
 {
    constexpr int DIM = 2;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -49,7 +49,7 @@ static void AddMultGradPA_Kernel_2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -109,6 +109,17 @@ static void AddMultGradPA_Kernel_2D(const int NE,
    });
 }
 
+MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
+                           const int NE,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const DenseTensor &j_,
+                           const Vector &p_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d,
+                           const int q1d);
+
 void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
                                        Vector &C) const
 {
@@ -127,42 +138,15 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
       AssembleGradPA_2D(X);
    }
 
-   switch (id)
+   if (KAddMultGradPA_Kernel_2D.Find(id))
    {
-      case 0x21: return AddMultGradPA_Kernel_2D<2,1,1>(N,B,G,J,A,R,C);
-      case 0x22: return AddMultGradPA_Kernel_2D<2,2,1>(N,B,G,J,A,R,C);
-      case 0x23: return AddMultGradPA_Kernel_2D<2,3,1>(N,B,G,J,A,R,C);
-      case 0x24: return AddMultGradPA_Kernel_2D<2,4,1>(N,B,G,J,A,R,C);
-      case 0x25: return AddMultGradPA_Kernel_2D<2,5,1>(N,B,G,J,A,R,C);
-      case 0x26: return AddMultGradPA_Kernel_2D<2,6,1>(N,B,G,J,A,R,C);
-
-      case 0x31: return AddMultGradPA_Kernel_2D<3,1,1>(N,B,G,J,A,R,C);
-      case 0x32: return AddMultGradPA_Kernel_2D<3,2,1>(N,B,G,J,A,R,C);
-      case 0x33: return AddMultGradPA_Kernel_2D<3,3,1>(N,B,G,J,A,R,C);
-      case 0x34: return AddMultGradPA_Kernel_2D<3,4,1>(N,B,G,J,A,R,C);
-      case 0x35: return AddMultGradPA_Kernel_2D<3,5,1>(N,B,G,J,A,R,C);
-      case 0x36: return AddMultGradPA_Kernel_2D<3,6,1>(N,B,G,J,A,R,C);
-
-      case 0x41: return AddMultGradPA_Kernel_2D<4,1,1>(N,B,G,J,A,R,C);
-      case 0x42: return AddMultGradPA_Kernel_2D<4,2,1>(N,B,G,J,A,R,C);
-      case 0x43: return AddMultGradPA_Kernel_2D<4,3,1>(N,B,G,J,A,R,C);
-      case 0x44: return AddMultGradPA_Kernel_2D<4,4,1>(N,B,G,J,A,R,C);
-      case 0x45: return AddMultGradPA_Kernel_2D<4,5,1>(N,B,G,J,A,R,C);
-      case 0x46: return AddMultGradPA_Kernel_2D<4,6,1>(N,B,G,J,A,R,C);
-
-      case 0x51: return AddMultGradPA_Kernel_2D<5,1,1>(N,B,G,J,A,R,C);
-      case 0x52: return AddMultGradPA_Kernel_2D<5,2,1>(N,B,G,J,A,R,C);
-      case 0x53: return AddMultGradPA_Kernel_2D<5,3,1>(N,B,G,J,A,R,C);
-      case 0x54: return AddMultGradPA_Kernel_2D<5,4,1>(N,B,G,J,A,R,C);
-      case 0x55: return AddMultGradPA_Kernel_2D<5,5,1>(N,B,G,J,A,R,C);
-      case 0x56: return AddMultGradPA_Kernel_2D<5,6,1>(N,B,G,J,A,R,C);
-
-      default:
-      {
-         constexpr int T_MAX = 8;
-         MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return AddMultGradPA_Kernel_2D<0,0,0,T_MAX>(N,B,G,J,A,R,C,D1D,Q1D);
-      }
+      return KAddMultGradPA_Kernel_2D.At(id)(N,B,G,J,A,R,C,0,0);
+   }
+   else
+   {
+      constexpr int T_MAX = 8;
+      MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
+      return AddMultGradPA_Kernel_2D<0,0,T_MAX>(N,B,G,J,A,R,C,D1D,Q1D);
    }
 }
 

@@ -36,7 +36,7 @@ double EvalW_002(const double *Jpt)
    return 0.5 * ie.Get_I1b() - 1.0;
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
 static double EnergyPA_2D(const double metric_normal,
                           const int mid,
                           const int NE,
@@ -53,7 +53,7 @@ static double EnergyPA_2D(const double metric_normal,
    MFEM_VERIFY(mid == 1 || mid == 2, "2D metric not yet implemented!");
 
    constexpr int dim = 2;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -71,7 +71,7 @@ static double EnergyPA_2D(const double metric_normal,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -119,6 +119,20 @@ static double EnergyPA_2D(const double metric_normal,
    return energy * ones;
 }
 
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
+                           const double metric_normal,
+                           const int mid,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x_,
+                           Vector &energy,
+                           Vector &ones,
+                           const int d1d,
+                           const int q1d);
+
 double
 TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
 {
@@ -141,42 +155,15 @@ TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
 
    PA.elem_restrict_lex->Mult(x, X);
 
-   switch (id)
+   if (KEnergyPA_2D.Find(id))
    {
-      case 0x21: return EnergyPA_2D<2,1,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x22: return EnergyPA_2D<2,2,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x23: return EnergyPA_2D<2,3,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x24: return EnergyPA_2D<2,4,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x25: return EnergyPA_2D<2,5,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x26: return EnergyPA_2D<2,6,1>(m,M,N,J,W,B,G,X,E,O);
-
-      case 0x31: return EnergyPA_2D<3,1,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x32: return EnergyPA_2D<3,2,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x33: return EnergyPA_2D<3,3,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x34: return EnergyPA_2D<3,4,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x35: return EnergyPA_2D<3,5,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x36: return EnergyPA_2D<3,6,1>(m,M,N,J,W,B,G,X,E,O);
-
-      case 0x41: return EnergyPA_2D<4,1,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x42: return EnergyPA_2D<4,2,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x43: return EnergyPA_2D<4,3,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x44: return EnergyPA_2D<4,4,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x45: return EnergyPA_2D<4,5,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x46: return EnergyPA_2D<4,6,1>(m,M,N,J,W,B,G,X,E,O);
-
-      case 0x51: return EnergyPA_2D<5,1,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x52: return EnergyPA_2D<5,2,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x53: return EnergyPA_2D<5,3,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x54: return EnergyPA_2D<5,4,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x55: return EnergyPA_2D<5,5,1>(m,M,N,J,W,B,G,X,E,O);
-      case 0x56: return EnergyPA_2D<5,6,1>(m,M,N,J,W,B,G,X,E,O);
-
-      default:
-      {
-         constexpr int T_MAX = 8;
-         MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-         return EnergyPA_2D<0,0,0,T_MAX>(m,M,N,J,W,B,G,X,E,O,D1D,Q1D);
-      }
+      return KEnergyPA_2D.At(id)(m,M,N,J,W,B,G,X,E,O,0,0);
+   }
+   else
+   {
+      constexpr int T_MAX = 8;
+      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
+      return EnergyPA_2D<0,0,T_MAX>(m,M,N,J,W,B,G,X,E,O,D1D,Q1D);
    }
    return 0.0;
 }
