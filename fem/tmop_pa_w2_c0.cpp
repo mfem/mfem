@@ -19,21 +19,20 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static double EnergyPA_C0_2D(const double lim_normal,
-                             const double dist,
-                             const Vector &c0_,
-                             const int NE,
-                             const Array<double> &b_,
-                             const Array<double> &g_,
-                             const Vector &x0_,
-                             const Vector &x1_,
-                             Vector &energy,
-                             Vector &ones,
-                             const int d1d = 0,
-                             const int q1d = 0)
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
+                           const double lim_normal,
+                           const double dist,
+                           const Vector &c0_,
+                           const int NE,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x0_,
+                           const Vector &x1_,
+                           Vector &energy,
+                           Vector &ones,
+                           const int d1d,
+                           const int q1d)
 {
-
    const bool const_c0 = c0_.Size() == 1;
 
    constexpr int dim = 2;
@@ -100,22 +99,7 @@ static double EnergyPA_C0_2D(const double lim_normal,
    return energy * ones;
 }
 
-MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
-                           const double lim_normal,
-                           const double dist,
-                           const Vector &c0_,
-                           const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const Vector &x0_,
-                           const Vector &x1_,
-                           Vector &energy,
-                           Vector &ones,
-                           const int d1d,
-                           const int q1d);
-
-double
-TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
+double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
 {
    dbg("");
    const int N = PA.ne;

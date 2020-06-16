@@ -36,19 +36,19 @@ double EvalW_002(const double *Jpt)
    return 0.5 * ie.Get_I1b() - 1.0;
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static double EnergyPA_2D(const double metric_normal,
-                          const int mid,
-                          const int NE,
-                          const DenseTensor &j_,
-                          const Array<double> &w_,
-                          const Array<double> &b_,
-                          const Array<double> &g_,
-                          const Vector &x_,
-                          Vector &energy,
-                          Vector &ones,
-                          const int d1d = 0,
-                          const int q1d = 0)
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
+                           const double metric_normal,
+                           const int mid,
+                           const int NE,
+                           const DenseTensor &j_,
+                           const Array<double> &w_,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const Vector &x_,
+                           Vector &energy,
+                           Vector &ones,
+                           const int d1d,
+                           const int q1d)
 {
    MFEM_VERIFY(mid == 1 || mid == 2, "2D metric not yet implemented!");
 
@@ -119,22 +119,7 @@ static double EnergyPA_2D(const double metric_normal,
    return energy * ones;
 }
 
-MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
-                           const double metric_normal,
-                           const int mid,
-                           const int NE,
-                           const DenseTensor &j_,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const Vector &x_,
-                           Vector &energy,
-                           Vector &ones,
-                           const int d1d,
-                           const int q1d);
-
-double
-TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
+double TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
 {
    dbg("");
    const int N = PA.ne;
