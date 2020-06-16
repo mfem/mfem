@@ -25,7 +25,6 @@
 #include "navier_solver.hpp"
 #include <fstream>
 #include <iostream>
-#include <typeinfo>
 
 using namespace mfem;
 using namespace navier;
@@ -97,6 +96,7 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
+   const char *mesh_file = "../../data/inline-quad.mesh";
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,
                   "-rs",
@@ -126,6 +126,8 @@ int main(int argc, char *argv[])
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(
       &ctx.checkres,
       "-cr",
@@ -147,7 +149,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
+   //const char *mesh_file = "../../data/inline-quad.mesh";
+   //args.AddOption(&mesh_file, "-m", "--mesh",
+   //               "Mesh file to use.");
+   Mesh *mesh = new Mesh(mesh_file);
    // mesh->EnsureNodes();
    // GridFunction *nodes = mesh->GetNodes();
    // *nodes *= 2.0;
