@@ -14,6 +14,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dtensor.hpp"
@@ -32,6 +33,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
                            const int d1d,
                            const int q1d)
 {
+   dbg("");
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
@@ -82,16 +84,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
             kernels::Mult(2,2,2, hX, Jrt, A);
 
             // B = A : dP
-            for (int r = 0; r < DIM; r++)
+            for (int i = 0; i < DIM; i++)
             {
-               for (int c = 0; c < DIM; c++)
+               for (int j = 0; j < DIM; j++)
                {
-                  B[r+2*c] = 0.0;
-                  for (int i = 0; i < DIM; i++)
+                  B[i+2*j] = 0.0;
+                  for (int r = 0; r < DIM; r++)
                   {
-                     for (int j = 0; j < DIM; j++)
+                     for (int c = 0; c < DIM; c++)
                      {
-                        B[r+2*c] += dP(i,j,r,c,qx,qy,e) * A[i+2*j];
+                        B[i+2*j] += dP(r,c,i,j,qx,qy,e) * A[r+2*c];
                      }
                   }
                }
@@ -109,8 +111,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
    });
 }
 
-void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
-                                       Vector &C) const
+void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
@@ -120,12 +121,6 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &A = PA.A;
-
-   if (!PA.setup)
-   {
-      PA.setup = true;
-      AssembleGradPA_2D(X);
-   }
 
    if (KAddMultGradPA_Kernel_2D.Find(id))
    {

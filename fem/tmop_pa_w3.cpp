@@ -112,19 +112,19 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                double Jrt[9];
                kernels::CalcInverse<3>(Jtr, Jrt);
 
-               // Jpr = X^T.DSh
+               // Jpr = X^t.DSh
                double Jpr[9];
                kernels::PullGradXYZ<MQ1>(qx,qy,qz, s_QQQ, Jpr);
 
-               // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
+               // Jpt = X^t.DS = (X^t.DSh).Jrt = Jpr.Jrt
                double Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
                // metric->EvalW(Jpt);
                const double EvalW = mid == 302 ? EvalW_302(Jpt) :
                mid == 303 ? EvalW_303(Jpt) :
-               mid == 321 ? EvalW_321(Jpt) :
-               0.0;
+               mid == 321 ? EvalW_321(Jpt) : 0.0;
+
                E(qx,qy,qz,e) = weight * EvalW;
                O(qx,qy,qz,e) = 1.0;
             }

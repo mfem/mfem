@@ -923,7 +923,7 @@ protected:
    {
       bool enabled = false;
       int dim, ne, nq;
-      mutable Vector E, O, X0, X, P, A;
+      mutable Vector E, O, X0, X, P, P0, A, A0;
       mutable bool setup;
       const DofToQuad *maps;
       const GeometricFactors *geom;
@@ -1091,11 +1091,13 @@ public:
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    using NonlinearFormIntegrator::AddMultGradPA;
-   void AddMultGradPA_2D(const Vector&, const Vector&, Vector&) const;
+   void AddMultGradPA_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_C0_2D(const Vector&, const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, const Vector&, Vector&) const;
    virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
 
    void AssembleGradPA_2D(const Vector&) const;
+   void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA(const Vector&) const;
 

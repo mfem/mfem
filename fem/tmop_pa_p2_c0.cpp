@@ -17,6 +17,7 @@
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dinvariants.hpp"
+#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -36,9 +37,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
                            const int d1d,
                            const int q1d)
 {
+   dbg("");
    const bool const_c0 = c0_.Size() == 1;
 
-   constexpr int VDIM = 2;
+   constexpr int DIM = 2;
    constexpr int NBZ = 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
    constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
@@ -52,12 +54,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto X0 = Reshape(x0_.Read(), D1D, D1D, VDIM, NE);
-   const auto X1 = Reshape(x1_.Read(), D1D, D1D, VDIM, NE);
+   const auto W = Reshape(w_.Read(), Q1D, Q1D);
+   const auto X0 = Reshape(x0_.Read(), D1D, D1D, DIM, NE);
+   const auto X1 = Reshape(x1_.Read(), D1D, D1D, DIM, NE);
 
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -68,6 +72,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
       MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
@@ -92,19 +98,40 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
+            const double *Jtr = &J(0,0,qx,qy,e);
+            const double detJtr = kernels::Det<2>(Jtr);
+            const double weight = W(qx,qy) * detJtr;
+
             double p0[2], p1[2];
-            const double c0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+            const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ0,p0);
             kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ1,p1);
 
-            //double grad[2];
+            double d1[2];
+            // Eval_d1
+            // subtract(1.0 / (dist * dist), x, x0, d1);
+            // z = a * (x - y)
+            // grad = a * (x - x0)
+            const double a = 1.0 / (dist * dist);
+            const double w = weight * lim_normal * coeff0;
+            kernels::Subtract<2>(w*a, p1, p0, d1);
+
+            // PMatO +=  S . P^t += Sh . (X1 . P^t)
+            double P[4] = { 0.0 };
+            kernels::AddMultVWt<2>(p1,d1,P);
+            kernels::PushGradXY<MQ1,NBZ>(qx,qy,P,QQ);
          }
       }
+      MFEM_SYNC_THREAD;
+      kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, BG);
+      kernels::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
+      kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });
 }
 
 void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
 {
+   dbg("");
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;

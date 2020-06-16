@@ -103,11 +103,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
             double Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
-            // G = X{^T}.DSh
+            // Jpr = X{^T}.DSh
             double Jpr[4];
             kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
-            // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = G.Jrt
+            // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = Jpr.Jrt
             double Jpt[4];
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 

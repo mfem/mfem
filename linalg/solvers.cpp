@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "linalg.hpp"
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../general/globals.hpp"
 #include "../fem/bilinearform.hpp"
@@ -1570,6 +1571,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    const bool have_b = (b.Size() == Height());
 
    ProcessNewState(x);
+   dbg("x:%.15e",x*x);
 
    if (!iterative_mode)
    {
@@ -1577,6 +1579,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(x, r);
+   dbg("r:%.15e",r*r);
    if (have_b)
    {
       r -= b;
@@ -1614,11 +1617,19 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-
+#if 1
+      dbg("SetOperator(GetGradient)");
       prec->SetOperator(oper->GetGradient(x));
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+      //dbg("r:"); r.Print();
+      dbg("r:%.15e, c:%.15e", r*r, c*c);
+      //dbg("c:"); c.Print();
 
+#else
+#warning no prec->SetOperator
+      c = r;
+#endif
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
