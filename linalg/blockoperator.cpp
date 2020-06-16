@@ -56,6 +56,10 @@ void BlockOperator::SetDiagonalBlock(int iblock, Operator *op, double c)
 
 void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, double c)
 {
+   if (owns_blocks && op(iRow, iCol))
+   {
+      delete op(iRow, iCol);
+   }
    op(iRow, iCol) = opt;
    coef(iRow, iCol) = c;
 
@@ -148,6 +152,10 @@ void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *opt)
                offsets[iblock+1] - offsets[iblock] == opt->Width(),
                "incompatible Operator dimensions");
 
+   if (owns_blocks && op[iblock])
+   {
+      delete op[iblock];
+   }
    op[iblock] = opt;
 }
 

@@ -8,6 +8,8 @@
 //               mpirun -np 4 ex11p -m ../data/escher.mesh
 //               mpirun -np 4 ex11p -m ../data/fichera.mesh
 //               mpirun -np 4 ex11p -m ../data/fichera-mixed.mesh
+//               mpirun -np 4 ex11p -m ../data/periodic-annulus-sector.msh
+//               mpirun -np 4 ex11p -m ../data/periodic-torus-sector.msh -rs 1
 //               mpirun -np 4 ex11p -m ../data/toroid-wedge.mesh -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex11p -m ../data/square-disc-p3.mesh -o 3
