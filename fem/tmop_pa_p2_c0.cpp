@@ -37,7 +37,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
                            const int d1d,
                            const int q1d)
 {
-   dbg("");
    const bool const_c0 = c0_.Size() == 1;
 
    constexpr int DIM = 2;
@@ -72,8 +71,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
+      MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
 
       MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
@@ -115,17 +114,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             const double a = 1.0 / (dist * dist);
             const double w = weight * lim_normal * coeff0;
             kernels::Subtract<2>(w*a, p1, p0, d1);
-
-            // PMatO +=  S . P^t += Sh . (X1 . P^t)
-            double P[4] = { 0.0 };
-            kernels::AddMultVWt<2>(p1,d1,P);
-            kernels::PushGradXY<MQ1,NBZ>(qx,qy,P,QQ);
+            kernels::PushEvalXY<MQ1,NBZ>(qx,qy,d1,QQ);
          }
       }
       MFEM_SYNC_THREAD;
       kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, BG);
-      kernels::GradYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
-      kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
+      kernels::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
+      kernels::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });
 }
 
