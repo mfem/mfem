@@ -265,7 +265,7 @@ TEST_CASE("DenseTensor LinearSolve methods",
 
    auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
    auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
-   //Column major
+   // Column major
    for (int e=0; e<NE; ++e)
    {
 
@@ -292,5 +292,4 @@ TEST_CASE("DenseTensor LinearSolve methods",
          REQUIRE(xans_batch(r,e) == X[r]);
       }
    }
-
 }
