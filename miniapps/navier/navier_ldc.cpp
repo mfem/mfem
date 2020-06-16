@@ -149,9 +149,6 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   //const char *mesh_file = "../../data/inline-quad.mesh";
-   //args.AddOption(&mesh_file, "-m", "--mesh",
-   //               "Mesh file to use.");
    Mesh *mesh = new Mesh(mesh_file);
    // mesh->EnsureNodes();
    // GridFunction *nodes = mesh->GetNodes();
