@@ -21,16 +21,16 @@
 namespace mfem
 {
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static void AddMultGradPA_Kernel_2D(const int NE,
-                                    const Array<double> &b_,
-                                    const Array<double> &g_,
-                                    const DenseTensor &j_,
-                                    const Vector &p_,
-                                    const Vector &x_,
-                                    Vector &y_,
-                                    const int d1d = 0,
-                                    const int q1d = 0)
+MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
+                           const int NE,
+                           const Array<double> &b_,
+                           const Array<double> &g_,
+                           const DenseTensor &j_,
+                           const Vector &p_,
+                           const Vector &x_,
+                           Vector &y_,
+                           const int d1d,
+                           const int q1d)
 {
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
@@ -108,17 +108,6 @@ static void AddMultGradPA_Kernel_2D(const int NE,
       kernels::GradXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
    });
 }
-
-MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
-                           const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const DenseTensor &j_,
-                           const Vector &p_,
-                           const Vector &x_,
-                           Vector &y_,
-                           const int d1d,
-                           const int q1d);
 
 void TMOP_Integrator::AddMultGradPA_2D(const Vector &X, const Vector &R,
                                        Vector &C) const

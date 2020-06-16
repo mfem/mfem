@@ -952,8 +952,16 @@ public:
    Kernel_t At(const Key_t id) { return map.at(id); }
 };
 
-#ifdef MFEM_DEBUG
+/// MFEM_REGISTER_TMOP_KERNELS(name) macro:
+/// - forward declaration of the kernel
+/// - kernel pointer declaration
+/// - struct K##name##_T definition
+/// - Instantiator definition
+/// - re-use kernel return type and name before its body
+#if 0
 #define MFEM_REGISTER_TMOP_KERNELS(return_t, name, ...) \
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
+    return_t name(__VA_ARGS__);\
 typedef return_t (*name##_p)(__VA_ARGS__);\
 struct K##name##_T {\
    static const int N = 1;\
@@ -965,9 +973,12 @@ struct K##name##_T {\
    template<Key_t ID> static constexpr Kernel_t GetValue() noexcept\
    { return &name<(ID>>4)&0xF, ID&0xF>; }\
 };\
-static kernels::Instantiator<K##name##_T> K##name
+static kernels::Instantiator<K##name##_T> K##name;\
+template<int T_D1D, int T_Q1D, int T_MAX> return_t name(__VA_ARGS__)
 #else
 #define MFEM_REGISTER_TMOP_KERNELS(return_t, name, ...) \
+template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
+    return_t name(__VA_ARGS__);\
 typedef return_t (*name##_p)(__VA_ARGS__);\
 struct K##name##_T {\
    static const int N = 24;\
@@ -986,7 +997,8 @@ struct K##name##_T {\
    template<Key_t ID> static constexpr Kernel_t GetValue() noexcept\
    { return &name<(ID>>4)&0xF, ID&0xF>; }\
 };\
-static kernels::Instantiator<K##name##_T> K##name
+static kernels::Instantiator<K##name##_T> K##name;\
+template<int T_D1D, int T_Q1D, int T_MAX> return_t name(__VA_ARGS__)
 #endif
 
 } // namespace kernels

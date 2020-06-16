@@ -147,8 +147,8 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
    }
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static void SetupGradPA_3D(const double metric_normal,
+MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
+                           const double metric_normal,
                            const int mid,
                            const Vector &x_,
                            const int NE,
@@ -157,8 +157,8 @@ static void SetupGradPA_3D(const double metric_normal,
                            const Array<double> &g_,
                            const DenseTensor &j_,
                            Vector &h_,
-                           const int d1d = 0,
-                           const int q1d = 0)
+                           const int d1d,
+                           const int q1d)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -222,19 +222,6 @@ static void SetupGradPA_3D(const double metric_normal,
       } // qz
    });
 }
-
-MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
-                           const double metric_normal,
-                           const int mid,
-                           const Vector &x_,
-                           const int NE,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const DenseTensor &j_,
-                           Vector &h_,
-                           const int d1d,
-                           const int q1d);
 
 void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
 {

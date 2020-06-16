@@ -78,8 +78,8 @@ void EvalH_002(const int e, const int qx, const int qy,
    }
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0>
-static void SetupGradPA_2D(const Vector &x_,
+MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
+                           const Vector &x_,
                            const double metric_normal,
                            const int mid,
                            const int NE,
@@ -88,8 +88,8 @@ static void SetupGradPA_2D(const Vector &x_,
                            const Array<double> &g_,
                            const DenseTensor &j_,
                            Vector &h_,
-                           const int d1d = 0,
-                           const int q1d = 0)
+                           const int d1d,
+                           const int q1d)
 {
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
@@ -149,19 +149,6 @@ static void SetupGradPA_2D(const Vector &x_,
       } // qy
    });
 }
-
-MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
-                           const Vector &x_,
-                           const double metric_normal,
-                           const int mid,
-                           const int NE,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
-                           const DenseTensor &j_,
-                           Vector &h_,
-                           const int d1d,
-                           const int q1d);
 
 void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
 {
