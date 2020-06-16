@@ -1086,6 +1086,7 @@ public:
 
    using NonlinearFormIntegrator::AddMultPA;
    void AddMultPA_2D(const Vector&, Vector&) const;
+   void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
    virtual void AddMultPA(const Vector&, Vector&) const;
 
