@@ -1419,7 +1419,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
                     << T.ElementType << "\"");
       }
    }
-   return NAN;
+   return 0.0; // never reached
 }
 
 void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
