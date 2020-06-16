@@ -353,13 +353,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       energy_in = nlf->GetEnergy(x);
    }
 
-   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetFE(0)->GetDim(),
+   const int NE = fes->GetMesh()->GetNE(), dim = fes->GetMesh()->Dimension(),
              dof = fes->GetFE(0)->GetDof(), nsp = ir.GetNPoints();
-   Array<int> xdofs(dof * dim);
+   Array<int> xdofs;
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
-   Vector x_out_loc(fes->GetVSize());
 
+   // Get the local prolongation of the solution vector.
+   Vector x_out_loc(fes->GetVSize());
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -373,6 +374,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
+   // Check if the starting mesh (given by x) is inverted.
+   // Note that x hasn't been modified by the Newton update yet.
    double min_detJ = infinity();
    for (int i = 0; i < NE; i++)
    {
@@ -394,18 +397,18 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif
-   bool untangling = false;
-   if (min_detJ_all <= 0) { untangling = true; }
+   const bool untangling = (min_detJ_all <= 0) ? true : false;
 
    const bool have_b = (b.Size() == Height());
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
    double scale = 1.0, energy_out = 0.0;
-   double norm0 = Norm(r);
+   const double norm0 = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
 
+   // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);

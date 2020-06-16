@@ -31,6 +31,11 @@
 //
 // Compile with: make pmesh-optimizer
 //
+//
+//   Triangles:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/rt-2d-p4-tri.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -fix-bnd -qt 1 -qo 8 -vl 1
+//     mpirun -np 4 pmesh-optimizer -m ../../data/star-mixed-p2.mesh -o 4 -rs 0 -mid 2 -tid 1 -ni 200 -ls 2 -li 100 -fix-bnd -qt 1 -qo 8 -vl 1
+//
 // Sample runs:
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
