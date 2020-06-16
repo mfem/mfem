@@ -40,21 +40,25 @@ private:
    int ovlpnrlayers;
    MeshPartition * part=nullptr;
    DofMap * dmap = nullptr;
+   // Auxiliary global vector for transfers
    std::vector<std::vector<Array<int>>> NovlpElems;
    std::vector<Array2D<int>> ovlpelems;
    std::vector<std::vector<Array<int>>> NovlpDofs;
    std::vector<std::vector<Array<int>>> NovlpDofs1;
+   std::vector<std::vector<Array<int>>> OvlpDofMap;
    // Pml local problems
    Array<SparseMatrix *> PmlMat;
    Array<UMFPackSolver *> PmlMatInv;
    Sweep * swp=nullptr;
    mutable Array<Vector *> f_orig;
    mutable Array<Array<Vector * >> f_transf;
+   mutable Vector zaux;
 
 
 
    void MarkOverlapElements();
    void MarkOverlapDofs();
+   void ComputeOverlapDofMaps();
    void Getijk(int ip, int & i, int & j, int & k ) const;
    int GetPatchId(const Array<int> & ijk) const;
    SparseMatrix * GetPmlSystemMatrix(int ip);
@@ -63,6 +67,7 @@ private:
                           int ip, Array2D<int> direct, int nlayers, bool local=false) const;                          
    void GetChiRes(const Vector & res, Vector & cfres,
                   int ip, Array2D<int> direct, int nlayers) const;  
+   void GetChiRes(Vector & res, int ip, Array2D<int> direct) const;                    
    void GetStepSubdomains(const int sweep, const int step, Array2D<int> & subdomains) const;
    void TransferSources(int sweep, int ip, Vector & sol_ext) const;
    void SourceTransfer(const Vector & Psi0, Array<int> direction, int ip, Vector & Psi1) const;
@@ -71,7 +76,7 @@ private:
   
 public:
    DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_, 
-       double omega_, Coefficient * ws_, int nrlayers_);
+       double omega_, Coefficient * ws_, int nrlayers_, int nx_=2, int ny_=2, int nz_=2);
    virtual void SetOperator(const Operator &op) {}
    virtual void Mult(const Vector &r, Vector &z) const;
    virtual ~DST();

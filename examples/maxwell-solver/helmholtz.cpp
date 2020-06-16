@@ -56,6 +56,10 @@ int main(int argc, char *argv[])
    // dimension
    int nd = 2;
 
+   int nx=2;
+   int ny=2;
+   int nz=2;
+
    // optional command line inputs
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -64,6 +68,9 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&nd, "-nd", "--dim","Problem space dimension");
+   args.AddOption(&nx, "-nx", "--nx","Number of subdomains in x direction");
+   args.AddOption(&ny, "-ny", "--ny","Number of subdomains in y direction");
+   args.AddOption(&nz, "-nz", "--nz","Number of subdomains in z direction");
    args.AddOption(&sol, "-sol", "--exact",
                   "Exact solution flag - 0:polynomial, 1: plane wave, -1: unknown exact");
    args.AddOption(&k, "-k", "--wavelengths",
@@ -220,7 +227,7 @@ int main(int argc, char *argv[])
          << A->Height() << " x " << A->Width() << endl;
 
 
-   DST S(&a,lengths, omega, &ws, nrlayers);
+   DST S(&a,lengths, omega, &ws, nrlayers, nx, ny, nz);
 
    StopWatch chrono;
 
@@ -232,7 +239,7 @@ int main(int argc, char *argv[])
    gmres.SetPreconditioner(S);
 	gmres.SetOperator(*A);
 	gmres.SetRelTol(1e-6);
-	gmres.SetMaxIter(10);
+	gmres.SetMaxIter(20);
 	gmres.SetPrintLevel(1);
 	gmres.Mult(B, X);
 
@@ -248,9 +255,9 @@ int main(int argc, char *argv[])
    // X = 0.0;
    // SLISolver sli;
    // sli.iterative_mode = true;
-   // sli.SetPreconditioner(S1);
+   // sli.SetPreconditioner(S);
    // sli.SetOperator(*A);
-   // sli.SetRelTol(1e-10);
+   // sli.SetRelTol(1e-6);
    // sli.SetMaxIter(50);
    // sli.SetPrintLevel(1);
    // sli.Mult(B,X);
@@ -389,7 +396,7 @@ double f_exact_Re(const Vector &x)
    beta = pow(x0-x(0),2) + pow(x1-x(1),2);
    if (dim == 3) { beta += pow(x2-x(2),2); }
    alpha = -pow(n,2) * beta;
-   // f_re += coeff*exp(alpha);
+   f_re += coeff*exp(alpha);
 
    bool in_pml = false;
    for (int i = 0; i<dim; i++)
