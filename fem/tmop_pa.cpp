@@ -46,10 +46,16 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    // P (AddMultPA) & A (AddMultGradPA) vectors
    PA.P.UseDevice(true);
    PA.P.SetSize(dim*dim * nq*ne, Device::GetDeviceMemoryType());
+   // P0 for coeff0
+   PA.P0.UseDevice(true);
+   PA.P0.SetSize(dim*dim * nq*ne, Device::GetDeviceMemoryType());
 
    PA.setup = false;
    PA.A.UseDevice(true);
    PA.A.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
+   // A0 for coeff0
+   PA.A0.UseDevice(true);
+   PA.A0.SetSize(dim*dim * dim*dim * nq*ne, Device::GetDeviceMemoryType());
 
    // X gradient vector
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -117,22 +123,48 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (PA.dim == 2) { return AddMultPA_2D(x,y); }
+   dbg("");
+   if (PA.dim == 2)
+   {
+      AddMultPA_2D(x,y);
+      dbg("y:%.15e",y*y);
+      if (coeff0) { AddMultPA_C0_2D(x,y); }
+      dbg("y:%.15e",y*y);
+      return;
+   }
    if (PA.dim == 3) { return AddMultPA_3D(x,y); }
    MFEM_ABORT("Not yet implemented!");
 }
 
 void TMOP_Integrator::AssembleGradPA(const Vector &x) const
 {
-   if (PA.dim == 2) { return AssembleGradPA_2D(x); }
+   dbg("");
+   if (PA.dim == 2)
+   {
+      AssembleGradPA_2D(x);
+      //if (coeff0) { AssembleGradPA_C0_2D(x); }
+      return;
+   }
    if (PA.dim == 3) { return AssembleGradPA_3D(x); }
    MFEM_ABORT("Not yet implemented!");
 }
 
-void TMOP_Integrator::AddMultGradPA(const Vector &x, const Vector &r,
-                                    Vector &c) const
+void TMOP_Integrator::AddMultGradPA(const Vector &x,
+                                    const Vector &r, Vector &c) const
 {
-   if (PA.dim == 2) { return AddMultGradPA_2D(x,r,c); }
+   dbg("");
+   if (PA.dim == 2)
+   {
+      if (!PA.setup)
+      {
+         PA.setup = true;
+         AssembleGradPA_2D(x);
+         //if (coeff0) { AssembleGradPA_C0_2D(x); }
+      }
+      AddMultGradPA_2D(r,c);
+      if (coeff0) { AddMultGradPA_C0_2D(x,r,c); }
+      return;
+   }
    if (PA.dim == 3) { return AddMultGradPA_3D(x,r,c); }
    MFEM_ABORT("Not yet implemented!");
 }

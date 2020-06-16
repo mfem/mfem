@@ -98,7 +98,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
             double Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
-            // Jpr = X^T.DSh
+            // Jpr = X^t.DSh
             double Jpr[4];
             kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
 

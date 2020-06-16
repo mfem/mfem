@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in fespace.
    GridFunction rdm(fespace);
-   rdm.Randomize();
+   rdm.Randomize(0x1234);
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    rdm.HostReadWrite();
@@ -656,10 +656,16 @@ int main(int argc, char *argv[])
    else { a.AddDomainIntegrator(he_nlf_integ); }
 
    if (pa) { a.Setup(); }
-
+#ifndef _WIN32
+   if (getenv("RND"))
+   {
+      srand48(0x1234abcd330e);
+      dbg("\033[7mPushing drand48 in x!");
+      for (int k=0; k<x.Size(); k++) { x[k] = drand48(); }
+   }
+#endif
    const double init_energy = a.GetGridFunctionEnergy(x);
    dbg("init_energy: %.15e", init_energy);
-   return 0;
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)

@@ -101,7 +101,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
                   }
                }
 
-               // Y =  DS . M^t += DSh . (Jrt . M^t)
+               // Y +=  DS . M^t += DSh . (Jrt . M^t)
                double A[9];
                kernels::MultABt(3,3,3, Jrt, M, A);
                kernels::PushGradXYZ<MQ1>(qx,qy,qz, A, s_QQQ);

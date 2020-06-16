@@ -14,6 +14,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dinvariants.hpp"
@@ -91,6 +92,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const int d1d,
                            const int q1d)
 {
+   dbg("");
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -134,11 +136,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
             double Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
-            // Jpr = X^T.DSh
+            // Jpr = X^t.DSh
             double Jpr[4];
             kernels::PullGradXY<MQ1,NBZ>(qx,qy,s_QQ,Jpr);
 
-            // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
+            // Jpt = Jpr.Jrt
             double Jpt[4];
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
@@ -163,6 +165,7 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    Vector &H = PA.A;
+
    const double mn = metric_normal;
 
    if (KSetupGradPA_2D.Find(id))
