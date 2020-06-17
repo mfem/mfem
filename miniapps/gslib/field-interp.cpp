@@ -25,7 +25,7 @@
 //
 // Sample runs:
 //    make field-interp;./field-interp -m1 hdivsol.mesh -s1 hdivsol.gf -m2 hdivsol.mesh -o 3
-
+//    make field-interp;./field-interp -m1 squarehdiv.mesh -s1 squarehdiv.gf -m2 squarehdiv.mesh -o 2
 #include "mfem.hpp"
 #include <fstream>
 
@@ -49,10 +49,10 @@ void F_exact(const Vector &p, Vector &F)
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file_1 = "sedov.mesh";
-   const char *mesh_file_2 = "cartesian64x64.mesh";
-   const char *sltn_file_1 = "sedov.gf";
-   int order = 2;
+   const char *mesh_file_1 = "hdivsol.mesh";
+   const char *mesh_file_2 = "hdivsol.mesh";
+   const char *sltn_file_1 = "hdivsol.gf";
+   int order = 3;
    int meshorder = 0;
    int ref_levels = 0;
    bool visualization = true;
@@ -184,6 +184,8 @@ int main (int argc, char *argv[])
              nsp = sc_fes->GetFE(0)->GetNodes().GetNPoints();
    mesh_2.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES);
    Vector vxyz;
+   DenseMatrix pos;
+   Vector vals_exact;
    if (fieldtype <= 1)
    {
       vxyz = *mesh_2.GetNodes();
@@ -191,19 +193,14 @@ int main (int argc, char *argv[])
    else
    {
       vxyz.SetSize(nsp*NE*ncomp);
+      vals_exact.SetSize(nsp*NE*ncomp);
       for (int i = 0; i < NE; i++)
       {
          const FiniteElement *fe = sc_fes->GetFE(i);
          const IntegrationRule ir = fe->GetNodes();
          ElementTransformation *et = sc_fes->GetElementTransformation(i);
-         DenseMatrix pos;
+
          et->Transform(ir, pos);
-         //          debug
-         //          for (int j = 0; j < ir.GetNPoints(); j++) {
-         //              const IntegrationPoint &ip = ir.IntPoint(j);
-         //              std::cout << j << " " << ip.x << " " << ip.y << " k10check\n";
-         //          }
-         //          MFEM_ABORT(" ");
          Vector rowx(vxyz.GetData() + i*nsp, nsp),
                 rowy(vxyz.GetData() + i*nsp + NE*nsp, nsp),
                 rowz;
@@ -214,38 +211,27 @@ int main (int argc, char *argv[])
          pos.GetRow(0, rowx);
          pos.GetRow(1, rowy);
          if (dim == 3) { pos.GetRow(2, rowz); }
-         //          debug
-         //          for (int i = 0; i < rowx.Size(); i++) {
-         //              std::cout << i << " " << rowx(i) << " " << rowy(i) << " k10xy\n";
-         //          }
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            const IntegrationPoint ip = ir.IntPoint(j);
+            Vector vals;
+            func_1.GetVectorValue(i, ip, vals);
+            int idx1 = i*nsp*ncomp + j*ncomp; //order by integration point
+            vals_exact(idx1) = vals(0);
+            vals_exact(idx1+1) = vals(1);
+         }
       }
-
    }
    const int nodes_cnt = vxyz.Size() / dim;
 
-   FindPointsGSLIB finder;
 
    // Get the values at the nodes of mesh 1.
    Vector  interp_vals(nodes_cnt*ncomp);
+   FindPointsGSLIB finder;
    finder.Setup(mesh_1);
-   finder.FindPoints(vxyz);
-   finder.Interpolate(func_1, interp_vals);
-
-
-   //   debug
-   //   const Vector rst = finder.GetReferencePosition();
-   //   for (int i = 0; i < rst.Size()/dim; i++) {
-   //       double gotvalx = 0.5*(1+rst(0+i*dim)),
-   //              gotvaly = 0.5*(1+rst(1+i*dim));
-   //       const IntegrationRule ir = sc_fes->GetFE(0)->GetNodes();
-   //       int j = i % pos.NumCols();
-   //       const IntegrationPoint &ip = ir.IntPoint(j);
-   //       double exvalx = ip.x, exvaly = ip.y;
-   //       double diffx = std::fabs(gotvalx-exvalx), diffy = std::fabs(gotvaly-exvaly);
-   //       if (diffx > 0.000001 && diffy > 0.000001) {
-   //           std::cout << i << " " << gotvalx-exvalx << " " << gotvaly-exvaly << " k10rst\n";
-   //       }
-   //   }
+   //   finder.FindPoints(vxyz);
+   //   finder.Interpolate(func_1, interp_vals);
+   interp_vals = vals_exact;
 
    if (fieldtype <= 1)
    {
@@ -264,18 +250,20 @@ int main (int argc, char *argv[])
       {
          sc_fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
-         for (int j = 0; j < nsp; j++)
-         {
-            for (int d = 0; d < ncomp; d++)
-            {
-               elem_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
-            }
-         }
+         //         for (int j = 0; j < nsp; j++)
+         //         {
+         //            for (int d = 0; d < ncomp; d++)
+         //            {
+         //               elem_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j); //output from GSLIB
+         //            }
+         //         }
+         elem_vals.SetData(interp_vals.GetData()+i*nsp*ncomp);
          sc_fes->GetFE(i)->ProjectV(elem_vals,
                                     *sc_fes->GetElementTransformation(i), vals);
          diff.SetSubVector(vdofs, vals);
       }
    }
+
    if (visualization)
    {
       char vishost[] = "localhost";

@@ -937,13 +937,15 @@ void VectorFiniteElement::Project_RT(
 {
    double vk[Geometry::MaxDim];
    const int sdim = Trans.GetSpaceDim();
+   Vector xk(vk, sdim);
    const bool square_J = (Dim == sdim);
 
    for (int k = 0; k < Dof; k++)
    {
       // dof_k = nk^t adj(J) xk
-      Vector xk(vc.GetData() + k*sdim, sdim);
-      dofs(k) = Trans.AdjugateJacobian().InnerProduct(xk, nk + d2n[k]*Dim);
+      xk(0) = vc(k*sdim);
+      xk(1) = vc(k*sdim + 1);
+      dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*Dim);
       if (!square_J) { dofs(k) /= Trans.Weight(); }
    }
 }
