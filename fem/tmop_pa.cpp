@@ -74,16 +74,17 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    // Coeff0 PA.C0
    PA.C0.UseDevice(true);
-   PA.C0.HostWrite();
    if (coeff0 == nullptr)
    {
       PA.C0.SetSize(1, Device::GetMemoryType());
+      PA.C0.HostWrite();
       PA.C0(0) = 0.0;
    }
    else if (ConstantCoefficient* cQ =
                dynamic_cast<ConstantCoefficient*>(coeff0))
    {
       PA.C0.SetSize(1, Device::GetMemoryType());
+      PA.C0.HostWrite();
       PA.C0(0) = cQ->constant;
    }
    else
