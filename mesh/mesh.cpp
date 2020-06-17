@@ -911,6 +911,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
       // NC meshes: prepend slave edge/face transformation to Loc2
       if (Nonconforming() && IsSlaveFace(face_info))
       {
+#if 0
          ApplyLocalSlaveTransformation(FaceElemTr.Loc2.Transf, face_info);
 
          if (face_type == Element::SEGMENT)
@@ -920,10 +921,28 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
             std::swap(pm(0,0), pm(0,1));
             std::swap(pm(1,0), pm(1,1));
          }
+#else
+         ApplyLocalSlaveTransformation(FaceElemTr, face_info, false);
+#endif
       }
    }
 
    FaceElemTr.SetConfigurationMask(mask);
+
+   // This check can be useful for internal debugging, however it will fail on
+   // periodic boundary faces.
+#if 1
+#ifdef MFEM_DEBUG
+   double dist = FaceElemTr.CheckConsistency();
+   if (dist >= 1e-12)
+   {
+      mfem::out << "\nInternal error: face id = " << FaceNo
+                << ", dist = " << dist << '\n';
+      FaceElemTr.CheckConsistency(1);
+      MFEM_ABORT("internal error");
+   }
+#endif
+#endif
 
    return &FaceElemTr;
 }
@@ -944,6 +963,45 @@ void Mesh::ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
    MFEM_ASSERT(fi.NCFace >= 0, "");
    transf.Transform(*nc_faces_info[fi.NCFace].PointMatrix, composition);
    transf.SetPointMat(composition);
+}
+
+void Mesh::ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
+                                         const FaceInfo &fi, bool is_ghost)
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix composition;
+#else
+   static DenseMatrix composition;
+#endif
+   MFEM_ASSERT(fi.NCFace >= 0, "");
+   MFEM_ASSERT(nc_faces_info[fi.NCFace].Slave, "internal error");
+   if (!is_ghost)
+   {
+      // side 1 -> child side, side 2 -> parent side
+      IsoparametricTransformation &LT = FT.Loc2.Transf;
+      LT.Transform(*nc_faces_info[fi.NCFace].PointMatrix, composition);
+      // In 2D, we need to flip the point matrix since it is aligned with the
+      // parent side.
+      if (Dim == 2)
+      {
+         // swap points (columns) 0 and 1
+         std::swap(composition(0,0), composition(0,1));
+         std::swap(composition(1,0), composition(1,1));
+      }
+      LT.SetPointMat(composition);
+   }
+   else // is_ghost == true
+   {
+      // side 1 -> parent side, side 2 -> child side
+      IsoparametricTransformation &LT = FT.Loc1.Transf;
+      LT.Transform(*nc_faces_info[fi.NCFace].PointMatrix, composition);
+      // In 2D, there is no need to flip the point matrix since it is already
+      // aligned with the parent side, see also ParNCMesh::GetFaceNeighbors.
+      // In 3D the point matrix was flipped during construction in
+      // ParNCMesh::GetFaceNeighbors and due to that it is already aligned with
+      // the parent side.
+      LT.SetPointMat(composition);
+   }
 }
 
 FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
@@ -5261,7 +5319,8 @@ void Mesh::GenerateNCFaceInfo()
 
       slave_fi.Elem2No = master_fi.Elem1No;
       slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
-      // NOTE: orientation part of Elem2Inf is encoded in the point matrix
+      // NOTE: orientation part of Elem2Inf is encoded in the point matrix;
+      //       the above is not true in 2D.
    }
 }
 

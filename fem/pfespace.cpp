@@ -1212,6 +1212,8 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i) const
 
 const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 {
+   // FIXME: triangle faces
+
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
    Geometry::Type geom = (pmesh->Dimension() == 2) ?
