@@ -671,7 +671,7 @@ void FABilinearFormExtension::Assemble()
       h_I[ndofs] = nnz;
       mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
       mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
-      if (use_face_mat)
+      if (use_face_mat && restF)
       {
          auto h_I_face = face_mat.HostReadWriteI();
          int cpt = 0;
@@ -700,7 +700,7 @@ void FABilinearFormExtension::Assemble()
          I[i] = I[i-1];
       }
       I[0] = 0;
-      if (use_face_mat)
+      if (use_face_mat && restF)
       {
          auto I_face = face_mat.HostReadWriteI();
          for (int i = ndofs; i > 0; i--)
