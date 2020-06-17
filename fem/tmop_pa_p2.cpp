@@ -54,31 +54,26 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const int d1d,
                            const int q1d)
 {
-   constexpr int VDIM = 2;
+   constexpr int DIM = 2;
    constexpr int NBZ = 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-   constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-
-   const auto J = Reshape(j_.Read(), VDIM, VDIM, Q1D, Q1D, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto X = Reshape(x_.Read(), D1D, D1D, VDIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, VDIM, NE);
+   auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
       MFEM_SHARED double XY[2][NBZ][MD1*MD1];
@@ -144,16 +139,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   if (KAddMultPA_Kernel_2D.Find(id))
-   {
-      return KAddMultPA_Kernel_2D.At(id)(mn,M,N,J,W,B,G,X,Y,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 8;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return AddMultPA_Kernel_2D<0,0,T_MAX>(mn,M,N,J,W,B,G,X,Y,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D, id, mn,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

@@ -150,16 +150,7 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
    MFEM_VERIFY(lim_dist, "Error");
    const double d = lim_dist->operator ()(0);
 
-   if (KSetupGradPA_C0_2D.Find(id))
-   {
-      return KSetupGradPA_C0_2D.At(id)(X0,X,l,d,C0,N,J,W,B,G,H0,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 8;
-      MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-      return SetupGradPA_C0_2D<0,0,T_MAX>(X0,X,l,d,C0,N,J,W,B,G,H0,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D, id, X0,X,l,d,C0,N,J,W,B,G,H0);
 }
 
 } // namespace mfem

@@ -171,16 +171,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   if (KAddMultPA_Kernel_3D.Find(id))
-   {
-      return KAddMultPA_Kernel_3D.At(id)(mn,M,N,J,W,B,G,X,Y,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 4;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return AddMultPA_Kernel_3D<0,0,T_MAX>(mn,M,N,J,W,B,G,X,Y,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D, id, mn,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

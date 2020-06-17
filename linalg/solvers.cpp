@@ -1617,19 +1617,11 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-#if 1
-      dbg("SetOperator(GetGradient)");
+
       prec->SetOperator(oper->GetGradient(x));
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      //dbg("r:"); r.Print();
-      dbg("r:%.15e, c:%.15e", r*r, c*c);
-      //dbg("c:"); c.Print();
 
-#else
-#warning no prec->SetOperator
-      c = r;
-#endif
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {

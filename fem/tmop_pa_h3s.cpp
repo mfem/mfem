@@ -238,16 +238,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    Vector &H = PA.A;
    const double mn = metric_normal;
 
-   if (KSetupGradPA_3D.Find(id))
-   {
-      return KSetupGradPA_3D.At(id)(mn,M,X,N,W,B,G,J,H,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 4;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return SetupGradPA_3D<0,0,T_MAX>(mn,M,X,N,W,B,G,J,H,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D, id, mn,M,X,N,W,B,G,J,H);
 }
 
 } // namespace mfem

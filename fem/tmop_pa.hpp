@@ -24,7 +24,7 @@ namespace kernels
 {
 
 template<int DIM>
-MFEM_HOST_DEVICE void Diag(const double c, double *data)
+MFEM_HOST_DEVICE inline void Diag(const double c, double *data)
 {
    const int N = DIM*DIM;
    for (int i = 0; i < N; i++)
@@ -38,7 +38,7 @@ MFEM_HOST_DEVICE void Diag(const double c, double *data)
 }
 
 template<int DIM>
-MFEM_HOST_DEVICE double DistanceSquared(const double *x, const double *y)
+MFEM_HOST_DEVICE inline double DistanceSquared(const double *x, const double *y)
 {
    double d = 0.0;
    for (int i = 0; i < DIM; i++)
@@ -50,9 +50,9 @@ MFEM_HOST_DEVICE double DistanceSquared(const double *x, const double *y)
 
 /// z = a * (x - y)
 template<int DIM>
-MFEM_HOST_DEVICE void Subtract(const double a,
-                               const double *x, const double *y,
-                               double *z)
+MFEM_HOST_DEVICE inline void Subtract(const double a,
+                                      const double *x, const double *y,
+                                      double *z)
 {
    for (int i = 0; i < DIM; i++)
    {
@@ -61,8 +61,8 @@ MFEM_HOST_DEVICE void Subtract(const double a,
 }
 
 template<int DIM>
-MFEM_HOST_DEVICE void AddMultVWt(const double *v, const double *w,
-                                 double *VWt)
+MFEM_HOST_DEVICE inline void AddMultVWt(const double *v, const double *w,
+                                        double *VWt)
 {
    for (int i = 0; i < DIM; i++)
    {
@@ -80,11 +80,12 @@ template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
                                     const DeviceTensor<2, const double> b,
                                     const DeviceTensor<2, const double> g,
-                                    double s_BG[2][MQ1*MD1])
+                                    double sBG[2][MQ1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
-   double (*G)[MD1] = (double (*)[MD1])(s_BG+1);
+   double (*B)[MD1] = (double (*)[MD1])(sBG+0);
+   double (*G)[MD1] = (double (*)[MD1])(sBG+1);
+
    if (tidz == 0)
    {
       MFEM_FOREACH_THREAD(d,y,D1D)
@@ -109,6 +110,7 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
    const int tidz = MFEM_THREAD_ID(z);
    double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
    double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+
    if (tidz == 0)
    {
       MFEM_FOREACH_THREAD(d,y,D1D)
@@ -128,17 +130,18 @@ template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e,
                                    const int D1D,
                                    const DeviceTensor<4, const double> X,
-                                   double s_X[2][NBZ][MD1*MD1])
+                                   double sX[2][NBZ][MD1*MD1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*Xx)[MD1] = (double (*)[MD1])(s_X[0] + tidz);
-   double (*Xy)[MD1] = (double (*)[MD1])(s_X[1] + tidz);
+   double (*X0)[MD1] = (double (*)[MD1])(sX[0] + tidz);
+   double (*X1)[MD1] = (double (*)[MD1])(sX[1] + tidz);
+
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         Xx[dy][dx] = X(dx,dy,0,e);
-         Xy[dy][dx] = X(dx,dy,1,e);
+         X0[dy][dx] = X(dx,dy,0,e);
+         X1[dy][dx] = X(dx,dy,1,e);
       }
    }
    MFEM_SYNC_THREAD;
@@ -216,7 +219,7 @@ MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
                                     double sDQ[2][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-   double (*Bt)[MD1] = (double (*)[MD1])(sBG+0);
+   double (*Bt)[MQ1] = (double (*)[MQ1])(sBG+0);
    double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
    double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
    double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
@@ -244,11 +247,9 @@ template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
                                     const double sBG[2][MQ1*MD1],
                                     const double sDQ[2][NBZ][MD1*MQ1],
-                                    mfem::DeviceTensor<4, double> Y,
-                                    const int e)
+                                    DeviceTensor<4, double> Y, const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
-
    double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
    double (*DQ0)[MQ1] = (double (*)[MQ1])(sDQ[0] + tidz);
    double (*DQ1)[MQ1] = (double (*)[MQ1])(sDQ[1] + tidz);
@@ -272,28 +273,28 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
 
 /// Load 2D EvalXY(X) to P
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline
-const double *PullEvalXY(const int qx, const int qy,
-                         const double sQQ[2][NBZ][MQ1*MQ1],
-                         double *P)
+MFEM_HOST_DEVICE inline void PullEvalXY(const int qx, const int qy,
+                                        const double sQQ[2][NBZ][MQ1*MQ1],
+                                        double *P)
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
    double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+
    P[0] = QQ0[qy][qx];
    P[1] = QQ1[qy][qx];
-   return P;
 }
 
 /// Push 2D EvalXY(X) to P
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline
-void PushEvalXY(const int qx, const int qy, const double *P,
-                double sQQ[2][NBZ][MQ1*MQ1])
+MFEM_HOST_DEVICE inline void PushEvalXY(const int qx, const int qy,
+                                        const double *P,
+                                        double sQQ[2][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*QQ0)[MQ1] = (double (*)[MQ1])(sQQ[0] + tidz);
    double (*QQ1)[MQ1] = (double (*)[MQ1])(sQQ[1] + tidz);
+
    QQ0[qy][qx] = P[0];
    QQ1[qy][qx] = P[1];
 }
@@ -316,6 +317,7 @@ MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
    double (*XxG)[MQ1] = (double (*)[MQ1])(s_DQ[1] + tidz);
    double (*XyB)[MQ1] = (double (*)[MQ1])(s_DQ[2] + tidz);
    double (*XyG)[MQ1] = (double (*)[MQ1])(s_DQ[3] + tidz);
+
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -385,29 +387,27 @@ MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
 
 /// Load 2D GradXY(X) to Jpr
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline
-const double *PullGradXY(const int qx, const int qy,
-                         const double s_QQ[4][NBZ][MQ1*MQ1],
-                         double *Jpr)
+MFEM_HOST_DEVICE inline void PullGradXY(const int qx, const int qy,
+                                        const double s_QQ[4][NBZ][MQ1*MQ1],
+                                        double *Jpr)
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*Xx0)[MQ1] = (double (*)[MQ1])(s_QQ[0] + tidz);
    double (*Xx1)[MQ1] = (double (*)[MQ1])(s_QQ[1] + tidz);
    double (*Xy0)[MQ1] = (double (*)[MQ1])(s_QQ[2] + tidz);
    double (*Xy1)[MQ1] = (double (*)[MQ1])(s_QQ[3] + tidz);
+
    Jpr[0] = Xx0[qy][qx];
    Jpr[1] = Xy0[qy][qx];
    Jpr[2] = Xx1[qy][qx];
    Jpr[3] = Xy1[qy][qx];
-   return Jpr;
 }
 
 /// Push 2D GradXY(X) from A
 template<int MQ1, int NBZ>
-MFEM_HOST_DEVICE inline
-void PushGradXY(const int qx, const int qy,
-                const double *A,
-                double s_QQ[4][NBZ][MQ1*MQ1])
+MFEM_HOST_DEVICE inline void PushGradXY(const int qx, const int qy,
+                                        const double *A,
+                                        double s_QQ[4][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    double (*Xx0)[MQ1] = (double (*)[MQ1])(s_QQ[0] + tidz);
@@ -429,7 +429,6 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
                                     double GD[4][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
-
    double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
    double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
 
@@ -503,6 +502,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
          Y(dx,dy,1,e) += u[1] + v[1];
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// Load 3D input vector into shared memory
@@ -515,6 +515,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e,
    double (*Xx)[MD1][MD1] = (double (*)[MD1][MD1])(sm+0);
    double (*Xy)[MD1][MD1] = (double (*)[MD1][MD1])(sm+1);
    double (*Xz)[MD1][MD1] = (double (*)[MD1][MD1])(sm+2);
+
    MFEM_FOREACH_THREAD(dz,z,D1D)
    {
       MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -527,6 +528,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 /// 3D Grad, stage 1/3
@@ -731,10 +733,9 @@ MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
 
 /// Pull 3D GradXYZ(X) into Jpr
 template<int MQ1>
-MFEM_HOST_DEVICE inline
-const double *PullGradXYZ(const int qx, const int qy, const int qz,
-                          const double s_QQQ[9][MQ1*MQ1*MQ1],
-                          double *Jpr)
+MFEM_HOST_DEVICE inline void PullGradXYZ(const int x, const int y, const int z,
+                                         const double s_QQQ[9][MQ1*MQ1*MQ1],
+                                         double *Jpr)
 {
    double (*XxBBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+0);
    double (*XxBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+1);
@@ -746,25 +747,22 @@ const double *PullGradXYZ(const int qx, const int qy, const int qz,
    double (*XzBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+7);
    double (*XzGBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+8);
 
-   Jpr[0] = XxBBG[qz][qy][qx];
-   Jpr[3] = XxBGB[qz][qy][qx];
-   Jpr[6] = XxGBB[qz][qy][qx];
-   Jpr[1] = XyBBG[qz][qy][qx];
-   Jpr[4] = XyBGB[qz][qy][qx];
-   Jpr[7] = XyGBB[qz][qy][qx];
-   Jpr[2] = XzBBG[qz][qy][qx];
-   Jpr[5] = XzBGB[qz][qy][qx];
-   Jpr[8] = XzGBB[qz][qy][qx];
-
-   return Jpr;
+   Jpr[0] = XxBBG[z][y][x];
+   Jpr[3] = XxBGB[z][y][x];
+   Jpr[6] = XxGBB[z][y][x];
+   Jpr[1] = XyBBG[z][y][x];
+   Jpr[4] = XyBGB[z][y][x];
+   Jpr[7] = XyGBB[z][y][x];
+   Jpr[2] = XzBBG[z][y][x];
+   Jpr[5] = XzBGB[z][y][x];
+   Jpr[8] = XzGBB[z][y][x];
 }
 
 /// Push 3D GradXYZ(X) to QQQ
 template<int MQ1>
-MFEM_HOST_DEVICE inline
-void PushGradXYZ(const int qx, const int qy, const int qz,
-                 const double *A,
-                 double s_QQQ[9][MQ1*MQ1*MQ1])
+MFEM_HOST_DEVICE inline void PushGradXYZ(const int x, const int y, const int z,
+                                         const double *A,
+                                         double s_QQQ[9][MQ1*MQ1*MQ1])
 {
    double (*XxBBG)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+0);
    double (*XxBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+1);
@@ -776,17 +774,17 @@ void PushGradXYZ(const int qx, const int qy, const int qz,
    double (*XzBGB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+7);
    double (*XzGBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+8);
 
-   XxBBG[qz][qy][qx] = A[0];
-   XxBGB[qz][qy][qx] = A[1];
-   XxGBB[qz][qy][qx] = A[2];
+   XxBBG[z][y][x] = A[0];
+   XxBGB[z][y][x] = A[1];
+   XxGBB[z][y][x] = A[2];
 
-   XyBBG[qz][qy][qx] = A[3];
-   XyBGB[qz][qy][qx] = A[4];
-   XyGBB[qz][qy][qx] = A[5];
+   XyBBG[z][y][x] = A[3];
+   XyBGB[z][y][x] = A[4];
+   XyGBB[z][y][x] = A[5];
 
-   XzBBG[qz][qy][qx] = A[6];
-   XzBGB[qz][qy][qx] = A[7];
-   XzGBB[qz][qy][qx] = A[8];
+   XzBBG[z][y][x] = A[6];
+   XzBGB[z][y][x] = A[7];
+   XzGBB[z][y][x] = A[8];
 }
 
 /// 3D GradT, stage 1/3
@@ -1074,48 +1072,51 @@ public:
 /// - struct K##name##_T definition
 /// - Instantiator definition
 /// - re-use kernel return type and name before its body
-#if 1
-#define MFEM_REGISTER_TMOP_KERNELS(return_t, name, ...) \
+#if 0
+#define MFEM_REGISTER_TMOP_KERNELS(return_t, kernel, ...) \
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
-    return_t name(__VA_ARGS__);\
-typedef return_t (*name##_p)(__VA_ARGS__);\
-struct K##name##_T {\
+    return_t kernel(__VA_ARGS__);\
+typedef return_t (*kernel##_p)(__VA_ARGS__);\
+struct K##kernel##_T {\
    static const int N = 1;\
    using Key_t = std::size_t;\
-   using Kernel_t = name##_p;\
+   using Kernel_t = kernel##_p;\
    using Return_t = return_t;\
    template<Key_t I> static constexpr Key_t GetKey() noexcept {\
       return I==0 ? 0x21 : 0; }\
    template<Key_t ID> static constexpr Kernel_t GetValue() noexcept\
-   { return &name<(ID>>4)&0xF, ID&0xF>; }\
+   { return &kernel<(ID>>4)&0xF, ID&0xF>; }\
 };\
-static kernels::Instantiator<K##name##_T> K##name;\
-template<int T_D1D, int T_Q1D, int T_MAX> return_t name(__VA_ARGS__)
+static kernels::Instantiator<K##kernel##_T> K##kernel;\
+template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
 #else
-#define MFEM_REGISTER_TMOP_KERNELS(return_t, name, ...) \
+#define MFEM_REGISTER_TMOP_KERNELS(return_t, kernel, ...) \
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
-    return_t name(__VA_ARGS__);\
-typedef return_t (*name##_p)(__VA_ARGS__);\
-struct K##name##_T {\
-   static const int N = 24;\
+    return_t kernel(__VA_ARGS__);\
+typedef return_t (*kernel##_p)(__VA_ARGS__);\
+struct K##kernel##_T {\
+   static const int N = 14;\
    using Key_t = std::size_t;\
-   using Kernel_t = name##_p;\
+   using Kernel_t = kernel##_p;\
    using Return_t = return_t;\
-   template<Key_t I> static constexpr Key_t GetKey() noexcept {\
-      return I==0 ? 0x21 : I==1 ? 0x22 : I==2 ? 0x23 :\
-             I==3 ? 0x24 : I==4 ? 0x25 : I==5 ? 0x26 :\
-             I==6 ? 0x31 : I==7 ? 0x32 : I==8 ? 0x33 :\
-             I==9 ? 0x34 : I==10 ? 0x35 : I==11 ? 0x36  :\
-             I==12 ? 0x41 : I==13 ? 0x42 : I==14 ? 0x43 :\
-             I==15 ? 0x44 : I==16 ? 0x45 : I==17 ? 0x46 :\
-             I==18 ? 0x51 : I==19 ? 0x52 : I==20 ? 0x53 :\
-             I==21 ? 0x54 : I==22 ? 0x55 : I==23 ? 0x56 : 0; }\
+   template<Key_t I> static constexpr Key_t GetKey() noexcept { return \
+     I==0 ? 0x22 : I==1 ? 0x23 : I==2 ? 0x24 : I==3 ? 0x25 : I==4 ? 0x26 :\
+     I==5 ? 0x33 : I==6 ? 0x34 : I==7 ? 0x35 : I==8 ? 0x36  :\
+     I==9 ? 0x44 : I==10 ? 0x45 : I==11 ? 0x46 :\
+     I==12 ? 0x55 : I==13 ? 0x56 : 0; }\
    template<Key_t ID> static constexpr Kernel_t GetValue() noexcept\
-   { return &name<(ID>>4)&0xF, ID&0xF>; }\
+   { return &kernel<(ID>>4)&0xF, ID&0xF>; }\
 };\
-static kernels::Instantiator<K##name##_T> K##name;\
-template<int T_D1D, int T_Q1D, int T_MAX> return_t name(__VA_ARGS__)
+static kernels::Instantiator<K##kernel##_T> K##kernel;\
+template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
 #endif
+
+#define MFEM_LAUNCH_TMOP_KERNEL(kernel, id, ...)\
+if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0,0); }\
+else {\
+   constexpr int T_MAX = 4;\
+   MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");\
+   return kernel<0,0,T_MAX>(__VA_ARGS__,D1D,Q1D); }
 
 } // namespace kernels
 

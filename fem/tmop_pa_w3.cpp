@@ -152,19 +152,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
    const double mn = metric_normal;
 
    PA.elem_restrict_lex->Mult(x, PA.X);
-
-   if (KEnergyPA_3D.Find(id))
-   {
-      return KEnergyPA_3D.At(id)(mn,M,N,J,W,B,G,X,E,O,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 4;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return EnergyPA_3D<0,0,T_MAX>(mn,M,N,J,W,B,G,X,E,O,D1D,Q1D);
-
-   }
-   return 0.0;
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D, id, mn,M,N,J,W,B,G,X,E,O);
 }
 
 } // namespace mfem

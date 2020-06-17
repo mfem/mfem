@@ -52,28 +52,28 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
 {
    MFEM_VERIFY(mid == 1 || mid == 2, "2D metric not yet implemented!");
 
-   constexpr int dim = 2;
+   constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto J = Reshape(j_.Read(), dim, dim, Q1D, Q1D, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
-   const auto X = Reshape(x_.Read(), D1D, D1D, dim, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
    auto O = Reshape(ones.Write(), Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
       MFEM_SHARED double XY[2][NBZ][MD1*MD1];
@@ -121,7 +121,6 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
 
 double TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
 {
-   dbg("");
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
@@ -139,18 +138,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
    const double m = metric_normal;
 
    PA.elem_restrict_lex->Mult(x, X);
-
-   if (KEnergyPA_2D.Find(id))
-   {
-      return KEnergyPA_2D.At(id)(m,M,N,J,W,B,G,X,E,O,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 8;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return EnergyPA_2D<0,0,T_MAX>(m,M,N,J,W,B,G,X,E,O,D1D,Q1D);
-   }
-   return 0.0;
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D, id, m,M,N,J,W,B,G,X,E,O);
 }
 
 } // namespace mfem

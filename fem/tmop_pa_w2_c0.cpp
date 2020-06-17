@@ -109,7 +109,6 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
 
 double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
 {
-   dbg("");
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
@@ -130,19 +129,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
    MFEM_VERIFY(lim_dist, "Error");
    const double d = lim_dist->operator ()(0);
 
-   PA.elem_restrict_lex->Mult(x, X);
-
-   if (KEnergyPA_C0_2D.Find(id))
-   {
-      return KEnergyPA_C0_2D.At(id)(l,d,C0,N,J,W,B,G,X0,X,E,O,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 8;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return EnergyPA_C0_2D<0,0,T_MAX>(l,d,C0,N,J,W,B,G,X0,X,E,O,D1D,Q1D);
-   }
-   return 0.0;
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D, id, l,d,C0,N,J,W,B,G,X0,X,E,O);
 }
 
 } // namespace mfem
