@@ -3274,6 +3274,15 @@ void DenseMatrixInverse::SetOperator(const Operator &op)
    Factor(*p);
 }
 
+void DenseMatrixInverse::Mult(const double *x, double *y) const
+{
+   for (int row = 0; row < height; row++)
+   {
+      y[row] = x[row];
+   }
+   lu.Solve(width, 1, y);
+}
+
 void DenseMatrixInverse::Mult(const Vector &x, Vector &y) const
 {
    y = x;
