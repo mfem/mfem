@@ -103,7 +103,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
             //lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
             // d2.Diag(1.0 / (dist * dist), x.Size());
             const double c = 1.0 / (dist * dist);
-            double grad_grad[DIM*DIM];
+            double grad_grad[4];
             kernels::Diag<2>(c, grad_grad);
 
             ConstDeviceMatrix gg(grad_grad,DIM,DIM);
