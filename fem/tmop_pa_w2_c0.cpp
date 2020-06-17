@@ -37,7 +37,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    const double id2 = 0.5 / (dist*dist);
    const bool const_c0 = c0_.Size() == 1;
 
-   constexpr int dim = 2;
+   constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -46,12 +46,12 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, NE);
-   const auto J = Reshape(j_.Read(), dim, dim, Q1D, Q1D, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
-   const auto X0 = Reshape(x0_.Read(), D1D, D1D, dim, NE);
-   const auto X1 = Reshape(x1_.Read(), D1D, D1D, dim, NE);
+   const auto X0 = Reshape(x0_.Read(), D1D, D1D, DIM, NE);
+   const auto X1 = Reshape(x1_.Read(), D1D, D1D, DIM, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
 

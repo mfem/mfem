@@ -187,7 +187,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
    if (PA.dim == 3)
    {
       energy = GetGridFunctionEnergyPA_3D(x);
-      //if (coeff0) { energy += GetGridFunctionEnergyPA_C0_2D(x); }
+      if (coeff0) { energy += GetGridFunctionEnergyPA_C0_3D(x); }
    }
    return energy;
 }

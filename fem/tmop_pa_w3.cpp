@@ -65,15 +65,15 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
    MFEM_VERIFY(mid == 302 || mid == 303 || mid == 321 ,
                "3D metric not yet implemented!");
 
-   constexpr int dim = 3;
+   constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto J = Reshape(j_.Read(), dim, dim, Q1D, Q1D, Q1D, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
-   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, dim, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
 
@@ -84,18 +84,18 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double s_BG[2][MQ1*MD1];
-      MFEM_SHARED double s_DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double s_DDQ[6][MD1*MD1*MQ1];
-      MFEM_SHARED double s_DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED double DDQ[6][MD1*MD1*MQ1];
+      MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
 
-      kernels::LoadX<MD1>(e,D1D,X,s_DDD);
-      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
+      kernels::LoadX<MD1>(e,D1D,X,DDD);
+      kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
-      kernels::GradX<MD1,MQ1>(D1D,Q1D,s_BG,s_DDD,s_DDQ);
-      kernels::GradY<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,s_DQQ);
-      kernels::GradZ<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_QQQ);
+      kernels::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
+      kernels::GradY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
+      kernels::GradZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -113,7 +113,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
                // Jpr = X^t.DSh
                double Jpr[9];
-               kernels::PullGradXYZ<MQ1>(qx,qy,qz, s_QQQ, Jpr);
+               kernels::PullGradXYZ<MQ1>(qx,qy,qz, QQQ, Jpr);
 
                // Jpt = X^t.DS = (X^t.DSh).Jrt = Jpr.Jrt
                double Jpt[9];

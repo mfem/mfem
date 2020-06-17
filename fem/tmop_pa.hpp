@@ -531,6 +531,159 @@ MFEM_HOST_DEVICE inline void LoadX(const int e,
    MFEM_SYNC_THREAD;
 }
 
+/// 3D Eval, stage 1/3
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void EvalX(const int D1D, const int Q1D,
+                                   const double s_BG[2][MQ1*MD1],
+                                   const double s_DDD[3][MD1*MD1*MD1],
+                                   double s_DDQ[3][MD1*MD1*MQ1])
+{
+   double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
+
+   double (*Xx)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD+0);
+   double (*Xy)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD+1);
+   double (*Xz)[MD1][MD1] = (double (*)[MD1][MD1])(s_DDD+2);
+
+   double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+0);
+   double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+1);
+   double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+2);
+
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u[3] = {0.0, 0.0, 0.0};
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double xx = Xx[dz][dy][dx];
+               const double xy = Xy[dz][dy][dx];
+               const double xz = Xz[dz][dy][dx];
+               const double Bx = B[qx][dx];
+               u[0] += Bx * xx;
+               u[1] += Bx * xy;
+               u[2] += Bx * xz;
+            }
+            XxB[dz][dy][qx] = u[0];
+            XyB[dz][dy][qx] = u[1];
+            XzB[dz][dy][qx] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Grad, stage 2/3
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void EvalY(const int D1D, const int Q1D,
+                                   const double s_BG[2][MQ1*MD1],
+                                   const double s_DDQ[3][MD1*MD1*MQ1],
+                                   double s_DQQ[3][MD1*MQ1*MQ1])
+{
+   double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
+
+   double (*XxB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+0);
+   double (*XyB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+1);
+   double (*XzB)[MD1][MQ1] = (double (*)[MD1][MQ1])(s_DDQ+2);
+
+   double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+0);
+   double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+1);
+   double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+2);
+
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u[3] = {0.0, 0.0, 0.0};
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double By = B[qy][dy];
+               u[0] += XxB[dz][dy][qx] * By;
+               u[1] += XyB[dz][dy][qx] * By;
+               u[2] += XzB[dz][dy][qx] * By;
+            }
+            XxBB[dz][qy][qx] = u[0];
+            XyBB[dz][qy][qx] = u[1];
+            XzBB[dz][qy][qx] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Grad, stage 3/3
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void EvalZ(const int D1D, const int Q1D,
+                                   const double s_BG[2][MQ1*MD1],
+                                   const double s_DQQ[3][MD1*MQ1*MQ1],
+                                   double s_QQQ[3][MQ1*MQ1*MQ1])
+{
+   double (*B)[MD1] = (double (*)[MD1])(s_BG+0);
+
+   double (*XxBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+0);
+   double (*XyBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+1);
+   double (*XzBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_DQQ+2);
+
+   double (*XxBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+0);
+   double (*XyBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+1);
+   double (*XzBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+2);
+
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            double u[3] = {0.0, 0.0, 0.0};
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               const double Bz = B[qz][dz];
+               u[0] += XxBB[dz][qy][qx] * Bz;
+               u[1] += XyBB[dz][qy][qx] * Bz;
+               u[2] += XzBB[dz][qy][qx] * Bz;
+            }
+            XxBBB[qz][qy][qx] = u[0];
+            XyBBB[qz][qy][qx] = u[1];
+            XzBBB[qz][qy][qx] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Pull 3D EvalXYZ(X) into Jpr
+template<int MQ1>
+MFEM_HOST_DEVICE inline void PullEvalXYZ(const int x, const int y, const int z,
+                                         const double s_QQQ[3][MQ1*MQ1*MQ1],
+                                         double X[3])
+{
+   double (*XxBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+0);
+   double (*XyBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+1);
+   double (*XzBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+2);
+
+   X[0] = XxBBB[z][y][x];
+   X[1] = XyBBB[z][y][x];
+   X[2] = XzBBB[z][y][x];
+}
+
+/// Push 3D EvalXYZ(X) to QQQ
+template<int MQ1>
+MFEM_HOST_DEVICE inline void PushEvalXYZ(const int x, const int y, const int z,
+                                         const double A[3],
+                                         double s_QQQ[3][MQ1*MQ1*MQ1])
+{
+   double (*XxBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+0);
+   double (*XyBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+1);
+   double (*XzBBB)[MQ1][MQ1] = (double (*)[MQ1][MQ1])(s_QQQ+2);
+
+   XxBBB[z][y][x] = A[0];
+   XyBBB[z][y][x] = A[1];
+   XzBBB[z][y][x] = A[2];
+}
+
 /// 3D Grad, stage 1/3
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
@@ -1066,7 +1219,7 @@ public:
    Kernel_t At(const Key_t id) { return map.at(id); }
 };
 
-/// MFEM_REGISTER_TMOP_KERNELS(name) macro:
+/// MFEM_REGISTER_TMOP_KERNELS macro:
 /// - forward declaration of the kernel
 /// - kernel pointer declaration
 /// - struct K##name##_T definition
@@ -1092,6 +1245,7 @@ struct K##kernel##_T {\
 static kernels::Instantiator<K##kernel##_T> K##kernel;\
 template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
 
+/// MFEM_LAUNCH_TMOP_KERNEL macro
 #define MFEM_LAUNCH_TMOP_KERNEL(kernel, id, ...)\
 if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0,0); }\
 else {\

@@ -1077,6 +1077,7 @@ public:
    double GetGridFunctionEnergyPA_2D(const Vector&) const;
    double GetGridFunctionEnergyPA_C0_2D(const Vector&) const;
    double GetGridFunctionEnergyPA_3D(const Vector&) const;
+   double GetGridFunctionEnergyPA_C0_3D(const Vector&) const;
    virtual double GetGridFunctionEnergyPA(const Vector&) const;
 
    using NonlinearFormIntegrator::AssemblePA;
