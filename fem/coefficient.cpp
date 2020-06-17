@@ -286,7 +286,7 @@ void VectorRestrictedCoefficient::Eval(
 }
 
 void UnitNormalCoefficient::Eval(Vector &V, ElementTransformation &T,
-				 const IntegrationPoint &ip)
+                                 const IntegrationPoint &ip)
 {
    V.SetSize(vdim);
    V = 0.0;
