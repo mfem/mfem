@@ -40,8 +40,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
 
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-   constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

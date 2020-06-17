@@ -1072,24 +1072,6 @@ public:
 /// - struct K##name##_T definition
 /// - Instantiator definition
 /// - re-use kernel return type and name before its body
-#if 0
-#define MFEM_REGISTER_TMOP_KERNELS(return_t, kernel, ...) \
-template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
-    return_t kernel(__VA_ARGS__);\
-typedef return_t (*kernel##_p)(__VA_ARGS__);\
-struct K##kernel##_T {\
-   static const int N = 1;\
-   using Key_t = std::size_t;\
-   using Kernel_t = kernel##_p;\
-   using Return_t = return_t;\
-   template<Key_t I> static constexpr Key_t GetKey() noexcept {\
-      return I==0 ? 0x21 : 0; }\
-   template<Key_t ID> static constexpr Kernel_t GetValue() noexcept\
-   { return &kernel<(ID>>4)&0xF, ID&0xF>; }\
-};\
-static kernels::Instantiator<K##kernel##_T> K##kernel;\
-template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
-#else
 #define MFEM_REGISTER_TMOP_KERNELS(return_t, kernel, ...) \
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX = 0> \
     return_t kernel(__VA_ARGS__);\
@@ -1109,7 +1091,6 @@ struct K##kernel##_T {\
 };\
 static kernels::Instantiator<K##kernel##_T> K##kernel;\
 template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
-#endif
 
 #define MFEM_LAUNCH_TMOP_KERNEL(kernel, id, ...)\
 if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0,0); }\
