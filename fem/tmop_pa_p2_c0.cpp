@@ -46,9 +46,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-
    const auto C0 = const_c0 ?
                    Reshape(c0_.Read(), 1, 1, 1) :
                    Reshape(c0_.Read(), Q1D, Q1D, NE);
@@ -129,20 +126,16 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double ln = lim_normal;
+   const double ld = lim_dist->HostRead()[0];
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = IntRule->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
 
-   const double l = lim_normal;
-   lim_dist->HostRead();
-   MFEM_VERIFY(lim_dist, "Error");
-   const double d = lim_dist->operator ()(0);
-
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D, id, l,d,C0,N,J,W,B,G,X0,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D,id,ln,ld,C0,N,J,W,B,G,X0,X,Y);
 }
 
 } // namespace mfem

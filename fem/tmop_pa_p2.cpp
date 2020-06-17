@@ -133,13 +133,12 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = IntRule->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D, id, mn,M,N,J,W,B,G,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

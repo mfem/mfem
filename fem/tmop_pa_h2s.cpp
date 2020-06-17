@@ -157,16 +157,15 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double mn = metric_normal;
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   Vector &H = PA.A;
+   Vector &H = PA.H;
 
-   const double mn = metric_normal;
-
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D, id, X,mn,M,N,W,B,G,J,H);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,M,N,W,B,G,J,H);
 }
 
 } // namespace mfem

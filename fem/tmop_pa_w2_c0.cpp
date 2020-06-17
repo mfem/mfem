@@ -29,11 +29,12 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
                            const Array<double> &g_,
                            const Vector &x0_,
                            const Vector &x1_,
+                           const Vector &ones,
                            Vector &energy,
-                           Vector &ones,
                            const int d1d,
                            const int q1d)
 {
+   const double id2 = 0.5 / (dist*dist);
    const bool const_c0 = c0_.Size() == 1;
 
    constexpr int dim = 2;
@@ -53,7 +54,6 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    const auto X1 = Reshape(x1_.Read(), D1D, D1D, dim, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
-   auto O = Reshape(ones.Write(), Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -88,30 +88,29 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
+            double p0[2], p1[2];
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
             const double weight = W(qx,qy) * detJtr;
-
-            double p0[2], p1[2];
-            const double c0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+            const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ0,p0);
             kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ1,p1);
-            const double lf_eval_p_p0_dist =
-            0.5 * kernels::DistanceSquared<2>(p1,p0) / (dist * dist);
-            E(qx,qy,e) = weight * lim_normal * lf_eval_p_p0_dist * c0;
-            O(qx,qy,e) = 1.0;
+            const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+            E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
          }
       }
    });
    return energy * ones;
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
+double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &X) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double ln = lim_normal;
+   const double ld = lim_dist->HostRead()[0];
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
@@ -119,16 +118,10 @@ double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &x) const
    const Array<double> &G = PA.maps->G;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
-   Vector &X = PA.X;
+   const Vector &O = PA.O;
    Vector &E = PA.E;
-   Vector &O = PA.O;
 
-   const double l = lim_normal;
-   lim_dist->HostRead();
-   MFEM_VERIFY(lim_dist, "Error");
-   const double d = lim_dist->operator ()(0);
-
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D, id, l,d,C0,N,J,W,B,G,X0,X,E,O);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,ld,C0,N,J,W,B,G,X0,X,O,E);
 }
 
 } // namespace mfem

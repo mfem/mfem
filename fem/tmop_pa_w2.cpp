@@ -44,8 +44,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const Array<double> &b_,
                            const Array<double> &g_,
                            const Vector &x_,
+                           const Vector &ones,
                            Vector &energy,
-                           Vector &ones,
                            const int d1d,
                            const int q1d)
 {
@@ -64,7 +64,6 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
    const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
-   auto O = Reshape(ones.Write(), Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
@@ -111,33 +110,29 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
             mid == 2 ? EvalW_002(Jpt) : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
-            O(qx,qy,e) = 1.0;
          }
       }
    });
    return energy * ones;
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &x) const
+double TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &X) const
 {
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double m = metric_normal;
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   Vector &X = PA.X;
+   const Vector &O = PA.O;
    Vector &E = PA.E;
-   Vector &O = PA.O;
 
-   const double m = metric_normal;
-
-   PA.elem_restrict_lex->Mult(x, X);
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D, id, m,M,N,J,W,B,G,X,E,O);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,m,M,N,J,W,B,G,X,O,E);
 }
 
 } // namespace mfem
