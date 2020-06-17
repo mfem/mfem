@@ -58,12 +58,12 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    double newton_rtol    = 1e-8;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
+   double lim_const      = 0.0;
+   int normalization     = 0;
 
-   constexpr double lim_const = 0.0;
    constexpr double adapt_lim_const = 0.0;
    constexpr bool move_bnd = false;
    constexpr int combomet  = 0;
-   constexpr bool normalization = false;
    constexpr int verbosity_level = 0;
    constexpr bool fdscheme = false;
 
@@ -86,6 +86,8 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    args.AddOption(&newton_rtol, "-rtol", "--newton-rel-tolerance", "");
    args.AddOption(&lin_solver, "-ls", "--lin-solver", "");
    args.AddOption(&max_lin_iter, "-li", "--lin-iter", "");
+   args.AddOption(&lim_const, "-lc", "--limit-const", "");
+   args.AddOption(&normalization, "-nor", "--normalization", "");
    args.AddOption(&pa, "-pa", "--pa", "-no-pa", "--no-pa", "");
    args.Parse();
    if (!args.Good())
@@ -112,6 +114,16 @@ int tmop(int myid, Req &res, int argc, char *argv[])
    pmesh->SetNodalFESpace(&fes);
    ParGridFunction x0(&fes), x(&fes);
    pmesh->SetNodalGridFunction(&x);
+
+   double volume = 0.0;
+   {
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         volume += pmesh->GetElementVolume(i);
+      }
+   }
+   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+
    x.SetTrueVector();
    x.SetFromTrueVector();
    x0 = x;
@@ -174,6 +186,14 @@ int tmop(int myid, Req &res, int argc, char *argv[])
 
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, &target_c);
    he_nlf_integ->SetIntegrationRule(*ir);
+
+   if (normalization == 1) { he_nlf_integ->EnableNormalization(x0); }
+
+   ParGridFunction dist(&fes);
+   dist = 1.0;
+   if (normalization == 1) { dist = small_phys_size; }
+   ConstantCoefficient lim_coeff(lim_const);
+   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::NONE);
@@ -276,7 +296,8 @@ static void req_tmop(int myid, const char *args[], Req &res)
 #define DEFAULT_ARGS const char *args[] = { \
     "tmop_tests", "-pa", "-m", "mesh", "-o", "0", "-rs", "0", \
     "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
-    "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", nullptr }
+    "-ni", "10", "-rtol", "1e-8", "-ls", "2", "-li", "100", \
+    "-lc", "0", "-nor", "0", nullptr }
 constexpr int ALV = 1;
 constexpr int MSH = 3;
 constexpr int POR = 5;
@@ -288,12 +309,17 @@ constexpr int QOR = 15;
 constexpr int NI  = 17;
 constexpr int LS  = 21;
 constexpr int LI  = 23;
+constexpr int LC  = 25;
+constexpr int NOR  = 27;
 
 static void dump_args(const char *args[])
 {
-   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s %s\n",
+   printf("tmop -m %s -o %s -qo %s -mid %s -tid %s -ls %s%s%s %s\n",
           args[MSH], args[POR], args[QOR],
-          args[MID], args[TID], args[LS], args[ALV]);
+          args[MID], args[TID], args[LS],
+          args[LC][0] == '0' ? "" : " -lc",
+          args[NOR][0] == '0' ? "" : " -nor",
+          args[ALV]);
    fflush(0);
 }
 
@@ -318,6 +344,79 @@ static void tmop_tests(int myid)
 {
    static bool all = getenv("MFEM_TESTS_UNIT_TMOP_ALL");
 
+   // 2D BLADE + normalization
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[MID] = "2";
+      args[NI] = "100";
+      args[LI] = "100";
+      args[NOR] = "1";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            if (q <= p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int t : {1, 2, 3})
+            {
+               char tid[2] {};
+               args[TID] = itoa(t, tid);
+               for (int ls : {2, 3})
+               {
+                  char lsb[2] {};
+                  args[LS] = itoa(ls, lsb);
+                  tmop_require(myid, args);
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // 2D BLADE + normalization
+
+   // 2D BLADE + limiting + normalization
+   {
+      DEFAULT_ARGS;
+      args[MSH] = "blade.mesh";
+      args[MID] = "2";
+      args[NI] = "100";
+      args[LI] = "100";
+      args[LC] = "3.14";
+      args[NOR] = "1";
+      for (int p : {1, 2})
+      {
+         char por[2] {};
+         args[POR] = itoa(p, por);
+         for (int q : {2, 4})
+         {
+            if (q <= p) { continue; }
+            char qor[2] {};
+            args[QOR] = itoa(q, qor);
+            for (int t : {1, 2, 3})
+            {
+               char tid[2] {};
+               args[TID] = itoa(t, tid);
+               for (int ls : {2, 3})
+               {
+                  char lsb[2] {};
+                  args[LS] = itoa(ls, lsb);
+                  tmop_require(myid, args);
+                  if (!all) { break; }
+               }
+               if (!all) { break; }
+            }
+            if (!all) { break; }
+         }
+         if (!all) { break; }
+      }
+   } // 2D BLADE + limiting + normalization
+
    // STAR
    {
       DEFAULT_ARGS;
@@ -336,7 +435,7 @@ static void tmop_tests(int myid)
                args[MID] = itoa(m, mid);
                for (int q : {2, 4, 8})
                {
-                  if (q < p) { continue; }
+                  if (q <= p) { continue; }
                   char qor[2] {};
                   args[QOR] = itoa(q, qor);
                   for (int ls : {2, 3})

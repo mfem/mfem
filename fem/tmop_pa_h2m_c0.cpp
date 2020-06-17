@@ -51,8 +51,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto X0 = Reshape(x0_.Read(), D1D, D1D, DIM, NE);
-   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
+   //const auto X0 = Reshape(x0_.Read(), D1D, D1D, DIM, NE);
+   //const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, DIM, NE);
    //const auto H0 = Reshape(p_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
@@ -138,7 +138,6 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &X, const Vector &R,
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   //const Vector &A0 = PA.A0;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
 
@@ -147,16 +146,8 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &X, const Vector &R,
    MFEM_VERIFY(lim_dist, "Error");
    const double d = lim_dist->operator ()(0);
 
-   if (KAddMultGradPA_Kernel_C0_2D.Find(id))
-   {
-      return KAddMultGradPA_Kernel_C0_2D.At(id)(l,d,C0,N,J,W,B,G,X0,X,R,C,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 8;
-      MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-      return AddMultGradPA_Kernel_C0_2D<0,0,T_MAX>(l,d,C0,N,J,W,B,G,X0,X,R,C,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_C0_2D, id,
+                           l,d,C0,N,J,W,B,G,X0,X,R,C);
 }
 
 } // namespace mfem

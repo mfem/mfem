@@ -123,13 +123,10 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   dbg("");
    if (PA.dim == 2)
    {
       AddMultPA_2D(x,y);
-      dbg("y:%.15e",y*y);
       if (coeff0) { AddMultPA_C0_2D(x,y); }
-      dbg("y:%.15e",y*y);
       return;
    }
    if (PA.dim == 3) { return AddMultPA_3D(x,y); }
@@ -138,7 +135,6 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 
 void TMOP_Integrator::AssembleGradPA(const Vector &x) const
 {
-   dbg("");
    if (PA.dim == 2)
    {
       AssembleGradPA_2D(x);
@@ -152,7 +148,6 @@ void TMOP_Integrator::AssembleGradPA(const Vector &x) const
 void TMOP_Integrator::AddMultGradPA(const Vector &x,
                                     const Vector &r, Vector &c) const
 {
-   dbg("");
    if (PA.dim == 2)
    {
       if (!PA.setup)
@@ -171,7 +166,6 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x,
 
 double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
 {
-   dbg("");
    if (PA.dim == 2)
    {
       double energy = 0.0;

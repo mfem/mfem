@@ -126,7 +126,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
 
 void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
 {
-   dbg("");
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
@@ -144,16 +143,7 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
    MFEM_VERIFY(lim_dist, "Error");
    const double d = lim_dist->operator ()(0);
 
-   if (KAddMultPA_Kernel_C0_2D.Find(id))
-   {
-      return KAddMultPA_Kernel_C0_2D.At(id)(l,d,C0,N,J,W,B,G,X0,X,Y,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 8;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return AddMultPA_Kernel_C0_2D<0,0,T_MAX>(l,d,C0,N,J,W,B,G,X0,X,Y,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_C0_2D, id, l,d,C0,N,J,W,B,G,X0,X,Y);
 }
 
 } // namespace mfem

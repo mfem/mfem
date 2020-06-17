@@ -136,16 +136,7 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &X, const Vector &R,
       AssembleGradPA_3D(X);
    }
 
-   if (KAddMultGradPA_Kernel_3D.Find(id))
-   {
-      return KAddMultGradPA_Kernel_3D.At(id)(N,B,G,J,A,R,C,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 4;
-      MFEM_VERIFY(D1D <= T_MAX && Q1D <= T_MAX, "Max size error!");
-      return AddMultGradPA_Kernel_3D<0,0,T_MAX>(N,B,G,J,A,R,C,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D, id, N,B,G,J,A,R,C);
 }
 
 } // namespace mfem

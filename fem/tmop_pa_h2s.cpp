@@ -92,7 +92,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const int d1d,
                            const int q1d)
 {
-   dbg("");
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -168,16 +167,7 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
 
    const double mn = metric_normal;
 
-   if (KSetupGradPA_2D.Find(id))
-   {
-      return KSetupGradPA_2D.At(id)(X,mn,M,N,W,B,G,J,H,0,0);
-   }
-   else
-   {
-      constexpr int T_MAX = 8;
-      MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-      return SetupGradPA_2D<0,0,T_MAX>(X,mn,M,N,W,B,G,J,H,D1D,Q1D);
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D, id, X,mn,M,N,W,B,G,J,H);
 }
 
 } // namespace mfem
