@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mesh_operators.hpp"
 #include "pmesh.hpp"
@@ -95,12 +95,19 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
-   double total_err = GetNorm(local_err, mesh);
+   const double total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
 
-   threshold = std::max(total_err * total_fraction *
-                        std::pow(num_elements, -1.0/total_norm_p),
-                        local_err_goal);
+   if (total_norm_p < infinity())
+   {
+      threshold = std::max(total_err * total_fraction *
+                           std::pow(num_elements, -1.0/total_norm_p),
+                           local_err_goal);
+   }
+   else
+   {
+      threshold = std::max(total_err * total_fraction, local_err_goal);
+   }
 
    for (int el = 0; el < NE; el++)
    {

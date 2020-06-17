@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
@@ -60,15 +60,15 @@ PARALLEL_NAME := Parallel SUNDIALS example
 	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
 # Testing: Specific execution options:
-# Example 9: test explicit CVODE time stepping
-EX9_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -p 0 -s 11
+# Example 9: test CVODE with CV_ADAMS (non-stiff implicit) time stepping
+EX9_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -p 0 -s 7
 EX9_ARGS  := $(EX9_COMMON_ARGS) -r  2 -dt 0.0018 -vs 25
 EX9P_ARGS := $(EX9_COMMON_ARGS) -rp 1 -dt 0.0009 -vs 50
 ex9-test-seq: ex9
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX9_ARGS))
 ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX9P_ARGS))
-# Example 10: test implicit CVODE time stepping
+# Example 10: test CVODE with CV_BDF (stiff implicit) time stepping
 EX10_COMMON_ARGS := -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -tf 6 -vs 10
 EX10_ARGS  := $(EX10_COMMON_ARGS) -r  2
 EX10P_ARGS := $(EX10_COMMON_ARGS) -rp 1

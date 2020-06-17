@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 // Implementation of Bilinear Form Integrators
 
@@ -19,21 +19,77 @@ using namespace std;
 
 namespace mfem
 {
-void BilinearFormIntegrator::Assemble(const FiniteElementSpace&)
+
+void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::Assemble (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::MultAssembled(Vector&, Vector&)
+void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
+                                        const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembled (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePA(...)\n"
                "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::MultAssembledTranspose(Vector&, Vector&)
+void BilinearFormIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&)
 {
-   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssemblePAInteriorFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::AssemblePABoundaryFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleDiagonalPA(Vector &)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleDiagonalPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                        Vector &emat)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace
+                                                     &fes,
+                                                     Vector &ea_data_int,
+                                                     Vector &ea_data_ext)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEAInteriorFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace
+                                                     &fes,
+                                                     Vector &ea_data_bdr)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleEABoundaryFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleDiagonalPA_ADAt(const Vector &, Vector &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleDiagonalPA_ADAt(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembled(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
+{
+   mfem_error ("BilinearFormIntegrator::MultAssembledTranspose(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -41,7 +97,7 @@ void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
    DenseMatrix &elmat )
 {
-   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -49,7 +105,7 @@ void BilinearFormIntegrator::AssembleElementMatrix2 (
    const FiniteElement &el1, const FiniteElement &el2,
    ElementTransformation &Trans, DenseMatrix &elmat )
 {
-   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2 (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleElementMatrix2(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -57,7 +113,7 @@ void BilinearFormIntegrator::AssembleFaceMatrix (
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix (...)\n"
+   mfem_error ("BilinearFormIntegrator::AssembleFaceMatrix(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -378,6 +434,73 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    }
 }
 
+
+void GradientIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans,  DenseMatrix &elmat)
+{
+   int dim = test_fe.GetDim();
+   int trial_dof = trial_fe.GetDof();
+   int test_dof = test_fe.GetDof();
+   double c;
+   Vector d_col;
+
+   dshape.SetSize(trial_dof, dim);
+   gshape.SetSize(trial_dof, dim);
+   Jadj.SetSize(dim);
+   shape.SetSize(test_dof);
+   elmat.SetSize(dim * test_dof, trial_dof);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            Trans);
+
+   elmat = 0.0;
+   elmat_comp.SetSize(test_dof, trial_dof);
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      trial_fe.CalcDShape(ip, dshape);
+      test_fe.CalcShape(ip, shape);
+
+      Trans.SetIntPoint(&ip);
+      CalcAdjugate(Trans.Jacobian(), Jadj);
+
+      Mult(dshape, Jadj, gshape);
+
+      c = ip.weight;
+      if (Q)
+      {
+         c *= Q->Eval(Trans, ip);
+      }
+      shape *= c;
+
+      for (int d = 0; d < dim; ++d)
+      {
+         gshape.GetColumnReference(d, d_col);
+         MultVWt(shape, d_col, elmat_comp);
+         for (int jj = 0; jj < trial_dof; ++jj)
+         {
+            for (int ii = 0; ii < test_dof; ++ii)
+            {
+               elmat(d * test_dof + ii, jj) += elmat_comp(ii, jj);
+            }
+         }
+      }
+   }
+}
+
+const IntegrationRule &GradientIntegrator::GetRule(const FiniteElement
+                                                   &trial_fe,
+                                                   const FiniteElement &test_fe,
+                                                   ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+
 void DiffusionIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
@@ -397,29 +520,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 #endif
    elmat.SetSize(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order;
-      if (el.Space() == FunctionSpace::Pk)
-      {
-         order = 2*el.GetOrder() - 2;
-      }
-      else
-         // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      {
-         order = 2*el.GetOrder() + dim - 1;
-      }
-
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -475,28 +576,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 #endif
    elmat.SetSize(te_nd, tr_nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order;
-      if (trial_fe.Space() == FunctionSpace::Pk)
-      {
-         order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-      }
-      else
-      {
-         order = trial_fe.GetOrder() + test_fe.GetOrder() + dim - 1;
-      }
-
-      if (trial_fe.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(trial_fe.GetGeomType(), order);
-      }
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -551,29 +631,7 @@ void DiffusionIntegrator::AssembleElementVector(
 
    elvect.SetSize(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order;
-      if (el.Space() == FunctionSpace::Pk)
-      {
-         order = 2*el.GetOrder() - 2;
-      }
-      else
-         // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      {
-         order = 2*el.GetOrder() + dim - 1;
-      }
-
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
    elvect = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -610,7 +668,7 @@ void DiffusionIntegrator::AssembleElementVector(
 
 void DiffusionIntegrator::ComputeElementFlux
 ( const FiniteElement &el, ElementTransformation &Trans,
-  Vector &u, const FiniteElement &fluxelem, Vector &flux, int with_coef )
+  Vector &u, const FiniteElement &fluxelem, Vector &flux, bool with_coef )
 {
    int i, j, nd, dim, spaceDim, fnd;
 
@@ -733,6 +791,27 @@ double DiffusionIntegrator::ComputeFluxEnergy
    return energy;
 }
 
+const IntegrationRule &DiffusionIntegrator::GetRule(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe)
+{
+   int order;
+   if (trial_fe.Space() == FunctionSpace::Pk)
+   {
+      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+   }
+   else
+   {
+      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+   }
+
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 
 void MassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
@@ -748,21 +827,7 @@ void MassIntegrator::AssembleElementMatrix
    elmat.SetSize(nd);
    shape.SetSize(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      // int order = 2 * el.GetOrder();
-      int order = 2 * el.GetOrder() + Trans.OrderW();
-
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -787,7 +852,6 @@ void MassIntegrator::AssembleElementMatrix2(
 {
    int tr_nd = trial_fe.GetDof();
    int te_nd = test_fe.GetDof();
-   // int dim = trial_fe.GetDim();
    double w;
 
 #ifdef MFEM_THREAD_SAFE
@@ -797,13 +861,8 @@ void MassIntegrator::AssembleElementMatrix2(
    shape.SetSize(tr_nd);
    te_shape.SetSize(te_nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW();
-
-      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule :
+                               &GetRule(trial_fe, test_fe, Trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -822,6 +881,20 @@ void MassIntegrator::AssembleElementMatrix2(
       te_shape *= w;
       AddMultVWt(te_shape, shape, elmat);
    }
+}
+
+const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
+                                               const FiniteElement &test_fe,
+                                               ElementTransformation &Trans)
+{
+   // int order = trial_fe.GetOrder() + test_fe.GetOrder();
+   const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW();
+
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
 
@@ -846,7 +919,7 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    {
       int order = 2 * el1.GetOrder();
 
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    elmat = 0.0;
@@ -857,17 +930,16 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
       Trans.Loc1.Transform(ip, eip);
       el1.CalcShape(eip, shape);
 
-      Trans.Face->SetIntPoint(&ip);
-      w = Trans.Face->Weight() * ip.weight;
+      Trans.SetIntPoint(&ip);
+      w = Trans.Weight() * ip.weight;
       if (Q)
       {
-         w *= Q -> Eval(*Trans.Face, ip);
+         w *= Q -> Eval(Trans, ip);
       }
 
       AddMult_a_VVt(w, shape, elmat);
    }
 }
-
 
 void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
@@ -895,7 +967,7 @@ void ConvectionIntegrator::AssembleElementMatrix(
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
-   Q.Eval(Q_ir, Trans, *ir);
+   Q->Eval(Q_ir, Trans, *ir);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -936,7 +1008,7 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
-   Q.Eval(Q_nodal, Trans, el.GetNodes()); // sets the size of Q_nodal
+   Q->Eval(Q_nodal, Trans, el.GetNodes()); // sets the size of Q_nodal
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -969,6 +1041,21 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    }
 }
 
+const IntegrationRule &ConvectionIntegrator::GetRule(const FiniteElement
+                                                     &trial_fe,
+                                                     const FiniteElement &test_fe,
+                                                     ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
+
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+const IntegrationRule &ConvectionIntegrator::GetRule(
+   const FiniteElement &el, ElementTransformation &Trans)
+{
+   return GetRule(el,el,Trans);
+}
 
 void VectorMassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
@@ -1417,7 +1504,7 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
          dshapedxi(l) = dshapedxt(l,xi);
       }
 
-      shape *= Q.Eval(Trans,ip) * det * ip.weight;
+      shape *= Q->Eval(Trans,ip) * det * ip.weight;
       AddMultVWt (shape, dshapedxi, elmat);
    }
 }
@@ -1497,7 +1584,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
 void CurlCurlIntegrator
 ::ComputeElementFlux(const FiniteElement &el, ElementTransformation &Trans,
                      Vector &u, const FiniteElement &fluxelem, Vector &flux,
-                     int with_coef)
+                     bool with_coef)
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix projcurl;
@@ -1799,29 +1886,29 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   if ( test_fe.GetRangeType() == FiniteElement::SCALAR && VQ )
+   if (test_fe.GetRangeType() == FiniteElement::SCALAR
+       && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
-      int dim  = test_fe.GetDim();
+      int spaceDim = Trans.GetSpaceDim();
+      int vdim = MQ ? MQ->GetHeight() : spaceDim;
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
 
-      if (MQ)
-         mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for tensor materials");
-
 #ifdef MFEM_THREAD_SAFE
-      DenseMatrix trial_vshape(trial_dof, dim);
+      DenseMatrix trial_vshape(trial_dof, spaceDim);
       Vector shape(test_dof);
-      Vector D(dim);
+      Vector D(VQ ? VQ->GetVDim() : 0);
+      DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
-      trial_vshape.SetSize(trial_dof, dim);
+      trial_vshape.SetSize(trial_dof, spaceDim);
       shape.SetSize(test_dof);
-      D.SetSize(dim);
+      D.SetSize(VQ ? VQ->GetVDim() : 0);
+      K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
 
-      elmat.SetSize (test_dof, trial_dof);
+      elmat.SetSize(vdim*test_dof, trial_dof);
 
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
@@ -1841,97 +1928,83 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          test_fe.CalcShape(ip, shape);
 
          w = ip.weight * Trans.Weight();
-         VQ->Eval(D, Trans, ip);
-         D *= w;
-
-         for (int d = 0; d < dim; d++)
+         if (VQ)
          {
-            for (int j = 0; j < test_dof; j++)
+            VQ->Eval(D, Trans, ip);
+            D *= w;
+            for (int d = 0; d < vdim; d++)
             {
-               for (int k = 0; k < trial_dof; k++)
+               for (int j = 0; j < test_dof; j++)
                {
-                  elmat(j, k) += D[d] * shape(j) * trial_vshape(k, d);
+                  for (int k = 0; k < trial_dof; k++)
+                  {
+                     elmat(d * test_dof + j, k) +=
+                        shape(j) * D(d) * trial_vshape(k, d);
+                  }
+               }
+            }
+         }
+         else if (MQ)
+         {
+            MQ->Eval(K, Trans, ip);
+            K *= w;
+            for (int d = 0; d < vdim; d++)
+            {
+               for (int j = 0; j < test_dof; j++)
+               {
+                  for (int k = 0; k < trial_dof; k++)
+                  {
+                     double Kv = 0.0;
+                     for (int vd = 0; vd < spaceDim; vd++)
+                     {
+                        Kv += K(d, vd) * trial_vshape(k, vd);
+                     }
+                     elmat(d * test_dof + j, k) += shape(j) * Kv;
+                  }
+               }
+            }
+         }
+         else
+         {
+            if (Q)
+            {
+               w *= Q->Eval(Trans, ip);
+            }
+            for (int d = 0; d < vdim; d++)
+            {
+               for (int j = 0; j < test_dof; j++)
+               {
+                  for (int k = 0; k < trial_dof; k++)
+                  {
+                     elmat(d * test_dof + j, k) +=
+                        w * shape(j) * trial_vshape(k, d);
+                  }
                }
             }
          }
       }
    }
-   else if ( test_fe.GetRangeType() == FiniteElement::SCALAR )
-   {
-      // assume test_fe is scalar FE and trial_fe is vector FE
-      int dim  = test_fe.GetDim();
-      int trial_dof = trial_fe.GetDof();
-      int test_dof = test_fe.GetDof();
-      double w;
-
-      if (VQ || MQ)
-         mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for vector/tensor permeability");
-
-#ifdef MFEM_THREAD_SAFE
-      DenseMatrix trial_vshape(trial_dof, dim);
-      Vector shape(test_dof);
-#else
-      trial_vshape.SetSize(trial_dof, dim);
-      shape.SetSize(test_dof);
-#endif
-
-      elmat.SetSize (dim*test_dof, trial_dof);
-
-      const IntegrationRule *ir = IntRule;
-      if (ir == NULL)
-      {
-         int order = (Trans.OrderW() + test_fe.GetOrder() + trial_fe.GetOrder());
-         ir = &IntRules.Get(test_fe.GetGeomType(), order);
-      }
-
-      elmat = 0.0;
-      for (int i = 0; i < ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-
-         Trans.SetIntPoint (&ip);
-
-         trial_fe.CalcVShape(Trans, trial_vshape);
-         test_fe.CalcShape(ip, shape);
-
-         w = ip.weight * Trans.Weight();
-         if (Q)
-         {
-            w *= Q -> Eval (Trans, ip);
-         }
-
-         for (int d = 0; d < dim; d++)
-         {
-            for (int j = 0; j < test_dof; j++)
-            {
-               for (int k = 0; k < trial_dof; k++)
-               {
-                  elmat(d * test_dof + j, k) += w * shape(j) * trial_vshape(k, d);
-               }
-            }
-         }
-      }
-   }
-   else
+   else if (test_fe.GetRangeType() == FiniteElement::VECTOR
+            && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume both test_fe and trial_fe are vector FE
-      int dim  = test_fe.GetDim();
+      int spaceDim = Trans.GetSpaceDim();
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
 
-      if (VQ || MQ)
-         mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
-                    "   is not implemented for vector/tensor permeability");
-
 #ifdef MFEM_THREAD_SAFE
-      DenseMatrix trial_vshape(trial_dof, dim);
-      DenseMatrix test_vshape(test_dof,dim);
+      DenseMatrix trial_vshape(trial_dof,spaceDim);
+      DenseMatrix test_vshape(test_dof,spaceDim);
+      Vector D(VQ ? VQ->GetVDim() : 0);
+      DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #else
-      trial_vshape.SetSize(trial_dof, dim);
-      test_vshape.SetSize(test_dof,dim);
+      trial_vshape.SetSize(trial_dof,spaceDim);
+      test_vshape.SetSize(test_dof,spaceDim);
+      D.SetSize(VQ ? VQ->GetVDim() : 0);
+      K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
 #endif
+      DenseMatrix tmp(test_vshape.Height(), K.Width());
 
       elmat.SetSize (test_dof, trial_dof);
 
@@ -1953,22 +2026,33 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          test_fe.CalcVShape(Trans, test_vshape);
 
          w = ip.weight * Trans.Weight();
-         if (Q)
+         if (MQ)
          {
-            w *= Q -> Eval (Trans, ip);
+            MQ->Eval(K, Trans, ip);
+            K *= w;
+            Mult(test_vshape,K,tmp);
+            AddMultABt(tmp,trial_vshape,elmat);
          }
-
-         for (int d = 0; d < dim; d++)
+         else if (VQ)
          {
-            for (int j = 0; j < test_dof; j++)
+            VQ->Eval(D, Trans, ip);
+            D *= w;
+            AddMultADBt(test_vshape,D,trial_vshape,elmat);
+         }
+         else
+         {
+            if (Q)
             {
-               for (int k = 0; k < trial_dof; k++)
-               {
-                  elmat(j, k) += w * test_vshape(j, d) * trial_vshape(k, d);
-               }
+               w *= Q -> Eval (Trans, ip);
             }
+            AddMult_a_ABt(w,test_vshape,trial_vshape,elmat);
          }
       }
+   }
+   else
+   {
+      mfem_error("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
+                 "   is not implemented for given trial and test bases.");
    }
 }
 
@@ -1991,12 +2075,8 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize (test_dof, dim*trial_dof);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder();
-      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
+                                                            Trans);
 
    elmat = 0.0;
 
@@ -2024,6 +2104,15 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
       shape *= c;
       AddMultVWt (shape, divshape, elmat);
    }
+}
+
+const IntegrationRule &VectorDivergenceIntegrator::GetRule(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
+   return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
 
@@ -2076,17 +2165,17 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   int dim = el.GetDim();
-   int dof = el.GetDof();
+   const int dim = el.GetDim();
+   const int dof = el.GetDof();
+   const int sdim = Trans.GetSpaceDim();
+   const bool square = (dim == sdim);
+   double w;
 
-   double norm;
+   elmat.SetSize(sdim * dof);
 
-   elmat.SetSize (dim * dof);
-
-   Jinv.  SetSize (dim);
-   dshape.SetSize (dof, dim);
-   gshape.SetSize (dof, dim);
-   pelmat.SetSize (dof);
+   dshape.SetSize(dof, dim);
+   dshapedxt.SetSize(dof, sdim);
+   pelmat.SetSize(dof);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -2104,35 +2193,29 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    }
 
    elmat = 0.0;
+   pelmat = 0.0;
 
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
       el.CalcDShape (ip, dshape);
-
       Trans.SetIntPoint (&ip);
-      norm = ip.weight * Trans.Weight();
-      CalcInverse (Trans.Jacobian(), Jinv);
-
-      Mult (dshape, Jinv, gshape);
-
-      MultAAt (gshape, pelmat);
-
-      if (Q)
+      w = Trans.Weight();
+      w = ip.weight / (square ? w : w*w*w);
+      // AdjugateJacobian = / adj(J),         if J is square
+      //                    \ adj(J^t.J).J^t, otherwise
+      Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
+      if (Q) {  w *= Q -> Eval (Trans, ip); }
+      AddMult_a_AAt(w, dshapedxt, pelmat);
+   }
+   for (int d = 0; d < sdim; d++)
+   {
+      for (int k = 0; k < dof; k++)
       {
-         norm *= Q -> Eval (Trans, ip);
-      }
-
-      pelmat *= norm;
-
-      for (int d = 0; d < dim; d++)
-      {
-         for (int k = 0; k < dof; k++)
-            for (int l = 0; l < dof; l++)
-            {
-               elmat (dof*d+k, dof*d+l) += pelmat (k, l);
-            }
+         for (int l = 0; l < dof; l++)
+         {
+            elmat(dof*d+k, dof*d+l) = pelmat(k, l);
+         }
       }
    }
 }
@@ -2157,7 +2240,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // integrant is rational function if det(J) is not constant
+      // integrand is rational function if det(J) is not constant
       int order = 2 * Tr.OrderGrad(&el); // order of the numerator
       ir = (el.Space() == FunctionSpace::rQk) ?
            &RefinedIntRules.Get(el.GetGeomType(), order) :
@@ -2273,7 +2356,7 @@ void ElasticityIntegrator::AssembleElementMatrix(
 void ElasticityIntegrator::ComputeElementFlux(
    const mfem::FiniteElement &el, ElementTransformation &Trans,
    Vector &u, const mfem::FiniteElement &fluxelem, Vector &flux,
-   int with_coef)
+   bool with_coef)
 {
    const int dof = el.GetDof();
    const int dim = el.GetDim();
@@ -2482,7 +2565,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       {
          order++;
       }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -2496,8 +2579,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
       el1.CalcShape(eip1, shape1);
 
-      Trans.Face->SetIntPoint(&ip);
-      Trans.Elem1->SetIntPoint(&eip1);
+      Trans.SetIntPoint(&ip);
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
@@ -2507,7 +2589,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
       else
       {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
       un = vu * nor;
@@ -2522,7 +2604,6 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          double rho_p;
          if (un >= 0.0 && ndof2)
          {
-            Trans.Elem2->SetIntPoint(&eip2);
             rho_p = rho->Eval(*Trans.Elem2, eip2);
          }
          else
@@ -2571,6 +2652,14 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          }
       }
    }
+}
+
+
+const IntegrationRule &DGTraceIntegrator::GetRule(
+   Geometry::Type geom, int order, FaceElementTransformations &T)
+{
+   int int_order = T.Elem1->OrderW() + 2*order;
+   return IntRules.Get(geom, int_order);
 }
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(
@@ -2630,7 +2719,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          order = 2*el1.GetOrder();
       }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
@@ -2641,19 +2730,18 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       IntegrationPoint eip1, eip2;
 
       Trans.Loc1.Transform(ip, eip1);
-      Trans.Face->SetIntPoint(&ip);
+      Trans.SetIntPoint(&ip);
       if (dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
       else
       {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
       el1.CalcShape(eip1, shape1);
       el1.CalcDShape(eip1, dshape1);
-      Trans.Elem1->SetIntPoint(&eip1);
       w = ip.weight/Trans.Elem1->Weight();
       if (ndof2)
       {
@@ -2702,7 +2790,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          Trans.Loc2.Transform(ip, eip2);
          el2.CalcShape(eip2, shape2);
          el2.CalcDShape(eip2, dshape2);
-         Trans.Elem2->SetIntPoint(&eip2);
          w = ip.weight/2/Trans.Elem2->Weight();
          if (!MQ)
          {
@@ -2912,7 +2999,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
    {
       // a simple choice for the integration order; is this OK?
       const int order = 2 * max(el1.GetOrder(), ndofs2 ? el2.GetOrder() : 0);
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
@@ -2920,8 +3007,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       const IntegrationPoint &ip = ir->IntPoint(pind);
       IntegrationPoint eip1, eip2; // integration point in the reference space
       Trans.Loc1.Transform(ip, eip1);
-      Trans.Face->SetIntPoint(&ip);
-      Trans.Elem1->SetIntPoint(&eip1);
+      Trans.SetIntPoint(&ip);
 
       el1.CalcShape(eip1, shape1);
       el1.CalcDShape(eip1, dshape1);
@@ -2935,14 +3021,13 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       }
       else
       {
-         CalcOrtho(Trans.Face->Jacobian(), nor);
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
       double w, wLM;
       if (ndofs2)
       {
          Trans.Loc2.Transform(ip, eip2);
-         Trans.Elem2->SetIntPoint(&eip2);
          el2.CalcShape(eip2, shape2);
          el2.CalcDShape(eip2, dshape2);
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
@@ -3072,9 +3157,9 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
       order += trial_face_fe.GetOrder();
       if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
       {
-         order += Trans.Face->OrderW();
+         order += Trans.OrderW();
       }
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -3082,23 +3167,21 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
       const IntegrationPoint &ip = ir->IntPoint(p);
       IntegrationPoint eip1, eip2;
       // Trace finite element shape function
-      Trans.Face->SetIntPoint(&ip);
+      Trans.SetIntPoint(&ip);
       trial_face_fe.CalcShape(ip, face_shape);
       // Side 1 finite element shape function
       Trans.Loc1.Transform(ip, eip1);
       test_fe1.CalcShape(eip1, shape1);
-      Trans.Elem1->SetIntPoint(&eip1);
       if (ndof2)
       {
          // Side 2 finite element shape function
          Trans.Loc2.Transform(ip, eip2);
          test_fe2.CalcShape(eip2, shape2);
-         Trans.Elem2->SetIntPoint(&eip2);
       }
       w = ip.weight;
       if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
       {
-         w *= Trans.Face->Weight();
+         w *= Trans.Weight();
       }
       face_shape *= w;
       for (i = 0; i < ndof1; i++)
@@ -3163,7 +3246,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          order = test_fe1.GetOrder() - 1;
       }
       order += trial_face_fe.GetOrder();
-      ir = &IntRules.Get(Trans.FaceGeom, order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -3263,7 +3346,7 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
                                                   ElementTransformation &Trans,
                                                   DenseMatrix &elmat)
 {
-   internal::ShapeCoefficient dom_shape_coeff(Q, dom_fe);
+   internal::ShapeCoefficient dom_shape_coeff(*Q, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
@@ -3298,7 +3381,7 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
       }
    };
 
-   VShapeCoefficient dom_shape_coeff(Q, dom_fe, Trans.GetSpaceDim());
+   VShapeCoefficient dom_shape_coeff(*Q, dom_fe, Trans.GetSpaceDim());
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
@@ -3336,7 +3419,7 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
       }
    };
 
-   VecShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+   VecShapeCoefficient dom_shape_coeff(*VQ, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
@@ -3383,11 +3466,11 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
       }
    };
 
-   VCrossVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+   VCrossVShapeCoefficient dom_shape_coeff(*VQ, dom_fe);
 
    if (ran_fe.GetRangeType() == FiniteElement::SCALAR)
    {
-      elmat.SetSize(ran_fe.GetDof()*VQ.GetVDim(),dom_fe.GetDof());
+      elmat.SetSize(ran_fe.GetDof()*VQ->GetVDim(),dom_fe.GetDof());
    }
    else
    {
@@ -3436,7 +3519,7 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   internal::VDotVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+   internal::VDotVShapeCoefficient dom_shape_coeff(*VQ, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
