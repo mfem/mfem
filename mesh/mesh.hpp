@@ -131,11 +131,16 @@ protected:
    //   face. Elem2No is < 0 and -1-Elem2No is the index of the ghost
    //   face-neighbor element that generated this slave ghost face. In this
    //   case, Elem2Inf >= 0.
+   // Relevant methods: GenerateFaces(), GenerateNCFaceInfo(),
+   //                   ParNCMesh::GetFaceNeighbors(),
+   //                   ParMesh::ExchangeFaceNbrData()
 
    struct NCFaceInfo
    {
       bool Slave; // true if this is a slave face, false if master face
       int MasterFace; // if Slave, this is the index of the master face
+      // If not Slave, 'MasterFace' is the local face index of this master face
+      // as a face in the unique adjacent element.
       const DenseMatrix* PointMatrix; // if Slave, position within master face
       // (NOTE: PointMatrix points to a matrix owned by NCMesh.)
 
@@ -365,6 +370,9 @@ protected:
        slave face occupies only a portion of its master face. */
    void ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
                                       const FaceInfo &fi);
+   /// TODO: Add documentation.
+   void ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
+                                      const FaceInfo &fi, bool is_ghost);
    bool IsSlaveFace(const FaceInfo &fi) const;
 
    /// Returns the orientation of "test" relative to "base"

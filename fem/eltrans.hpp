@@ -492,6 +492,12 @@ public:
    ElementTransformation & GetElement2Transformation();
    IntegrationPointTransformation & GetIntPoint1Transformation();
    IntegrationPointTransformation & GetIntPoint2Transformation();
+
+   /** @brief Check for self-consistency. Returns a maximal distance between
+       physical points that should coincide. A successful check should return
+       a small number relative to the mesh extents. */
+   /** @note This check will generally fail on periodic boundary faces. */
+   double CheckConsistency(int print_level = 0);
 };
 
 /**                Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))
