@@ -659,6 +659,7 @@ int main(int argc, char *argv[])
 
    const double init_energy = a.GetGridFunctionEnergy(x);
    dbg("init_energy: %.15e", init_energy);
+   return 0;
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
