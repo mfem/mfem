@@ -72,7 +72,7 @@ int main (int argc, char *argv[])
    Mesh mesh_2(mesh_file_2, 1, 1, false);
    const int dim = mesh_1.Dimension();
    MFEM_ASSERT(dim == mesh_2.Dimension(), " Source and target meshes "
-                                          "must be in the same dimension.");
+               "must be in the same dimension.");
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
@@ -222,7 +222,7 @@ int main (int argc, char *argv[])
             }
          }
          sc_fes->GetFE(i)->ProjectFromElementNodes(elem_vals,
-                                     *sc_fes->GetElementTransformation(i), vals);
+                                                   *sc_fes->GetElementTransformation(i), vals);
          func_target.SetSubVector(vdofs, vals);
       }
    }
