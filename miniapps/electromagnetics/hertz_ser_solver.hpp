@@ -20,12 +20,12 @@
 namespace mfem
 {
 
-using miniapps::H1_FESpace;
-using miniapps::ND_FESpace;
-using miniapps::RT_FESpace;
-using miniapps::DiscreteGradOperator;
-using miniapps::DiscreteCurlOperator;
-//using miniapps::DivergenceFreeProjector;
+using common::H1_FESpace;
+using common::ND_FESpace;
+using common::RT_FESpace;
+using common::DiscreteGradOperator;
+using common::DiscreteCurlOperator;
+//using common::DivergenceFreeProjector;
 
 namespace electromagnetics
 {
