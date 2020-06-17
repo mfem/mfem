@@ -26,25 +26,12 @@
 // Sample runs:
 //    make field-interp;./field-interp -m1 hdivsol.mesh -s1 hdivsol.gf -m2 hdivsol.mesh -o 3
 //    make field-interp;./field-interp -m1 squarehdiv.mesh -s1 squarehdiv.gf -m2 squarehdiv.mesh -o 2
-#include "mfem.hpp"
+//    make field-interp;./field-interp -m1 hcurlsol.mesh -s1 hcurlsol.gf -m2 hcurlsol.mesh  -o 3
+#include "../../mfem.hpp"
 #include <fstream>
 
 using namespace mfem;
 using namespace std;
-
-double field_func(const Vector &x)
-{
-   const int dim = x.Size();
-   double res = 0.0;
-   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
-   return res;
-}
-
-void F_exact(const Vector &p, Vector &F)
-{
-   F(0) = field_func(p);
-   for (int i = 1; i < F.Size(); i++) { F(i) = (i+1)*F(0); }
-}
 
 int main (int argc, char *argv[])
 {
@@ -67,8 +54,6 @@ int main (int argc, char *argv[])
                   "Mesh file for interpolation.");
    args.AddOption(&order, "-o", "--order",
                   "Order of the interpolated solution.");
-   args.AddOption(&meshorder, "-mo", "--mesh_order",
-                  "Order of the interpolated solution.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of refinements of the interpolation mesh.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -86,6 +71,8 @@ int main (int argc, char *argv[])
    Mesh mesh_1(mesh_file_1, 1, 1, false);
    Mesh mesh_2(mesh_file_2, 1, 1, false);
    const int dim = mesh_1.Dimension();
+   MFEM_ASSERT(dim == mesh_2.Dimension(), " Source and target meshes "
+                                          "must be in the same dimension.");
 
    for (int lev = 0; lev < ref_levels; lev++)
    {
@@ -95,19 +82,12 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(dim > 1, "GSLIB requires a 2D or a 3D mesh" );
    if (mesh_1.GetNodes() == NULL) { mesh_1.SetCurvature(1); }
    if (mesh_2.GetNodes() == NULL) { mesh_2.SetCurvature(1); }
-   if (meshorder > 0)
-   {
-      mesh_1.SetCurvature(meshorder);
-      //mesh_2.SetCurvature(meshorder);
-   }
    const int mesh_poly_deg = mesh_2.GetNodes()->FESpace()->GetOrder(0);
    cout << "Mesh curvature: "
         << mesh_2.GetNodes()->OwnFEC()->Name() << " " << mesh_poly_deg << endl;
 
    ifstream mat_stream_1(sltn_file_1);
-   GridFunction func_1(&mesh_1, mat_stream_1);
-   VectorFunctionCoefficient F(2, F_exact);
-   func_1.ProjectCoefficient(F);
+   GridFunction func_source(&mesh_1, mat_stream_1);
 
    // Display the starting mesh and the field.
    if (visualization)
@@ -124,7 +104,7 @@ int main (int argc, char *argv[])
       else
       {
          sout1.precision(8);
-         sout1 << "solution\n" << mesh_1 << func_1
+         sout1 << "solution\n" << mesh_1 << func_source
                << "window_title 'Solution 1'"
                << "window_geometry 0 0 600 600";
          if (dim == 2) { sout1 << "keys RmjAc"; }
@@ -139,54 +119,49 @@ int main (int argc, char *argv[])
    ND_FECollection feccurl(order, dim);
    FiniteElementSpace *sc_fes = NULL;
 
-   int fieldtype = 0;
-   const char *gf_name   = func_1.FESpace()->FEColl()->Name();
-   if ( strncmp(gf_name, "L2", 2) == 0)
+   int fieldtype;
+   const char *gf_name  = func_source.FESpace()->FEColl()->Name();
+   int ncomp = func_source.FESpace()->GetVDim();
+   if ( strncmp(gf_name, "H1", 2) == 0)
+   {
+      fieldtype = 0;
+      sc_fes = new FiniteElementSpace(&mesh_2, &fech, ncomp);
+      std::cout << "H1-GridFunction\n";
+   }
+   else if ( strncmp(gf_name, "L2", 2) == 0)
    {
       fieldtype = 1;
+      sc_fes = new FiniteElementSpace(&mesh_2, &fecl, ncomp);
+      std::cout << "L2-GridFunction\n";
    }
    else if ( strncmp(gf_name, "RT", 2) == 0)
    {
       fieldtype = 2;
+      sc_fes = new FiniteElementSpace(&mesh_2, &fechdiv);
+      ncomp = dim;
+      std::cout << "H(div)-GridFunction\n";
 
    }
    else if ( strncmp(gf_name, "ND", 2) == 0)
    {
       fieldtype = 3;
-   }
-
-   int ncomp = func_1.FESpace()->GetVDim();
-   if (fieldtype == 0)
-   {
-      sc_fes = new FiniteElementSpace(&mesh_2, &fech, ncomp);
-      std::cout << "H1-GridFunction\n";
-   }
-   else if (fieldtype == 1)
-   {
-      sc_fes = new FiniteElementSpace(&mesh_2, &fecl, ncomp);
-      std::cout << "L2-GridFunction\n";
-   }
-   else if (fieldtype == 2)
-   {
-      sc_fes = new FiniteElementSpace(&mesh_2, &fechdiv);
-      ncomp = 2;
-      std::cout << "H(div)-GridFunction\n";
-   }
-   else if (fieldtype == 3)
-   {
       sc_fes = new FiniteElementSpace(&mesh_2, &feccurl);
-      ncomp = 2;
+      ncomp = dim;
       std::cout << "H(curl)-GridFunction\n";
    }
-   GridFunction diff(sc_fes);
+   else
+   {
+      MFEM_ABORT(" GridFunction type not supported.");
+   }
+
+   GridFunction func_target(sc_fes);
 
    const int NE = mesh_2.GetNE(),
              nsp = sc_fes->GetFE(0)->GetNodes().GetNPoints();
-   mesh_2.SetCurvature(mesh_poly_deg, false, dim, Ordering::byNODES);
    Vector vxyz;
    DenseMatrix pos;
    Vector vals_exact;
-   if (fieldtype <= 1)
+   if (fieldtype == 0 && order == mesh_poly_deg)
    {
       vxyz = *mesh_2.GetNodes();
    }
@@ -211,38 +186,27 @@ int main (int argc, char *argv[])
          pos.GetRow(0, rowx);
          pos.GetRow(1, rowy);
          if (dim == 3) { pos.GetRow(2, rowz); }
-         for (int j = 0; j < ir.GetNPoints(); j++)
-         {
-            const IntegrationPoint ip = ir.IntPoint(j);
-            Vector vals;
-            func_1.GetVectorValue(i, ip, vals);
-            int idx1 = i*nsp*ncomp + j*ncomp; //order by integration point
-            vals_exact(idx1) = vals(0);
-            vals_exact(idx1+1) = vals(1);
-         }
       }
    }
    const int nodes_cnt = vxyz.Size() / dim;
-
 
    // Get the values at the nodes of mesh 1.
    Vector  interp_vals(nodes_cnt*ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
-   //   finder.FindPoints(vxyz);
-   //   finder.Interpolate(func_1, interp_vals);
-   interp_vals = vals_exact;
+   finder.FindPoints(vxyz);
+   finder.Interpolate(func_source, interp_vals);
 
-   if (fieldtype <= 1)
+   if (fieldtype <= 1) //H1 or L2
    {
-      diff = interp_vals;
+      func_target = interp_vals;
    }
-   else
+   else //H(div) or H(curl)
    {
       int i;
       Array<int> vdofs;
       Vector vals;
-      const int nsp = diff.FESpace()->GetFE(0)->GetNodes().GetNPoints(),
+      const int nsp = func_target.FESpace()->GetFE(0)->GetNodes().GetNPoints(),
                 NE  = mesh_2.GetNE();
       Vector elem_vals(nsp*dim); //xyxyxy format for all dofs in an element
 
@@ -250,17 +214,16 @@ int main (int argc, char *argv[])
       {
          sc_fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
-         //         for (int j = 0; j < nsp; j++)
-         //         {
-         //            for (int d = 0; d < ncomp; d++)
-         //            {
-         //               elem_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j); //output from GSLIB
-         //            }
-         //         }
-         elem_vals.SetData(interp_vals.GetData()+i*nsp*ncomp);
-         sc_fes->GetFE(i)->ProjectV(elem_vals,
-                                    *sc_fes->GetElementTransformation(i), vals);
-         diff.SetSubVector(vdofs, vals);
+         for (int j = 0; j < nsp; j++)
+         {
+            for (int d = 0; d < ncomp; d++)
+            {
+               elem_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j); //output from GSLIB
+            }
+         }
+         sc_fes->GetFE(i)->ProjectFromElementNodes(elem_vals,
+                                     *sc_fes->GetElementTransformation(i), vals);
+         func_target.SetSubVector(vdofs, vals);
       }
    }
 
@@ -278,7 +241,7 @@ int main (int argc, char *argv[])
       else
       {
          sout1.precision(8);
-         sout1 << "solution\n" << mesh_2 << diff
+         sout1 << "solution\n" << mesh_2 << func_target
                << "window_title 'Solution 1'"
                << "window_geometry 600 0 600 600";
          if (dim == 2) { sout1 << "keys RmjAc"; }
@@ -292,7 +255,7 @@ int main (int argc, char *argv[])
 
    ofstream rho_ofs(rho_name.str().c_str());
    rho_ofs.precision(8);
-   diff.Save(rho_ofs);
+   func_target.Save(rho_ofs);
    rho_ofs.close();
 
    // Free the internal gslib data.
