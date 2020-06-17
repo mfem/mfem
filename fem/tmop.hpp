@@ -921,7 +921,6 @@ protected:
    // PA extension
    struct
    {
-      bool enabled = false;
       int dim, ne, nq;
       mutable Vector E, O, X0, X, P, P0, A, A0;
       mutable bool setup;

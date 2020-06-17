@@ -14,7 +14,6 @@
 #include "linearform.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../general/debug.hpp"
 
 namespace mfem
 {
