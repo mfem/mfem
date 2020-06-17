@@ -345,6 +345,7 @@ int main(int argc, char *argv[])
          slepc->GetEigenvalue(i,eigenvalues[i]);
       }
    }
+   Vector temp(fespace->GetTrueVSize());
    ParGridFunction x(fespace);
 
    // 10. Save the refined mesh and the modes in parallel. This output can be
@@ -366,7 +367,8 @@ int main(int argc, char *argv[])
          }
          else
          {
-            slepc->GetEigenvector(i,x);
+            slepc->GetEigenvector(i,temp);
+            x.Distribute(temp);
 
          }
 
@@ -403,7 +405,8 @@ int main(int argc, char *argv[])
          }
          else
          {
-            slepc->GetEigenvector(i,x);
+            slepc->GetEigenvector(i,temp);
+            x.Distribute(temp);
          }
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"

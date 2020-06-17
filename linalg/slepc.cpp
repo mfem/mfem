@@ -149,6 +149,9 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr) const
 {
    MFEM_VERIFY(VR,"Missing real vector");
 
+   MFEM_ASSERT(vr.Size() == VR->Size(), "invalid vr.Size() = " << vr.Size()
+               << ", expected size = " << VR->Size());
+
    VR->PlaceArray(vr.GetData());
    ierr = EPSGetEigenvector(eps,i,*VR,NULL); PCHKERRQ(eps,ierr);
    VR->ResetArray();
@@ -160,6 +163,10 @@ void SlepcEigenSolver::GetEigenvector(unsigned int i, Vector & vr,
 {
    MFEM_VERIFY(VR,"Missing real vector");
    MFEM_VERIFY(VC,"Missing imaginary vector");
+   MFEM_ASSERT(vr.Size() == VR->Size(), "invalid vr.Size() = " << vr.Size()
+               << ", expected size = " << VR->Size());
+   MFEM_ASSERT(vc.Size() == VC->Size(), "invalid vc.Size() = " << vc.Size()
+               << ", expected size = " << VC->Size());
 
    VR->PlaceArray(vr.GetData());
    VC->PlaceArray(vc.GetData());
