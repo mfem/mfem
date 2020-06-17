@@ -26,7 +26,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
                            const Array<double> &b_,
                            const Array<double> &g_,
                            const DenseTensor &j_,
-                           const Vector &p_,
+                           const Vector &h_,
                            const Vector &x_,
                            Vector &y_,
                            const int d1d,
@@ -42,7 +42,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
-   const auto dP = Reshape(p_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
+   const auto H = Reshape(h_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
@@ -68,20 +68,21 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double A[4], B[4], C[4];
             const double *Jtr = &J(0,0,qx,qy,e);
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
-            double hX[4];
-            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,hX);
+            double Jpr[4];
+            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
 
             // A = X^T . Jrt
-            kernels::Mult(2,2,2, hX, Jrt, A);
+            double Jpt[4];
+            kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
-            // B = A : dP
+            // B = Jpt : H
+            double B[4];
             for (int i = 0; i < DIM; i++)
             {
                for (int j = 0; j < DIM; j++)
@@ -91,13 +92,14 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_2D,
                   {
                      for (int c = 0; c < DIM; c++)
                      {
-                        B[i+2*j] += dP(r,c,i,j,qx,qy,e) * A[r+2*c];
+                        B[i+2*j] += H(r,c,i,j,qx,qy,e) * Jpt[r+2*c];
                      }
                   }
                }
             }
 
             // C = Jrt . B
+            double C[4];
             kernels::MultABt(2,2,2, Jrt, B, C);
             kernels::PushGradXY<MQ1,NBZ>(qx,qy,C,QQ);
          }
@@ -118,9 +120,9 @@ void TMOP_Integrator::AddMultGradPA_2D(const Vector &R, Vector &C) const
    const DenseTensor &J = PA.Jtr;
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   const Vector &A = PA.A;
+   const Vector &H = PA.H;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_2D, id, N,B,G,J,A,R,C);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_2D,id,N,B,G,J,H,R,C);
 }
 
 } // namespace mfem

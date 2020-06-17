@@ -80,16 +80,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                            const int d1d,
                            const int q1d)
 {
-   constexpr int VDIM = 3;
+   constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto J = Reshape(j_.Read(), VDIM, VDIM, Q1D, Q1D, Q1D, NE);
+   const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
-   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
+   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -148,9 +148,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
          }
       }
       MFEM_SYNC_THREAD;
-
       kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, s_BG);
-
       kernels::GradZt<MD1,MQ1>(D1D,Q1D,s_BG,s_QQQ,s_DQQ);
       kernels::GradYt<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_DDQ);
       kernels::GradXt<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,Y,e);
@@ -165,13 +163,12 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = IntRule->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D, id, mn,M,N,J,W,B,G,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

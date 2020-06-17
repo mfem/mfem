@@ -922,14 +922,13 @@ protected:
    struct
    {
       int dim, ne, nq;
-      mutable Vector E, O, X0, X, P, P0, A, A0;
+      DenseTensor Jtr;
       mutable bool setup;
+      mutable Vector E, O, X0, H, C0, H0;
       const DofToQuad *maps;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
-      const Operator *elem_restrict_lex = nullptr;
-      DenseTensor Jtr;
-      Vector C0, LD;
+      const Operator *R = nullptr;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,

@@ -103,10 +103,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
             const double c = 1.0 / (dist * dist);
             double grad_grad[4];
             kernels::Diag<2>(c, grad_grad);
-
             ConstDeviceMatrix gg(grad_grad,DIM,DIM);
-            //printf("\n\033[33mweight_m:%.8e, dist:%.8e\033[m",weight_m,dist);
-            //printf("\n\033[33m%f, %f, %f, %f\033[m",gg(0,0),gg(0,1),gg(1,0),gg(1,1));
 
             for (int i = 0; i < DIM; i++)
             {
@@ -134,6 +131,8 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double ln = lim_normal;
+   const double ld = lim_dist->HostRead()[0];
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
@@ -141,14 +140,9 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &X) const
    const Array<double> &G = PA.maps->G;
    const Vector &X0 = PA.X0;
    const Vector &C0 = PA.C0;
-   Vector &H0 = PA.A0;
+   Vector &H0 = PA.H0;
 
-   const double l = lim_normal;
-   lim_dist->HostRead();
-   MFEM_VERIFY(lim_dist, "Error");
-   const double d = lim_dist->operator ()(0);
-
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D, id, X0,X,l,d,C0,N,J,W,B,G,H0);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_C0_2D,id,X0,X,ln,ld,C0,N,J,W,B,G,H0);
 }
 
 } // namespace mfem

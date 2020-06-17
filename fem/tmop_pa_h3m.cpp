@@ -26,7 +26,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
                            const Array<double> &b_,
                            const Array<double> &g_,
                            const DenseTensor &j_,
-                           const Vector &dp_,
+                           const Vector &h_,
                            const Vector &x_,
                            Vector &y_,
                            const int d1d,
@@ -40,7 +40,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
-   const auto dP = Reshape(dp_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
+   const auto H = Reshape(h_.Read(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
@@ -95,7 +95,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
                      {
                         for (int j = 0; j < DIM; j++)
                         {
-                           M[r+DIM*c] += dP(i,j,r,c,qx,qy,qz,e) * Jpt[i+DIM*j];
+                           M[r+DIM*c] += H(i,j,r,c,qx,qy,qz,e) * Jpt[i+DIM*j];
                         }
                      }
                   }
@@ -109,9 +109,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
          }
       }
       MFEM_SYNC_THREAD;
-
       kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, s_BG);
-
       kernels::GradZt<MD1,MQ1>(D1D,Q1D,s_BG,s_QQQ,s_DQQ);
       kernels::GradYt<MD1,MQ1>(D1D,Q1D,s_BG,s_DQQ,s_DDQ);
       kernels::GradXt<MD1,MQ1>(D1D,Q1D,s_BG,s_DDQ,Y,e);
@@ -128,15 +126,9 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &X, const Vector &R,
    const DenseTensor &J = PA.Jtr;
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   const Vector &A = PA.A;
+   const Vector &H = PA.H;
 
-   if (!PA.setup)
-   {
-      PA.setup = true;
-      AssembleGradPA_3D(X);
-   }
-
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D, id, N,B,G,J,A,R,C);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D,id,N,B,G,J,H,R,C);
 }
 
 } // namespace mfem

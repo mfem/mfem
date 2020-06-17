@@ -56,9 +56,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                            const Array<double> &w_,
                            const Array<double> &b_,
                            const Array<double> &g_,
+                           const Vector &ones,
                            const Vector &x_,
                            Vector &energy,
-                           Vector &ones,
                            const int d1d,
                            const int q1d)
 {
@@ -76,7 +76,6 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, dim, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
-   auto O = Reshape(ones.Write(), Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -121,12 +120,12 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
                // metric->EvalW(Jpt);
-               const double EvalW = mid == 302 ? EvalW_302(Jpt) :
+               const double EvalW =
+               mid == 302 ? EvalW_302(Jpt) :
                mid == 303 ? EvalW_303(Jpt) :
                mid == 321 ? EvalW_321(Jpt) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
-               O(qx,qy,qz,e) = 1.0;
             }
          }
       }
@@ -134,25 +133,22 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &x) const
+double TMOP_Integrator::GetGridFunctionEnergyPA_3D(const Vector &X) const
 {
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double mn = metric_normal;
    const DenseTensor &J = PA.Jtr;
-   const IntegrationRule *ir = IntRule;
-   const Array<double> &W = ir->GetWeights();
+   const Array<double> &W = IntRule->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   const Vector &X = PA.X;
+   const Vector &O = PA.O;
    Vector &E = PA.E;
-   Vector &O = PA.O;
-   const double mn = metric_normal;
 
-   PA.elem_restrict_lex->Mult(x, PA.X);
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D, id, mn,M,N,J,W,B,G,X,E,O);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,M,N,J,W,B,G,O,X,E);
 }
 
 } // namespace mfem
