@@ -27,7 +27,6 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
                "PA Only supports Ordering::byNODES!");
 
    PA.fes = &fes;
-   PA.enabled = true;
    Mesh *mesh = fes.GetMesh();
    const int dim = PA.dim = mesh->Dimension();
    const int nq = PA.nq = IntRule->GetNPoints();
@@ -83,20 +82,23 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    }
 
    // Coeff0
+   PA.C0.UseDevice(true);
    if (coeff0 == nullptr)
    {
-      PA.C0.SetSize(1);
+      PA.C0.SetSize(1, Device::GetMemoryType());
+      PA.C0.HostWrite();
       PA.C0(0) = 0.0;
    }
    else if (ConstantCoefficient* cQ =
                dynamic_cast<ConstantCoefficient*>(coeff0))
    {
-      PA.C0.SetSize(1);
+      PA.C0.SetSize(1, Device::GetMemoryType());
+      PA.C0.HostWrite();
       PA.C0(0) = cQ->constant;
    }
    else
    {
-      PA.C0.SetSize(NQ * NE);
+      PA.C0.SetSize(NQ * NE, Device::GetMemoryType());
       auto C0 = Reshape(PA.C0.HostWrite(), NQ, NE);
       for (int e = 0; e < ne; ++e)
       {

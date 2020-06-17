@@ -17,7 +17,6 @@
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/dinvariants.hpp"
-#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -37,7 +36,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_C0_2D,
                            const int d1d,
                            const int q1d)
 {
-   dbg("");
    const bool const_c0 = c0_.Size() == 1;
 
    constexpr int DIM = 2;
