@@ -34,12 +34,6 @@ if (MFEM_USE_MPI)
    EXTRA_HEADERS hertz_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem mfem_miniapps_common)
 
- add_mfem_miniapp(test_hertz
-   MAIN test_hertz.cpp
-   EXTRA_SOURCES test_hertz_solver.cpp
-   EXTRA_HEADERS test_hertz_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
-   LIBRARIES mfem mfem_miniapps_common)
-
  add_mfem_miniapp(joule
    MAIN joule.cpp
    joule_solver.cpp
