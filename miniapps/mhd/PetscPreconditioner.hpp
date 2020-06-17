@@ -23,6 +23,9 @@
 using namespace std;
 using namespace mfem;
 
+int  ijacobi=4; //number of Jacobi iteration 
+bool smoothOmega=true;
+
 //------FULL physics-based petsc pcshell preconditioenr------
 class FullBlockSolver : public Solver
 {
@@ -36,7 +39,6 @@ private:
    mutable PetscParVector *X, *Y;
 
    IS index_set[3];
-   bool version2;
 
    //solutions holder
    mutable Vec b0, b1, b2, y0, y1, y2;
@@ -95,8 +97,7 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
    Mat ARe = sub[0][0];
    Mat Mmatlp = sub[0][2];
 
-   version2 = true;
-   if (version2)
+   if (smoothOmega)
    {
       //ARe matrix (for version 2)
       ierr=KSPCreate(PETSC_COMM_WORLD, &kspblock[3]);    PCHKERRQ(kspblock[3], ierr);
@@ -122,7 +123,6 @@ FullBlockSolver::FullBlockSolver(const OperatorHandle &oh) : Solver() {
 //Mult will only be called once
 void FullBlockSolver::Mult(const Vector &x, Vector &y) const
 {
-   PetscInt iter=4; //number of Jacobi iteration 
 
    Mat ARe = sub[0][0];
    Mat Mmat = sub[2][2];
@@ -148,7 +148,7 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    MatMult(Mmat, tmp, b);
 
    //Jacobi iteration with Schur complement
-   for (int j = 0; j<iter; j++)
+   for (int j = 0; j<ijacobi; j++)
    {
       if (j==0)
           VecCopy(b, bhat);
@@ -172,7 +172,7 @@ void FullBlockSolver::Mult(const Vector &x, Vector &y) const
    }
 
    //update y2 (version 2 increase smoothness in omega)
-   if(!version2)
+   if(!smoothOmega)
    {
       //version 1
       MatMult(Kmat, y0, rhs);
@@ -211,7 +211,7 @@ FullBlockSolver::~FullBlockSolver()
     {
         KSPDestroy(&kspblock[i]);
     }
-    if(version2)
+    if(smoothOmega)
         KSPDestroy(&kspblock[3]);
     
     VecDestroy(&b);
