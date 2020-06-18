@@ -55,6 +55,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
@@ -81,7 +82,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                const double *Jtr = &J(0,0,qx,qy,qz,e);
-               const double detJtr = kernels::Det<DIM>(Jtr);
+               const double detJtr = kernels::Det<3>(Jtr);
                const double weight = W(qx,qy,qz) * detJtr;
                const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
                const double weight_m = weight * lim_normal * coeff0;
