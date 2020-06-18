@@ -473,6 +473,13 @@ public:
       SUNImplicitSetupB to solve the adjoint problem.
 
       See SUNDIALS user manuals for specifics.
+
+      \param[in] dim Dimension of the forward operator
+      \param[in] adjdim Dimension of the adjoint operator. Typically it is the
+      same size as dim. However, SUNDIALS allows users to specify the size if
+      one wants to perfrom custom operations.
+      \param[in] t Starting time to set
+      \param[in] type The TimeDependentOperator type
     **/
 
    TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
