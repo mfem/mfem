@@ -2419,7 +2419,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    FaceElemTr.Elem1No = face_info.Elem1No;
    GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
    FaceElemTr.Elem1 = &Transformation;
-   mask += 1;
+   mask |= 1;
 
    // setup the transformation for the second (neighbor) element
    if (fill2)
@@ -2427,7 +2427,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
       FaceElemTr.Elem2No = -1 - face_info.Elem2No;
       GetFaceNbrElementTransformation(FaceElemTr.Elem2No, &Transformation2);
       FaceElemTr.Elem2 = &Transformation2;
-      mask += 2;
+      mask |= 2;
    }
    else
    {
@@ -2439,7 +2439,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    {
       GetFaceTransformation(FaceNo, &FaceElemTr);
       // NOTE: The above call overwrites FaceElemTr.Loc1
-      mask += 16;
+      mask |= 16;
    }
    else
    {
@@ -2450,14 +2450,14 @@ GetSharedFaceTransformations(int sf, bool fill2)
    int elem_type = GetElementType(face_info.Elem1No);
    GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc1.Transf,
                               face_info.Elem1Inf);
-   mask += 4;
+   mask |= 4;
 
    if (fill2)
    {
       elem_type = face_nbr_elements[FaceElemTr.Elem2No]->GetType();
       GetLocalFaceTransformation(face_type, elem_type, FaceElemTr.Loc2.Transf,
                                  face_info.Elem2Inf);
-      mask += 8;
+      mask |= 8;
    }
 
    // adjust Loc1 or Loc2 of the master face if this is a slave face
@@ -2486,7 +2486,7 @@ GetSharedFaceTransformations(int sf, bool fill2)
    if (is_ghost)
    {
       GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
-      mask += 16;
+      mask |= 16;
    }
 
    FaceElemTr.SetConfigurationMask(mask);
