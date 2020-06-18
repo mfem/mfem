@@ -24,9 +24,10 @@
 // Compile with: make field-diff
 //
 // Sample runs:
-//    make field-interp;./field-interp -m1 hdivsol.mesh -s1 hdivsol.gf -m2 hdivsol.mesh -o 3
-//    make field-interp;./field-interp -m1 squarehdiv.mesh -s1 squarehdiv.gf -m2 squarehdiv.mesh -o 2
-//    make field-interp;./field-interp -m1 hcurlsol.mesh -s1 hcurlsol.gf -m2 hcurlsol.mesh  -o 3
+//    field-interp -m1 hdivsol.mesh -s1 hdivsol.gf -m2 hdivsol.mesh -o 3
+//    field-interp -m1 squarehdiv.mesh -s1 squarehdiv.gf -m2 squarehdiv.mesh -o 2
+//    field-interp -m1 hcurlsol.mesh -s1 hcurlsol.gf -m2 hcurlsol.mesh  -o 3
+//    field-interm
 #include "../../mfem.hpp"
 #include <fstream>
 
@@ -36,9 +37,9 @@ using namespace std;
 int main (int argc, char *argv[])
 {
    // Set the method's default parameters.
-   const char *mesh_file_1 = "hdivsol.mesh";
-   const char *mesh_file_2 = "hdivsol.mesh";
-   const char *sltn_file_1 = "hdivsol.gf";
+   const char *mesh_file_1 = "source2d.mesh";
+   const char *mesh_file_2 = "../../data/inline-tri.mesh";
+   const char *sltn_file_1 = "source2d_hdiv.gf";
    int order = 3;
    int meshorder = 0;
    int ref_levels = 0;
@@ -160,15 +161,13 @@ int main (int argc, char *argv[])
              nsp = sc_fes->GetFE(0)->GetNodes().GetNPoints();
    Vector vxyz;
    DenseMatrix pos;
-   Vector vals_exact;
    if (fieldtype == 0 && order == mesh_poly_deg)
    {
       vxyz = *mesh_2.GetNodes();
    }
    else
    {
-      vxyz.SetSize(nsp*NE*ncomp);
-      vals_exact.SetSize(nsp*NE*ncomp);
+      vxyz.SetSize(nsp*NE*dim);
       for (int i = 0; i < NE; i++)
       {
          const FiniteElement *fe = sc_fes->GetFE(i);
@@ -194,8 +193,7 @@ int main (int argc, char *argv[])
    Vector  interp_vals(nodes_cnt*ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh_1);
-   finder.FindPoints(vxyz);
-   finder.Interpolate(func_source, interp_vals);
+   finder.Interpolate(vxyz, func_source, interp_vals);
 
    if (fieldtype <= 1) //H1 or L2
    {
@@ -208,7 +206,7 @@ int main (int argc, char *argv[])
       Vector vals;
       const int nsp = func_target.FESpace()->GetFE(0)->GetNodes().GetNPoints(),
                 NE  = mesh_2.GetNE();
-      Vector elem_vals(nsp*dim); //xyxyxy format for all dofs in an element
+      Vector elem_dof_vals(nsp*dim);
 
       for (i = 0; i < mesh_2.GetNE(); i++)
       {
@@ -218,11 +216,13 @@ int main (int argc, char *argv[])
          {
             for (int d = 0; d < ncomp; d++)
             {
-               elem_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j); //output from GSLIB
+               //arrange values by dofs
+               elem_dof_vals(j*ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
             }
          }
-         sc_fes->GetFE(i)->ProjectFromElementNodes(elem_vals,
-                                                   *sc_fes->GetElementTransformation(i), vals);
+         sc_fes->GetFE(i)->ProjectFromElementNodes(elem_dof_vals,
+                                                   *sc_fes->GetElementTransformation(i),
+                                                   vals);
          func_target.SetSubVector(vdofs, vals);
       }
    }
