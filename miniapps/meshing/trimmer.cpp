@@ -189,25 +189,21 @@ int main(int argc, char *argv[])
       if (e1 >= 0) { a1 = mesh.GetElement(e1)->GetAttribute(); }
       if (e2 >= 0) { a2 = mesh.GetElement(e2)->GetAttribute(); }
 
-      if (a1 == 0 || a2 == 0)
-      {
-         if ((a1 == 0 && !marker[a2-1]) || (a2 == 0 && !marker[a1-1]))
-         {
-            Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
-            trimmed_mesh.AddBdrElement(bel);
-         }
-      }
-      else
+      if (a1 != 0 && a2 != 0)
       {
          if (marker[a1-1] && !marker[a2-1])
          {
-            Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
+            Element * bel = (mesh.Dimension() == 1) ?
+                            (Element*)new Point(&f) :
+                            mesh.GetFace(f)->Duplicate(&trimmed_mesh);
             bel->SetAttribute(bdr_attr[attr_inv[a1-1]]);
             trimmed_mesh.AddBdrElement(bel);
          }
          else if (!marker[a1-1] && marker[a2-1])
          {
-            Element * bel = mesh.GetFace(f)->Duplicate(&trimmed_mesh);
+            Element * bel = (mesh.Dimension() == 1) ?
+                            (Element*)new Point(&f) :
+                            mesh.GetFace(f)->Duplicate(&trimmed_mesh);
             bel->SetAttribute(bdr_attr[attr_inv[a2-1]]);
             trimmed_mesh.AddBdrElement(bel);
          }
