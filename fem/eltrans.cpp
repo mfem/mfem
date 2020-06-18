@@ -571,7 +571,7 @@ void FaceElementTransformations::SetIntPoint(const IntegrationPoint *ip)
 ElementTransformation &
 FaceElementTransformations::GetElement1Transformation()
 {
-   MFEM_VERIFY(mask & 1 && Elem1 != NULL, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_ELEM1 && Elem1 != NULL, "The ElementTransformation "
                "for the element has not been configured for side 1.");
    return *Elem1;
 }
@@ -579,7 +579,7 @@ FaceElementTransformations::GetElement1Transformation()
 ElementTransformation &
 FaceElementTransformations::GetElement2Transformation()
 {
-   MFEM_VERIFY(mask & 2 && Elem2 != NULL, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_ELEM2 && Elem2 != NULL, "The ElementTransformation "
                "for the element has not been configured for side 2.");
    return *Elem2;
 }
@@ -587,7 +587,7 @@ FaceElementTransformations::GetElement2Transformation()
 IntegrationPointTransformation &
 FaceElementTransformations::GetIntPoint1Transformation()
 {
-   MFEM_VERIFY(mask & 4, "The IntegrationPointTransformation "
+   MFEM_VERIFY(mask & HAVE_LOC1, "The IntegrationPointTransformation "
                "for the element has not been configured for side 1.");
    return Loc1;
 }
@@ -595,7 +595,7 @@ FaceElementTransformations::GetIntPoint1Transformation()
 IntegrationPointTransformation &
 FaceElementTransformations::GetIntPoint2Transformation()
 {
-   MFEM_VERIFY(mask & 8, "The IntegrationPointTransformation "
+   MFEM_VERIFY(mask & HAVE_LOC2, "The IntegrationPointTransformation "
                "for the element has not been configured for side 2.");
    return Loc2;
 }
@@ -603,7 +603,7 @@ FaceElementTransformations::GetIntPoint2Transformation()
 void FaceElementTransformations::Transform(const IntegrationPoint &ip,
                                            Vector &trans)
 {
-   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
                "for the face has not been configured.");
    IsoparametricTransformation::Transform(ip, trans);
 }
@@ -611,7 +611,7 @@ void FaceElementTransformations::Transform(const IntegrationPoint &ip,
 void FaceElementTransformations::Transform(const IntegrationRule &ir,
                                            DenseMatrix &tr)
 {
-   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
                "for the face has not been configured.");
    IsoparametricTransformation::Transform(ir, tr);
 }
@@ -619,7 +619,7 @@ void FaceElementTransformations::Transform(const IntegrationRule &ir,
 void FaceElementTransformations::Transform(const DenseMatrix &matrix,
                                            DenseMatrix &result)
 {
-   MFEM_VERIFY(mask & 16, "The ElementTransformation "
+   MFEM_VERIFY(mask & HAVE_FACE, "The ElementTransformation "
                "for the face has not been configured.");
    IsoparametricTransformation::Transform(matrix, result);
 }
