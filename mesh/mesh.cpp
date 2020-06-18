@@ -865,7 +865,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
 
    // setup the transformation for the first element
    FaceElemTr.Elem1No = face_info.Elem1No;
-   if (mask & 1)
+   if (mask & FaceElementTransformations::HAVE_ELEM1)
    {
       GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
       FaceElemTr.Elem1 = &Transformation;
@@ -875,17 +875,19 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    //     return NULL in the Elem2 field if there's no second element, i.e.
    //     the face is on the "boundary"
    FaceElemTr.Elem2No = face_info.Elem2No;
-   if ((mask & 2) && FaceElemTr.Elem2No >= 0)
+   if ((mask & FaceElementTransformations::HAVE_ELEM2) &&
+       FaceElemTr.Elem2No >= 0)
    {
 #ifdef MFEM_DEBUG
-      if (NURBSext && (mask & 1)) { MFEM_ABORT("NURBS mesh not supported!"); }
+      if (NURBSext && (mask & FaceElementTransformations::HAVE_ELEM1))
+      { MFEM_ABORT("NURBS mesh not supported!"); }
 #endif
       GetElementTransformation(FaceElemTr.Elem2No, &Transformation2);
       FaceElemTr.Elem2 = &Transformation2;
    }
 
    // setup the face transformation
-   if (mask & 16)
+   if (mask & FaceElementTransformations::HAVE_FACE)
    {
       GetFaceTransformation(FaceNo, &FaceElemTr);
    }
@@ -896,13 +898,14 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
 
    // setup Loc1 & Loc2
    int face_type = GetFaceElementType(FaceNo);
-   if (mask & 4)
+   if (mask & FaceElementTransformations::HAVE_LOC1)
    {
       int elem_type = GetElementType(face_info.Elem1No);
       GetLocalFaceTransformation(face_type, elem_type,
                                  FaceElemTr.Loc1.Transf, face_info.Elem1Inf);
    }
-   if ((mask & 8) && FaceElemTr.Elem2No >= 0)
+   if ((mask & FaceElementTransformations::HAVE_LOC2) &&
+       FaceElemTr.Elem2No >= 0)
    {
       int elem_type = GetElementType(face_info.Elem2No);
       GetLocalFaceTransformation(face_type, elem_type,
