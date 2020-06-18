@@ -19,7 +19,7 @@ CONFIG="-p 0 -c 2 -vs 100 -tf 0.4 -s 3 -dt 0.002 -m data/periodic-tri.mesh -o 2 
 mpirun -np 4 phypsys $CONFIG
 
 ## Burgers
-CONFIG="-p 1 -c 1 -vs 100 -tf 0.5 -s 3 -dt 0.004 -m data/inline-4quad.mesh -o 1 -r 3 -e $SCHEME"
+CONFIG="-p 1 -c 1 -vs 100 -tf 0.5 -s 3 -dt 0.004 -m data/inline-3quad.mesh -o 1 -r 3 -e $SCHEME"
 ./hypsys $CONFIG
 ./phypsys $CONFIG
 mpirun -np 7 phypsys $CONFIG
@@ -33,7 +33,7 @@ mpirun -np 1 phypsys $CONFIG
 ## Shallow-Water
 
 # Dam break
-CONFIG="-p 3 -c 2 -vs 14 -tf 0.7 -s 3 -dt 0.005 -m data/wall-bdr-4tri.mesh -o 1 -r 3 -e $SCHEME"
+CONFIG="-p 3 -c 2 -vs 14 -tf 0.7 -s 3 -dt 0.00175 -m data/wall-bdr-4tri.mesh -o 1 -r 3 -e $SCHEME"
 ./hypsys $CONFIG
 ./phypsys $CONFIG
 mpirun -np 2 phypsys $CONFIG
@@ -41,7 +41,7 @@ mpirun -np 2 phypsys $CONFIG
 ## Euler
 
 # Smooth vortex
-CONFIG="-p 4 -c 0 -vs 100 -tf 2 -s 3 -dt 0.004 -m data/periodic-square.mesh -r 2 -e $SCHEME"
+CONFIG="-p 4 -c 0 -vs 100 -tf 2 -s 3 -dt 0.0025 -m data/periodic-square.mesh -r 2 -e $SCHEME"
 ./hypsys $CONFIG
 ./phypsys $CONFIG
 mpirun -np 4 phypsys $CONFIG

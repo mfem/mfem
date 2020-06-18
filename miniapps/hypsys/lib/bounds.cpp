@@ -1,7 +1,7 @@
 #include "bounds.hpp"
 
 Bounds::Bounds(FiniteElementSpace *fes_, FiniteElementSpace *fesH1_)
-      : fes(fes_), fesH1(fesH1_), x_min(fesH1_), x_max(fesH1_)
+      : fes(fes_), fesH1(fesH1_), x_min(fesH1_), x_max(fesH1_) //, y_min(fesH1_), y_max(fesH1_)
 {
    Mesh *mesh = fes->GetMesh();
    const FiniteElement *el = fes->GetFE(0);
@@ -12,6 +12,8 @@ Bounds::Bounds(FiniteElementSpace *fes_, FiniteElementSpace *fesH1_)
 
    xi_min.SetSize(NumEq*ne*nd);
    xi_max.SetSize(NumEq*ne*nd);
+   // yi_min.SetSize(NumEq*ne*nd);
+   // yi_max.SetSize(NumEq*ne*nd);
 
    FillDofMap();
 }
@@ -70,6 +72,8 @@ void Bounds::ComputeBounds(const Vector &x)
 {
    x_min =  std::numeric_limits<double>::infinity();
    x_max = -std::numeric_limits<double>::infinity();
+   // y_min =  std::numeric_limits<double>::infinity();
+   // y_max = -std::numeric_limits<double>::infinity();
 
    for (int e = 0; e < ne; e++)
    {
@@ -84,6 +88,8 @@ void Bounds::ComputeBounds(const Vector &x)
       {
          xi_min(e*nd + j) = x_min(eldofs[DofMapH1[j]]);
          xi_max(e*nd + j) = x_max(eldofs[DofMapH1[j]]);
+         // yi_min(e*nd + j) = y_min(eldofs[DofMapH1[j]]);
+         // yi_max(e*nd + j) = y_max(eldofs[DofMapH1[j]]);
       }
    }
 
@@ -91,6 +97,8 @@ void Bounds::ComputeBounds(const Vector &x)
    {
       x_min =  std::numeric_limits<double>::infinity();
       x_max = -std::numeric_limits<double>::infinity();
+      // y_min =  std::numeric_limits<double>::infinity();
+      // y_max = -std::numeric_limits<double>::infinity();
 
       for (int e = 0; e < ne; e++)
       {
@@ -105,6 +113,8 @@ void Bounds::ComputeBounds(const Vector &x)
          {
             xi_min(n*ne*nd + e*nd + j) = x_min(eldofs[DofMapH1[j]]);
             xi_max(n*ne*nd + e*nd + j) = x_max(eldofs[DofMapH1[j]]);
+            // yi_min(n*ne*nd + e*nd + j) = y_min(eldofs[DofMapH1[j]]);
+            // yi_max(n*ne*nd + e*nd + j) = y_max(eldofs[DofMapH1[j]]);
          }
       }
    }
@@ -124,6 +134,8 @@ void TightBounds::ComputeElementBounds(int n, int e, const Vector &x)
       const int I = eldofs[DofMapH1[i]];
       x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
       x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
+      // y_min(I) = min(y_min(I), yi_min(n*ne*nd + e*nd + i)); // not used for now
+      // y_max(I) = max(y_max(I), yi_max(n*ne*nd + e*nd + i)); // not used for now
 
       for (int j = 0; j < ClosestNbrs.Width(); j++)
       {
@@ -143,14 +155,16 @@ void TightBounds::ComputeSequentialBounds(int n, int e, const Vector &x)
       const int I = eldofs[DofMapH1[i]];
       x_min(I) = min(x_min(I), xi_min(n*ne*nd + e*nd + i));
       x_max(I) = max(x_max(I), xi_max(n*ne*nd + e*nd + i));
+      // y_min(I) = min(y_min(I), yi_min(n*ne*nd + e*nd + i));
+      // y_max(I) = max(y_max(I), yi_max(n*ne*nd + e*nd + i));
 
       // for (int j = 0; j < ClosestNbrs.Width(); j++)
       // {
       //    if (ClosestNbrs(i,j) == -1) { break; }
 
       //    const int J = n*ne*nd + e*nd + ClosestNbrs(i,j);
-      //    x_min(I) = min(x_min(I), xi_min(J));
-      //    x_max(I) = max(x_max(I), xi_max(J));
+      //    x_min(I) = min(x_min(I), x(J) / x(e*nd + ClosestNbrs(i,j)));
+      //    x_max(I) = max(x_max(I), x(J) / x(e*nd + ClosestNbrs(i,j)));
       // }
    }
 }

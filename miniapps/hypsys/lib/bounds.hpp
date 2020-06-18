@@ -10,8 +10,10 @@ class Bounds
 {
 public:
    FiniteElementSpace *fes, *fesH1;
-   GridFunction x_min, x_max;  // min max values for each H1 dof.
-   Vector xi_min, xi_max; // min max values for each L2 dof
+   GridFunction x_min, x_max;  // element bounds for each H1 dof
+   // GridFunction y_min, y_max;  // element bounds for each H1 dof
+   Vector xi_min, xi_max; // element bounds for each L2 dof
+   // Vector yi_min, yi_max; // flux term bounds for each L2 dof
    Array<int> eldofs, DofMapH1;
    int nd, ne, NumEq;
 

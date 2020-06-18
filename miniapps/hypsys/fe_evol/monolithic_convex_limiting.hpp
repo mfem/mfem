@@ -19,7 +19,7 @@ public:
    DenseMatrix FaceMat, DistributionMatrix, MassMatLOR, Dof2LocNbr, MassMatRefInv;
    Bounds *bounds;
 
-   mutable DenseTensor CTilde, CFull, NodalFluxes, uij;
+   mutable DenseTensor CTilde, CFull, NodalFluxes, uij/* , ufiMin, ufiMax */;
    mutable DenseMatrix uFace, uNbrFace, mat3, DGFluxTerms, GalerkinRhs,
                        ElFlux, uDot, DTilde, ufi, BdrFlux, AntiDiffBdr,
                        uijMin, uijMax, LimitedBarState;
