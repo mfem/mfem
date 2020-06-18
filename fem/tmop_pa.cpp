@@ -123,7 +123,12 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
       if (coeff0) { AddMultPA_C0_2D(x,y); }
       return;
    }
-   if (PA.dim == 3) { return AddMultPA_3D(x,y); }
+   if (PA.dim == 3)
+   {
+      AddMultPA_3D(x,y);
+      if (coeff0) { AddMultPA_C0_3D(x,y); }
+      return;
+   }
    MFEM_ABORT("Not yet implemented!");
 }
 
@@ -135,7 +140,12 @@ void TMOP_Integrator::AssembleGradPA(const Vector &x) const
       //if (coeff0) { AssembleGradPA_C0_2D(x); }
       return;
    }
-   if (PA.dim == 3) { return AssembleGradPA_3D(x); }
+   if (PA.dim == 3)
+   {
+      AssembleGradPA_3D(x);
+      //if (coeff0) { AssembleGradPA_C0_2D(x); }
+      return;
+   }
    MFEM_ABORT("Not yet implemented!");
 }
 
@@ -153,6 +163,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x,
       if (PA.dim == 3)
       {
          AssembleGradPA_3D(x);
+         //if (coeff0) { AssembleGradPA_C0_3D(x); }
       }
    }
 
@@ -166,7 +177,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &x,
    if (PA.dim == 3)
    {
       AddMultGradPA_3D(x,r,c);
-      //if (coeff0) { AddMultGradPA_C0_3D(x,r,c); }
+      if (coeff0) { AddMultGradPA_C0_3D(x,r,c); }
       return;
    }
    MFEM_ABORT("Not yet implemented!");

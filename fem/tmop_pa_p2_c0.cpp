@@ -65,8 +65,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
 
       MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
       MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
@@ -108,13 +106,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             const double a = 1.0 / (dist * dist);
             const double w = weight * lim_normal * coeff0;
             kernels::Subtract<2>(w*a, p1, p0, d1);
-            kernels::PushEvalXY<MQ1,NBZ>(qx,qy,d1,QQ);
+            kernels::PushEvalXY<MQ1,NBZ>(qx,qy,d1,QQ0);
          }
       }
       MFEM_SYNC_THREAD;
       kernels::LoadBGt<MD1,MQ1>(D1D, Q1D, b, g, BG);
-      kernels::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ,DQ);
-      kernels::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,Y,e);
+      kernels::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,BG,QQ0,DQ0);
+      kernels::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ0,Y,e);
    });
 }
 

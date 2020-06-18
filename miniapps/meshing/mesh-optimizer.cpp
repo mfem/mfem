@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in fespace.
    GridFunction rdm(fespace);
-   rdm.Randomize(0x1234);
+   rdm.Randomize(0x100001b3);
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    rdm.HostReadWrite();
@@ -659,7 +659,6 @@ int main(int argc, char *argv[])
 
    const double init_energy = a.GetGridFunctionEnergy(x);
    dbg("init_energy: %.15e", init_energy);
-   return 0;
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)

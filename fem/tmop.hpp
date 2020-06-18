@@ -1087,12 +1087,14 @@ public:
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
+   void AddMultPA_C0_3D(const Vector&, Vector&) const;
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    using NonlinearFormIntegrator::AddMultGradPA;
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, const Vector&, Vector&) const;
+   void AddMultGradPA_C0_3D(const Vector&, const Vector&, Vector&) const;
    virtual void AddMultGradPA(const Vector&, const Vector&, Vector&) const;
 
    void AssembleGradPA_2D(const Vector&) const;

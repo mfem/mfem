@@ -60,10 +60,12 @@ set(SRCS
   tmop_pa_h2s.cpp
   tmop_pa_h2s_c0.cpp
   tmop_pa_h3m.cpp
+  tmop_pa_h3m_c0.cpp
   tmop_pa_h3s.cpp
   tmop_pa_p2.cpp
   tmop_pa_p2_c0.cpp
   tmop_pa_p3.cpp
+  tmop_pa_p3_c0.cpp
   tmop_pa_w2.cpp
   tmop_pa_w2_c0.cpp
   tmop_pa_w3.cpp
