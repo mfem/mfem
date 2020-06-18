@@ -9,13 +9,13 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-  add_mfem_miniapp(cvsRoberts_ASAi_dns
-    MAIN cvsRoberts_ASAi_dns.cpp
-    LIBRARIES mfem mfem-common)
+add_mfem_miniapp(cvsRoberts_ASAi_dns
+  MAIN cvsRoberts_ASAi_dns.cpp
+  LIBRARIES mfem mfem-common)
 
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(advention_diffusion
+  add_mfem_miniapp(advection_diffusion
     MAIN advection_diffusion.cpp
     LIBRARIES mfem mfem-common)
 endif()
