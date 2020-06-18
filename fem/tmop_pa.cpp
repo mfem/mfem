@@ -15,7 +15,6 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -127,23 +126,6 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
    {
       AddMultPA_3D(x,y);
       if (coeff0) { AddMultPA_C0_3D(x,y); }
-      return;
-   }
-   MFEM_ABORT("Not yet implemented!");
-}
-
-void TMOP_Integrator::AssembleGradPA(const Vector &x) const
-{
-   if (PA.dim == 2)
-   {
-      AssembleGradPA_2D(x);
-      //if (coeff0) { AssembleGradPA_C0_2D(x); }
-      return;
-   }
-   if (PA.dim == 3)
-   {
-      AssembleGradPA_3D(x);
-      //if (coeff0) { AssembleGradPA_C0_2D(x); }
       return;
    }
    MFEM_ABORT("Not yet implemented!");
