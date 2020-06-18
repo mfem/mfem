@@ -192,7 +192,7 @@ public:
 };
 
 
-class VolNonlinearFormFADH:public FADNonlinearFormIntegratorH
+class VolNonlinearFormADH:public ADNonlinearFormIntegratorH
 {
 private:
     double eta;
@@ -211,25 +211,25 @@ private:
     
 public:
     
-    VolNonlinearFormFADH(double eta_, double beta_){
+    VolNonlinearFormADH(double eta_, double beta_){
         eta=eta_;
         beta=beta_;
     }
     
     
-    virtual FADType ElementEnergy(const mfem::FiniteElement & el,
+    virtual ADFType ElementEnergy(const mfem::FiniteElement & el,
                                        mfem::ElementTransformation & trans,
-                                       const FADVector & elfun) override
+                                       const ADFVector & elfun) override
     {
-        FADType rez=MyElementEnergy<FADType,FADVector>(el,trans,elfun);
+        ADFType rez=MyElementEnergy<ADFType,ADFVector>(el,trans,elfun);
         return rez;
     }
     
-    virtual SADType ElementEnergy(const mfem::FiniteElement & el,
+    virtual ADSType ElementEnergy(const mfem::FiniteElement & el,
                                        mfem::ElementTransformation & trans,
-                                       const SADVector & elfun) override
+                                       const ADSVector & elfun) override
     {
-        return MyElementEnergy<SADType,SADVector>(el,trans,elfun);
+        return MyElementEnergy<ADSType,ADSVector>(el,trans,elfun);
     }
     
     template<typename MDType, typename MVType>
@@ -279,6 +279,182 @@ public:
 };
 
 
+class VolQIntegratorJ: public ADQIntegratorJ
+{
+  private:
+    template<typename DType>
+    DType Project(double eta, double beta, DType inp)
+    {
+        // tanh projection - Wang&Lazarov&Sigmund2011
+        double a=std::tanh(eta*beta);
+        double b=std::tanh(beta*(1.0-eta));
+        DType c=tanh(beta*(inp-eta));
+        DType rez=(a+c)/(a+b);
+        return rez;
+    }
+
+    template<typename DType>
+    DType ProjGrad(double eta, double beta, DType inp)
+    {
+        DType c=tanh(beta*(inp-eta));
+        DType a=tanh(eta*beta);
+        DType b=tanh(beta*(1.0-eta));
+        DType rez=beta*(1.0-c*c)/(a+b);
+        return rez;
+    }
+
+
+  public:
+    VolQIntegratorJ(){}
+    virtual ~VolQIntegratorJ(){}
+
+
+    template<typename MVType>
+    void MyQIntegratorDU(const mfem::Vector& vparam, MVType& uu, MVType& rr)
+    {
+        //implement all evaluations executed at integration point
+        double eta=vparam[0];
+        double beta=vparam[1];
+        rr.SetSize(1); //return the derivative of the projected value
+        rr[0]=ProjGrad(eta,beta,uu[0]);
+        return;
+    }
+
+    virtual void QIntegratorDU(const mfem::Vector& vparam, mfem::Vector& uu, mfem::Vector& rr) override
+    {
+        MyQIntegratorDU<mfem::Vector>(vparam,uu,rr);
+    }
+
+    virtual void QIntegratorDU(const mfem::Vector& vparam, ADFVector& uu, ADFVector& rr) override
+    {
+        MyQIntegratorDU<ADFVector>(vparam,uu,rr);
+    }
+
+
+    virtual double QIntegrator(const Vector &vparam, const Vector &uu) override
+    {
+        //implement all evaluations executed at integration point
+        double eta=vparam[0];
+        double beta=vparam[1];
+        double rez=Project(eta,beta,uu[0]);
+        return rez;
+    }
+
+};
+
+
+class VolNonlinearFormQJ: public NonlinearFormIntegrator
+{
+protected:
+    double eta;
+    double beta;
+    mfem::Vector vparam;
+    VolQIntegratorJ qint;
+public:
+    VolNonlinearFormQJ(double eta_, double beta_){
+        eta=eta_;
+        beta=beta_;
+        vparam.SetSize(2);
+        vparam[0]=eta;
+        vparam[1]=beta;
+    }
+
+    virtual ~VolNonlinearFormQJ(){ }
+
+    virtual double GetElementEnergy(const mfem::FiniteElement & el,
+                                           mfem::ElementTransformation & trans,
+                                           const mfem::Vector & elfun) override
+    {
+        double energy=0.0;
+        int ndof = el.GetDof();
+
+        const mfem::IntegrationRule *ir = NULL;
+        int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
+
+        mfem::Vector shapef(ndof);
+        mfem::Vector uu(1);
+
+        double w;
+        for (int i = 0; i < ir -> GetNPoints(); i++)
+        {
+            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
+            trans.SetIntPoint(&ip);
+            el.CalcShape(ip,shapef);
+            uu[0]= shapef*elfun;
+            w= qint.QIntegrator(vparam,uu);
+            w= ip.weight * trans.Weight() * w;
+            energy = energy + w;
+        }
+        return energy;
+    }
+
+    virtual void AssembleElementVector(const mfem::FiniteElement & el,
+                                       mfem::ElementTransformation & trans,
+                                       const mfem::Vector & elfun,
+                                       mfem::Vector & elvect) override
+    {
+        int ndof = el.GetDof();
+        const mfem::IntegrationRule *ir = NULL;
+        int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
+
+        elvect.SetSize(ndof);
+        elvect=0.0;
+
+        mfem::Vector shapef(ndof);
+        mfem::Vector uu(1);
+        mfem::Vector rr(1);
+
+        double w;
+
+        for (int i = 0; i < ir -> GetNPoints(); i++)
+        {
+            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
+            trans.SetIntPoint(&ip);
+            el.CalcShape(ip,shapef);
+            uu[0]=shapef*elfun;
+            qint.QIntegratorDU(vparam,uu,rr);
+            w= ip.weight * trans.Weight() * rr[0];
+            elvect.Add(w,shapef);
+        }
+    }
+
+    virtual void AssembleElementGrad(const mfem::FiniteElement & el,
+                                     mfem::ElementTransformation & trans,
+                                     const mfem::Vector & elfun,
+                                     mfem::DenseMatrix & elmat) override
+    {
+        int ndof = el.GetDof();
+
+        const mfem::IntegrationRule *ir = NULL;
+        int order = 2 * trans.OrderGrad(&el) - 1; // correct order?
+        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
+
+        elmat.SetSize(ndof);
+        elmat=0.0;
+
+        mfem::DenseMatrix jac(1,1);
+
+        mfem::Vector shapef(ndof);
+        mfem::Vector uu(1);
+
+
+        double w;
+        for (int i = 0; i < ir -> GetNPoints(); i++)
+        {
+            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
+            trans.SetIntPoint(&ip);
+            el.CalcShape(ip,shapef);
+            uu[0]=shapef*elfun;
+            qint.QIntegratorDD(vparam,uu,jac);
+            w= ip.weight * trans.Weight() * jac(0,0);
+            AddMult_a_VVt(w, shapef, elmat);
+        }
+
+   }
+
+};
 
 
 }
@@ -395,7 +571,8 @@ int main(int argc, char *argv[])
    
    //compute the energy - the total volume above 0.5
    nf0->AddDomainIntegrator(new mfem::VolNonlinearForm(0.5,8.0));
-   nf1->AddDomainIntegrator(new mfem::VolNonlinearFormFADH(0.5,8.0));
+   //nf1->AddDomainIntegrator(new mfem::VolNonlinearFormADH(0.5,8.0));
+   nf1->AddDomainIntegrator(new mfem::VolNonlinearFormQJ(0.5,8.0));
    
    double vol0=nf0->GetEnergy(*stat);
    double vol1=nf1->GetEnergy(*stat);
@@ -438,7 +615,7 @@ int main(int argc, char *argv[])
    
    delete ggf0;
    delete ggf1;
-   delete stat; 
+   delete stat;
    delete resv0;
    delete resv1;
    delete igf;     

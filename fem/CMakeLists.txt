@@ -99,11 +99,8 @@ set(HDRS
   tmop.hpp
   tmop_tools.hpp
   gslib.hpp
-<<<<<<< HEAD
   adnonlininteg.hpp
-=======
   transfer.hpp
->>>>>>> master
   )
 
 if (MFEM_USE_SIDRE)

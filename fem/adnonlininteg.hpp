@@ -26,30 +26,74 @@
 namespace mfem
 {
 
+class ADQIntegratorJ
+{
+  public:
+    typedef mfem::ad::FDual<double>    ADFType;
+    typedef TADVector<ADFType>         ADFVector;
+    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
 
-class FADNonlinearFormIntegratorH: public NonlinearFormIntegrator
+    ADQIntegratorJ(){}
+
+    virtual ~ADQIntegratorJ(){}
+
+    virtual double QIntegrator(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
+    virtual void QIntegratorDU(const mfem::Vector& vparam, ADFVector& uu, ADFVector& rr)=0;
+    virtual void QIntegratorDU(const mfem::Vector& vparam, mfem::Vector& uu, mfem::Vector& rr)=0;
+
+    void QIntegratorDD(const mfem::Vector& vparam, const mfem::Vector& uu, mfem::DenseMatrix& jj);
+
+};
+
+
+class ADQIntegratorH
+{
+  public:
+    typedef mfem::ad::FDual<double>    ADFType;
+    typedef TADVector<ADFType>         ADFVector;
+    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+
+    typedef mfem::ad::FDual<ADFType>   ADSType;
+    typedef TADVector<ADSType>         ADSVector;
+    typedef TADDenseMatrix<ADSType>    ADSDenseMatrix;
+
+    ADQIntegratorH(){}
+
+    virtual ~ADQIntegratorH(){}
+
+    virtual double QIntegrator(const mfem::Vector& vparam, const mfem::Vector& uu)=0;
+    virtual ADFType QIntegrator(const mfem::Vector& vparam, ADFVector& uu)=0;
+    virtual ADSType QIntegrator(const mfem::Vector &vparam, ADSVector& uu)=0;
+
+    virtual void QIntegratorDU(const mfem::Vector& vparam, mfem::Vector& uu, mfem::Vector& rr);
+    void QIntegratorDD(const mfem::Vector& vparam, const mfem::Vector& uu, mfem::DenseMatrix& jj);
+};
+
+
+
+class ADNonlinearFormIntegratorH: public NonlinearFormIntegrator
 {
 public:
     
-    typedef mfem::ad::FDual<double>    FADType;
-    typedef TADVector<FADType>         FADVector;
-    typedef TADDenseMatrix<FADType>    FADenseMatrix;
+    typedef mfem::ad::FDual<double>    ADFType;
+    typedef TADVector<ADFType>         ADFVector;
+    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
     
-    typedef mfem::ad::FDual<FADType>   SADType;
-    typedef TADVector<SADType>         SADVector;
-    typedef TADDenseMatrix<SADType>    SADDenseMatrix;
+    typedef mfem::ad::FDual<ADFType>   ADSType;
+    typedef TADVector<ADSType>         ADSVector;
+    typedef TADDenseMatrix<ADSType>    ADSDenseMatrix;
     
-    FADNonlinearFormIntegratorH(){}
+    ADNonlinearFormIntegratorH(){}
     
-    virtual ~FADNonlinearFormIntegratorH(){}
+    virtual ~ADNonlinearFormIntegratorH(){}
     
-    virtual SADType ElementEnergy(const mfem::FiniteElement & el, 
+    virtual ADSType ElementEnergy(const mfem::FiniteElement & el,
                                  mfem::ElementTransformation & Tr,
-                                 const SADVector & elfun)=0;  
+                                 const ADSVector & elfun)=0;
                                  
-    virtual FADType ElementEnergy(const mfem::FiniteElement & el, 
+    virtual ADFType ElementEnergy(const mfem::FiniteElement & el,
                                  mfem::ElementTransformation & Tr,
-                                 const FADVector & elfun)=0;
+                                 const ADFVector & elfun)=0;
                                 
     virtual double ElementEnergy(const mfem::FiniteElement & el, 
                                  mfem::ElementTransformation & Tr,
