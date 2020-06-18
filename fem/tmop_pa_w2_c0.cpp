@@ -12,44 +12,30 @@
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
 #include "linearform.hpp"
-#include "pgridfunc.hpp"
-#include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
-#include "../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
-static MFEM_HOST_DEVICE inline
-double EvalW_001(const double *Jpt)
-{
-   kernels::InvariantsEvaluator2D ie(Jpt);
-   return ie.Get_I1();
-}
-
-static MFEM_HOST_DEVICE inline
-double EvalW_002(const double *Jpt)
-{
-   kernels::InvariantsEvaluator2D ie(Jpt);
-   return 0.5 * ie.Get_I1b() - 1.0;
-}
-
-MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
-                           const double metric_normal,
-                           const int mid,
+MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
+                           const double lim_normal,
+                           const double dist,
+                           const Vector &c0_,
                            const int NE,
                            const DenseTensor &j_,
                            const Array<double> &w_,
                            const Array<double> &b_,
                            const Array<double> &g_,
-                           const Vector &x_,
+                           const Vector &x0_,
+                           const Vector &x1_,
                            const Vector &ones,
                            Vector &energy,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2, "2D metric not yet implemented!");
+   const double id2 = 0.5 / (dist*dist);
+   const bool const_c0 = c0_.Size() == 1;
 
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
@@ -57,82 +43,85 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const auto C0 = const_c0 ?
+                   Reshape(c0_.Read(), 1, 1, 1) :
+                   Reshape(c0_.Read(), Q1D, Q1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
-   const auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
+   const auto X0 = Reshape(x0_.Read(), D1D, D1D, DIM, NE);
+   const auto X1 = Reshape(x1_.Read(), D1D, D1D, DIM, NE);
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
-      kernels::LoadX<MD1,NBZ>(e,D1D,X,XY);
+      MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
+      MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ0[2][NBZ][MQ1*MQ1];
+
+      MFEM_SHARED double XY1[2][NBZ][MD1*MD1];
+      MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
+      MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
+
+      kernels::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
+      kernels::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
+
       kernels::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
-      kernels::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY0,DQ0);
+      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ0,QQ0);
+
+      kernels::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY1,DQ1);
+      kernels::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ1,QQ1);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
+            double p0[2], p1[2];
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = metric_normal * W(qx,qy) * detJtr;
-
-            // Jrt = Jtr^{-1}
-            double Jrt[4];
-            kernels::CalcInverse<2>(Jtr, Jrt);
-
-            // Jpr = X^t.DSh
-            double Jpr[4];
-            kernels::PullGradXY<MQ1,NBZ>(qx,qy,QQ,Jpr);
-
-            // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-            double Jpt[4];
-            kernels::Mult(2,2,2,Jpr,Jrt,Jpt);
-
-            // metric->EvalW(Jpt);
-            const double EvalW =
-            mid == 1 ? EvalW_001(Jpt) :
-            mid == 2 ? EvalW_002(Jpt) : 0.0;
-
-            E(qx,qy,e) = weight * EvalW;
+            const double weight = W(qx,qy) * detJtr;
+            const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+            kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ0,p0);
+            kernels::PullEvalXY<MQ1,NBZ>(qx,qy,QQ1,p1);
+            const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+            E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
          }
       }
    });
    return energy * ones;
 }
 
-double TMOP_Integrator::GetGridFunctionEnergyPA_2D(const Vector &X) const
+double TMOP_Integrator::GetGridFunctionEnergyPA_C0_2D(const Vector &X) const
 {
    const int N = PA.ne;
-   const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double m = metric_normal;
+   const double ln = lim_normal;
+   const double ld = lim_dist->HostRead()[0];
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
+   const Vector &X0 = PA.X0;
+   const Vector &C0 = PA.C0;
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,m,M,N,J,W,B,G,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,ld,C0,N,J,W,B,G,X0,X,O,E);
 }
 
 } // namespace mfem

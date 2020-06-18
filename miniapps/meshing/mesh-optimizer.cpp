@@ -574,13 +574,13 @@ int main(int argc, char *argv[])
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
-   MFEM_VERIFY(!pa || lim_const == 0.0, "");
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
    GridFunction zeta_0(&ind_fes);
    ConstantCoefficient coef_zeta(adapt_lim_const);
    AdaptivityEvaluator *adapt_evaluator = NULL;
+   MFEM_VERIFY(!pa || adapt_lim_const == 0.0, "");
    if (adapt_lim_const > 0.0)
    {
       FunctionCoefficient alim_coeff(adapt_lim_fun);

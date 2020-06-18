@@ -54,7 +54,8 @@ public:
 
    MFEM_HOST_DEVICE inline double Get_I2b() // det(J)
    {
-      return J[0]*J[3] - J[1]*J[2];
+      double sign_detJ;
+      return Get_I2b(sign_detJ);
    }
 
    MFEM_HOST_DEVICE inline double Get_I2() // det(J)^{2}

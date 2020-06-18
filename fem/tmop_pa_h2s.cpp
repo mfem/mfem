@@ -78,8 +78,9 @@ void EvalH_002(const int e, const int qx, const int qy,
    }
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, int T_MAX = 0>
-static void SetupGradPA_2D(const Vector &x_,
+MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
+                           const Vector &x_,
+                           const double metric_normal,
                            const int mid,
                            const int NE,
                            const Array<double> &w_,
@@ -87,13 +88,13 @@ static void SetupGradPA_2D(const Vector &x_,
                            const Array<double> &g_,
                            const DenseTensor &j_,
                            Vector &h_,
-                           const int d1d = 0,
-                           const int q1d = 0)
+                           const int d1d,
+                           const int q1d)
 {
    constexpr int DIM = 2;
+   constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -106,7 +107,7 @@ static void SetupGradPA_2D(const Vector &x_,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
@@ -127,17 +128,17 @@ static void SetupGradPA_2D(const Vector &x_,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = W(qx,qy) * detJtr;
+            const double weight = metric_normal * W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
-            // Jpr = X^T.DSh
+            // Jpr = X^t.DSh
             double Jpr[4];
             kernels::PullGradXY<MQ1,NBZ>(qx,qy,s_QQ,Jpr);
 
-            // Jpt = GX^T.DS = (GX^T.DSh).Jrt = GX.Jrt
+            // Jpt = Jpr.Jrt
             double Jpt[4];
             kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
 
@@ -156,50 +157,15 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
+   const double mn = metric_normal;
    const DenseTensor &J = PA.Jtr;
    const IntegrationRule *ir = IntRule;
    const Array<double> &W = ir->GetWeights();
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
-   Vector &H = PA.A;
+   Vector &H = PA.H;
 
-   switch (id)
-   {
-      case 0x21: return SetupGradPA_2D<2,1,1>(X,M,N,W,B,G,J,H);
-      case 0x22: return SetupGradPA_2D<2,2,1>(X,M,N,W,B,G,J,H);
-      case 0x23: return SetupGradPA_2D<2,3,1>(X,M,N,W,B,G,J,H);
-      case 0x24: return SetupGradPA_2D<2,4,1>(X,M,N,W,B,G,J,H);
-      case 0x25: return SetupGradPA_2D<2,5,1>(X,M,N,W,B,G,J,H);
-      case 0x26: return SetupGradPA_2D<2,6,1>(X,M,N,W,B,G,J,H);
-
-      case 0x31: return SetupGradPA_2D<3,1,1>(X,M,N,W,B,G,J,H);
-      case 0x32: return SetupGradPA_2D<3,2,1>(X,M,N,W,B,G,J,H);
-      case 0x33: return SetupGradPA_2D<3,3,1>(X,M,N,W,B,G,J,H);
-      case 0x34: return SetupGradPA_2D<3,4,1>(X,M,N,W,B,G,J,H);
-      case 0x35: return SetupGradPA_2D<3,5,1>(X,M,N,W,B,G,J,H);
-      case 0x36: return SetupGradPA_2D<3,6,1>(X,M,N,W,B,G,J,H);
-
-      case 0x41: return SetupGradPA_2D<4,1,1>(X,M,N,W,B,G,J,H);
-      case 0x42: return SetupGradPA_2D<4,2,1>(X,M,N,W,B,G,J,H);
-      case 0x43: return SetupGradPA_2D<4,3,1>(X,M,N,W,B,G,J,H);
-      case 0x44: return SetupGradPA_2D<4,4,1>(X,M,N,W,B,G,J,H);
-      case 0x45: return SetupGradPA_2D<4,5,1>(X,M,N,W,B,G,J,H);
-      case 0x46: return SetupGradPA_2D<4,6,1>(X,M,N,W,B,G,J,H);
-
-      case 0x51: return SetupGradPA_2D<5,1,1>(X,M,N,W,B,G,J,H);
-      case 0x52: return SetupGradPA_2D<5,2,1>(X,M,N,W,B,G,J,H);
-      case 0x53: return SetupGradPA_2D<5,3,1>(X,M,N,W,B,G,J,H);
-      case 0x54: return SetupGradPA_2D<5,4,1>(X,M,N,W,B,G,J,H);
-      case 0x55: return SetupGradPA_2D<5,5,1>(X,M,N,W,B,G,J,H);
-      case 0x56: return SetupGradPA_2D<5,6,1>(X,M,N,W,B,G,J,H);
-
-      default:
-      {
-         constexpr int T_MAX = 8;
-         MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
-         return SetupGradPA_2D<0,0,0,T_MAX>(X,M,N,W,B,G,J,H,D1D,Q1D);
-      }
-   }
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,M,N,W,B,G,J,H);
 }
 
 } // namespace mfem
