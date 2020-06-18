@@ -13,7 +13,6 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
-#include "../general/debug.hpp"
 
 namespace mfem
 {
@@ -1501,7 +1500,6 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      const GridFunction &dist, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
 {
-   dbg("lfunc: %p", lfunc);
    EnableLimiting(n0, w0, lfunc);
    lim_dist = &dist;
 }
@@ -2186,7 +2184,6 @@ void TMOP_Integrator::EnableNormalization(const GridFunction &x)
    ComputeNormalizationEnergies(x, metric_normal, lim_normal);
    metric_normal = 1.0 / metric_normal;
    lim_normal = 1.0 / lim_normal;
-   dbg("metric_normal:%.15e, lim_normal:%.15e", metric_normal, lim_normal);
 }
 
 #ifdef MFEM_USE_MPI

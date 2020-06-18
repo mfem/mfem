@@ -12,7 +12,6 @@
 #include "tmop.hpp"
 #include "tmop_pa.hpp"
 #include "linearform.hpp"
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 

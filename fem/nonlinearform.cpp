@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
-#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -86,9 +85,7 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    {
       MFEM_VERIFY(fnfi.Size() == 0, "Not Yet implemented!");
       MFEM_VERIFY(bfnfi.Size() == 0, "Not Yet implemented!");
-      const double energy = ext->GetGridFunctionEnergy(x);
-      dbg("energy: %.15e",energy);
-      return energy;
+      return ext->GetGridFunctionEnergy(x);
    }
 
    Array<int> vdofs;
@@ -122,7 +119,6 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
       MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
 
-   dbg("energy: %.15e",energy);
    return energy;
 }
 
