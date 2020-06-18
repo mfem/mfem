@@ -214,7 +214,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    ParMesh *pmesh = pfes->GetParMesh();
 
    face_nbr_data.SetSize(pfes->GetFaceNbrVSize());
-   Vector send_data(pfes->send_face_nbr_ldof.Size_of_connections());
+   send_data.SetSize(pfes->send_face_nbr_ldof.Size_of_connections());
 
    int *send_offset = pfes->send_face_nbr_ldof.GetI();
    const int *d_send_ldof = mfem::Read(pfes->send_face_nbr_ldof.GetJMemory(),

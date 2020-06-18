@@ -38,6 +38,11 @@ protected:
        initialized by ExchangeFaceNbrData(). */
    Vector face_nbr_data;
 
+   /** @brief Vector used as an MPI buffer to send face-neighbor data
+        in ExchangeFaceNbrData() to neighboring processors. */
+   //TODO: Use temporary memory to avoid CUDA malloc allocation cost.
+   Vector send_data;
+
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               Array<int> &attr);
 
