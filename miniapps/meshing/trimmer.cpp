@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 
    // Count the number of boundary elements in the final mesh
    int num_bdr_elements = 0;
-   for (int f=0; f<mesh.GetNFaces(); f++)
+   for (int f=0; f<mesh.GetNumFaces(); f++)
    {
       int e1 = -1, e2 = -1;
       mesh.GetFaceElements(f, &e1, &e2);
@@ -162,8 +162,22 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Create boundary elements
-   for (int f=0; f<mesh.GetNFaces(); f++)
+   // Copy selected boundary elements
+   for (int be=0; be<mesh.GetNBE(); be++)
+   {
+      int e, info;
+      mesh.GetBdrElementAdjacentElement(be, e, info);
+
+      int elem_attr = mesh.GetElement(e)->GetAttribute();
+      if (!marker[elem_attr-1])
+      {
+         Element * nbel = mesh.GetBdrElement(be)->Duplicate(&trimmed_mesh);
+         trimmed_mesh.AddBdrElement(nbel);
+      }
+   }
+
+   // Create new boundary elements
+   for (int f=0; f<mesh.GetNumFaces(); f++)
    {
       int e1 = -1, e2 = -1;
       mesh.GetFaceElements(f, &e1, &e2);
