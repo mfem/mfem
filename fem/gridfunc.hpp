@@ -598,11 +598,13 @@ public:
                      type = adios2stream::data_type::point_data) const;
 #endif
 
-   /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
-       called first. The parameter ref > 0 must match the one used in
+   /** @brief Write the GridFunction in VTK format. Note that Mesh::PrintVTK
+       must be called first. The parameter ref > 0 must match the one used in
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
 
+   /** @brief Write the GridFunction in STL format. Note that the mesh dimension
+       must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
 
    /// Destroys grid function.
