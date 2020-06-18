@@ -90,6 +90,13 @@ void NonlinearFormIntegrator::AddMultPAGrad(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssembleDiagonalPA(
+   Vector &y)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleDiagonalPA"
+              " is not overloaded!");
+}
+
 double NonlinearFormIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
