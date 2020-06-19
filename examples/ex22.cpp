@@ -13,6 +13,11 @@
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
 //               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
+// With partial assembly:
+//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa
+//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
+//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa
+//
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems. It implements three
 //               variants of a damped harmonic oscillator:
@@ -76,6 +81,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
+   bool pa = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -106,6 +112,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -282,6 +290,11 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    SesquilinearForm *a = new SesquilinearForm(fespace, conv);
+   if (pa)
+   {
+      a->real().SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a->imag().SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
    switch (prob)
    {
       case 0:
@@ -318,6 +331,10 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    BilinearForm *pcOp = new BilinearForm(fespace);
+   if (pa)
+   {
+      pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
    switch (prob)
    {
       case 0:
@@ -354,6 +371,7 @@ int main(int argc, char *argv[])
    OperatorHandle PCOp;
    pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
 
+   if (!pa)
    {
       ComplexSparseMatrix * Asp =
          dynamic_cast<ComplexSparseMatrix*>(A.Ptr());
@@ -377,22 +395,28 @@ int main(int argc, char *argv[])
       Operator * pc_r = NULL;
       Operator * pc_i = NULL;
 
-      double s = 1.0;
-      switch (prob)
+      if (pa)
       {
-         case 0:
-            pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
-            break;
-         case 1:
-            pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
-            s = -1.0;
-            break;
-         case 2:
-            pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
-            break;
-
-         default: break; // This should be unreachable
+         pc_r = new OperatorJacobiSmoother(*pcOp, ess_tdof_list);
       }
+      else
+      {
+         switch (prob)
+         {
+            case 0:
+               pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+               break;
+            case 1:
+               pc_r = new GSSmoother(*PCOp.As<SparseMatrix>());
+               break;
+            case 2:
+               pc_r = new DSmoother(*PCOp.As<SparseMatrix>());
+               break;
+
+            default: break; // This should be unreachable
+         }
+      }
+      double s = (prob != 1) ? 1.0 : -1.0;
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
                                 s:-s);
