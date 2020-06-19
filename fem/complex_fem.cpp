@@ -974,24 +974,33 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       MFEM_ABORT("Real and Imaginary part of the Sesquilinear form are empty");
    }
 
-   // Modify RHS and offdiagonal blocks (Imaginary parts of the matrix) to
-   // conform with standard essential BC treatment i.e. zero out rows and
-   // columns and place ones on the diagonal.
    if (RealInteg() && ImagInteg())
    {
+      int n = ess_tdof_list.Size();
+      // Modify RHS to conform with standard essential BC treatment
+      for (int k=0; k<n; k++)
+      {
+         int j=ess_tdof_list[k];
+         B_r(j) = X_r(j);
+         B_i(j) = X_i(j);
+      }
+      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // with standard essential BC treatment
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {
          HypreParMatrix * Ah;  A_i.Get(Ah);
-         int n = ess_tdof_list.Size();
          hypre_ParCSRMatrix * Aih =
             (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
          for (int k=0; k<n; k++)
          {
             int j=ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
-            B_r(j) = X_r(j);
-            B_i(j) = X_i(j);
          }
+      }
+      else
+      {
+         A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
+         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
    }
 
@@ -1000,6 +1009,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       B_i *= -1.0;
       b_i *= -1.0;
    }
+
    // A = A_r + i A_i
    A.Clear();
    if ( A_r.Type() == Operator::Hypre_ParCSR ||
