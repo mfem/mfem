@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES =
+SEQ_EXAMPLES = convergence
 PAR_EXAMPLES = projection
 
 ifeq ($(MFEM_USE_MPI),NO)
