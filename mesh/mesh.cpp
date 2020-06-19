@@ -859,7 +859,8 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
 {
    FaceInfo &face_info = faces_info[FaceNo];
 
-   FaceElemTr.SetConfigurationMask(0);
+   int cmask = 0;
+   FaceElemTr.SetConfigurationMask(cmask);
    FaceElemTr.Elem1 = NULL;
    FaceElemTr.Elem2 = NULL;
 
@@ -869,6 +870,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    {
       GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
       FaceElemTr.Elem1 = &Transformation;
+      cmask |= 1;
    }
 
    //  setup the transformation for the second element
@@ -882,12 +884,14 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
 #endif
       GetElementTransformation(FaceElemTr.Elem2No, &Transformation2);
       FaceElemTr.Elem2 = &Transformation2;
+      cmask |= 2;
    }
 
    // setup the face transformation
    if (mask & 16)
    {
       GetFaceTransformation(FaceNo, &FaceElemTr);
+      cmask |= 16;
    }
    else
    {
@@ -901,6 +905,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
       int elem_type = GetElementType(face_info.Elem1No);
       GetLocalFaceTransformation(face_type, elem_type,
                                  FaceElemTr.Loc1.Transf, face_info.Elem1Inf);
+      cmask |= 4;
    }
    if ((mask & 8) && FaceElemTr.Elem2No >= 0)
    {
@@ -921,9 +926,10 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
             std::swap(pm(1,0), pm(1,1));
          }
       }
+      cmask |= 8;
    }
 
-   FaceElemTr.SetConfigurationMask(mask);
+   FaceElemTr.SetConfigurationMask(cmask);
 
    return &FaceElemTr;
 }
@@ -967,7 +973,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    {
       return NULL;
    }
-   tr = GetFaceElementTransformations(fn);
+   tr = GetFaceElementTransformations(fn, 21);
    tr->Attribute = boundary[BdrElemNo]->GetAttribute();
    tr->ElementNo = BdrElemNo;
    tr->ElementType = ElementTransformation::BDR_FACE;
