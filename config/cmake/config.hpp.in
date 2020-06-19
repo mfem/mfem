@@ -153,4 +153,8 @@
 // library.
 #cmakedefine MFEM_USE_SIMMETRIX
 
+#cmakedefine MFEM_USE_ADEPT
+
+#cmakedefine MFEM_USE_CODIPACK
+
 #endif // MFEM_CONFIG_HEADER

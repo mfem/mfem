@@ -23,17 +23,48 @@
 #include "../linalg/taddensemat.hpp"
 #include "../linalg/fdual.hpp"
 
+#ifdef MFEM_USE_ADEPT
+#include <adept.h>
+#elif  MFEM_USE_CODIPACK
+#include <codi.hpp>
+#endif
+
 namespace mfem
 {
 
 class ADQIntegratorJ
 {
+  private:
+    int m;  //dimension of the residual vector
+            //the Jacobian will have dimensions [m,length(uu)]
+  protected:protected:
+#ifdef MFEM_USE_ADEPT
+    adept::Stack  m_stack;
+#endif
+
   public:
+#ifdef MFEM_USE_ADEPT
+    typedef adept::adouble 			   ADFType;
+    typedef TADVector<ADFType>         ADFVector;
+    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+#elif  MFEM_USE_CODIPACK
+    typedef codi::RealForward 		   ADFType;
+    typedef TADVector<ADFType>         ADFVector;
+    typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+#else
     typedef mfem::ad::FDual<double>    ADFType;
     typedef TADVector<ADFType>         ADFVector;
     typedef TADDenseMatrix<ADFType>    ADFDenseMatrix;
+#endif
 
-    ADQIntegratorJ(){}
+#ifdef MFEM_USE_ADEPT
+    ADQIntegratorJ(int m_=1):m_stack(false)
+    {
+        m=m_;
+    }
+#else
+    ADQIntegratorJ(int m_=1){ m=m_;}
+#endif
 
     virtual ~ADQIntegratorJ(){}
 

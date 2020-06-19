@@ -19,8 +19,32 @@ namespace mfem
 
 void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, DenseMatrix &jac)
 {
+#ifdef MFEM_USE_ADEPT
+    //use ADEPT package
+    adept::Stack* p_stack=adept::active_stack();
+    p_stack->deactivate();
+
+    int n=uu.Size();
+    jac.SetSize(m,n);
+    jac=0.0;
+    m_stack.activate();
+    {
+        ADFVector aduu(uu);
+        ADFVector rr(m); //residual vector
+        m_stack.new_recording();
+        this->QIntegratorDU(vparam,aduu,rr);
+        m_stack.independent(aduu.GetData(), n);//independent variables
+        m_stack.dependent(rr.GetData(), m);//dependent variables
+        m_stack.jacobian(jac.Data());
+    }
+    m_stack.deactivate();
+#elif MFEM_USE_CODIPACK
+
+#else
+    //use native AD package
    int n=uu.Size();
-   int m=0;
+   jac.SetSize(m,n);
+   jac=0.0;
    {
        ADFVector aduu(uu); //all dual numbers are initialized to zero
        ADFVector rr;
@@ -28,12 +52,6 @@ void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
        for(int ii=0;ii<n;ii++){
            aduu[ii].dual(1.0);
            this->QIntegratorDU(vparam,aduu,rr);
-           if(m==0)//initialize the Jacobian
-           {
-               m=rr.Size();
-               jac.SetSize(m,n);
-               jac=0.0;
-           }
            for(int jj=0;jj<m;jj++)
            {
                jac(jj,ii)=rr[jj].dual();
@@ -41,6 +59,7 @@ void ADQIntegratorJ::QIntegratorDD(const Vector &vparam, const Vector &uu, Dense
            aduu[ii].dual(0.0);
        }
    }
+#endif
 }
 
 void ADQIntegratorH::QIntegratorDU(const Vector &vparam, Vector &uu, Vector &rr)
