@@ -21,13 +21,13 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = convergence complex
-PAR_EXAMPLES = projection pcomplex
+SEQ_TESTS = convergence complex
+PAR_TESTS = projection pcomplex diffusion
 
 ifeq ($(MFEM_USE_MPI),NO)
-   EXAMPLES = $(SEQ_EXAMPLES)
+   TESTS = $(SEQ_TESTS)
 else
-   EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
+   TESTS = $(PAR_TESTS) $(SEQ_TESTS)
 endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
@@ -37,7 +37,7 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build
+.PHONY: all clean clean-build clean-exec
 
 # Remove built-in rule
 %: %.cpp
@@ -46,7 +46,7 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES) $(SUBDIRS_ALL)
+all: $(TESTS) $(SUBDIRS_ALL)
 
 .PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
 $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
@@ -73,5 +73,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
 clean-build:
-	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
 	rm -rf *.dSYM *.TVD.*breakpoints
+
+clean-exec:
+	@true
+
