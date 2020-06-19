@@ -752,7 +752,8 @@ double GridFunction::GetValue(ElementTransformation &T,
             IntegrationPoint fip;
             be_to_bfe(FET->GetGeometryType(), o, ip, fip);
 
-            FET->SetIntPoint(&fip);
+            // Compute and set the point in element 1 from fip
+            FET->SetAllIntPoints(&fip);
             ElementTransformation & T1 = FET->GetElement1Transformation();
             return GetValue(T1, T1.GetIntPoint(), comp);
          }
@@ -764,7 +765,8 @@ double GridFunction::GetValue(ElementTransformation &T,
             dynamic_cast<FaceElementTransformations *>(&T);
 
          // Evaluate in neighboring element for both continuous and
-         // discontinuous fields.
+         // discontinuous fields (the integration point in T1 should have
+         // already been set).
          ElementTransformation & T1 = FET->GetElement1Transformation();
          return GetValue(T1, T1.GetIntPoint(), comp);
       }
@@ -888,7 +890,8 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
             IntegrationPoint fip;
             be_to_bfe(FET->GetGeometryType(), o, ip, fip);
 
-            FET->SetIntPoint(&fip);
+            // Compute and set the point in element 1 from fip
+            FET->SetAllIntPoints(&fip);
             ElementTransformation & T1 = FET->GetElement1Transformation();
             return GetVectorValue(T1, T1.GetIntPoint(), val);
          }
@@ -900,7 +903,8 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
             dynamic_cast<FaceElementTransformations *>(&T);
 
          // Evaluate in neighboring element for both continuous and
-         // discontinuous fields.
+         // discontinuous fields (the integration point in T1 should have
+         // already been set).
          ElementTransformation & T1 = FET->GetElement1Transformation();
          return GetVectorValue(T1, T1.GetIntPoint(), val);
       }
@@ -1396,7 +1400,8 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
          IntegrationPoint fip;
          be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
 
-         FET->SetIntPoint(&fip);
+         // Compute and set the point in element 1 from fip
+         FET->SetAllIntPoints(&fip);
          ElementTransformation & T1 = FET->GetElement1Transformation();
 
          return GetDivergence(T1);
@@ -1408,7 +1413,8 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
          FaceElementTransformations * FET =
             dynamic_cast<FaceElementTransformations *>(&T);
 
-         // Evaluate in neighboring element
+         // Evaluate in neighboring element (the integration point in T1 should
+         // have already been set).
          ElementTransformation & T1 = FET->GetElement1Transformation();
          return GetDivergence(T1);
       }
@@ -1497,7 +1503,8 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
          IntegrationPoint fip;
          be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
 
-         FET->SetIntPoint(&fip);
+         // Compute and set the point in element 1 from fip
+         FET->SetAllIntPoints(&fip);
          ElementTransformation & T1 = FET->GetElement1Transformation();
 
          GetCurl(T1, curl);
@@ -1509,7 +1516,8 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
          FaceElementTransformations * FET =
             dynamic_cast<FaceElementTransformations *>(&T);
 
-         // Evaluate in neighboring element
+         // Evaluate in neighboring element (the integration point in T1 should
+         // have already been set).
          ElementTransformation & T1 = FET->GetElement1Transformation();
          GetCurl(T1, curl);
       }
@@ -1565,7 +1573,8 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          IntegrationPoint fip;
          be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
 
-         FET->SetIntPoint(&fip);
+         // Compute and set the point in element 1 from fip
+         FET->SetAllIntPoints(&fip);
          ElementTransformation & T1 = FET->GetElement1Transformation();
 
          GetGradient(T1, grad);
@@ -1577,7 +1586,8 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          FaceElementTransformations * FET =
             dynamic_cast<FaceElementTransformations *>(&T);
 
-         // Evaluate in neighboring element
+         // Evaluate in neighboring element (the integration point in T1 should
+         // have already been set).
          ElementTransformation & T1 = FET->GetElement1Transformation();
          GetGradient(T1, grad);
       }
@@ -1650,7 +1660,8 @@ void GridFunction::GetVectorGradient(
          IntegrationPoint fip;
          be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
 
-         FET->SetIntPoint(&fip);
+         // Compute and set the point in element 1 from fip
+         FET->SetAllIntPoints(&fip);
          ElementTransformation & T1 = FET->GetElement1Transformation();
 
          GetVectorGradient(T1, grad);
@@ -1662,7 +1673,8 @@ void GridFunction::GetVectorGradient(
          FaceElementTransformations * FET =
             dynamic_cast<FaceElementTransformations *>(&T);
 
-         // Evaluate in neighboring element
+         // Evaluate in neighboring element (the integration point in T1 should
+         // have already been set).
          ElementTransformation & T1 = FET->GetElement1Transformation();
          GetVectorGradient(T1, grad);
       }
