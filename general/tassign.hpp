@@ -43,8 +43,14 @@ template <>
 struct AssignOp_Impl<AssignOp::Set>
 {
    template <typename lvalue_t, typename rvalue_t>
-   MFEM_HOST_DEVICE
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
+   {
+      return (a = b);
+   }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
    {
       return (a = b);
    }
@@ -54,8 +60,15 @@ template <>
 struct AssignOp_Impl<AssignOp::Add>
 {
    template <typename lvalue_t, typename rvalue_t>
-   MFEM_HOST_DEVICE
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a += b);
+   }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
    {
       MFEM_FLOPS_ADD(1);
       return (a += b);
@@ -66,8 +79,15 @@ template <>
 struct AssignOp_Impl<AssignOp::Mult>
 {
    template <typename lvalue_t, typename rvalue_t>
-   MFEM_HOST_DEVICE
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a *= b);
+   }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
    {
       MFEM_FLOPS_ADD(1);
       return (a *= b);
@@ -78,8 +98,15 @@ template <>
 struct AssignOp_Impl<AssignOp::Div>
 {
    template <typename lvalue_t, typename rvalue_t>
-   MFEM_HOST_DEVICE
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a /= b);
+   }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
    {
       MFEM_FLOPS_ADD(1);
       return (a /= b);
@@ -90,8 +117,15 @@ template <>
 struct AssignOp_Impl<AssignOp::rDiv>
 {
    template <typename lvalue_t, typename rvalue_t>
-   MFEM_HOST_DEVICE
    static inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
+   {
+      MFEM_FLOPS_ADD(1);
+      return (a = b/a);
+   }
+
+   template <typename lvalue_t, typename rvalue_t>
+   MFEM_HOST_DEVICE
+   static inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
    {
       MFEM_FLOPS_ADD(1);
       return (a = b/a);
@@ -101,10 +135,16 @@ struct AssignOp_Impl<AssignOp::rDiv>
 } // namespace mfem::internal
 
 template <AssignOp::Type Op, typename lvalue_t, typename rvalue_t>
-MFEM_HOST_DEVICE
 inline lvalue_t &Assign(lvalue_t &a, const rvalue_t &b)
 {
    return internal::AssignOp_Impl<Op>::Assign(a, b);
+}
+
+template <AssignOp::Type Op, typename lvalue_t, typename rvalue_t>
+MFEM_HOST_DEVICE
+inline lvalue_t &AssignHD(lvalue_t &a, const rvalue_t &b)
+{
+   return internal::AssignOp_Impl<Op>::AssignHD(a, b);
 }
 
 } // namespace mfem
