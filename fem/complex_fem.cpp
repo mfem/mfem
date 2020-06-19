@@ -1023,6 +1023,8 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                              conv);
       A.Reset<ComplexOperator>(A_op, true);
    }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
 }
 
 void
