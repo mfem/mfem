@@ -101,10 +101,6 @@ New and updated examples and miniapps
 - Ported example 11p to SLEPc, to demonstrate solving the Laplace eigenvalue
   equation with the shift-and-invert spectral transformation method.
 
-- Added a new example, Example 28p, to demonstrate the solution of the 2D
-  Maxwell eigenvalue problem in a dielectric waveguide. This examples shows the
-  use of the SLEPc eigensolvers with mixed finite elements and block operators.
-
 - Added a simple meshing miniapp, Twist, which demonstrates MFEM's strategy of
   stitching together opposite surfaces of a mesh to create a topologically
   periodic mesh.

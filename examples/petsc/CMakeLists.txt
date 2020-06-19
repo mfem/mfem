@@ -39,6 +39,7 @@ if (MFEM_USE_SLEPC)
     ex11p.cpp
     )
   list(APPEND PETSC_RC_FILES
+    rc_ex11p
     )
 endif()
 
