@@ -342,11 +342,10 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                    int ci)
 {
    FiniteElementSpace * fes = blfr->FESpace();
-
    int vsize  = fes->GetVSize();
 
    // Allocate temporary vectors
-   Vector b_0(vsize);  b_0 = 0.0;
+   Vector b_0(vsize); b_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
    MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
@@ -360,8 +359,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (conv == ComplexOperator::BLOCK_SYMMETRIC) { b_i *= -1.0; }
 
    int tvsize = fes->GetTrueVSize();
-   SparseMatrix * A_r = nullptr;
-   SparseMatrix * A_i = nullptr;
+   OperatorHandle A_r, A_i;
 
    X.SetSize(2 * tvsize);
    B.SetSize(2 * tvsize);
@@ -374,42 +372,39 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
    if (RealInteg())
    {
-      A_r = new SparseMatrix;
       blfr->SetDiagonalPolicy(diag_policy);
 
       b_0 = b_r;
-      blfr->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_r, X_0, B_0, ci);
+      blfr->FormLinearSystem(ess_tdof_list, x_r, b_0, A_r, X_0, B_0, ci);
       X_r = X_0; B_r = B_0;
 
       b_0 = b_i;
-      blfr->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_r, X_0, B_0, ci);
+      blfr->FormLinearSystem(ess_tdof_list, x_i, b_0, A_r, X_0, B_0, ci);
       X_i = X_0; B_i = B_0;
 
       if (ImagInteg())
       {
-         A_i = new SparseMatrix;
          blfi->SetDiagonalPolicy(mfem::Matrix::DiagonalPolicy::DIAG_ZERO);
 
          b_0 = 0.0;
-         blfi->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_i, X_0, B_0, false);
+         blfi->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_0, B_0, false);
          B_r -= B_0;
 
          b_0 = 0.0;
-         blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_i, X_0, B_0, false);
+         blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_0, B_0, false);
          B_i += B_0;
       }
    }
    else if (ImagInteg())
    {
-      A_i = new SparseMatrix;
       blfi->SetDiagonalPolicy(diag_policy);
 
       b_0 = b_i;
-      blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, *A_i, X_0, B_0, ci);
+      blfi->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_0, B_0, ci);
       X_r = X_0; B_i = B_0;
 
       b_0 = b_r; b_0 *= -1.0;
-      blfi->FormLinearSystem(ess_tdof_list, x_i, b_0, *A_i, X_0, B_0, ci);
+      blfi->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_0, B_0, ci);
       X_i = X_0; B_r = B_0; B_r *= -1.0;
    }
    else
@@ -417,16 +412,55 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       MFEM_ABORT("Real and Imaginary part of the Sesquilinear form are empty");
    }
 
+   if (RealInteg() && ImagInteg())
+   {
+      // Modify RHS and offdiagonal blocks (imaginary parts of the matrix) to
+      // conform with standard essential BC treatment
+      if (A_i.Type() != Operator::MFEM_SPARSEMAT)
+      {
+         int n = ess_tdof_list.Size();
+         for (int k=0; k<n; k++)
+         {
+            int j=ess_tdof_list[k];
+            B_r(j) = X_r(j);
+            B_i(j) = X_i(j);
+         }
+         A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
+            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+      }
+   }
+
    if (conv == ComplexOperator::BLOCK_SYMMETRIC)
    {
       B_i *= -1.0;
       b_i *= -1.0;
    }
+
    // A = A_r + i A_i
    A.Clear();
-   ComplexSparseMatrix * A_sp;
-   A_sp = new ComplexSparseMatrix(A_r, A_i, true, true, conv);
-   A.Reset<ComplexSparseMatrix>(A_sp, true);
+   if ( A_r.Type() == Operator::MFEM_SPARSEMAT ||
+        A_i.Type() == Operator::MFEM_SPARSEMAT )
+   {
+      ComplexSparseMatrix * A_sp =
+         new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
+                                 A_i.As<SparseMatrix>(),
+                                 A_r.OwnsOperator(),
+                                 A_i.OwnsOperator(),
+                                 conv);
+      A.Reset<ComplexSparseMatrix>(A_sp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op =
+         new ComplexOperator(A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
 }
 
 void
@@ -434,31 +468,59 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                    OperatorHandle &A)
 
 {
-   SparseMatrix * A_r = nullptr;
-   SparseMatrix * A_i = nullptr;
-
+   OperatorHandle A_r, A_i;
    if (RealInteg())
    {
-      A_r = new SparseMatrix;
       blfr->SetDiagonalPolicy(diag_policy);
-      blfr->FormSystemMatrix(ess_tdof_list, *A_r);
+      blfr->FormSystemMatrix(ess_tdof_list, A_r);
    }
    if (ImagInteg())
    {
-      A_i = new SparseMatrix;
-      blfr->SetDiagonalPolicy(diag_policy);
-      blfi->FormSystemMatrix(ess_tdof_list, *A_i);
+      blfi->SetDiagonalPolicy(RealInteg() ?
+         mfem::Matrix::DiagonalPolicy::DIAG_ZERO : diag_policy);
+      blfi->FormSystemMatrix(ess_tdof_list, A_i);
    }
    if (!RealInteg() && !ImagInteg())
    {
-      MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
+      MFEM_ABORT("Both Real and Imag part of the Sesquilinear form are empty");
+   }
+
+   if (RealInteg() && ImagInteg())
+   {
+      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // with standard essential BC treatment
+      if ( A_i.Type() != Operator::MFEM_SPARSEMAT )
+      {
+         A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
+            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+      }
    }
 
    // A = A_r + i A_i
    A.Clear();
-   ComplexSparseMatrix * A_sp =
-      new ComplexSparseMatrix(A_r, A_i, true, true, conv);
-   A.Reset<ComplexSparseMatrix>(A_sp, true);
+   if ( A_r.Type() == Operator::MFEM_SPARSEMAT ||
+        A_i.Type() == Operator::MFEM_SPARSEMAT )
+   {
+      ComplexSparseMatrix * A_sp =
+         new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
+                                 A_i.As<SparseMatrix>(),
+                                 A_r.OwnsOperator(),
+                                 A_i.OwnsOperator(),
+                                 conv);
+      A.Reset<ComplexSparseMatrix>(A_sp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op =
+         new ComplexOperator(A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
 }
 
 void
@@ -654,7 +716,8 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
 
 
 ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
-                                           ParLinearForm *plf_r, ParLinearForm *plf_i,
+                                           ParLinearForm *plf_r,
+                                           ParLinearForm *plf_i,
                                            ComplexOperator::Convention
                                            convention)
    : Vector(2*(pfes->GetVSize())),
@@ -817,7 +880,8 @@ ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
 {}
 
 ParSesquilinearForm::ParSesquilinearForm(ParFiniteElementSpace *pf,
-                                         ParBilinearForm *pbfr, ParBilinearForm *pbfi,
+                                         ParBilinearForm *pbfr,
+                                         ParBilinearForm *pbfi,
                                          ComplexOperator::Convention convention)
    : conv(convention),
      pblfr(new ParBilinearForm(pf,pbfr)),
@@ -913,9 +977,10 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    int vsize = pfes->GetVSize();
 
    // Allocate temporary vectors
-   Vector b_0(vsize);  b_0 = 0.0;
+   Vector b_0(vsize); b_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
+   MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
    Vector x_r(x.GetData(), vsize);
    Vector x_i(&(x.GetData())[vsize], vsize);
 
@@ -1000,7 +1065,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       else
       {
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
-         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
    }
 
@@ -1052,27 +1117,29 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
    if (!RealInteg() && !ImagInteg())
    {
-      MFEM_ABORT("Both Real and Imaginary part of the Sesquilinear form are empty");
+      MFEM_ABORT("Both Real and Imag part of the Sesquilinear form are empty");
    }
 
-   // Modify offdiagonal blocks (Imaginary parts of the matrix) to conform with
-   // standard essential BC treatment i.e. zero out rows and columns and place
-   // ones on the diagonal.
    if (RealInteg() && ImagInteg())
    {
+      // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
+      // with standard essential BC treatment
       if ( A_i.Type() == Operator::Hypre_ParCSR )
       {
          int n = ess_tdof_list.Size();
-         int j;
-
          HypreParMatrix * Ah;  A_i.Get(Ah);
          hypre_ParCSRMatrix * Aih =
             (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(*Ah);
          for (int k=0; k<n; k++)
          {
-            j=ess_tdof_list[k];
+            int j=ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
+      }
+      else
+      {
+         A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
+            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
    }
 
@@ -1099,6 +1166,8 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                              conv);
       A.Reset<ComplexOperator>(A_op, true);
    }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
 }
 
 void
