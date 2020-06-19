@@ -1,3 +1,0 @@
--eps_type jd
--st_ksp_type gmres
--st_pc_type jacobi
