@@ -97,6 +97,13 @@ void NonlinearFormIntegrator::AssembleDiagonalPA(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssembleEA(
+   const FiniteElementSpace &fes, Vector &emat)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleEA"
+              " is not overloaded!");
+}
+
 double NonlinearFormIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {

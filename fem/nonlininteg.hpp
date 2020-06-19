@@ -103,6 +103,8 @@ public:
    virtual void AssemblePAGrad(const FiniteElementSpace &fes);
    virtual void AddMultPAGrad(const Vector &x, Vector &y);
    virtual void AssembleDiagonalPA(Vector &y);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
    
    virtual ~NonlinearFormIntegrator() { }
 };
