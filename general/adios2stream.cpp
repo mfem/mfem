@@ -15,6 +15,8 @@
 
 #include "adios2stream.hpp"
 
+#ifdef MFEM_USE_ADIOS2
+
 #include "../fem/geom.hpp"
 #include "../general/array.hpp"
 #include "../mesh/element.hpp"
@@ -750,3 +752,5 @@ noexcept
 }
 
 }  // end namespace mfem
+
+#endif // MFEM_USE_ADIOS2
