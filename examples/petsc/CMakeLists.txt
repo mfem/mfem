@@ -37,10 +37,8 @@ endif()
 if (MFEM_USE_SLEPC)
   list(APPEND PETSC_EXAMPLES_SRCS
     ex11p.cpp
-    ex28p.cpp
     )
   list(APPEND PETSC_RC_FILES
-    rc_ex28p_jd rc_ex28p_sinvert
     )
 endif()
 

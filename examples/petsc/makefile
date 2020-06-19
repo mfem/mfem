@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_EXAMPLES =
 PAR_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex9p ex10p
 ifeq ($(MFEM_USE_SLEPC),YES)
-   PAR_EXAMPLES += ex11p ex28p
+   PAR_EXAMPLES += ex11p
 endif
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
