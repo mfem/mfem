@@ -329,6 +329,7 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
 /** \f$ (f, v \cdot n)_{\partial\Omega} \f$ for vector test function
     v=(v1,...,vn) where all vi are in the same scalar FE space and f is a
     scalar function. */
@@ -359,7 +360,7 @@ class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 private:
    Coefficient *F;
    Vector shape;
-   int oa, ob; // these contol the quadrature order, see DomainLFIntegrator
+   int oa, ob; // these control the quadrature order, see DomainLFIntegrator
 
 public:
    VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)

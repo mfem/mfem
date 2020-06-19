@@ -507,7 +507,6 @@ void VectorFEDomainLFCurlIntegrator::AssembleDeltaElementVect(
       default:
          break; // This should be unreachable
    }
-
 }
 
 void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
