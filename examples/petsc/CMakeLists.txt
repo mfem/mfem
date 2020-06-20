@@ -34,6 +34,15 @@ if (MFEM_USE_MPI)
     )
 endif()
 
+if (MFEM_USE_SLEPC)
+  list(APPEND PETSC_EXAMPLES_SRCS
+    ex11p.cpp
+    )
+  list(APPEND PETSC_RC_FILES
+    rc_ex11p
+    )
+endif()
+
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 

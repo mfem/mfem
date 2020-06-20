@@ -125,6 +125,7 @@ MFEM_USE_GINKGO        = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
+MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
 MFEM_USE_CONDUIT       = NO
@@ -274,6 +275,18 @@ ifeq ($(PETSC_FOUND),YES)
    PETSC_LIB := $(shell sed -n "s/$(PETSC_LIB_VAR) = *//p" $(PETSC_VARS))
    PETSC_LIB := -Wl,-rpath,$(abspath $(PETSC_DIR))/lib\
       -L$(abspath $(PETSC_DIR))/lib -lpetsc $(PETSC_LIB)
+endif
+
+SLEPC_DIR := $(MFEM_DIR)/../slepc
+SLEPC_VARS := $(SLEPC_DIR)/lib/slepc/conf/slepc_variables
+SLEPC_FOUND := $(if $(wildcard $(SLEPC_VARS)),YES,)
+SLEPC_INC_VAR = SLEPC_INCLUDE
+SLEPC_LIB_VAR = SLEPC_EXTERNAL_LIB
+ifeq ($(SLEPC_FOUND),YES)
+    SLEPC_OPT := $(shell sed -n "s/$(SLEPC_INC_VAR) *= *//p" $(SLEPC_VARS))
+    SLEPC_LIB := $(shell sed -n "s/$(SLEPC_LIB_VAR) *= *//p" $(SLEPC_VARS))
+    SLEPC_LIB := -Wl,-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
+        -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc $(SLEPC_LIB)
 endif
 
 # MPFR library configuration
