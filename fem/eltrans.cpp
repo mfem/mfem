@@ -624,7 +624,8 @@ void FaceElementTransformations::Transform(const DenseMatrix &matrix,
    IsoparametricTransformation::Transform(matrix, result);
 }
 
-double FaceElementTransformations::CheckConsistency(int print_level)
+double FaceElementTransformations::CheckConsistency(int print_level,
+                                                    std::ostream &out)
 {
    // Check that the face vertices are mapped to the same physical location
    // when using the following three transformations:
@@ -652,9 +653,9 @@ double FaceElementTransformations::CheckConsistency(int print_level)
       Transform(v_ir, coords_base);
       if (print_level > 0)
       {
-         mfem::out << "\nface vertex coordinates (from face transform):\n"
-                   << "----------------------------------------------\n";
-         coords_base.PrintT(mfem::out, coords_base.Height());
+         out << "\nface vertex coordinates (from face transform):\n"
+             << "----------------------------------------------\n";
+         coords_base.PrintT(out, coords_base.Height());
       }
    }
    if (have_el1)
@@ -663,9 +664,9 @@ double FaceElementTransformations::CheckConsistency(int print_level)
       Elem1->Transform(v_eir, coords_el);
       if (print_level > 0)
       {
-         mfem::out << "\nface vertex coordinates (from element 1 transform):\n"
-                   << "---------------------------------------------------\n";
-         coords_el.PrintT(mfem::out, coords_el.Height());
+         out << "\nface vertex coordinates (from element 1 transform):\n"
+             << "---------------------------------------------------\n";
+         coords_el.PrintT(out, coords_el.Height());
       }
       if (have_face)
       {
@@ -684,9 +685,9 @@ double FaceElementTransformations::CheckConsistency(int print_level)
       Elem2->Transform(v_eir, coords_el);
       if (print_level > 0)
       {
-         mfem::out << "\nface vertex coordinates (from element 2 transform):\n"
-                   << "---------------------------------------------------\n";
-         coords_el.PrintT(mfem::out, coords_el.Height());
+         out << "\nface vertex coordinates (from element 2 transform):\n"
+             << "---------------------------------------------------\n";
+         coords_el.PrintT(out, coords_el.Height());
       }
       coords_el -= coords_base;
       coords_el.Norm2(dist);

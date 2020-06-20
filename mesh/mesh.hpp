@@ -368,11 +368,9 @@ protected:
 
    /** Used in GetFaceElementTransformations to account for the fact that a
        slave face occupies only a portion of its master face. */
-   void ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
-                                      const FaceInfo &fi);
-   /// TODO: Add documentation.
    void ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
                                       const FaceInfo &fi, bool is_ghost);
+
    bool IsSlaveFace(const FaceInfo &fi) const;
 
    /// Returns the orientation of "test" relative to "base"
