@@ -49,6 +49,11 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   if (config.order == 0)
+   {
+      scheme = Galerkin;
+   }
+
    ODESolver *odeSolver = NULL;
    switch (config.odeSolverType)
    {

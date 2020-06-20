@@ -311,7 +311,7 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
    double dtNew = dt;
 
 // if (hyp->NumEq > 1)
-// {
+{
    // Precomputing bounds based on min and max of all bar states
    for (int e = 0; e < ne; e++)
    {
@@ -683,6 +683,23 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             }
          }
 
+Vector a(hyp->NumEq), b(hyp->NumEq);
+a =  std::numeric_limits<double>::infinity();
+b = -std::numeric_limits<double>::infinity();
+
+         for (int j = 0; j < dofs.NumFaceDofs; j++)
+         {
+            a(0) = min(a(0), ufi(j,0));
+            b(0) = max(b(0), ufi(j,0));
+
+            for (int n = 1; n < hyp->NumEq; n++)
+            {
+               double QuotientAverage = ufi(j,n) / ufi(j,0);
+               a(n) = min(a(n), QuotientAverage);
+               b(n) = max(b(n), QuotientAverage);
+            }
+         }
+
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
             double gif = BdrFlux(j,0);
@@ -702,23 +719,6 @@ void MCL_Evolution::ComputeTimeDerivative(const Vector &x, Vector &y,
             AntiDiffBdr(dofs.BdrDofs(j,i),0) += gif;
 #endif
             LimitedFluxState(j) = gif;
-         }
-
-Vector a(hyp->NumEq), b(hyp->NumEq);
-a =  std::numeric_limits<double>::infinity();
-b = -std::numeric_limits<double>::infinity();
-
-         for (int j = 0; j < dofs.NumFaceDofs; j++)
-         {
-            // uFace.GetColumn(j, uEval);
-            // uNbrFace.GetColumn(j, uNbrEval);
-
-            for (int n = 1; n < hyp->NumEq; n++)
-            {
-               double QuotientAverage = ufi(j,n) / ufi(j,0);
-               a(n) = min(a(n), QuotientAverage);
-               b(n) = max(b(n), QuotientAverage);
-            }
          }
 
          for (int j = 0; j < dofs.NumFaceDofs; j++)

@@ -62,6 +62,17 @@ Advection::Advection(FiniteElementSpace *fes_, BlockVector &u_block,
          L2_Projection(ic, u0);;
          break;
       }
+      case 4:
+      {
+         ProblemName = "Advection - Discontinuous and Smooth profile";
+         glvis_scale = "on";
+         SolutionKnown = true;
+         SteadyState = false;
+         TimeDepBC = false;
+         ProjType = 1;
+         u0.ProjectCoefficient(ic);
+         break;
+      }
 
       default:
          MFEM_ABORT("No such test case implemented.");
@@ -248,7 +259,8 @@ void VelocityFunctionAdv(const Vector &x, Vector &v)
          break;
       }
       case 2:
-      case 3: // Constant velocity.
+      case 3:
+      case 4: // Constant velocity.
       {
          switch (dim)
          {
@@ -305,11 +317,21 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
       }
       case 2:
       {
-         return abs(X.Norml2()) < 0.2 ? 1. : 0.; // TODO these are i.c.'s
+         return X.Norml2() < 0.2 ? 1. : 0.; // TODO these are i.c.'s
       }
       case 3:
       {
-         return exp(-100. * X.Norml2()* X.Norml2());
+         return exp(-25. * X.Norml2()*X.Norml2());
+      }
+      case 4:
+      {
+         Vector Y(dim); Y = 1.;
+         X += Y;
+         X *= 0.5; // Map to test case specific domain [0,1].
+         double r = X.Norml2();
+         double c = exp(10.);
+
+         return abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (c*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. );
       }
       default:
          MFEM_ABORT("No such test case implemented.");
