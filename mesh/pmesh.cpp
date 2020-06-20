@@ -2452,58 +2452,31 @@ GetSharedFaceTransformations(int sf, bool fill2)
    // adjust Loc1 or Loc2 of the master face if this is a slave face
    if (is_slave)
    {
-#if 0
-      // is a ghost slave? -> master not a ghost -> choose Elem1 local transf
-      // not a ghost slave? -> master is a ghost -> choose Elem2 local transf
-      IsoparametricTransformation &loctr =
-         is_ghost ? FaceElemTr.Loc1.Transf : FaceElemTr.Loc2.Transf;
-
-      if (is_ghost || fill2)
-      {
-         ApplyLocalSlaveTransformation(loctr, face_info);
-      }
-
-      if (face_type == Element::SEGMENT && fill2)
-      {
-         // fix slave orientation in 2D: flip Loc2 to match Loc1 and Face
-         DenseMatrix &pm = FaceElemTr.Loc2.Transf.GetPointMat();
-         std::swap(pm(0,0), pm(0,1));
-         std::swap(pm(1,0), pm(1,1));
-      }
-#else
       if (is_ghost || fill2)
       {
          // is_ghost -> modify side 1, otherwise -> modify side 2:
          ApplyLocalSlaveTransformation(FaceElemTr, face_info, is_ghost);
       }
-#endif
    }
 
    // for ghost faces we need a special version of GetFaceTransformation
    if (is_ghost)
    {
       GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
-
-#if 1
-      MFEM_ASSERT(is_slave, "internal error");
-      mfem::out << "\n[rank " << MyRank << "]: processed child ghost face"
-                << ", face id = " << FaceNo
-                << MFEM_LOCATION << std::flush;
-#endif
    }
 
    FaceElemTr.SetConfigurationMask(fill2 ? 31 : 21);
 
    // This check can be useful for internal debugging, however it will fail on
-   // periodic boundary faces.
-#if 1
+   // periodic boundary faces, so we keep it disabled in general.
+#if 0
 #ifdef MFEM_DEBUG
    double dist = FaceElemTr.CheckConsistency();
    if (dist >= 1e-12)
    {
       mfem::out << "\nInternal error: face id = " << FaceNo
                 << ", dist = " << dist << ", rank = " << MyRank << '\n';
-      FaceElemTr.CheckConsistency(1);
+      FaceElemTr.CheckConsistency(1); // print coordinates
       MFEM_ABORT("internal error");
    }
 #endif
