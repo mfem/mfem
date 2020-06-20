@@ -2389,6 +2389,7 @@ protected:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D, fetype;
+   bool symmetric = true;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
