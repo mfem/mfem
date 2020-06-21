@@ -443,11 +443,23 @@ public:
 class FaceElementTransformations : public IsoparametricTransformation
 {
 private:
+
+   // Bitwise OR of ConfigMasks
    int mask;
 
    IntegrationPoint eip1, eip2;
 
 public:
+
+   enum ConfigMasks
+   {
+      HAVE_ELEM1 =  1, ///< Element on side 1 is configured
+      HAVE_ELEM2 =  2, ///< Element on side 2 is configured
+      HAVE_LOC1  =  4, ///< Point transformation for side 1 is configured
+      HAVE_LOC2  =  8, ///< Point transformation for side 2 is configured
+      HAVE_FACE  = 16  ///< Face transformation is configured
+   };
+
    int Elem1No, Elem2No;
    Geometry::Type &FaceGeom; ///< @deprecated Use GetGeometryType instead
    ElementTransformation *Elem1, *Elem2;
