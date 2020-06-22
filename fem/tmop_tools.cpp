@@ -404,7 +404,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double scale = 1.0, energy_out = 0.0;
    double norm0 = Norm(r);
 
-   // Decreases the scaling of the update until the new mesh is valid.
+   const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+
    for (int i = 0; i < 12; i++)
    {
       add(x, -scale, c, x_out);
@@ -422,6 +423,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
 #endif
 
+      // Check det(Jpr) > 0.
       if (!untangling)
       {
          int jac_ok = 1;
@@ -451,7 +453,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          {
             if (print_level >= 0)
             { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
-            scale *= 0.25; continue;
+            scale *= detJ_factor; continue;
          }
       } // endif(!untangling)
 

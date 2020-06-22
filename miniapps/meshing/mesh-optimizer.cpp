@@ -32,27 +32,29 @@
 // Compile with: make mesh-optimizer
 //
 // Sample runs:
-//   Adapted analytic Hessian:
+//   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted analytic Hessian with size+orientation:
+//   Adapted analytic size+orientation:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
-//   Adapted analytic Hessian with shape+size+orientation
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//   Adapted analytic shape+orientation:
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//
 //   Adapted discrete size:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
-//
-//   Adapted size+aspect ratio to discrete material indicator
+//   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted discrete size+orientation (requires GSLIB)
+//   Adapted discrete size+orientation (requires GSLIB):
 //   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect-ratio+orientation (requires GSLIB)
-//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect ratio (3D)
+//   Adapted discrete aspect-ratio+orientation (requires GSLIB):
+//   * mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
+//   Adapted discrete aspect ratio (3D):
 //     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
 //
 //   Adaptive limiting:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -ae 0
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
+//   Adaptive limiting through the L-BFGS solver:
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
@@ -316,7 +318,7 @@ int main(int argc, char *argv[])
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
-      case 87: metric = new TMOP_Metric_SS2D; break;
+      case 85: metric = new TMOP_Metric_085; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
@@ -514,7 +516,7 @@ int main(int argc, char *argv[])
             tc->SetSerialDiscreteTargetSize(size);
          }
 
-         if (metric_id == 87)
+         if (metric_id == 85)
          {
             FunctionCoefficient aspr_coeff(discrete_aspr_2d);
             aspr.ProjectCoefficient(aspr_coeff);
@@ -742,42 +744,24 @@ int main(int argc, char *argv[])
    cout << "Minimum det(J) of the original mesh is " << tauval << endl;
    tauval -= 0.01 * h0.Min(); // Slightly below minJ0 to avoid div by 0.
 
-   // 19. Finally, perform the nonlinear optimization.
-   NewtonSolver *solver = NULL;
+   // Perform the nonlinear optimization.
+   TMOPNewtonSolver solver(*ir, solver_type);
    if (solver_type == 0)
    {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir);
-      solver = tns;
-      solver->SetPreconditioner(*S);
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
+      // Specify linear solver when we use a Newton-based solver.
+      solver.SetPreconditioner(*S);
    }
-   else
-   {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(*ir, 1);
-      solver = tns;
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "LBFGSIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
-   }
+   solver.SetMaxIter(solver_iter);
+   solver.SetRelTol(solver_rtol);
+   solver.SetAbsTol(0.0);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetOperator(a);
+   solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
+   if (solver.GetConverged() == false)
+   {
+      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
+   }
 
    // 20. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized.mesh".
@@ -837,7 +821,6 @@ int main(int argc, char *argv[])
    }
 
    // 24. Free the used memory.
-   delete solver;
    delete S;
    delete target_c2;
    delete metric2;
