@@ -1643,20 +1643,19 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
 void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
 
    // Quadrature points that are checked for negative Jacobians etc.
-   Vector sk, rk, yk, skt, ykt, rho, alpha;
+   Vector sk, rk, yk, rho, alpha;
    DenseMatrix skM(width, m), ykM(width, m);
 
    //r - r_{k+1}, c - descent direction
    sk.SetSize(width);    //x_{k+1}-x_k
    rk.SetSize(width);    //nabla(f(x_{k}))
    yk.SetSize(width);    //r_{k+1}-r_{k}
-   skt.SetSize(width);   //work vector
-   ykt.SetSize(width);   //work vector
    rho.SetSize(m);       //1/(dot(yk,sk)
    alpha.SetSize(m);    //rhok*sk'*c
+   int last_saved_id = -1;
 
    int it;
    double norm0, norm, norm_goal;
@@ -1719,47 +1718,53 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       //    LBFGS - construct descent direction
-      int klim;
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
-      double gamma = Dot(sk, yk)/Dot(yk, yk);
+      const double gamma = Dot(sk, yk)/Dot(yk, yk);
 
       //  Save last m vectors
-      if ( it < m)
-      {
-         skM.SetCol(it, sk);
-         ykM.SetCol(it, yk);
-         klim = it+1;
-      }
-      else
-      {
-         for (int i = 0; i < m-1; i++)
-         {
-            skM.SetCol(i, skM.GetColumn(i+1)); //shift columns
-            ykM.SetCol(i, ykM.GetColumn(i+1)); //shift columns
-         }
-         skM.SetCol(m-1, sk); // copy new column
-         ykM.SetCol(m-1, yk); // copy new colum
-         klim = m;
-      }
+      last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
+      skM.SetCol(last_saved_id, sk);
+      ykM.SetCol(last_saved_id, yk);
 
       c = r;
-      for (int i = klim-1; i > -1; i--)
+      for (int i = last_saved_id; i > -1; i--)
       {
-         skM.GetColumn(i, skt);
-         ykM.GetColumn(i, ykt);
-         rho(i) = 1./Dot(skt, ykt);
-         alpha(i) = rho(i)*Dot(skt,c);
-         add(c, -alpha(i), ykt, c);
+         skM.GetColumn(i, sk);
+         ykM.GetColumn(i, yk);
+         rho(i) = 1./Dot(sk, yk);
+         alpha(i) = rho(i)*Dot(sk,c);
+         add(c, -alpha(i), yk, c);
+      }
+      if (it > m-1)
+      {
+         for (int i = m-1; i > last_saved_id; i--)
+         {
+            skM.GetColumn(i, sk);
+            ykM.GetColumn(i, yk);
+            rho(i) = 1./Dot(sk, yk);
+            alpha(i) = rho(i)*Dot(sk,c);
+            add(c, -alpha(i), yk, c);
+         }
       }
 
       c *= gamma;   // scale search direction
-      for (int i = 0; i < klim ; i++)
+      if (it > m-1)
       {
-         skM.GetColumn(i,skt);
-         ykM.GetColumn(i,ykt);
-         double betai = rho(i)*Dot(ykt, c);
-         add(c, alpha(i)-betai, skt, c);
+         for (int i = last_saved_id+1; i < m ; i++)
+         {
+            skM.GetColumn(i,sk);
+            ykM.GetColumn(i,yk);
+            double betai = rho(i)*Dot(yk, c);
+            add(c, alpha(i)-betai, sk, c);
+         }
+      }
+      for (int i = 0; i < last_saved_id+1 ; i++)
+      {
+         skM.GetColumn(i,sk);
+         ykM.GetColumn(i,yk);
+         double betai = rho(i)*Dot(yk, c);
+         add(c, alpha(i)-betai, sk, c);
       }
 
       norm = Norm(r);

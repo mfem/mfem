@@ -162,21 +162,6 @@ public:
    { MFEM_ABORT("Not implemented"); }
 };
 
-/// Shape+Size metric, 2D.
-class TMOP_Metric_SS2D : public TMOP_QualityMetric
-{
-public:
-   // W = 0.5 (1 - cos(theta_Jpr - theta_Jtr)).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
-};
-
 /// Shape, ideal barrier metric, 2D
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
@@ -329,6 +314,21 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
+};
+
+/// Shape & orientation metric, 2D.
+class TMOP_Metric_085 : public TMOP_QualityMetric
+{
+public:
+   // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
 };
 
 /// Untangling metric, 2D

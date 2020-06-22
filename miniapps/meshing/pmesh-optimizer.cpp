@@ -32,27 +32,29 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
-//   Adapted analytic Hessian:
+//   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted analytic Hessian with size+orientation:
+//   Adapted analytic size+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
-//   Adapted analytic Hessian with Shape+size+orientation
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//   Adapted analytic shape+orientation:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd
+//
 //   Adapted discrete size:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -ls 2 -li 100 -bnd -qt 1 -qo 8 -cmb 2 -nor
-//
-//   Adapted size+aspect ratio to discrete material indicator
+//   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8
-//   Adapted discrete size+orientation (requires GSLIB)
+//   Adapted discrete size+orientation (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 8 -ni 100  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect-ratio+orientation (requires GSLIB)
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 87 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
-//   Adapted discrete aspect ratio (3D)
+//   Adapted discrete aspect_ratio+orientation (requires GSLIB):
+//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10  -ls 2 -li 100 -bnd -qt 1 -qo 8 -fd -ae 1
+//   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20  -ls 2 -li 100 -bnd -qt 1 -qo 8
 //
 //   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -ae 0
+//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
+//   Adaptive limiting through the L-BFGS solver:
+//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
@@ -344,7 +346,7 @@ int main (int argc, char *argv[])
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
       case 77: metric = new TMOP_Metric_077; break;
-      case 87: metric = new TMOP_Metric_SS2D; break;
+      case 85: metric = new TMOP_Metric_085; break;
       case 211: metric = new TMOP_Metric_211; break;
       case 252: metric = new TMOP_Metric_252(tauval); break;
       case 301: metric = new TMOP_Metric_301; break;
@@ -551,7 +553,7 @@ int main (int argc, char *argv[])
             tc->SetParDiscreteTargetSize(size);
          }
 
-         if (metric_id == 87)
+         if (metric_id == 85)
          {
             FunctionCoefficient aspr_coeff(discrete_aspr_2d);
             aspr.ProjectCoefficient(aspr_coeff);
@@ -790,46 +792,23 @@ int main (int argc, char *argv[])
    MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
 
-   // 20. Finally, perform the nonlinear optimization.
-   NewtonSolver *solver = NULL;
+   // Perform the nonlinear optimization.
+   TMOPNewtonSolver solver(pfespace->GetComm(), *ir, solver_type);
    if (solver_type == 0)
    {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir);
-      solver = tns;
-      solver->SetPreconditioner(*S);
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
+      // Specify linear solver when we use a Newton-based solver.
+      solver.SetPreconditioner(*S);
    }
-   else
-   {
-      TMOPNewtonSolver *tns = new TMOPNewtonSolver(pfespace->GetComm(), *ir, 1);
-      solver = tns;
-      solver->SetMaxIter(solver_iter);
-      solver->SetRelTol(solver_rtol);
-      solver->SetAbsTol(0.0);
-      solver->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver->SetOperator(a);
-      solver->Mult(b, x.GetTrueVector());
-      if (solver->GetConverged() == false)
-      {
-         cout << "LBFGSIteration: rtol = " << solver_rtol << " not achieved."
-              << endl;
-      }
-   }
+   solver.SetMaxIter(solver_iter);
+   solver.SetRelTol(solver_rtol);
+   solver.SetAbsTol(0.0);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetOperator(a);
+   solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
-   if (myid == 0 && solver->GetConverged() == false)
+   if (myid == 0 && solver.GetConverged() == false)
    {
-      cout << "NewtonIteration: rtol = " << solver_rtol << " not achieved."
-           << endl;
+      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
    }
 
    // 21. Save the optimized mesh to a file. This output can be viewed later
@@ -901,7 +880,6 @@ int main (int argc, char *argv[])
    }
 
    // 24. Free the used memory.
-   delete solver;
    delete S;
    delete target_c2;
    delete metric2;

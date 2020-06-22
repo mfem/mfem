@@ -177,24 +177,6 @@ double TMOP_Metric_SSA2D::EvalW(const DenseMatrix &Jpt) const
    return Mat.FNorm2();
 }
 
-// mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
-double TMOP_Metric_SS2D::EvalW(const DenseMatrix &Jpt) const
-{
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
-   DenseMatrix Id(2,2);
-   DenseMatrix Mat(2,2);
-   Mat = Jpt;
-
-   Id(0,0) = 1; Id(0,1) = 0;
-   Id(1,0) = 0; Id(1,1) = 1;
-   Id *= Mat.FNorm()/pow(2,0.5);
-
-   Mat.Add(-1.,Id);
-   return Mat.FNorm2();
-}
-
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -482,6 +464,24 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
    const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
    ie.Assemble_ddI2(weight*0.5*(1.0 - I2inv_sq), A.GetData());
    ie.Assemble_TProd(weight * I2inv_sq / I2, ie.Get_dI2(), A.GetData());
+}
+
+// mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
+double TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Id(2,2);
+   DenseMatrix Mat(2,2);
+   Mat = Jpt;
+
+   Id(0,0) = 1; Id(0,1) = 0;
+   Id(1,0) = 0; Id(1,1) = 1;
+   Id *= Mat.FNorm()/pow(2,0.5);
+
+   Mat.Add(-1.,Id);
+   return Mat.FNorm2();
 }
 
 double TMOP_Metric_211::EvalW(const DenseMatrix &Jpt) const
