@@ -624,14 +624,14 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       {
          if (Q)
          {
-            w *= Q->Eval(Tr, ip);
+            w *= Q->Eval(*Tr.Elem1, eip);
          }
          ni.Set(w, nor);
       }
       else
       {
          nh.Set(w, nor);
-         MQ->Eval(mq, Tr, ip);
+         MQ->Eval(mq, *Tr.Elem1, eip);
          mq.MultTranspose(nh, ni);
       }
       CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);

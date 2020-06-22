@@ -504,14 +504,15 @@ public:
        mask &  8: Loc2 is configured
        mask & 16: The Face transformation itself is configured
    */
-   int  GetConfigurationMask() const { return mask; }
+   int GetConfigurationMask() const { return mask; }
 
    /** @brief Set the integration point in the Face and the two neighboring
        elements, if present.
 
-       The point @a ip must be in the reference coordinate system of the face.
+       The point @a face_ip must be in the reference coordinate system of the
+       face.
    */
-   void SetIntPoint(const IntegrationPoint *ip);
+   void SetIntPoint(const IntegrationPoint *face_ip);
 
    /** @brief Set the integration point in the Face and the two neighboring
        elements, if present.
@@ -520,8 +521,8 @@ public:
        in this special case, does the same thing. This function can be used for
        greater code clarity.
    */
-   inline void SetAllIntPoints(const IntegrationPoint *ip)
-   { FaceElementTransformations::SetIntPoint(ip); }
+   inline void SetAllIntPoints(const IntegrationPoint *face_ip)
+   { FaceElementTransformations::SetIntPoint(face_ip); }
 
    /** @brief Get a const reference to the integration point in neighboring
        element 1 corresponding to the currently set integration point on the
