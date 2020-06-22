@@ -30,10 +30,10 @@
 //               prob 1: (curl u, curl v) + (u,v) = (curl u_exact, curl v) + (u_exact, v)
 //               prob 2: (div  u, div  v) + (u,v) = (div  u_exact, div  v) + (u_exact, v)
 
-#include "mfem.hpp"
+// #include "mfem.hpp"
+#include "conv_rates.hpp"
 #include <fstream>
 #include <iostream>
-
 using namespace std;
 using namespace mfem;
 
@@ -195,10 +195,13 @@ int main(int argc, char *argv[])
       default:
          break;
    }
+   StopWatch chrono;
 
    // 10. Perform successive parallel refinements, compute the L2 error and the
    //     corresponding rate of convergence
-   double L2err0 = 0.0;
+   ConvergenceRates rates(MPI_COMM_WORLD);
+   // ConvergenceRates rates;
+   rates.Clear();
    for (int l = 0; l <= pr; l++)
    {
       b.Assemble();
@@ -252,31 +255,17 @@ int main(int argc, char *argv[])
 
       a.RecoverFEMSolution(X,B,u_gf);
 
-      double L2err = 0.0;
       switch (prob)
       {
          case 0:
-            L2err = u_gf.ComputeL2Error(*u);
+            rates.AddSolution(&u_gf,u);
             break;
          case 1:
          case 2:
-            L2err = u_gf.ComputeL2Error(*U);
+            rates.AddSolution(&u_gf,U);
             break;
          default:
             break;
-      }
-      if (myid == 0)
-      {
-         double rate=0.0;
-         if (l>0)
-         {
-            rate = log(L2err0/L2err)/log(2.0);
-         }
-         cout << setprecision(3);
-
-         cout << "|| u_h - u ||_{L^2} = " << scientific
-              << L2err << ",  rate: " << fixed << rate << endl;
-         L2err0 = L2err;
       }
 
       if (l==pr) break;
@@ -287,6 +276,11 @@ int main(int argc, char *argv[])
       b.Update();
       u_gf.Update();
    }
+
+   rates.Print();
+
+
+
 
    // 11. Send the solution by socket to a GLVis server.
    if (visualization)

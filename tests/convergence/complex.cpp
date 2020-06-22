@@ -7,6 +7,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "conv_rates.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -33,7 +34,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int ref_levels = 1;
    int iprob = 0;
-   bool pass=false;
    bool herm_conv = true;
 
    OptionsParser args(argc, argv);
@@ -122,9 +122,9 @@ int main(int argc, char *argv[])
          break;
    }
 
-   double L2err_re0, L2err_im0;
-   double H1err_re0, H1err_im0;
-   for (int l=0; l<ref_levels+1; l++)
+   ConvergenceRates rates_re;
+   ConvergenceRates rates_im;
+   for (int l=0; l<=ref_levels; l++)
    {
       a->Assemble();
       b->Assemble();
@@ -193,69 +193,11 @@ int main(int argc, char *argv[])
       a->RecoverFEMSolution(X, *b, x);
 
       // Compute relative error
-      int order_quad = max(2, 2*order+1);
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i=0; i < Geometry::NumGeom; ++i)
-      {
-         irs[i] = &(IntRules.Get(i, order_quad));
-      }
+      rates_re.AddSolution(&x.real(),&u_ex_re);
+      rates_im.AddSolution(&x.imag(),&u_ex_im);
 
-      double L2err_re  = x.real().ComputeL2Error(u_ex_re, irs);
-      double L2err_im  = x.imag().ComputeL2Error(u_ex_im, irs);
+      if (l==ref_levels) break;
 
-      double H1err_re = x.real().ComputeH1Error(&u_ex_re, &u_grad_coeff_re,
-                                                &one, 1.0, 1);
-      double H1err_im = x.imag().ComputeH1Error(&u_ex_im, &u_grad_coeff_im,
-                                                &one, 1.0, 1);
-
-      double alpha0, beta0;
-      double alpha1, beta1;
-      if (l==0)
-      {
-         alpha0 = 0.0; beta0 = 0.0;
-         alpha1 = 0.0; beta1 = 0.0;
-      }
-      else
-      {
-         alpha0 = log(L2err_re0/L2err_re)/log(2.0);
-         beta0  = log(L2err_im0/L2err_im)/log(2.0);
-         alpha1 = log(H1err_re0/H1err_re)/log(2.0);
-         beta1  = log(H1err_im0/H1err_im)/log(2.0);
-      }
-      cout << endl;
-      cout << " ---------------------------------------------------" << endl;
-      cout << "|            ABSOLUTE ERROR AND RATES               |" << endl;
-      cout << "|---------------------------------------------------|" << endl;
-      cout << setprecision(3);
-      cout << "|real: || u_h - u ||_{H^1} = " << scientific
-            << H1err_re << ",  rate: " << fixed  << alpha1 << "|" << endl;
-      cout << "|imag: || u_h - u ||_{H^1} = " << scientific
-            << H1err_im << ",  rate: " << fixed  << beta1 << "|" << endl;
-
-      cout << "|real: || u_h - u ||_{L^2} = " << scientific
-            << L2err_re <<
-            ",  rate: " << fixed << alpha0 << "|" << endl;
-      cout << "|imag: || u_h - u ||_{L^2} = " << scientific
-            << L2err_im <<
-            ",  rate: " << fixed << beta0 << "|" << endl;
-      cout << " ---------------------------------------------------" << endl;
-      cout << endl;
-
-      L2err_re0 = L2err_re;
-      L2err_im0 = L2err_im;
-
-      H1err_re0 = H1err_re;
-      H1err_im0 = H1err_im;
-
-      if (l == ref_levels)
-      {
-         // check the rate and exit
-         if (abs(alpha1 - order)<1e-1 && abs(beta1 - order)<1e-1  &&
-             abs(alpha0 - order-1)<1e-1 && abs(beta0 - order-1)<1e-1)
-             pass = true;
-
-         break;
-      }
 
       mesh->UniformRefinement();
       fespace->Update();
@@ -264,14 +206,9 @@ int main(int argc, char *argv[])
       x.Update();
       x_ex.Update();
    }
-   if (pass)
-   {
-      cout << "Convergence Rate tests succesfull \n " << endl;
-   }
-   else
-   {
-      cout << "Convergence Rate tests unsuccesfull \n " << endl;
-   }
+
+   rates_re.Print();
+   rates_im.Print();
 
    // Send the solution by socket to a GLVis server.
    if (visualization)
@@ -294,7 +231,6 @@ int main(int argc, char *argv[])
    delete fespace;
    if (order > 0) { delete fec; }
    delete mesh;
-   return !pass;
 }
 
 double u_exact_re(const Vector &x)

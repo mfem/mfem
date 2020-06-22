@@ -1,81 +1,60 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
-# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-# LICENSE and NOTICE for details. LLNL-CODE-806117.
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability visit https://mfem.org.
+# availability see http://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the BSD-3 license. We welcome feedback and contributions, see file
-# CONTRIBUTING.md for details.
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/tests/convergence/,)
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/tests/convergence/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_TESTS = convergence complex
-PAR_TESTS = projection pcomplex diffusion
-
+SEQ_TESTS = convergence complex diffusion
+PAR_TESTS = projection pcomplex
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
 else
    TESTS = $(PAR_TESTS) $(SEQ_TESTS)
 endif
 
-SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
-SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
-SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
-SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
-
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all clean
+.PRECIOUS: %.o
 
-# Remove built-in rule
+COMMON_O= conv_rates.o
+
+# Remove built-in rules
 %: %.cpp
+%.o: %.cpp
 
-# Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+all: $(TESTS)
 
-all: $(TESTS) $(SUBDIRS_ALL)
+# Rules for building the TESTS
 
-.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
-$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
-	$(MAKE) -C $(@D) $(@F)
-$(SUBDIRS_TPRINT):
-	@$(MAKE) -C $(@D) $(@F)
+%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
-MFEM_TESTS = EXAMPLES
-include $(MFEM_TEST_MK)
-test: $(SUBDIRS_TEST)
-test-print: $(SUBDIRS_TPRINT)
-
-# Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
-%-test-seq: %
-	@$(call mfem-test,$<,, Serial example)
+# Rules for compiling miniapp dependencies
+$(COMMON_O) $($(TESTS)): \
+%.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec $(SUBDIRS_CLEAN)
-
-clean-build:
+clean:
 	rm -f *.o *~ $(SEQ_TESTS) $(PAR_TESTS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
-clean-exec:
-	@true
 
