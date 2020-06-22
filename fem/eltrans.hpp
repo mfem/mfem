@@ -460,6 +460,9 @@ private:
 protected: // interface for Mesh to be able to configure this object.
 
    friend class Mesh;
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
 
    /// Set the mask indicating which portions of the object have been setup
    /** The argument @a m is a bitmask used in
