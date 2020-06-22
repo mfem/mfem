@@ -552,6 +552,26 @@ public:
    ElementTransformation & GetElement2Transformation();
    IntegrationPointTransformation & GetIntPoint1Transformation();
    IntegrationPointTransformation & GetIntPoint2Transformation();
+
+   /** @brief Check for self-consistency: compares the result of mapping the
+       reference face vertices to physical coordinates using the three
+       transformations: face, element 1, and element 2.
+
+       @param[in] print_level  If set to a positive number, print the physical
+                               coordinates of the face vertices computed through
+                               all available transformations: face, element 1,
+                               and/or element 2.
+       @param[in,out] out      The output stream to use for printing.
+
+       @returns A maximal distance between physical coordinates of face vertices
+                that should coincide. A successful check should return a small
+                number relative to the mesh extents. If less than 2 of the three
+                transformations are set, returns 0.
+
+       @warning This check will generally fail on periodic boundary faces.
+   */
+   double CheckConsistency(int print_level = 0,
+                           std::ostream &out = mfem::out);
 };
 
 /**                Elem1(Loc1(x)) = Face(x) = Elem2(Loc2(x))
