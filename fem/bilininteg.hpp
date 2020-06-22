@@ -79,8 +79,8 @@ public:
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
-   /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA() and AddMultTransposePA(). */
+   /** The result of the element assembly is added and stored in the @a emat
+       Vector. */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat);
    /** Used with BilinearFormIntegrators that have different spaces. */
    // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
@@ -199,6 +199,8 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
+/** Wraps a given @a BilinearFormIntegrator and transposes the resulting element
+    matrices. See for example ex9, ex9p. */
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -1563,7 +1565,7 @@ public:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V u, Grad v) in 2D or 3D
-    and where V is a vector coefficient, u is in H1 and v is in H1. */
+    and where V is a vector coefficient, u is in H1 or L2 and v is in H1. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -2001,6 +2003,7 @@ public:
    void SetupPA(const FiniteElementSpace &fes, const bool force = false);
 };
 
+/** Mass integrator (u, v) restricted to the boundary of a domain */
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:

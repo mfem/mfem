@@ -16,6 +16,7 @@
 #include "error.hpp"
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
+#include <cstddef> // std::max_align_t
 
 namespace mfem
 {
@@ -283,6 +284,28 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
 
+   /** Wrap an externally pair of allocated pointers, @a h_ptr and @ d_ptr,
+       of the given host MemoryType @a h_mt. */
+   /** The new memory object will have the device MemoryType set as valid.
+
+       The given @a h_ptr and @a d_ptr must be allocated appropriately for the
+       given host MemoryType and its associated device MemoryType:
+          - MANAGED => MANAGED,
+          - HOST_DEBUG => DEVICE_DEBUG,
+          - HOST_UMPIRE => DEVICE_UMPIRE,
+          - HOST, HOST_32, HOST_64 => DEVICE.
+
+       The parameter @a own determines whether both @a h_ptr and @a d_ptr will
+       be deleted when the method Delete() is called.
+
+       @note Ownership can also be controled by using the folowing methods:
+         - ClearOwnerFlags,
+         - SetHostPtrOwner,
+         - SetDevicePtrOwner.
+
+       @note The current memory is NOT deleted by this method. */
+   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
+
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
 
@@ -413,10 +436,44 @@ public:
    /** This method can be useful for debugging. It is explicitly instantiated
        for Memory<T> with T = int and T = double. */
    inline int CompareHostAndDevice(int size) const;
+
+private:
+   // GCC 4.8 workaround: max_align_t is not in std.
+   static constexpr std::size_t def_align_bytes_()
+   {
+      using namespace std;
+      return alignof(max_align_t);
+   }
+   static constexpr std::size_t def_align_bytes = def_align_bytes_();
+   static constexpr std::size_t new_align_bytes =
+      alignof(T) > def_align_bytes ? alignof(T) : def_align_bytes;
+
+   template <std::size_t align_bytes, bool dummy = true> struct Alloc
+   {
+      static inline T *New(std::size_t)
+      {
+#if __cplusplus < 201703L
+         // Generate an error in debug mode
+         MFEM_ASSERT(false, "overaligned type cannot use MemoryType::HOST");
+         return nullptr;
+#else
+         return new T[size];
+#endif
+      }
+   };
+
+#if __cplusplus < 201703L
+   template<bool dummy> struct Alloc<def_align_bytes,dummy>
+   {
+      static inline T *New(std::size_t size) { return new T[size]; }
+   };
+#endif
 };
 
 
-/// The memory manager class
+/** The MFEM memory manager class. Host-side pointers are inserted into this
+    manager which keeps track of the associated device pointer, and where the
+    data currently resides. */
 class MemoryManager
 {
 private:
@@ -523,7 +580,8 @@ private: // Static methods used by the Memory<T> class
 
 private:
 
-   /// Insert a host address in the memory map
+   /// Insert a host address @a h_ptr and size *a bytes in the memory map to be
+   /// managed.
    void Insert(void *h_ptr, size_t bytes, MemoryType h_mt,  MemoryType d_mt);
 
    /// Insert a device and the host addresses in the memory map
@@ -625,7 +683,7 @@ inline void Memory<T>::New(int size)
    capacity = size;
    flags = OWNS_HOST | VALID_HOST;
    h_mt = MemoryManager::host_mem_type;
-   h_ptr = (h_mt == MemoryType::HOST) ? new T[size] :
+   h_ptr = (h_mt == MemoryType::HOST) ? Alloc<new_align_bytes>::New(size) :
            (T*)MemoryManager::New_(nullptr, size*sizeof(T), h_mt, flags);
 }
 
@@ -637,8 +695,9 @@ inline void Memory<T>::New(int size, MemoryType mt)
    const bool mt_host = mt == MemoryType::HOST;
    if (mt_host) { flags = OWNS_HOST | VALID_HOST; }
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType_(mt);
-   T *h_tmp = (h_mt == MemoryType::HOST) ? new T[size] : nullptr;
-   h_ptr = (mt_host) ? h_tmp: (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
+   T *h_tmp = (h_mt == MemoryType::HOST) ?
+              Alloc<new_align_bytes>::New(size) : nullptr;
+   h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
 }
 
 template <typename T>
@@ -680,6 +739,19 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
    flags = 0;
    h_ptr = (T*)MemoryManager::Register_(ptr, h_ptr, size*sizeof(T), mt,
                                         own, false, flags);
+}
+
+template <typename T>
+inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
+{
+   h_mt = mt;
+   flags = 0;
+   h_ptr = ptr;
+   capacity = size;
+   MFEM_ASSERT(IsHostMemory(h_mt),"");
+   const size_t bytes = size*sizeof(T);
+   const MemoryType d_mt = MemoryManager::GetDualMemoryType_(h_mt);
+   MemoryManager::Register_(d_ptr, h_ptr, bytes, d_mt, own, false, flags);
 }
 
 template <typename T>
