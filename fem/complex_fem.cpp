@@ -426,7 +426,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
             B_i(j) = X_i(j);
          }
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
-            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
    }
 
@@ -477,7 +477,8 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    if (ImagInteg())
    {
       blfi->SetDiagonalPolicy(RealInteg() ?
-         mfem::Matrix::DiagonalPolicy::DIAG_ZERO : diag_policy);
+                              mfem::Matrix::DiagonalPolicy::DIAG_ZERO :
+                              diag_policy);
       blfi->FormSystemMatrix(ess_tdof_list, A_i);
    }
    if (!RealInteg() && !ImagInteg())
@@ -492,7 +493,7 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       if ( A_i.Type() != Operator::MFEM_SPARSEMAT )
       {
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
-            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
    }
 
@@ -1065,7 +1066,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       else
       {
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
-            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
    }
 
@@ -1139,7 +1140,7 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       else
       {
          A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
-            (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
       }
    }
 
