@@ -33,10 +33,12 @@ void ConvergenceRates::AddSolution(GridFunction * gf, Coefficient * u)
    double L2err = gf->ComputeL2Error(*u);
    error.Append(L2err);
    int tdofs = gf->FESpace()->GetTrueVSize();
+#ifdef MFEM_USE_MPI   
    if (comm_flag)
    {
       MPI_Allreduce(&tdofs,&tdofs,1,MPI_INT,MPI_SUM,comm);
    }
+#endif   
    ndofs.Append(tdofs);
 
    double val = (counter) ? log(error[counter-1]/L2err)/log(2.0) : 0.0;
@@ -49,10 +51,12 @@ void ConvergenceRates::AddSolution(GridFunction * gf, VectorCoefficient * U)
    double L2err = gf->ComputeL2Error(*U);
    error.Append(L2err);
    int tdofs = gf->FESpace()->GetTrueVSize();
+#ifdef MFEM_USE_MPI   
    if (comm_flag)
    {
       MPI_Allreduce(&tdofs,&tdofs,1,MPI_INT,MPI_SUM,comm);
    }
+#endif   
    ndofs.Append(tdofs);
 
    double val = (counter) ? log(error[counter-1]/L2err)/log(2.0) : 0.0;
