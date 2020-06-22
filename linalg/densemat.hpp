@@ -644,6 +644,9 @@ public:
    virtual void SetOperator(const Operator &op);
 
    /// Matrix vector multiplication with the inverse of dense matrix.
+   void Mult(const double *x, double *y) const;
+
+   /// Matrix vector multiplication with the inverse of dense matrix.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
@@ -858,6 +861,28 @@ public:
 
    ~DenseTensor() { tdata.Delete(); }
 };
+
+/** @brief Compute the LU factorization of a batch of matrices
+
+    Factorize n matrices of size (m x m) stored in a dense tensor overwriting it
+    with the LU factors. The factorization is such that L.U = Piv.A, where A is
+    the original matrix and Piv is a permutation matrix represented by P.
+
+    @param [in, out] Mlu batch of square matrices - dimension m x m x n.
+    @param [out] P array storing pivot information - dimension m x n.
+    @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0. */
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL = 0.0);
+
+/** @brief Solve batch linear systems
+
+    Assuming L.U = P.A for n factored matrices (m x m), compute x <- A x, for n
+    companion vectors.
+
+    @param [in] Mlu batch of LU factors for matrix M - dimension m x m x n.
+    @param [in] P array storing pivot information - dimension m x n.
+    @param [in, out] X vector storing right-hand side and then solution -
+    dimension m x n. */
+void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
 
 // Inline methods

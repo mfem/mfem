@@ -630,4 +630,77 @@ void FaceElementTransformations::Transform(const DenseMatrix &matrix,
    IsoparametricTransformation::Transform(matrix, result);
 }
 
+double FaceElementTransformations::CheckConsistency(int print_level,
+                                                    std::ostream &out)
+{
+   // Check that the face vertices are mapped to the same physical location
+   // when using the following three transformations:
+   // - the face transformation, *this
+   // - Loc1 + Elem1
+   // - Loc2 + Elem2, if present.
+
+   const bool have_face = (mask & 16);
+   const bool have_el1 = (mask & 1) && (mask & 4);
+   const bool have_el2 = (mask & 2) && (mask & 8) && (Elem2No >= 0);
+   if (int(have_face) + int(have_el1) + int(have_el2) < 2)
+   {
+      // need at least two different transformations to perform a check
+      return 0.0;
+   }
+
+   const IntegrationRule &v_ir = *Geometries.GetVertices(GetGeometryType());
+
+   double max_dist = 0.0;
+   Vector dist(v_ir.GetNPoints());
+   DenseMatrix coords_base, coords_el;
+   IntegrationRule v_eir(v_ir.GetNPoints());
+   if (have_face)
+   {
+      Transform(v_ir, coords_base);
+      if (print_level > 0)
+      {
+         out << "\nface vertex coordinates (from face transform):\n"
+             << "----------------------------------------------\n";
+         coords_base.PrintT(out, coords_base.Height());
+      }
+   }
+   if (have_el1)
+   {
+      Loc1.Transform(v_ir, v_eir);
+      Elem1->Transform(v_eir, coords_el);
+      if (print_level > 0)
+      {
+         out << "\nface vertex coordinates (from element 1 transform):\n"
+             << "---------------------------------------------------\n";
+         coords_el.PrintT(out, coords_el.Height());
+      }
+      if (have_face)
+      {
+         coords_el -= coords_base;
+         coords_el.Norm2(dist);
+         max_dist = std::max(max_dist, dist.Normlinf());
+      }
+      else
+      {
+         coords_base = coords_el;
+      }
+   }
+   if (have_el2)
+   {
+      Loc2.Transform(v_ir, v_eir);
+      Elem2->Transform(v_eir, coords_el);
+      if (print_level > 0)
+      {
+         out << "\nface vertex coordinates (from element 2 transform):\n"
+             << "---------------------------------------------------\n";
+         coords_el.PrintT(out, coords_el.Height());
+      }
+      coords_el -= coords_base;
+      coords_el.Norm2(dist);
+      max_dist = std::max(max_dist, dist.Normlinf());
+   }
+
+   return max_dist;
+}
+
 }
