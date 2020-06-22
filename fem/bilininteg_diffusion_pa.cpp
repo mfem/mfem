@@ -176,9 +176,9 @@ static void PADiffusionSetup3D(const int Q1D,
    auto J = Reshape(j.Read(), NQ, 3, 3, NE);
    auto C = const_c ? Reshape(c.Read(), 1, 1) : Reshape(c.Read(), NQ, NE);
    auto D = Reshape(d.Write(), NQ, 6, NE);
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, NQ, 1, 1,
    {
-      for (int q = 0; q < NQ; ++q)
+      MFEM_FOREACH_THREAD(q, x, NQ)
       {
          const double J11 = J(q,0,0,e);
          const double J21 = J(q,1,0,e);
