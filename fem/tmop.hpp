@@ -922,9 +922,9 @@ protected:
    struct
    {
       int dim, ne, nq;
-      DenseTensor Jtr;
-      mutable bool setup;
-      mutable Vector E, O, X0, H, C0, H0;
+      mutable DenseTensor Jtr;
+      mutable bool setup_Grad, setup_Jtr;
+      mutable Vector E, O, W, X0, H, C0, H0;
       const DofToQuad *maps;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
