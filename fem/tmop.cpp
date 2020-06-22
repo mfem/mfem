@@ -843,7 +843,20 @@ void TargetConstructor::ComputeAvgVolume() const
 #endif
 }
 
-// virtual method
+bool TargetConstructor::ContainsVolumeInfo() const
+{
+   switch (target_type)
+   {
+      case IDEAL_SHAPE_UNIT_SIZE: return false;
+      case IDEAL_SHAPE_EQUAL_SIZE:
+      case IDEAL_SHAPE_GIVEN_SIZE:
+      case GIVEN_SHAPE_AND_SIZE:
+      case GIVEN_FULL: return true;
+      default: MFEM_ABORT("TargetType not added to ContainsVolumeInfo.");
+   }
+   return false;
+}
+
 void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                               const IntegrationRule &ir,
                                               const Vector &elfun,
@@ -1250,7 +1263,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                    ntspec_dofs = ndofs*ncomp;
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
-                par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
+                par_vals_c1, par_vals_c2, par_vals_c3;
 
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
@@ -1298,9 +1311,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           aspectratioidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   const double rho1 = shape * par_vals_c1;
                   const double rho2 = shape * par_vals_c2;
@@ -1334,9 +1347,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           skewidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   const double phi12  = shape * par_vals_c1;
                   const double phi13  = shape * par_vals_c2;
@@ -1375,9 +1388,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           orientationidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   const double theta = shape * par_vals_c1;
                   const double psi   = shape * par_vals_c2;
@@ -1879,6 +1892,17 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
 #endif
 }
 
+TMOP_Integrator::~TMOP_Integrator()
+{
+   delete lim_func;
+   delete zeta;
+   for (int i = 0; i < ElemDer.Size(); i++)
+   {
+      delete ElemDer[i];
+      delete ElemPertEnergy[i];
+   }
+}
+
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      const GridFunction &dist, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
@@ -1904,12 +1928,49 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    }
 }
 
+void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
+                                             Coefficient &coeff,
+                                             AdaptivityEvaluator &ae)
+{
+   zeta_0 = &z0;
+   delete zeta;
+   zeta   = new GridFunction(z0);
+   coeff_zeta = &coeff;
+   adapt_eval = &ae;
+
+   adapt_eval->SetSerialMetaInfo(*zeta->FESpace()->GetMesh(),
+                                 *zeta->FESpace()->FEColl(), 1);
+   adapt_eval->SetInitialField
+   (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
+}
+
+#ifdef MFEM_USE_MPI
+void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
+                                             Coefficient &coeff,
+                                             AdaptivityEvaluator &ae)
+{
+   zeta_0 = &z0;
+   delete zeta;
+   zeta   = new GridFunction(z0);
+   coeff_zeta = &coeff;
+   adapt_eval = &ae;
+
+   adapt_eval->SetParMetaInfo(*z0.ParFESpace()->GetParMesh(),
+                              *z0.ParFESpace()->FEColl(), 1);
+   adapt_eval->SetInitialField
+   (*zeta->FESpace()->GetMesh()->GetNodes(), *zeta);
+}
+#endif
+
 double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &elfun)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   const int dof = el.GetDof(), dim = el.GetDim();
    double energy;
+
+   // No adaptive limiting terms if this is a FD computation.
+   const bool adaptive_limiting = (zeta && fd_call_flag == false);
 
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -1917,11 +1978,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = EnergyIntegrationRule(el);
 
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
@@ -1952,7 +2009,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0)
+   if (coeff1 || coeff0 || adaptive_limiting)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -1968,6 +2025,13 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    //       In some cases the coefficients are independent of any movement of
    //       the physical coordinates (i.e. changes in 'elfun'), e.g. when the
    //       coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
+
+   Vector zeta_q, zeta0_q;
+   if (adaptive_limiting)
+   {
+      zeta->GetValues(T.ElementNo, *ir, zeta_q);
+      zeta_0->GetValues(T.ElementNo, *ir, zeta0_q);
+   }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1992,6 +2056,13 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          val += lim_normal *
                 lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
       }
+
+      if (adaptive_limiting)
+      {
+         const double diff = zeta_q(i) - zeta0_q(i);
+         val += coeff_zeta->Eval(*Tpr, ip) * lim_normal * diff * diff;
+      }
+
       energy += weight * val;
    }
    delete Tpr;
@@ -2029,9 +2100,10 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
                                                  ElementTransformation &T,
-                                                 const Vector &elfun, Vector &elvect)
+                                                 const Vector &elfun,
+                                                 Vector &elvect)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   const int dof = el.GetDof(), dim = el.GetDim();
 
    DenseMatrix Amat(dim), work1(dim), work2(dim);
    DSh.SetSize(dof, dim);
@@ -2043,15 +2115,13 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = ActionIntegrationRule(el);
+   const int nqp = ir->GetNPoints();
 
    elvect = 0.0;
-   DenseTensor Jtr(dim, dim, ir->GetNPoints());
-   DenseTensor dJtr(dim, dim, dim*ir->GetNPoints());
+   Vector weights(nqp);
+   DenseTensor Jtr(dim, dim, nqp);
+   DenseTensor dJtr(dim, dim, dim*nqp);
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
 
    // Limited case.
@@ -2073,7 +2143,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       }
       else
       {
-         d_vals.SetSize(ir->GetNPoints()); d_vals = 1.0;
+         d_vals.SetSize(nqp); d_vals = 1.0;
       }
    }
 
@@ -2086,17 +2156,17 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    targetC->ComputeElementTargetsGradient(T.ElementNo, el, *ir, elfun, *Tpr, dJtr);
 
-   Vector firstterm(dim);
-   Vector secondterm(dim);
+   Vector d_detW_dx(dim);
+   Vector d_Winv_dx(dim);
 
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int q = 0; q < nqp; q++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-      const DenseMatrix &Jtr_i = Jtr(i);
-      metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
-      double weight_m = weight * metric_normal;
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      const DenseMatrix &Jtr_q = Jtr(q);
+      metric->SetTargetJacobian(Jtr_q);
+      CalcInverse(Jtr_q, Jrt);
+      weights(q) = ip.weight * Jtr_q.Det();
+      double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
@@ -2116,38 +2186,41 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       DenseMatrix dwdx(dim);
       for (int d = 0; d < dim; d++)
       {
-         const DenseMatrix &dJtr_i = dJtr(i + d*ir->GetNPoints());
-         Mult(Jrt, dJtr_i, dwdx );
-         firstterm(d) = dwdx.Trace();
+         const DenseMatrix &dJtr_q = dJtr(q + d*ir->GetNPoints());
+         Mult(Jrt, dJtr_q, dwdx );
+         d_detW_dx(d) = dwdx.Trace();
       }
-      firstterm *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
+      d_detW_dx *= weight_m*metric->EvalW(Jpt); // *[w_q*det(W)]*mu(T)
 
       // Second term: w_q det(W) dmu/dx : AdWinv/dx
       // dWinv/dx = -Winv*dW/dx*Winv
       MultAtB(PMatI, DSh, Amat);
       for (int d = 0; d < dim; d++)
       {
-         const DenseMatrix &dJtr_i = dJtr(i + d*ir->GetNPoints());
-         Mult(Jrt, dJtr_i, work1); //Winv*dw/dx
+         const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
+         Mult(Jrt, dJtr_q, work1); //Winv*dw/dx
          Mult(work1, Jrt, work2);  //Winv*dw/dx*Winv
          Mult(Amat, work2, work1); //A*Winv*dw/dx*Winv
-         MultAtB(P, work1, work2); //dmu/dt^T*A*Winv*dw/dx*Winv
-         secondterm(d) = work2.Trace(); //Tr[dmu/dt : AWinv*dw/dx*Winv]
+         MultAtB(P, work1, work2); //dmu/dT^T*A*Winv*dw/dx*Winv
+         d_Winv_dx(d) = work2.Trace(); //Tr[dmu/dT : AWinv*dw/dx*Winv]
       }
-      secondterm *= -weight_m; //Include (-) factor as well
+      d_Winv_dx *= -weight_m; //Include (-) factor as well
 
-      firstterm += secondterm;
-      AddMultVWt(shape, firstterm, PMatO);
+      d_detW_dx += d_Winv_dx;
+      AddMultVWt(shape, d_detW_dx, PMatO);
 
       if (coeff0)
       {
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         lim_func->Eval_d1(p, p0, d_vals(i), grad);
-         grad *= weight * lim_normal * coeff0->Eval(*Tpr, ip);
+         lim_func->Eval_d1(p, p0, d_vals(q), grad);
+         grad *= weights(q) * lim_normal * coeff0->Eval(*Tpr, ip);
          AddMultVWt(shape, grad, PMatO);
       }
    }
+
+   if (zeta) { AssembleElemVecAdaptLim(el, weights, *Tpr, *ir, PMatO); }
+
    delete Tpr;
 }
 
@@ -2156,7 +2229,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                                                const Vector &elfun,
                                                DenseMatrix &elmat)
 {
-   int dof = el.GetDof(), dim = el.GetDim();
+   const int dof = el.GetDof(), dim = el.GetDim();
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
@@ -2165,14 +2238,12 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
-   }
+   const IntegrationRule *ir = GradientIntegrationRule(el);
+   const int nqp = ir->GetNPoints();
 
    elmat = 0.0;
-   DenseTensor Jtr(dim, dim, ir->GetNPoints());
+   Vector weights(nqp);
+   DenseTensor Jtr(dim, dim, nqp);
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
 
    // Limited case.
@@ -2194,13 +2265,13 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
       else
       {
-         d_vals.SetSize(ir->GetNPoints()); d_vals = 1.0;
+         d_vals.SetSize(nqp); d_vals = 1.0;
       }
    }
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (coeff1 || coeff0)
+   if (coeff1 || coeff0 || zeta)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -2210,14 +2281,14 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI);
    }
 
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int q = 0; q < nqp; q++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-      const DenseMatrix &Jtr_i = Jtr(i);
-      metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
-      double weight_m = weight * metric_normal;
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      const DenseMatrix &Jtr_q = Jtr(q);
+      metric->SetTargetJacobian(Jtr_q);
+      CalcInverse(Jtr_q, Jrt);
+      weights(q) = ip.weight * Jtr_q.Det();
+      double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
@@ -2229,13 +2300,14 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
       // TODO: derivatives of adaptivity-based targets.
 
+      // TODO optimize by symmetry.
       if (coeff0)
       {
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         weight_m = weight * lim_normal * coeff0->Eval(*Tpr, ip);
-         lim_func->Eval_d2(p, p0, d_vals(i), grad_grad);
+         weight_m = weights(q) * lim_normal * coeff0->Eval(*Tpr, ip);
+         lim_func->Eval_d2(p, p0, d_vals(q), grad_grad);
          for (int i = 0; i < dof; i++)
          {
             const double w_shape_i = weight_m * shape(i);
@@ -2253,7 +2325,113 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          }
       }
    }
+
+   if (zeta) { AssembleElemGradAdaptLim(el, weights, *Tpr, *ir, elmat); }
+
    delete Tpr;
+}
+
+void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
+                                              const Vector &weights,
+                                              IsoparametricTransformation &Tpr,
+                                              const IntegrationRule &ir,
+                                              DenseMatrix &mat)
+{
+   if (zeta == NULL) { return; }
+
+   const int dof = el.GetDof(), dim = el.GetDim();
+   Vector shape(dof), zeta_e, zeta_q, zeta0_q;
+
+   Array<int> dofs;
+   zeta->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   zeta->GetSubVector(dofs, zeta_e);
+   zeta->GetValues(Tpr.ElementNo, ir, zeta_q);
+   zeta_0->GetValues(Tpr.ElementNo, ir, zeta0_q);
+
+   // Project the gradient of zeta in the same space.
+   // The FE coefficients of the gradient go in zeta_grad_e.
+   DenseMatrix zeta_grad_e(dof, dim);
+   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+   el.ProjectGrad(el, Tpr, grad_phys);
+   Vector grad_ptr(zeta_grad_e.GetData(), dof*dim);
+   grad_phys.Mult(zeta_e, grad_ptr);
+
+   Vector zeta_grad_q(dim);
+
+   const int nqp = weights.Size();
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      el.CalcShape(ip, shape);
+      zeta_grad_e.MultTranspose(shape, zeta_grad_q);
+      zeta_grad_q *= 2.0 * (zeta_q(q) - zeta0_q(q));
+      zeta_grad_q *= weights(q) * lim_normal * coeff_zeta->Eval(Tpr, ip);
+      AddMultVWt(shape, zeta_grad_q, mat);
+   }
+}
+
+void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
+                                               const Vector &weights,
+                                               IsoparametricTransformation &Tpr,
+                                               const IntegrationRule &ir,
+                                               DenseMatrix &mat)
+{
+   if (zeta == NULL) { return; }
+
+   const int dof = el.GetDof(), dim = el.GetDim();
+   Vector shape(dof), zeta_e, zeta_q, zeta0_q;
+
+   Array<int> dofs;
+   zeta->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
+   zeta->GetSubVector(dofs, zeta_e);
+   zeta->GetValues(Tpr.ElementNo, ir, zeta_q);
+   zeta_0->GetValues(Tpr.ElementNo, ir, zeta0_q);
+
+   // Project the gradient of zeta in the same space.
+   // The FE coefficients of the gradient go in zeta_grad_e.
+   DenseMatrix zeta_grad_e(dof, dim);
+   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+   el.ProjectGrad(el, Tpr, grad_phys);
+   Vector grad_ptr(zeta_grad_e.GetData(), dof*dim);
+   grad_phys.Mult(zeta_e, grad_ptr);
+
+   // Project the gradient of each gradient of zeta in the same space.
+   // The FE coefficients of the second derivatives go in zeta_grad_grad_e.
+   DenseMatrix zeta_grad_grad_e(dof*dim, dim);
+   Mult(grad_phys, zeta_grad_e, zeta_grad_grad_e);
+   // Reshape to be more convenient later (no change in the data).
+   zeta_grad_grad_e.SetSize(dof, dim*dim);
+
+   Vector zeta_grad_q(dim);
+   DenseMatrix zeta_grad_grad_q(dim, dim);
+
+   const int nqp = weights.Size();
+   for (int q = 0; q < nqp; q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      el.CalcShape(ip, shape);
+
+      zeta_grad_e.MultTranspose(shape, zeta_grad_q);
+      Vector gg_ptr(zeta_grad_grad_q.GetData(), dim*dim);
+      zeta_grad_grad_e.MultTranspose(shape, gg_ptr);
+
+      const double w = weights(q) * lim_normal * coeff_zeta->Eval(Tpr, ip);
+      for (int i = 0; i < dof * dim; i++)
+      {
+         const int idof = i % dof, idim = i / dof;
+         for (int j = 0; j <= i; j++)
+         {
+            const int jdof = j % dof, jdim = j / dof;
+            const double entry =
+               w * ( 2.0 * zeta_grad_q(idim) * shape(idof) *
+                     /* */ zeta_grad_q(jdim) * shape(jdof) +
+                     2.0 * (zeta_q(q) - zeta0_q(q)) *
+                     zeta_grad_grad_q(idim, jdim) * shape(idof) * shape(jdof));
+            mat(i, j) += entry;
+            if (i != j) { mat(j, i) += entry; }
+         }
+      }
+   }
 }
 
 double TMOP_Integrator::GetFDDerivative(const FiniteElement &el,
@@ -2295,8 +2473,11 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    elvect.SetSize(dof*dim);
    Vector elfunmod(elfun);
 
-   // Energy for unperturbed configuration
-   double e_fx = GetElementEnergy(el, T, elfun);
+   // In GetElementEnergy(), skip terms that have exact derivative calculations.
+   fd_call_flag = true;
+
+   // Energy for unperturbed configuration.
+   const double e_fx = GetElementEnergy(el, T, elfun);
 
    for (int j = 0; j < dim; j++)
    {
@@ -2310,6 +2491,32 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
          elvect(j*dof+i) = GetFDDerivative(el, T, elfunmod, i, j, e_fx, true);
          if (discr_tc) { discr_tc->RestoreTargetSpecificationAtNode(T, i); }
       }
+   }
+   fd_call_flag = false;
+
+   // Contributions from adaptive limiting (exact derivatives).
+   if (zeta)
+   {
+      const IntegrationRule *ir = ActionIntegrationRule(el);
+      const int nqp = nqp;
+      DenseTensor Jtr(dim, dim, nqp);
+      targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+
+      IsoparametricTransformation Tpr;
+      Tpr.SetFE(&el);
+      Tpr.ElementNo = T.ElementNo;
+      Tpr.Attribute = T.Attribute;
+      PMatI.UseExternalData(elfun.GetData(), dof, dim);
+      Tpr.GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
+
+      Vector weights(nqp);
+      for (int q = 0; q < nqp; q++)
+      {
+         weights(q) = ir->IntPoint(q).weight * Jtr(q).Det();
+      }
+
+      PMatO.UseExternalData(elvect.GetData(), dof, dim);
+      AssembleElemVecAdaptLim(el, weights, Tpr, *ir, PMatO);
    }
 }
 
@@ -2326,6 +2533,8 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    const Vector &ElemDerLoc = *(ElemDer[T.ElementNo]);
    const Vector &ElemPertLoc = *(ElemPertEnergy[T.ElementNo]);
 
+   // In GetElementEnergy(), skip terms that have exact derivative calculations.
+   fd_call_flag = true;
    for (int i = 0; i < dof; i++)
    {
       for (int j = 0; j < i+1; j++)
@@ -2379,6 +2588,31 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
          }
       }
    }
+   fd_call_flag = false;
+
+   // Contributions from adaptive limiting.
+   if (zeta)
+   {
+      const IntegrationRule *ir = GradientIntegrationRule(el);
+      const int nqp = nqp;
+      DenseTensor Jtr(dim, dim, nqp);
+      targetC->ComputeElementTargets(T.ElementNo, el, *ir, elfun, Jtr);
+
+      IsoparametricTransformation Tpr;
+      Tpr.SetFE(&el);
+      Tpr.ElementNo = T.ElementNo;
+      Tpr.Attribute = T.Attribute;
+      PMatI.UseExternalData(elfun.GetData(), dof, dim);
+      Tpr.GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
+
+      Vector weights(nqp);
+      for (int q = 0; q < nqp; q++)
+      {
+         weights(q) = ir->IntPoint(q).weight * Jtr(q).Det();
+      }
+
+      AssembleElemGradAdaptLim(el, weights, Tpr, *ir, elmat);
+   }
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
@@ -2395,7 +2629,8 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
    ComputeNormalizationEnergies(x, loc[0], loc[1]);
    double rdc[2];
    MPI_Allreduce(loc, rdc, 2, MPI_DOUBLE, MPI_SUM, x.ParFESpace()->GetComm());
-   metric_normal = 1.0 / rdc[0]; lim_normal = 1.0 / rdc[1];
+   metric_normal = 1.0 / rdc[0];
+   lim_normal    = 1.0 / rdc[1];
 }
 #endif
 
@@ -2415,13 +2650,9 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    Jpr.SetSize(dim);
    Jpt.SetSize(dim);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3)); // <---
-   }
-
-   DenseTensor Jtr(dim, dim, ir->GetNPoints());
+   const IntegrationRule *ir = EnergyIntegrationRule(*fe);
+   const int nqp =  ir->GetNPoints();
+   DenseTensor Jtr(dim, dim, nqp);
 
    metric_energy = 0.0;
    lim_energy = 0.0;
@@ -2434,12 +2665,12 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
       targetC->ComputeElementTargets(i, *fe, *ir, x_vals, Jtr);
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int q = 0; q < nqp; q++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         metric->SetTargetJacobian(Jtr(i));
-         CalcInverse(Jtr(i), Jrt);
-         const double weight = ip.weight * Jtr(i).Det();
+         const IntegrationPoint &ip = ir->IntPoint(q);
+         metric->SetTargetJacobian(Jtr(q));
+         CalcInverse(Jtr(q), Jrt);
+         const double weight = ip.weight * Jtr(q).Det();
 
          fe->CalcDShape(ip, DSh);
          MultAtB(PMatI, DSh, Jpr);
@@ -2449,19 +2680,20 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          lim_energy += weight;
       }
    }
+   if (targetC->ContainsVolumeInfo() == false)
+   {
+      // Special case when the targets don't contain volumetric information.
+      lim_energy = fes->GetNE();
+   }
 }
 
 void TMOP_Integrator::ComputeMinJac(const Vector &x,
                                     const FiniteElementSpace &fes)
 {
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      ir = &(IntRules.Get(fes.GetFE(0)->GetGeomType(),
-                          2*fes.GetFE(0)->GetOrder() + 3)); // <---
-   }
-   const int NE = fes.GetMesh()->GetNE(), dim = fes.GetFE(0)->GetDim(),
-             dof = fes.GetFE(0)->GetDof(), nsp = ir->GetNPoints();
+   const FiniteElement *fe = fes.GetFE(0);
+   const IntegrationRule *ir = EnergyIntegrationRule(*fe);
+   const int NE = fes.GetMesh()->GetNE(), dim = fe->GetDim(),
+             dof = fe->GetDof(), nsp = ir->GetNPoints();
 
    Array<int> xdofs(dof * dim);
    DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
@@ -2486,6 +2718,12 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
       detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
    dx = detv_avg_min / dxscale;
+}
+
+void TMOP_Integrator::UpdateAfterMeshChange(const Vector &new_x)
+{
+   // Update zeta if adaptive limiting is enabled.
+   if (zeta) { adapt_eval->ComputeAtNewPosition(new_x, *zeta); }
 }
 
 void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
