@@ -3,7 +3,8 @@
 // Compile with: make ex11p
 //
 // Sample runs:  mpirun -np 4 ex11p -m ../../data/star.mesh
-//               mpirun -np 4 ex11p -m ../../data/star.mesh --slepcopts rc_ex11p
+//               mpirun -np 4 ex11p -m ../../data/star.mesh --slepcopts rc_ex11p_lobpcg
+//               mpirun -np 4 ex11p -m ../../data/star.mesh --slepcopts rc_ex11p_gd
 //
 // Description:  This example code demonstrates the use of MFEM to solve the
 //               eigenvalue problem -Delta u = lambda u with homogeneous
@@ -278,8 +279,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   HypreLOBPCG * lobpcg;
-   SlepcEigenSolver * slepc;
+   HypreLOBPCG * lobpcg = NULL;
+   SlepcEigenSolver * slepc = NULL;
    if (!use_slepc)
    {
 
