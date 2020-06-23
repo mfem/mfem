@@ -39,6 +39,7 @@ private:
    static int count;
 
    bool isEnabled{false};
+   bool isMPIEnabled{false};
 
    //Number of gpus - assume same as MPI procs
    int nDevs, deviceId;
@@ -87,7 +88,7 @@ public:
    void SetA(const HypreParMatrix &A);
 
    void SetA(const Operator& op);
-  
+
    void Solve(Vector &x, Vector &b);
 
    void Mult(Vector &b, Vector &x);

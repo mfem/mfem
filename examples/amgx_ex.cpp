@@ -189,29 +189,29 @@ int main(int argc, char *argv[])
    a->Assemble();
    a->Finalize();
 
-  
+
    // 10. Solve the linear system A X = B.
    if (!pa)
    {
       NvidiaAMGX amgx;
       if (amgx_solver)
       {
-	 std::string amgx_str;
-	 amgx_str = amgx_json_file;
+         std::string amgx_str;
+         amgx_str = amgx_json_file;
          amgx.Init("dDDI",amgx_str);
          amgx.SetA(a->SpMat());
          amgx.Mult(*b, x);
       }
       else
       {
-       //  amgx.ConfigureAsPreconditioner(amgx_verbose);
-        // SparseMatrix A;
-        // Vector B, X;
-        // Array<int> ess_tdof_list(0);
-        // a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-        // amgx.SetOperator(A);
-        // X = 0.0;
-        // PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
+         //  amgx.ConfigureAsPreconditioner(amgx_verbose);
+         // SparseMatrix A;
+         // Vector B, X;
+         // Array<int> ess_tdof_list(0);
+         // a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+         // amgx.SetOperator(A);
+         // X = 0.0;
+         // PCG(A, amgx, B, X, 1, 40, 1e-12, 0.0);
       }
    }
    else // Jacobi preconditioning in partial assembly mode
