@@ -452,9 +452,8 @@ int AdvDiffSUNDIALS::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 void AdvDiffSUNDIALS::AdjointRateMult(const Vector &y, Vector & yB,
                                       Vector &yBdot) const
 {
-
    Vector z(yB.Size());
-
+   
    // Set boundary conditions to zero
    yB.SetSubVector(ess_tdof_list, 0.0);
    K_adj->Mult(yB, z);
