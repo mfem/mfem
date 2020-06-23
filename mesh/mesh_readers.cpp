@@ -917,6 +917,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
    map<int, int> vertices_map;
+
+   // Gmsh always outputs coordinates in 3D
+   spaceDim = 3;
+
+   // Mesh order
+   int order = 1;
+
+   // Mesh type
+   bool periodic = false;
+
+   // Vector field to store uniformly spaced Gmsh high order mesh coords
+   GridFunction Nodes_gf;
+
    // Read the lines of the mesh file. If we face specific keyword, we'll treat
    // the section.
    while (input >> buff)
@@ -1021,15 +1034,68 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                     vertices, 3 internal to the edge) */
             6, /* 6-node fifth order edge (2 nodes associated with the vertices,
                     4 internal to the edge) */
-            20 /* 20-node third order tetrahedron (4 nodes associated with the
+            20,/* 20-node third order tetrahedron (4 nodes associated with the
                      vertices, 12 with the edges, 4 with the faces) */
+            -1,-1,-1,-1, /* unsupported tetrahedral types */
+            -1,-1, /* unsupported polygonal and polyhedral types */
+            16,/* 16-node third order quadrilateral (4 nodes associated with
+                     the vertices, 8 with the edges, 4 wth the face) */
+            -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
+            -1,-1,-1,-1,-1, /* unsupported trianglular types */
+            -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
+            -1,-1,-1,-1,-1, /* unsupported trianglular types */
+            -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
+            -1,-1,-1,-1,-1,-1 /* unsupported linear types */
+            -1,-1,-1 /* unsupported types */
+            -1,-1,-1,-1,-1, /* unsupported tetrahedral types */
+            -1,-1,-1,-1,-1, /* unsupported tetrahedral types */
+            -1,-1,-1,-1,-1,-1,-1,-1, /* unsupported types */
+            64 /* 64-node third order hexahedron (8 nodes associated with the
+                     vertices, 24 with the edges, 24 with the faces and 8 with
+                     the volume).*/
          };
+
+         /** The following mappings convert the Gmsh node orderings for high
+             order elements to MFEM's L2 degree of freedom ordering. To
+             support more options examine Gmsh's ordering and read off the
+             indices in MFEM's order.  For example 2nd order Gmsh
+             quadrilaterals use the following ordering:
+
+                3--6--2
+                |  |  |
+                7  8  5
+                |  |  |
+                0--4--1
+
+             (from https://gmsh.info/doc/texinfo/gmsh.html#Node-ordering)
+
+             Whereas MFEM uses a tensor product ordering with the horizontal
+             axis cycling fastest so we would read off:
+
+                0 4 1 7 8 5 3 6 2
+
+             This corresponds to the quad9 mapping below.
+         */
+         int lin3[] = {0,2,1};                // 2nd order segment
+         int lin4[] = {0,2,3,1};              // 3rd order segment
+         int tri6[] = {0,3,1,5,4,2};          // 2nd order triangle
+         int tri10[] = {0,3,4,1,8,9,5,7,6,2}; // 3rd order triangle
+         int quad9[] = {0,4,1,7,8,5,3,6,2};   // 2nd order quadrilateral
+         int quad16[] = {0,4,5,1,11,12,13,6,  // 3rd order quadrilateral
+                         10,15,14,7,3,9,8,2
+                        };
 
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
          elements_0D.reserve(num_of_all_elements);
          elements_1D.reserve(num_of_all_elements);
          elements_2D.reserve(num_of_all_elements);
          elements_3D.reserve(num_of_all_elements);
+
+         // Temporary storage for high order vertices, if present
+         vector<Array<int>*> ho_verts_1D, ho_verts_2D, ho_verts_3D;
+         ho_verts_1D.reserve(num_of_all_elements);
+         ho_verts_2D.reserve(num_of_all_elements);
+         ho_verts_3D.reserve(num_of_all_elements);
 
          if (binary)
          {
@@ -1090,25 +1156,54 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   // initialize the mesh element
                   switch (type_of_element)
                   {
-                     case 1: // 2-node line
+                     case  1: //  2-node line
+                     case  8: //  3-node line (2nd order)
+                     case 26: //  4-node line (3rd order)
                      {
                         elements_1D.push_back(
                            new Segment(&vert_indices[0], phys_domain));
+                        if (type_of_element != 1)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_1D.push_back(hov);
+                           order = max(order, (type_of_element == 8) ? 2 : 3);
+                        }
                         break;
                      }
-                     case 2: // 3-node triangle
+                     case  2: //  3-node triangle
+                     case  9: //  6-node triangle (2nd order)
+                     case 21: // 10-node triangle (3rd order)
                      {
                         elements_2D.push_back(
                            new Triangle(&vert_indices[0], phys_domain));
+                        if (type_of_element != 2)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_2D.push_back(hov);
+                           order = max(order, (type_of_element == 9) ? 2 : 3);
+                        }
                         break;
                      }
-                     case 3: // 4-node quadrangle
+                     case  3: //  4-node quadrangle
+                     case 10: //  9-node quadrangle (2nd order)
+                     case 36: // 16-node quadrangle (3rd order)
                      {
                         elements_2D.push_back(
                            new Quadrilateral(&vert_indices[0], phys_domain));
+                        if (type_of_element != 3)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_2D.push_back(hov);
+                           order = max(order, (type_of_element == 10) ? 2 : 3);
+                        }
                         break;
                      }
-                     case 4: // 4-node tetrahedron
+                     case  4: //  4-node tetrahedron
+                     case 11: // 10-node tetrahedron (2nd order)
+                     case 29: // 20-node tetrahedron (3rd order)
                      {
 #ifdef MFEM_USE_MEMALLOC
                         elements_3D.push_back(TetMemory.Alloc());
@@ -1118,12 +1213,28 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         elements_3D.push_back(
                            new Tetrahedron(&vert_indices[0], phys_domain));
 #endif
+                        if (type_of_element != 4)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                           order = max(order, (type_of_element == 11) ? 2 : 3);
+                        }
                         break;
                      }
-                     case 5: // 8-node hexahedron
+                     case  5: //  8-node hexahedron
+                     case 12: // 27-node hexahedron (2nd order)
+                     case 92: // 64-node hexahedron (3rd order)
                      {
                         elements_3D.push_back(
                            new Hexahedron(&vert_indices[0], phys_domain));
+                        if (type_of_element != 5)
+                        {
+                           Array<int> * hov = new Array<int>;
+                           hov->Append(&vert_indices[0], n_elem_nodes);
+                           ho_verts_3D.push_back(hov);
+                           order = max(order, (type_of_element == 12) ? 2 : 3);
+                        }
                         break;
                      }
                      case 15: // 1-node point
@@ -1181,25 +1292,54 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // initialize the mesh element
                switch (type_of_element)
                {
-                  case 1: // 2-node line
+                  case  1: //  2-node line
+                  case  8: //  3-node line (2nd order)
+                  case 26: //  4-node line (3rd order)
                   {
                      elements_1D.push_back(
                         new Segment(&vert_indices[0], phys_domain));
+                     if (type_of_element != 1)
+                     {
+                        Array<int> * hov = new Array<int>;
+                        hov->Append(&vert_indices[0], n_elem_nodes);
+                        ho_verts_1D.push_back(hov);
+                        order = max(order, (type_of_element == 8) ? 2 : 3);
+                     }
                      break;
                   }
-                  case 2: // 3-node triangle
+                  case  2: //  3-node triangle
+                  case  9: //  6-node triangle (2nd order)
+                  case 21: // 10-node triangle (3rd order)
                   {
                      elements_2D.push_back(
                         new Triangle(&vert_indices[0], phys_domain));
+                     if (type_of_element != 2)
+                     {
+                        Array<int> * hov = new Array<int>;
+                        hov->Append(&vert_indices[0], n_elem_nodes);
+                        ho_verts_2D.push_back(hov);
+                        order = max(order, (type_of_element == 9) ? 2 : 3);
+                     }
                      break;
                   }
-                  case 3: // 4-node quadrangle
+                  case  3: //  4-node quadrangle
+                  case 10: //  9-node quadrangle (2nd order)
+                  case 36: // 16-node quadrangle (3rd order)
                   {
                      elements_2D.push_back(
                         new Quadrilateral(&vert_indices[0], phys_domain));
+                     if (type_of_element != 3)
+                     {
+                        Array<int> * hov = new Array<int>;
+                        hov->Append(&vert_indices[0], n_elem_nodes);
+                        ho_verts_2D.push_back(hov);
+                        order = max(order, (type_of_element == 10) ? 2 : 3);
+                     }
                      break;
                   }
-                  case 4: // 4-node tetrahedron
+                  case  4: //  4-node tetrahedron
+                  case 11: // 10-node tetrahedron (2nd order)
+                  case 29: // 20-node tetrahedron (3rd order)
                   {
 #ifdef MFEM_USE_MEMALLOC
                      elements_3D.push_back(TetMemory.Alloc());
@@ -1209,12 +1349,28 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      elements_3D.push_back(
                         new Tetrahedron(&vert_indices[0], phys_domain));
 #endif
+                     if (type_of_element != 4)
+                     {
+                        Array<int> * hov = new Array<int>;
+                        hov->Append(&vert_indices[0], n_elem_nodes);
+                        ho_verts_3D.push_back(hov);
+                        order = max(order, (type_of_element == 11) ? 2 : 3);
+                     }
                      break;
                   }
-                  case 5: // 8-node hexahedron
+                  case  5: //  8-node hexahedron
+                  case 12: // 27-node hexahedron (2nd order)
+                  case 92: // 64-node hexahedron (3rd order)
                   {
                      elements_3D.push_back(
                         new Hexahedron(&vert_indices[0], phys_domain));
+                     if (type_of_element != 5)
+                     {
+                        Array<int> * hov = new Array<int>;
+                        hov->Append(&vert_indices[0], n_elem_nodes);
+                        ho_verts_3D.push_back(hov);
+                        order = max(order, (type_of_element == 12) ? 2 : 3);
+                     }
                      break;
                   }
                   case 15: // 1-node point
@@ -1299,6 +1455,78 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             return;
          }
 
+         if (order > 1)
+         {
+            curved = 1;
+            read_gf = 0;
+
+            // Construct GridFunction for uniformly spaced high order coords
+            FiniteElementCollection* nfec;
+            FiniteElementSpace* nfes;
+            nfec = new L2_FECollection(order, Dim, BasisType::ClosedUniform);
+            nfes = new FiniteElementSpace(this, nfec, spaceDim,
+                                          Ordering::byVDIM);
+            Nodes_gf.SetSpace(nfes);
+            Nodes_gf.MakeOwner(nfec);
+
+            int o = 0;
+            for (int el = 0; el < NumOfElements; el++)
+            {
+               int nv = 0;
+               const int * vm = NULL;
+               Array<int> * ho_verts = NULL;
+               switch (GetElementType(el))
+               {
+                  case Element::SEGMENT:
+                     nv = (order == 2) ? 3 : 4;
+                     vm = (order == 2) ? lin3 : lin4;
+                     ho_verts = ho_verts_1D[el];
+                     break;
+                  case Element::TRIANGLE:
+                     nv = (order == 2) ? 6 : 10;
+                     vm = (order == 2) ? tri6 : tri10;
+                     ho_verts = ho_verts_2D[el];
+                     break;
+                  case Element::QUADRILATERAL:
+                     nv = (order == 2) ? 9 : 16;
+                     vm = (order == 2) ? quad9 : quad16;
+                     ho_verts = ho_verts_2D[el];
+                     break;
+                  case Element::TETRAHEDRON:
+                     break;
+                  case Element::HEXAHEDRON:
+                     break;
+                  default: // Any other element type
+                     MFEM_WARNING("Unsupported Gmsh element type.");
+                     break;
+               }
+
+               for (int v = 0; v<nv; v++)
+               {
+                  double * c = GetVertex((*ho_verts)[vm[v]]);
+                  for (int d=0; d<spaceDim; d++)
+                  {
+                     Nodes_gf(spaceDim * (o + v) + d) = c[d];
+                  }
+               }
+               o += nv;
+            }
+         }
+
+         // Delete any high order element to vertex connectivity
+         for (size_t el=0; el<ho_verts_1D.size(); el++)
+         {
+            delete ho_verts_1D[el];
+         }
+         for (size_t el=0; el<ho_verts_2D.size(); el++)
+         {
+            delete ho_verts_2D[el];
+         }
+         for (size_t el=0; el<ho_verts_3D.size(); el++)
+         {
+            delete ho_verts_3D[el];
+         }
+
          MFEM_CONTRACT_VAR(n_partitions);
          MFEM_CONTRACT_VAR(elem_domain);
 
@@ -1307,7 +1535,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       {
          curved = 1;
          read_gf = 0;
-         spaceDim = 3;
+         periodic = true;
 
          Array<int> v2v(NumOfVertices);
          for (int i = 0; i < v2v.Size(); i++)
@@ -1333,8 +1561,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             getline(input, buff); // Read end-of-line
          }
 
-         // Convert nodes to discontinuous GridFunction
-         this->SetCurvature(1, true, Dim, Ordering::byVDIM);
+         // Convert nodes to discontinuous GridFunction (if they aren't already)
+         if (order == 1)
+         {
+            this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
+         }
 
          // Replace "slave" vertex indices in the element connectivity
          // with their corresponding "master" vertex indices.
@@ -1360,10 +1591,21 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                v[j] = v2v[v[j]];
             }
          }
-         this->RemoveUnusedVertices();
-         this->RemoveInternalBoundaries();
       }
    } // we reach the end of the file
+
+   Finalize();
+   this->RemoveUnusedVertices();
+   this->RemoveInternalBoundaries();
+
+   // If a high order coordinate field was created project it onto the mesh
+   if (order > 1)
+   {
+      SetCurvature(order, periodic, spaceDim, Ordering::byVDIM);
+
+      VectorGridFunctionCoefficient NodesCoef(&Nodes_gf);
+      Nodes->ProjectCoefficient(NodesCoef);
+   }
 }
 
 
