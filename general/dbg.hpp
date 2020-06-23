@@ -11,7 +11,7 @@
 #include <cstdlib>
 #include <cstdio>
 
-//#include "../config/config.hpp"
+#include "../config/config.hpp"
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
