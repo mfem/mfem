@@ -1031,13 +1031,13 @@ int GridFunction::GetFaceVectorValues(
    }
    if (di == 0)
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 5);
       Transf->Loc1.Transform(ir, eir);
       GetVectorValues(*Transf->Elem1, eir, vals, &tr);
    }
    else
    {
-      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 10);
       Transf->Loc2.Transform(ir, eir);
       GetVectorValues(*Transf->Elem2, eir, vals, &tr);
    }
@@ -2047,6 +2047,8 @@ void GridFunction::ProjectCoefficient(
    ElementTransformation *T = NULL;
    const FiniteElement *fe = NULL;
 
+   fes->BuildDofToArrays(); // ensures GetElementForDof(), GetLocalDofForDof() initialized.
+
    for (int i = 0; i < dofs.Size(); i++)
    {
       int dof = dofs[i], j = fes->GetElementForDof(dof);
@@ -2087,6 +2089,8 @@ void GridFunction::ProjectCoefficient(
    const FiniteElement *fe = NULL;
 
    Vector val;
+
+   fes->BuildDofToArrays(); // ensures GetElementForDof(), GetLocalDofForDof() initialized.
 
    for (int i = 0; i < dofs.Size(); i++)
    {

@@ -34,6 +34,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_sedge(pmesh.group_sedge),
      group_stria(pmesh.group_stria),
      group_squad(pmesh.group_squad),
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
      gtopo(pmesh.gtopo)
 {
    MyComm = pmesh.MyComm;
@@ -92,7 +94,9 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
 
 ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
-   : gtopo(comm)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    int *partitioning = NULL;
    Array<bool> activeBdrElem;
@@ -833,12 +837,26 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
    , MyRank(pncmesh.MyRank)
+   , glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
    , gtopo(MyComm)
    , pncmesh(NULL)
 {
    Mesh::InitFromNCMesh(pncmesh);
    ReduceMeshGen();
    have_face_nbr_data = false;
+}
+
+void ParMesh::ComputeGlobalElementOffset() const
+{
+   if (glob_offset_sequence != sequence) // mesh has changed
+   {
+      long local_elems = NumOfElements;
+      MPI_Scan(&local_elems, &glob_elem_offset, 1, MPI_LONG, MPI_SUM, MyComm);
+      glob_elem_offset -= local_elems;
+
+      glob_offset_sequence = sequence; // don't recalculate until refinement etc.
+   }
 }
 
 void ParMesh::ReduceMeshGen()
@@ -885,7 +903,9 @@ void ParMesh::FinalizeParTopo()
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
-   : gtopo(comm)
+   : glob_elem_offset(-1)
+   , glob_offset_sequence(-1)
+   , gtopo(comm)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -1062,6 +1082,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      MyComm(orig_mesh->GetComm()),
      NRanks(orig_mesh->GetNRanks()),
      MyRank(orig_mesh->GetMyRank()),
+     glob_elem_offset(-1),
+     glob_offset_sequence(-1),
      gtopo(orig_mesh->gtopo),
      have_face_nbr_data(false),
      pncmesh(NULL)
@@ -1297,6 +1319,20 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
 
    // Setup secondary parallel mesh data: sedge_ledge, sface_lface
    FinalizeParTopo();
+}
+
+int ParMesh::GetLocalElementNum(long global_element_num) const
+{
+   ComputeGlobalElementOffset();
+   long local = global_element_num - glob_elem_offset;
+   if (local < 0 || local >= NumOfElements) { return -1; }
+   return local;
+}
+
+long ParMesh::GetGlobalElementNum(int local_element_num) const
+{
+   ComputeGlobalElementOffset();
+   return glob_elem_offset + local_element_num;
 }
 
 void ParMesh::DistributeAttributes(Array<int> &attr)
@@ -2327,16 +2363,16 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-ElementTransformation* ParMesh::GetGhostFaceTransformation(
+void ParMesh::GetGhostFaceTransformation(
    FaceElementTransformations* FETr, Element::Type face_type,
    Geometry::Type face_geom)
 {
    // calculate composition of FETr->Loc1 and FETr->Elem1
-   DenseMatrix &face_pm = FaceTransformation.GetPointMat();
+   DenseMatrix &face_pm = FETr->GetPointMat();
    if (Nodes == NULL)
    {
       FETr->Elem1->Transform(FETr->Loc1.Transf.GetPointMat(), face_pm);
-      FaceTransformation.SetFE(GetTransformationFEforElementType(face_type));
+      FETr->SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
@@ -2352,9 +2388,8 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
       FETr->Loc1.Transform(face_el->GetNodes(), eir);
       Nodes->GetVectorValues(*FETr->Elem1, eir, face_pm);
 #endif
-      FaceTransformation.SetFE(face_el);
+      FETr->SetFE(face_el);
    }
-   return &FaceTransformation;
 }
 
 FaceElementTransformations *ParMesh::
@@ -2423,22 +2458,10 @@ GetSharedFaceTransformations(int sf, bool fill2)
    // adjust Loc1 or Loc2 of the master face if this is a slave face
    if (is_slave)
    {
-      // is a ghost slave? -> master not a ghost -> choose Elem1 local transf
-      // not a ghost slave? -> master is a ghost -> choose Elem2 local transf
-      IsoparametricTransformation &loctr =
-         is_ghost ? FaceElemTr.Loc1.Transf : FaceElemTr.Loc2.Transf;
-
       if (is_ghost || fill2)
       {
-         ApplyLocalSlaveTransformation(loctr, face_info);
-      }
-
-      if (face_type == Element::SEGMENT && fill2)
-      {
-         // fix slave orientation in 2D: flip Loc2 to match Loc1 and Face
-         DenseMatrix &pm = FaceElemTr.Loc2.Transf.GetPointMat();
-         std::swap(pm(0,0), pm(0,1));
-         std::swap(pm(1,0), pm(1,1));
+         // is_ghost -> modify side 1, otherwise -> modify side 2:
+         ApplyLocalSlaveTransformation(FaceElemTr, face_info, is_ghost);
       }
    }
 
@@ -2447,6 +2470,23 @@ GetSharedFaceTransformations(int sf, bool fill2)
    {
       GetGhostFaceTransformation(&FaceElemTr, face_type, face_geom);
    }
+
+   FaceElemTr.SetConfigurationMask(fill2 ? 31 : 21);
+
+   // This check can be useful for internal debugging, however it will fail on
+   // periodic boundary faces, so we keep it disabled in general.
+#if 0
+#ifdef MFEM_DEBUG
+   double dist = FaceElemTr.CheckConsistency();
+   if (dist >= 1e-12)
+   {
+      mfem::out << "\nInternal error: face id = " << FaceNo
+                << ", dist = " << dist << ", rank = " << MyRank << '\n';
+      FaceElemTr.CheckConsistency(1); // print coordinates
+      MFEM_ABORT("internal error");
+   }
+#endif
+#endif
 
    return &FaceElemTr;
 }
