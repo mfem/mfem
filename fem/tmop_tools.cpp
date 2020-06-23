@@ -33,10 +33,11 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    const int pnt_cnt = new_field.Size()/ncomp;
 
    new_field = field0;
-
+   new_field.HostReadWrite();
+   Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
-      Vector new_field_temp(new_field.GetData()+i*pnt_cnt, pnt_cnt);
+      new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
    }
 
@@ -94,6 +95,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    double v_max = 0.0;
    const int s = new_field.Size();
 
+   u.HostReadWrite();
    for (int i = 0; i < s; i++)
    {
       double vel = 0.;
@@ -149,6 +151,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 #endif
 
    // Trim the overshoots and undershoots.
+   new_field.HostReadWrite();
    for (int i = 0; i < s; i++)
    {
       if (new_field(i) < glob_minv) { new_field(i) = glob_minv; }
@@ -362,6 +365,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    Vector posV(pos.Data(), dof * dim);
 
    Vector x_out(x.Size()), x_out_loc(fes->GetVSize());
+   x_out_loc.UseDevice(true);
    bool x_out_ok = false;
    double scale = 1.0, energy_out = 0.0;
    double norm0 = Norm(r);

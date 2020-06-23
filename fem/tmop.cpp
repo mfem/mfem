@@ -1047,6 +1047,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
+   dbg("");
    const int vdim     = tspec_.FESpace()->GetVDim(),
              dof_cnt  = tspec_.Size()/vdim;
 
@@ -1060,6 +1061,7 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
    // make a copy of tspec->tspec_temp, increase its size, and
    // copy data from tspec_temp -> tspec, then add new entries
    Vector tspec_temp = tspec;
+   tspec.UseDevice(true);
    tspec.SetSize(ncomp*dof_cnt);
 
    for (int i = 0; i < tspec_temp.Size(); i++)
@@ -1212,12 +1214,13 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1, par_vals_c2, par_vals_c3;
-
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
+         tspec.UseDevice(true);
          tspec.GetSubVector(dofs, tspec_vals);
 
+         //tspec_vals.HostReadWrite();
          for (int i = 0; i < ir.GetNPoints(); i++)
          {
             const IntegrationPoint &ip = ir.IntPoint(i);
