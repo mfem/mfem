@@ -1191,8 +1191,9 @@ void Vector::ToNVector(N_Vector &nv, long global_length)
             if (global_length == 0 && global_length != size)
             {
                MPI_Comm sundials_comm = NV_COMM_P(nv);
-               MPI_Allreduce(&size, &global_length, 1, MPI_LONG, MPI_SUM,
-                             sundials_comm);
+               long local_size = size;
+               MPI_Allreduce(&local_size, &global_length, 1, MPI_LONG,
+                             MPI_SUM,sundials_comm);
             }
          }
          NV_GLOBLENGTH_P(nv) = global_length;
