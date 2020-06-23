@@ -1355,7 +1355,7 @@ class GeometricFactors
 
 protected:
    /// Element restricted nodes
-   /// [TODO move to stack when pools are available]
+   /// [TODO move to temp when pools are available]
    /** This array uses a column-major layout with dimensions (ND x SDIM x NE) where
         - ND   = number of degrees of freedom per element,
         - SDIM = space dimension of the mesh = mesh.SpaceDimension(), and
@@ -1363,11 +1363,11 @@ protected:
    Vector Enodes;
 
 public:
-   const Mesh *mesh {nullptr};
-   const GridFunction *nodes{nullptr};
-   const IntegrationRule *IntRule{nullptr};
+   const Mesh *mesh;
+   const GridFunction *nodes;
+   const IntegrationRule *IntRule;
    int computed_factors;
-   bool recompute_factors{false};
+   bool recompute_factors;
 
    enum FactorFlags
    {
@@ -1383,13 +1383,13 @@ public:
    GeometricFactors(const GridFunction *nodes, const IntegrationRule &ir,
                     const int flags);
 
-   //Overrides calcuating geometric factors with mesh nodes and uses user defined nodes
+   // Overrides calcuating geometric factors with mesh nodes and uses user defined nodes
    void AssembleWithNodes(const GridFunction *nodes, const IntegrationRule &ir,
                           const int flags);
 
    void Recompute();
 
-   void SetForRecompute(bool recompute=false) {recompute_factors = recompute; };
+   void SetForRecompute(bool recompute = false) {recompute_factors = recompute; };
 
    bool RecomputeStatus() {return recompute_factors; };
 
@@ -1428,10 +1428,10 @@ protected:
    Vector Fnodes;
 
 public:
-   const Mesh *mesh {nullptr};
-   const IntegrationRule *IntRule{nullptr};
+   const Mesh *mesh;
+   const IntegrationRule *IntRule;
    int computed_factors;
-   bool recompute_factors{false};
+   bool recompute_factors;
    FaceType type;
 
    enum FactorFlags

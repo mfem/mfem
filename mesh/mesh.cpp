@@ -10456,7 +10456,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 
 
 GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
-                                   int flags)
+                                   int flags) : recompute_factors(false)
 {
    MFEM_VERIFY(mesh->GetNodes() != NULL, "Mesh nodes are null");
    AssembleWithNodes(mesh->GetNodes(), ir, flags);
@@ -10464,7 +10464,7 @@ GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
 
 GeometricFactors::GeometricFactors(const GridFunction *nodes,
                                    const IntegrationRule &ir,
-                                   int flags)
+                                   int flags) : recompute_factors(false)
 {
    AssembleWithNodes(this->nodes, ir, flags);
 }
@@ -10478,49 +10478,7 @@ void GeometricFactors::AssembleWithNodes(const GridFunction *nodes,
    IntRule = &ir;
    computed_factors = flags;
 
-   const FiniteElementSpace *fespace = nodes->FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
-   const int dim  = fe->GetDim();
-   const int vdim = fespace->GetVDim();
-   const int NE   = fespace->GetNE();
-   const int ND   = fe->GetDof();
-   const int NQ   = IntRule->GetNPoints();
-
-   // For now, we are not using tensor product evaluation
-   const Operator *elem_restr = fespace->GetElementRestriction(
-                                   ElementDofOrdering::NATIVE);
-
-   unsigned eval_flags = 0;
-   if (flags & GeometricFactors::COORDINATES)
-   {
-      X.SetSize(vdim*NQ*NE);
-      eval_flags |= QuadratureInterpolator::VALUES;
-   }
-   if (flags & GeometricFactors::JACOBIANS)
-   {
-      J.SetSize(dim*vdim*NQ*NE);
-      eval_flags |= QuadratureInterpolator::DERIVATIVES;
-   }
-   if (flags & GeometricFactors::DETERMINANTS)
-   {
-      detJ.SetSize(NQ*NE);
-      eval_flags |= QuadratureInterpolator::DETERMINANTS;
-   }
-
-   const QuadratureInterpolator *qi = fespace->GetQuadratureInterpolator(*IntRule);
-   // For now, we are not using tensor product evaluation (not implemented)
-   qi->DisableTensorProducts();
-   qi->SetOutputLayout(QVectorLayout::byNODES);
-   if (elem_restr)
-   {
-      Enodes.SetSize(vdim*ND*NE);
-      elem_restr->Mult(*nodes, Enodes);
-      qi->Mult(Enodes, eval_flags, X, J, detJ);
-   }
-   else
-   {
-      qi->Mult(*nodes, eval_flags, X, J, detJ);
-   }
+   Recompute();
 }
 
 void GeometricFactors::Recompute()
@@ -10574,7 +10532,7 @@ void GeometricFactors::Recompute()
 FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                            const IntegrationRule &ir,
                                            int flags, FaceType type)
-   : type(type)
+   : type(type), recompute_factors(false)
 {
    this->mesh = mesh;
    IntRule = &ir;
