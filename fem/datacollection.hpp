@@ -501,10 +501,6 @@ public:
    ParaViewDataCollection(const std::string& collection_name,
                           mfem::Mesh *mesh_ = NULL);
 
-   /// Add a grid function to the collection
-   virtual void RegisterField(const std::string& field_name,
-                              mfem::GridFunction *gf) override;
-
    /// Set refinement levels - every element is uniformly split based on
    /// levels_of_detail_
    void SetLevelsOfDetail(int levels_of_detail_);

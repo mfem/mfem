@@ -30,6 +30,27 @@ namespace mfem
 
 class BilinearForm;
 
+/// Abstract base class for an iterative solver monitor
+class IterativeSolverMonitor
+{
+public:
+   IterativeSolverMonitor() {}
+
+   virtual ~IterativeSolverMonitor() {}
+
+   /// Monitor the residual vector r
+   virtual void MonitorResidual(int it, double norm, const Vector &r,
+                                bool final)
+   {
+   }
+
+   /// Monitor the solution vector x
+   virtual void MonitorSolution(int it, double norm, const Vector &x,
+                                bool final)
+   {
+   }
+};
+
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
@@ -42,6 +63,7 @@ private:
 protected:
    const Operator *oper;
    Solver *prec;
+   IterativeSolverMonitor *monitor = nullptr;
 
    int max_iter, print_level;
    double rel_tol, abs_tol;
@@ -52,6 +74,8 @@ protected:
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   void Monitor(int it, double norm, const Vector& r, const Vector& x,
+                bool final=false) const;
 
 public:
    IterativeSolver();
@@ -74,6 +98,9 @@ public:
 
    /// Also calls SetOperator for the preconditioner if there is one
    virtual void SetOperator(const Operator &op);
+
+   /// Set the iterative solver monitor
+   void SetMonitor(IterativeSolverMonitor &m) { monitor = &m; }
 };
 
 

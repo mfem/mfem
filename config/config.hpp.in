@@ -106,6 +106,9 @@
 // Enable Sidre support
 // #define MFEM_USE_SIDRE
 
+// Enable the use of SIMD in the high performance templated classes
+// #define MFEM_USE_SIMD
+
 // Enable Conduit support
 // #define MFEM_USE_CONDUIT
 
