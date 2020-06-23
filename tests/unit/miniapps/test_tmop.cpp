@@ -19,6 +19,7 @@
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
 extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
+#define SetDiscreteTargetSize SetParDiscreteTargetSize
 #else
 typedef int MPI_Session;
 #define ParMesh Mesh
@@ -28,6 +29,7 @@ typedef int MPI_Session;
 #define GetParGridFunctionEnergy GetGridFunctionEnergy
 #define PFesGetParMeshGetComm(...)
 #define MPI_Allreduce(src,dst,...) *dst = *src
+#define SetDiscreteTargetSize SetSerialDiscreteTargetSize
 #endif
 
 using namespace std;
@@ -301,7 +303,7 @@ int tmop(int myid, Req &res, int argc, char *argv[])
          tc->SetAdaptivityEvaluator(new AdvectorCG);
          FunctionCoefficient ind_coeff(discrete_size_2d);
          size.ProjectCoefficient(ind_coeff);
-         tc->SetSerialDiscreteTargetSize(size);
+         tc->SetDiscreteTargetSize(size);
          target_c = tc;
          break;
       }
