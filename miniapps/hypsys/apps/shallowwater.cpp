@@ -50,8 +50,8 @@ ShallowWater::ShallowWater(FiniteElementSpace *fes_, BlockVector &u_block,
       case 2:
       {
          ProblemName = "Shallow Water Equations - Radial Dam Break";
-         glvis_scale = "off \n valuerange 0 1";
-         GravConst = 1.0;
+         glvis_scale = "on";
+         GravConst = 9.81;
          Depth = 0.1;
          SolutionKnown = false;
          SteadyState = false;
