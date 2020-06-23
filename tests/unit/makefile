@@ -160,7 +160,7 @@ $$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_M
 	   $$(TMOP_TESTS_FLAGS) -o $$(@)
 endef
 $(eval $(call tmop_tests,cpu,CPU,cpu))
-$(eval $(call tmop_tests,debug,DEBUG,debug))
+#$(eval $(call tmop_tests,debug,DEBUG,debug))
 $(eval $(call tmop_tests,cuda,CUDA,cuda))
 $(eval $(call tmop_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
 
