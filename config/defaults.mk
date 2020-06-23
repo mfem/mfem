@@ -283,10 +283,12 @@ SLEPC_FOUND := $(if $(wildcard $(SLEPC_VARS)),YES,)
 SLEPC_INC_VAR = SLEPC_INCLUDE
 SLEPC_LIB_VAR = SLEPC_EXTERNAL_LIB
 ifeq ($(SLEPC_FOUND),YES)
-    SLEPC_OPT := $(shell sed -n "s/$(SLEPC_INC_VAR) *= *//p" $(SLEPC_VARS))
-    SLEPC_LIB := $(shell sed -n "s/$(SLEPC_LIB_VAR) *= *//p" $(SLEPC_VARS))
-    SLEPC_LIB := -Wl,-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
-        -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc $(SLEPC_LIB)
+   SLEPC_OPT := $(shell sed -n "s/$(SLEPC_INC_VAR) *= *//p" $(SLEPC_VARS))
+   # Some additional external libraries might be defined in this file
+   -include ${SLEPC_DIR}/${PETSC_ARCH}/lib/slepc/conf/slepcvariables
+   SLEPC_LIB := $(shell sed -n "s/$(SLEPC_LIB_VAR) *= *//p" $(SLEPC_VARS))
+   SLEPC_LIB := -Wl,-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
+      -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc $(SLEPC_LIB)
 endif
 
 # MPFR library configuration
