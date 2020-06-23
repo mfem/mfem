@@ -439,7 +439,17 @@ public:
    void Transform (const IntegrationRule  &, IntegrationRule  &);
 };
 
+/** @brief A specialized ElementTransformation class representing a face and
+    its two neighboring elements.
 
+    This class can be used as a container for the element transformation data
+    needed for integrating discontinuous fields on element interfaces in a
+    Discontinuous Galerkin (DG) context.
+
+    The secondary purpose of this class is to enable the
+    GridFunction::GetValue function, and various related functions, to properly
+    evaluate fields with limited continuity on boundary elements.
+*/
 class FaceElementTransformations : public IsoparametricTransformation
 {
 private:
@@ -448,6 +458,26 @@ private:
    int mask;
 
    IntegrationPoint eip1, eip2;
+
+protected: // interface for Mesh to be able to configure this object.
+
+   friend class Mesh;
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
+
+   /// Set the mask indicating which portions of the object have been setup
+   /** The argument @a m is a bitmask used in
+       Mesh::GetFaceElementTransformations to indicate which portions of the
+       FaceElementTransformations object have been configured.
+
+       mask &  1: Elem1 is configured
+       mask &  2: Elem2 is configured
+       mask &  4: Loc1 is configured
+       mask &  8: Loc2 is configured
+       mask & 16: The Face transformation itself is configured
+   */
+   void SetConfigurationMask(int m) { mask = m; }
 
 public:
 
@@ -478,10 +508,10 @@ public:
    */
    void SetGeometryType(Geometry::Type g) { geom = g; }
 
-   /// Set the mask indicating which portions of the object have been setup
-   /** The argument @a m is a bitmask used in
-       Mesh::GetFaceElementTransformations to indicate which portions of the
-       FaceElement Transformations object have been configured.
+   /** @brief Return the mask defining the configuration state.
+
+       The mask value indicates which portions of FaceElementTransformations
+       object have been configured.
 
        mask &  1: Elem1 is configured
        mask &  2: Elem2 is configured
@@ -489,12 +519,45 @@ public:
        mask &  8: Loc2 is configured
        mask & 16: The Face transformation itself is configured
    */
-   void SetConfigurationMask(int m) { mask = m; }
-   int  GetConfigurationMask() const { return mask; }
+   int GetConfigurationMask() const { return mask; }
 
    /** @brief Set the integration point in the Face and the two neighboring
-       elements, if present. */
-   void SetIntPoint(const IntegrationPoint *ip);
+       elements, if present.
+
+       The point @a face_ip must be in the reference coordinate system of the
+       face.
+   */
+   void SetIntPoint(const IntegrationPoint *face_ip);
+
+   /** @brief Set the integration point in the Face and the two neighboring
+       elements, if present.
+
+       This is a more expressive member function name than SetIntPoint, which
+       in this special case, does the same thing. This function can be used for
+       greater code clarity.
+   */
+   inline void SetAllIntPoints(const IntegrationPoint *face_ip)
+   { FaceElementTransformations::SetIntPoint(face_ip); }
+
+   /** @brief Get a const reference to the integration point in neighboring
+       element 1 corresponding to the currently set integration point on the
+       face.
+
+       This IntegrationPoint object will only contain up-to-date data if
+       SetIntPoint or SetAllIntPoints has been called with the latest
+       integration point for the face and the appropriate point transformation
+       has been configured. */
+   const IntegrationPoint &GetElement1IntPoint() { return eip1; }
+
+   /** @brief Get a const reference to the integration point in neighboring
+       element 2 corresponding to the currently set integration point on the
+       face.
+
+       This IntegrationPoint object will only contain up-to-date data if
+       SetIntPoint or SetAllIntPoints has been called with the latest
+       integration point for the face and the appropriate point transformation
+       has been configured. */
+   const IntegrationPoint &GetElement2IntPoint() { return eip2; }
 
    virtual void Transform(const IntegrationPoint &, Vector &);
    virtual void Transform(const IntegrationRule &, DenseMatrix &);

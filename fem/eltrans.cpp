@@ -552,19 +552,25 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
    }
 }
 
-void FaceElementTransformations::SetIntPoint(const IntegrationPoint *ip)
+void FaceElementTransformations::SetIntPoint(const IntegrationPoint *face_ip)
 {
-   IsoparametricTransformation::SetIntPoint(ip);
+   IsoparametricTransformation::SetIntPoint(face_ip);
 
-   if (Elem1)
+   if (mask & 4)
    {
-      Loc1.Transform(*ip, eip1);
-      Elem1->SetIntPoint(&eip1);
+      Loc1.Transform(*face_ip, eip1);
+      if (Elem1)
+      {
+         Elem1->SetIntPoint(&eip1);
+      }
    }
-   if (Elem2)
+   if (mask & 8)
    {
-      Loc2.Transform(*ip, eip2);
-      Elem2->SetIntPoint(&eip2);
+      Loc2.Transform(*face_ip, eip2);
+      if (Elem2)
+      {
+         Elem2->SetIntPoint(&eip2);
+      }
    }
 }
 
