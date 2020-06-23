@@ -70,18 +70,18 @@ void NvidiaAMGX::Init(const MPI_Comm &comm,
    AMGX_config_get_default_number_of_rings(cfg, &ring);
 
    isEnabled = true;
+   isMPIEnabled = true;
 }
 
 void NvidiaAMGX::Init(const std::string &modeStr, const std::string &cfgFile)
 {
    if (modeStr == "dDDI") { amgx_mode = AMGX_mode_dDDI;}
-   else { mfem_error("dDDI only supported \n");}  
+   else { mfem_error("dDDI only supported \n");}
    AMGX_SAFE_CALL(AMGX_initialize());
    AMGX_SAFE_CALL(AMGX_initialize_plugins());
    AMGX_SAFE_CALL(AMGX_install_signal_handler());
    AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
    isEnabled = true;
-   
 }
 
 void NvidiaAMGX::GetLocalA(const HypreParMatrix &in_A,
@@ -229,18 +229,20 @@ void NvidiaAMGX::SetA(const Operator& op)
    std::cout << "4\n";
 
 
-	spop = const_cast<SparseMatrix*>(dynamic_cast<const SparseMatrix*>(&op));
-	MFEM_VERIFY(spop, "operator is not of correct type!");
+   spop = const_cast<SparseMatrix*>(dynamic_cast<const SparseMatrix*>(&op));
+   MFEM_VERIFY(spop, "operator is not of correct type!");
 
-	AMGX_matrix_upload_all(A, spop->Height(),
-				spop->NumNonZeroElems(),
-				1, 1,
-				spop->ReadWriteI(),
-				spop->ReadWriteJ(),
-				spop->ReadWriteData(), NULL);
+   AMGX_matrix_upload_all(A, spop->Height(),
+                          spop->NumNonZeroElems(),
+                          1, 1,
+                          spop->ReadWriteI(),
+                          spop->ReadWriteJ(),
+                          spop->ReadWriteData(), NULL);
 
-	AMGX_solver_setup(solver, A); 
+   AMGX_solver_setup(solver, A);
 
+   AMGX_vector_bind(x, A);
+   AMGX_vector_bind(b, A);
 }
 
 
@@ -283,11 +285,11 @@ void NvidiaAMGX::Mult(Vector &in_b, Vector &in_x)
    AMGX_vector_upload(x, in_x.Size(), 1, in_x.HostReadWrite());
 
    AMGX_vector_upload(b, in_b.Size(), 1, in_b.HostReadWrite());
-   
+
    AMGX_solver_solve(solver, b, x);
 
    AMGX_vector_download(x, in_x.HostWrite());
-   
+
    AMGX_unpin_memory(in_x.HostReadWrite());
    AMGX_unpin_memory(in_b.HostReadWrite());
 }
@@ -321,7 +323,7 @@ NvidiaAMGX::~NvidiaAMGX()
       {
          AMGX_config_destroy(cfg);
       }
-      MPI_Comm_free(&amgx_comm);
+      if (isMPIEnabled) { MPI_Comm_free(&amgx_comm); }
    }
    count -= 1;
    isEnabled=false;
