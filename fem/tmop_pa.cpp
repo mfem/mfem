@@ -26,7 +26,7 @@ static void ScaleByWeight(const Vector &w, Vector &x)
    const int N = w.Size();
    const auto W = Reshape(w.Read(), N);
    auto X = Reshape(x.ReadWrite(), N);
-   MFEM_FORALL(i, N, X(i) = fabs(W(i)) < 1.e-32 ? X(i) : X(i)/W(i););
+   MFEM_FORALL(i, N, X(i) /= W(i););
 }
 
 // Use TargetConstructor::ComputeElementTargets to fill the PA.Jtr
@@ -43,6 +43,7 @@ static void SetupJtr(const int dim, const int NE, const int NQ,
       const FiniteElement *fe = fes->GetFE(e);
       if (target_type == TargetConstructor::GIVEN_FULL)
       {
+         dbg("x");
          fes->GetElementVDofs(e, vdofs);
          x.GetSubVector(vdofs, elfun);
       }
@@ -111,7 +112,9 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const int NQ = ir->GetNPoints();
    PA.Jtr.SetSize(dim, dim, NE*NQ);
    PA.Jtr.HostWrite();
-   if (target_type < TargetConstructor::GIVEN_FULL)
+   const bool datc = dynamic_cast<const DiscreteAdaptTC*>(targetC) != nullptr;
+   dbg("datc: %s", datc?"yes":"no");
+   if (!datc && target_type < TargetConstructor::GIVEN_FULL)
    {
       dbg("Setup => SetupJtr");
       PA.setup_Jtr = true;
@@ -164,6 +167,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   dbg("");
    if (!PA.setup_Jtr)
    {
       MFEM_ABORT("Should be inited!");
@@ -202,16 +206,16 @@ void TMOP_Integrator::AddMultPA(const Vector &x, Vector &y) const
 void TMOP_Integrator::AddMultGradPA(const Vector &x,
                                     const Vector &r, Vector &c) const
 {
-
+   dbg("");
    if (!PA.setup_Jtr)
    {
       Vector X(PA.R->Width(), Device::GetMemoryType());
       X.UseDevice(true);
       PA.R->MultTranspose(x,X);
       ScaleByWeight(PA.W, X);
-      dbg("SetupJtr %.15e %.15e", X*X);
+      dbg("SetupJtr %.15e", X*X);
       const TargetConstructor::TargetType &target_type = targetC->Type();
-      MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
+      //MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
       const int dim = PA.dim;
       const int NE = PA.ne;
       const int NQ = PA.nq;
@@ -257,7 +261,8 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
 {
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "PA setup has not been done!");
 
-   //if (!PA.setup_Jtr)
+   const bool datc = dynamic_cast<const DiscreteAdaptTC*>(targetC) != nullptr;
+   if (datc || targetC->Type() == TargetConstructor::GIVEN_FULL)
    {
       Vector X(PA.R->Width(), Device::GetMemoryType());
       X.UseDevice(true);
@@ -265,7 +270,7 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
       ScaleByWeight(PA.W, X);
       dbg("SetupJtr %.15e", X*X);
       const TargetConstructor::TargetType &target_type = targetC->Type();
-      MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
+      //MFEM_VERIFY(target_type == TargetConstructor::GIVEN_FULL, "");
       const int dim = PA.dim;
       const int NE = PA.ne;
       const int NQ = PA.nq;
@@ -289,7 +294,9 @@ double TMOP_Integrator::GetGridFunctionEnergyPA(const Vector &x) const
       energy = GetGridFunctionEnergyPA_3D(x);
       if (coeff0) { energy += GetGridFunctionEnergyPA_C0_3D(x); }
    }
+
    PA.setup_Jtr = true;
+
    return energy;
 }
 

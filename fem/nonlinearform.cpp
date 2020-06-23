@@ -11,6 +11,7 @@
 
 #include "fem.hpp"
 #include "../general/forall.hpp"
+#include "../general/dbg.hpp"
 
 namespace mfem
 {
@@ -81,11 +82,14 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
 
 double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
+   dbg("x:%.15e",x*x);
    if (ext)
    {
       MFEM_VERIFY(fnfi.Size() == 0, "Not Yet implemented!");
       MFEM_VERIFY(bfnfi.Size() == 0, "Not Yet implemented!");
-      return ext->GetGridFunctionEnergy(x);
+      const double energy = ext->GetGridFunctionEnergy(x);
+      dbg("energy: %.15e", energy);
+      return energy;
    }
 
    Array<int> vdofs;
@@ -119,6 +123,7 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
       MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
 
+   dbg("energy: %.15e", energy);
    return energy;
 }
 

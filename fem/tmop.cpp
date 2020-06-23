@@ -13,6 +13,7 @@
 #include "linearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
+#include "../general/dbg.hpp"
 
 namespace mfem
 {
