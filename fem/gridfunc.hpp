@@ -340,12 +340,10 @@ public:
 
    virtual void ProjectCoefficient(Coefficient &coeff);
 
-   // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(Coefficient &coeff, Array<int> &dofs, int vd = 0);
 
    void ProjectCoefficient(VectorCoefficient &vcoeff);
 
-   // call fes -> BuildDofToArrays() before using this projection
    void ProjectCoefficient(VectorCoefficient &vcoeff, Array<int> &dofs);
 
    void ProjectCoefficient(Coefficient *coeff[]);
@@ -600,11 +598,13 @@ public:
                      type = adios2stream::data_type::point_data) const;
 #endif
 
-   /** Write the GridFunction in VTK format. Note that Mesh::PrintVTK must be
-       called first. The parameter ref > 0 must match the one used in
+   /** @brief Write the GridFunction in VTK format. Note that Mesh::PrintVTK
+       must be called first. The parameter ref > 0 must match the one used in
        Mesh::PrintVTK. */
    void SaveVTK(std::ostream &out, const std::string &field_name, int ref);
 
+   /** @brief Write the GridFunction in STL format. Note that the mesh dimension
+       must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
 
    /// Destroys grid function.
@@ -737,6 +737,16 @@ public:
     */
    inline void GetElementValues(int idx, Vector &values) const;
 
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a reference to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values);
+
+   /// Return the quadrature function values at an integration point.
+   /** The result is stored in the Vector @a values as a copy to the
+       global values. */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values) const;
+
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
        global values.
@@ -836,6 +846,25 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
    values.SetSize(vdim*sl_size);
    const double *q = data + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
+   {
+      values(i) = *(q++);
+   }
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values)
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.NewDataAndSize(data + s_offset, vdim);
+}
+
+inline void QuadratureFunction::GetElementValues(int idx, const int ip_num,
+                                                 Vector &values) const
+{
+   const int s_offset = qspace->element_offsets[idx] * vdim + ip_num * vdim;
+   values.SetSize(vdim);
+   const double *q = data + s_offset;
+   for (int i = 0; i < values.Size(); i++)
    {
       values(i) = *(q++);
    }
