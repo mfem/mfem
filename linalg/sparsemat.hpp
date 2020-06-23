@@ -88,11 +88,12 @@ protected:
 
 #ifdef MFEM_USE_CUDA
    cusparseStatus_t status;
-   cusparseHandle_t handle=0;
+   static cusparseHandle_t handle;
    cusparseMatDescr_t descr=0;
    mutable size_t bufferSize{0};
    mutable void *dBuffer = NULL;
-   mutable bool isInit{false};
+   mutable bool initCuSparse{false};
+   static int SparseMatrixCount;
 
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
@@ -104,9 +105,8 @@ public:
    SparseMatrix()
    {
       SetEmpty();
-#ifdef MFEM_USE_CUDA
+
       InitCuSparse();
-#endif
    }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
@@ -143,7 +143,7 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
-   //Intialize CuSparse
+   // Initialize CuSparse
    void InitCuSparse();
 
    /// Assignment operator: deep copy
@@ -604,14 +604,16 @@ public:
    {
       Destroy();
 #ifdef MFEM_USE_CUDA
-      if (handle) { cusparseDestroy(handle);}
-      if (isInit)
+      if (handle && SparseMatrixCount==1)
+      { cusparseDestroy(handle);}
+      if (initCuSparse)
       {
          cusparseDestroySpMat(matA_descr);
          cusparseDestroyDnVec(vecX_descr);
          cusparseDestroyDnVec(vecY_descr);
          CuMemFree(dBuffer);
       }
+      SparseMatrixCount--;
 #endif
    }
 

@@ -28,11 +28,20 @@ namespace mfem
 
 using namespace std;
 
+#ifdef MFEM_USE_CUDA
+int SparseMatrix::SparseMatrixCount = 0;
+cusparseHandle_t SparseMatrix::handle;
+#endif
+
 void SparseMatrix::InitCuSparse()
 {
-   /* Initialize cusparse library */
+   /* Initialize CuSparse library */
 #ifdef MFEM_USE_CUDA
-   cusparseCreate(&handle);
+   SparseMatrixCount++;
+   if (SparseMatrixCount == 1)
+   {
+      cusparseCreate(&handle);
+   }
 #endif
 }
 
@@ -59,9 +68,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
    NodesMem = new RowNodeAlloc;
 #endif
 
-#ifdef MFEM_USE_CUDA
    InitCuSparse();
-#endif
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
@@ -80,9 +87,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
    NodesMem = NULL;
 #endif
 
-#ifdef MFEM_USE_CUDA
    InitCuSparse();
-#endif
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
@@ -114,9 +119,8 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
          A[i] = 0.0;
       }
    }
-#ifdef MFEM_USE_CUDA
+
    InitCuSparse();
-#endif
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
@@ -138,9 +142,8 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    {
       I[i] = i * rowsize;
    }
-#ifdef MFEM_USE_CUDA
+
    InitCuSparse();
-#endif
 }
 
 SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
@@ -207,9 +210,8 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    At = NULL;
    isSorted = mat.isSorted;
 
-#ifdef MFEM_USE_CUDA
+
    InitCuSparse();
-#endif
 }
 
 SparseMatrix::SparseMatrix(const Vector &v)
@@ -237,9 +239,8 @@ SparseMatrix::SparseMatrix(const Vector &v)
       J[r] = r;
       A[r] = v[r];
    }
-#ifdef MFEM_USE_CUDA
+
    InitCuSparse();
-#endif
 }
 
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
@@ -620,17 +621,14 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    //Skip if matrix is all zero
    if (nnz == 0) {return;}
-#ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK))
    {
-
-
-
+#ifdef MFEM_USE_CUDA
       const double alpha = a;
       const double beta  = 1.0;
 
       //Initialize once
-      if (!isInit)
+      if (!initCuSparse)
       {
          /* create and setup matrix descriptor */
          cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
@@ -638,11 +636,12 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
                            const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
                            CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 
-         //Update input/output vectors
+         /*Create handles for input/output vectors */
          cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x),
                              CUDA_R_64F);
          cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
 
+         /*Create allocate space for kernel */
          cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
                                  matA_descr,
                                  vecX_descr, &beta, vecY_descr, CUDA_R_64F,
@@ -651,22 +650,20 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
          {
             cudaMalloc(&dBuffer, bufferSize);
          }
-         isInit = true;
+         initCuSparse = true;
       }
 
       //Update input/output vectors
       cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
       cusparseDnVecSetValues(vecY_descr, d_y);
 
-
       // Y = alpha A * X + beta * Y
       cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
                    vecX_descr, &beta, vecY_descr, CUDA_R_64F, CUSPARSE_CSRMV_ALG2, dBuffer);
+#endif
    }
    else
-#endif
    {
-
       //Native version
       MFEM_FORALL(i, height,
       {
