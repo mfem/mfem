@@ -5,8 +5,10 @@
 -snes_rtol 1e-4
 -snes_stol 0.
 -snes_converged_reason 
--snes_linesearch_type bt
+-snes_linesearch_type l2
 -snes_view
+-snes_max_fail 100
+-snes_max_linear_solve_fail 5
 #-log_view :log.txt
 #-snes_type ksponly
 #-snes_type newtontr
@@ -24,7 +26,7 @@
 -snes_ksp_ew_threshold 0.1
 #======matrix free parameters for default
 -mat_mffd_type wp
--mat_mffd_err 1e-2
+-mat_mffd_err 5e-2
 
 #======matrix free parameters for ds
 #-mat_mffd_err 1e-1
@@ -50,7 +52,7 @@
 #-ksp_monitor_true_residual
 #
 #======Stiffness matrix======
--s1_ksp_rtol 1e-3
+-s1_ksp_rtol 1e-6
 -s1_ksp_type cg
 #-s1_ksp_type richardson #this will use boomeramg as a solver
 -s1_pc_type hypre

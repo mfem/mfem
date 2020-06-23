@@ -32,8 +32,56 @@ parallel plot:
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 36 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 glvis -np 48 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
+glvis -np 512 -m mesh -g sol_omega -k "mmc" -ww 800 -wh 800
 
 glvis -np 4 -m mesh -g sol_omega -k "mmc" -ww 400 -wh 400
+
+6/22
+optimize this for supg preconditioner:
+mpirun -n 12 --oversubscribe ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -no-supg -no-fd -local -lr 2
+vs
+mpirun -n 12 --oversubscribe ../imMHDp -m ../Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -no-vis -vs 1 -tf 1. -dt .1 -usepetsc --petscopts ../petscrc/rc_debug -s 3 -shell -resi 1e-4 -visc 1e-4 -supg -no-fd -local -lr 2
+
+6/14
+question to investigate:
+increase rtol will be acceptable? maybe; it looks okay
+increase grid resolution at the center? 
+reduce time step defintely help but it still get stuck around t=4.8? what does solution look like? too large speed?
+
+r5lr4 always got stuck around t=4.5 (with dt=0.1)
+the cause seems the preconditioner becomes inefficient (how could I improve that?)
+
+maybe because when v is getting large ARe/Sc is not inverted very efficiently??
+ksp iterations increase to achieve the same order of rtol
+play with parameters in hypre to see!
+
+r5lr5 will push time to later??
+
+
+increase mffd_err x
+decrease mffd_err x
+
+increase ijacobi x
+decrease ijacobi x
+
+increase rtol0 helps r5lr4
+
+change bt to l2 as line search ok
+
+it is possible for rl5 I need to increase rtol0
+
+this hypre flag may help?
+-s2_pc_hypre_boomeramg_interp_type FF1 
+
+ARe and Sc is the issue!!
+Q: a better way to invert that matrix: AIR?
+Q: supg will save me?
+
+see logr5-lr4-9no-stab.out
+
+
+6/10
+l2 linesearch is better if problems are getting harder (or more cores are called)
 
 6/8
 1. it is getting better if we improved stiffness matrix inversion
@@ -60,6 +108,8 @@ without stabilization (not necessary for res=1e-4, even 1e-5; and if turned on, 
     *** r5rl2o3 (with stabilization terms is bad: adjust rc_debug?)
     *** r5rl2o3 (without stabilization; it runs to t=4.2)
     *** r5rl3o3 (without stabilization; it runs to t=4.5)
+    *** r5rl4o3 (without stabilization; it runs to t=4.5)
+        rtol=1e-3 is better?
 
 
 6. next: try to do local refine to get 1e-5 

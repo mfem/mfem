@@ -1290,8 +1290,64 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
 
        if (iSc==0 && (!usefd) )
        {
-           if (myid==0 && false) 
-              cout <<"======WARNING: use preconditioner without stabilization terms======"<<endl;
+           if (myid==0 && false) cout <<"======WARNING: use preconditioner without stabilization terms======"<<endl;
+
+           if (usesupg && true)           
+           {
+                delete StabMass;
+                StabMass = new ParBilinearForm(&fespace);
+                StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity));
+                StabMass->Assemble(); 
+                StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                StabMass->Finalize();
+                HypreParMatrix *MatStabMass=StabMass->ParallelAssemble();
+
+                delete StabNv;
+                StabNv = new ParBilinearForm(&fespace);
+                StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity));
+                StabNv->Assemble(); 
+                StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                StabNv->Finalize();
+                HypreParMatrix *MatStabNv=StabNv->ParallelAssemble();
+
+                HypreParMatrix *MatStabSum=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+                HypreParMatrix *tmp=ParAdd(ASltmp, MatStabSum);
+
+                delete ASltmp;
+                ASltmp=tmp;
+
+                if (resistivity!=viscosity)
+                {
+                    delete StabMass;
+                    StabMass = new ParBilinearForm(&fespace);
+                    StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, viscosity, velocity));
+                    StabMass->Assemble(); 
+                    StabMass->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                    StabMass->Finalize();
+                    delete MatStabMass;
+                    MatStabMass=StabMass->ParallelAssemble();
+
+                    delete StabNv;
+                    StabNv = new ParBilinearForm(&fespace);
+                    StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, viscosity, velocity));
+                    StabNv->Assemble(); 
+                    StabNv->EliminateEssentialBC(ess_bdr, Matrix::DIAG_ZERO);
+                    StabNv->Finalize();
+                    delete MatStabNv;
+                    MatStabNv=StabNv->ParallelAssemble();
+
+                    delete MatStabSum;
+                    MatStabSum=Add(1./dt, *MatStabMass, 1., *MatStabNv);
+                }
+
+                tmp=ParAdd(AReFull, MatStabSum);
+
+                delete MatStabMass;
+                delete MatStabNv;
+                delete MatStabSum;
+                delete AReFull;
+                AReFull=tmp;
+           }
 
            //VERSION0: same as Luis's preconditioner
            AReFull->GetDiag(*ARed);
@@ -1572,6 +1628,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    if(usefd || usesupg)
    {
      //first compute an auxilary variable of z3=-∆w (z3=M^-1 KB * w)
+     //here z2=(wNew-w)/dt-nu*∆wNew
      KBMat.Mult(wNew, z2);
      M_solver2->Mult(z2, z3);
      add(zdiff, viscosity, z3, z2);
