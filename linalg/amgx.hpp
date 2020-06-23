@@ -55,6 +55,8 @@ private:
    AMGX_vector_handle x{nullptr}, b{nullptr};
    AMGX_solver_handle solver{nullptr};
 
+
+   SparseMatrix * spop;
    AMGX_config_handle  cfg;
 
    static AMGX_resources_handle   rsrc;
@@ -80,9 +82,15 @@ public:
    void Init(const MPI_Comm &comm,
              const std::string &modeStr, const std::string &cfgFile);
 
+   void Init(const std::string &modeStr, const std::string &cfgFile);
+
    void SetA(const HypreParMatrix &A);
 
+   void SetA(const Operator& op);
+  
    void Solve(Vector &x, Vector &b);
+
+   void Mult(Vector &b, Vector &x);
 
    //Destructor
    ~NvidiaAMGX();

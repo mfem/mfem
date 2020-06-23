@@ -72,6 +72,18 @@ void NvidiaAMGX::Init(const MPI_Comm &comm,
    isEnabled = true;
 }
 
+void NvidiaAMGX::Init(const std::string &modeStr, const std::string &cfgFile)
+{
+   if (modeStr == "dDDI") { amgx_mode = AMGX_mode_dDDI;}
+   else { mfem_error("dDDI only supported \n");}  
+   AMGX_SAFE_CALL(AMGX_initialize());
+   AMGX_SAFE_CALL(AMGX_initialize_plugins());
+   AMGX_SAFE_CALL(AMGX_install_signal_handler());
+   AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, cfgFile.c_str()));
+   isEnabled = true;
+   
+}
+
 void NvidiaAMGX::GetLocalA(const HypreParMatrix &in_A,
                            Array<HYPRE_Int> &I, Array<int64_t> &J, Array<double> &Data)
 {
@@ -200,6 +212,38 @@ void NvidiaAMGX::SetA(const HypreParMatrix &in_A)
    AMGX_vector_bind(b, A);
 }
 
+
+void NvidiaAMGX::SetA(const Operator& op)
+{
+   amgx_mode = AMGX_mode_dDDI;
+
+   std::cout << "0\n";
+   AMGX_resources_create_simple(&rsrc, cfg);
+   AMGX_vector_create(&x, rsrc, amgx_mode);
+   std::cout << "1\n";
+   AMGX_vector_create(&b, rsrc, amgx_mode);
+   std::cout << "2\n";
+   AMGX_matrix_create(&A, rsrc, amgx_mode);
+   std::cout << "3\n";
+   AMGX_solver_create(&solver, rsrc, amgx_mode, cfg);
+   std::cout << "4\n";
+
+
+	spop = const_cast<SparseMatrix*>(dynamic_cast<const SparseMatrix*>(&op));
+	MFEM_VERIFY(spop, "operator is not of correct type!");
+
+	AMGX_matrix_upload_all(A, spop->Height(),
+				spop->NumNonZeroElems(),
+				1, 1,
+				spop->ReadWriteI(),
+				spop->ReadWriteJ(),
+				spop->ReadWriteData(), NULL);
+
+	AMGX_solver_setup(solver, A); 
+
+}
+
+
 void NvidiaAMGX::Solve(Vector &in_x, Vector &in_b)
 {
 
@@ -227,6 +271,29 @@ void NvidiaAMGX::Solve(Vector &in_x, Vector &in_b)
    AMGX_unpin_memory(in_x.HostReadWrite());
    AMGX_unpin_memory(in_b.HostReadWrite());
 }
+
+
+void NvidiaAMGX::Mult(Vector &in_b, Vector &in_x)
+{
+
+   //Upload vectors to amgx
+   AMGX_pin_memory(in_x.HostReadWrite(), in_x.Size()*sizeof(double));
+   AMGX_pin_memory(in_b.HostReadWrite(), in_b.Size()*sizeof(double));
+
+   AMGX_vector_upload(x, in_x.Size(), 1, in_x.HostReadWrite());
+
+   AMGX_vector_upload(b, in_b.Size(), 1, in_b.HostReadWrite());
+   
+   AMGX_solver_solve(solver, b, x);
+
+   AMGX_vector_download(x, in_x.HostWrite());
+   
+   AMGX_unpin_memory(in_x.HostReadWrite());
+   AMGX_unpin_memory(in_b.HostReadWrite());
+}
+
+
+
 
 NvidiaAMGX::~NvidiaAMGX()
 {
