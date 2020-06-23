@@ -18,6 +18,8 @@
 
 #include "../config/config.hpp"
 
+#ifdef MFEM_USE_ADIOS2
+
 #include <map>
 #include <memory>  // std::unique_ptr
 #include <string>
@@ -229,5 +231,7 @@ private:
 };
 
 }  // end namespace mfem
+
+#endif // MFEM_USE_ADIOS2
 
 #endif /* MFEM_ADIOS2STREAM */
