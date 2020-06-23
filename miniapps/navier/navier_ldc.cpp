@@ -205,7 +205,8 @@ int main(int argc, char *argv[])
    p_gf = naviersolver.GetCurrentPressure();
 
    ParaViewDataCollection pvdc("ldc_output", pmesh);
-   pvdc.SetDataFormat(VTKFormat::BINARY32);
+   //pvdc.SetDataFormat(VTKFormat::BINARY32);
+   pvdc.SetDataFormat(VTKFormat::ASCII);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);
    pvdc.SetCycle(0);
