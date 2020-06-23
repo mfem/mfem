@@ -15,7 +15,7 @@ add_mfem_miniapp(cvsRoberts_ASAi_dns
 
 
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(advection_diffusion
+  add_mfem_miniapp(adjoint_advection_diffusion
     MAIN advection_diffusion.cpp
     LIBRARIES mfem mfem-common)
 endif()
