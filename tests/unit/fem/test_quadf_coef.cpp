@@ -164,7 +164,7 @@ TEST_CASE("Quadrature Function Coefficients",
       {
          VisItDataCollection wdc("quadfun", &mesh);
 
-         wdc.SetPrefixPath("test_visit"); 
+         wdc.SetPrefixPath("test_visit");
          wdc.SetPrecision(precision);
 #ifdef MFEM_USE_ZLIB
          wdc.SetCompression(true);
@@ -183,10 +183,10 @@ TEST_CASE("Quadrature Function Coefficients",
          rdc.SetCompression(true);
 #endif
          rdc.Load(0);
-         QuadratureFunction *quadf_read = rdc.GetQField("qfc"); 
+         QuadratureFunction *quadf_read = rdc.GetQField("qfc");
          *quadf_read -= quadf_coeff;
 
-         // Check quadf_read vs quadf_coeff 
+         // Check quadf_read vs quadf_coeff
          REQUIRE(quadf_read->Size() == quadf_coeff.Size());
          REQUIRE(quadf_read->Norml2() < tol);
       }
@@ -199,7 +199,7 @@ TEST_CASE("Quadrature Function Coefficients",
       // Write
       {
          VisItDataCollection wdc("vquadfun", &mesh);
-         wdc.SetPrefixPath("test_visit"); 
+         wdc.SetPrefixPath("test_visit");
          wdc.SetPrecision(precision);
 #ifdef MFEM_USE_ZLIB
          wdc.SetCompression(true);
@@ -216,10 +216,10 @@ TEST_CASE("Quadrature Function Coefficients",
          rdc.SetCompression(true);
 #endif
          rdc.Load(0);
-         QuadratureFunction *quadf_read = rdc.GetQField("qfc"); 
+         QuadratureFunction *quadf_read = rdc.GetQField("qfc");
          *quadf_read -= quadf_vcoeff;
 
-         // Check quadf_read vs quadf_vcoeff 
+         // Check quadf_read vs quadf_vcoeff
          REQUIRE(quadf_read->Size() == quadf_vcoeff.Size());
          REQUIRE(quadf_read->Norml2() < tol);
       }
