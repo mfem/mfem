@@ -333,6 +333,11 @@ double AnalyticalSolutionAdv(const Vector &x, double t)
 
          return abs(r - 0.3) < 0.1 ? 1. : ( (abs(r-0.7) < 0.2) ? (c*exp(-1./(r-0.5))*exp(1./(r-0.9))) : 0. );
       }
+      case 5:
+      {
+         // TODO implement properly
+         return abs(x(0)-0.25) <= 0.15 ? 0.5*(1.+cos(M_PI*(x(0)-0.25)/0.15)) : 0.;
+      }
       default:
          MFEM_ABORT("No such test case implemented.");
    }

@@ -1,5 +1,4 @@
-# EXEC="mpirun -np 7 phypsys"
-EXEC="./hypsys"
+EXEC="mpirun -np 7 phypsys"
 
 SCHEME=0
 MESH=data/periodic-segment.mesh
@@ -19,12 +18,18 @@ $EXEC $CONFIG -e $SCHEME -o 7 -r 3
 rm errors.txt
 
 SCHEME=1
-ORDER=1
-CONFIG="-p 0 -c 3 -vs 1000 -tf 1 -s 3 -dt 0.0004 -m $MESH -o $ORDER -e $SCHEME"
+# MESH0=data/periodic-3segment.mesh
+# ORDER=1 # -dt 0.0004
+# # ORDER=2 # -dt 0.00025
+# # ORDER=3 # -dt 0.0001
+# # ORDER=4 # -dt 0.00005
+# CONFIG0="-p 0 -c 3 -vs 1000 -tf 1 -s 3 -dt 0.0001 -m $MESH0 -o $ORDER -e $SCHEME"
+# CONFIG1="-p 0 -c 3 -vs 1000 -tf 1 -s 3 -dt 0.0001 -m $MESH -o $ORDER -e $SCHEME"
 
-# $EXEC $CONFIG -r 2
-# $EXEC $CONFIG -r 3
-# $EXEC $CONFIG -r 4
-# $EXEC $CONFIG -r 5
-# $EXEC $CONFIG -r 6
-# $EXEC $CONFIG -r 7
+# $EXEC $CONFIG0 -r 4
+# $EXEC $CONFIG1 -r 4
+# $EXEC $CONFIG0 -r 5
+# $EXEC $CONFIG1 -r 5
+# $EXEC $CONFIG0 -r 6
+# $EXEC $CONFIG1 -r 6
+# $EXEC $CONFIG0 -r 7

@@ -689,8 +689,8 @@ b = -std::numeric_limits<double>::infinity();
 
          for (int j = 0; j < dofs.NumFaceDofs; j++)
          {
-            a(0) = min(a(0), ufi(j,0));
-            b(0) = max(b(0), ufi(j,0));
+            a(0) = min(a(0), ufi(j,0)/sif(j));
+            b(0) = max(b(0), ufi(j,0)/sif(j));
 
             for (int n = 1; n < hyp->NumEq; n++)
             {
